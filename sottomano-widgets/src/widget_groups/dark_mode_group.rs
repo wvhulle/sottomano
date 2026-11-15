@@ -32,7 +32,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
         widget_group_content::{
@@ -42,8 +42,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::CommandOutcome,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::CommandOutcome,
         weather_icons::WeatherIcon,
     },
 };
@@ -332,16 +332,16 @@ impl DarkModeGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: DarkModeTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: DarkModeTarget, clock: Clock) -> Vec<Section> {
         match target {
             DarkModeTarget::Mode => self.mode_toggle.hover_card(clock),
-            DarkModeTarget::Schedule => Some(self.auto_switch_toggle.schedule_hover_card(clock)),
-            DarkModeTarget::SunriseOffset => Some(self.offset_slider_hover_card(ColorMode::Light)),
-            DarkModeTarget::SunsetOffset => Some(self.offset_slider_hover_card(ColorMode::Dark)),
+            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_hover_card(clock),
+            DarkModeTarget::SunriseOffset => self.offset_slider_hover_card(ColorMode::Light),
+            DarkModeTarget::SunsetOffset => self.offset_slider_hover_card(ColorMode::Dark),
         }
     }
 
-    fn offset_slider_hover_card(&self, edge: ColorMode) -> HoverCard {
+    fn offset_slider_hover_card(&self, edge: ColorMode) -> Vec<Section> {
         self.offset_slider_for(edge)
             .readout_hover_card(format!("{} offset", edge.sun_event_label()))
     }

@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -54,7 +54,7 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
         self.limit.as_ref().map(|_| self.used_share)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let (status, reason) = match &self.status {
             ExtraStatus::Enabled => ("enabled", None),
             ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
@@ -65,17 +65,19 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
                 LabeledValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
             ]
         });
-        HoverCardBody::sections([Section::dictionary(
-            [LabeledValue::new("Status", status)]
-                .into_iter()
-                .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))
-                .chain([LabeledValue::new(
-                    "Used This Month",
-                    Quantity::spend(self.used),
-                )])
-                .chain(limit_entries),
-        )
-        .titled("Usage Credits")])
+        vec![Section::new(
+            "Usage Credits",
+            dictionary_table(
+                [LabeledValue::new("Status", status)]
+                    .into_iter()
+                    .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))
+                    .chain([LabeledValue::new(
+                        "Used This Month",
+                        Quantity::spend(self.used),
+                    )])
+                    .chain(limit_entries),
+            ),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
@@ -93,10 +95,13 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
 
 impl ReadingSections for ClaudeOrganization {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary([
-            LabeledValue::new("Organization", self.organization.as_str()),
-            LabeledValue::new("Seat Tier", self.seat_tier.as_str()),
-            LabeledValue::new("Subscription Status", self.subscription_status.as_str()),
-        ])]
+        vec![Section::new(
+            "Subscription",
+            dictionary_table([
+                LabeledValue::new("Organization", self.organization.as_str()),
+                LabeledValue::new("Seat Tier", self.seat_tier.as_str()),
+                LabeledValue::new("Subscription Status", self.subscription_status.as_str()),
+            ]),
+        )]
     }
 }

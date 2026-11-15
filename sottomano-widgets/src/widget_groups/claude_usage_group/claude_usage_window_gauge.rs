@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -49,7 +49,7 @@ impl GroupItemReading for ClaudeUsageWindows {
         Some(self.fullest_window_used())
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.utc();
         let sonnet = self.sonnet.as_ref().map(|sonnet| {
             window_section(
@@ -59,25 +59,27 @@ impl GroupItemReading for ClaudeUsageWindows {
                 now,
             )
         });
-        HoverCardBody::sections(
-            [
-                Section::dictionary(
+        [
+            Section::new(
+                "Subscription",
+                dictionary_table(
                     self.plan
                         .as_deref()
                         .map(|plan| LabeledValue::new("Plan", plan)),
                 ),
-                window_section(
-                    "Session",
-                    &self.session,
-                    self.session_quota(now).as_ref(),
-                    now,
-                ),
-                window_section("Weekly", &self.weekly, self.weekly_quota(now).as_ref(), now),
-            ]
-            .into_iter()
-            .chain(sonnet)
-            .chain([extra_section(self.extra.as_ref())]),
-        )
+            ),
+            window_section(
+                "Session",
+                &self.session,
+                self.session_quota(now).as_ref(),
+                now,
+            ),
+            window_section("Weekly", &self.weekly, self.weekly_quota(now).as_ref(), now),
+        ]
+        .into_iter()
+        .chain(sonnet)
+        .chain([extra_section(self.extra.as_ref())])
+        .collect::<Vec<_>>()
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
@@ -110,7 +112,10 @@ fn window_section(
     let resets = window
         .resets_at
         .map(|at| LabeledValue::new("Resets In", ValueCell::duration(at - now)));
-    Section::dictionary(once(used).chain(pace_entry).chain(resets)).titled(title)
+    Section::new(
+        title,
+        dictionary_table(once(used).chain(pace_entry).chain(resets)),
+    )
 }
 
 fn extra_section(extra: Option<&ExtraUsage>) -> Section {
@@ -135,5 +140,5 @@ fn extra_section(extra: Option<&ExtraUsage>) -> Section {
         .into_iter()
         .flatten()
     });
-    Section::dictionary(entries).titled("Extra Usage")
+    Section::new("Extra Usage", dictionary_table(entries))
 }

@@ -14,7 +14,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
         journal_events_group::{
             JournalEventsInteraction, JournalScopeGroup, JournalTarget, MESSAGE_CAP,
@@ -93,20 +93,22 @@ impl GroupItemReading for ServiceErrors {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Latest"),
-                ColumnHeading::titled("Count"),
-                ColumnHeading::titled("Message").align_x(Horizontal::Left),
-            ],
-            self.by_unit_oldest_first.iter(),
-        )
-        .titled((
-            "Service errors",
-            "Journal entries at err or worse from .service units in the last hour, newest message \
-             per service.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Service errors",
+                "Journal entries at err or worse from .service units in the last hour, newest \
+                 message per service.",
+            ),
+            headed_table(
+                [
+                    ColumnHeading::titled("Latest"),
+                    ColumnHeading::titled("Count"),
+                    ColumnHeading::titled("Message").align_x(Horizontal::Left),
+                ],
+                self.by_unit_oldest_first.iter(),
+            ),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

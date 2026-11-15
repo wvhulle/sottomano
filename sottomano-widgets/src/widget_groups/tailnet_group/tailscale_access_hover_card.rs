@@ -20,7 +20,9 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{
+        ReadingSections, Section, SectionWidget, dictionary_table, headed_table,
+    },
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -69,14 +71,20 @@ impl GroupItemReading for OwnNodeRow<'_> {
         ReadingDisplayState::Idle
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary([
-                LabeledValue::new("Machine", self.tailnet.own_node.name.as_str()),
-                LabeledValue::new("Tags", self.own_tags_text()),
-            ]),
-            Section::detailed_note("Capabilities", self.tailnet.own_capabilities.join(", ")),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Identity",
+                dictionary_table([
+                    LabeledValue::new("Machine", self.tailnet.own_node.name.as_str()),
+                    LabeledValue::new("Tags", self.own_tags_text()),
+                ]),
+            ),
+            Section::new(
+                "Capabilities",
+                SectionWidget::paragraph(self.tailnet.own_capabilities.join(", ")),
+            ),
+        ]
     }
 }
 
@@ -91,8 +99,8 @@ impl GroupItemReading for InboundAccessRow {
         Phosphor::ArrowsInSimple(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -107,8 +115,8 @@ impl GroupItemReading for PolicyFileRow {
         Phosphor::Scroll(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -194,11 +202,13 @@ fn this_machine_section(rules: &[InboundAccessRule]) -> Option<Section> {
         (rule.destination == InboundDestination::ThisMachine).then(|| rule.source_name.clone())
     });
     (!access_by_source.is_empty()).then(|| {
-        Section::column_table(
-            [ColumnHeading::titled("Ports").align_x(Horizontal::Left)],
-            granted_access_rows(&access_by_source),
+        Section::new(
+            "This machine",
+            headed_table(
+                [ColumnHeading::titled("Ports").align_x(Horizontal::Left)],
+                granted_access_rows(&access_by_source),
+            ),
         )
-        .titled("This machine")
     })
 }
 
@@ -211,14 +221,16 @@ fn destination_section(
         destination_name_of(&rule.destination).cloned()
     });
     (!access_by_destination.is_empty()).then(|| {
-        Section::column_table(
-            [
-                ColumnHeading::titled("Ports").align_x(Horizontal::Left),
-                ColumnHeading::titled("From").align_x(Horizontal::Left),
-            ],
-            granted_access_rows(&access_by_destination),
+        Section::new(
+            title,
+            headed_table(
+                [
+                    ColumnHeading::titled("Ports").align_x(Horizontal::Left),
+                    ColumnHeading::titled("From").align_x(Horizontal::Left),
+                ],
+                granted_access_rows(&access_by_destination),
+            ),
         )
-        .titled(title)
     })
 }
 
@@ -229,8 +241,10 @@ fn exit_node_section(rules: &[InboundAccessRule]) -> Option<Section> {
         .map(|rule| rule.source_name.as_str())
         .collect();
     (!exit_node_users.is_empty()).then(|| {
-        Section::note(exit_node_users.into_iter().collect::<Vec<_>>().join(", "))
-            .titled("Exit node used by")
+        Section::new(
+            "Exit node used by",
+            SectionWidget::paragraph(exit_node_users.into_iter().collect::<Vec<_>>().join(", ")),
+        )
     })
 }
 
@@ -299,30 +313,34 @@ impl IntoTableRecord<3> for &PolicySshRule {
 
 fn policy_rule_section(title: &'static str, rules: &[PolicyRule]) -> Option<Section> {
     (!rules.is_empty()).then(|| {
-        Section::column_table(
-            [
-                ColumnHeading::titled("Destination").align_x(Horizontal::Left),
-                ColumnHeading::titled("Permits").align_x(Horizontal::Left),
-                ColumnHeading::titled("Via").align_x(Horizontal::Left),
-            ],
-            rules,
+        Section::new(
+            title,
+            headed_table(
+                [
+                    ColumnHeading::titled("Destination").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Permits").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Via").align_x(Horizontal::Left),
+                ],
+                rules,
+            )
+            .without_blank_columns(ValueCell::is_blank),
         )
-        .without_blank_columns()
-        .titled(title)
     })
 }
 
 fn policy_ssh_section(ssh_rules: &[PolicySshRule]) -> Option<Section> {
     (!ssh_rules.is_empty()).then(|| {
-        Section::column_table(
-            [
-                ColumnHeading::titled("Destination").align_x(Horizontal::Left),
-                ColumnHeading::titled("Users").align_x(Horizontal::Left),
-                ColumnHeading::titled("Action").align_x(Horizontal::Left),
-            ],
-            ssh_rules,
+        Section::new(
+            "SSH",
+            headed_table(
+                [
+                    ColumnHeading::titled("Destination").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Users").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Action").align_x(Horizontal::Left),
+                ],
+                ssh_rules,
+            ),
         )
-        .titled("SSH")
     })
 }
 
@@ -334,8 +352,9 @@ impl ReadingSections for TailscalePolicyFile {
                 self.exit_node_auto_approvers.join(", "),
             )
         });
-        let summary_section =
-            Section::dictionary(
+        let summary_section = Section::new(
+            "Administration",
+            dictionary_table(
                 exit_node_approvers_entry
                     .into_iter()
                     .chain([LabeledValue::new(
@@ -346,7 +365,8 @@ impl ReadingSections for TailscalePolicyFile {
                             glyph: SimpleIcon::Tailscale.into(),
                         },
                     )]),
-            );
+            ),
+        );
         [
             policy_rule_section("Grants", &self.grant_rules),
             policy_rule_section("ACLs", &self.acl_rules),
@@ -385,8 +405,7 @@ mod tests {
         access
             .sections(Clock::real())
             .iter()
-            .filter_map(Section::title)
-            .map(str::to_owned)
+            .map(|section| section.title().text().to_owned())
             .collect()
     }
 

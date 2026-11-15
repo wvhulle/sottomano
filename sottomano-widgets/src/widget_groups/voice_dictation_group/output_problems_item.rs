@@ -11,7 +11,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -52,8 +52,11 @@ impl GroupItemReading for NotulistOutputProblems {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.problems.iter().map(output_problem_section))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        self.problems
+            .iter()
+            .map(output_problem_section)
+            .collect::<Vec<_>>()
     }
 }
 
@@ -67,8 +70,10 @@ const fn output_problem_label(problem: &OutputProblem) -> &'static str {
 }
 
 fn output_problem_section(problem: &OutputProblem) -> Section {
-    Section::dictionary([LabeledValue::new("Details", problem.to_string())])
-        .titled(output_problem_label(problem))
+    Section::new(
+        output_problem_label(problem),
+        dictionary_table([LabeledValue::new("Details", problem.to_string())]),
+    )
 }
 
 #[cfg(test)]
@@ -112,15 +117,15 @@ mod tests {
                 VirtualKeyboardError::VirtualKeyboardProtocolNotOffered,
             ),
         ];
-        let titles: Vec<Option<String>> = problems
+        let titles: Vec<String> = problems
             .iter()
-            .map(|problem| output_problem_section(problem).title().map(str::to_owned))
+            .map(|problem| output_problem_section(problem).title().text().to_owned())
             .collect();
         assert_eq!(
             titles,
             [
-                Some("Seat taken".to_owned()),
-                Some("Virtual keyboard failed".to_owned())
+                "Seat taken".to_owned(),
+                "Virtual keyboard failed".to_owned()
             ]
         );
     }

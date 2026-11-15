@@ -8,7 +8,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -37,7 +37,10 @@ impl GroupItemReading for GpuSnapshot {
         Some(self.load)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("GPU", Quantity::share(self.load))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Load",
+            dictionary_table([LabeledValue::new("GPU", Quantity::share(self.load))]),
+        )]
     }
 }

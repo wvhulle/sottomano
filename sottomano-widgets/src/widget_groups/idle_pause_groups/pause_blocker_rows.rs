@@ -18,7 +18,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         idle::ActionTrigger,
@@ -47,23 +47,23 @@ impl BlockerCause {
     fn section_heading(self) -> (&'static str, &'static str) {
         match self {
             BlockerCause::KernelSecretMemory => (
-                "Hibernate",
+                "Kernel",
                 "The kernel disables hibernation while these apps hold secret memory.",
             ),
             BlockerCause::KernelBootFlag => (
-                "Hibernate",
+                "Kernel",
                 "The kernel disables hibernation because of how it was booted.",
             ),
             BlockerCause::KernelLockdown => (
-                "Hibernate",
+                "Kernel",
                 "The kernel disables hibernation while lockdown is active.",
             ),
             BlockerCause::KernelUnidentified => (
-                "Hibernate",
+                "Kernel",
                 "Disabled by the kernel. No boot flag, lockdown or secret memory was found.",
             ),
             BlockerCause::KernelUninspected => (
-                "Hibernate",
+                "Kernel",
                 "Disabled by the kernel. Enable the NixOS module to see which app caused it.",
             ),
             BlockerCause::LogindRefusal => ("Sleep state", "As answered by logind."),
@@ -156,8 +156,8 @@ impl GroupItemReading for PauseBlocker {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(blocker_sections(once(self)))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        blocker_sections(once(self)).into_iter().collect::<Vec<_>>()
     }
 }
 
@@ -209,8 +209,8 @@ impl GroupItemReading for NextSleepStateRow {
         Some("will run".to_owned())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -243,8 +243,8 @@ impl GroupItemReading for ScheduledShutdownRow<'_> {
         ReadingDisplayState::Warning
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -265,8 +265,8 @@ pub(super) fn blocker_sections<'a>(
                 .iter()
                 .copied()
                 .filter(|blocker| blocker.cause == cause);
-            let section = if cause == BlockerCause::KernelSecretMemory {
-                Section::column_table(
+            let blocker_table = if cause == BlockerCause::KernelSecretMemory {
+                headed_table(
                     [
                         ColumnHeading::titled("PID"),
                         ColumnHeading::titled("Window").align_x(Horizontal::Left),
@@ -274,12 +274,13 @@ pub(super) fn blocker_sections<'a>(
                     rows.map(SecretMemoryHolderRecord),
                 )
             } else {
-                Section::column_table(
+                headed_table(
                     [ColumnHeading::titled("Why").align_x(Horizontal::Left)],
                     rows,
                 )
             };
-            section.titled(cause.section_heading())
+            let (heading, caption) = cause.section_heading();
+            Section::new(SectionTitle::captioned(heading, caption), blocker_table)
         })
         .collect()
 }
@@ -296,10 +297,13 @@ pub(super) fn sleep_state_sections(obstacles: &SleepObstacles) -> Vec<Section> {
             }
         }
     });
-    vec![Section::dictionary(rows).titled((
-        "What standby does now",
-        "logind runs the first available state in its configured order.",
-    ))]
+    vec![Section::new(
+        SectionTitle::captioned(
+            "What standby does now",
+            "logind runs the first available state in its configured order.",
+        ),
+        dictionary_table(rows),
+    )]
 }
 
 fn sleep_state_answer(

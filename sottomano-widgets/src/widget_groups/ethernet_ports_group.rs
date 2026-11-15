@@ -22,13 +22,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            Section,
-            hover_card_source_delivery::{HoverCard, SourcedSections},
-        },
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
@@ -228,7 +222,7 @@ impl EthernetPortsGroup {
         &self,
         port_name: &str,
         describe_port: impl Fn(&Port) -> Vec<Section>,
-    ) -> Option<SourcedSections> {
+    ) -> Vec<Section> {
         self.ethernet_details.sections_described_by(|details| {
             details
                 .ports
@@ -240,20 +234,22 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &EthernetPortTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &EthernetPortTarget, clock: Clock) -> Vec<Section> {
         let port_name = target.port_name();
-        let port_state = self.port_state_named(port_name)?;
+        let Some(port_state) = self.port_state_named(port_name) else {
+            return Vec::new();
+        };
         match target {
             EthernetPortTarget::Link { .. } => {
                 let link_reading = PortLinkReading {
                     port_state,
                     marking: self.port_marking(port_state),
                 };
-                Some(
-                    self.ethernet
-                        .hover_card_with(link_reading.hover_card(clock))?
-                        .with_groups(self.port_detail_sections(port_name, port_identity_sections)),
-                )
+                let mut sections = self
+                    .ethernet
+                    .hover_card_with(link_reading.hover_card(clock));
+                sections.extend(self.port_detail_sections(port_name, port_identity_sections));
+                sections
             }
             EthernetPortTarget::Connection { .. } => {
                 let link_details = self.port_detail_sections(port_name, |port| {
@@ -262,11 +258,11 @@ impl EthernetPortsGroup {
                         .map(link_detail_sections)
                         .unwrap_or_default()
                 });
-                Some(
-                    self.ethernet
-                        .hover_card_with(PortConnectionSwitch { port_state }.hover_card(clock))?
-                        .with_groups(link_details),
-                )
+                let mut sections = self
+                    .ethernet
+                    .hover_card_with(PortConnectionSwitch { port_state }.hover_card(clock));
+                sections.extend(link_details);
+                sections
             }
             EthernetPortTarget::Addresses { family, .. } => {
                 let address_details = self.port_detail_sections(port_name, |port| {
@@ -280,19 +276,14 @@ impl EthernetPortsGroup {
                 let router_details = self.gateway_latencies.sections_described_by(|latencies| {
                     family_router_sections(latencies, port_name, *family)
                 });
-                Some(HoverCard::grouped(
-                    address_details.into_iter().chain(router_details),
-                ))
+                address_details.into_iter().chain(router_details).collect()
             }
-            EthernetPortTarget::Dns { .. } => Some(HoverCard::grouped(self.port_detail_sections(
-                port_name,
-                |port| {
-                    port.link
-                        .as_ref()
-                        .map(|link| dns_server_sections(&link.dns))
-                        .unwrap_or_default()
-                },
-            ))),
+            EthernetPortTarget::Dns { .. } => self.port_detail_sections(port_name, |port| {
+                port.link
+                    .as_ref()
+                    .map(|link| dns_server_sections(&link.dns))
+                    .unwrap_or_default()
+            }),
         }
     }
 

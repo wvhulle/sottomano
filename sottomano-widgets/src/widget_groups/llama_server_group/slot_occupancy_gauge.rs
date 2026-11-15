@@ -9,7 +9,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -61,10 +61,13 @@ impl GroupItemReading for SlotOccupancy<'_> {
         ))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Processing", Quantity::count(self.busy())),
-            LabeledValue::new("Slots", Quantity::count(self.slots.len())),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Occupancy",
+            dictionary_table([
+                LabeledValue::new("Processing", Quantity::count(self.busy())),
+                LabeledValue::new("Slots", Quantity::count(self.slots.len())),
+            ]),
+        )]
     }
 }

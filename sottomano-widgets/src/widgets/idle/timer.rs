@@ -10,10 +10,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widgets::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
@@ -131,7 +128,7 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn hover_card(&self, clock: Clock) -> HoverCard {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.hover_card_of(
             timeout_at(self.control.expanding_slider.shown_value()),
             None,
@@ -145,7 +142,7 @@ impl IdleTimer {
         overrider: &'static str,
         timeout: Duration,
         clock: Clock,
-    ) -> HoverCard {
+    ) -> Vec<Section> {
         self.hover_card_of(Some(timeout), Some(overrider), clock)
     }
 
@@ -154,7 +151,7 @@ impl IdleTimer {
         timeout: Option<Duration>,
         overrider: Option<&'static str>,
         clock: Clock,
-    ) -> HoverCard {
+    ) -> Vec<Section> {
         let when = match timeout.filter(|_| self.availability == ActionAvailability::Available) {
             None if self.availability == ActionAvailability::Unavailable => {
                 LabeledValue::new("State", "unavailable")
@@ -177,8 +174,9 @@ impl IdleTimer {
         let overridden = overrider
             .zip(timeout)
             .map(|(overrider, timeout)| LabeledValue::new(overrider, ValueCell::duration(timeout)));
-        HoverCard::sourced(
-            HoverCardBody::dictionary(
+        vec![Section::new(
+            "Schedule",
+            dictionary_table(
                 [
                     when,
                     LabeledValue::new("Via", self.action.session_action().mechanism()),
@@ -186,8 +184,9 @@ impl IdleTimer {
                 .into_iter()
                 .chain(overridden),
             ),
-            DeliveryTiming::LivePush,
-        )
+        )]
+        .into_iter()
+        .collect()
     }
 
     #[must_use]

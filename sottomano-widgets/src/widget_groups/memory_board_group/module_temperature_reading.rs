@@ -7,7 +7,7 @@ use uom::si::f64::ThermodynamicTemperature;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -34,10 +34,10 @@ impl GroupItemReading for MemoryModuleTemperatureReading {
         Some(celsius_text(self.temperature))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::hardware_identity([LabeledValue::new(
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::hardware_identity([LabeledValue::new(
             self.bus_address.clone(),
             Quantity::temperature(self.temperature),
-        )])])
+        )])]
     }
 }

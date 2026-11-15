@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
     widgets::{
         icon_glyph::IconGlyph,
@@ -46,11 +46,14 @@ impl GroupItemReading for LocalTime {
         Some(LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale))
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let local = clock.local();
-        HoverCardBody::dictionary([
-            LabeledValue::new("UTC offset", local.format("%:z").to_string()),
-            LabeledValue::new("Unix time", local.timestamp().to_string()),
-        ])
+        vec![Section::new(
+            "Relative to UTC",
+            dictionary_table([
+                LabeledValue::new("UTC offset", local.format("%:z").to_string()),
+                LabeledValue::new("Unix time", local.timestamp().to_string()),
+            ]),
+        )]
     }
 }

@@ -747,4 +747,27 @@ mod tests {
             .collect();
         assert_eq!(clashes, Vec::new());
     }
+
+    #[test]
+    fn every_demo_card_titles_its_sections_apart_from_the_item_group_and_source() {
+        let config = Config::default();
+        let clock = Clock::real();
+        let clashes: Vec<(String, String, String)> = DEMOS
+            .iter()
+            .flat_map(|demo| {
+                let showcased_group = (demo.group)(clock);
+                showcased_group
+                    .group_contents(&config, clock)
+                    .iter()
+                    .flat_map(|group| {
+                        group.card_title_clashes(|target| {
+                            showcased_group.hover_card_for(target, &config, clock)
+                        })
+                    })
+                    .map(|clash| (demo.name.to_owned(), clash.item_name, clash.clashing_title))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(clashes, Vec::new());
+    }
 }

@@ -5,7 +5,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-        hover_card_surfaces::{CardSubstance, HoverEffect, ShownWidgetPresence},
+        hover_card_surfaces::{HoverEffect, ShownWidgetPresence},
         hover_card_transition::{CardRetention, Departed},
     },
     layer_surfaces::PanelEdge,
@@ -182,11 +182,8 @@ impl DesktopShell {
             tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?surface, "dropped: unknown surface");
             return None;
         };
-        let substance = self
-            .hover_content(target)
-            .map(|content| content.card_substance(announcement));
-        if substance != Some(CardSubstance::HasContent) {
-            tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?substance, "dropped: no card content");
+        if self.hover_content(target, announcement.clone()).is_none() {
+            tracing::trace!(target: HOVER_LOG_TARGET, ?target, "dropped: no card content");
             return None;
         }
         Some(PanelEdge {
@@ -200,11 +197,8 @@ impl DesktopShell {
     }
 
     fn hover_card_departure(&self) -> Option<Departed> {
-        let content = self
-            .hover_card
-            .target()
-            .and_then(|target| self.hover_content(target))?;
-        self.hover_card.departure(content)
+        self.hover_card
+            .departure(|target, announcement| self.hover_content(target, announcement))
     }
 
     pub fn dismiss_hover_card(&mut self) -> Task<Message> {

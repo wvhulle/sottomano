@@ -8,7 +8,7 @@ use uom::si::length::kilometer;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -80,77 +80,89 @@ impl GroupItemReading for Location {
         self.geo.place.as_ref().map(|place| place.name.clone())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let estimate = match &self.geo.origin {
             FixOrigin::Manual | FixOrigin::Pinned => None,
             FixOrigin::Estimated(estimate) => Some(estimate),
         };
         let position = self.geo.position;
-        let position_section = Section::dictionary([
-            LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
-            LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
-            LabeledValue::new("Source", self.geo.origin.to_string()),
-        ])
-        .titled("Position");
-        HoverCardBody::sections([
+        let position_section = Section::new(
+            "Position",
+            dictionary_table([
+                LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
+                LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
+                LabeledValue::new("Source", self.geo.origin.to_string()),
+            ]),
+        );
+        vec![
             place_section(self.geo.place.as_ref()),
             position_section,
             estimate_section(estimate),
             map_section(position),
-        ])
+        ]
     }
 }
 
 fn place_section(place: Option<&NearestPlace>) -> Section {
-    Section::dictionary(place.into_iter().flat_map(|place| {
-        [
-            LabeledValue::new("Name", place.name.as_str()),
-            LabeledValue::new("Country", place.country.as_str()),
-            LabeledValue::new(
-                "Distance",
-                Quantity::measured(place.distance.get::<kilometer>(), DisplayUnit::Kilometer, 2),
-            ),
-        ]
-    }))
-    .titled("Place")
+    Section::new(
+        "Place",
+        dictionary_table(place.into_iter().flat_map(|place| {
+            [
+                LabeledValue::new("Name", place.name.as_str()),
+                LabeledValue::new("Country", place.country.as_str()),
+                LabeledValue::new(
+                    "Distance",
+                    Quantity::measured(
+                        place.distance.get::<kilometer>(),
+                        DisplayUnit::Kilometer,
+                        2,
+                    ),
+                ),
+            ]
+        })),
+    )
 }
 
 fn estimate_section(estimate: Option<&BeaconDbEstimate>) -> Section {
-    Section::dictionary(estimate.into_iter().flat_map(|estimate| {
-        let observations = estimate.observations;
-        [
-            LabeledValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
-            LabeledValue::new(
-                "Access points",
-                format!(
-                    "{} seen, {} submitted",
-                    observations.access_points_seen, observations.access_points_submitted
+    Section::new(
+        SectionTitle::captioned("Estimate", "A Wi-Fi and cell fix through BeaconDB."),
+        dictionary_table(estimate.into_iter().flat_map(|estimate| {
+            let observations = estimate.observations;
+            [
+                LabeledValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
+                LabeledValue::new(
+                    "Access points",
+                    format!(
+                        "{} seen, {} submitted",
+                        observations.access_points_seen, observations.access_points_submitted
+                    ),
                 ),
-            ),
-            LabeledValue::new(
-                "Cells",
-                format!(
-                    "{} seen, {} submitted",
-                    observations.cells_seen, observations.cells_submitted
+                LabeledValue::new(
+                    "Cells",
+                    format!(
+                        "{} seen, {} submitted",
+                        observations.cells_seen, observations.cells_submitted
+                    ),
                 ),
-            ),
-        ]
-    }))
-    .titled(("Estimate", "A Wi-Fi and cell fix through BeaconDB."))
+            ]
+        })),
+    )
 }
 
 fn map_section(position: GeoCoordinates) -> Section {
     let latitude = position.latitude_degrees();
     let longitude = position.longitude_degrees();
-    Section::dictionary(MapService::ALL.map(|service| {
-        LabeledValue::new(
-            service.name(),
-            ValueCell::BrandedLink {
-                label: format!("{latitude:.5}, {longitude:.5}"),
-                url: service.url(position),
-                glyph: service.glyph(),
-            },
-        )
-    }))
-    .titled("Map")
+    Section::new(
+        "Map",
+        dictionary_table(MapService::ALL.map(|service| {
+            LabeledValue::new(
+                service.name(),
+                ValueCell::BrandedLink {
+                    label: format!("{latitude:.5}, {longitude:.5}"),
+                    url: service.url(position),
+                    glyph: service.glyph(),
+                },
+            )
+        })),
+    )
 }

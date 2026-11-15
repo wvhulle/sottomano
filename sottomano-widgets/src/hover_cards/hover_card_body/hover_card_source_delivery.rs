@@ -1,95 +1,23 @@
 use std::time::{Duration, Instant};
 
-use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::DeliveryCadence,
-};
+use sottomano_desktop_sources::delivery_cadence_drivers::DeliveryCadence;
 
-use super::{Heading, HoverCardBody, Section};
+use super::Section;
 use crate::{clock::Clock, hover_cards::HoverAnnouncement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceDelivery {
-    Delivered { delivery_timing: DeliveryTiming },
-    LiveUnlabelled,
-    AwaitingDelivery,
+pub struct DeliveryStamp {
+    pub cadence: DeliveryCadence,
+    pub delivered_at: Instant,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum GroupHeading {
-    Unheaded,
-    Source(Heading),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SourcedSections {
-    heading: GroupHeading,
-    delivery_state: SourceDelivery,
-    sections: Vec<Section>,
-}
-
-impl SourcedSections {
-    #[must_use]
-    pub fn delivered(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
-        Self {
-            heading: GroupHeading::Unheaded,
-            delivery_state: SourceDelivery::Delivered { delivery_timing },
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn live_unlabelled(body: HoverCardBody) -> Self {
-        Self {
-            heading: GroupHeading::Unheaded,
-            delivery_state: SourceDelivery::LiveUnlabelled,
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_delivered<S: SnapshotSource>(
-        body: HoverCardBody,
-        delivery_timing: DeliveryTiming,
-    ) -> Self {
-        Self {
-            heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SourceDelivery::Delivered { delivery_timing },
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_awaiting_delivery<S: SnapshotSource>(body: HoverCardBody) -> Self {
-        Self {
-            heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SourceDelivery::AwaitingDelivery,
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_heading(&self) -> Option<&Heading> {
-        match &self.heading {
-            GroupHeading::Source(heading) => Some(heading),
-            GroupHeading::Unheaded => None,
-        }
-    }
-
-    #[must_use]
-    pub fn delivery_state(&self) -> SourceDelivery {
-        self.delivery_state
-    }
-
-    pub fn filled_sections(&self) -> impl Iterator<Item = &Section> {
-        self.sections
-            .iter()
-            .filter(|section| !section.body.is_empty())
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.filled_sections().next().is_none()
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefreshDeadline {
+    DueAt {
+        refresh_period: Duration,
+        deadline: Instant,
+    },
+    NeverRefreshes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,175 +26,142 @@ pub enum SnapshotFreshness {
     PastPollPeriod,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeliveryTiming {
-    PeriodicPolling {
-        poll_period: Duration,
-        delivered_at: Instant,
-    },
-    LivePushWithRecheck {
-        recheck_period: Duration,
-        delivered_at: Instant,
-    },
-    LivePush,
-    SingleRead,
-}
-
-impl DeliveryTiming {
+impl DeliveryStamp {
     #[must_use]
-    pub fn from_snapshot_delivery<S: SnapshotSource>(
-        delivery: &SnapshotDelivery<S>,
-        clock: Clock,
-    ) -> Option<Self> {
-        match delivery {
-            SnapshotDelivery::SnapshotDelivered {
-                delivery_cadence, ..
-            } => Some(Self::from_delivery_cadence(*delivery_cadence, clock)),
-            SnapshotDelivery::SourceUnavailable
-            | SnapshotDelivery::InternetUnreachable(_)
-            | SnapshotDelivery::SnapshotUnchanged => None,
-        }
-    }
-
-    #[must_use]
-    pub fn from_delivery_cadence(delivery_cadence: DeliveryCadence, clock: Clock) -> Self {
-        match delivery_cadence {
-            DeliveryCadence::PeriodicPolling(polling) => DeliveryTiming::PeriodicPolling {
-                poll_period: polling.poll_period(),
-                delivered_at: clock.instant,
-            },
-            DeliveryCadence::LivePushWithRecheck(recheck) => DeliveryTiming::LivePushWithRecheck {
-                recheck_period: recheck.poll_period(),
-                delivered_at: clock.instant,
-            },
-            DeliveryCadence::LivePush => DeliveryTiming::LivePush,
-            DeliveryCadence::SingleRead => DeliveryTiming::SingleRead,
+    pub fn delivered(cadence: DeliveryCadence, clock: Clock) -> Self {
+        Self {
+            cadence,
+            delivered_at: clock.instant,
         }
     }
 
     #[must_use]
     pub fn redelivered(self, clock: Clock) -> Self {
-        match self {
-            DeliveryTiming::PeriodicPolling { poll_period, .. } => {
-                DeliveryTiming::PeriodicPolling {
-                    poll_period,
-                    delivered_at: clock.instant,
-                }
+        Self {
+            delivered_at: clock.instant,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn refresh_deadline(self) -> RefreshDeadline {
+        match self.cadence {
+            DeliveryCadence::PeriodicPolling(polling)
+            | DeliveryCadence::LivePushWithRecheck(polling) => RefreshDeadline::DueAt {
+                refresh_period: polling.poll_period(),
+                deadline: self.delivered_at + polling.poll_period(),
+            },
+            DeliveryCadence::LivePush | DeliveryCadence::SingleRead => {
+                RefreshDeadline::NeverRefreshes
             }
-            DeliveryTiming::LivePushWithRecheck { recheck_period, .. } => {
-                DeliveryTiming::LivePushWithRecheck {
-                    recheck_period,
-                    delivered_at: clock.instant,
-                }
-            }
-            DeliveryTiming::LivePush | DeliveryTiming::SingleRead => self,
         }
     }
 
     #[must_use]
     pub fn freshness_at(self, clock: Clock) -> SnapshotFreshness {
-        let (DeliveryTiming::PeriodicPolling {
-            poll_period: refresh_period,
-            delivered_at,
-        }
-        | DeliveryTiming::LivePushWithRecheck {
-            recheck_period: refresh_period,
-            delivered_at,
-        }) = self
-        else {
-            return SnapshotFreshness::Fresh;
-        };
-        if clock
-            .instant
-            .checked_duration_since(delivered_at)
-            .expect("a delivery is stamped no later than the clock that reads it")
-            >= refresh_period
-        {
-            SnapshotFreshness::PastPollPeriod
-        } else {
-            SnapshotFreshness::Fresh
+        match self.refresh_deadline() {
+            RefreshDeadline::DueAt { deadline, .. } if clock.instant >= deadline => {
+                SnapshotFreshness::PastPollPeriod
+            }
+            RefreshDeadline::DueAt { .. } | RefreshDeadline::NeverRefreshes => {
+                SnapshotFreshness::Fresh
+            }
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceDelivery {
+    Delivered(DeliveryStamp),
+    Loading,
+    Failed,
+    Offline,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionSource {
+    Local,
+    Snapshot {
+        source_name: &'static str,
+        delivery: SourceDelivery,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct HoverCard {
-    pub groups: Vec<SourcedSections>,
-    pub announcement: HoverAnnouncement,
+    sections: Vec<Section>,
+    announcement: HoverAnnouncement,
 }
 
 impl HoverCard {
-    #[must_use]
-    pub fn empty() -> Self {
-        Self::grouped([])
-    }
-
-    pub fn grouped(groups: impl IntoIterator<Item = SourcedSections>) -> Self {
-        Self {
-            groups: groups.into_iter().collect(),
-            announcement: HoverAnnouncement::default(),
+    pub fn new(
+        sections: impl IntoIterator<Item = Section>,
+        announcement: HoverAnnouncement,
+    ) -> Option<Self> {
+        let shown_sections: Vec<Section> = sections
+            .into_iter()
+            .chain(Section::press_actions(announcement.press_hints))
+            .filter(|section| !section.widget().is_empty())
+            .collect();
+        if shown_sections.is_empty() {
+            return None;
         }
+        Some(Self {
+            sections: shown_sections,
+            announcement,
+        })
+    }
+
+    pub fn sections(&self) -> impl Iterator<Item = &Section> {
+        self.sections.iter()
     }
 
     #[must_use]
-    pub fn sourced(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
-        Self::grouped([SourcedSections::delivered(body, delivery_timing)])
-    }
-
-    #[must_use]
-    pub fn live_unlabelled(body: HoverCardBody) -> Self {
-        Self::grouped([SourcedSections::live_unlabelled(body)])
-    }
-
-    #[must_use]
-    pub fn with_groups(mut self, extra: impl IntoIterator<Item = SourcedSections>) -> Self {
-        self.groups.extend(extra);
-        self
-    }
-
-    pub fn filled_groups(&self) -> impl Iterator<Item = &SourcedSections> {
-        self.groups.iter().filter(|group| !group.is_empty())
-    }
-
-    #[must_use]
-    pub fn with_announcement(mut self, announcement: HoverAnnouncement) -> Self {
-        self.announcement = announcement;
-        self
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.filled_groups().next().is_none()
+    pub fn announcement(&self) -> &HoverAnnouncement {
+        &self.announcement
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses;
+    use sottomano_desktop_sources::{
+        SnapshotSource, cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses,
+    };
 
     use super::*;
+    use crate::hover_cards::{PressHints, hover_card_body::SectionWidget};
 
     #[test]
-    fn a_seeding_section_keeps_its_group_visible() {
-        let hover_card = HoverCard::grouped([SourcedSections::source_awaiting_delivery::<
-            CpuBusyProcesses,
-        >(HoverCardBody::sections([
-            Section::section_seeding(),
-        ]))]);
-        assert_eq!(hover_card.filled_groups().count(), 1);
+    fn a_card_needs_a_shown_section() {
+        assert!(HoverCard::new([], HoverAnnouncement::default()).is_none());
     }
 
     #[test]
-    fn a_source_group_carries_its_source_title_and_caption() {
-        let headed = SourcedSections::source_delivered::<CpuBusyProcesses>(
-            HoverCardBody::sections([]),
-            DeliveryTiming::LivePush,
+    fn press_hints_alone_make_a_card() {
+        let announcement = HoverAnnouncement::from_reading(PressHints {
+            left: Some("switch something"),
+            ..PressHints::default()
+        });
+        let hover_card = HoverCard::new([], announcement).expect("an actions section");
+        assert_eq!(
+            hover_card
+                .sections()
+                .map(|section| section.title().text().to_owned())
+                .collect::<Vec<_>>(),
+            ["Actions"]
         );
-        let heading = headed.source_heading().unwrap();
-        assert_eq!(heading.title(), CpuBusyProcesses::NAME);
-        assert!(heading.caption().is_some());
-        let unheaded =
-            SourcedSections::delivered(HoverCardBody::sections([]), DeliveryTiming::LivePush);
-        assert!(unheaded.source_heading().is_none());
+    }
+
+    #[test]
+    fn a_sourced_section_names_its_source() {
+        let section = Section::new("Count", SectionWidget::paragraph("counted"))
+            .stamped_by::<CpuBusyProcesses>(SourceDelivery::Loading);
+        assert_eq!(
+            section.source(),
+            SectionSource::Snapshot {
+                source_name: CpuBusyProcesses::NAME,
+                delivery: SourceDelivery::Loading,
+            }
+        );
     }
 }

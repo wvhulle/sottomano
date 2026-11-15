@@ -7,7 +7,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
@@ -37,7 +37,7 @@ pub fn probe_window_severity(window: &ProbeWindow) -> Severity {
 }
 
 #[must_use]
-pub fn probe_window_section(window: &ProbeWindow) -> Section {
+pub fn probe_window_section(title: impl Into<SectionTitle>, window: &ProbeWindow) -> Section {
     let latest = match window.latest_outcome() {
         Some(ProbeOutcome::Answered(round_trip)) => Some(LabeledValue::new(
             "Latest",
@@ -49,16 +49,19 @@ pub fn probe_window_section(window: &ProbeWindow) -> Section {
     let median = window
         .median_round_trip()
         .map(|round_trip| LabeledValue::new("Median", Quantity::round_trip(round_trip)));
-    Section::dictionary(
-        [LabeledValue::new("Host", window.host.to_string())]
-            .into_iter()
-            .chain(latest)
-            .chain(median)
-            .chain([LabeledValue::new(
-                format!("Loss of last {}", window.outcomes.len()),
-                Quantity::share(window.loss_share()),
-            )
-            .level(probe_window_severity(window))]),
+    Section::new(
+        title,
+        dictionary_table(
+            [LabeledValue::new("Host", window.host.to_string())]
+                .into_iter()
+                .chain(latest)
+                .chain(median)
+                .chain([LabeledValue::new(
+                    format!("Loss of last {}", window.outcomes.len()),
+                    Quantity::share(window.loss_share()),
+                )
+                .level(probe_window_severity(window))]),
+        ),
     )
 }
 

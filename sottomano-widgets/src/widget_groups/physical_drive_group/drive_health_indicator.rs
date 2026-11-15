@@ -17,7 +17,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -55,7 +55,7 @@ impl GroupItemReading for DriveHealth {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let thresholds = self
             .temperature
             .current()
@@ -69,26 +69,31 @@ impl GroupItemReading for DriveHealth {
                 ValueCell::from("not reported by the drive")
             }
         };
-        let summary = Section::dictionary([
-            LabeledValue::new("Drive", self.device_name.as_str()),
-            LabeledValue::new("Temperature", temperature_cell),
-        ]);
-        let threshold_section =
-            Section::dictionary(thresholds.into_iter().flat_map(|thresholds| {
+        let summary = Section::new(
+            "Temperature",
+            dictionary_table([
+                LabeledValue::new("Drive", self.device_name.as_str()),
+                LabeledValue::new("Temperature", temperature_cell),
+            ]),
+        );
+        let threshold_section = Section::new(
+            "Thresholds",
+            dictionary_table(thresholds.into_iter().flat_map(|thresholds| {
                 [
                     LabeledValue::new("Warns above", Quantity::temperature(thresholds.warning)),
                     LabeledValue::new("Critical above", thresholds.critical_text()),
                 ]
+            })),
+        );
+        [summary, threshold_section, Section::from(&self.identity)]
+            .into_iter()
+            .chain(self.errors.iter().map(|errors| {
+                Section::new(
+                    format!("I/O errors on {}", errors.counted_on),
+                    dictionary_table(error_entries(errors)),
+                )
             }))
-            .titled("Thresholds");
-        HoverCardBody::sections(
-            [summary, threshold_section, Section::from(&self.identity)]
-                .into_iter()
-                .chain(self.errors.iter().map(|errors| {
-                    Section::dictionary(error_entries(errors))
-                        .titled(format!("I/O errors on {}", errors.counted_on))
-                })),
-        )
+            .collect()
     }
 }
 

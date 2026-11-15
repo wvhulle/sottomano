@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use super::{Section, SectionBody};
+use super::SectionWidget;
 use crate::widgets::{icon_handle::IconHandle, value_cells::LabeledValue};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,21 +60,29 @@ pub struct WorkspacePreview {
     pub app_window_layout: AppWindowLayout,
 }
 
-impl Section {
-    #[must_use]
-    pub fn workspace(preview: WorkspacePreview) -> Self {
-        Self::untitled(SectionBody::Workspace(preview))
+impl From<WorkspacePreview> for SectionWidget {
+    fn from(preview: WorkspacePreview) -> Self {
+        SectionWidget::drawn(move |card| card.workspace_schematic(&preview))
     }
-    pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
-        Self::untitled(SectionBody::CoreGrid(chiplets.into_iter().collect()))
+}
+
+impl From<ControllerCallouts> for SectionWidget {
+    fn from(diagram: ControllerCallouts) -> Self {
+        SectionWidget::drawn(move |card| card.controller_diagram(&diagram))
     }
-    pub fn controller_diagram(
-        model: ControllerModel,
-        callouts: impl IntoIterator<Item = DiagramCallout>,
-    ) -> Self {
-        Self::untitled(SectionBody::ControllerDiagram(ControllerCallouts {
-            model,
-            callouts: callouts.into_iter().collect(),
-        }))
-    }
+}
+
+pub fn core_grid_widget(chiplets: impl IntoIterator<Item = ChipletCells>) -> SectionWidget {
+    let chiplets: Vec<ChipletCells> = chiplets.into_iter().collect();
+    SectionWidget::drawn(move |card| card.core_grid(&chiplets))
+}
+
+pub fn controller_diagram_widget(
+    model: ControllerModel,
+    callouts: impl IntoIterator<Item = DiagramCallout>,
+) -> SectionWidget {
+    SectionWidget::from(ControllerCallouts {
+        model,
+        callouts: callouts.into_iter().collect(),
+    })
 }

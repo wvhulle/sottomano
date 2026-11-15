@@ -6,7 +6,7 @@ use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::Cp
 use crate::{
     clock::Clock,
     group_items::group_item_reading::{GroupItemReading, PanelVisibility},
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -41,7 +41,7 @@ impl GroupItemReading for CpuModel {
         self.architecture.microarchitecture.clone()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::from(self)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::from(self)]
     }
 }

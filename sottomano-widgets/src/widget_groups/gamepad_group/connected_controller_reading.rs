@@ -26,7 +26,8 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        HoverCardBody, Section, hover_card_figure_payloads::DiagramCallout,
+        Section, SectionWidget, dictionary_table,
+        hover_card_figure_payloads::{DiagramCallout, controller_diagram_widget},
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -74,12 +75,14 @@ impl ControllerMarking<'_> {
 
     fn numbering_note(self) -> Option<Section> {
         match self {
-            ControllerMarking::PlayerLights(_) => Some(Section::detailed_note(
+            ControllerMarking::PlayerLights(_) => Some(Section::new(
                 "Player numbered by the kernel",
-                "Assigned in the order the controllers connected, and shown on the controller's \
-                 lights. Games may number players differently, for example by who presses a \
-                 button first."
-                    .to_owned(),
+                SectionWidget::paragraph(
+                    "Assigned in the order the controllers connected, and shown on the \
+                     controller's lights. Games may number players differently, for example by \
+                     who presses a button first."
+                        .to_owned(),
+                ),
             )),
             ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
         }
@@ -202,7 +205,10 @@ impl ConnectedControllerReading<'_> {
                 ]
             },
         );
-        Section::dictionary(named.into_iter().chain(self.marking.player_rows()))
+        Section::new(
+            "Identity",
+            dictionary_table(named.into_iter().chain(self.marking.player_rows())),
+        )
     }
 
     fn bindings_section(&self) -> Section {
@@ -210,15 +216,17 @@ impl ConnectedControllerReading<'_> {
             LabeledValue::new("Sticks", "navigation and pointer share one stick")
                 .level(Severity::Warning)
         });
-        Section::dictionary(
-            [LabeledValue::new(
-                "Buttons go to",
-                self.control_description(),
-            )]
-            .into_iter()
-            .chain(shared_stick),
+        Section::new(
+            "Bindings",
+            dictionary_table(
+                [LabeledValue::new(
+                    "Buttons go to",
+                    self.control_description(),
+                )]
+                .into_iter()
+                .chain(shared_stick),
+            ),
         )
-        .titled("Bindings")
     }
 
     fn stick_callouts(&self) -> impl Iterator<Item = DiagramCallout> {
@@ -294,18 +302,20 @@ impl GroupItemReading for ConnectedControllerReading<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            once(self.identity_section())
-                .chain(self.marking.numbering_note())
-                .chain([
-                    self.bindings_section(),
-                    Section::controller_diagram(
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        once(self.identity_section())
+            .chain(self.marking.numbering_note())
+            .chain([
+                self.bindings_section(),
+                Section::new(
+                    "Layout",
+                    controller_diagram_widget(
                         self.family().controller_model(),
                         self.stick_callouts().chain(self.button_callouts()),
                     ),
-                ]),
-        )
+                ),
+            ])
+            .collect()
     }
 }
 

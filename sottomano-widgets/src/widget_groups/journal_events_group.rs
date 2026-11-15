@@ -21,7 +21,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::group_item_reading::PanelVisibility,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -246,7 +246,7 @@ impl JournalEventsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: JournalTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: JournalTarget, clock: Clock) -> Vec<Section> {
         match target {
             JournalTarget::Kernel => self.system_journal.kernel.hover_card(clock),
             JournalTarget::ServiceErrors(unit_scope) => self

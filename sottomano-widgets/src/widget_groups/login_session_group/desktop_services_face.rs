@@ -5,7 +5,7 @@ use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
@@ -25,15 +25,14 @@ impl GroupItemReading for DesktopServicesFace {
         Phosphor::ListChecks(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary([LabeledValue::new(
-            "Started by",
-            "systemd --user",
-        )])
-        .titled((
-            "Services that need the desktop",
-            "The panel, notifications and other services that need a running compositor.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Services that need the desktop",
+                "The panel, notifications and other services that need a running compositor.",
+            ),
+            dictionary_table([LabeledValue::new("Started by", "systemd --user")]),
+        )]
     }
 }
 
@@ -53,6 +52,6 @@ impl ReadingSections for GraphicalSessionTarget {
         ]
         .into_iter()
         .flatten();
-        vec![Section::dictionary(entries)]
+        vec![Section::new("Target state", dictionary_table(entries))]
     }
 }

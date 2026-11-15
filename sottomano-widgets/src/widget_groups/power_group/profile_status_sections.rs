@@ -5,7 +5,9 @@ use sottomano_desktop_sources::battery_power_profiles::power_profiles_daemon::{
 
 use crate::{
     clock::Clock,
-    hover_cards::hover_card_body::{ReadingSections, Section},
+    hover_cards::hover_card_body::{
+        ReadingSections, Section, SectionTitle, dictionary_table, headed_table,
+    },
     widgets::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         value_cells::LabeledValue,
@@ -29,16 +31,22 @@ impl IntoTableRecord<2> for &ProfileHold {
 impl ReadingSections for ProfileStatus {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         let held_by = (!self.holds.is_empty()).then(|| {
-            Section::column_table(HOLD_HEADINGS, self.holds.iter()).titled((
-                "Held by",
-                "Apps holding a profile until they finish; the slider follows them.",
-            ))
+            Section::new(
+                SectionTitle::captioned(
+                    "Held by",
+                    "Apps holding a profile until they finish; the slider follows them.",
+                ),
+                headed_table(HOLD_HEADINGS, self.holds.iter()),
+            )
         });
         let degraded = self.degraded.as_ref().map(|reason| {
-            Section::dictionary([LabeledValue::new("Reason", reason.clone())]).titled((
-                "Performance degraded",
-                "The daemon is throttling performance until this clears.",
-            ))
+            Section::new(
+                SectionTitle::captioned(
+                    "Performance degraded",
+                    "The daemon is throttling performance until this clears.",
+                ),
+                dictionary_table([LabeledValue::new("Reason", reason.clone())]),
+            )
         });
         [held_by, degraded].into_iter().flatten().collect()
     }

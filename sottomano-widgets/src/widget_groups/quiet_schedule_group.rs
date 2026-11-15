@@ -33,10 +33,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         quiet_schedule_group::{
@@ -471,40 +468,33 @@ impl QuietScheduleGroup {
         target: QuietScheduleTarget,
         locale: Locale,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         match target {
-            QuietScheduleTarget::DoNotDisturb => Some(HoverCard::sourced(
-                self.status_hover_card(clock),
-                DeliveryTiming::LivePush,
-            )),
+            QuietScheduleTarget::DoNotDisturb => self.status_hover_card(clock),
             QuietScheduleTarget::FollowSchedule => {
-                Some(self.follow_schedule_toggle().switch_hover_card(clock))
+                self.follow_schedule_toggle().switch_hover_card(clock)
             }
-            QuietScheduleTarget::Start => Some(self.start_slider.readout_hover_card("Quiet from")),
-            QuietScheduleTarget::End => Some(self.end_slider.readout_hover_card("Quiet until")),
-            QuietScheduleTarget::ScreenOff => Some(
-                self.screen_off_slider
-                    .readout_hover_card("Screen off while quiet"),
-            ),
-            QuietScheduleTarget::WorkingDays => Some(HoverCard::sourced(
-                HoverCardBody::sections([]),
-                DeliveryTiming::LivePush,
-            )),
+            QuietScheduleTarget::Start => self.start_slider.readout_hover_card("Quiet from"),
+            QuietScheduleTarget::End => self.end_slider.readout_hover_card("Quiet until"),
+            QuietScheduleTarget::ScreenOff => self
+                .screen_off_slider
+                .readout_hover_card("Screen off while quiet"),
+            QuietScheduleTarget::WorkingDays => Vec::new(),
             QuietScheduleTarget::WorkingDay(day) => {
                 let kind = if self.working_days().contains(day) {
                     "working day"
                 } else {
                     "day off"
                 };
-                Some(HoverCard::sourced(
-                    HoverCardBody::dictionary([LabeledValue::new(weekday_name(day, locale), kind)]),
-                    DeliveryTiming::LivePush,
-                ))
+                vec![Section::new(
+                    "Schedule",
+                    dictionary_table([LabeledValue::new(weekday_name(day, locale), kind)]),
+                )]
             }
         }
     }
 
-    fn status_hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn status_hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.local();
         let manual = self
             .manual_at(now)
@@ -525,7 +515,10 @@ impl QuietScheduleGroup {
                 LabeledValue::new("In", ValueCell::duration(at - now)),
             ]
         });
-        HoverCardBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))
+        vec![Section::new(
+            "Next change",
+            dictionary_table(manual.into_iter().chain(upcoming.into_iter().flatten())),
+        )]
     }
 
     pub fn group_content<'a>(

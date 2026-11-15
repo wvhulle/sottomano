@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -71,20 +71,23 @@ impl GroupItemReading for MemoryStallPressure {
         .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            STALL_WINDOW_HEADINGS,
-            [
-                StalledTasksRow {
-                    stalled_tasks: "Some tasks stalled",
-                    averages: self.some,
-                },
-                StalledTasksRow {
-                    stalled_tasks: "All tasks stalled",
-                    averages: self.full,
-                },
-            ],
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Averages",
+            headed_table(
+                STALL_WINDOW_HEADINGS,
+                [
+                    StalledTasksRow {
+                        stalled_tasks: "Some tasks stalled",
+                        averages: self.some,
+                    },
+                    StalledTasksRow {
+                        stalled_tasks: "All tasks stalled",
+                        averages: self.full,
+                    },
+                ],
+            ),
+        )]
     }
 }
 

@@ -19,7 +19,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -35,23 +35,27 @@ const FULL_CRITICAL_PERCENT: i64 = 90;
 
 impl ReadingSections for MemoryModuleTemperatures {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(self.modules.iter().map(|module| {
-            LabeledValue::new(
-                module.bus_address.clone(),
-                Quantity::temperature(module.temperature),
-            )
-        }))]
+        vec![Section::new(
+            "Modules",
+            dictionary_table(self.modules.iter().map(|module| {
+                LabeledValue::new(
+                    module.bus_address.clone(),
+                    Quantity::temperature(module.temperature),
+                )
+            })),
+        )]
     }
 }
 
 impl ReadingSections for MemoryProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().map(|process| {
+        vec![Section::new(
+            "Resident memory",
+            dictionary_table(self.processes.iter().map(|process| {
                 LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
             }))
             .truncated_to(LISTED_PROCESSES),
-        ]
+        )]
     }
 }
 
@@ -99,12 +103,15 @@ impl GroupItemReading for Memory {
         Some(percent_fill(self.percent()))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("RAM used", Quantity::share(percent_fill(self.percent()))),
-            LabeledValue::new("Used", Quantity::size(self.used)),
-            LabeledValue::new("Total", Quantity::size(self.total)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Usage",
+            dictionary_table([
+                LabeledValue::new("RAM used", Quantity::share(percent_fill(self.percent()))),
+                LabeledValue::new("Used", Quantity::size(self.used)),
+                LabeledValue::new("Total", Quantity::size(self.total)),
+            ]),
+        )]
     }
 }
 

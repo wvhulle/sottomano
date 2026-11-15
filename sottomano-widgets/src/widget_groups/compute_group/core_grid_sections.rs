@@ -3,8 +3,10 @@ use uom::si::information::mebibyte;
 
 use crate::{
     hover_cards::hover_card_body::{
-        Section,
-        hover_card_figure_payloads::{ChipletCells, PhysicalCoreCells, ThreadCell},
+        Section, SectionTitle,
+        hover_card_figure_payloads::{
+            ChipletCells, PhysicalCoreCells, ThreadCell, core_grid_widget,
+        },
     },
     widgets::value_cells::LabeledValue,
 };
@@ -29,37 +31,41 @@ impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
 
     pub fn section(
         &self,
-        title: impl Fn(&CoreGroup) -> String,
+        section_title: impl Into<SectionTitle>,
+        chiplet_title: impl Fn(&CoreGroup) -> String,
         facts: impl Fn(&CoreGroup, &[&Reading]) -> Vec<LabeledValue>,
     ) -> Section {
-        Section::core_grid(self.topology.core_groups().iter().filter_map(|group| {
-            let members = self.members(group);
-            let cores: Vec<PhysicalCoreCells> = group
-                .physical_cores()
-                .iter()
-                .map(|core| PhysicalCoreCells {
-                    threads: core
-                        .threads
-                        .iter()
-                        .filter_map(|thread| {
-                            members
-                                .iter()
-                                .find(|reading| reading.core_index() == *thread)
-                                .map(|reading| reading.thread_cell())
-                        })
+        Section::new(
+            section_title,
+            core_grid_widget(self.topology.core_groups().iter().filter_map(|group| {
+                let members = self.members(group);
+                let cores: Vec<PhysicalCoreCells> = group
+                    .physical_cores()
+                    .iter()
+                    .map(|core| PhysicalCoreCells {
+                        threads: core
+                            .threads
+                            .iter()
+                            .filter_map(|thread| {
+                                members
+                                    .iter()
+                                    .find(|reading| reading.core_index() == *thread)
+                                    .map(|reading| reading.thread_cell())
+                            })
+                            .collect(),
+                    })
+                    .filter(|core| !core.threads.is_empty())
+                    .collect();
+                (!cores.is_empty()).then(|| ChipletCells {
+                    title: chiplet_title(group),
+                    facts: topology_facts(group)
+                        .into_iter()
+                        .chain(facts(group, &members))
                         .collect(),
+                    cores,
                 })
-                .filter(|core| !core.threads.is_empty())
-                .collect();
-            (!cores.is_empty()).then(|| ChipletCells {
-                title: title(group),
-                facts: topology_facts(group)
-                    .into_iter()
-                    .chain(facts(group, &members))
-                    .collect(),
-                cores,
-            })
-        }))
+            })),
+        )
     }
 }
 

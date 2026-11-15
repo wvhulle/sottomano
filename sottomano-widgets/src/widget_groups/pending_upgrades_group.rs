@@ -2,7 +2,10 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
-use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
+use crate::{
+    hover_cards::hover_card_body::dictionary_table,
+    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight,
+};
 
 mod firmware_upgrade_list;
 
@@ -19,10 +22,7 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -30,8 +30,8 @@ use crate::{
         },
     },
     widgets::{
-        icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot, localized_quantities::Quantity,
-        phosphor::Phosphor, value_cells::LabeledValue,
+        icon_glyph::IconGlyph, localized_quantities::Quantity, phosphor::Phosphor,
+        subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
     },
 };
 
@@ -98,7 +98,7 @@ impl PendingUpgradesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Vec<Section> {
         match target {
             PendingUpgradesTarget::Firmware => self.firmware.hover_card(clock),
             PendingUpgradesTarget::Summary => self.firmware.hover_card_with(self.hover_card(clock)),
@@ -165,12 +165,15 @@ impl GroupItemReading for PendingUpgradesGroup {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
-            LabeledValue::new(
-                firmware_upgrade_list::LABEL,
-                Quantity::count(upgrades.len()),
-            )
-        }))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Count",
+            dictionary_table(self.firmware.visible_reading().map(|upgrades| {
+                LabeledValue::new(
+                    firmware_upgrade_list::LABEL,
+                    Quantity::count(upgrades.len()),
+                )
+            })),
+        )]
     }
 }

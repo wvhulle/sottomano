@@ -22,15 +22,15 @@ use crate::{
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
     widget_groups::media_group::karaoke_lyric_line::{
         INSTRUMENTAL_BREAK_MARK, KaraokeLyricLine, PlaybackPosition,
     },
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::ValueCell,
     },
 };
@@ -65,8 +65,8 @@ impl GroupItemReading for TrackLyrics {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([lyrics_section(self, Duration::ZERO)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![lyrics_section(self, Duration::ZERO)]
     }
 }
 
@@ -85,8 +85,19 @@ pub(super) fn lyrics_section(track_lyrics: &TrackLyrics, played: Duration) -> Se
             TrackLyrics::Instrumental => "LRCLIB lists this track as instrumental",
             TrackLyrics::Missing | TrackLyrics::Synced(_) => "LRCLIB has no lyrics for this track",
         };
-        return Section::note(lookup_outcome);
+        return Section::new("Lookup", SectionWidget::paragraph(lookup_outcome));
     };
+    Section::new(
+        "Lines",
+        synced_lyrics_table(track_lyrics, timed_lines, played),
+    )
+}
+
+fn synced_lyrics_table(
+    track_lyrics: &TrackLyrics,
+    timed_lines: &[TimedLyricLine],
+    played: Duration,
+) -> SectionTable {
     let current_index = track_lyrics.current_line_index(played);
     let upcoming_start = current_index.map_or(0, |index| index + 1);
     #[expect(
@@ -120,11 +131,10 @@ pub(super) fn lyrics_section(track_lyrics: &TrackLyrics, played: Duration) -> Se
         .take(LINES_AFTER_CURRENT)
         .map(|timed_line| lyric_record(timed_line, ValueCell::Hint))
         .collect();
-    Section::grouped_column_table(
+    headed_grouped_table(
         [ColumnHeading::untitled().align_x(Horizontal::Left)],
         [past_records, current_records, upcoming_records],
     )
-    .titled("Lyrics")
 }
 
 fn singing_line<'a>(
@@ -191,9 +201,7 @@ fn current_lyric_line<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        hover_cards::hover_card_body::SectionBody, widgets::keyed_record_table::KeyedTableRow,
-    };
+    use crate::widgets::keyed_record_table::KeyedTableRow;
 
     fn verse_lines() -> TrackLyrics {
         TrackLyrics::synced_from_lrc(
@@ -204,11 +212,11 @@ mod tests {
         )
     }
 
-    fn table_rows(section: &Section) -> Vec<&'static str> {
-        let SectionBody::ColumnTable(table) = section.body() else {
-            panic!("synced lyrics render as a table");
+    fn table_rows(track_lyrics: &TrackLyrics, played: Duration) -> Vec<&'static str> {
+        let TrackLyrics::Synced(timed_lines) = track_lyrics else {
+            panic!("test lyrics are synced");
         };
-        table
+        synced_lyrics_table(track_lyrics, timed_lines, played)
             .rows()
             .iter()
             .map(|table_row| match table_row {
@@ -220,9 +228,8 @@ mod tests {
 
     #[test]
     fn past_current_and_upcoming_lines_are_separated() {
-        let section = lyrics_section(&verse_lines(), Duration::from_secs(23));
         assert_eq!(
-            table_rows(&section),
+            table_rows(&verse_lines(), Duration::from_secs(23)),
             [
                 "line",
                 "line",
@@ -239,7 +246,9 @@ mod tests {
     #[test]
     fn before_the_first_line_only_upcoming_lines_show() {
         let track_lyrics = TrackLyrics::synced_from_lrc("[00:10.00]first\n[00:20.00]second");
-        let section = lyrics_section(&track_lyrics, Duration::from_secs(1));
-        assert_eq!(table_rows(&section), ["line", "line"]);
+        assert_eq!(
+            table_rows(&track_lyrics, Duration::from_secs(1)),
+            ["line", "line"]
+        );
     }
 }

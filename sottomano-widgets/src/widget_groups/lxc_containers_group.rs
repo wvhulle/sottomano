@@ -14,7 +14,10 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{Section, dictionary_table},
+    },
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -69,8 +72,11 @@ impl GroupItemReading for LxcContainerListingRow<'_> {
         self.listing.run_state.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("State", self.listing.run_state.label())])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new("State", self.listing.run_state.label())]),
+        )]
     }
 }
 
@@ -102,7 +108,7 @@ impl GroupItemReading for LxcContainerRow<'_> {
         self.container.run_state.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let container = self.container;
         let mut detail_entries = vec![LabeledValue::new("State", container.run_state.label())];
         if let Some(memory_in_use) = container.memory_in_use {
@@ -123,7 +129,7 @@ impl GroupItemReading for LxcContainerRow<'_> {
                 config_path.display().to_string(),
             ));
         }
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Container", dictionary_table(detail_entries))]
     }
 }
 

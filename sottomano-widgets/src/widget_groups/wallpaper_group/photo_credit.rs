@@ -6,7 +6,7 @@ use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
@@ -35,34 +35,38 @@ impl GroupItemReading for Photo {
         self.photographer.clone()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary(
-                [
-                    Some(LabeledValue::new("File", self.file_name.as_str())),
-                    self.photographer
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Photo",
+                dictionary_table(
+                    [
+                        Some(LabeledValue::new("File", self.file_name.as_str())),
+                        self.photographer
+                            .as_deref()
+                            .map(|photographer| LabeledValue::new("Photographer", photographer)),
+                        Some(LabeledValue::new(
+                            "Unsplash",
+                            ValueCell::BrandedLink {
+                                label: "photo page".to_owned(),
+                                url: self.url.clone(),
+                                glyph: SimpleIcon::Unsplash.into(),
+                            },
+                        )),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
+            ),
+            Section::new(
+                "Caption",
+                dictionary_table(
+                    self.caption
                         .as_deref()
-                        .map(|photographer| LabeledValue::new("Photographer", photographer)),
-                    Some(LabeledValue::new(
-                        "Unsplash",
-                        ValueCell::BrandedLink {
-                            label: "photo page".to_owned(),
-                            url: self.url.clone(),
-                            glyph: SimpleIcon::Unsplash.into(),
-                        },
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled("Photo"),
-            Section::dictionary(
-                self.caption
-                    .as_deref()
-                    .map(|caption| LabeledValue::new(" ", caption)),
-            )
-            .titled("Caption"),
-        ])
+                        .map(|caption| LabeledValue::new(" ", caption)),
+                ),
+            ),
+        ]
     }
 }
 

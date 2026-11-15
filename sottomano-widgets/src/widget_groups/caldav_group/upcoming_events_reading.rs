@@ -18,7 +18,9 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{
+        Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
+    },
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -98,12 +100,12 @@ fn calendar_count_caption(calendar_count: usize) -> String {
     format!("{calendar_count} calendars over CalDAV.")
 }
 
-pub(super) fn nextcloud_footer(
+pub(super) fn nextcloud_app_link(
     app_label: &str,
     provider: &CaldavProvider,
     app_url: fn(&NextcloudWebRoot) -> String,
-) -> Section {
-    Section::dictionary(provider.nextcloud_web_root().map(|nextcloud| {
+) -> Option<LabeledValue> {
+    provider.nextcloud_web_root().map(|nextcloud| {
         LabeledValue::new(
             "Nextcloud",
             ValueCell::BrandedLink {
@@ -112,7 +114,7 @@ pub(super) fn nextcloud_footer(
                 glyph: SimpleIcon::Nextcloud.into(),
             },
         )
-    }))
+    })
 }
 
 fn empty_agenda_label(failed_subscription_names: &[String]) -> String {
@@ -176,7 +178,7 @@ impl GroupItemReading for UpcomingEventList {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.local();
         let rows: Vec<_> = self
             .events
@@ -189,31 +191,38 @@ impl GroupItemReading for UpcomingEventList {
             .collect();
         let failed_subscription_sections =
             self.failed_subscription_names.iter().map(|calendar_name| {
-                Section::error(format!("calendar {calendar_name} could not be downloaded"))
-            });
-        HoverCardBody::sections(
-            failed_subscription_sections.chain([
-                Section::grouped_column_table(
-                    [
-                        ColumnHeading::titled("Date"),
-                        ColumnHeading::titled("Time"),
-                        ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
-                        ColumnHeading::titled("Location").align_x(Horizontal::Left),
-                    ],
-                    rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
+                Section::new(
+                    "Error",
+                    SectionWidget::paragraph(format!(
+                        "calendar {calendar_name} could not be downloaded"
+                    )),
                 )
-                .truncated_to(LISTED_EVENTS)
-                .titled((
-                    "Upcoming events",
-                    calendar_count_caption(self.calendar_count),
-                )),
-                nextcloud_footer(
-                    "open Calendar",
-                    &self.provider,
-                    NextcloudWebRoot::calendar_app,
+            });
+        failed_subscription_sections
+            .chain([
+                Section::new(
+                    SectionTitle::captioned("Agenda", calendar_count_caption(self.calendar_count)),
+                    headed_grouped_table(
+                        [
+                            ColumnHeading::titled("Date"),
+                            ColumnHeading::titled("Time"),
+                            ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
+                            ColumnHeading::titled("Location").align_x(Horizontal::Left),
+                        ],
+                        rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
+                    )
+                    .truncated_to(LISTED_EVENTS),
                 ),
-            ]),
-        )
+                Section::new(
+                    "Links",
+                    dictionary_table(nextcloud_app_link(
+                        "open Calendar",
+                        &self.provider,
+                        NextcloudWebRoot::calendar_app,
+                    )),
+                ),
+            ])
+            .collect()
     }
 }
 
@@ -236,7 +245,6 @@ mod tests {
             offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder},
             reading_display_state::ReadingDisplayState,
         },
-        hover_cards::hover_card_body::{HoverCardBody, Section},
         widget_groups::caldav_group::CaldavTarget,
         widgets::subscribed_snapshot::SubscribedSnapshot,
     };
@@ -253,12 +261,7 @@ mod tests {
     #[test]
     fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
         let pending_events = SubscribedSnapshot::<UpcomingEventList>::default();
-        assert!(pending_events.hover_card(Clock::real()).is_none());
-        assert!(
-            pending_events
-                .hover_card_while_pending(Clock::real())
-                .is_some()
-        );
+        assert!(!pending_events.hover_card(Clock::real()).is_empty());
         assert!(
             pending_events
                 .group_item_while_pending::<()>(CaldavTarget::UpcomingEvents)
@@ -283,10 +286,7 @@ mod tests {
             pending_events.state(Clock::real()),
             ReadingDisplayState::Pending,
         );
-        assert_eq!(
-            pending_events.hover_card(Clock::real()),
-            HoverCardBody::sections([Section::section_seeding()]),
-        );
+        assert!(pending_events.hover_card(Clock::real()).is_empty());
     }
 
     #[test]

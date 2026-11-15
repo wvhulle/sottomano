@@ -12,7 +12,7 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPosition,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         input_report_sections::KernelErrorListing,
@@ -61,14 +61,16 @@ impl AdapterRadioReading<'_> {
             )),
             AdapterPower::Off | AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => None,
         };
-        Section::dictionary(
-            once(LabeledValue::new(
-                "Power",
-                power_description(&self.adapter.power),
-            ))
-            .chain(connected_count),
+        Section::new(
+            format!("Bluetooth {}", self.adapter.controller_name),
+            dictionary_table(
+                once(LabeledValue::new(
+                    "Power",
+                    power_description(&self.adapter.power),
+                ))
+                .chain(connected_count),
+            ),
         )
-        .titled(format!("Bluetooth {}", self.adapter.controller_name))
     }
 }
 
@@ -108,18 +110,17 @@ impl GroupItemReading for AdapterRadioReading<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            [
-                Some(self.overview_section()),
-                KernelErrorListing {
-                    kernel_errors: &self.kernel_errors,
-                }
-                .section(),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        [
+            Some(self.overview_section()),
+            KernelErrorListing {
+                kernel_errors: &self.kernel_errors,
+            }
+            .section(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 
@@ -163,10 +164,13 @@ impl GroupItemReading for AdapterPowerSwitch<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary([
-            LabeledValue::new("Adapter", self.adapter.controller_name.as_str()),
-            LabeledValue::new("Power", power_description(&self.adapter.power)),
-        ])])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("Adapter", self.adapter.controller_name.as_str()),
+                LabeledValue::new("Power", power_description(&self.adapter.power)),
+            ]),
+        )]
     }
 }

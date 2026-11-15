@@ -23,12 +23,12 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -96,8 +96,11 @@ impl GroupItemReading for UnitSwitchReading {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("Service", activity_text(self.activity))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new("Service", activity_text(self.activity))]),
+        )]
     }
 }
 
@@ -211,13 +214,11 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn hover_card(
-        &self,
-        service_readiness: ServiceReadiness,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        self.active_state
-            .hover_card_with(self.reading(service_readiness)?.hover_card(clock))
+    pub fn hover_card(&self, service_readiness: ServiceReadiness, clock: Clock) -> Vec<Section> {
+        let Some(reading) = self.reading(service_readiness) else {
+            return Vec::new();
+        };
+        self.active_state.hover_card_with(reading.hover_card(clock))
     }
 
     pub fn group_item<'a, M: 'a>(

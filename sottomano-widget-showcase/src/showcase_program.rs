@@ -291,10 +291,9 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::HoverCardHideElapsed => {
-                let departing = self.shown_hover_card().and_then(|content| {
-                    self.hover_card
-                        .departure::<ShowcaseMessage>(HoverContent::Described(content))
-                });
+                let departing = self
+                    .hover_card
+                    .departure(|target, announcement| self.hover_content(target, announcement));
                 self.hover_card.leave_elapsed(self.clock.instant, departing);
                 Task::none()
             }
@@ -342,10 +341,9 @@ impl ShowcaseState {
     }
 
     fn dismiss_hover_card(&mut self) {
-        let departing = self.shown_hover_card().and_then(|content| {
-            self.hover_card
-                .departure::<ShowcaseMessage>(HoverContent::Described(content))
-        });
+        let departing = self
+            .hover_card
+            .departure(|target, announcement| self.hover_content(target, announcement));
         self.hover_card.dismiss(departing, self.clock.instant);
     }
 
@@ -386,21 +384,15 @@ impl ShowcaseState {
         }
     }
 
-    fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseInteraction> {
+    fn menu_cascade(&self, kind: GroupMenuTopic) -> Option<HoverContent<'_, ShowcaseInteraction>> {
         let group_menu = self.group_menu(kind);
-        let inspected_hover_card = self
-            .group_menus
-            .inspected_target(kind)
-            .and_then(|target| {
-                self.group
-                    .hover_card_for(target, &self.config, self.clock)
-                    .map(|hover_card| {
-                        hover_card.with_announcement(
-                            group_menu.announcement_of(target).unwrap_or_default(),
-                        )
-                    })
-            })
-            .unwrap_or_else(HoverCard::empty);
+        let inspected_target = self.group_menus.inspected_target(kind);
+        let inspected_sections = inspected_target
+            .map(|target| self.group.hover_card_for(target, &self.config, self.clock))
+            .unwrap_or_default();
+        let inspected_announcement = inspected_target
+            .and_then(|target| group_menu.announcement_of(target))
+            .unwrap_or_default();
         let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation = CascadeOrientation::toward_room(
             anchor,
@@ -411,24 +403,23 @@ impl ShowcaseState {
             &self.config,
             &self.appearance.menus,
             &InspectionCard {
-                hover_card: &inspected_hover_card,
+                sections: &inspected_sections,
+                announcement: inspected_announcement,
                 card_appearance: self.appearance.overlays,
                 assets: self.window_assets(),
                 clock: self.clock,
             },
             orientation,
         );
-        match surfaces {
-            Some(GroupMenuCascadeSurfaces {
-                primary,
-                satellites,
-            }) => HoverContent::GroupMenu {
-                primary,
-                satellites,
-                orientation,
-            },
-            None => HoverContent::Described(HoverCard::empty()),
-        }
+        let GroupMenuCascadeSurfaces {
+            primary,
+            satellites,
+        } = surfaces?;
+        Some(HoverContent::GroupMenu {
+            primary,
+            satellites,
+            orientation,
+        })
     }
 
     fn window_assets(&self) -> WindowAssets<'_> {
@@ -510,10 +501,19 @@ impl ShowcaseState {
             .map(ShowcaseMessage::from)
     }
 
-    fn shown_hover_card(&self) -> Option<HoverCard> {
-        self.hover_card
-            .target()
-            .and_then(|target| self.group.hover_card_for(target, &self.config, self.clock))
+    fn hover_content(
+        &self,
+        target: &HoverTarget,
+        announcement: HoverAnnouncement,
+    ) -> Option<HoverContent<'_, ShowcaseInteraction>> {
+        if let HoverTarget::GroupMenu(kind) = target {
+            return self.menu_cascade(*kind);
+        }
+        HoverCard::new(
+            self.group.hover_card_for(target, &self.config, self.clock),
+            announcement,
+        )
+        .map(HoverContent::Described)
     }
 
     fn panel_edge(&self) -> PanelEdge {
@@ -569,16 +569,7 @@ impl ShowcaseState {
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
             self.window_assets(),
-            |target: &HoverTarget| {
-                if let HoverTarget::GroupMenu(kind) = target {
-                    return self.menu_cascade(*kind);
-                }
-                HoverContent::Described(
-                    self.group
-                        .hover_card_for(target, &self.config, self.clock)
-                        .unwrap_or_else(HoverCard::empty),
-                )
-            },
+            |target: &HoverTarget, announcement| self.hover_content(target, announcement),
             self.clock,
         )
     }

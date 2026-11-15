@@ -18,7 +18,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         widget_group_content::{
@@ -193,17 +193,20 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Vec<Section> {
         let detail_rows = self.detail_rows();
         if !detail_rows.is_empty() {
-            let row = detail_rows.into_iter().find(|row| row.target == *target)?;
-            return self.detail.hover_card_with(row.reading.hover_card(clock));
+            return detail_rows
+                .into_iter()
+                .find(|row| row.target == *target)
+                .map(|row| self.detail.hover_card_with(row.reading.hover_card(clock)))
+                .unwrap_or_default();
         }
-        let row = self
-            .listing_rows()
+        self.listing_rows()
             .into_iter()
-            .find(|row| row.target == *target)?;
-        self.listings.hover_card_with(row.reading.hover_card(clock))
+            .find(|row| row.target == *target)
+            .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
+            .unwrap_or_default()
     }
 
     fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
@@ -279,13 +282,16 @@ impl<Family: ContainerFamily> GroupItemReading for ContainerFamilyGroup<Family> 
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(Family::group_hover_entries)
-                .unwrap_or_default(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Counts",
+            dictionary_table(
+                self.probe
+                    .get()
+                    .map(Family::group_hover_entries)
+                    .unwrap_or_default(),
+            ),
+        )]
     }
 }
 
@@ -361,9 +367,9 @@ mod tests {
         let group = group_with_listing(clock);
         assert_eq!(group.group_rows().len(), 1);
         assert!(
-            group
+            !group
                 .hover_card_for(&VmwareMachineTarget::of_pid(LISTED_PID), clock)
-                .is_some()
+                .is_empty()
         );
     }
 
@@ -377,14 +383,14 @@ mod tests {
         );
         assert_eq!(group.group_rows().len(), 1);
         assert!(
-            group
+            !group
                 .hover_card_for(&VmwareMachineTarget::of_pid(DETAILED_PID), clock)
-                .is_some()
+                .is_empty()
         );
         assert!(
             group
                 .hover_card_for(&VmwareMachineTarget::of_pid(LISTED_PID), clock)
-                .is_none()
+                .is_empty()
         );
     }
 

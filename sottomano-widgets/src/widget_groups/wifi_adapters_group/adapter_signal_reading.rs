@@ -12,7 +12,7 @@ use crate::{
         gauge::percent_fill, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::{link_stats_section, signal_level},
     widgets::{
         icon_glyph::IconGlyph,
@@ -63,32 +63,41 @@ impl GroupItemReading for AdapterSignalReading<'_> {
             .map(|link| percent_fill(link.signal))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let Some(link) = &self.adapter.link else {
             let radio_state = match self.radio_power {
                 RadioPower::On => "disconnected",
                 RadioPower::Off => "radio off",
             };
-            return HoverCardBody::dictionary([
-                LabeledValue::new("Interface Name", self.adapter.device.as_str()),
-                LabeledValue::new("WiFi", radio_state),
-            ]);
-        };
-        HoverCardBody::dictionary(
-            link.ssid
-                .as_deref()
-                .map(|ssid| LabeledValue::new("Network Name (SSID)", ssid))
-                .into_iter()
-                .chain([
-                    LabeledValue::new(
-                        "Signal Strength",
-                        Quantity::share(percent_fill(link.signal)),
-                    ),
-                    LabeledValue::new("Security Type", link.security.as_str()),
-                    LabeledValue::new("Frequency Band", Quantity::clock_megahertz(link.frequency)),
+            return vec![Section::new(
+                "Link",
+                dictionary_table([
                     LabeledValue::new("Interface Name", self.adapter.device.as_str()),
+                    LabeledValue::new("WiFi", radio_state),
                 ]),
-        )
+            )];
+        };
+        vec![Section::new(
+            "Link",
+            dictionary_table(
+                link.ssid
+                    .as_deref()
+                    .map(|ssid| LabeledValue::new("Network Name (SSID)", ssid))
+                    .into_iter()
+                    .chain([
+                        LabeledValue::new(
+                            "Signal Strength",
+                            Quantity::share(percent_fill(link.signal)),
+                        ),
+                        LabeledValue::new("Security Type", link.security.as_str()),
+                        LabeledValue::new(
+                            "Frequency Band",
+                            Quantity::clock_megahertz(link.frequency),
+                        ),
+                        LabeledValue::new("Interface Name", self.adapter.device.as_str()),
+                    ]),
+            ),
+        )]
     }
 }
 
@@ -120,11 +129,14 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
         ReadingDisplayState::from(self.adapter.link_state)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Interface Name", self.adapter.device.as_str()),
-            LabeledValue::new("Connection", self.adapter.link_state.label()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Adapter",
+            dictionary_table([
+                LabeledValue::new("Interface Name", self.adapter.device.as_str()),
+                LabeledValue::new("Connection", self.adapter.link_state.label()),
+            ]),
+        )]
     }
 }
 
@@ -154,26 +166,27 @@ impl GroupItemReading for AllWifiRadiosSwitch {
         ReadingDisplayState::from(self.radio_power)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "All Wi-Fi radios",
-            self.radio_power.label(),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Radio power",
+            dictionary_table([LabeledValue::new(
+                "All Wi-Fi radios",
+                self.radio_power.label(),
+            )]),
+        )]
     }
 }
 
 pub fn adapter_identity_sections(details: &WifiAdapterDetails) -> Vec<Section> {
     let mac_section = details.addressing.as_ref().map(|addressing| {
-        Section::dictionary([LabeledValue::new("MAC Address", addressing.mac.as_str())])
+        Section::new(
+            "Addresses",
+            dictionary_table([LabeledValue::new("MAC Address", addressing.mac.as_str())]),
+        )
     });
     mac_section
         .into_iter()
-        .chain(
-            details
-                .adapter
-                .iter()
-                .map(|adapter| Section::from(adapter).titled("Hardware")),
-        )
+        .chain(details.adapter.iter().map(Section::from))
         .collect()
 }
 

@@ -30,7 +30,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
@@ -42,8 +42,8 @@ use crate::{
     widgets::{
         app_window_focus::AppWindowFocus,
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -190,14 +190,17 @@ impl GroupItemReading for InactiveDomainRow<'_> {
         ReadingDisplayState::Off
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new(
-                "Origin",
-                origin_text(&VirtualMachineOrigin::LibvirtDomain).into_owned(),
-            ),
-            LabeledValue::new("State", "shut off"),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Machine",
+            dictionary_table([
+                LabeledValue::new(
+                    "Origin",
+                    origin_text(&VirtualMachineOrigin::LibvirtDomain).into_owned(),
+                ),
+                LabeledValue::new("State", "shut off"),
+            ]),
+        )]
     }
 }
 
@@ -230,8 +233,11 @@ impl GroupItemReading for VirtualMachineRow<'_> {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary(self.configuration_entries(clock))])
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Machine",
+            dictionary_table(self.configuration_entries(clock)),
+        )]
     }
 }
 
@@ -365,19 +371,24 @@ impl VirtualMachinesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &VirtualMachineTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &VirtualMachineTarget, clock: Clock) -> Vec<Section> {
         match target {
             VirtualMachineTarget::RunningProcess { pid } => {
-                let machine = self.machine_with_pid(*pid)?;
+                let Some(machine) = self.machine_with_pid(*pid) else {
+                    return Vec::new();
+                };
                 self.readout
                     .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
             }
             VirtualMachineTarget::InactiveDomain { domain_name } => {
-                let readout = self.readout.get()?;
-                let domain_name = readout
-                    .inactive_domains
-                    .iter()
-                    .find(|inactive| inactive.as_str() == domain_name.as_ref())?;
+                let Some(domain_name) = self.readout.get().and_then(|readout| {
+                    readout
+                        .inactive_domains
+                        .iter()
+                        .find(|inactive| inactive.as_str() == domain_name.as_ref())
+                }) else {
+                    return Vec::new();
+                };
                 self.readout
                     .hover_card_with(InactiveDomainRow { domain_name }.hover_card(clock))
             }
@@ -492,10 +503,10 @@ mod tests {
             domain_name: Cow::Borrowed(domain_name),
         };
         assert!(
-            group
+            !group
                 .hover_card_for(&target_of("windows-11"), clock)
-                .is_some()
+                .is_empty()
         );
-        assert!(group.hover_card_for(&target_of("debian"), clock).is_none());
+        assert!(group.hover_card_for(&target_of("debian"), clock).is_empty());
     }
 }

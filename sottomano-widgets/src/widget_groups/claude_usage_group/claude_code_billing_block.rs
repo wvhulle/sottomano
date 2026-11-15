@@ -9,7 +9,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -47,35 +47,40 @@ impl GroupItemReading for ClaudeCcusageBlock {
             })
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        let source = Section::dictionary([
-            LabeledValue::new("Source", "ccusage, local Claude Code logs"),
-            LabeledValue::new("Cost Basis", "API list prices"),
-        ]);
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        let source = Section::new(
+            "Cost Estimate",
+            dictionary_table([
+                LabeledValue::new("Source", "ccusage, local Claude Code logs"),
+                LabeledValue::new("Cost Basis", "API list prices"),
+            ]),
+        );
         let Some(block) = &self.active else {
-            return HoverCardBody::sections([source]);
+            return vec![source];
         };
-        HoverCardBody::sections([
+        vec![
             source,
-            Section::dictionary(
-                [
-                    Some(LabeledValue::new("Cost", Quantity::spend(block.cost))),
-                    block
-                        .cost_per_hour
-                        .map(|rate| LabeledValue::new("Burn Rate", format!("{rate}/h"))),
-                    block
-                        .projected_cost
-                        .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost))),
-                    Some(LabeledValue::new(
-                        "Ends In",
-                        ValueCell::duration(block.ends_at - clock.utc()),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled("Active 5-Hour Block"),
-        ])
+            Section::new(
+                "Active 5-Hour Block",
+                dictionary_table(
+                    [
+                        Some(LabeledValue::new("Cost", Quantity::spend(block.cost))),
+                        block
+                            .cost_per_hour
+                            .map(|rate| LabeledValue::new("Burn Rate", format!("{rate}/h"))),
+                        block
+                            .projected_cost
+                            .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost))),
+                        Some(LabeledValue::new(
+                            "Ends In",
+                            ValueCell::duration(block.ends_at - clock.utc()),
+                        )),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
+            ),
+        ]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

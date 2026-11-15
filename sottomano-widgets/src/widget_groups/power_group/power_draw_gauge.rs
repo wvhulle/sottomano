@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -52,36 +52,43 @@ impl PowerDraw {
         }
     }
 
-    fn breakdown_on_battery(&self) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary([LabeledValue::new(
-            "Laptop",
-            Quantity::power(self.power),
-        )])
-        .titled("Battery feeds")])
+    fn breakdown_on_battery(&self) -> Vec<Section> {
+        vec![Section::new("Battery feeds", self.battery_feeds_table())]
     }
 
-    fn breakdown_on_ac(&self) -> HoverCardBody {
+    fn battery_feeds_table(&self) -> SectionTable {
+        dictionary_table([LabeledValue::new("Laptop", Quantity::power(self.power))])
+    }
+
+    fn breakdown_on_ac(&self) -> Vec<Section> {
+        vec![Section::new("Charger feeds", self.charger_feeds_table())]
+    }
+
+    fn charger_feeds_table(&self) -> SectionTable {
         let laptop = self
             .expected_laptop
             .map(|laptop| LabeledValue::new("Laptop (estimated)", Quantity::power(laptop)));
-        HoverCardBody::sections([Section::dictionary(
+        dictionary_table(
             laptop
                 .into_iter()
                 .chain([LabeledValue::new("Battery", Quantity::power(self.power))]),
         )
-        .titled("Charger feeds")])
     }
+}
+
+fn charger_limit_table(charger: &ChargerSupply) -> SectionTable {
+    dictionary_table(charger.limit.iter().flat_map(|limit| {
+        [
+            LabeledValue::new("Limit", Quantity::power(limit.power())),
+            LabeledValue::new("Voltage", Quantity::voltage(limit.voltage)),
+            LabeledValue::new("Current", Quantity::current(limit.current)),
+        ]
+    }))
 }
 
 impl ReadingSections for ChargerSupply {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(self.limit.iter().flat_map(|limit| {
-            [
-                LabeledValue::new("Limit", Quantity::power(limit.power())),
-                LabeledValue::new("Voltage", Quantity::voltage(limit.voltage)),
-                LabeledValue::new("Current", Quantity::current(limit.current)),
-            ]
-        }))]
+        vec![Section::new("Limits", charger_limit_table(self))]
     }
 }
 
@@ -114,7 +121,7 @@ impl GroupItemReading for PowerDraw {
         Some(self.power / Power::new::<watt>(POWER_GAUGE_MAX_W))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         if self.power_source() == PowerSource::Battery {
             self.breakdown_on_battery()
         } else {
@@ -159,8 +166,8 @@ mod tests {
             }),
         };
         assert_eq!(
-            charger.sections(Clock::real()),
-            [Section::dictionary([
+            charger_limit_table(&charger),
+            dictionary_table([
                 LabeledValue::new("Limit", Quantity::power(Power::new::<watt>(65.0))),
                 LabeledValue::new(
                     "Voltage",
@@ -170,31 +177,29 @@ mod tests {
                     "Current",
                     Quantity::current(ElectricCurrent::new::<ampere>(3.25))
                 ),
-            ])]
+            ])
         );
         assert_eq!(ChargerSupply::NAME, "Charger");
         assert_eq!(
-            draw(ChargeStatus::Charging).breakdown_on_ac(),
-            HoverCardBody::sections([Section::dictionary([
+            draw(ChargeStatus::Charging).charger_feeds_table(),
+            dictionary_table([
                 LabeledValue::new(
                     "Laptop (estimated)",
                     Quantity::power(Power::new::<watt>(8.9))
                 ),
                 LabeledValue::new("Battery", Quantity::power(Power::new::<watt>(19.7))),
             ])
-            .titled("Charger feeds")])
         );
     }
 
     #[test]
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
-            draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            HoverCardBody::sections([Section::dictionary([LabeledValue::new(
+            draw(ChargeStatus::Discharging).battery_feeds_table(),
+            dictionary_table([LabeledValue::new(
                 "Laptop",
                 Quantity::power(Power::new::<watt>(19.7))
             )])
-            .titled("Battery feeds"),])
         );
     }
 }

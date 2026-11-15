@@ -3,7 +3,7 @@ use sottomano_desktop_sources::screen_brightness_color::clightd_backlight::{
 };
 
 use crate::{
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -22,7 +22,7 @@ pub fn hover_card(
     backlight: &Backlight,
     brightness: ValueCell,
     output: Option<&ConnectedOutput>,
-) -> HoverCardBody {
+) -> Vec<Section> {
     let kind = match backlight.kind {
         BacklightKind::Internal => "Internal",
         BacklightKind::External => "External (DDC)",
@@ -33,8 +33,11 @@ pub fn hover_card(
         LabeledValue::new("Brightness", brightness),
     ];
     let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
-    HoverCardBody::sections([
-        Section::dictionary(display_entries.into_iter().chain(output_entries)),
+    vec![
+        Section::new(
+            "Display",
+            dictionary_table(display_entries.into_iter().chain(output_entries)),
+        ),
         Section::hardware_identity(output.iter().flat_map(|output| output.hardware_entries())),
-    ])
+    ]
 }

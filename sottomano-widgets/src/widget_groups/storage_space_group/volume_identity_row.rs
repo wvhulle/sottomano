@@ -8,7 +8,7 @@ use sottomano_desktop_sources::disk_storage::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::{GroupItemReading, PanelVisibility},
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -58,20 +58,23 @@ impl GroupItemReading for VolumeIdentityRow<'_> {
         })
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            [LabeledValue::new(
-                "Filesystem",
-                self.usage.mount.fs_type.clone(),
-            )]
-            .into_iter()
-            .chain(self.usage.volume.properties.iter().map(|property| {
-                LabeledValue::new(property_title(property.kind), property.value.clone())
-            }))
-            .chain([LabeledValue::new(
-                "Block size",
-                Quantity::size(self.usage.block_size),
-            )]),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Identity",
+            dictionary_table(
+                [LabeledValue::new(
+                    "Filesystem",
+                    self.usage.mount.fs_type.clone(),
+                )]
+                .into_iter()
+                .chain(self.usage.volume.properties.iter().map(|property| {
+                    LabeledValue::new(property_title(property.kind), property.value.clone())
+                }))
+                .chain([LabeledValue::new(
+                    "Block size",
+                    Quantity::size(self.usage.block_size),
+                )]),
+            ),
+        )]
     }
 }

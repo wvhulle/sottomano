@@ -35,7 +35,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget, PressHints,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, SectionWidget},
         hoverable,
     },
     layer_surfaces::ActivationTokenOutcome,
@@ -52,9 +52,9 @@ use crate::{
         context_menu::context_menu,
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         shared_metrics::ACCENT_STROKE_PX,
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -194,24 +194,25 @@ impl TrayGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, address: &str) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, address: &str) -> Vec<Section> {
         self.items
             .get()
             .into_iter()
             .flatten()
             .find(|item| item.address == address)
-            .and_then(|item| self.items.hover_card_with(Self::item_hover_card(item)))
+            .map(|item| self.items.hover_card_with(Self::item_hover_card(item)))
+            .unwrap_or_default()
     }
 
-    fn item_hover_card(item: &TrayItem) -> HoverCardBody {
+    fn item_hover_card(item: &TrayItem) -> Vec<Section> {
         let tip = item.tooltip.as_ref();
         let title = tip
             .and_then(|tip| tip.title.clone())
             .unwrap_or_else(|| item.name().to_owned());
-        HoverCardBody::from(match tip.and_then(|tip| tip.body.clone()) {
-            Some(body) => Section::detailed_note(title, body),
-            None => Section::note(title),
-        })
+        vec![match tip.and_then(|tip| tip.body.clone()) {
+            Some(body) => Section::new(title, SectionWidget::paragraph(body)),
+            None => Section::new("Tooltip", SectionWidget::paragraph(title)),
+        }]
     }
 
     #[must_use]

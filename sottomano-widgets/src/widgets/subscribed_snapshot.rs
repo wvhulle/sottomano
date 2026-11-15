@@ -1,4 +1,10 @@
-use std::{borrow::Cow, convert::Infallible, marker::PhantomData, mem::take};
+use std::{
+    borrow::Cow,
+    convert::Infallible,
+    fmt::{Display, Formatter, Result as FmtResult},
+    marker::PhantomData,
+    mem::take,
+};
 
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
@@ -16,8 +22,8 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            HoverCardBody, ReadingSections, Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
+            ReadingSections, Section,
+            hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
         },
     },
     widgets::icon_glyph::IconGlyph,
@@ -52,8 +58,14 @@ impl<S: SnapshotSource> GroupItemReading for FailedSnapshotFetch<S> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::error(&self.error)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        Vec::new()
+    }
+}
+
+impl<S: SnapshotSource> Display for FailedSnapshotFetch<S> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(formatter, "{}", self.error)
     }
 }
 
@@ -66,7 +78,7 @@ impl GroupItemReading for Infallible {
         match *self {}
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match *self {}
     }
 }
@@ -82,12 +94,12 @@ pub struct HidesFailuresAfterSuccess;
 pub struct HidesFetchFailures;
 
 pub trait FetchFailurePolicy<S: SnapshotSource>: Sized {
-    type ShownFailure: GroupItemReading;
+    type ShownFailure: GroupItemReading + Display;
 
     fn after_failed_fetch(
         latest: SubscribedSnapshot<S, Self>,
         error: S::Error,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     ) -> SubscribedSnapshot<S, Self>;
 }
 
@@ -102,11 +114,11 @@ where
     SourceUnavailable,
     SnapshotHeld {
         held_snapshot: S,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     },
     SnapshotFetchFailed {
         fetch_failure: Policy::ShownFailure,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     },
     SnapshotHeldOffline {
         offline_snapshot: OfflineSnapshot<S>,
@@ -122,7 +134,7 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchF
     fn after_failed_fetch(
         latest: SubscribedSnapshot<S, Self>,
         error: S::Error,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     ) -> SubscribedSnapshot<S, Self> {
         let fetch_failure = match latest {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
@@ -157,7 +169,7 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailur
     fn after_failed_fetch(
         latest: SubscribedSnapshot<S, Self>,
         error: S::Error,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     ) -> SubscribedSnapshot<S, Self> {
         match latest {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
@@ -182,10 +194,12 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailur
             }
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => SubscribedSnapshot::SnapshotFetchFailed {
-                fetch_failure: FailedSnapshotFetch::from_fetch_error(error),
-                delivery_timing,
-            },
+            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => {
+                SubscribedSnapshot::SnapshotFetchFailed {
+                    fetch_failure: FailedSnapshotFetch::from_fetch_error(error),
+                    delivery_timing,
+                }
+            }
         }
     }
 }
@@ -196,7 +210,7 @@ impl<S: SnapshotSource> FetchFailurePolicy<S> for HidesFetchFailures {
     fn after_failed_fetch(
         latest: SubscribedSnapshot<S, Self>,
         error: S::Error,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     ) -> SubscribedSnapshot<S, Self> {
         tracing::warn!("{}: {error}", S::NAME);
         match latest {
@@ -229,7 +243,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
         }
     }
 
-    fn delivery_timing(&self) -> Option<DeliveryTiming> {
+    fn delivery_timing(&self) -> Option<DeliveryStamp> {
         match self {
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
@@ -268,8 +282,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
                 snapshot_fetch,
                 delivery_cadence,
             } => {
-                let delivery_timing =
-                    DeliveryTiming::from_delivery_cadence(delivery_cadence, clock);
+                let delivery_timing = DeliveryStamp::delivered(delivery_cadence, clock);
                 match snapshot_fetch {
                     Ok(held_snapshot) => SubscribedSnapshot::SnapshotHeld {
                         held_snapshot,
@@ -358,33 +371,43 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
         }
     }
 
-    pub fn hover_card_with(&self, body: HoverCardBody) -> Option<HoverCard> {
+    pub fn sections_described_by(&self, describe: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
+        let stamped = |delivery: SourceDelivery, sections: Vec<Section>| -> Vec<Section> {
+            sections
+                .into_iter()
+                .map(|section| section.stamped_by::<S>(delivery))
+                .collect()
+        };
         match self {
-            SubscribedSnapshot::OfflineBeforeSnapshot { .. } => Some(HoverCard::grouped([
-                SourcedSections::source_awaiting_delivery::<S>(body),
-            ])),
-            _ => Some(HoverCard::sourced(body, self.delivery_timing()?)),
-        }
-    }
-
-    fn offline_sections(&self, clock: Clock) -> Vec<Section> {
-        match self {
-            SubscribedSnapshot::SnapshotHeldOffline { offline_snapshot } => {
-                offline_snapshot.offline_sections(clock)
+            SubscribedSnapshot::SourceUnavailable => Vec::new(),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                vec![Section::source_state::<S>(SourceDelivery::Loading, "")]
             }
-            _ => Vec::new(),
+            SubscribedSnapshot::SnapshotHeld {
+                held_snapshot,
+                delivery_timing,
+            } => stamped(
+                SourceDelivery::Delivered(*delivery_timing),
+                describe(held_snapshot),
+            ),
+            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => {
+                vec![Section::source_state::<S>(
+                    SourceDelivery::Failed,
+                    fetch_failure.to_string(),
+                )]
+            }
+            SubscribedSnapshot::SnapshotHeldOffline { offline_snapshot } => stamped(
+                SourceDelivery::Offline,
+                describe(&offline_snapshot.held_snapshot),
+            ),
+            SubscribedSnapshot::OfflineBeforeSnapshot {
+                offline_placeholder,
+            } => vec![offline_placeholder.source_state()],
         }
     }
 
-    pub fn sections_described_by(
-        &self,
-        describe: impl FnOnce(&S) -> Vec<Section>,
-    ) -> Option<SourcedSections> {
-        let held_snapshot = self.get()?;
-        Some(SourcedSections::delivered(
-            HoverCardBody::sections(describe(held_snapshot)),
-            self.delivery_timing()?,
-        ))
+    pub fn hover_card_with(&self, sections: Vec<Section>) -> Vec<Section> {
+        self.sections_described_by(|_| sections)
     }
 
     pub fn failure(&self) -> Option<&dyn GroupItemReading> {
@@ -399,14 +422,11 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
     }
 }
 
-impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Policy> {
-    pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
-        let held_snapshot = self.get()?;
-        Some(SourcedSections::source_delivered::<S>(
-            HoverCardBody::sections(held_snapshot.sections(clock))
-                .with_sections(self.offline_sections(clock)),
-            self.delivery_timing()?,
-        ))
+impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>>
+    SubscribedSnapshot<S, Policy>
+{
+    pub fn sections(&self, clock: Clock) -> Vec<Section> {
+        self.sections_described_by(|held_snapshot| held_snapshot.sections(clock))
     }
 }
 
@@ -439,7 +459,9 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
             SubscribedSnapshot::OfflineBeforeSnapshot {
                 offline_placeholder,
             } => Some(offline_placeholder),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => None,
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
+                None
+            }
         }
     }
 
@@ -467,28 +489,8 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
         self.group_item(target)
     }
 
-    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
-        self.hover_card_with(self.display()?.hover_card(clock))
-    }
-
-    pub fn hover_card_while_pending(&self, clock: Clock) -> Option<HoverCard> {
-        if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
-            return Some(HoverCard::grouped([
-                SourcedSections::source_awaiting_delivery::<S>(
-                    awaiting_snapshot_placeholder::<S>().hover_card(clock),
-                ),
-            ]));
-        }
-        self.hover_card(clock)
-    }
-
-    pub fn hover_card_with_groups(
-        &self,
-        extra: impl IntoIterator<Item = SourcedSections>,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        let own = self.hover_card_with(self.display()?.hover_card(clock))?;
-        Some(own.with_groups(extra))
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.sections_described_by(|held_snapshot| held_snapshot.hover_card(clock))
     }
 }
 
@@ -536,8 +538,8 @@ mod tests {
             Self::fallback_icon()
         }
 
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections([])
+        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+            Vec::new()
         }
     }
 
@@ -585,8 +587,10 @@ mod tests {
         latest.receive(SnapshotDelivery::SnapshotUnchanged, timeline.at(13));
         assert_eq!(
             latest.delivery_timing(),
-            Some(DeliveryTiming::PeriodicPolling {
-                poll_period: Duration::from_secs(3),
+            Some(DeliveryStamp {
+                cadence: DeliveryCadence::PeriodicPolling(PeriodicPolling::every(
+                    Duration::from_secs(3)
+                )),
                 delivered_at: timeline.at(13).instant,
             })
         );
@@ -634,8 +638,10 @@ mod tests {
         assert!(latest.failure().is_some());
         assert_eq!(
             latest.delivery_timing(),
-            Some(DeliveryTiming::PeriodicPolling {
-                poll_period: Duration::from_secs(3),
+            Some(DeliveryStamp {
+                cadence: DeliveryCadence::PeriodicPolling(PeriodicPolling::every(
+                    Duration::from_secs(3)
+                )),
                 delivered_at: timeline.at(10).instant,
             })
         );
@@ -673,6 +679,6 @@ mod tests {
         );
         assert!(latest.get().is_none());
         assert!(latest.display().is_some());
-        assert!(latest.hover_card(timeline.at(10)).is_some());
+        assert!(!latest.hover_card(timeline.at(10)).is_empty());
     }
 }

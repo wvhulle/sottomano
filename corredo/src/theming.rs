@@ -15,4 +15,5 @@ pub use font_faces::{FontFaces, LINE_HEIGHT, TextFace};
 mod dotted_rule;
 pub use dotted_rule::{DottedRule, dotted_rule};
 mod tinted_svg_icon;
+pub use style_metrics::OUTLINE_WIDTH_PX;
 pub use tinted_svg_icon::tinted_svg_icon;

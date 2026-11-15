@@ -24,7 +24,7 @@ use uom::{
 };
 
 use crate::{
-    hover_cards::PopupMessage,
+    hover_cards::{PopupMessage, hover_card_body::SectionWidget},
     widget_groups::window_group::{WindowGroupInteraction, window_list::WindowListInteraction},
     widgets::{
         icon_glyph::IconGlyph,
@@ -371,4 +371,11 @@ fn outline(node: &Process, depth: usize, folding: &Folding, branches: &mut Vec<B
             entry: Entry::Elided { hidden },
         });
     }
+}
+
+#[must_use]
+pub fn process_tree_widget(root: &Process, folding: &Folding) -> SectionWidget {
+    let root = root.clone();
+    let folding = folding.clone();
+    SectionWidget::drawn(move |card| card.process_tree(&root, &folding))
 }

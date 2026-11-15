@@ -29,7 +29,7 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
@@ -228,26 +228,34 @@ impl BluetoothAdaptersGroup {
         target: &BluetoothTarget,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         let body = match target {
-            BluetoothTarget::Adapter { controller_name } => self
-                .adapter_reading(self.adapter_named(controller_name)?)
-                .hover_card(clock),
-            BluetoothTarget::PowerSwitch { controller_name } => AdapterPowerSwitch {
-                adapter: self.adapter_named(controller_name)?,
+            BluetoothTarget::Adapter { controller_name } => {
+                let Some(adapter) = self.adapter_named(controller_name) else {
+                    return Vec::new();
+                };
+                self.adapter_reading(adapter).hover_card(clock)
             }
-            .hover_card(clock),
+            BluetoothTarget::PowerSwitch { controller_name } => {
+                let Some(adapter) = self.adapter_named(controller_name) else {
+                    return Vec::new();
+                };
+                AdapterPowerSwitch { adapter }.hover_card(clock)
+            }
             BluetoothTarget::Device {
                 controller_name,
                 object_path,
             } => {
-                let siblings = self
-                    .adapter_named(controller_name)?
-                    .power
-                    .connected_devices();
-                let device = siblings
+                let Some(adapter) = self.adapter_named(controller_name) else {
+                    return Vec::new();
+                };
+                let siblings = adapter.power.connected_devices();
+                let Some(device) = siblings
                     .iter()
-                    .find(|device| device.object_path == *object_path)?;
+                    .find(|device| device.object_path == *object_path)
+                else {
+                    return Vec::new();
+                };
                 self.device_reading(device, siblings, report_timing_for, clock)
                     .hover_card(clock)
             }

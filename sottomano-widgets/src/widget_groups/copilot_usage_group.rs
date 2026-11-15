@@ -20,7 +20,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -28,9 +28,9 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -147,17 +147,25 @@ impl CopilotUsageGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: CopilotUsageTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: CopilotUsageTarget, clock: Clock) -> Vec<Section> {
         match target {
             CopilotUsageTarget::Metered => self.metered.hover_card(clock),
             CopilotUsageTarget::Free => self.free.hover_card(clock),
             CopilotUsageTarget::Cli => self.cli.hover_card(clock),
-            CopilotUsageTarget::MostUsedModel => self
-                .cli
-                .hover_card_with(MostUsedModel(self.model_ranking()?).hover_card(clock)),
-            CopilotUsageTarget::MostUsedModelSpend => self
-                .cli
-                .hover_card_with(MostUsedModelSpend(self.model_ranking()?).hover_card(clock)),
+            CopilotUsageTarget::MostUsedModel => {
+                let Some(ranking) = self.model_ranking() else {
+                    return Vec::new();
+                };
+                self.cli
+                    .hover_card_with(MostUsedModel(ranking).hover_card(clock))
+            }
+            CopilotUsageTarget::MostUsedModelSpend => {
+                let Some(ranking) = self.model_ranking() else {
+                    return Vec::new();
+                };
+                self.cli
+                    .hover_card_with(MostUsedModelSpend(ranking).hover_card(clock))
+            }
         }
     }
 

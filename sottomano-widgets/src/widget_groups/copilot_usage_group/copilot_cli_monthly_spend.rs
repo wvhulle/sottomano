@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -55,33 +55,36 @@ impl GroupItemReading for CopilotCcusage {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let usage = &self.period.usage;
-        HoverCardBody::sections([
-            Section::dictionary(
-                [
-                    LabeledValue::new("Plan", "copilot-cli"),
-                    LabeledValue::new("Source", "ccusage, local CLI session data"),
-                ]
-                .into_iter()
-                .chain([LabeledValue::new(
-                    "Monthly Budget",
-                    Quantity::spend(usd(Decimal::from(self.budget.monthly_limit_usd))),
-                )]),
+        vec![
+            Section::new(
+                "Subscription",
+                dictionary_table(
+                    [
+                        LabeledValue::new("Plan", "copilot-cli"),
+                        LabeledValue::new("Source", "ccusage, local CLI session data"),
+                    ]
+                    .into_iter()
+                    .chain([LabeledValue::new(
+                        "Monthly Budget",
+                        Quantity::spend(usd(Decimal::from(self.budget.monthly_limit_usd))),
+                    )]),
+                ),
             ),
-            Section::dictionary([
-                LabeledValue::new("Tokens", Quantity::count(usage.tokens)),
-                LabeledValue::new("Cost", Quantity::spend(usage.cost)),
-                LabeledValue::new("Models", usage.models.to_string()),
-            ])
-            .titled(
+            Section::new(
                 self.period
                     .span
                     .since
                     .format(MONTH_HEADING_FORMAT)
                     .to_string(),
+                dictionary_table([
+                    LabeledValue::new("Tokens", Quantity::count(usage.tokens)),
+                    LabeledValue::new("Cost", Quantity::spend(usage.cost)),
+                    LabeledValue::new("Models", usage.models.to_string()),
+                ]),
             ),
-        ])
+        ]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

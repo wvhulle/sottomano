@@ -10,7 +10,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
     widgets::{
         icon_glyph::IconGlyph,
@@ -75,20 +75,23 @@ impl GroupItemReading for ZoneTime {
         Some(LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale))
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let there = self.there(clock);
-        HoverCardBody::dictionary([
-            LabeledValue::new("Zone", self.zone().name().to_owned()),
-            LabeledValue::new("Abbreviation", there.format("%Z").to_string()),
-            LabeledValue::new("UTC offset", there.format("%:z").to_string()),
-            LabeledValue::new("Day", self.day_relative_to_local(clock).to_owned()),
-            LabeledValue::new(
-                "Offset from local",
-                ValueCell::SignedDuration(TimeDelta::seconds(i64::from(
-                    self.seconds_ahead_of_local(clock),
-                ))),
-            ),
-        ])
+        vec![Section::new(
+            "Time zone",
+            dictionary_table([
+                LabeledValue::new("Zone", self.zone().name().to_owned()),
+                LabeledValue::new("Abbreviation", there.format("%Z").to_string()),
+                LabeledValue::new("UTC offset", there.format("%:z").to_string()),
+                LabeledValue::new("Day", self.day_relative_to_local(clock).to_owned()),
+                LabeledValue::new(
+                    "Offset from local",
+                    ValueCell::SignedDuration(TimeDelta::seconds(i64::from(
+                        self.seconds_ahead_of_local(clock),
+                    ))),
+                ),
+            ]),
+        )]
     }
 }
 

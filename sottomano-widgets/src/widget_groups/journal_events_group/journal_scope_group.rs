@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         journal_events_group::JournalEventsInteraction,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
@@ -19,9 +19,9 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::SubscribedSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -101,7 +101,7 @@ impl GroupItemReading for JournalScopeGroup {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let kernel = self
             .kernel
             .visible_reading()
@@ -118,13 +118,15 @@ impl GroupItemReading for JournalScopeGroup {
             .oom_kills
             .visible_reading()
             .map(|kills| LabeledValue::new("OOM kills", Quantity::count(kills.len())));
-        HoverCardBody::sections([Section::dictionary(
-            kernel
-                .into_iter()
-                .chain(service)
-                .chain(coredumps)
-                .chain(oom_kills),
-        )
-        .titled("Last hour")])
+        vec![Section::new(
+            "Last hour",
+            dictionary_table(
+                kernel
+                    .into_iter()
+                    .chain(service)
+                    .chain(coredumps)
+                    .chain(oom_kills),
+            ),
+        )]
     }
 }

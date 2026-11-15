@@ -17,7 +17,7 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -25,8 +25,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -111,15 +111,14 @@ impl NetworkManagerVpnGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &NetworkManagerVpnTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        let vpn_connection = self
+    pub fn hover_card_for(&self, target: &NetworkManagerVpnTarget, clock: Clock) -> Vec<Section> {
+        let Some(vpn_connection) = self
             .vpn_connections()
             .iter()
-            .find(|vpn_connection| vpn_connection.name == *target.connection_name)?;
+            .find(|vpn_connection| vpn_connection.name == *target.connection_name)
+        else {
+            return Vec::new();
+        };
         self.network_manager_vpns
             .hover_card_with(vpn_connection.hover_card(clock))
     }

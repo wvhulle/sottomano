@@ -17,7 +17,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -92,18 +92,26 @@ impl WallpaperGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: WallpaperTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: WallpaperTarget, clock: Clock) -> Vec<Section> {
         match target {
             WallpaperTarget::Lookup => self.lookup.hover_card(clock),
             WallpaperTarget::Place => self
                 .lookup
-                .hover_card_with(self.lookup.get()?.place.as_ref()?.hover_card(clock)),
+                .get()
+                .and_then(|lookup| lookup.place.as_ref())
+                .map(|place| self.lookup.hover_card_with(place.hover_card(clock)))
+                .unwrap_or_default(),
             WallpaperTarget::Article => self
                 .lookup
-                .hover_card_with(self.lookup.get()?.article.as_ref()?.hover_card(clock)),
+                .get()
+                .and_then(|lookup| lookup.article.as_ref())
+                .map(|article| self.lookup.hover_card_with(article.hover_card(clock)))
+                .unwrap_or_default(),
             WallpaperTarget::Photo => self
                 .lookup
-                .hover_card_with(self.lookup.get()?.photo.hover_card(clock)),
+                .get()
+                .map(|lookup| self.lookup.hover_card_with(lookup.photo.hover_card(clock)))
+                .unwrap_or_default(),
         }
     }
 

@@ -13,7 +13,7 @@ use crate::{
         gauge::percent_fill, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::{AddressFamily, signal_level},
     widgets::{
         icon_glyph::IconGlyph,
@@ -72,34 +72,40 @@ impl GroupItemReading for ModemSignalReading<'_> {
         self.modem.signal.map(percent_fill)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let signal_suffix = if self.modem.signal_recent {
             ""
         } else {
             " (cached)"
         };
-        HoverCardBody::sections([
-            Section::dictionary(
-                [
-                    self.modem
-                        .operator
-                        .as_deref()
-                        .map(|operator| LabeledValue::new("Carrier", operator)),
-                    (!self.modem.technology.is_empty()).then(|| {
-                        LabeledValue::new("Network Type", self.modem.technology.join(", "))
-                    }),
-                    self.modem.signal.map(|signal| {
-                        LabeledValue::new("Signal Strength", format!("{signal}%{signal_suffix}"))
-                    }),
-                    self.modem.registration.map(|registration| {
-                        LabeledValue::new("Network Registration", registration)
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
+        vec![
+            Section::new(
+                "Network",
+                dictionary_table(
+                    [
+                        self.modem
+                            .operator
+                            .as_deref()
+                            .map(|operator| LabeledValue::new("Carrier", operator)),
+                        (!self.modem.technology.is_empty()).then(|| {
+                            LabeledValue::new("Network Type", self.modem.technology.join(", "))
+                        }),
+                        self.modem.signal.map(|signal| {
+                            LabeledValue::new(
+                                "Signal Strength",
+                                format!("{signal}%{signal_suffix}"),
+                            )
+                        }),
+                        self.modem.registration.map(|registration| {
+                            LabeledValue::new("Network Registration", registration)
+                        }),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
             ),
             Section::from(&self.modem.identity),
-        ])
+        ]
     }
 }
 
@@ -131,20 +137,23 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
         ReadingDisplayState::from(self.modem.link_state())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let failure = match self.modem.state {
             Some(ModemState::Failed {
                 reason: Some(reason),
             }) => Some(LabeledValue::new("Failure Reason", reason)),
             _ => None,
         };
-        HoverCardBody::dictionary(
-            self.modem
-                .state
-                .map(|state| LabeledValue::new("Connection State", state.label()))
-                .into_iter()
-                .chain(failure),
-        )
+        vec![Section::new(
+            "Status",
+            dictionary_table(
+                self.modem
+                    .state
+                    .map(|state| LabeledValue::new("Connection State", state.label()))
+                    .into_iter()
+                    .chain(failure),
+            ),
+        )]
     }
 }
 
@@ -157,19 +166,22 @@ impl GroupItemReading for ModemDataReading<'_> {
         Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            [
-                self.modem
-                    .rx
-                    .map(|received| LabeledValue::new("Received (RX)", Quantity::size(received))),
-                self.modem
-                    .tx
-                    .map(|sent| LabeledValue::new("Sent (TX)", Quantity::size(sent))),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Transferred",
+            dictionary_table(
+                [
+                    self.modem.rx.map(|received| {
+                        LabeledValue::new("Received (RX)", Quantity::size(received))
+                    }),
+                    self.modem
+                        .tx
+                        .map(|sent| LabeledValue::new("Sent (TX)", Quantity::size(sent))),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }
 
@@ -199,10 +211,13 @@ impl GroupItemReading for AllMobileRadiosSwitch {
         ReadingDisplayState::from(self.radio_power)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "All mobile radios",
-            self.radio_power.label(),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new(
+                "All mobile radios",
+                self.radio_power.label(),
+            )]),
+        )]
     }
 }

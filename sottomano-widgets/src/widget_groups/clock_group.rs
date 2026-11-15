@@ -14,7 +14,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -126,11 +126,14 @@ impl ClockGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &ClockTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &ClockTarget, clock: Clock) -> Vec<Section> {
         match target {
             ClockTarget::LocalTime => self.time.hover_card(clock),
             ClockTarget::LocalDate => self.date.hover_card(clock),
-            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.hover_card(clock),
+            ClockTarget::ZoneTime(zone) => self
+                .zone_time(*zone)
+                .map(|zone_time| zone_time.hover_card(clock))
+                .unwrap_or_default(),
         }
     }
 

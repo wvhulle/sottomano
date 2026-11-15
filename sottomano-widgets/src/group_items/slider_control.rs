@@ -34,10 +34,7 @@ use crate::{
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
         announcing_hoverable,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
@@ -318,11 +315,13 @@ impl SliderControl {
         ))
     }
 
-    pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> HoverCard {
-        HoverCard::sourced(
-            HoverCardBody::dictionary([LabeledValue::new(label, self.readout_cell())]),
-            DeliveryTiming::LivePush,
-        )
+    pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> Vec<Section> {
+        vec![Section::new(
+            "Value",
+            dictionary_table([LabeledValue::new(label, self.readout_cell())]),
+        )]
+        .into_iter()
+        .collect()
     }
 
     fn severity(&self) -> Severity {
@@ -592,8 +591,8 @@ impl GroupItemReading for SliderControl {
         announcement.level(self.range_fill(), body_text)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 

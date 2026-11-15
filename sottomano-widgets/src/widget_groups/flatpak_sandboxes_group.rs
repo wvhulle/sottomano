@@ -15,7 +15,10 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{Section, dictionary_table},
+    },
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -78,11 +81,14 @@ impl GroupItemReading for FlatpakSandboxListingRow<'_> {
         ContainerRunState::Running.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("App", self.listing.application_id.clone()),
-            LabeledValue::new("State", ContainerRunState::Running.label()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("App", self.listing.application_id.clone()),
+                LabeledValue::new("State", ContainerRunState::Running.label()),
+            ]),
+        )]
     }
 }
 
@@ -111,7 +117,7 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let sandbox = self.sandbox;
         let mut detail_entries = vec![LabeledValue::new("App", sandbox.application_id.clone())];
         if let Some(memory_in_use) = sandbox.memory_in_use {
@@ -144,7 +150,7 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
             LabeledValue::new("Instance", sandbox.instance_id.clone()),
             LabeledValue::new("Sandbox PID", sandbox.sandbox_pid.to_string()),
         ]);
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Sandbox", dictionary_table(detail_entries))]
     }
 }
 

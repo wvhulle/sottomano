@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -98,23 +98,28 @@ impl GroupItemReading for AllergenConcentration {
         Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
-        HoverCardBody::sections([
-            Section::dictionary([LabeledValue::new(
-                self.allergen.name(),
-                Quantity::measured(
-                    self.grains_per_cubic_metre,
-                    DisplayUnit::GrainsPerCubicMeter,
-                    1,
-                ),
-            )]),
-            Section::dictionary([
-                LabeledValue::new("Moderate from", pollen_threshold(thresholds.moderate)),
-                LabeledValue::new("High from", pollen_threshold(thresholds.high)),
-            ])
-            .titled("Thresholds"),
-        ])
+        vec![
+            Section::new(
+                "Now",
+                dictionary_table([LabeledValue::new(
+                    self.allergen.name(),
+                    Quantity::measured(
+                        self.grains_per_cubic_metre,
+                        DisplayUnit::GrainsPerCubicMeter,
+                        1,
+                    ),
+                )]),
+            ),
+            Section::new(
+                "Thresholds",
+                dictionary_table([
+                    LabeledValue::new("Moderate from", pollen_threshold(thresholds.moderate)),
+                    LabeledValue::new("High from", pollen_threshold(thresholds.high)),
+                ]),
+            ),
+        ]
     }
 }
 
@@ -135,8 +140,8 @@ impl GroupItemReading for Pollen {
         Phosphor::Flower(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 

@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -44,22 +44,24 @@ impl GroupItemReading for CompositorFace<'_> {
         self.identity.desktop.clone()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary([
-            LabeledValue::new("Protocol", self.identity.session_type.clone()),
-            LabeledValue::new(
-                "Wiki",
-                ValueCell::BrandedLink {
-                    label: "Wayland".to_owned(),
-                    url: "https://wiki.archlinux.org/title/Wayland".to_owned(),
-                    glyph: SimpleIcon::ArchLinux.into(),
-                },
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Compositor drawing the desktop",
+                "The compositor draws every window and routes input; apps connect to it.",
             ),
-        ])
-        .titled((
-            "Compositor drawing the desktop",
-            "The compositor draws every window and routes input; apps connect to it.",
-        ))])
+            dictionary_table([
+                LabeledValue::new("Protocol", self.identity.session_type.clone()),
+                LabeledValue::new(
+                    "Wiki",
+                    ValueCell::BrandedLink {
+                        label: "Wayland".to_owned(),
+                        url: "https://wiki.archlinux.org/title/Wayland".to_owned(),
+                        glyph: SimpleIcon::ArchLinux.into(),
+                    },
+                ),
+            ]),
+        )]
     }
 }
 
@@ -69,25 +71,28 @@ impl ReadingSections for GraphicalSession {
             .session_desktop
             .clone()
             .filter(|session| Some(session) != self.current_desktop.as_ref());
-        vec![Section::dictionary(
-            [
-                Some(LabeledValue::new("Runs", self.compositor_version.clone())),
-                Some(LabeledValue::new(
-                    "Wayland apps connect to",
-                    self.wayland_display.clone(),
-                )),
-                self.x11_display
-                    .clone()
-                    .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
-                self.current_desktop
-                    .clone()
-                    .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
-                distinct_session_desktop.map(|session_desktop| {
-                    LabeledValue::new("Session desktop name", session_desktop)
-                }),
-            ]
-            .into_iter()
-            .flatten(),
+        vec![Section::new(
+            "Displays",
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Runs", self.compositor_version.clone())),
+                    Some(LabeledValue::new(
+                        "Wayland apps connect to",
+                        self.wayland_display.clone(),
+                    )),
+                    self.x11_display
+                        .clone()
+                        .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
+                    self.current_desktop
+                        .clone()
+                        .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
+                    distinct_session_desktop.map(|session_desktop| {
+                        LabeledValue::new("Session desktop name", session_desktop)
+                    }),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         )]
     }
 }

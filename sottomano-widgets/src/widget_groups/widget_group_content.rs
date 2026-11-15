@@ -41,6 +41,7 @@ use crate::{
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
         PointerPresence, PressHints, announcing_hoverable,
+        hover_card_body::{Section, hover_card_source_delivery::SectionSource},
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -340,6 +341,12 @@ impl<M> GroupMenuItemRow<'_, M> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CardTitleClash {
+    pub item_name: String,
+    pub clashing_title: String,
+}
+
 pub struct WidgetGroupContent<'a, M> {
     group_identity: WidgetGroupIdentity,
     group_title: WidgetGroupTitle,
@@ -384,6 +391,40 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             items: items.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
         }
+    }
+
+    pub fn card_title_clashes(
+        &self,
+        hover_card_of: impl Fn(&HoverTarget) -> Vec<Section>,
+    ) -> Vec<CardTitleClash> {
+        let group_title = self.group_title.to_string();
+        self.items
+            .iter()
+            .flat_map(|item| {
+                let item_name = item.item_in_group_name().into_owned();
+                let group_title = group_title.clone();
+                hover_card_of(item.inspected_target())
+                    .into_iter()
+                    .map(|section| {
+                        let source_name = match section.source() {
+                            SectionSource::Snapshot { source_name, .. } => source_name.to_owned(),
+                            SectionSource::Local => String::new(),
+                        };
+                        (section.title().text().to_owned(), source_name)
+                    })
+                    .filter(|(section_title, source_name)| {
+                        section_title.is_empty()
+                            || *section_title == item_name
+                            || *section_title == group_title
+                            || section_title == source_name
+                    })
+                    .map(|(section_title, _)| CardTitleClash {
+                        item_name: item_name.clone(),
+                        clashing_title: section_title,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 
     #[must_use]
@@ -918,7 +959,7 @@ mod tests {
             reading_display_state::ReadingDisplayState,
         },
         group_menus::group_menu_state::{GroupMenuTopic, PanelRaise},
-        hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+        hover_cards::{HoverTarget, hover_card_body::Section},
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         widgets::{
             icon_glyph::IconGlyph,
@@ -941,8 +982,8 @@ mod tests {
             self.0
         }
 
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections(Vec::new())
+        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+            Vec::new().into_iter().collect::<Vec<_>>()
         }
     }
 

@@ -13,10 +13,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         quiet_schedule_group::{QuietScheduleTarget, quiet_window::QuietPhase},
@@ -138,11 +135,9 @@ impl NotificationGroup {
         target: NotificationTarget,
         status: NotificationStatus,
         clock: Clock,
-    ) -> HoverCard {
+    ) -> Vec<Section> {
         match target {
-            NotificationTarget::Status => {
-                HoverCard::sourced(status.hover_card(clock), DeliveryTiming::LivePush)
-            }
+            NotificationTarget::Status => status.hover_card(clock).into_iter().collect(),
             NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_hover_card(clock),
         }
     }
@@ -236,14 +231,17 @@ impl GroupItemReading for NotificationStatus {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         if self.held > 0 {
-            HoverCardBody::dictionary([LabeledValue::new(
-                "Held until do not disturb ends",
-                Quantity::count(self.held),
-            )])
+            vec![Section::new(
+                "Counts",
+                dictionary_table([LabeledValue::new(
+                    "Held until do not disturb ends",
+                    Quantity::count(self.held),
+                )]),
+            )]
         } else {
-            HoverCardBody::sections([])
+            vec![]
         }
     }
 }
@@ -266,8 +264,8 @@ impl GroupItemReading for DoNotDisturbStatus {
         ReadingDisplayState::from(self.quiet_phase)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 

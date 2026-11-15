@@ -17,17 +17,11 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
     },
 };
 
@@ -121,8 +115,8 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_hover_card(&self, clock: Clock) -> HoverCard {
-        HoverCard::sourced(self.hover_card(clock), DeliveryTiming::LivePush)
+    pub fn switch_hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.hover_card(clock).into_iter().collect()
     }
 }
 
@@ -139,8 +133,8 @@ impl GroupItemReading for IconToggle {
         ReadingDisplayState::from(self.switch_position)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -212,9 +206,9 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.apply_command(command_outcome);
     }
 
-    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         match self.reading.get() {
-            Some(_) => self.reading.hover_card_with(HoverCardBody::sections([])),
+            Some(_) => self.reading.hover_card_with(vec![]),
             None => self.reading.hover_card(clock),
         }
     }
@@ -254,6 +248,9 @@ mod tests {
     };
 
     use super::*;
+    use crate::hover_cards::hover_card_body::hover_card_source_delivery::{
+        SectionSource, SourceDelivery,
+    };
     use crate::widget_groups::compute_group::ComputeTarget;
 
     fn refused_write() -> Error {
@@ -287,13 +284,21 @@ mod tests {
                 .group_item(HoverTarget::Compute(ComputeTarget::X3dCachePreference), ())
                 .is_some()
         );
-        let hover_card = format!(
-            "{:?}",
-            control
-                .hover_card(Clock::real())
-                .map(|hover_card| hover_card.groups)
+        let shown_sections: Vec<(String, SectionSource)> = control
+            .hover_card(Clock::real())
+            .iter()
+            .map(|section| (section.title().text().to_owned(), section.source()))
+            .collect();
+        assert_eq!(
+            shown_sections,
+            [(
+                "Unavailable".to_owned(),
+                SectionSource::Snapshot {
+                    source_name: X3dCachePreference::NAME,
+                    delivery: SourceDelivery::Failed,
+                }
+            )]
         );
-        assert!(hover_card.contains(&refused_write().to_string()));
     }
 
     #[test]

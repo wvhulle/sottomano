@@ -21,7 +21,7 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -222,7 +222,7 @@ impl LlamaServerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &LlamaServerTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &LlamaServerTarget, clock: Clock) -> Vec<Section> {
         let model_groups: Vec<_> = [
             self.model_props.sections(clock),
             self.gguf_card.sections(clock),

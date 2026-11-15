@@ -45,8 +45,9 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
-        HoverCardHost, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::HoverContent, hover_card_transition::CardRetention,
+        HoverAnnouncement, HoverCardHost, HoverTarget,
+        hover_card_body::hover_card_source_delivery::HoverCard, hover_card_surfaces::HoverContent,
+        hover_card_transition::CardRetention,
     },
     notification_toasts::{
         NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
@@ -495,6 +496,7 @@ impl DesktopShell {
     pub(crate) fn hover_content(
         &self,
         target: &HoverTarget,
+        announcement: HoverAnnouncement,
     ) -> Option<HoverContent<'_, ShellInteraction>> {
         if let Some(GroupMenuCascadeSurfaces {
             primary,
@@ -508,11 +510,9 @@ impl DesktopShell {
             });
         }
         match self.interactive_panel(target) {
-            Some(panel) => Some(HoverContent::Interactive {
-                described: self.hover_card_for(target).unwrap_or_else(HoverCard::empty),
-                panel,
-            }),
-            None => self.hover_card_for(target).map(HoverContent::Described),
+            Some(panel) => Some(HoverContent::Interactive { panel }),
+            None => HoverCard::new(self.hover_card_for(target), announcement)
+                .map(HoverContent::Described),
         }
     }
 
@@ -555,17 +555,13 @@ impl DesktopShell {
             return None;
         };
         let group_menu = self.group_menu_of(*topic, self.hovered_output());
-        let inspected_hover_card = self
-            .widget_groups
-            .group_menus
-            .inspected_target(*topic)
-            .and_then(|target| {
-                self.hover_card_for(target).map(|hover_card| {
-                    hover_card
-                        .with_announcement(group_menu.announcement_of(target).unwrap_or_default())
-                })
-            })
-            .unwrap_or_else(HoverCard::empty);
+        let inspected_target = self.widget_groups.group_menus.inspected_target(*topic);
+        let inspected_sections = inspected_target
+            .map(|target| self.hover_card_for(target))
+            .unwrap_or_default();
+        let inspected_announcement = inspected_target
+            .and_then(|target| group_menu.announcement_of(target))
+            .unwrap_or_default();
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()
         });
@@ -578,7 +574,8 @@ impl DesktopShell {
                 .appearance()
                 .with_background_faded(satellite_fade_level),
             &InspectionCard {
-                hover_card: &inspected_hover_card,
+                sections: &inspected_sections,
+                announcement: inspected_announcement,
                 card_appearance: self
                     .widget_groups
                     .overlay_settings_group
@@ -645,10 +642,7 @@ impl DesktopShell {
             self.widget_groups
                 .hover_card_surface_style(self.card_background_fade(output)),
             self.window_assets(),
-            |target: &HoverTarget| {
-                self.hover_content(target)
-                    .unwrap_or_else(|| HoverContent::Described(HoverCard::empty()))
-            },
+            |target: &HoverTarget, announcement| self.hover_content(target, announcement),
             self.clock,
         )
     }

@@ -16,7 +16,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -127,56 +127,68 @@ impl GroupItemReading for Tailscale {
         Some(tailnet.online.len()).filter(|count| *count > 0)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let tailnet = match self {
             Tailscale::Running(tailnet) => tailnet,
             Tailscale::Starting => {
-                return HoverCardBody::dictionary([LabeledValue::new("Tailscale", "starting")]);
+                return vec![Section::new(
+                    "Status",
+                    dictionary_table([LabeledValue::new("Tailscale", "starting")]),
+                )];
             }
             Tailscale::Stopped => {
-                return HoverCardBody::dictionary([LabeledValue::new("Tailscale", "disconnected")]);
+                return vec![Section::new(
+                    "Status",
+                    dictionary_table([LabeledValue::new("Tailscale", "disconnected")]),
+                )];
             }
         };
         let health_entries = tailnet
             .health_warnings
             .iter()
             .map(|warning| LabeledValue::new("Health", warning.as_str()).level(Severity::Warning));
-        let summary_section = Section::dictionary(
-            [
-                LabeledValue::new("Tailscale", "connected"),
-                LabeledValue::new("Tailnet", tailnet.tailnet_name.as_str()),
-                LabeledValue::new(
-                    "Dashboard",
-                    ValueCell::BrandedLink {
-                        label: "Admin console".to_owned(),
-                        url: ADMIN_CONSOLE_URL.to_owned(),
-                        glyph: SimpleIcon::Tailscale.into(),
-                    },
-                ),
-                LabeledValue::new("Self", tailnet.own_node.name.as_str()),
-                LabeledValue::new("IP", tailnet.own_node.ip.as_str()),
-                LabeledValue::new(
-                    "Peers",
-                    format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
-                ),
-            ]
-            .into_iter()
-            .chain([key_expiry_entry(tailnet.key_expiry, clock.utc())])
-            .chain(health_entries),
+        let summary_section = Section::new(
+            "Status",
+            dictionary_table(
+                [
+                    LabeledValue::new("Tailscale", "connected"),
+                    LabeledValue::new("Tailnet", tailnet.tailnet_name.as_str()),
+                    LabeledValue::new(
+                        "Dashboard",
+                        ValueCell::BrandedLink {
+                            label: "Admin console".to_owned(),
+                            url: ADMIN_CONSOLE_URL.to_owned(),
+                            glyph: SimpleIcon::Tailscale.into(),
+                        },
+                    ),
+                    LabeledValue::new("Self", tailnet.own_node.name.as_str()),
+                    LabeledValue::new("IP", tailnet.own_node.ip.as_str()),
+                    LabeledValue::new(
+                        "Peers",
+                        format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
+                    ),
+                ]
+                .into_iter()
+                .chain([key_expiry_entry(tailnet.key_expiry, clock.utc())])
+                .chain(health_entries),
+            ),
         );
-        let peer_table = Section::column_table(
-            [
-                ColumnHeading::titled("IP").align_x(Horizontal::Left),
-                ColumnHeading::titled("OS").align_x(Horizontal::Left),
-                ColumnHeading::titled("Tags").align_x(Horizontal::Left),
-                ColumnHeading::titled("Path").align_x(Horizontal::Left),
-                ColumnHeading::titled("Relay").align_x(Horizontal::Left),
-                ColumnHeading::titled("Received"),
-                ColumnHeading::titled("Sent"),
-            ],
-            &tailnet.online,
-        )
-        .without_blank_columns();
-        HoverCardBody::sections([summary_section, peer_table])
+        let peer_table = Section::new(
+            "Online peers",
+            headed_table(
+                [
+                    ColumnHeading::titled("IP").align_x(Horizontal::Left),
+                    ColumnHeading::titled("OS").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Tags").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Path").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Relay").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Received"),
+                    ColumnHeading::titled("Sent"),
+                ],
+                &tailnet.online,
+            )
+            .without_blank_columns(ValueCell::is_blank),
+        );
+        vec![summary_section, peer_table]
     }
 }

@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -52,57 +52,61 @@ impl ContextSwitchRate<'_> {
                 / i32::try_from(switches_last_day)
                     .expect("a day holds fewer than i32::MAX focus switches")
         });
-        let readings = Section::dictionary(
-            [
-                Some(
-                    LabeledValue::new(
-                        "Switches in the last hour",
-                        Quantity::count(self.per_hour(now)),
-                    )
-                    .level(self.severity(now)),
-                ),
-                Some(LabeledValue::new(
-                    "Switches in the last 24 hours",
-                    Quantity::count(switches_last_day),
-                )),
-                average_span.map(|span| {
-                    LabeledValue::new("Average time per window", ValueCell::duration(span))
-                }),
-                Some(LabeledValue::new(
-                    "Active time in the last hour",
-                    ValueCell::duration(
-                        self.accounting.screen_spent(LAST_HOUR.ending_at(now), now),
+        let readings = Section::new(
+            SectionTitle::captioned(
+                "Window switches".to_owned(),
+                "A switch is focusing another window, or the same window in another app or \
+                 project; refocusing the same one doesn't count."
+                    .to_owned(),
+            ),
+            dictionary_table(
+                [
+                    Some(
+                        LabeledValue::new(
+                            "Switches in the last hour",
+                            Quantity::count(self.per_hour(now)),
+                        )
+                        .level(self.severity(now)),
                     ),
-                )),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled((
-            "Window switches".to_owned(),
-            "A switch is focusing another window, or the same window in another app or project; \
-             refocusing the same one doesn't count."
-                .to_owned(),
-        ));
-        let thresholds = Section::dictionary([
-            LabeledValue::new(
-                "Warning above per hour",
-                Quantity::measured(
-                    f64::from(self.accounting.config.switches_per_hour_warning),
-                    DisplayUnit::PerHour,
-                    0,
-                ),
+                    Some(LabeledValue::new(
+                        "Switches in the last 24 hours",
+                        Quantity::count(switches_last_day),
+                    )),
+                    average_span.map(|span| {
+                        LabeledValue::new("Average time per window", ValueCell::duration(span))
+                    }),
+                    Some(LabeledValue::new(
+                        "Active time in the last hour",
+                        ValueCell::duration(
+                            self.accounting.screen_spent(LAST_HOUR.ending_at(now), now),
+                        ),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
             ),
-            LabeledValue::new(
-                "Critical above per hour",
-                Quantity::measured(
-                    f64::from(self.accounting.config.switches_per_hour_critical),
-                    DisplayUnit::PerHour,
-                    0,
+        );
+        let thresholds = Section::new(
+            "Switch alerts",
+            dictionary_table([
+                LabeledValue::new(
+                    "Warning above per hour",
+                    Quantity::measured(
+                        f64::from(self.accounting.config.switches_per_hour_warning),
+                        DisplayUnit::PerHour,
+                        0,
+                    ),
                 ),
-            ),
-        ])
-        .titled("Switch alerts");
+                LabeledValue::new(
+                    "Critical above per hour",
+                    Quantity::measured(
+                        f64::from(self.accounting.config.switches_per_hour_critical),
+                        DisplayUnit::PerHour,
+                        0,
+                    ),
+                ),
+            ]),
+        );
         [readings, thresholds]
     }
 }
@@ -124,7 +128,7 @@ impl GroupItemReading for ContextSwitchRate<'_> {
         self.severity(clock.utc()).into()
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

@@ -25,7 +25,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, SectionWidget, dictionary_table},
     },
     widget_groups::{
         engine_container_rows::{
@@ -38,8 +38,8 @@ use crate::{
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -94,14 +94,17 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::error(self.failure),
-            Section::dictionary([
-                LabeledValue::new("Unit", self.engine.unit.unit_name.clone()),
-                LabeledValue::new("Socket", self.engine.socket_path.display().to_string()),
-            ]),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new("Error", SectionWidget::paragraph(self.failure.to_string())),
+            Section::new(
+                "Engine",
+                dictionary_table([
+                    LabeledValue::new("Unit", self.engine.unit.unit_name.clone()),
+                    LabeledValue::new("Socket", self.engine.socket_path.display().to_string()),
+                ]),
+            ),
+        ]
     }
 }
 
@@ -210,31 +213,41 @@ impl PodmanEnginesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &PodmanEngineTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &PodmanEngineTarget, clock: Clock) -> Vec<Section> {
         match target {
             PodmanEngineTarget::Engine { socket_path } => {
-                let PodmanEngineReading { engine, reading } = self.engine_reading(socket_path)?;
-                let EngineReadout::Unreadable(failure) = reading.get()? else {
-                    return None;
+                let Some(PodmanEngineReading { engine, reading }) =
+                    self.engine_reading(socket_path)
+                else {
+                    return Vec::new();
+                };
+                let Some(EngineReadout::Unreadable(failure)) = reading.get() else {
+                    return Vec::new();
                 };
                 reading.hover_card_with(UnreadableEngineRow { engine, failure }.hover_card(clock))
             }
             PodmanEngineTarget::Container(container_target) => {
-                let PodmanEngineReading { engine, reading } =
-                    self.engine_reading(Path::new(container_target.socket_path.as_ref()))?;
-                let EngineReadout::Containers(listing) = reading.get()? else {
-                    return None;
+                let Some(PodmanEngineReading { engine, reading }) =
+                    self.engine_reading(Path::new(container_target.socket_path.as_ref()))
+                else {
+                    return Vec::new();
+                };
+                let Some(EngineReadout::Containers(listing)) = reading.get() else {
+                    return Vec::new();
                 };
                 let engine_containers = EngineContainers {
                     socket_path: &engine.socket_path,
                     owner: &engine.owner,
                     listing,
                 };
-                reading.hover_card_with(
-                    engine_containers.hover_body_of(&container_target.container_id, clock)?,
-                )
+                let Some(container_body) =
+                    engine_containers.hover_body_of(&container_target.container_id, clock)
+                else {
+                    return Vec::new();
+                };
+                reading.hover_card_with(container_body)
             }
-            PodmanEngineTarget::HiddenContainers => None,
+            PodmanEngineTarget::HiddenContainers => Vec::new(),
         }
     }
 

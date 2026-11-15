@@ -20,13 +20,7 @@ use crate::{
         },
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         fixed_panel_group::FixedPanelGroup,
         idle_pause_groups::{ScheduledAfterIdle, Timeouts},
@@ -151,11 +145,9 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: SessionTarget) -> HoverCard {
+    pub fn hover_card_for(&self, target: SessionTarget) -> Vec<Section> {
         match target {
-            SessionTarget::Menu => {
-                HoverCard::sourced(HoverCardBody::sections([]), DeliveryTiming::LivePush)
-            }
+            SessionTarget::Menu => Vec::new(),
         }
     }
 

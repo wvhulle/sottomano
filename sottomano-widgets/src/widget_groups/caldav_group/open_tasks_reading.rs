@@ -19,9 +19,9 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::caldav_group::upcoming_events_reading::{
-        event_date_cell, event_time_cell, linked_title, nextcloud_footer,
+        event_date_cell, event_time_cell, linked_title, nextcloud_app_link,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -130,7 +130,7 @@ impl GroupItemReading for OpenTaskList {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.local();
         let provider = &self.provider;
         let with_deadline: Vec<&OpenTask> = self
@@ -147,32 +147,45 @@ impl GroupItemReading for OpenTaskList {
                 provider,
             })
             .collect();
-        HoverCardBody::sections([
-            Section::grouped_column_table(
-                [
-                    ColumnHeading::titled("Day"),
-                    ColumnHeading::titled("Time"),
-                    ColumnHeading::titled("Priority"),
-                    ColumnHeading::titled("Progress"),
-                    ColumnHeading::titled("List").align_x(Horizontal::Left),
-                ],
-                rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
-            )
-            .truncated_to(LISTED_TASKS)
-            .without_blank_columns()
-            .titled((
-                "Open tasks",
-                format!(
-                    "Open tasks with a deadline from all lists, earliest first. Overdue in red, \
-                     high priority in yellow, low priority dimmed; {} task lists over CalDAV.",
-                    self.task_list_count
+        vec![
+            Section::new(
+                SectionTitle::captioned(
+                    "Deadlines",
+                    format!(
+                        "Open tasks with a deadline from all lists, earliest first. Overdue in \
+                         red, high priority in yellow, low priority dimmed; {} task lists over \
+                         CalDAV.",
+                        self.task_list_count
+                    ),
                 ),
-            )),
-            nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app).with_entries(
-                (without_deadline > 0).then(|| {
-                    LabeledValue::new("Without deadline", Quantity::count(without_deadline))
-                }),
+                headed_grouped_table(
+                    [
+                        ColumnHeading::titled("Day"),
+                        ColumnHeading::titled("Time"),
+                        ColumnHeading::titled("Priority"),
+                        ColumnHeading::titled("Progress"),
+                        ColumnHeading::titled("List").align_x(Horizontal::Left),
+                    ],
+                    rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
+                )
+                .truncated_to(LISTED_TASKS)
+                .without_blank_columns(ValueCell::is_blank),
             ),
-        ])
+            Section::new(
+                "Other tasks",
+                dictionary_table(
+                    (without_deadline > 0)
+                        .then(|| {
+                            LabeledValue::new("Without deadline", Quantity::count(without_deadline))
+                        })
+                        .into_iter()
+                        .chain(nextcloud_app_link(
+                            "open Tasks",
+                            provider,
+                            NextcloudWebRoot::tasks_app,
+                        )),
+                ),
+            ),
+        ]
     }
 }

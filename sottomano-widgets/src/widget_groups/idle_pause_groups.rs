@@ -30,10 +30,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{group_item::GroupItem, slider_control::ControlMessage},
-    hover_cards::{
-        HoverTarget, PauseBlockerTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, PauseBlockerTarget, hover_card_body::Section},
     widget_groups::{
         idle_pause_groups::pause_blocker_rows::TimerArming,
         widget_group_content::{
@@ -47,8 +44,8 @@ use crate::{
             ActionTrigger, performed_idle_action_edges,
             timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
         },
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -290,7 +287,7 @@ impl IdlePauseGroups {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, kind: IdleAction, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, kind: IdleAction, clock: Clock) -> Vec<Section> {
         let timer = &self.pause(kind).timer;
         let timer_card = if kind == IdleAction::ScreenOff
             && let Some(override_timeout) = self.quiet_screen_off
@@ -299,25 +296,29 @@ impl IdlePauseGroups {
         } else {
             timer.hover_card(clock)
         };
-        timer_card.with_groups(self.sleep_obstacles.sections_described_by(|obstacles| {
-            let sleep_states = if kind == IdleAction::Sleep {
-                sleep_state_sections(obstacles)
-            } else {
-                Vec::new()
-            };
-            sleep_states
-                .into_iter()
-                .chain(blocker_sections(self.blockers_of(kind)))
-                .collect()
-        }))
+        timer_card
+            .into_iter()
+            .chain(self.sleep_obstacles.sections_described_by(|obstacles| {
+                let sleep_states = if kind == IdleAction::Sleep {
+                    sleep_state_sections(obstacles)
+                } else {
+                    Vec::new()
+                };
+                sleep_states
+                    .into_iter()
+                    .chain(blocker_sections(self.blockers_of(kind)))
+                    .collect()
+            }))
+            .collect()
     }
 
     #[must_use]
-    pub fn blocker_hover_card_for(&self, target: &PauseBlockerTarget) -> Option<HoverCard> {
-        self.sleep_obstacles
-            .hover_card_with(HoverCardBody::sections(blocker_sections(
-                self.blockers_of(target.pause),
-            )))
+    pub fn blocker_hover_card_for(&self, target: &PauseBlockerTarget) -> Vec<Section> {
+        self.sleep_obstacles.hover_card_with(
+            blocker_sections(self.blockers_of(target.pause))
+                .into_iter()
+                .collect::<Vec<_>>(),
+        )
     }
 
     pub fn override_screen_off(&mut self, timeout: Option<Duration>) -> Task<IdlePauseMessage> {

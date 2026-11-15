@@ -63,10 +63,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody, Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, SectionWidget},
     },
     widget_groups::{
         gamepad_group::{
@@ -155,11 +152,19 @@ impl GroupItemReading for ControllerDiscoveryFailureReading<'_> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::error(self.discovery_failure),
-            Section::note("New or removed controllers are not noticed until the panel restarts."),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Error",
+                SectionWidget::paragraph(self.discovery_failure.to_string()),
+            ),
+            Section::new(
+                "Hotplug",
+                SectionWidget::paragraph(
+                    "New or removed controllers are not noticed until the panel restarts.",
+                ),
+            ),
+        ]
     }
 }
 
@@ -604,7 +609,7 @@ impl GamepadGroup {
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
         clock: Clock,
-    ) -> Option<HoverCardBody> {
+    ) -> Option<Vec<Section>> {
         Some(match target {
             GamepadTarget::Controller { slot } => self
                 .face_reading(self.controller(slot)?, self.physical_link(slot)?, bindings)
@@ -630,7 +635,7 @@ impl GamepadGroup {
         })
     }
 
-    fn compositor_driving_hover_card(&self, slot: usize) -> HoverCardBody {
+    fn compositor_driving_hover_card(&self, slot: usize) -> Vec<Section> {
         let (note_title, note_body) = match self.controller_custody(slot) {
             ControllerCustody::Compositor => (
                 "Driving the compositor",
@@ -645,7 +650,10 @@ impl GamepadGroup {
                  is remembered for this controller.",
             ),
         };
-        HoverCardBody::sections([Section::detailed_note(note_title, note_body)])
+        vec![Section::new(
+            note_title,
+            SectionWidget::paragraph(note_body),
+        )]
     }
 
     #[must_use]
@@ -654,9 +662,9 @@ impl GamepadGroup {
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         self.hover_card_body(target, bindings, clock)
-            .map(|body| HoverCard::sourced(body, DeliveryTiming::LivePush))
+            .unwrap_or_default()
     }
 
     fn controller_discovery_failure_reading(

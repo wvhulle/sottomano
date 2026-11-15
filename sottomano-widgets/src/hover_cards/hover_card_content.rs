@@ -1,5 +1,5 @@
 use std::{
-    iter::{empty, once},
+    iter::once,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -10,8 +10,9 @@ use corredo::{
     gauges::CountdownDial,
     press_actions::flash_on_press_text,
     theming::{
-        LINE_HEIGHT, background_strong_color, primary_color, primary_shades, primary_weak_color,
-        secondary_text_color, success_color, success_shades, text_color,
+        LINE_HEIGHT, OUTLINE_WIDTH_PX, background_strong_color, danger_color, primary_color,
+        primary_shades, primary_weak_color, secondary_text_color, success_color, success_shades,
+        text_color,
     },
     width_layout::equal_width_column,
 };
@@ -20,9 +21,13 @@ use iced::{
     alignment::Vertical,
     font::Style as FontStyle,
     mouse::Interaction,
-    widget::{Column, Space, Text, button, container, row, text, text::Wrapping},
+    widget::{Column, Space, Text, button, container, row, rule, text, text::Wrapping},
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
+use sottomano_desktop_sources::{
+    delivery_cadence_drivers::DeliveryCadence,
+    desktop_windows_apps::process_tree_inspection::Process,
+};
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
@@ -33,15 +38,13 @@ use crate::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
         hover_card_body::{
-            Heading, Section, SectionBody, SectionHeading,
-            hover_card_figure_payloads::{ChipletCells, ControllerCallouts},
-            hover_card_source_delivery::{
-                DeliveryTiming, HoverCard, SourceDelivery, SourcedSections,
-            },
+            Section, SectionTitle,
+            hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview},
+            hover_card_source_delivery::{DeliveryStamp, HoverCard, SectionSource, SourceDelivery},
         },
     },
     widget_groups::{
-        window_group::process_tree::ProcessTree,
+        window_group::process_tree::{Folding, ProcessTree},
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
@@ -84,12 +87,12 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn in_delivery_state(self, delivery_state: SourceDelivery) -> Self {
-        let presence = match delivery_state {
-            SourceDelivery::Delivered { .. } | SourceDelivery::LiveUnlabelled => {
+    fn in_delivery_state(self, delivery: SourceDelivery) -> Self {
+        let presence = match delivery {
+            SourceDelivery::Delivered(_) | SourceDelivery::Failed | SourceDelivery::Offline => {
                 TextPresence::Shown
             }
-            SourceDelivery::AwaitingDelivery => TextPresence::Placeholder,
+            SourceDelivery::Loading => TextPresence::Placeholder,
         };
         Self { presence, ..self }
     }
@@ -104,66 +107,37 @@ impl<'a> HoverCardContent<'a> {
 
     #[must_use]
     pub fn view(self) -> Element<'static, PopupMessage> {
-        self.arranged_around(empty())
-    }
-
-    #[must_use]
-    pub fn view_enclosing<'panel, Message: From<PopupMessage> + 'panel>(
-        self,
-        panel: Element<'panel, Message>,
-    ) -> Element<'panel, Message> {
-        self.arranged_around(once(panel))
-    }
-
-    fn arranged_around<'panel, Message: From<PopupMessage> + 'panel>(
-        self,
-        enclosed_panel: impl IntoIterator<Item = Element<'panel, Message>>,
-    ) -> Element<'panel, Message> {
-        let lift = |element: Element<'static, PopupMessage>| -> Element<'panel, Message> {
-            let element: Element<'panel, PopupMessage> = element;
-            element.map(Message::from)
-        };
-        let title_rows = self.group_title_row().map(lift);
-        let groups: Vec<&SourcedSections> = self.hover_card.filled_groups().collect();
-        let Some((closing_group, leading_groups)) = groups.split_last() else {
-            let content = equal_width_column(
-                enclosed_panel
-                    .into_iter()
-                    .chain(self.closing_row(None).map(lift)),
-            )
-            .into();
-            return self.shell_below_title(title_rows, content);
-        };
-        let leading = leading_groups.iter().map(|group| {
-            lift(
-                equal_width_column(once(self.group_sections(group)).chain(
-                    self.footer_row(None, self.delivery_state_view(group.delivery_state())),
-                ))
-                .spacing(self.config.theme.spacing.item_gap)
-                .into(),
-            )
-        });
-        let closing: Element<'panel, Message> = equal_width_column(
-            once(lift(self.group_sections(closing_group)))
-                .chain(enclosed_panel)
-                .chain(
-                    self.closing_row(Some(closing_group.delivery_state()))
-                        .map(lift),
-                ),
-        )
-        .spacing(self.config.theme.spacing.item_gap)
-        .into();
-        let content = equal_width_column(leading.chain(once(closing)))
+        let title_rows = self.card_header_rows();
+        let mut previous_source = SectionSource::Local;
+        let section_views: Vec<Element<'static, PopupMessage>> = self
+            .hover_card
+            .sections()
+            .map(|section| {
+                let source = section.source();
+                let source_row = match source {
+                    SectionSource::Snapshot {
+                        source_name,
+                        delivery,
+                    } if !same_source(previous_source, source) => {
+                        Some(self.source_row(source_name, delivery))
+                    }
+                    SectionSource::Snapshot { .. } | SectionSource::Local => None,
+                };
+                previous_source = source;
+                self.section(section, source_row)
+            })
+            .collect();
+        let content = equal_width_column(section_views)
             .spacing(self.config.theme.spacing.group_gap)
             .into();
         self.shell_below_title(title_rows, content)
     }
 
-    fn shell_below_title<'panel, Message: 'panel>(
+    fn shell_below_title(
         &self,
-        title_rows: Option<Element<'panel, Message>>,
-        content: Element<'panel, Message>,
-    ) -> Element<'panel, Message> {
+        title_rows: Option<Element<'static, PopupMessage>>,
+        content: Element<'static, PopupMessage>,
+    ) -> Element<'static, PopupMessage> {
         container(
             equal_width_column(title_rows.into_iter().chain(once(content)))
                 .spacing(self.config.theme.spacing.item_gap),
@@ -172,63 +146,66 @@ impl<'a> HoverCardContent<'a> {
         .into()
     }
 
-    fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
-        match &self.hover_card.announcement.origin {
-            HoverOrigin::GroupHandle {
-                item_group_name,
-                panel_pin,
-            } => {
-                let title: Element<'static, PopupMessage> = container(
-                    container(self.small_dim_text(item_group_name.to_string()))
-                        .padding(self.title_padding()),
-                )
+    fn card_header_rows(&self) -> Option<Element<'static, PopupMessage>> {
+        let HoverOrigin::GroupHandle {
+            item_group_name,
+            panel_pin,
+        } = &self.hover_card.announcement().origin
+        else {
+            return None;
+        };
+        let group_name = self.small_dim_text(item_group_name.to_string());
+        let (header, unpin): (Element<'static, PopupMessage>, _) = match panel_pin {
+            PanelPinOrigin::Unpinned => return None,
+            PanelPinOrigin::GroupPinnedFrom { menu, group } => (
+                group_name.into(),
+                self.release_action_row(
+                    *menu,
+                    GroupMenuPin::Group((**group).clone()),
+                    PanelPinDuration::Permanent,
+                ),
+            ),
+            PanelPinOrigin::ItemPinnedFrom {
+                menu,
+                group,
+                item_in_group_name,
+                pin_duration,
+            } => (
+                row([
+                    group_name.into(),
+                    self.small_dim_text("\u{203a}".to_owned()).into(),
+                    self.bold_title(item_in_group_name)
+                        .style(text::primary)
+                        .into(),
+                ])
+                .spacing(self.config.theme.spacing.item_gap)
+                .align_y(Vertical::Center)
+                .into(),
+                self.release_action_row(
+                    *menu,
+                    GroupMenuPin::Item {
+                        group: (**group).clone(),
+                        item_in_group_name: item_in_group_name.clone(),
+                    },
+                    *pin_duration,
+                ),
+            ),
+        };
+        let header_row: Element<'static, PopupMessage> =
+            container(container(header).padding(self.title_padding()))
                 .padding(self.edge_row_padding())
                 .into();
-                let pinned_item_title = match panel_pin {
-                    PanelPinOrigin::ItemPinnedFrom {
-                        item_in_group_name, ..
-                    } => {
-                        let item_title: Element<'static, PopupMessage> = container(
-                            container(self.bold_title(item_in_group_name))
-                                .padding(self.title_padding()),
-                        )
-                        .padding(self.edge_row_padding())
-                        .into();
-                        Some(item_title)
-                    }
-                    PanelPinOrigin::Unpinned | PanelPinOrigin::GroupPinnedFrom { .. } => None,
-                };
-                let unpin = match panel_pin {
-                    PanelPinOrigin::Unpinned => None,
-                    PanelPinOrigin::GroupPinnedFrom { menu, group } => {
-                        Some(self.release_action_row(
-                            *menu,
-                            GroupMenuPin::Group((**group).clone()),
-                            PanelPinDuration::Permanent,
-                        ))
-                    }
-                    PanelPinOrigin::ItemPinnedFrom {
-                        menu,
-                        group,
-                        item_in_group_name,
-                        pin_duration,
-                    } => Some(self.release_action_row(
-                        *menu,
-                        GroupMenuPin::Item {
-                            group: (**group).clone(),
-                            item_in_group_name: item_in_group_name.clone(),
-                        },
-                        *pin_duration,
-                    )),
-                };
-                Some(
-                    Column::with_children(once(title).chain(pinned_item_title).chain(unpin))
-                        .spacing(self.config.theme.spacing.item_gap)
-                        .into(),
-                )
-            }
-            HoverOrigin::Reading => None,
-        }
+        Some(
+            Column::with_children([header_row, self.separator_rule(), unpin])
+                .spacing(self.config.theme.spacing.item_gap)
+                .into(),
+        )
+    }
+
+    fn separator_rule(&self) -> Element<'static, PopupMessage> {
+        container(rule::horizontal(OUTLINE_WIDTH_PX).style(rule::default))
+            .padding(self.edge_row_padding())
+            .into()
     }
 
     fn release_action_row(
@@ -273,85 +250,102 @@ impl<'a> HoverCardContent<'a> {
             .into()
     }
 
-    fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
-        let content = self.in_delivery_state(group.delivery_state());
-        let source_heading = group.source_heading().map(|heading| {
-            self.inset(
-                Column::with_children(self.heading_rows(heading))
-                    .spacing(self.config.theme.spacing.item_gap)
-                    .into(),
-            )
-        });
-        let sections: Element<'static, PopupMessage> = equal_width_column(
-            group
-                .filled_sections()
-                .map(|section| content.section(section)),
-        )
-        .spacing(self.config.theme.spacing.group_gap)
-        .into();
-        equal_width_column(source_heading.into_iter().chain(once(sections)))
+    fn source_row(
+        &self,
+        source_name: &'static str,
+        delivery: SourceDelivery,
+    ) -> Element<'static, PopupMessage> {
+        let glyph_size = self.config.theme.font.small_text_size_px;
+        container(
+            row([
+                IconGlyph::from(Phosphor::Database(Weight::Regular))
+                    .view(glyph_size, secondary_text_color),
+                self.small_dim_text(source_name.to_owned()).into(),
+                Space::new().width(Length::Fill).into(),
+                self.delivery_view(delivery),
+            ])
             .spacing(self.config.theme.spacing.item_gap)
-            .into()
-    }
-
-    fn closing_row(
-        &self,
-        closing_delivery_state: Option<SourceDelivery>,
-    ) -> Option<Element<'static, PopupMessage>> {
-        let press_hints = self.hover_card.announcement.press_hints;
-        let hints = (press_hints != PressHints::default()).then(|| self.gesture_hints(press_hints));
-        self.footer_row(
-            hints,
-            closing_delivery_state
-                .and_then(|delivery_state| self.delivery_state_view(delivery_state)),
+            .align_y(Vertical::Center),
         )
+        .padding(self.title_padding())
+        .into()
     }
 
-    fn delivery_state_view(
-        &self,
-        delivery_state: SourceDelivery,
-    ) -> Option<Element<'static, PopupMessage>> {
-        Some(match delivery_state {
-            SourceDelivery::Delivered { delivery_timing } => {
-                self.delivery_timing(delivery_timing)
-            }
-            SourceDelivery::LiveUnlabelled => return None,
-            SourceDelivery::AwaitingDelivery => row([
-                self.small_dim_text("loading".to_owned()).into(),
-                IconGlyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
-                    self.config.theme.font.small_text_size_px,
-                    secondary_text_color,
-                ),
+    fn delivery_view(&self, delivery: SourceDelivery) -> Element<'static, PopupMessage> {
+        let glyph_size = self.config.theme.font.small_text_size_px;
+        let labelled = |label: Text<'static>,
+                        glyph: Phosphor,
+                        glyph_color: fn(&iced::Theme) -> iced::Color| {
+            row([
+                label.into(),
+                IconGlyph::from(glyph).view(glyph_size, glyph_color),
             ])
             .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Center)
-            .into(),
-        })
+            .into()
+        };
+        match delivery {
+            SourceDelivery::Delivered(delivery_stamp) => self.delivery_stamp(delivery_stamp),
+            SourceDelivery::Loading => labelled(
+                self.small_dim_text("loading".to_owned()),
+                Phosphor::HourglassMedium(Weight::Regular),
+                secondary_text_color,
+            ),
+            SourceDelivery::Failed => labelled(
+                self.small_text("failed".to_owned())
+                    .style(|theme: &iced::Theme| text::Style {
+                        color: Some(danger_color(theme)),
+                    }),
+                Phosphor::Warning(Weight::Regular),
+                danger_color,
+            ),
+            SourceDelivery::Offline => labelled(
+                self.small_dim_text("offline".to_owned()),
+                Phosphor::WifiSlash(Weight::Regular),
+                secondary_text_color,
+            ),
+        }
     }
 
-    fn footer_row(
+    pub(crate) fn press_actions_table(
         &self,
-        hints: Option<Element<'static, PopupMessage>>,
-        delivery_timing: Option<Element<'static, PopupMessage>>,
-    ) -> Option<Element<'static, PopupMessage>> {
-        if hints.is_none() && delivery_timing.is_none() {
-            return None;
-        }
-        Some(
-            container(
-                container(
-                    row(hints
-                        .into_iter()
-                        .chain(once(Space::new().width(Length::Fill).into()))
-                        .chain(delivery_timing))
-                    .spacing(self.config.theme.spacing.group_gap)
-                    .align_y(Vertical::Center),
-                )
-                .padding(self.title_padding()),
+        press_hints: PressHints,
+    ) -> Element<'static, PopupMessage> {
+        let font = &self.config.theme.font;
+        Column::with_children(MouseGesture::ALL.into_iter().filter_map(|gesture| {
+            let does = press_hints.does(gesture)?;
+            Some(
+                row([
+                    container(
+                        IconGlyph::from(gesture.glyph())
+                            .view(font.small_text_size_px, secondary_text_color),
+                    )
+                    .width(font.icon_size_px)
+                    .into(),
+                    self.small_dim_text(does.to_owned()).into(),
+                ])
+                .spacing(self.config.theme.spacing.item_gap)
+                .align_y(Vertical::Center)
+                .into(),
             )
-            .padding(self.edge_row_padding())
-            .into(),
+        }))
+        .spacing(self.config.theme.spacing.item_gap)
+        .into()
+    }
+
+    pub(crate) fn loading_placeholder(&self) -> Element<'static, PopupMessage> {
+        let font = &self.config.theme.font;
+        let line_height_px = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
+        TransitioningText::new(
+            container(Space::new())
+                .width(VALUE_COLUMN_WIDTH_PX)
+                .height(line_height_px),
+            String::new(),
+            self.transition(TextPresence::Placeholder),
+            text_face_of(font),
+            secondary_text_color,
         )
+        .into()
     }
 
     fn content_inset(&self) -> Padding {
@@ -376,25 +370,7 @@ impl<'a> HoverCardContent<'a> {
         container(content).padding(self.content_inset()).into()
     }
 
-    fn gesture_hints(&self, press_hints: PressHints) -> Element<'static, PopupMessage> {
-        let icon_size = self.config.theme.font.small_text_size_px;
-        row(MouseGesture::ALL.into_iter().filter_map(|gesture| {
-            let does = press_hints.does(gesture)?;
-            Some(
-                row([
-                    IconGlyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
-                    self.small_dim_text(does.to_owned()).into(),
-                ])
-                .spacing(self.config.theme.spacing.item_gap)
-                .align_y(Vertical::Center)
-                .into(),
-            )
-        }))
-        .spacing(self.config.theme.spacing.group_gap)
-        .into()
-    }
-
-    fn delivery_timing(&self, delivery_timing: DeliveryTiming) -> Element<'static, PopupMessage> {
+    fn delivery_stamp(&self, delivery_stamp: DeliveryStamp) -> Element<'static, PopupMessage> {
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
             row([label.into(), glyph])
@@ -402,32 +378,27 @@ impl<'a> HoverCardContent<'a> {
                 .align_y(Vertical::Center)
                 .into()
         };
-        match delivery_timing {
-            DeliveryTiming::PeriodicPolling {
-                poll_period,
-                delivered_at,
-            } => self.refreshable_dial(
-                duration_text(poll_period, self.config.calendar.locale),
-                poll_period,
-                delivered_at,
+        let locale = self.config.calendar.locale;
+        match delivery_stamp.cadence {
+            DeliveryCadence::PeriodicPolling(polling) => self.refreshable_dial(
+                duration_text(polling.poll_period(), locale),
+                polling.poll_period(),
+                delivery_stamp.delivered_at,
             ),
-            DeliveryTiming::LivePushWithRecheck {
-                recheck_period,
-                delivered_at,
-            } => self.refreshable_dial(
+            DeliveryCadence::LivePushWithRecheck(polling) => self.refreshable_dial(
                 format!(
                     "live, recheck {}",
-                    duration_text(recheck_period, self.config.calendar.locale)
+                    duration_text(polling.poll_period(), locale)
                 ),
-                recheck_period,
-                delivered_at,
+                polling.poll_period(),
+                delivery_stamp.delivered_at,
             ),
-            DeliveryTiming::LivePush => labelled(
+            DeliveryCadence::LivePush => labelled(
                 self.small_dim_text("live".to_owned()),
                 IconGlyph::from(Phosphor::Pulse(Weight::Regular))
                     .view(glyph_size, secondary_text_color),
             ),
-            DeliveryTiming::SingleRead => labelled(
+            DeliveryCadence::SingleRead => labelled(
                 self.small_dim_text("read once".to_owned()),
                 IconGlyph::from(Phosphor::PushPin(Weight::Regular))
                     .view(glyph_size, secondary_text_color),
@@ -468,10 +439,12 @@ impl<'a> HoverCardContent<'a> {
         )
     }
 
+    fn small_text(&self, text: String) -> Text<'static> {
+        panel_text(&self.config.theme.font, text).size(self.config.theme.font.small_text_size_px)
+    }
+
     fn small_dim_text(&self, text: String) -> Text<'static> {
-        panel_text(&self.config.theme.font, text)
-            .size(self.config.theme.font.small_text_size_px)
-            .style(text::secondary)
+        self.small_text(text).style(text::secondary)
     }
 
     fn bold_title(&self, title: &str) -> Text<'static> {
@@ -480,67 +453,36 @@ impl<'a> HoverCardContent<'a> {
             .style(text::base)
     }
 
-    fn note_title(&self, title: &str) -> Element<'static, PopupMessage> {
-        container(self.bold_title(title))
-            .max_width(VALUE_COLUMN_WIDTH_PX)
-            .into()
-    }
-
-    fn detailed_note(&self, title: &str, body: &str) -> Element<'static, PopupMessage> {
-        Column::with_children([
-            self.note_title(title),
-            wrapped_text(
-                &self.config.theme.font,
-                body.to_owned(),
-                secondary_text_color,
-                VALUE_COLUMN_WIDTH_PX,
-                Wrapping::default(),
-            )
-            .into(),
-        ])
-        .spacing(self.config.theme.spacing.item_gap)
-        .into()
-    }
-
-    fn section_seeding(&self) -> Element<'static, PopupMessage> {
-        let font = &self.config.theme.font;
-        let line_height_px = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
-        TransitioningText::new(
-            container(Space::new())
-                .width(VALUE_COLUMN_WIDTH_PX)
-                .height(line_height_px),
-            String::new(),
-            self.transition(TextPresence::Placeholder),
-            text_face_of(font),
-            secondary_text_color,
-        )
-        .into()
-    }
-
-    fn section(&self, section: &Section) -> Element<'static, PopupMessage> {
-        let heading_rows = match section.heading() {
-            SectionHeading::Untitled => Vec::new(),
-            SectionHeading::Titled(heading) => self.heading_rows(heading),
+    fn section(
+        &self,
+        section: &Section,
+        source_row: Option<Element<'static, PopupMessage>>,
+    ) -> Element<'static, PopupMessage> {
+        let delivered = match section.source() {
+            SectionSource::Snapshot { delivery, .. } => self.in_delivery_state(delivery),
+            SectionSource::Local => *self,
         };
+        let section_view = section.widget().draw(&delivered);
         self.inset(
             Column::with_children(
-                heading_rows
+                self.title_rows(section.title())
                     .into_iter()
-                    .chain(once(self.body(section.body()))),
+                    .chain(source_row)
+                    .chain(once(section_view)),
             )
             .spacing(self.config.theme.spacing.item_gap)
             .into(),
         )
     }
 
-    fn heading_rows(&self, heading: &Heading) -> Vec<Element<'static, PopupMessage>> {
-        let title = container(self.bold_title(heading.title()))
+    fn title_rows(&self, title: &SectionTitle) -> Vec<Element<'static, PopupMessage>> {
+        let title_row = container(self.bold_title(title.text()))
             .padding(self.title_padding())
             .into();
-        match heading {
-            Heading::Plain { .. } => vec![title],
-            Heading::Captioned { caption, .. } => vec![
-                title,
+        match title {
+            SectionTitle::Bare(_) => vec![title_row],
+            SectionTitle::Captioned { caption, .. } => vec![
+                title_row,
                 container(self.small_dim_text(caption.clone()))
                     .max_width(VALUE_COLUMN_WIDTH_PX)
                     .padding(self.title_padding())
@@ -549,21 +491,30 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn body(&self, body: &SectionBody) -> Element<'static, PopupMessage> {
-        match body {
-            SectionBody::ColumnTable(table) => table.view(&self.record_table_style()),
-            SectionBody::CoreGrid(chiplets) => self.core_grid(chiplets),
-            SectionBody::ControllerDiagram(diagram) => self.controller_diagram(diagram),
-            SectionBody::Tree { root, folding } => {
-                ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
-            }
-            SectionBody::Note { title } => self.note_title(title),
-            SectionBody::DetailedNote { title, body } => self.detailed_note(title, body),
-            SectionBody::SectionSeeding => self.section_seeding(),
-            SectionBody::Workspace(preview) => {
-                WorkspaceSchematic::new(preview, self.config, self.assets).view()
-            }
-        }
+    pub(crate) fn paragraph(&self, text: String) -> Element<'static, PopupMessage> {
+        wrapped_text(
+            &self.config.theme.font,
+            text,
+            secondary_text_color,
+            VALUE_COLUMN_WIDTH_PX,
+            Wrapping::default(),
+        )
+        .into()
+    }
+
+    pub(crate) fn workspace_schematic(
+        &self,
+        preview: &WorkspacePreview,
+    ) -> Element<'static, PopupMessage> {
+        WorkspaceSchematic::new(preview, self.config, self.assets).view()
+    }
+
+    pub(crate) fn process_tree(
+        &self,
+        root: &Process,
+        folding: &Folding,
+    ) -> Element<'static, PopupMessage> {
+        ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
     }
 
     fn value_cell_view(&self) -> ValueCellView<PopupMessage> {
@@ -588,7 +539,9 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn record_table_style(&self) -> GroupedTableStyle<ValueCell, Severity, PopupMessage> {
+    pub(crate) fn record_table_style(
+        &self,
+    ) -> GroupedTableStyle<ValueCell, Severity, PopupMessage> {
         let key_view = self.value_cell_view().key_view();
         let omitted_key_view = key_view.clone();
         let cell_view = self.value_cell_view();
@@ -618,7 +571,10 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn controller_diagram(&self, diagram: &ControllerCallouts) -> Element<'static, PopupMessage> {
+    pub(crate) fn controller_diagram(
+        &self,
+        diagram: &ControllerCallouts,
+    ) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
         let row_height = LINE_HEIGHT.to_absolute(font.text_size_px.into()).0.ceil();
         diagram
@@ -643,7 +599,7 @@ impl<'a> HoverCardContent<'a> {
             .into()
     }
 
-    fn core_grid(&self, chiplets: &[ChipletCells]) -> Element<'static, PopupMessage> {
+    pub(crate) fn core_grid(&self, chiplets: &[ChipletCells]) -> Element<'static, PopupMessage> {
         let spacing = self.config.theme.spacing.item_gap;
         Column::with_children(chiplets.iter().map(|chiplet| {
             let cells = container(CoreCellGrid::new(&chiplet.cores, self.config).view())
@@ -668,5 +624,18 @@ impl<'a> HoverCardContent<'a> {
         }))
         .spacing(spacing)
         .into()
+    }
+}
+
+fn same_source(previous_source: SectionSource, source: SectionSource) -> bool {
+    match (previous_source, source) {
+        (
+            SectionSource::Snapshot {
+                source_name: previous_name,
+                ..
+            },
+            SectionSource::Snapshot { source_name, .. },
+        ) => previous_name == source_name,
+        _ => false,
     }
 }

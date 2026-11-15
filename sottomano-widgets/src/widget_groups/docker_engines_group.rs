@@ -27,7 +27,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, SectionWidget, dictionary_table},
     },
     widget_groups::{
         engine_container_rows::{
@@ -40,8 +40,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -99,14 +99,17 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::error(self.failure),
-            Section::dictionary([LabeledValue::new(
-                "Socket",
-                self.engine.socket_path.display().to_string(),
-            )]),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new("Error", SectionWidget::paragraph(self.failure.to_string())),
+            Section::new(
+                "Connection",
+                dictionary_table([LabeledValue::new(
+                    "Socket",
+                    self.engine.socket_path.display().to_string(),
+                )]),
+            ),
+        ]
     }
 }
 
@@ -132,11 +135,14 @@ impl GroupItemReading for ListedContainerRow<'_> {
         self.listed.run_state.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", self.listed.run_state.label()),
-            LabeledValue::new("Engine", self.engine.owner.to_string()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("State", self.listed.run_state.label()),
+                LabeledValue::new("Engine", self.engine.owner.to_string()),
+            ]),
+        )]
     }
 }
 
@@ -290,42 +296,60 @@ impl DockerEnginesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &DockerEngineTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &DockerEngineTarget, clock: Clock) -> Vec<Section> {
         match target {
             DockerEngineTarget::Engine { socket_path } => {
-                let engine = self.engine_named(Path::new(socket_path.as_ref()))?;
-                let EngineReadout::Unreadable(failure) = self.readout_of(engine)? else {
-                    return None;
+                let Some(engine) = self.engine_named(Path::new(socket_path.as_ref())) else {
+                    return Vec::new();
                 };
-                self.readouts
-                    .get(&engine.socket_path)?
+                let Some(EngineReadout::Unreadable(failure)) = self.readout_of(engine) else {
+                    return Vec::new();
+                };
+                let Some(engine_readout) = self.readouts.get(&engine.socket_path) else {
+                    return Vec::new();
+                };
+                engine_readout
                     .hover_card_with(UnreadableEngineRow { engine, failure }.hover_card(clock))
             }
             DockerEngineTarget::Container(container_target) => {
-                let engine = self
+                let Some(engine) = self
                     .engines
                     .iter()
-                    .find(|engine| container_target.names_socket(&engine.socket_path))?;
+                    .find(|engine| container_target.names_socket(&engine.socket_path))
+                else {
+                    return Vec::new();
+                };
                 if let Some(EngineReadout::Containers(listing)) = self.readout_of(engine) {
                     let engine_containers = EngineContainers {
                         socket_path: &engine.socket_path,
                         owner: &engine.owner,
                         listing,
                     };
-                    return self.readouts.get(&engine.socket_path)?.hover_card_with(
-                        engine_containers.hover_body_of(&container_target.container_id, clock)?,
-                    );
+                    let Some(engine_readout) = self.readouts.get(&engine.socket_path) else {
+                        return Vec::new();
+                    };
+                    let Some(container_body) =
+                        engine_containers.hover_body_of(&container_target.container_id, clock)
+                    else {
+                        return Vec::new();
+                    };
+                    return engine_readout.hover_card_with(container_body);
                 }
-                let listed = self
-                    .listing_of(engine)?
-                    .listings
-                    .iter()
-                    .find(|listed| listed.id == container_target.container_id.as_ref())?;
-                self.listings
-                    .get(&engine.socket_path)?
+                let Some(listed) = self.listing_of(engine).and_then(|engine_listing| {
+                    engine_listing
+                        .listings
+                        .iter()
+                        .find(|listed| listed.id == container_target.container_id.as_ref())
+                }) else {
+                    return Vec::new();
+                };
+                let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
+                    return Vec::new();
+                };
+                engine_listings
                     .hover_card_with(ListedContainerRow { engine, listed }.hover_card(clock))
             }
-            DockerEngineTarget::HiddenContainers => None,
+            DockerEngineTarget::HiddenContainers => Vec::new(),
         }
     }
 
@@ -432,17 +456,20 @@ impl GroupItemReading for DockerEnginesGroup {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe_presence_count()
-                .map(|presence_count| {
-                    vec![
-                        LabeledValue::new("Present", presence_count.to_string()),
-                        LabeledValue::new("Engines", self.engines.len().to_string()),
-                    ]
-                })
-                .unwrap_or_default(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Presence",
+            dictionary_table(
+                self.probe_presence_count()
+                    .map(|presence_count| {
+                        vec![
+                            LabeledValue::new("Present", presence_count.to_string()),
+                            LabeledValue::new("Engines", self.engines.len().to_string()),
+                        ]
+                    })
+                    .unwrap_or_default(),
+            ),
+        )]
     }
 }
 

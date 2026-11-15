@@ -48,16 +48,12 @@ use crate::{
         },
     },
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    hover_cards::{
-        HoverCardMessage, PressHints,
-        hover_card_body::{Section, hover_card_source_delivery::SourcedSections},
-        hoverable,
-    },
+    hover_cards::{HoverCardMessage, PressHints, hover_card_body::Section, hoverable},
     widget_groups::window_group::{
         WindowRowLayout, WindowTarget, WindowTitleLength,
         flat_window_rows::arranged_flat_rows,
         keyed_window_group_rows::{GroupIconPlacement, arranged_keyed_groups},
-        process_tree::Folding,
+        process_tree::{Folding, process_tree_widget},
         window_row_presentation::{
             ArrangedWindowRows, SlotBackdrop, WindowSlotPresentation, WindowTileMarking,
         },
@@ -290,7 +286,7 @@ impl WindowList {
     }
 
     #[must_use]
-    pub fn process_sections(&self, clock: Clock) -> Vec<SourcedSections> {
+    pub fn process_sections(&self, clock: Clock) -> Vec<Section> {
         self.hovered_window
             .iter()
             .flat_map(|window| {
@@ -302,7 +298,10 @@ impl WindowList {
                             .window_processes
                             .of_window(*window)
                             .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
-                        vec![Section::tree(Some(&kept), &self.folding)]
+                        vec![Section::new(
+                            "Processes",
+                            process_tree_widget(&kept, &self.folding),
+                        )]
                     }),
                 ]
                 .into_iter()

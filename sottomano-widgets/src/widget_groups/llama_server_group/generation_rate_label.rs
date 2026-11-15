@@ -6,7 +6,7 @@ use uom::si::{f64::Frequency, frequency::hertz};
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -43,10 +43,13 @@ impl GroupItemReading for GenerationRate<'_> {
         Some(self.text())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "Decoding",
-            Quantity::measured(self.rate.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Throughput",
+            dictionary_table([LabeledValue::new(
+                "Decoding",
+                Quantity::measured(self.rate.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
+            )]),
+        )]
     }
 }

@@ -6,7 +6,7 @@ use sottomano_desktop_sources::login_session_presence::logind_session_facts::Ses
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -31,14 +31,16 @@ impl GroupItemReading for AccountFace<'_> {
         Some(self.identity.user.clone())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary([
-            LabeledValue::new("User", self.identity.user.clone()),
-            LabeledValue::new("User id", self.identity.uid.to_string()),
-        ])
-        .titled((
-            "Account this session runs as",
-            "The user this session runs as; everything above runs with its permissions.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Account this session runs as",
+                "The user this session runs as; everything above runs with its permissions.",
+            ),
+            dictionary_table([
+                LabeledValue::new("User", self.identity.user.clone()),
+                LabeledValue::new("User id", self.identity.uid.to_string()),
+            ]),
+        )]
     }
 }

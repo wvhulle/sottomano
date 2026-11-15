@@ -18,7 +18,7 @@ use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -127,7 +127,10 @@ impl GroupItemReading for Lookup {
         Phosphor::Image(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("File", self.photo.file_name.clone())])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Photo",
+            dictionary_table([LabeledValue::new("File", self.photo.file_name.clone())]),
+        )]
     }
 }

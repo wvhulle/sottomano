@@ -22,10 +22,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
@@ -365,7 +362,7 @@ impl AppLauncherGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &AppLauncherTarget, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, target: &AppLauncherTarget, clock: Clock) -> Vec<Section> {
         match target {
             AppLauncherTarget::App(app_id) => self.app_hover_card(app_id),
             AppLauncherTarget::HideOpenApps => {
@@ -377,9 +374,9 @@ impl AppLauncherGroup {
         }
     }
 
-    fn app_hover_card(&self, app_id: &str) -> HoverCard {
+    fn app_hover_card(&self, app_id: &str) -> Vec<Section> {
         let Some(app) = self.catalog.iter().find(|app| app.app_id == app_id) else {
-            return HoverCard::empty();
+            return Vec::new();
         };
         let description = app
             .description
@@ -391,16 +388,18 @@ impl AppLauncherGroup {
         let runs_in_terminal = app
             .runs_in_terminal
             .then(|| LabeledValue::new("Runs in", "a terminal".to_owned()));
-        HoverCard::sourced(
-            HoverCardBody::dictionary(
+        vec![Section::new(
+            "Desktop entry",
+            dictionary_table(
                 [LabeledValue::new("App", app.name.clone())]
                     .into_iter()
                     .chain(description)
                     .chain(open_window_count)
                     .chain(runs_in_terminal),
             ),
-            DeliveryTiming::LivePush,
-        )
+        )]
+        .into_iter()
+        .collect()
     }
 
     pub fn update(&mut self, message: AppLauncherMessage, config: &Config) -> Action {

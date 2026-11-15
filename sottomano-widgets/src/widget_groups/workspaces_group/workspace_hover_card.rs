@@ -7,9 +7,8 @@ use sottomano_desktop_sources::{
 use crate::{
     desktop_index::DesktopIndex,
     hover_cards::hover_card_body::{
-        HoverCardBody, Section,
+        Section,
         hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
-        hover_card_source_delivery::HoverCard,
     },
     widgets::window_icon::resolved_window_icon,
 };
@@ -20,14 +19,15 @@ pub fn hover_card(
     icons: &DesktopIndex,
     app_window_layout: AppWindowLayout,
     workspace: u64,
-) -> Option<HoverCard> {
+) -> Vec<Section> {
     let windows = snapshot.windows_on_workspace(workspace);
     if windows.is_empty() {
-        return None;
+        return Vec::new();
     }
     let tile = |window| preview_tile(icons, window);
-    Some(HoverCard::live_unlabelled(HoverCardBody::from(
-        Section::workspace(WorkspacePreview {
+    vec![Section::new(
+        "Layout",
+        WorkspacePreview {
             columns: scrolling_columns(windows)
                 .into_iter()
                 .map(|column| column.into_iter().map(&tile).collect())
@@ -38,8 +38,8 @@ pub fn hover_card(
                 .map(&tile)
                 .collect(),
             app_window_layout,
-        }),
-    )))
+        },
+    )]
 }
 
 fn scrolling_columns(

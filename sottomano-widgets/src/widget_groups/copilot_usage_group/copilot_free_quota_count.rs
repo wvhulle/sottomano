@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -48,32 +48,37 @@ impl GroupItemReading for CopilotFree {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary(
-                self.plan
-                    .as_deref()
-                    .map(|plan| LabeledValue::new("Plan", plan))
-                    .into_iter()
-                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Subscription",
+                dictionary_table(
+                    self.plan
+                        .as_deref()
+                        .map(|plan| LabeledValue::new("Plan", plan))
+                        .into_iter()
+                        .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
+                ),
             ),
-            Section::dictionary(
-                [
-                    LabeledValue::new("Chat", Quantity::count(self.chat)),
-                    LabeledValue::new("Completions", Quantity::count(self.completions)),
-                ]
-                .into_iter()
-                .chain(self.reset.map(|at| {
-                    LabeledValue::new(
-                        "Resets",
-                        ValueCell::Time {
-                            at,
-                            format: LocalizedTimeFormat::Date,
-                        },
-                    )
-                })),
-            )
-            .titled("Remaining"),
-        ])
+            Section::new(
+                "Remaining",
+                dictionary_table(
+                    [
+                        LabeledValue::new("Chat", Quantity::count(self.chat)),
+                        LabeledValue::new("Completions", Quantity::count(self.completions)),
+                    ]
+                    .into_iter()
+                    .chain(self.reset.map(|at| {
+                        LabeledValue::new(
+                            "Resets",
+                            ValueCell::Time {
+                                at,
+                                format: LocalizedTimeFormat::Date,
+                            },
+                        )
+                    })),
+                ),
+            ),
+        ]
     }
 }

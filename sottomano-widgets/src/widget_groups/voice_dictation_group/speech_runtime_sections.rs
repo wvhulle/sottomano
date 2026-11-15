@@ -2,7 +2,7 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -32,8 +32,9 @@ impl SpeechRuntime<'_> {
 
     #[must_use]
     pub fn sections(&self) -> Vec<Section> {
-        vec![
-            Section::dictionary(
+        vec![Section::new(
+            "Inference runtime",
+            dictionary_table(
                 [
                     non_empty(&self.0.inference_runtime)
                         .map(|inference_runtime| LabeledValue::new("Runtime", inference_runtime)),
@@ -42,9 +43,8 @@ impl SpeechRuntime<'_> {
                 ]
                 .into_iter()
                 .flatten(),
-            )
-            .titled("Inference runtime"),
-        ]
+            ),
+        )]
     }
 }
 

@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -44,25 +44,28 @@ impl MemorySlotReading {
                 at,
                 format: LocalizedTimeFormat::Date,
             });
-            Section::dictionary(
-                [
-                    machine
-                        .hardware_vendor
-                        .clone()
-                        .map(|hardware_vendor| LabeledValue::new("Vendor", hardware_vendor)),
-                    machine
-                        .hardware_model
-                        .clone()
-                        .map(|hardware_model| LabeledValue::new("Model", hardware_model)),
-                    firmware
-                        .map(|firmware_version| LabeledValue::new("Firmware", firmware_version)),
-                    firmware_date
-                        .map(|firmware_date| LabeledValue::new("Firmware date", firmware_date)),
-                ]
-                .into_iter()
-                .flatten(),
+            Section::new(
+                "Board",
+                dictionary_table(
+                    [
+                        machine
+                            .hardware_vendor
+                            .clone()
+                            .map(|hardware_vendor| LabeledValue::new("Vendor", hardware_vendor)),
+                        machine
+                            .hardware_model
+                            .clone()
+                            .map(|hardware_model| LabeledValue::new("Model", hardware_model)),
+                        firmware.map(|firmware_version| {
+                            LabeledValue::new("Firmware", firmware_version)
+                        }),
+                        firmware_date
+                            .map(|firmware_date| LabeledValue::new("Firmware date", firmware_date)),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
             )
-            .titled("Board")
         })
     }
 }
@@ -83,11 +86,13 @@ impl From<&MemorySlotModule> for Section {
         ]
         .into_iter()
         .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)));
-        Section::dictionary(identity.chain(speed).chain([LabeledValue::new(
-            "Module size",
-            Quantity::size(module.size),
-        )]))
-        .titled(slot_module.locator.clone())
+        Section::new(
+            "Module",
+            dictionary_table(identity.chain(speed).chain([LabeledValue::new(
+                "Module size",
+                Quantity::size(module.size),
+            )])),
+        )
     }
 }
 
@@ -104,11 +109,10 @@ impl GroupItemReading for MemorySlotReading {
         Some(Quantity::size(self.slot_module.module.size).localized_text(locale))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            [Section::from(&self.slot_module)]
-                .into_iter()
-                .chain(self.board_section()),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        [Section::from(&self.slot_module)]
+            .into_iter()
+            .chain(self.board_section())
+            .collect::<Vec<_>>()
     }
 }

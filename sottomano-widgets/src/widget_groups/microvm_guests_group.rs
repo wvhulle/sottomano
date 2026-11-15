@@ -27,7 +27,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         process_usage_cells::{approximate_memory_text, uptime_entry},
@@ -38,8 +38,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -93,11 +93,14 @@ impl GroupItemReading for MicrovmUnitRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", activity_text(self.activity)),
-            LabeledValue::new("Unit", self.unit.unit_name.clone()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("State", activity_text(self.activity)),
+                LabeledValue::new("Unit", self.unit.unit_name.clone()),
+            ]),
+        )]
     }
 }
 
@@ -128,11 +131,14 @@ impl GroupItemReading for MicrovmGuestListingRow<'_> {
         ContainerRunState::Running.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "State",
-            ContainerRunState::Running.label(),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new(
+                "State",
+                ContainerRunState::Running.label(),
+            )]),
+        )]
     }
 }
 
@@ -188,8 +194,11 @@ impl GroupItemReading for MicrovmGuestRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.detail_entries(clock))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Machine",
+            dictionary_table(self.detail_entries(clock)),
+        )]
     }
 }
 
@@ -369,14 +378,17 @@ impl MicrovmGuestsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &MicrovmGuestTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &MicrovmGuestTarget, clock: Clock) -> Vec<Section> {
         let pid = match target {
             MicrovmGuestTarget::RunningProcess { pid } => *pid,
             MicrovmGuestTarget::Unit { instance_name } => {
-                let unit = self
+                let Some(unit) = self
                     .unit_listing()
                     .iter()
-                    .find(|unit| unit.instance_name == instance_name.as_ref())?;
+                    .find(|unit| unit.instance_name == instance_name.as_ref())
+                else {
+                    return Vec::new();
+                };
                 let activity = self.unit_activity(unit);
                 return self
                     .units
@@ -384,17 +396,24 @@ impl MicrovmGuestsGroup {
             }
         };
         if let Some(detail) = self.detail.get() {
-            let machine = detail.machines.iter().find(|machine| machine.pid == pid)?;
-            return self
-                .detail
-                .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock));
+            return detail
+                .machines
+                .iter()
+                .find(|machine| machine.pid == pid)
+                .map(|machine| {
+                    self.detail
+                        .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                })
+                .unwrap_or_default();
         }
-        let listing = self
-            .listings
-            .get()?
-            .listings
-            .iter()
-            .find(|listing| listing.pid == pid)?;
+        let Some(listing) = self.listings.get().and_then(|guest_listings| {
+            guest_listings
+                .listings
+                .iter()
+                .find(|listing| listing.pid == pid)
+        }) else {
+            return Vec::new();
+        };
         self.listings
             .hover_card_with(MicrovmGuestListingRow { listing }.hover_card(clock))
     }
@@ -528,17 +547,20 @@ impl GroupItemReading for MicrovmGuestsGroup {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![LabeledValue::new(
-                        "Running guests",
-                        probe.running_guest_processes.to_string(),
-                    )]
-                })
-                .unwrap_or_default(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Counts",
+            dictionary_table(
+                self.probe
+                    .get()
+                    .map(|probe| {
+                        vec![LabeledValue::new(
+                            "Running guests",
+                            probe.running_guest_processes.to_string(),
+                        )]
+                    })
+                    .unwrap_or_default(),
+            ),
+        )]
     }
 }

@@ -21,7 +21,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         widget_group_content::{
@@ -31,8 +31,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -157,8 +157,11 @@ impl GroupItemReading for NspawnContainerRow<'_> {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.detail_entries(clock))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Container",
+            dictionary_table(self.detail_entries(clock)),
+        )]
     }
 }
 
@@ -301,17 +304,15 @@ impl NspawnContainersGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &NspawnContainerTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        let container = self
-            .listing
-            .get()?
-            .containers
-            .iter()
-            .find(|container| container.machine_name == target.machine_name)?;
+    pub fn hover_card_for(&self, target: &NspawnContainerTarget, clock: Clock) -> Vec<Section> {
+        let Some(container) = self.listing.get().and_then(|container_listing| {
+            container_listing
+                .containers
+                .iter()
+                .find(|container| container.machine_name == target.machine_name)
+        }) else {
+            return Vec::new();
+        };
         self.listing
             .hover_card_with(self.container_row(container).hover_card(clock))
     }

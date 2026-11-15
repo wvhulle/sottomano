@@ -4,7 +4,7 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 };
 
 use crate::{
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         value_cells::{LabeledValue, ValueCell},
@@ -44,7 +44,10 @@ impl WindowUsage<'_> {
             )),
             longest,
         ];
-        Section::dictionary(entries.into_iter().flatten()).titled("This window")
+        Section::new(
+            "This window",
+            dictionary_table(entries.into_iter().flatten()),
+        )
     }
 
     fn projects(&self, last_day: Interval, now: DateTime<Utc>) -> Option<Section> {
@@ -61,20 +64,21 @@ impl WindowUsage<'_> {
             })
             .collect();
         (rows.len() > 1).then(|| {
-            Section::column_table([ColumnHeading::titled("Active (24h)")], rows)
-                .titled("Projects in this window")
+            Section::new(
+                "Projects in this window",
+                headed_table([ColumnHeading::titled("Active (24h)")], rows),
+            )
         })
     }
 
-    pub fn body(&self, now: DateTime<Utc>) -> HoverCardBody {
+    pub fn body(&self, now: DateTime<Utc>) -> Vec<Section> {
         let last_day = LAST_DAY.ending_at(now);
-        HoverCardBody::sections(
-            [
-                Some(self.this_window(last_day, now)),
-                self.projects(last_day, now),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+        [
+            Some(self.this_window(last_day, now)),
+            self.projects(last_day, now),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
     }
 }

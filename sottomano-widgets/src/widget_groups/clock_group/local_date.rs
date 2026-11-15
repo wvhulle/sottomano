@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
     widgets::{
         icon_glyph::IconGlyph,
@@ -46,18 +46,21 @@ impl GroupItemReading for LocalDate {
         Some(LocalizedTimeFormat::Date.format(&clock.local(), locale))
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let local = clock.local();
-        HoverCardBody::dictionary([
-            LabeledValue::new(
-                "Weekday",
-                ValueCell::Time {
-                    at: local.with_timezone(&Utc),
-                    format: LocalizedTimeFormat::Weekday,
-                },
-            ),
-            LabeledValue::new("Week", local.iso_week().week().to_string()),
-            LabeledValue::new("Day of year", local.ordinal().to_string()),
-        ])
+        vec![Section::new(
+            "Calendar",
+            dictionary_table([
+                LabeledValue::new(
+                    "Weekday",
+                    ValueCell::Time {
+                        at: local.with_timezone(&Utc),
+                        format: LocalizedTimeFormat::Weekday,
+                    },
+                ),
+                LabeledValue::new("Week", local.iso_week().week().to_string()),
+                LabeledValue::new("Day of year", local.ordinal().to_string()),
+            ]),
+        )]
     }
 }

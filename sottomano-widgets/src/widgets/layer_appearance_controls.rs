@@ -15,7 +15,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widgets::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
@@ -229,7 +229,7 @@ impl LayerAppearanceControls {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: AppearanceTarget, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, target: AppearanceTarget, clock: Clock) -> Vec<Section> {
         match target {
             AppearanceTarget::Opacity => self.opacity.readout_hover_card("Opacity"),
             AppearanceTarget::CornerRadius => {

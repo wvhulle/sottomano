@@ -36,7 +36,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         widget_group_content::{
@@ -46,8 +46,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -89,13 +89,16 @@ impl GroupItemReading for BlockFilesystemDiscovery {
         PanelVisibility::Hidden
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.filesystems.iter().map(|filesystem| {
-            LabeledValue::new(
-                filesystem.primary_mount_point().display().to_string(),
-                filesystem.fs_type.clone(),
-            )
-        }))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Mount points",
+            dictionary_table(self.filesystems.iter().map(|filesystem| {
+                LabeledValue::new(
+                    filesystem.primary_mount_point().display().to_string(),
+                    filesystem.fs_type.clone(),
+                )
+            })),
+        )]
     }
 }
 
@@ -349,55 +352,75 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &StorageTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &StorageTarget, clock: Clock) -> Vec<Section> {
         match target {
             StorageTarget::MountDiscovery => self.discovery.hover_card(clock),
-            StorageTarget::Usage(mount_point) => {
-                self.filesystems.get(mount_point)?.usage.hover_card(clock)
-            }
+            StorageTarget::Usage(mount_point) => self
+                .filesystems
+                .get(mount_point)
+                .map(|filesystem| filesystem.usage.hover_card(clock))
+                .unwrap_or_default(),
             StorageTarget::Property {
                 filesystem,
                 property,
             } => {
-                let filesystem = self.filesystems.get(filesystem)?;
-                let row = property.row(filesystem.usage.get()?)?;
+                let Some(filesystem) = self.filesystems.get(filesystem) else {
+                    return Vec::new();
+                };
+                let Some(row) = filesystem.usage.get().and_then(|usage| property.row(usage)) else {
+                    return Vec::new();
+                };
                 filesystem.usage.hover_card_with(row.hover_card(clock))
             }
             StorageTarget::SubvolumeUsage(mount_point) => self
                 .filesystems
-                .get(mount_point)?
-                .subvolume_usage
-                .hover_card(clock),
+                .get(mount_point)
+                .map(|filesystem| filesystem.subvolume_usage.hover_card(clock))
+                .unwrap_or_default(),
             StorageTarget::Subvolume {
                 filesystem,
                 subvolume_path,
             } => {
-                let filesystem = self.filesystems.get(filesystem)?;
-                let subvolume = filesystem
-                    .subvolume_usage
-                    .get()?
-                    .subvolumes
-                    .iter()
-                    .find(|known| known.path == *subvolume_path)?;
+                let Some(filesystem) = self.filesystems.get(filesystem) else {
+                    return Vec::new();
+                };
+                let Some(subvolume) =
+                    filesystem
+                        .subvolume_usage
+                        .get()
+                        .and_then(|subvolume_usage| {
+                            subvolume_usage
+                                .subvolumes
+                                .iter()
+                                .find(|known| known.path == *subvolume_path)
+                        })
+                else {
+                    return Vec::new();
+                };
+                let Some(usage) = filesystem.usage.get() else {
+                    return Vec::new();
+                };
                 filesystem.subvolume_usage.hover_card_with(
                     SubvolumeUsageRow {
                         subvolume,
-                        pool_total: filesystem.usage.get()?.total,
+                        pool_total: usage.total,
                     }
                     .hover_card(clock),
                 )
             }
             StorageTarget::SnapshotDeletion(mount_point) => {
-                let filesystem = self.filesystems.get(mount_point)?;
-                filesystem
-                    .usage
-                    .get()
-                    .filter(|usage| {
+                let Some(filesystem) = self.filesystems.get(mount_point) else {
+                    return Vec::new();
+                };
+                let deletion_running = filesystem.usage.get().is_some_and(|usage| {
                     matches!(
                         &usage.filesystem,
                         Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
                     )
-                })?;
+                });
+                if !deletion_running {
+                    return Vec::new();
+                }
                 filesystem
                     .usage
                     .hover_card_with(SnapshotDeletionRow.hover_card(clock))

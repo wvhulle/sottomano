@@ -8,7 +8,7 @@ use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -40,35 +40,37 @@ impl GroupItemReading for KernelFace<'_> {
         Some(self.system.kernel.clone())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary(
-            [
-                Some(LabeledValue::new("Host", self.system.hostname.clone())),
-                Some(LabeledValue::new("Kernel", self.system.kernel.clone())),
-                Some(LabeledValue::new(
-                    "OS",
-                    self.system.operating_system.clone(),
-                )),
-                self.system
-                    .chassis
-                    .map(Chassis::stored_name)
-                    .map(|chassis_kind| LabeledValue::new("Chassis", chassis_kind)),
-                Some(LabeledValue::new(
-                    "Wiki",
-                    ValueCell::BrandedLink {
-                        label: "Kernel".to_owned(),
-                        url: "https://wiki.archlinux.org/title/Kernel".to_owned(),
-                        glyph: SimpleIcon::ArchLinux.into(),
-                    },
-                )),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled((
-            "Host and kernel under this session",
-            "The kernel drives this host's hardware and runs every process above it; a new \
-             version takes effect after a reboot.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Host and kernel under this session",
+                "The kernel drives this host's hardware and runs every process above it; a new \
+                 version takes effect after a reboot.",
+            ),
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Host", self.system.hostname.clone())),
+                    Some(LabeledValue::new("Kernel", self.system.kernel.clone())),
+                    Some(LabeledValue::new(
+                        "OS",
+                        self.system.operating_system.clone(),
+                    )),
+                    self.system
+                        .chassis
+                        .map(Chassis::stored_name)
+                        .map(|chassis_kind| LabeledValue::new("Chassis", chassis_kind)),
+                    Some(LabeledValue::new(
+                        "Wiki",
+                        ValueCell::BrandedLink {
+                            label: "Kernel".to_owned(),
+                            url: "https://wiki.archlinux.org/title/Kernel".to_owned(),
+                            glyph: SimpleIcon::ArchLinux.into(),
+                        },
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }

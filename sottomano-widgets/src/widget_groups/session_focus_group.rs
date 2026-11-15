@@ -27,10 +27,7 @@ use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusCo
 use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         session_focus_group::{
             break_log::BreakLog,
@@ -249,7 +246,12 @@ impl SessionFocusGroup {
     }
 
     #[must_use]
-    pub fn window_usage_hover_card(&self, window: u64, config: &Config, clock: Clock) -> HoverCard {
+    pub fn window_usage_hover_card(
+        &self,
+        window: u64,
+        config: &Config,
+        clock: Clock,
+    ) -> Vec<Section> {
         let usage = WindowUsage {
             accounting: self
                 .tracker
@@ -257,7 +259,7 @@ impl SessionFocusGroup {
                 .accounted(&config.widget_groups.session_focus),
             window,
         };
-        HoverCard::sourced(usage.body(clock.utc()), DeliveryTiming::LivePush)
+        usage.body(clock.utc()).into_iter().collect()
     }
 
     pub fn group_content<'a>(
@@ -304,7 +306,7 @@ impl SessionFocusGroup {
         target: SessionFocusTarget,
         config: &Config,
         clock: Clock,
-    ) -> HoverCard {
+    ) -> Vec<Section> {
         let body = match target {
             SessionFocusTarget::Session => self.session_face(config).hover_card(clock),
             SessionFocusTarget::Breaks => self.break_log(config).hover_card(clock),
@@ -314,6 +316,6 @@ impl SessionFocusGroup {
                 self.context_switch_rate(config).hover_card(clock)
             }
         };
-        HoverCard::sourced(body, DeliveryTiming::LivePush)
+        body.into_iter().collect()
     }
 }

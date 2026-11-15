@@ -8,7 +8,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::Section,
     widgets::{
         announced_level::AnnouncedLevel,
         icon_glyph::IconGlyph,
@@ -88,7 +88,7 @@ pub trait GroupItemReading {
         Vec::new()
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody;
+    fn hover_card(&self, clock: Clock) -> Vec<Section>;
 }
 
 #[must_use]
@@ -149,7 +149,7 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).quota_windows(now)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         (**self).hover_card(clock)
     }
 }
@@ -167,7 +167,7 @@ impl GroupItemReading for NamedTestReading {
         Phosphor::Question(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }

@@ -15,15 +15,15 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_cards::hover_card_body::{
-        HoverCardBody, ReadingSections, Section,
-        hover_card_source_delivery::{DeliveryTiming, SourcedSections},
+        ReadingSections, Section,
+        hover_card_source_delivery::{DeliveryStamp, RefreshDeadline, SourceDelivery},
     },
 };
 
 #[derive(Debug, Clone)]
 pub struct RememberedSnapshot<S: SnapshotSource> {
     remembered_snapshot: S,
-    delivery_timing: DeliveryTiming,
+    delivery_timing: DeliveryStamp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +40,7 @@ pub enum HoverFetchProgress<S: SnapshotSource> {
     InternetUnreachable(InternetUnreachable),
     Delivered {
         snapshot_fetch: Result<S, S::Error>,
-        delivery_timing: DeliveryTiming,
+        delivery_timing: DeliveryStamp,
     },
 }
 
@@ -71,22 +71,11 @@ impl<S: SnapshotSource> Default for HoverFetchedSnapshot<S> {
 
 impl<S: SnapshotSource> RememberedSnapshot<S> {
     fn refetch_schedule(&self, clock: Clock) -> RefetchSchedule {
-        let (DeliveryTiming::PeriodicPolling {
-            poll_period: refresh_period,
-            delivered_at,
-        }
-        | DeliveryTiming::LivePushWithRecheck {
-            recheck_period: refresh_period,
-            delivered_at,
-        }) = self.delivery_timing
+        let RefreshDeadline::DueAt { deadline, .. } = self.delivery_timing.refresh_deadline()
         else {
             return RefetchSchedule::FetchNow;
         };
-        let elapsed = clock
-            .instant
-            .checked_duration_since(delivered_at)
-            .expect("a delivery is stamped no later than the clock that reads it");
-        match refresh_period.checked_sub(elapsed) {
+        match deadline.checked_duration_since(clock.instant) {
             Some(remaining) if !remaining.is_zero() => RefetchSchedule::FetchAfter(remaining),
             Some(_) | None => RefetchSchedule::FetchNow,
         }
@@ -105,7 +94,7 @@ impl<S: SnapshotSource> HoverFetchProgress<S> {
                 delivery_cadence,
             } => HoverFetchProgress::Delivered {
                 snapshot_fetch,
-                delivery_timing: DeliveryTiming::from_delivery_cadence(delivery_cadence, clock),
+                delivery_timing: DeliveryStamp::delivered(delivery_cadence, clock),
             },
             SnapshotDelivery::SnapshotUnchanged => match self {
                 HoverFetchProgress::Delivered {
@@ -236,60 +225,50 @@ where
         }
     }
 
-    pub fn sections_described_by(
-        &self,
-        describe: impl Fn(&S) -> Vec<Section>,
-    ) -> Option<SourcedSections>
-where {
+    pub fn sections_described_by(&self, describe: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
         let HoverFetch::Fetching {
             inputs, progress, ..
         } = &self.hover_fetch
         else {
-            return None;
+            return Vec::new();
         };
         let remembered = self.remembered_by_inputs.get(inputs);
+        let stamped = |delivery: SourceDelivery, sections: Vec<Section>| -> Vec<Section> {
+            sections
+                .into_iter()
+                .map(|section| section.stamped_by::<S>(delivery))
+                .collect()
+        };
+        let remembered_or_state = |delivery: SourceDelivery, detail: String| match remembered {
+            Some(remembered) => stamped(delivery, describe(&remembered.remembered_snapshot)),
+            None => vec![Section::source_state::<S>(delivery, detail)],
+        };
         match progress {
-            HoverFetchProgress::ServingRemembered => {
-                let remembered = remembered?;
-                Some(SourcedSections::source_delivered::<S>(
-                    HoverCardBody::sections(describe(&remembered.remembered_snapshot)),
-                    remembered.delivery_timing,
-                ))
-            }
+            HoverFetchProgress::SourceUnavailable => Vec::new(),
+            HoverFetchProgress::ServingRemembered => match remembered {
+                Some(remembered) => stamped(
+                    SourceDelivery::Delivered(remembered.delivery_timing),
+                    describe(&remembered.remembered_snapshot),
+                ),
+                None => Vec::new(),
+            },
             HoverFetchProgress::AwaitingFirstDelivery => {
-                Some(SourcedSections::source_awaiting_delivery::<S>(
-                    HoverCardBody::sections(remembered.map_or_else(
-                        || vec![Section::section_seeding()],
-                        |remembered| describe(&remembered.remembered_snapshot),
-                    )),
-                ))
+                remembered_or_state(SourceDelivery::Loading, String::new())
             }
-            HoverFetchProgress::SourceUnavailable => None,
             HoverFetchProgress::InternetUnreachable(offline_reason) => {
-                let offline_section = Section::from(offline_reason.clone());
-                Some(match remembered {
-                    Some(remembered) => SourcedSections::source_delivered::<S>(
-                        HoverCardBody::sections(describe(&remembered.remembered_snapshot))
-                            .with_sections([offline_section]),
-                        remembered.delivery_timing,
-                    ),
-                    None => {
-                        SourcedSections::source_awaiting_delivery::<S>(HoverCardBody::sections([
-                            offline_section,
-                        ]))
-                    }
-                })
+                remembered_or_state(SourceDelivery::Offline, offline_reason.to_string())
             }
             HoverFetchProgress::Delivered {
-                snapshot_fetch,
+                snapshot_fetch: Ok(delivered_snapshot),
                 delivery_timing,
-            } => Some(SourcedSections::source_delivered::<S>(
-                HoverCardBody::sections(match snapshot_fetch {
-                    Ok(delivered_snapshot) => describe(delivered_snapshot),
-                    Err(failure) => vec![Section::error(failure)],
-                }),
-                *delivery_timing,
-            )),
+            } => stamped(
+                SourceDelivery::Delivered(*delivery_timing),
+                describe(delivered_snapshot),
+            ),
+            HoverFetchProgress::Delivered {
+                snapshot_fetch: Err(failure),
+                ..
+            } => remembered_or_state(SourceDelivery::Failed, failure.to_string()),
         }
     }
 }
@@ -298,7 +277,7 @@ impl<S: SnapshotSource + ReadingSections> HoverFetchedSnapshot<S>
 where
     S::StreamInputs: Eq,
 {
-    pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
+    pub fn sections(&self, clock: Clock) -> Vec<Section> {
         self.sections_described_by(|delivered_snapshot| delivered_snapshot.sections(clock))
     }
 }
@@ -315,7 +294,7 @@ mod tests {
 
     use super::*;
     use crate::hover_cards::hover_card_body::{
-        Heading, SectionBody, hover_card_source_delivery::SourceDelivery,
+        SectionWidget, hover_card_source_delivery::SectionSource,
     };
 
     #[derive(Debug, Clone, PartialEq)]
@@ -375,10 +354,14 @@ mod tests {
     }
 
     fn delivery_state(hover: &HoverFetchedSnapshot<CountedSnapshot>) -> SourceDelivery {
-        hover
-            .sections_described_by(|_| vec![Section::note("counted")])
-            .unwrap()
-            .delivery_state()
+        let sections = hover.sections_described_by(|_| {
+            vec![Section::new("Count", SectionWidget::paragraph("counted"))]
+        });
+        let Some(SectionSource::Snapshot { delivery, .. }) = sections.first().map(Section::source)
+        else {
+            panic!("a hover fetch in progress describes its source");
+        };
+        delivery
     }
 
     #[test]
@@ -386,17 +369,21 @@ mod tests {
         let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
         hovered_at(&mut hover, 1, timeline.at(0));
-        assert_eq!(
-            delivery_state(&hover),
-            SourceDelivery::AwaitingDelivery
-        );
+        assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
         assert!(hover.reading().is_none());
-        let seeded = hover.sections_described_by(|_| Vec::new()).unwrap();
-        let sections: Vec<&SectionBody> = seeded.filled_sections().map(Section::body).collect();
-        assert_eq!(sections, [&SectionBody::SectionSeeding]);
+        let seeded = hover.sections_described_by(|_| Vec::new());
         assert_eq!(
-            seeded.source_heading().map(Heading::title),
-            Some("Counted snapshot")
+            seeded
+                .iter()
+                .map(|section| (section.title().text().to_owned(), section.source()))
+                .collect::<Vec<_>>(),
+            [(
+                "Loading".to_owned(),
+                SectionSource::Snapshot {
+                    source_name: "Counted snapshot",
+                    delivery: SourceDelivery::Loading,
+                }
+            )]
         );
     }
 
@@ -411,12 +398,10 @@ mod tests {
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
-            SourceDelivery::Delivered {
-                delivery_timing: DeliveryTiming::PeriodicPolling {
-                    poll_period: POLL_PERIOD,
-                    delivered_at: timeline.at(0).instant,
-                },
-            }
+            SourceDelivery::Delivered(DeliveryStamp {
+                cadence: DeliveryCadence::PeriodicPolling(PeriodicPolling::every(POLL_PERIOD)),
+                delivered_at: timeline.at(0).instant,
+            })
         );
     }
 
@@ -429,10 +414,7 @@ mod tests {
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(601));
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
-        assert_eq!(
-            delivery_state(&hover),
-            SourceDelivery::AwaitingDelivery
-        );
+        assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
     }
 
     #[test]
@@ -444,10 +426,7 @@ mod tests {
         hover.stop();
         hovered_at(&mut hover, 2, timeline.at(30));
         assert!(hover.reading().is_none());
-        assert_eq!(
-            delivery_state(&hover),
-            SourceDelivery::AwaitingDelivery
-        );
+        assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
     }
 
     #[test]

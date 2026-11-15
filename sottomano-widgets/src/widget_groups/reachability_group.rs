@@ -3,7 +3,10 @@ use std::convert::identity;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
-use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+use crate::{
+    hover_cards::hover_card_body::dictionary_table,
+    widget_groups::widget_group_identity::WidgetGroupFamily,
+};
 
 mod connectivity_state_reading;
 mod icmp_latency_gauge;
@@ -27,10 +30,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         reachability_group::{
             metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
@@ -41,9 +41,9 @@ use crate::{
         },
     },
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -162,24 +162,35 @@ impl ReachabilityGroup {
         }
     }
 
-    fn direction_hover_card(&self, throughput: &Throughput, clock: Clock) -> Option<HoverCard> {
+    fn direction_hover_card(&self, throughput: &Throughput, clock: Clock) -> Vec<Section> {
         let metered_section = self
             .throughput
             .get()
             .filter(|readings| readings.metering == Metering::Metered)
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
-        self.throughput
-            .hover_card_with(throughput.hover_card(clock).with_sections(metered_section))
+        self.throughput.hover_card_with(
+            throughput
+                .hover_card(clock)
+                .into_iter()
+                .chain(metered_section)
+                .collect(),
+        )
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &ReachabilityTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &ReachabilityTarget, clock: Clock) -> Vec<Section> {
         match target {
-            ReachabilityTarget::Down => {
-                self.direction_hover_card(&self.throughput.get()?.down, clock)
-            }
-            ReachabilityTarget::Up => self.direction_hover_card(&self.throughput.get()?.up, clock),
+            ReachabilityTarget::Down => self
+                .throughput
+                .get()
+                .map(|throughput| self.direction_hover_card(&throughput.down, clock))
+                .unwrap_or_default(),
+            ReachabilityTarget::Up => self
+                .throughput
+                .get()
+                .map(|throughput| self.direction_hover_card(&throughput.up, clock))
+                .unwrap_or_default(),
             ReachabilityTarget::Throughput => self.throughput.hover_card(clock),
             ReachabilityTarget::Latency => self.latency.hover_card(clock),
         }
@@ -224,13 +235,15 @@ fn metered_section(totals: &MeteredVolumeTotals, direction: NetworkTrafficDirect
         NetworkTrafficDirection::Download => transferred.received,
         NetworkTrafficDirection::Upload => transferred.sent,
     };
-    Section::dictionary([
-        LabeledValue::new("Today", Quantity::size(in_direction(totals.today))),
-        LabeledValue::new("This cycle", Quantity::size(in_direction(totals.cycle))),
-        LabeledValue::new(
-            "Counted since",
-            totals.counting_since.format("%-d %b %Y").to_string(),
-        ),
-    ])
-    .titled("Metered connection")
+    Section::new(
+        "Metered connection",
+        dictionary_table([
+            LabeledValue::new("Today", Quantity::size(in_direction(totals.today))),
+            LabeledValue::new("This cycle", Quantity::size(in_direction(totals.cycle))),
+            LabeledValue::new(
+                "Counted since",
+                totals.counting_since.format("%-d %b %Y").to_string(),
+            ),
+        ]),
+    )
 }

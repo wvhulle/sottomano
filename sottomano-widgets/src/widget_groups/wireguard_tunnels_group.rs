@@ -16,7 +16,7 @@ use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -25,8 +25,8 @@ use crate::{
         wireguard_tunnels_group::wireguard_tunnel_hover_card::wireguard_tunnel_item,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
-        simple_icons::SimpleIcon,
+        hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -143,19 +143,16 @@ impl WireguardTunnelsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &WireguardTunnelTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        let tunnel = self
+    pub fn hover_card_for(&self, target: &WireguardTunnelTarget, clock: Clock) -> Vec<Section> {
+        let Some(tunnel) = self
             .listed_tunnels()
-            .find(|tunnel| tunnel.interface == target.interface.as_ref())?;
-        Some(
-            self.wireguard
-                .hover_card_with(tunnel.hover_card(clock))?
-                .with_groups(self.tunnel_address.sections(clock)),
-        )
+            .find(|tunnel| tunnel.interface == target.interface.as_ref())
+        else {
+            return Vec::new();
+        };
+        let mut sections = self.wireguard.hover_card_with(tunnel.hover_card(clock));
+        sections.extend(self.tunnel_address.sections(clock));
+        sections
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {

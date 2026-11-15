@@ -8,7 +8,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{gauge::percent_fill, group_item_reading::GroupItemReading},
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -41,21 +41,26 @@ impl GroupItemReading for DiskSpaceOccupancy {
         Some(percent_fill(self.used_pct()))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let summary = Section::dictionary([
-            LabeledValue::new("Disk", self.disk.as_str()),
-            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
-            LabeledValue::new("Free", Quantity::size(self.free())),
-            LabeledValue::new("Capacity", Quantity::size(self.capacity)),
-        ]);
-        let filesystem_shares = Section::dictionary(self.filesystem_shares.iter().map(|share| {
-            LabeledValue::new(
-                format!("{} ({})", share.mount_point.display(), share.fs_type),
-                Quantity::size(share.used_on_disk),
-            )
-        }))
-        .titled("Used by filesystem");
-        HoverCardBody::sections([summary, filesystem_shares])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        let summary = Section::new(
+            "Usage",
+            dictionary_table([
+                LabeledValue::new("Disk", self.disk.as_str()),
+                LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
+                LabeledValue::new("Free", Quantity::size(self.free())),
+                LabeledValue::new("Capacity", Quantity::size(self.capacity)),
+            ]),
+        );
+        let filesystem_shares = Section::new(
+            "Used by filesystem",
+            dictionary_table(self.filesystem_shares.iter().map(|share| {
+                LabeledValue::new(
+                    format!("{} ({})", share.mount_point.display(), share.fs_type),
+                    Quantity::size(share.used_on_disk),
+                )
+            })),
+        );
+        vec![summary, filesystem_shares]
     }
 }
 
@@ -79,7 +84,7 @@ impl GroupItemReading for MarkedDiskSpace<'_> {
         self.occupancy.gauge()
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.occupancy.hover_card(clock)
     }
 }

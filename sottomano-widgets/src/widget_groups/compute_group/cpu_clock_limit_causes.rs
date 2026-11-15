@@ -14,7 +14,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -125,12 +125,14 @@ impl GroupItemReading for ClockLimitCauses<'_> {
         })
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary(self.spreads().iter().map(|spread| {
-            LabeledValue::new(cause_text(spread.cause), self.spread_text(spread))
-                .level(cause_level(spread.cause))
-        }))
-        .titled("Published limits")])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Published limits",
+            dictionary_table(self.spreads().iter().map(|spread| {
+                LabeledValue::new(cause_text(spread.cause), self.spread_text(spread))
+                    .level(cause_level(spread.cause))
+            })),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

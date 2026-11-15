@@ -25,7 +25,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         process_usage_cells::approximate_memory_text,
@@ -36,9 +36,9 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -117,7 +117,7 @@ impl GroupItemReading for WaydroidContainerRow<'_> {
         self.shown.container().into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let mut detail_entries = vec![
             LabeledValue::new("State", self.shown.container().label()),
             LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
@@ -132,7 +132,7 @@ impl GroupItemReading for WaydroidContainerRow<'_> {
                 approximate_memory_text(*memory_in_use),
             ));
         }
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Status", dictionary_table(detail_entries))]
     }
 }
 
@@ -163,14 +163,17 @@ impl GroupItemReading for WaydroidSessionRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let WaydroidState::Session {
             session_state,
             user_name,
             lcd_density,
         } = self.state
         else {
-            return HoverCardBody::dictionary([LabeledValue::new("Session", "none")]);
+            return vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new("Session", "none")]),
+            )];
         };
         let mut detail_entries = vec![LabeledValue::new("Session", session_state.clone())];
         if let Some(user_name) = user_name {
@@ -179,7 +182,7 @@ impl GroupItemReading for WaydroidSessionRow<'_> {
         if let Some(lcd_density) = lcd_density {
             detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
         }
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Status", dictionary_table(detail_entries))]
     }
 }
 
@@ -314,12 +317,10 @@ impl WaydroidContainerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &WaydroidContainerTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
-        let shown = self.shown_waydroid()?;
+    pub fn hover_card_for(&self, target: &WaydroidContainerTarget, clock: Clock) -> Vec<Section> {
+        let Some(shown) = self.shown_waydroid() else {
+            return Vec::new();
+        };
         let body = match target {
             WaydroidContainerTarget::Container => WaydroidContainerRow { shown }.hover_card(clock),
             WaydroidContainerTarget::Session => WaydroidSessionRow {
@@ -423,18 +424,21 @@ impl GroupItemReading for WaydroidContainerGroup {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![LabeledValue::new(
-                        "Present",
-                        presence_text(probe.0).to_owned(),
-                    )]
-                })
-                .unwrap_or_default(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Presence",
+            dictionary_table(
+                self.probe
+                    .get()
+                    .map(|probe| {
+                        vec![LabeledValue::new(
+                            "Present",
+                            presence_text(probe.0).to_owned(),
+                        )]
+                    })
+                    .unwrap_or_default(),
+            ),
+        )]
     }
 }
 

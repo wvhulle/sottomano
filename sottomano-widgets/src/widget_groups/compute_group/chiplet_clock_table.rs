@@ -9,7 +9,7 @@ use uom::si::f64::{Frequency, Ratio};
 
 use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{SectionTable, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
@@ -103,7 +103,7 @@ pub struct ChipletClockTable<'a> {
 }
 
 impl ChipletClockTable<'_> {
-    pub fn section(&self) -> Section {
+    pub fn clock_table(&self) -> SectionTable {
         let mut rows: Vec<PhysicalCoreClock> = self
             .group
             .physical_cores()
@@ -111,7 +111,7 @@ impl ChipletClockTable<'_> {
             .filter_map(|core| PhysicalCoreClock::of(core, self.clock, self.loads))
             .collect();
         rows.sort_by_key(|row| row.first_thread);
-        Section::column_table(
+        headed_table(
             [
                 ColumnHeading::titled("Clock"),
                 ColumnHeading::titled("Load"),

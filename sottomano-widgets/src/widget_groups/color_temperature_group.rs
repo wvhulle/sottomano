@@ -25,7 +25,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         widget_group_content::{
@@ -35,8 +35,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -239,26 +239,16 @@ impl ColorTemperatureGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: ColorTemperatureTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: ColorTemperatureTarget, clock: Clock) -> Vec<Section> {
         match target {
-            ColorTemperatureTarget::GammaDim => {
-                self.gamma
-                    .hover_card_with(HoverCardBody::dictionary([LabeledValue::new(
-                        "Dim",
-                        self.dim.readout_cell(),
-                    )]))
-            }
-            ColorTemperatureTarget::Temperature => {
-                self.gamma
-                    .hover_card_with(HoverCardBody::dictionary([LabeledValue::new(
-                        "Temperature",
-                        self.warmth.readout_cell(),
-                    )]))
-            }
+            ColorTemperatureTarget::GammaDim => self.gamma.hover_card_with(vec![Section::new(
+                "Setting",
+                dictionary_table([LabeledValue::new("Dim", self.dim.readout_cell())]),
+            )]),
+            ColorTemperatureTarget::Temperature => self.gamma.hover_card_with(vec![Section::new(
+                "Setting",
+                dictionary_table([LabeledValue::new("Temperature", self.warmth.readout_cell())]),
+            )]),
             ColorTemperatureTarget::Automatic => {
                 self.auto.hover_card(ServiceReadiness::Serving, clock)
             }

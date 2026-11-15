@@ -9,7 +9,7 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -68,18 +68,20 @@ impl RecentBreaks {
 
     fn breaks_table(&self) -> Option<Section> {
         (!self.taken_breaks.is_empty()).then(|| {
-            Section::column_table(
-                BREAK_TABLE_HEADINGS,
-                self.taken_breaks
-                    .iter()
-                    .rev()
-                    .map(|taken| self.break_record(taken)),
+            Section::new(
+                SectionTitle::captioned(
+                    "Breaks in the last 24 hours".to_owned(),
+                    "Most recent first.".to_owned(),
+                ),
+                headed_table(
+                    BREAK_TABLE_HEADINGS,
+                    self.taken_breaks
+                        .iter()
+                        .rev()
+                        .map(|taken| self.break_record(taken)),
+                )
+                .truncated_to(LISTED_BREAKS_LIMIT),
             )
-            .truncated_to(LISTED_BREAKS_LIMIT)
-            .titled((
-                "Breaks in the last 24 hours".to_owned(),
-                "Most recent first.".to_owned(),
-            ))
         })
     }
 }
@@ -96,21 +98,23 @@ impl BreakLog<'_> {
 
     fn break_rules(&self) -> Section {
         let config = self.accounting.config;
-        Section::dictionary([
-            LabeledValue::new(
-                "Idle after no input for",
-                ValueCell::duration(config.idle_detection_delay),
+        Section::new(
+            SectionTitle::captioned(
+                "How breaks count".to_owned(),
+                "Turning the screen off or suspending always counts as a break, however short."
+                    .to_owned(),
             ),
-            LabeledValue::new(
-                "Idle pause becomes a break after",
-                ValueCell::duration(config.idle_after),
-            ),
-        ])
-        .titled((
-            "How breaks count".to_owned(),
-            "Turning the screen off or suspending always counts as a break, however short."
-                .to_owned(),
-        ))
+            dictionary_table([
+                LabeledValue::new(
+                    "Idle after no input for",
+                    ValueCell::duration(config.idle_detection_delay),
+                ),
+                LabeledValue::new(
+                    "Idle pause becomes a break after",
+                    ValueCell::duration(config.idle_after),
+                ),
+            ]),
+        )
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> Vec<Section> {
@@ -142,7 +146,7 @@ impl GroupItemReading for BreakLog<'_> {
         )
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

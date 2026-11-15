@@ -13,7 +13,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -60,25 +60,30 @@ impl GroupItemReading for GpuTemperatureLabel {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary([LabeledValue::new(
-                "GPU",
-                Quantity::temperature(self.current),
-            )]),
-            Section::dictionary(
-                [
-                    self.limits.target_max.map(|target| {
-                        LabeledValue::new("Target maximum", Quantity::temperature(target))
-                    }),
-                    self.limits.slowdown.map(|slowdown| {
-                        LabeledValue::new("Slows down at", Quantity::temperature(slowdown))
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled("Thresholds"),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Now",
+                dictionary_table([LabeledValue::new(
+                    "GPU",
+                    Quantity::temperature(self.current),
+                )]),
+            ),
+            Section::new(
+                "Thresholds",
+                dictionary_table(
+                    [
+                        self.limits.target_max.map(|target| {
+                            LabeledValue::new("Target maximum", Quantity::temperature(target))
+                        }),
+                        self.limits.slowdown.map(|slowdown| {
+                            LabeledValue::new("Slows down at", Quantity::temperature(slowdown))
+                        }),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
+            ),
+        ]
     }
 }

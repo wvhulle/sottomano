@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
         value_cells::{LabeledValue, ValueCell},
@@ -16,7 +16,7 @@ use crate::{
 
 impl Section {
     pub fn hardware_identity(entries: impl IntoIterator<Item = LabeledValue>) -> Self {
-        Section::dictionary(entries).titled("Hardware")
+        Section::new("Hardware", dictionary_table(entries))
     }
 }
 
@@ -72,7 +72,10 @@ impl From<&CpuModel> for Section {
                 .join(" + ");
             LabeledValue::new(cache.position.to_string(), sizes)
         });
-        Section::dictionary(identity.chain(counts).chain(caches)).titled("CPU model")
+        Section::new(
+            "Identity",
+            dictionary_table(identity.chain(counts).chain(caches)),
+        )
     }
 }
 

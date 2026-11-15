@@ -29,10 +29,7 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::hover_card_source_delivery::{HoverCard, SourcedSections},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         tailnet_group::{
             tailscale_access_hover_card::{InboundAccessRow, OwnNodeRow, PolicyFileRow},
@@ -45,8 +42,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
-        simple_icons::SimpleIcon,
+        hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -94,9 +91,9 @@ impl PolicyFileAccess {
         }
     }
 
-    fn sections(&self, clock: Clock) -> Option<SourcedSections> {
+    fn sections(&self, clock: Clock) -> Vec<Section> {
         match self {
-            PolicyFileAccess::NoApiToken => None,
+            PolicyFileAccess::NoApiToken => Vec::new(),
             PolicyFileAccess::ApiToken { policy_file, .. } => policy_file.sections(clock),
         }
     }
@@ -255,31 +252,36 @@ impl TailnetGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &TailnetTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &TailnetTarget, clock: Clock) -> Vec<Section> {
         match target {
             TailnetTarget::Membership => self.tailscale.hover_card(clock),
             TailnetTarget::ExitOffer => {
-                let tailnet = self.running_tailnet()?;
+                let Some(tailnet) = self.running_tailnet() else {
+                    return Vec::new();
+                };
                 self.tailscale
                     .hover_card_with(ExitOfferRow { tailnet }.hover_card(clock))
             }
             TailnetTarget::OwnNode => {
-                let own_node_row = OwnNodeRow::of(self.tailscale.get()?)?;
+                let Some(own_node_row) = self.tailscale.get().and_then(OwnNodeRow::of) else {
+                    return Vec::new();
+                };
                 self.tailscale
                     .hover_card_with(own_node_row.hover_card(clock))
             }
-            TailnetTarget::InboundAccess => {
-                Some(HoverCard::grouped(self.inbound_access.sections(clock)))
-            }
-            TailnetTarget::PolicyFile => {
-                Some(HoverCard::grouped(self.policy_file_access.sections(clock)))
-            }
+            TailnetTarget::InboundAccess => self.inbound_access.sections(clock),
+            TailnetTarget::PolicyFile => self.policy_file_access.sections(clock),
             TailnetTarget::ExitNodeChoice { exit_node_ip } => {
-                let exit_node_choices = self.running_exit_node_choices()?;
-                let exit_node_option = exit_node_choices
+                let Some(exit_node_choices) = self.running_exit_node_choices() else {
+                    return Vec::new();
+                };
+                let Some(exit_node_option) = exit_node_choices
                     .options
                     .iter()
-                    .find(|exit_node_option| exit_node_option.ip == exit_node_ip.as_ref())?;
+                    .find(|exit_node_option| exit_node_option.ip == exit_node_ip.as_ref())
+                else {
+                    return Vec::new();
+                };
                 self.tailscale_exit_nodes.hover_card_with(
                     ExitNodeChoiceRow {
                         exit_node_option,
@@ -289,7 +291,9 @@ impl TailnetGroup {
                 )
             }
             TailnetTarget::ExitNodeLanAccess => {
-                let exit_node_choices = self.running_exit_node_choices()?;
+                let Some(exit_node_choices) = self.running_exit_node_choices() else {
+                    return Vec::new();
+                };
                 self.tailscale_exit_nodes
                     .hover_card_with(ExitNodeLanAccessRow { exit_node_choices }.hover_card(clock))
             }

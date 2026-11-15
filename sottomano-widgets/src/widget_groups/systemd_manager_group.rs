@@ -2,7 +2,10 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
-use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupFamily};
+use crate::{
+    clock::Clock, hover_cards::hover_card_body::dictionary_table,
+    widget_groups::widget_group_identity::WidgetGroupFamily,
+};
 
 mod boot_timeline_reading;
 mod failed_unit_log;
@@ -32,10 +35,7 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -44,9 +44,9 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -228,15 +228,17 @@ impl SystemdManagerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &SystemdTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &SystemdTarget, clock: Clock) -> Vec<Section> {
         match target {
             SystemdTarget::BootPhases => self.boot.hover_card(clock),
-            SystemdTarget::StartupUnits => self.boot.hover_card_with(
-                (StartupUnits {
-                    timeline: self.boot.get()?,
+            SystemdTarget::StartupUnits => self
+                .boot
+                .get()
+                .map(|timeline| {
+                    self.boot
+                        .hover_card_with(StartupUnits { timeline }.hover_card(clock))
                 })
-                .hover_card(clock),
-            ),
+                .unwrap_or_default(),
             SystemdTarget::FailedSystemUnits => self.failed_system.hover_card(clock),
             SystemdTarget::FailedUserUnits => self.failed_user.hover_card(clock),
             SystemdTarget::SlowSystemJobs => self.slow_system_jobs.hover_card(clock),
@@ -245,7 +247,7 @@ impl SystemdManagerGroup {
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
-            | SystemdTarget::SlowUserJob(_) => None,
+            | SystemdTarget::SlowUserJob(_) => Vec::new(),
         }
     }
 
@@ -350,7 +352,7 @@ impl GroupItemReading for SystemdManagerGroup {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let slow_jobs_count = |jobs: &SlowJobs| {
             LabeledValue::new(jobs.name().into_owned(), Quantity::count(jobs.jobs.len()))
         };
@@ -360,15 +362,18 @@ impl GroupItemReading for SystemdManagerGroup {
                 Quantity::count(failed.units.len()),
             )
         };
-        HoverCardBody::dictionary(
-            [
-                self.slow_system_jobs.visible_reading().map(slow_jobs_count),
-                self.slow_user_jobs.visible_reading().map(slow_jobs_count),
-                self.failed_system.visible_reading().map(failed_units_count),
-                self.failed_user.visible_reading().map(failed_units_count),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+        vec![Section::new(
+            "Health",
+            dictionary_table(
+                [
+                    self.slow_system_jobs.visible_reading().map(slow_jobs_count),
+                    self.slow_user_jobs.visible_reading().map(slow_jobs_count),
+                    self.failed_system.visible_reading().map(failed_units_count),
+                    self.failed_user.visible_reading().map(failed_units_count),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }

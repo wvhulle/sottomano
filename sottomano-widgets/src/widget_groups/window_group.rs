@@ -27,10 +27,7 @@ use window_list::{WindowList, WindowListInteraction, WindowListMessage};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot_drag::PanelSlotContext,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::widget_group_content::GroupEvent,
     widgets::window_icon::WindowAssets,
 };
@@ -113,16 +110,13 @@ impl WindowGroup {
         compositor: &CompositorWindowState,
         window: u64,
         clock: Clock,
-    ) -> Option<HoverCard> {
-        Some(HoverCard::sourced(
-            window_hover_card::window_identity_body(compositor, window, clock.wall)?,
-            DeliveryTiming::LivePush,
-        ))
+    ) -> Vec<Section> {
+        window_hover_card::window_identity_body(compositor, window, clock.wall).unwrap_or_default()
     }
 
     #[must_use]
-    pub fn inspect_hover_card(&self, clock: Clock) -> HoverCard {
-        HoverCard::grouped(self.window_list.process_sections(clock))
+    pub fn inspect_hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.window_list.process_sections(clock)
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {

@@ -32,10 +32,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
-        },
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         compositor_styling_group::switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
@@ -311,7 +308,7 @@ impl CompositorStylingGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: CompositorStylingTarget, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, target: CompositorStylingTarget, clock: Clock) -> Vec<Section> {
         let control = match target {
             CompositorStylingTarget::CornerRadius => self
                 .corner_radius
@@ -322,18 +319,19 @@ impl CompositorStylingGroup {
                 self.switch_heat.toggle().switch_hover_card(clock)
             }
         };
-        control.with_groups(self.rules_file.unwritable().map(|unwritable| {
-            SourcedSections::delivered(
-                Section::dictionary([LabeledValue::new(
-                    ValueCell::Path(unwritable.path.to_path_buf()),
-                    unwritable.kind.to_string(),
+        control
+            .into_iter()
+            .chain(self.rules_file.unwritable().map(|unwritable| {
+                Section::new(
+                    "The compositor rules are not written",
+                    dictionary_table([LabeledValue::new(
+                        ValueCell::Path(unwritable.path.to_path_buf()),
+                        unwritable.kind.to_string(),
+                    )
+                    .level(Severity::Critical)]),
                 )
-                .level(Severity::Critical)])
-                .titled("The compositor rules are not written")
-                .into(),
-                DeliveryTiming::SingleRead,
-            )
-        }))
+            }))
+            .collect()
     }
 
     fn close_sliders(&mut self) {

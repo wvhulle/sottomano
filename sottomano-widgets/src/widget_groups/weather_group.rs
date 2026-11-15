@@ -32,7 +32,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
@@ -174,18 +174,18 @@ impl WeatherGroup {
         target: WeatherTarget,
         config: &Config,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         match target {
             WeatherTarget::Temperature => self.temperature.hover_card(clock),
             WeatherTarget::Wind => self.wind.hover_card(clock),
             WeatherTarget::Rain => self.rain_hover_card(config, clock),
             WeatherTarget::Pollen => self.pollen.hover_card(clock),
-            WeatherTarget::Allergen(allergen) => self.pollen.hover_card_with(
-                self.pollen
-                    .get()?
-                    .concentration(allergen)?
-                    .hover_card(clock),
-            ),
+            WeatherTarget::Allergen(allergen) => self
+                .pollen
+                .get()
+                .and_then(|pollen| pollen.concentration(allergen))
+                .map(|concentration| self.pollen.hover_card_with(concentration.hover_card(clock)))
+                .unwrap_or_default(),
             WeatherTarget::Location => self.location.hover_card(clock),
         }
     }
@@ -206,27 +206,25 @@ impl WeatherGroup {
         })
     }
 
-    fn rain_hover_card(&self, config: &Config, clock: Clock) -> Option<HoverCard> {
+    fn rain_hover_card(&self, config: &Config, clock: Clock) -> Vec<Section> {
         let Some(forecast) = self.rain_forecast(config) else {
-            return self
-                .rain
-                .hover_card(clock)
-                .or_else(|| self.precipitation_model.hover_card(clock));
-        };
-        let radar_failure_sections = self
-            .rain
-            .failure()
-            .map(|failure| failure.hover_card(clock).listed_sections().to_vec())
-            .unwrap_or_default();
-        let body = forecast
-            .hover_card(clock)
-            .with_sections(radar_failure_sections);
-        match forecast.sources {
-            RainSources::Model(_) => self.precipitation_model.hover_card_with(body),
-            RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
-                self.rain.hover_card_with(body)
+            let radar_sections = self.rain.hover_card(clock);
+            if radar_sections.is_empty() {
+                return self.precipitation_model.hover_card(clock);
             }
+            return radar_sections;
+        };
+        let forecast_sections = forecast.hover_card(clock);
+        let mut sections = match forecast.sources {
+            RainSources::Model(_) => self.precipitation_model.hover_card_with(forecast_sections),
+            RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
+                self.rain.hover_card_with(forecast_sections)
+            }
+        };
+        if self.rain.failure().is_some() {
+            sections.extend(self.rain.hover_card_with(Vec::new()));
         }
+        sections
     }
 
     fn rain_item<'a>(

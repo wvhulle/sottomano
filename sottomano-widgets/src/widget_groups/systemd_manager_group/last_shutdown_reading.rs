@@ -14,7 +14,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -67,18 +67,20 @@ impl GroupItemReading for LastShutdown {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Took"),
-                ColumnHeading::titled("Result").align_x(Horizontal::Left),
-            ],
-            self.slowest_stops.iter(),
-        )
-        .titled((
-            "Slowest stops at last shutdown",
-            "From the previous boot's journal: shutdown start to its last entry. Amber stops \
-             crossed slow_shutdown_stop_secs or never finished.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Slowest stops at last shutdown",
+                "From the previous boot's journal: shutdown start to its last entry. Amber stops \
+                 crossed slow_shutdown_stop_secs or never finished.",
+            ),
+            headed_table(
+                [
+                    ColumnHeading::titled("Took"),
+                    ColumnHeading::titled("Result").align_x(Horizontal::Left),
+                ],
+                self.slowest_stops.iter(),
+            ),
+        )]
     }
 }

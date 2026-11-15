@@ -40,7 +40,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget, PressHints,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
         hoverable,
     },
     widget_groups::{
@@ -55,8 +55,8 @@ use crate::{
     widgets::{
         app_window_focus::AppWindowFocus,
         icon_handle::IconHandle,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -442,18 +442,23 @@ impl MediaGroup {
         target: &PlayerTarget,
         index: &DesktopIndex,
         clock: Clock,
-    ) -> Option<HoverCard> {
-        let media = self.player(&target.bus)?;
+    ) -> Vec<Section> {
+        let Some(media) = self.player(&target.bus) else {
+            return Vec::new();
+        };
         match target.control {
-            MediaTarget::Player => self.players.hover_card_with(HoverCardBody::dictionary([
-                LabeledValue::new("Player", media.identity.clone()),
-                LabeledValue::new("State", media.status.label()),
-            ])),
-            MediaTarget::Track => self.players.hover_card_with(HoverCardBody::sections([
+            MediaTarget::Player => self.players.hover_card_with(vec![Section::new(
+                "Status",
+                dictionary_table([
+                    LabeledValue::new("Player", media.identity.clone()),
+                    LabeledValue::new("State", media.status.label()),
+                ]),
+            )]),
+            MediaTarget::Track => self.players.hover_card_with(vec![
                 track_section(media, index),
                 playback_section(media, clock.instant),
                 search_section(media, index),
-            ])),
+            ]),
             MediaTarget::Lyrics => self.lyrics_hover_card(media, clock),
             MediaTarget::Seek
             | MediaTarget::Shuffle
@@ -464,22 +469,21 @@ impl MediaGroup {
             | MediaTarget::Transport
             | MediaTarget::Stop
             | MediaTarget::Quit
-            | MediaTarget::SessionControls => {
-                self.players.hover_card_with(HoverCardBody::sections([]))
-            }
+            | MediaTarget::SessionControls => self.players.hover_card_with(vec![]),
         }
     }
 
-    fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Option<HoverCard> {
-        let lyrics_snapshot = self.lyrics_of(media)?;
+    fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Vec<Section> {
+        let Some(lyrics_snapshot) = self.lyrics_of(media) else {
+            return Vec::new();
+        };
         let Some(track_lyrics) = lyrics_snapshot.get() else {
             return lyrics_snapshot.hover_card(clock);
         };
-        let played = media.progress.played(media.status, clock.instant)?;
-        lyrics_snapshot.hover_card_with(HoverCardBody::sections([lyrics_section(
-            track_lyrics,
-            played,
-        )]))
+        let Some(played) = media.progress.played(media.status, clock.instant) else {
+            return Vec::new();
+        };
+        lyrics_snapshot.hover_card_with(vec![lyrics_section(track_lyrics, played)])
     }
 
     pub fn group_contents<'a>(

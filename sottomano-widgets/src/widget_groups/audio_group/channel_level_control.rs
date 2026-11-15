@@ -13,7 +13,7 @@ use crate::{
         group_item_reading::GroupItemReading,
         slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -47,7 +47,7 @@ impl GroupItemReading for AudioState {
         audio_output_icon(self).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let sink = self
             .sink
             .iter()
@@ -56,7 +56,7 @@ impl GroupItemReading for AudioState {
             .source
             .iter()
             .flat_map(|source| device_entries(ControlKind::Source, source));
-        HoverCardBody::dictionary(sink.chain(source))
+        vec![Section::new("Levels", dictionary_table(sink.chain(source)))]
     }
 }
 

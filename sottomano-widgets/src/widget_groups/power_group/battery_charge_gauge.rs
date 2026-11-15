@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -43,19 +43,22 @@ impl GroupItemReading for Battery {
         Some(self.capacity)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            [
-                Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
-                (self.status != ChargeStatus::Unreported)
-                    .then(|| LabeledValue::new("Status", self.status.as_str())),
-                Some(LabeledValue::new(
-                    "Remaining",
-                    Quantity::energy(self.energy),
-                )),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Charge",
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
+                    (self.status != ChargeStatus::Unreported)
+                        .then(|| LabeledValue::new("Status", self.status.as_str())),
+                    Some(LabeledValue::new(
+                        "Remaining",
+                        Quantity::energy(self.energy),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }

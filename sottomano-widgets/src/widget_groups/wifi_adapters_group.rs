@@ -24,13 +24,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            Section,
-            hover_card_source_delivery::{HoverCard, SourcedSections},
-        },
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
@@ -202,7 +196,7 @@ impl WifiAdaptersGroup {
         &self,
         adapter_device: &str,
         describe_adapter: impl Fn(&WifiAdapterDetails) -> Vec<Section>,
-    ) -> Option<SourcedSections> {
+    ) -> Vec<Section> {
         self.wifi_details.sections_described_by(|details| {
             details
                 .adapters
@@ -214,35 +208,37 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Option<HoverCard> {
-        let radio_power = self.wifi.get()?.radio_power;
+    pub fn hover_card_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Vec<Section> {
+        let Some(wifi) = self.wifi.get() else {
+            return Vec::new();
+        };
+        let radio_power = wifi.radio_power;
         match target {
             WifiAdapterTarget::Signal { adapter_device } => {
-                let adapter = self.adapter_named(adapter_device)?;
+                let Some(adapter) = self.adapter_named(adapter_device) else {
+                    return Vec::new();
+                };
                 let signal_reading = AdapterSignalReading {
                     adapter,
                     radio_power,
                 };
-                Some(
-                    self.wifi
-                        .hover_card_with(signal_reading.hover_card(clock))?
-                        .with_groups(
-                            self.adapter_detail_sections(adapter_device, adapter_identity_sections),
-                        ),
-                )
+                let mut sections = self.wifi.hover_card_with(signal_reading.hover_card(clock));
+                sections.extend(
+                    self.adapter_detail_sections(adapter_device, adapter_identity_sections),
+                );
+                sections
             }
             WifiAdapterTarget::Connection { adapter_device } => {
-                let adapter = self.adapter_named(adapter_device)?;
-                Some(
-                    self.wifi
-                        .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card(clock))?
-                        .with_groups(
-                            self.adapter_detail_sections(
-                                adapter_device,
-                                adapter_radio_stats_sections,
-                            ),
-                        ),
-                )
+                let Some(adapter) = self.adapter_named(adapter_device) else {
+                    return Vec::new();
+                };
+                let mut sections = self
+                    .wifi
+                    .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card(clock));
+                sections.extend(
+                    self.adapter_detail_sections(adapter_device, adapter_radio_stats_sections),
+                );
+                sections
             }
             WifiAdapterTarget::Addresses {
                 adapter_device,
@@ -264,19 +260,17 @@ impl WifiAdaptersGroup {
                 let router_details = self.gateway_latencies.sections_described_by(|latencies| {
                     family_router_sections(latencies, adapter_device, *family)
                 });
-                Some(HoverCard::grouped(
-                    address_details.into_iter().chain(router_details),
-                ))
+                address_details.into_iter().chain(router_details).collect()
             }
-            WifiAdapterTarget::Dns { adapter_device } => Some(HoverCard::grouped(
+            WifiAdapterTarget::Dns { adapter_device } => {
                 self.adapter_detail_sections(adapter_device, |details| {
                     details
                         .addressing
                         .as_ref()
                         .map(|addressing| dns_server_sections(&addressing.dns))
                         .unwrap_or_default()
-                }),
-            )),
+                })
+            }
             WifiAdapterTarget::AllRadios => self
                 .wifi
                 .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card(clock)),

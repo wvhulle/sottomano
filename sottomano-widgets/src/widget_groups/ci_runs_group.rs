@@ -20,10 +20,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -128,14 +125,21 @@ fn cancel_run_task(run_label: String, stop_control: TaskStopControl) -> Task<CiR
 fn runner_hover_card<S: CiRunnerSnapshot>(
     watches: &CiRunnerWatches<S>,
     runner_label: &str,
-    describe: impl FnOnce(WatchedCiRunner<'_>) -> Option<HoverCardBody>,
-) -> Option<HoverCard> {
-    let snapshot = watches.snapshot_of(runner_label)?;
-    let body = describe(WatchedCiRunner {
+    describe: impl FnOnce(WatchedCiRunner<'_>) -> Option<Vec<Section>>,
+) -> Vec<Section> {
+    let Some(snapshot) = watches.snapshot_of(runner_label) else {
+        return Vec::new();
+    };
+    let Some(held_snapshot) = snapshot.get() else {
+        return Vec::new();
+    };
+    let Some(body) = describe(WatchedCiRunner {
         kind: S::KIND,
         runner_label,
-        runner: snapshot.get()?.runner(),
-    })?;
+        runner: held_snapshot.runner(),
+    }) else {
+        return Vec::new();
+    };
     snapshot.hover_card_with(body)
 }
 
@@ -211,8 +215,8 @@ impl CiRunsGroup {
     fn runner_hover_card(
         &self,
         reference: &CiRunnerReference,
-        describe: impl FnOnce(WatchedCiRunner<'_>) -> Option<HoverCardBody>,
-    ) -> Option<HoverCard> {
+        describe: impl FnOnce(WatchedCiRunner<'_>) -> Option<Vec<Section>>,
+    ) -> Vec<Section> {
         match reference.kind {
             CiRunnerKind::Woodpecker => {
                 runner_hover_card(&self.woodpecker_watches, &reference.runner_label, describe)
@@ -224,7 +228,7 @@ impl CiRunsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &CiRunsTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &CiRunsTarget, clock: Clock) -> Vec<Section> {
         match target {
             CiRunsTarget::Runner(reference) => self.runner_hover_card(reference, |watched| {
                 CiRunnerFailureRow::of_failing(watched).map(|row| row.hover_card(clock))

@@ -15,7 +15,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -54,7 +54,7 @@ impl GroupItemReading for OpenRouterSpend {
             .into()
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.local();
         let daily_warning =
             LabeledValue::new("Daily Warning", Quantity::spend(self.daily_warning()))
@@ -68,21 +68,23 @@ impl GroupItemReading for OpenRouterSpend {
             let projected = spent
                 .projected_cost(now, &self.budget)
                 .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
-            Section::dictionary(
-                [
-                    Some(LabeledValue::new(
-                        "Cost",
-                        Quantity::spend(spent.models.total()),
-                    )),
-                    projected,
-                    threshold,
-                ]
-                .into_iter()
-                .flatten(),
+            Section::new(
+                title,
+                dictionary_table(
+                    [
+                        Some(LabeledValue::new(
+                            "Cost",
+                            Quantity::spend(spent.models.total()),
+                        )),
+                        projected,
+                        threshold,
+                    ]
+                    .into_iter()
+                    .flatten(),
+                ),
             )
-            .titled(title)
         };
-        HoverCardBody::sections([
+        vec![
             Section::spend_forecast_basis(
                 [LabeledValue::new("Source", "OpenRouter analytics")],
                 &self.budget,
@@ -102,7 +104,7 @@ impl GroupItemReading for OpenRouterSpend {
                 &self.month,
                 Some(monthly_budget),
             ),
-        ])
+        ]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

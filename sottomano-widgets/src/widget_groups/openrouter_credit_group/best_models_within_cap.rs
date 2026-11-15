@@ -12,7 +12,9 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{
+        Section, SectionTitle, SectionWidget, dictionary_table, headed_table,
+    },
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -49,54 +51,60 @@ impl GroupItemReading for OpenRouterModelRankings {
         ReadingDisplayState::Idle
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let ranking_table = Section::column_table(
-            [
-                ColumnHeading::titled("Intelligence"),
-                ColumnHeading::titled("In/Mtok"),
-                ColumnHeading::titled("Out/Mtok"),
-                ColumnHeading::titled("Context"),
-                ColumnHeading::titled("Page"),
-            ],
-            self.best_first.iter().map(TableRecord::from),
-        )
-        .truncated_to(LISTED_MODELS)
-        .titled((
-            format!(
-                "Tool-Capable Models ≤ {} Blended",
-                spend_text(&self.max_blended_per_million)
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        let ranking_table = Section::new(
+            SectionTitle::captioned(
+                format!(
+                    "Tool-Capable Models ≤ {} Blended",
+                    spend_text(&self.max_blended_per_million)
+                ),
+                "Intelligence Index from Artificial Analysis via OpenRouter; OpenRouter prices",
             ),
-            "Intelligence Index from Artificial Analysis via OpenRouter; OpenRouter prices",
-        ));
+            headed_table(
+                [
+                    ColumnHeading::titled("Intelligence"),
+                    ColumnHeading::titled("In/Mtok"),
+                    ColumnHeading::titled("Out/Mtok"),
+                    ColumnHeading::titled("Context"),
+                    ColumnHeading::titled("Page"),
+                ],
+                self.best_first.iter().map(TableRecord::from),
+            )
+            .truncated_to(LISTED_MODELS),
+        );
         let unscored_note = (self.unscored_count > 0).then(|| {
-            Section::note(format!(
-                "{} affordable models have no Intelligence Index on OpenRouter",
-                self.unscored_count
-            ))
+            Section::new(
+                "Unscored Models",
+                SectionWidget::paragraph(format!(
+                    "{} affordable models have no Intelligence Index on OpenRouter",
+                    self.unscored_count
+                )),
+            )
         });
-        let source_links = Section::dictionary([
-            LabeledValue::new(
-                "Benchmarks",
-                ValueCell::Link {
-                    label: "OpenRouter rankings".to_owned(),
-                    url: OPENROUTER_RANKINGS_URL.to_owned(),
-                },
-            ),
-            LabeledValue::new(
-                "Prices",
-                ValueCell::Link {
-                    label: "OpenRouter models".to_owned(),
-                    url: OPENROUTER_TOOL_MODELS_URL.to_owned(),
-                },
-            ),
-        ])
-        .titled("Sources");
-        HoverCardBody::sections(
-            [ranking_table]
-                .into_iter()
-                .chain(unscored_note)
-                .chain([source_links]),
-        )
+        let source_links = Section::new(
+            "Sources",
+            dictionary_table([
+                LabeledValue::new(
+                    "Benchmarks",
+                    ValueCell::Link {
+                        label: "OpenRouter rankings".to_owned(),
+                        url: OPENROUTER_RANKINGS_URL.to_owned(),
+                    },
+                ),
+                LabeledValue::new(
+                    "Prices",
+                    ValueCell::Link {
+                        label: "OpenRouter models".to_owned(),
+                        url: OPENROUTER_TOOL_MODELS_URL.to_owned(),
+                    },
+                ),
+            ]),
+        );
+        [ranking_table]
+            .into_iter()
+            .chain(unscored_note)
+            .chain([source_links])
+            .collect::<Vec<_>>()
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

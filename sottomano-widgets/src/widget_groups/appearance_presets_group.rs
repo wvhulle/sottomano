@@ -7,10 +7,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody, Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, SectionWidget},
     },
     widget_groups::{
         widget_group_content::{
@@ -78,12 +75,14 @@ impl AppearancePresetsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: AppearancePresetsTarget) -> HoverCard {
+    pub fn hover_card_for(&self, target: AppearancePresetsTarget) -> Vec<Section> {
         match target {
-            AppearancePresetsTarget::Preset(preset) => HoverCard::sourced(
-                HoverCardBody::sections([Section::note(preset.description())]),
-                DeliveryTiming::LivePush,
-            ),
+            AppearancePresetsTarget::Preset(preset) => vec![Section::new(
+                "Description",
+                SectionWidget::paragraph(preset.description()),
+            )]
+            .into_iter()
+            .collect(),
         }
     }
 

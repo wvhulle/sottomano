@@ -11,7 +11,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -289,7 +289,7 @@ impl PanelSettingsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: PanelSettingsTarget, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, target: PanelSettingsTarget, clock: Clock) -> Vec<Section> {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
                 disconnected_toggle(self.group_framing).switch_hover_card(clock)

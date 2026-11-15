@@ -8,7 +8,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph, localized_quantities::Quantity, value_cells::LabeledValue,
         weather_icons::WeatherIcon,
@@ -40,14 +40,17 @@ impl GroupItemReading for Wind {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Speed", Quantity::wind_speed(self.speed)),
-            LabeledValue::new("Beaufort", Quantity::count(self.beaufort())),
-            LabeledValue::new("Gusts", Quantity::wind_speed(self.gusts)),
-            LabeledValue::new("From", self.compass_point()),
-            LabeledValue::new("Bearing", Quantity::angle(self.direction)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Now",
+            dictionary_table([
+                LabeledValue::new("Speed", Quantity::wind_speed(self.speed)),
+                LabeledValue::new("Beaufort", Quantity::count(self.beaufort())),
+                LabeledValue::new("Gusts", Quantity::wind_speed(self.gusts)),
+                LabeledValue::new("From", self.compass_point()),
+                LabeledValue::new("Bearing", Quantity::angle(self.direction)),
+            ]),
+        )]
     }
 }
 

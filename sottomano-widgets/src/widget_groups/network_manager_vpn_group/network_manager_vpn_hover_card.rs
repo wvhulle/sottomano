@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -30,8 +30,8 @@ impl GroupItemReading for NetworkManagerVpns {
         Phosphor::LockKey(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -59,7 +59,7 @@ impl GroupItemReading for VpnConnection {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let profile_entries = [
             Some(LabeledValue::new(self.name.as_str(), self.protocol_label())),
             self.remote_gateway
@@ -67,12 +67,15 @@ impl GroupItemReading for VpnConnection {
                 .map(|gateway| LabeledValue::new("Gateway", gateway)),
         ];
         let VpnActivity::Active(tunnel) = &self.activity else {
-            return HoverCardBody::sections([Section::dictionary(
-                profile_entries
-                    .into_iter()
-                    .flatten()
-                    .chain([LabeledValue::new("State", "not connected")]),
-            )]);
+            return vec![Section::new(
+                "Connection",
+                dictionary_table(
+                    profile_entries
+                        .into_iter()
+                        .flatten()
+                        .chain([LabeledValue::new("State", "not connected")]),
+                ),
+            )];
         };
         let state_entry = LabeledValue::new("State", tunnel.vpn_state.label());
         let tunnel_entries = [
@@ -97,15 +100,18 @@ impl GroupItemReading for VpnConnection {
             .banner
             .as_deref()
             .map(|banner| LabeledValue::new("Banner", banner));
-        HoverCardBody::sections([
-            Section::dictionary(
-                profile_entries
-                    .into_iter()
-                    .chain(tunnel_entries)
-                    .flatten()
-                    .chain(dns_entries),
+        vec![
+            Section::new(
+                "Connection",
+                dictionary_table(
+                    profile_entries
+                        .into_iter()
+                        .chain(tunnel_entries)
+                        .flatten()
+                        .chain(dns_entries),
+                ),
             ),
-            Section::dictionary(banner_entries),
-        ])
+            Section::new("Banner", dictionary_table(banner_entries)),
+        ]
     }
 }

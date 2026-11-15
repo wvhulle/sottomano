@@ -27,7 +27,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        HoverCardBody, Section, hover_card_figure_payloads::ThreadCell,
+        Section, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -117,50 +117,55 @@ impl GroupItemReading for Temperature {
         ))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
         let thresholds = self.thresholds();
-        let summary = Section::dictionary(
-            [
-                Some(LabeledValue::new("Chips", chips.join(", "))),
-                Some(LabeledValue::new(
-                    "Samples",
-                    Quantity::count(self.readings.len()),
-                )),
-                self.lowest()
-                    .map(|lowest| LabeledValue::new("Min", Quantity::temperature(lowest))),
-                Some(LabeledValue::new(
-                    "Avg",
-                    Quantity::temperature(self.average()),
-                )),
-                Some(LabeledValue::new(
-                    "Max",
-                    Quantity::temperature(self.hottest()),
-                )),
-            ]
-            .into_iter()
-            .flatten(),
+        let summary = Section::new(
+            "Sensors",
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Chips", chips.join(", "))),
+                    Some(LabeledValue::new(
+                        "Samples",
+                        Quantity::count(self.readings.len()),
+                    )),
+                    self.lowest()
+                        .map(|lowest| LabeledValue::new("Min", Quantity::temperature(lowest))),
+                    Some(LabeledValue::new(
+                        "Avg",
+                        Quantity::temperature(self.average()),
+                    )),
+                    Some(LabeledValue::new(
+                        "Max",
+                        Quantity::temperature(self.hottest()),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         );
-        let threshold_section = Section::dictionary(
-            [
-                self.throttle_limit.map(|throttle| {
-                    LabeledValue::new("Throttles at", Quantity::temperature(throttle))
-                }),
-                Some(LabeledValue::new(
-                    "Warns above",
-                    Quantity::temperature(thresholds.warning),
-                )),
-                Some(LabeledValue::new(
-                    "Critical above",
-                    thresholds.critical_text(),
-                )),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled("Thresholds");
-        HoverCardBody::sections([summary, threshold_section])
+        let threshold_section = Section::new(
+            "Thresholds",
+            dictionary_table(
+                [
+                    self.throttle_limit.map(|throttle| {
+                        LabeledValue::new("Throttles at", Quantity::temperature(throttle))
+                    }),
+                    Some(LabeledValue::new(
+                        "Warns above",
+                        Quantity::temperature(thresholds.warning),
+                    )),
+                    Some(LabeledValue::new(
+                        "Critical above",
+                        thresholds.critical_text(),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        );
+        vec![summary, threshold_section]
     }
 }
 
@@ -172,6 +177,7 @@ impl ChipletLiveState<'_> {
                 readings: &temperatures.cores,
             }
             .section(
+                "Cores",
                 |group| self.title(group),
                 |_, members| {
                     members

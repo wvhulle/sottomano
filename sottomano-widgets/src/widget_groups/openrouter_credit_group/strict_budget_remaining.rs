@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
@@ -50,16 +50,17 @@ impl GroupItemReading for OpenRouterStrictBudget {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            [Section::dictionary([
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        [Section::new(
+            "Credits",
+            dictionary_table([
                 remaining_entry(self.credits.remaining()),
                 LabeledValue::new("Lifetime Purchased", Quantity::spend(self.credits.total)),
-            ])
-            .titled("Credits")]
-            .into_iter()
-            .chain(self.key_limits.iter().map(Section::from)),
-        )
+            ]),
+        )]
+        .into_iter()
+        .chain(self.key_limits.iter().map(Section::from))
+        .collect::<Vec<_>>()
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
@@ -81,16 +82,18 @@ impl From<&KeyLimit> for Section {
             };
             LabeledValue::new("Resets", period_name)
         });
-        Section::dictionary(
-            [
-                Some(LabeledValue::new("Limit", Quantity::spend(key_limit.limit))),
-                Some(remaining_entry(key_limit.remaining)),
-                resets,
-            ]
-            .into_iter()
-            .flatten(),
+        Section::new(
+            SectionTitle::captioned(key_limit.name.as_str(), "API key limit"),
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Limit", Quantity::spend(key_limit.limit))),
+                    Some(remaining_entry(key_limit.remaining)),
+                    resets,
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         )
-        .titled((key_limit.name.as_str(), "API key limit"))
     }
 }
 

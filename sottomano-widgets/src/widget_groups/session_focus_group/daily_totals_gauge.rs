@@ -15,7 +15,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -82,12 +82,15 @@ impl DailyTotalsGauge {
             );
         let budget_entry = status
             .map(|status| LabeledValue::new("Daily budget", ValueCell::duration(status.budget)));
-        Section::dictionary(once(active).chain(budget_entry)).titled((
-            "Screen".to_owned(),
-            "Only active time in the last 24 hours counts, attributed to the focused window's app \
-             and project. A budget turns critical once that time exceeds it."
-                .to_owned(),
-        ))
+        Section::new(
+            SectionTitle::captioned(
+                "Screen".to_owned(),
+                "Only active time in the last 24 hours counts, attributed to the focused window's \
+                 app and project. A budget turns critical once that time exceeds it."
+                    .to_owned(),
+            ),
+            dictionary_table(once(active).chain(budget_entry)),
+        )
     }
 }
 
@@ -101,20 +104,25 @@ impl UnitSpendRecord {
         if records.is_empty() {
             None
         } else if records.iter().any(|record| record.budget_status.is_some()) {
-            Some(Section::column_table(
-                [
-                    ColumnHeading::titled("Active (24h)"),
-                    ColumnHeading::titled("Daily budget"),
-                ],
-                records.iter().map(|record| record.budgeted_record()),
+            Some(Section::new(
+                title,
+                headed_table(
+                    [
+                        ColumnHeading::titled("Active (24h)"),
+                        ColumnHeading::titled("Daily budget"),
+                    ],
+                    records.iter().map(|record| record.budgeted_record()),
+                ),
             ))
         } else {
-            Some(Section::column_table(
-                [ColumnHeading::titled("Active (24h)")],
-                records.iter().map(|record| record.plain_record()),
+            Some(Section::new(
+                title,
+                headed_table(
+                    [ColumnHeading::titled("Active (24h)")],
+                    records.iter().map(|record| record.plain_record()),
+                ),
             ))
         }
-        .map(|section| section.titled(title))
     }
 
     fn severity(&self) -> Severity {
@@ -189,8 +197,8 @@ impl GroupItemReading for DailyTotalsGauge {
         self.worst().map(|quota| quota.used)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.sections())
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        self.sections().into_iter().collect::<Vec<_>>()
     }
 
     fn quota_windows(&self, _now: DateTime<Utc>) -> Vec<Quota> {

@@ -32,7 +32,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -250,26 +250,32 @@ impl MemoryBoardGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &MemoryBoardTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &MemoryBoardTarget, clock: Clock) -> Vec<Section> {
         match target {
-            MemoryBoardTarget::Memory => self.memory.hover_card_with_groups(
-                [self.memory_processes.sections(clock)]
-                    .into_iter()
-                    .flatten(),
-                clock,
-            ),
+            MemoryBoardTarget::Memory => {
+                let mut sections = self.memory.hover_card(clock);
+                sections.extend(self.memory_processes.sections(clock));
+                sections
+            }
             MemoryBoardTarget::Growth => self.memory_growth.hover_card(clock),
             MemoryBoardTarget::Pressure => self.stall_pressure.hover_card(clock),
-            MemoryBoardTarget::Swap => self
-                .swap_activity
-                .hover_card_with_groups(self.swapped_processes.sections(clock), clock),
+            MemoryBoardTarget::Swap => {
+                let mut sections = self.swap_activity.hover_card(clock);
+                sections.extend(self.swapped_processes.sections(clock));
+                sections
+            }
             MemoryBoardTarget::Slot(locator) => {
-                let hardware = self.hardware.get()?;
-                let slot_module = hardware
+                let Some(hardware) = self.hardware.get() else {
+                    return Vec::new();
+                };
+                let Some(slot_module) = hardware
                     .memory
                     .0
                     .iter()
-                    .find(|slot_module| slot_module.locator == *locator)?;
+                    .find(|slot_module| slot_module.locator == *locator)
+                else {
+                    return Vec::new();
+                };
                 let machine = if slot_module.locator == hardware.memory.0[0].locator {
                     hardware.machine.clone()
                 } else {
@@ -282,12 +288,14 @@ impl MemoryBoardGroup {
                 self.hardware.hover_card_with(reading.hover_card(clock))
             }
             MemoryBoardTarget::TemperatureSensor(bus_address) => {
-                let module = self
-                    .module_temperatures
-                    .get()?
-                    .modules
-                    .iter()
-                    .find(|module| &module.bus_address == bus_address)?;
+                let Some(module) = self.module_temperatures.get().and_then(|temperatures| {
+                    temperatures
+                        .modules
+                        .iter()
+                        .find(|module| &module.bus_address == bus_address)
+                }) else {
+                    return Vec::new();
+                };
                 let reading = MemoryModuleTemperatureReading {
                     bus_address: module.bus_address.clone(),
                     temperature: module.temperature,

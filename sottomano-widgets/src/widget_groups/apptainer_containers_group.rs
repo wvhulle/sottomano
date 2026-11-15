@@ -18,7 +18,10 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{Section, dictionary_table},
+    },
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -77,11 +80,14 @@ impl GroupItemReading for ApptainerContainerListingRow<'_> {
         ContainerRunState::Running.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "State",
-            ContainerRunState::Running.label(),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new(
+                "State",
+                ContainerRunState::Running.label(),
+            )]),
+        )]
     }
 }
 
@@ -111,7 +117,7 @@ impl GroupItemReading for ApptainerContainerRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let container = self.container;
         let mut detail_entries = Vec::new();
         if let Some(image_file) = &container.image_file {
@@ -136,7 +142,7 @@ impl GroupItemReading for ApptainerContainerRow<'_> {
             LabeledValue::new("Runtime", container.runtime_title.clone()),
             LabeledValue::new("PID", container.runtime_pid.to_string()),
         ]);
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Instance", dictionary_table(detail_entries))]
     }
 }
 

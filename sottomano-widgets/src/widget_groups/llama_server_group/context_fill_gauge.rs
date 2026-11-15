@@ -7,7 +7,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -79,15 +79,17 @@ impl GroupItemReading for ContextFill<'_> {
         Some(self.fullest)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("State").align_x(Horizontal::Left),
-                ColumnHeading::titled("Tokens"),
-                ColumnHeading::titled("Fill"),
-            ],
-            self.slots.iter().map(slot_record),
-        )
-        .titled("Slots")])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Slots",
+            headed_table(
+                [
+                    ColumnHeading::titled("State").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Tokens"),
+                    ColumnHeading::titled("Fill"),
+                ],
+                self.slots.iter().map(slot_record),
+            ),
+        )]
     }
 }

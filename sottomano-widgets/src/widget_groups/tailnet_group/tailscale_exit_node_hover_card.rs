@@ -18,7 +18,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -47,8 +47,8 @@ impl GroupItemReading for TailscaleExitNodes {
         Phosphor::SignOut(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -81,7 +81,7 @@ impl GroupItemReading for ExitNodeChoiceRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let reachability_entry = match self.exit_node_option.reachability {
             ExitNodeReachability::Online => LabeledValue::new("State", "online"),
             ExitNodeReachability::OfflineSince(last_seen) => {
@@ -95,23 +95,26 @@ impl GroupItemReading for ExitNodeChoiceRow<'_> {
             ExitNodeControl::BlockedByOffering
         )
         .then(|| LabeledValue::new("Blocked", OFFERING_BLOCKS_USE_TEXT).level(Severity::Warning));
-        HoverCardBody::dictionary(
-            [
-                LabeledValue::new("Exit node", self.exit_node_option.name.as_str()),
-                LabeledValue::new("IP", self.exit_node_option.ip.as_str()),
-                reachability_entry,
-                LabeledValue::new(
-                    "In use",
-                    match self.exit_node_option.node_use {
-                        ExitNodeUse::InUse => "yes",
-                        ExitNodeUse::Unused => "no",
-                    },
-                ),
-                lan_access_entry(self.exit_node_choices),
-            ]
-            .into_iter()
-            .chain(blocked_entry),
-        )
+        vec![Section::new(
+            "Status",
+            dictionary_table(
+                [
+                    LabeledValue::new("Exit node", self.exit_node_option.name.as_str()),
+                    LabeledValue::new("IP", self.exit_node_option.ip.as_str()),
+                    reachability_entry,
+                    LabeledValue::new(
+                        "In use",
+                        match self.exit_node_option.node_use {
+                            ExitNodeUse::InUse => "yes",
+                            ExitNodeUse::Unused => "no",
+                        },
+                    ),
+                    lan_access_entry(self.exit_node_choices),
+                ]
+                .into_iter()
+                .chain(blocked_entry),
+            ),
+        )]
     }
 }
 
@@ -132,7 +135,10 @@ impl GroupItemReading for ExitNodeLanAccessRow<'_> {
         ReadingDisplayState::from(self.exit_node_choices.lan_access)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([lan_access_entry(self.exit_node_choices)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([lan_access_entry(self.exit_node_choices)]),
+        )]
     }
 }

@@ -6,7 +6,7 @@ use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
@@ -34,24 +34,28 @@ impl GroupItemReading for Article {
         Some(self.title.clone())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary([LabeledValue::new(
-                "Article",
-                ValueCell::BrandedLink {
-                    label: self.title.clone(),
-                    url: self.url.clone(),
-                    glyph: SimpleIcon::Wikipedia.into(),
-                },
-            )])
-            .titled("Wikipedia"),
-            Section::dictionary(
-                self.summary
-                    .as_deref()
-                    .map(|summary| LabeledValue::new(" ", summary)),
-            )
-            .titled("Summary"),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Wikipedia",
+                dictionary_table([LabeledValue::new(
+                    "Article",
+                    ValueCell::BrandedLink {
+                        label: self.title.clone(),
+                        url: self.url.clone(),
+                        glyph: SimpleIcon::Wikipedia.into(),
+                    },
+                )]),
+            ),
+            Section::new(
+                "Summary",
+                dictionary_table(
+                    self.summary
+                        .as_deref()
+                        .map(|summary| LabeledValue::new(" ", summary)),
+                ),
+            ),
+        ]
     }
 }
 

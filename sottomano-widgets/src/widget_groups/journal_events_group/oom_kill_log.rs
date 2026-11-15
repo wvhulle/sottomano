@@ -13,7 +13,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
         journal_events_group::{
             JournalEventsInteraction, JournalScopeGroup, JournalTarget, shown_while_alerting,
@@ -85,18 +85,20 @@ impl GroupItemReading for Vec<OomKillEntry> {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
-                ColumnHeading::titled("Killed by").align_x(Horizontal::Left),
-            ],
-            self.iter(),
-        )
-        .titled((
-            "OOM kills",
-            "Units whose processes were killed for lack of memory in the last hour.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "OOM kills",
+                "Units whose processes were killed for lack of memory in the last hour.",
+            ),
+            headed_table(
+                [
+                    ColumnHeading::titled("Unit").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Killed by").align_x(Horizontal::Left),
+                ],
+                self.iter(),
+            ),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

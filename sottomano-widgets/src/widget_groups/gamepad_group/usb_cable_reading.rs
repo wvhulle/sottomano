@@ -8,7 +8,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -49,26 +49,31 @@ impl GroupItemReading for UsbCableReading {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match self.role {
             UsbCableRole::InputAndCharging => {
-                HoverCardBody::sections([Section::dictionary([LabeledValue::new(
-                    "Carries",
-                    "input and charging",
-                )])])
+                vec![Section::new(
+                    "Connection",
+                    dictionary_table([LabeledValue::new("Carries", "input and charging")]),
+                )]
             }
-            UsbCableRole::ChargingOnly => HoverCardBody::sections([
-                Section::dictionary([
-                    LabeledValue::new("Carries", "charging only").level(Severity::Warning)
-                ]),
-                Section::detailed_note(
-                    "Input still goes over Bluetooth",
-                    "The controller was already connected over Bluetooth when the cable was \
-                     plugged in, so the kernel ignored the cable. Press to disconnect Bluetooth, \
-                     then plug the cable in again."
-                        .to_owned(),
+            UsbCableRole::ChargingOnly => vec![
+                Section::new(
+                    "Connection",
+                    dictionary_table([
+                        LabeledValue::new("Carries", "charging only").level(Severity::Warning)
+                    ]),
                 ),
-            ]),
+                Section::new(
+                    "Input still goes over Bluetooth",
+                    SectionWidget::paragraph(
+                        "The controller was already connected over Bluetooth when the cable was \
+                         plugged in, so the kernel ignored the cable. Press to disconnect \
+                         Bluetooth, then plug the cable in again."
+                            .to_owned(),
+                    ),
+                ),
+            ],
         }
     }
 }

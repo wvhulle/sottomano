@@ -20,7 +20,7 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        HoverCardBody, ReadingSections, Section, hover_card_figure_payloads::ThreadCell,
+        ReadingSections, Section, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -76,6 +76,7 @@ impl ChipletLiveState<'_> {
             readings: &readings,
         };
         vec![grid.section(
+            "Cores",
             |group| self.title(group),
             |group, members| {
                 let mean = |share: fn(&CoreReading) -> Ratio| {
@@ -131,19 +132,23 @@ impl GroupItemReading for CpuUsage {
         Some(self.busy)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("CPU load", Quantity::share(self.busy))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Usage",
+            dictionary_table([LabeledValue::new("CPU load", Quantity::share(self.busy))]),
+        )]
     }
 }
 
 impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().map(|process| {
+        vec![Section::new(
+            "Processes",
+            dictionary_table(self.processes.iter().map(|process| {
                 LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
                     .level(busy_level(process.busy))
             }))
             .truncated_to(LISTED_PROCESSES),
-        ]
+        )]
     }
 }

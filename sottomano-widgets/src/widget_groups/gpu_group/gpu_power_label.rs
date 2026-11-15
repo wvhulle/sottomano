@@ -10,7 +10,7 @@ use uom::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -36,18 +36,22 @@ impl GroupItemReading for GpuPowerDraw {
         Some(watt_text(self.draw))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            [
-                Some(LabeledValue::new(
-                    "Draw",
-                    Quantity::power(self.draw).decimals(0),
-                )),
-                self.limit
-                    .map(|limit| LabeledValue::new("Limit", Quantity::power(limit).decimals(0))),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Usage",
+            dictionary_table(
+                [
+                    Some(LabeledValue::new(
+                        "Draw",
+                        Quantity::power(self.draw).decimals(0),
+                    )),
+                    self.limit.map(|limit| {
+                        LabeledValue::new("Limit", Quantity::power(limit).decimals(0))
+                    }),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }

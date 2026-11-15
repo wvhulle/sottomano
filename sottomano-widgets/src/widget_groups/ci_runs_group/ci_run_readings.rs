@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::process_usage_cells::{approximate_memory_text, cpu_share_quantity},
     widgets::{
         icon_glyph::IconGlyph,
@@ -57,8 +57,14 @@ impl WatchedCiRunner<'_> {
     fn failure_section(&self) -> Option<Section> {
         match &self.runner.access {
             RunnerAccess::Complete => None,
-            RunnerAccess::EngineUnreadable(failure) => Some(Section::error(failure)),
-            RunnerAccess::AgentUnreachable(failure) => Some(Section::error(failure)),
+            RunnerAccess::EngineUnreadable(failure) => Some(Section::new(
+                "Error",
+                SectionWidget::paragraph(failure.to_string()),
+            )),
+            RunnerAccess::AgentUnreachable(failure) => Some(Section::new(
+                "Error",
+                SectionWidget::paragraph(failure.to_string()),
+            )),
         }
     }
 }
@@ -102,8 +108,11 @@ impl GroupItemReading for CiRunnerFailureRow<'_> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.watched.failure_section())
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        self.watched
+            .failure_section()
+            .into_iter()
+            .collect::<Vec<_>>()
     }
 }
 
@@ -177,7 +186,7 @@ impl GroupItemReading for CiTaskRow<'_> {
         ReadingDisplayState::Live
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let joined_or_none = |values: &[String]| {
             if values.is_empty() {
                 ValueCell::Hint("no container right now".to_owned())
@@ -206,17 +215,20 @@ impl GroupItemReading for CiTaskRow<'_> {
                 )])
                 .collect(),
         };
-        HoverCardBody::sections([Section::dictionary(
-            [
-                LabeledValue::new("Task", task_full_name(self.task)),
-                LabeledValue::new("Running", joined_or_none(&self.task.activities)),
-                LabeledValue::new("Image", joined_or_none(&self.task.images)),
-            ]
-            .into_iter()
-            .chain(usage)
-            .chain(deadline)
-            .chain(web_log_entry(&self.task.web_log)),
-        )])
+        vec![Section::new(
+            "Task",
+            dictionary_table(
+                [
+                    LabeledValue::new("Task", task_full_name(self.task)),
+                    LabeledValue::new("Running", joined_or_none(&self.task.activities)),
+                    LabeledValue::new("Image", joined_or_none(&self.task.images)),
+                ]
+                .into_iter()
+                .chain(usage)
+                .chain(deadline)
+                .chain(web_log_entry(&self.task.web_log)),
+            ),
+        )]
     }
 }
 

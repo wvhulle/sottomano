@@ -12,7 +12,7 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
@@ -24,7 +24,7 @@ pub fn window_identity_body(
     compositor: &CompositorWindowState,
     window: u64,
     now: SystemTime,
-) -> Option<HoverCardBody> {
+) -> Option<Vec<Section>> {
     let window = compositor.windows.get(&window)?;
     let window_entries = [
         window
@@ -40,9 +40,10 @@ pub fn window_identity_body(
             LabeledValue::new("Focused", ValueCell::RelativeMoment((now - focused).into()))
         }),
     ];
-    Some(HoverCardBody::sections([Section::dictionary(
-        window_entries.into_iter().flatten(),
-    )]))
+    Some(vec![Section::new(
+        "Window",
+        dictionary_table(window_entries.into_iter().flatten()),
+    )])
 }
 
 impl ReadingSections for Inspection {
@@ -70,7 +71,10 @@ impl ReadingSections for Inspection {
                     .map(|referenced| versioned("Referenced", referenced)),
             )
             .chain(profile);
-        vec![Section::dictionary(packages.chain(command(self)))]
+        vec![Section::new(
+            "Provenance",
+            dictionary_table(packages.chain(command(self))),
+        )]
     }
 }
 
@@ -115,7 +119,10 @@ impl ReadingSections for NixPackageFacts {
             nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
             self.upstream.as_ref().and_then(upstream_entry),
         ];
-        vec![Section::dictionary(rows.into_iter().flatten())]
+        vec![Section::new(
+            "Derivation",
+            dictionary_table(rows.into_iter().flatten()),
+        )]
     }
 }
 

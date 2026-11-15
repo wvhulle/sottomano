@@ -17,7 +17,7 @@ use super::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -43,25 +43,27 @@ impl GroupItemReading for CpuClock {
         self.average().map(frequency_text)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let frequency = |key, frequency: Option<Frequency>| {
             frequency.map(|frequency| LabeledValue::new(key, Quantity::clock_gigahertz(frequency)))
         };
         let shared_causes = self.shared_causes();
-        HoverCardBody::sections([Section::dictionary(
-            [
-                frequency("min", self.lowest()),
-                frequency("avg", self.average()),
-                frequency("max", self.highest()),
-                frequency("floor", self.shared_floor()),
-                frequency("cap", self.shared_ceiling()),
-                frequency("max hw", self.shared_hardware_ceiling()),
-                causes_text(&shared_causes).map(|text| LabeledValue::new("limited by", text)),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled("Frequency")])
+        vec![Section::new(
+            "Frequency",
+            dictionary_table(
+                [
+                    frequency("min", self.lowest()),
+                    frequency("avg", self.average()),
+                    frequency("max", self.highest()),
+                    frequency("floor", self.shared_floor()),
+                    frequency("cap", self.shared_ceiling()),
+                    frequency("max hw", self.shared_hardware_ceiling()),
+                    causes_text(&shared_causes).map(|text| LabeledValue::new("limited by", text)),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        )]
     }
 }
 
@@ -82,19 +84,22 @@ impl ChipletLiveState<'_> {
                     loads,
                     group,
                 }
-                .section();
+                .clock_table();
                 if position == 0 {
-                    table.titled((
-                        title,
-                        "Cap appears only where a core's policy ceiling differs from the shared \
-                         cap above. Limit lists causes the kernel publishes for that core alone; \
-                         causes every CPU shares are listed once above. Firmware power and \
-                         current limits are not published on every CPU, so a busy core below its \
-                         cap with no listed cause is held back by something the kernel cannot see."
-                            .to_owned(),
-                    ))
+                    Section::new(
+                        SectionTitle::captioned(
+                            title,
+                            "Cap appears only where a core's policy ceiling differs from the \
+                             shared cap above. Limit lists causes the kernel publishes for that \
+                             core alone; causes every CPU shares are listed once above. Firmware \
+                             power and current limits are not published on every CPU, so a busy \
+                             core below its cap with no listed cause is held back by something \
+                             the kernel cannot see.",
+                        ),
+                        table,
+                    )
                 } else {
-                    table.titled(title)
+                    Section::new(title, table)
                 }
             })
             .collect()

@@ -23,7 +23,7 @@ use crate::{
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
@@ -158,24 +158,38 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &MobileModemTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &MobileModemTarget, clock: Clock) -> Vec<Section> {
         let hover_card_body = match target {
-            MobileModemTarget::Signal { modem_path } => ModemSignalReading {
-                modem: self.modem_at(modem_path)?,
+            MobileModemTarget::Signal { modem_path } => {
+                let Some(modem) = self.modem_at(modem_path) else {
+                    return Vec::new();
+                };
+                ModemSignalReading { modem }.hover_card(clock)
             }
-            .hover_card(clock),
-            MobileModemTarget::Connection { modem_path } => ModemConnectionSwitch {
-                modem: self.modem_at(modem_path)?,
+            MobileModemTarget::Connection { modem_path } => {
+                let Some(modem) = self.modem_at(modem_path) else {
+                    return Vec::new();
+                };
+                ModemConnectionSwitch { modem }.hover_card(clock)
             }
-            .hover_card(clock),
             MobileModemTarget::Address { modem_path, family } => {
-                let address = modem_family_address(self.modem_at(modem_path)?, *family)?;
-                HoverCardBody::dictionary([LabeledValue::new("Address", address)])
+                let Some(address) = self
+                    .modem_at(modem_path)
+                    .and_then(|modem| modem_family_address(modem, *family))
+                else {
+                    return Vec::new();
+                };
+                vec![Section::new(
+                    "Address",
+                    dictionary_table([LabeledValue::new("Address", address)]),
+                )]
             }
-            MobileModemTarget::Data { modem_path } => ModemDataReading {
-                modem: self.modem_at(modem_path)?,
+            MobileModemTarget::Data { modem_path } => {
+                let Some(modem) = self.modem_at(modem_path) else {
+                    return Vec::new();
+                };
+                ModemDataReading { modem }.hover_card(clock)
             }
-            .hover_card(clock),
             MobileModemTarget::AllRadios => AllMobileRadiosSwitch {
                 radio_power: self.any_radio_power(),
             }

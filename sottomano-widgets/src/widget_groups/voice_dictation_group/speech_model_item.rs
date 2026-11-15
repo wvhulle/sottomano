@@ -11,7 +11,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -58,17 +58,25 @@ impl GroupItemReading for NotulistEngine {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match &self.engine {
             EngineState::LoadingSpeechModel => {
-                HoverCardBody::dictionary([LabeledValue::new("Model", "loading")])
+                vec![Section::new(
+                    "Status",
+                    dictionary_table([LabeledValue::new("Model", "loading")]),
+                )]
             }
-            EngineState::SpeechModelReady(engine) => HoverCardBody::dictionary(model_rows(engine)),
-            EngineState::SpeechModelUnavailable(load_error) => HoverCardBody::dictionary(
-                [LabeledValue::new("Problem", "No model")]
-                    .into_iter()
-                    .chain(model_load_error_rows(load_error)),
-            ),
+            EngineState::SpeechModelReady(engine) => {
+                vec![Section::new("Model", dictionary_table(model_rows(engine)))]
+            }
+            EngineState::SpeechModelUnavailable(load_error) => vec![Section::new(
+                "Error",
+                dictionary_table(
+                    [LabeledValue::new("Problem", "No model")]
+                        .into_iter()
+                        .chain(model_load_error_rows(load_error)),
+                ),
+            )],
         }
     }
 }

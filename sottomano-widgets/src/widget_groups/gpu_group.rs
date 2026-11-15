@@ -24,10 +24,7 @@ use crate::{
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody, ReadingSections, Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
-        },
+        hover_card_body::{ReadingSections, Section},
     },
     widget_groups::{
         widget_group_content::{
@@ -217,12 +214,12 @@ impl GpuGroup {
     fn hovered_sections(
         &self,
         bus: &PciBusId,
-        sections: impl FnOnce(&Self) -> Option<SourcedSections>,
-    ) -> Option<SourcedSections> {
+        sections: impl FnOnce(&Self) -> Vec<Section>,
+    ) -> Vec<Section> {
         if self.hovered_bus.as_ref() == Some(bus) {
             sections(self)
         } else {
-            None
+            Vec::new()
         }
     }
 
@@ -355,43 +352,59 @@ impl GpuGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &GpuTarget, clock: Clock) -> Option<HoverCard> {
-        let device = self.devices.get(&target.bus)?;
+    pub fn hover_card_for(&self, target: &GpuTarget, clock: Clock) -> Vec<Section> {
+        let Some(device) = self.devices.get(&target.bus) else {
+            return Vec::new();
+        };
         let model_sections = self
             .discovery
             .sections_described_by(|_| vec![Section::from(&device.model)]);
         let snapshot = match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => snapshot,
             GpuDeviceAccess::Unreadable { handle_failure } => {
-                return Some(
-                    HoverCard::sourced(
-                        handle_failure.hover_card(clock),
-                        DeliveryTiming::SingleRead,
-                    )
-                    .with_groups(model_sections),
-                );
+                return handle_failure
+                    .hover_card(clock)
+                    .into_iter()
+                    .chain(model_sections)
+                    .collect();
             }
         };
         match target.reading {
-            GpuReading::Load => snapshot.hover_card_with_groups(model_sections, clock),
-            GpuReading::Clock => Some(
-                snapshot
-                    .hover_card_with(device.clock_label()?.hover_card(clock))?
-                    .with_groups(
-                        self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
-                    ),
-            ),
-            GpuReading::Memory => Some(
-                snapshot
-                    .hover_card_with(HoverCardBody::sections(device.memory()?.sections(clock)))?
-                    .with_groups(
-                        self.hovered_sections(&target.bus, |group| group.processes.sections(clock)),
-                    ),
-            ),
-            GpuReading::Temperature => {
-                snapshot.hover_card_with(device.temperature_label()?.hover_card(clock))
+            GpuReading::Load => snapshot
+                .hover_card(clock)
+                .into_iter()
+                .chain(model_sections)
+                .collect(),
+            GpuReading::Clock => {
+                let Some(clock_label) = device.clock_label() else {
+                    return Vec::new();
+                };
+                let mut sections = snapshot.hover_card_with(clock_label.hover_card(clock));
+                sections.extend(
+                    self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
+                );
+                sections
             }
-            GpuReading::Power => snapshot.hover_card_with(device.power_label()?.hover_card(clock)),
+            GpuReading::Memory => {
+                let Some(memory) = device.memory() else {
+                    return Vec::new();
+                };
+                let mut sections = snapshot.hover_card_with(memory.sections(clock));
+                sections.extend(
+                    self.hovered_sections(&target.bus, |group| group.processes.sections(clock)),
+                );
+                sections
+            }
+            GpuReading::Temperature => device
+                .temperature_label()
+                .map(|temperature_label| {
+                    snapshot.hover_card_with(temperature_label.hover_card(clock))
+                })
+                .unwrap_or_default(),
+            GpuReading::Power => device
+                .power_label()
+                .map(|power_label| snapshot.hover_card_with(power_label.hover_card(clock)))
+                .unwrap_or_default(),
         }
     }
 }

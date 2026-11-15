@@ -12,7 +12,7 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPosition,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -80,7 +80,7 @@ impl GroupItemReading for NotulistDictation {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let phase_row = LabeledValue::new("Dictation", phase_text(&self.phase));
         let error_rows = match &self.phase {
             DictationPhase::StoppedByError(dictation_error) => {
@@ -91,7 +91,10 @@ impl GroupItemReading for NotulistDictation {
             | DictationPhase::Listening
             | DictationPhase::Finishing => Vec::new(),
         };
-        HoverCardBody::dictionary([phase_row].into_iter().chain(error_rows))
+        vec![Section::new(
+            "Status",
+            dictionary_table([phase_row].into_iter().chain(error_rows)),
+        )]
     }
 }
 

@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -47,8 +47,11 @@ impl GroupItemReading for UplinkConnectivity {
         severity(self.connectivity).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("Internet", self.connectivity.label())
-            .level(severity(self.connectivity))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new("Internet", self.connectivity.label())
+                .level(severity(self.connectivity))]),
+        )]
     }
 }

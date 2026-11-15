@@ -10,7 +10,7 @@ use uom::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::{GroupItemReading, PanelVisibility},
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -53,17 +53,19 @@ impl GroupItemReading for CpuPower {
         package_draw(self).map(watt_text)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::dictionary(
-            self.zones
-                .iter()
-                .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
-        )
-        .titled((
-            "CPU power draw per RAPL zone".to_owned(),
-            "package covers the whole CPU die, core and uncore are parts of it, dram is the \
-             memory controller and psys the whole platform where the firmware reports it."
-                .to_owned(),
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "CPU power draw per RAPL zone".to_owned(),
+                "package covers the whole CPU die, core and uncore are parts of it, dram is the \
+                 memory controller and psys the whole platform where the firmware reports it."
+                    .to_owned(),
+            ),
+            dictionary_table(
+                self.zones
+                    .iter()
+                    .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
+            ),
+        )]
     }
 }

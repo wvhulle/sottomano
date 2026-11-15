@@ -8,7 +8,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{WidgetGroupContent, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -129,7 +129,11 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn settings_hover_card(&self, target: GroupMenuSettingsTarget, clock: Clock) -> HoverCard {
+    pub fn settings_hover_card(
+        &self,
+        target: GroupMenuSettingsTarget,
+        clock: Clock,
+    ) -> Vec<Section> {
         let presentation = self.presentation();
         match target {
             GroupMenuSettingsTarget::AccordionLayout => {

@@ -10,7 +10,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -52,19 +52,22 @@ impl GroupItemReading for ExitOfferRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let blocked_entry = matches!(
             self.tailnet.offer_control(),
             ExitOfferControl::BlockedByExitNodeInUse
         )
         .then(|| LabeledValue::new("Blocked", USE_BLOCKS_OFFERING_TEXT).level(Severity::Warning));
-        HoverCardBody::dictionary(
-            [LabeledValue::new(
-                "Exit node",
-                exit_offer_text(self.tailnet.exit_offer),
-            )]
-            .into_iter()
-            .chain(blocked_entry),
-        )
+        vec![Section::new(
+            "Status",
+            dictionary_table(
+                [LabeledValue::new(
+                    "Exit node",
+                    exit_offer_text(self.tailnet.exit_offer),
+                )]
+                .into_iter()
+                .chain(blocked_entry),
+            ),
+        )]
     }
 }

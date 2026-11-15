@@ -8,7 +8,7 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -40,33 +40,36 @@ impl GroupItemReading for MountAccessRow<'_> {
         Some(access_text(self.usage.access).to_owned())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let joined = |parts: Vec<String>| parts.join("  ");
-        HoverCardBody::dictionary([
-            LabeledValue::new(
-                "Mounted at",
-                joined(
-                    self.usage
-                        .mount
-                        .mount_points
-                        .iter()
-                        .map(|mount_point| mount_point.display().to_string())
-                        .collect(),
+        vec![Section::new(
+            "Mounting",
+            dictionary_table([
+                LabeledValue::new(
+                    "Mounted at",
+                    joined(
+                        self.usage
+                            .mount
+                            .mount_points
+                            .iter()
+                            .map(|mount_point| mount_point.display().to_string())
+                            .collect(),
+                    ),
                 ),
-            ),
-            LabeledValue::new("Access", access_text(self.usage.access)),
-            LabeledValue::new("Filesystem", self.usage.mount.fs_type.clone()),
-            LabeledValue::new(
-                "Devices",
-                joined(
-                    self.usage
-                        .mount
-                        .devices
-                        .iter()
-                        .map(|device| device.name.clone())
-                        .collect(),
+                LabeledValue::new("Access", access_text(self.usage.access)),
+                LabeledValue::new("Filesystem", self.usage.mount.fs_type.clone()),
+                LabeledValue::new(
+                    "Devices",
+                    joined(
+                        self.usage
+                            .mount
+                            .devices
+                            .iter()
+                            .map(|device| device.name.clone())
+                            .collect(),
+                    ),
                 ),
-            ),
-        ])
+            ]),
+        )]
     }
 }

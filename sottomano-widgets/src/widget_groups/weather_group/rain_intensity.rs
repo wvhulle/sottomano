@@ -24,7 +24,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::weather_group::{
         precipitation_type_forecast::{
             MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
@@ -258,11 +258,14 @@ fn rain_timeline<'a>(
 }
 
 fn rain_timeline_section(rows: &[RainTimelineRow<'_>]) -> Section {
-    Section::grouped_column_table(
-        TIMELINE_HEADINGS,
-        rows.chunk_by(|earlier, later| earlier.starting_hour() == later.starting_hour()),
+    Section::new(
+        "Timeline",
+        headed_grouped_table(
+            TIMELINE_HEADINGS,
+            rows.chunk_by(|earlier, later| earlier.starting_hour() == later.starting_hour()),
+        )
+        .marked_as_continuing(),
     )
-    .marked_as_continuing()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -389,7 +392,10 @@ impl RainForecast<'_> {
             RainSources::Model(_) => "Next 3 hours",
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => "Next 2 hours",
         };
-        Section::dictionary(entries).titled((title, self.sources.caption(clock)))
+        Section::new(
+            SectionTitle::captioned(title, self.sources.caption(clock)),
+            dictionary_table(entries),
+        )
     }
 }
 
@@ -451,13 +457,15 @@ impl GroupItemReading for RainForecast<'_> {
         self.radar_forecast()?.ongoing_toast_body(clock, locale)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let timeline = self.timeline(clock);
         let timeline_section = timeline
             .iter()
             .any(|row| row.sky_wetness() == SkyWetness::Precipitating)
             .then(|| rain_timeline_section(&timeline));
-        HoverCardBody::sections(iter::once(self.summary_section(clock)).chain(timeline_section))
+        iter::once(self.summary_section(clock))
+            .chain(timeline_section)
+            .collect()
     }
 }
 
@@ -594,7 +602,7 @@ impl GroupItemReading for RadarRainForecast<'_> {
         ])))
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         RainForecast {
             sources: RainSources::Radar(self.rain),
             alerts: self.alerts,
@@ -636,7 +644,7 @@ impl GroupItemReading for Rain {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         RadarRainForecast::with_default_alerts(self).hover_card(clock)
     }
 }
@@ -658,7 +666,7 @@ impl GroupItemReading for PrecipitationModel {
         RainForecast::modelled_with_default_alerts(self).label(clock, locale)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         RainForecast::modelled_with_default_alerts(self).hover_card(clock)
     }
 }

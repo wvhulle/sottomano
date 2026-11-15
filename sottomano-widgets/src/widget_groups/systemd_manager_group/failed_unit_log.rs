@@ -22,7 +22,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
         systemd_manager_group::{
             SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget, unit_scope_icon,
@@ -216,21 +216,27 @@ impl GroupItemReading for FailedUnits {
         UNIT_FAILURE_PRIORITY.severity().into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let mut units = self.units.clone();
-        units.sort_by_key(|unit| Reverse(unit.at));
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Reason").align_x(Horizontal::Left),
-                ColumnHeading::titled("Failed"),
-            ],
-            units.iter(),
-        )
-        .titled((
-            self.name(),
-            "Units in the failed state now; each toasts until it recovers.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Units",
+                "Units in the failed state now; each toasts until it recovers.",
+            ),
+            failed_unit_table(&self.units),
+        )]
     }
+}
+
+fn failed_unit_table(units: &[FailedUnitInfo]) -> SectionTable {
+    let mut newest_first = units.to_vec();
+    newest_first.sort_by_key(|unit| Reverse(unit.at));
+    headed_table(
+        [
+            ColumnHeading::titled("Reason").align_x(Horizontal::Left),
+            ColumnHeading::titled("Failed"),
+        ],
+        newest_first.iter(),
+    )
 }
 
 impl IntoTableRecord<2> for &FailedUnitInfo {
@@ -257,7 +263,6 @@ mod tests {
     use sottomano_desktop_sources::systemd_units_journal::SystemdUnitScope;
 
     use super::*;
-    use crate::hover_cards::hover_card_body::{Section, SectionBody};
 
     fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
         FailedUnitInfo {
@@ -271,10 +276,7 @@ mod tests {
         }
     }
 
-    fn section_keys(section: &Section) -> Vec<ValueCell> {
-        let SectionBody::ColumnTable(table) = section.body() else {
-            panic!("expected a table");
-        };
+    fn table_keys(table: &SectionTable) -> Vec<ValueCell> {
         table.records().map(|record| record.key().clone()).collect()
     }
 
@@ -291,10 +293,8 @@ mod tests {
             ],
             scope: SystemdUnitScope::SystemWide,
         };
-        let body = units.hover_card(Clock::real());
-        let sections = body.listed_sections();
         assert_eq!(
-            section_keys(&sections[0]),
+            table_keys(&failed_unit_table(&units.units)),
             [
                 "fresh.service",
                 "recent.service",

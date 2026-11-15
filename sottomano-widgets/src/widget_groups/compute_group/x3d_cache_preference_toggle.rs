@@ -18,7 +18,7 @@ use crate::{
         group_item_reading::GroupItemReading,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -48,8 +48,8 @@ impl GroupItemReading for X3dCachePreference {
         )
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -78,27 +78,39 @@ pub struct ChipletRoles<'a> {
 impl ChipletRoles<'_> {
     pub fn sections(&self) -> Vec<Section> {
         vec![
-            self.chiplet_section(X3dCachePreference::Cache).titled((
-                CoreRole::StackedCacheCores.title(),
-                "New work goes first to the favoured cores while they have idle capacity; the \
-                 choice resets at reboot.",
-            )),
-            self.chiplet_section(X3dCachePreference::Frequency)
-                .titled(CoreRole::HighClockCores.title()),
+            self.chiplet_section(
+                X3dCachePreference::Cache,
+                SectionTitle::captioned(
+                    CoreRole::StackedCacheCores.title(),
+                    "New work goes first to the favoured cores while they have idle capacity; the \
+                     choice resets at reboot.",
+                ),
+            ),
+            self.chiplet_section(
+                X3dCachePreference::Frequency,
+                CoreRole::HighClockCores.title(),
+            ),
         ]
     }
 
-    fn chiplet_section(&self, preference: X3dCachePreference) -> Section {
+    fn chiplet_section(
+        &self,
+        preference: X3dCachePreference,
+        title: impl Into<SectionTitle>,
+    ) -> Section {
         let role = favoured_role(preference);
-        Section::dictionary(
-            self.topology
-                .core_groups()
-                .iter()
-                .find(|group| group.role() == role)
-                .map(topology_facts)
-                .into_iter()
-                .flatten()
-                .chain([LabeledValue::new("Suits", suited_work(preference))]),
+        Section::new(
+            title,
+            dictionary_table(
+                self.topology
+                    .core_groups()
+                    .iter()
+                    .find(|group| group.role() == role)
+                    .map(topology_facts)
+                    .into_iter()
+                    .flatten()
+                    .chain([LabeledValue::new("Suits", suited_work(preference))]),
+            ),
         )
     }
 }

@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -69,16 +69,19 @@ impl GroupItemReading for DiskTransfer {
         ))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let rate_label = match self.direction {
             DiskTransferDirection::Read => "Read",
             DiskTransferDirection::Write => "Write",
         };
-        HoverCardBody::dictionary([
-            LabeledValue::new("Disk", self.disk.clone()),
-            LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-            LabeledValue::new("Disk busy", Quantity::share(self.disk_busy)),
-        ])
+        vec![Section::new(
+            "Throughput",
+            dictionary_table([
+                LabeledValue::new("Disk", self.disk.clone()),
+                LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+                LabeledValue::new("Disk busy", Quantity::share(self.disk_busy)),
+            ]),
+        )]
     }
 }
 
@@ -95,7 +98,7 @@ impl GroupItemReading for DiskActivity {
         PanelVisibility::Hidden
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.read.hover_card(clock)
     }
 }

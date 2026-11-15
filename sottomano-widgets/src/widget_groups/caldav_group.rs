@@ -19,7 +19,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -28,9 +28,9 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -129,10 +129,10 @@ impl CaldavGroup {
         target: CaldavTarget,
         config: &CaldavAccountConfig,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         match target {
             CaldavTarget::UpcomingEvents if self.account(config).is_some() => {
-                self.upcoming_events.hover_card_while_pending(clock)
+                self.upcoming_events.hover_card(clock)
             }
             CaldavTarget::UpcomingEvents => self.upcoming_events.hover_card(clock),
             CaldavTarget::OpenTasks => self.open_tasks.hover_card(clock),

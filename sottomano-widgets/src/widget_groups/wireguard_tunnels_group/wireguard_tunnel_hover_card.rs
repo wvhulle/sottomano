@@ -18,7 +18,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, ReadingSections, Section},
+        hover_card_body::{ReadingSections, Section, dictionary_table, headed_table},
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -60,8 +60,8 @@ impl GroupItemReading for Wireguard {
         SimpleIcon::WireGuard.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -163,30 +163,36 @@ fn clients_entry(tunnel: &Tunnel) -> LabeledValue {
     LabeledValue::new("Clients", clients)
 }
 
-fn server_hover_card(tunnel: &Tunnel, listen_port: u32) -> HoverCardBody {
-    let summary_section = Section::dictionary(
-        [
-            LabeledValue::new(tunnel.name.as_str(), "server"),
-            LabeledValue::new("Listen port", listen_port.to_string()),
-            clients_entry(tunnel),
-        ]
-        .into_iter()
-        .chain(activity_entry(tunnel))
-        .chain(statistics_entry(&tunnel.statistics_access)),
+fn server_hover_card(tunnel: &Tunnel, listen_port: u32) -> Vec<Section> {
+    let summary_section = Section::new(
+        "Status",
+        dictionary_table(
+            [
+                LabeledValue::new(tunnel.name.as_str(), "server"),
+                LabeledValue::new("Listen port", listen_port.to_string()),
+                clients_entry(tunnel),
+            ]
+            .into_iter()
+            .chain(activity_entry(tunnel))
+            .chain(statistics_entry(&tunnel.statistics_access)),
+        ),
     );
-    let peer_table = Section::column_table(
-        [
-            ColumnHeading::titled("Endpoint").align_x(Horizontal::Left),
-            ColumnHeading::titled("Handshake"),
-            ColumnHeading::titled("Received"),
-            ColumnHeading::titled("Sent"),
-        ],
-        &tunnel.peers,
+    let peer_table = Section::new(
+        "Clients",
+        headed_table(
+            [
+                ColumnHeading::titled("Endpoint").align_x(Horizontal::Left),
+                ColumnHeading::titled("Handshake"),
+                ColumnHeading::titled("Received"),
+                ColumnHeading::titled("Sent"),
+            ],
+            &tunnel.peers,
+        ),
     );
-    HoverCardBody::sections([summary_section, peer_table])
+    vec![summary_section, peer_table]
 }
 
-fn client_hover_card(tunnel: &Tunnel) -> HoverCardBody {
+fn client_hover_card(tunnel: &Tunnel) -> Vec<Section> {
     let peer_entries = tunnel.peers.iter().flat_map(|peer| {
         let transfer_entries =
             transfer_cells(peer.traffic)
@@ -206,21 +212,27 @@ fn client_hover_card(tunnel: &Tunnel) -> HoverCardBody {
         .flatten()
         .chain(transfer_entries)
     });
-    HoverCardBody::dictionary(
-        [LabeledValue::new(tunnel.name.as_str(), "client")]
-            .into_iter()
-            .chain(activity_entry(tunnel))
-            .chain(peer_entries)
-            .chain(statistics_entry(&tunnel.statistics_access)),
-    )
+    vec![Section::new(
+        "Status",
+        dictionary_table(
+            [LabeledValue::new(tunnel.name.as_str(), "client")]
+                .into_iter()
+                .chain(activity_entry(tunnel))
+                .chain(peer_entries)
+                .chain(statistics_entry(&tunnel.statistics_access)),
+        ),
+    )]
 }
 
-fn undetermined_hover_card(tunnel: &Tunnel) -> HoverCardBody {
-    HoverCardBody::dictionary(
-        [LabeledValue::new(tunnel.name.as_str(), "tunnel")]
-            .into_iter()
-            .chain(statistics_entry(&tunnel.statistics_access)),
-    )
+fn undetermined_hover_card(tunnel: &Tunnel) -> Vec<Section> {
+    vec![Section::new(
+        "Status",
+        dictionary_table(
+            [LabeledValue::new(tunnel.name.as_str(), "tunnel")]
+                .into_iter()
+                .chain(statistics_entry(&tunnel.statistics_access)),
+        ),
+    )]
 }
 
 fn client_state(tunnel: &Tunnel) -> ReadingDisplayState {
@@ -290,7 +302,7 @@ impl GroupItemReading for Tunnel {
             .filter(|count| *count > 0)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match self.role {
             TunnelRole::Server { listen_port } => server_hover_card(self, listen_port),
             TunnelRole::Client => client_hover_card(self),
@@ -301,8 +313,9 @@ impl GroupItemReading for Tunnel {
 
 impl ReadingSections for TunnelAddress {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(
-            self.ip.as_deref().map(|ip| LabeledValue::new("IP", ip)),
+        vec![Section::new(
+            "Addresses",
+            dictionary_table(self.ip.as_deref().map(|ip| LabeledValue::new("IP", ip))),
         )]
     }
 }

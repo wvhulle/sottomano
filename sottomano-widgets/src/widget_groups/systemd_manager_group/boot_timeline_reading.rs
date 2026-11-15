@@ -13,10 +13,10 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, TableRecord},
+        keyed_record_table::{ColumnHeading, RecordCells, TableRecord},
         localized_durations::duration_text,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -85,7 +85,7 @@ impl GroupItemReading for BootTimeline {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let comparison = self.startup_comparison.as_ref();
         let login_gap = self
             .user_startup
@@ -130,28 +130,34 @@ impl GroupItemReading for BootTimeline {
             }
             None => "No previous boot in the journal to compare with.",
         };
-        let stages_section = Section::column_table(
-            [
-                ColumnHeading::titled("Took"),
-                ColumnHeading::titled("Previous"),
-                ColumnHeading::titled("Difference"),
-                ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
-            ],
-            stage_records,
-        )
-        .with_total_record(os_startup_total)
-        .titled(("Boot stages", caption));
-        let login_section = (!login_records.is_empty()).then(|| {
-            Section::column_table(
+        let stages_section = Section::new(
+            SectionTitle::captioned("Boot stages", caption),
+            headed_table(
                 [
                     ColumnHeading::titled("Took"),
+                    ColumnHeading::titled("Previous"),
+                    ColumnHeading::titled("Difference"),
                     ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
                 ],
-                login_records,
+                stage_records,
             )
-            .titled("After boot")
+            .with_total_record(RecordCells::from(os_startup_total)),
+        );
+        let login_section = (!login_records.is_empty()).then(|| {
+            Section::new(
+                "After boot",
+                headed_table(
+                    [
+                        ColumnHeading::titled("Took"),
+                        ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
+                    ],
+                    login_records,
+                ),
+            )
         });
-        HoverCardBody::sections(once(stages_section).chain(login_section))
+        once(stages_section)
+            .chain(login_section)
+            .collect::<Vec<_>>()
     }
 }
 
@@ -211,20 +217,22 @@ impl GroupItemReading for StartupUnits<'_> {
         .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let blame_section = |ranked: &RankedActivations, title: &str| {
-            Section::dictionary(ranked.slowest_first.iter().map(|activation| {
-                LabeledValue::new(
-                    activation.name.clone(),
-                    ValueCell::duration(activation.duration),
-                )
-                .level(activation.severity)
-            }))
-            .titled((
-                title,
-                "Time from starting to active, for units up before startup finished. Devices and \
-                 units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
-            ))
+            Section::new(
+                SectionTitle::captioned(
+                    title,
+                    "Time from starting to active, for units up before startup finished. Devices \
+                     and units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
+                ),
+                dictionary_table(ranked.slowest_first.iter().map(|activation| {
+                    LabeledValue::new(
+                        activation.name.clone(),
+                        ValueCell::duration(activation.duration),
+                    )
+                    .level(activation.severity)
+                })),
+            )
         };
         let user_section = self
             .timeline
@@ -241,6 +249,6 @@ impl GroupItemReading for StartupUnits<'_> {
         .into_iter()
         .flatten()
         .collect();
-        HoverCardBody::sections(sections)
+        sections.into_iter().collect::<Vec<_>>()
     }
 }

@@ -14,7 +14,7 @@ use uom::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -45,27 +45,35 @@ impl GroupItemReading for Temperature {
         Some(celsius_text(self.temp))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let sky_entry = self
             .condition
             .map(|condition| LabeledValue::new("Sky", condition.to_string()));
-        HoverCardBody::sections([
-            Section::dictionary(sky_entry.into_iter().chain([
-                LabeledValue::new("Temperature", weather_temperature(self.temp)),
-                LabeledValue::new("Feels like", weather_temperature(self.feels)),
-                LabeledValue::new("Humidity", Quantity::share(self.humidity)),
-            ]))
-            .titled("Now"),
-            Section::dictionary([
-                LabeledValue::new("Low", weather_temperature(self.temp_min)),
-                LabeledValue::new("High", weather_temperature(self.temp_max)),
-            ])
-            .titled("Today"),
-            Section::column_table(HOURLY_HEADINGS, self.hourly.earlier.iter()).titled("Earlier"),
-            Section::column_table(HOURLY_HEADINGS, self.hourly.later.iter())
-                .marked_as_continuing()
-                .titled("Later"),
-        ])
+        vec![
+            Section::new(
+                "Now",
+                dictionary_table(sky_entry.into_iter().chain([
+                    LabeledValue::new("Temperature", weather_temperature(self.temp)),
+                    LabeledValue::new("Feels like", weather_temperature(self.feels)),
+                    LabeledValue::new("Humidity", Quantity::share(self.humidity)),
+                ])),
+            ),
+            Section::new(
+                "Today",
+                dictionary_table([
+                    LabeledValue::new("Low", weather_temperature(self.temp_min)),
+                    LabeledValue::new("High", weather_temperature(self.temp_max)),
+                ]),
+            ),
+            Section::new(
+                "Earlier",
+                headed_table(HOURLY_HEADINGS, self.hourly.earlier.iter()),
+            ),
+            Section::new(
+                "Later",
+                headed_table(HOURLY_HEADINGS, self.hourly.later.iter()).marked_as_continuing(),
+            ),
+        ]
     }
 }
 const HOURLY_HEADINGS: [ColumnHeading; 3] = [

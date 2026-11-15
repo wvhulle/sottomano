@@ -16,7 +16,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
@@ -50,41 +50,49 @@ impl GroupItemReading for CopilotMetered {
         Some(self.used_share)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([
-            Section::dictionary(
-                self.plan
-                    .as_deref()
-                    .map(|plan| LabeledValue::new("Plan", plan))
-                    .into_iter()
-                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::new(
+                "Subscription",
+                dictionary_table(
+                    self.plan
+                        .as_deref()
+                        .map(|plan| LabeledValue::new("Plan", plan))
+                        .into_iter()
+                        .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
+                ),
             ),
-            Section::dictionary(
-                [
-                    LabeledValue::new(
-                        "Used",
-                        Quantity::measured(self.used, DisplayUnit::Unitless, 2),
-                    ),
-                    LabeledValue::new("Used Share", Quantity::share(self.used_share).decimals(2)),
-                    LabeledValue::new(
-                        "Remaining",
-                        Quantity::measured(self.remaining, DisplayUnit::Unitless, 2),
-                    ),
-                    LabeledValue::new("Limit", Quantity::count(self.limit)),
-                ]
-                .into_iter()
-                .chain(self.reset.map(|at| {
-                    LabeledValue::new(
-                        "Resets",
-                        ValueCell::Time {
-                            at,
-                            format: LocalizedTimeFormat::Date,
-                        },
-                    )
-                })),
-            )
-            .titled(self.quota.clone()),
-        ])
+            Section::new(
+                self.quota.clone(),
+                dictionary_table(
+                    [
+                        LabeledValue::new(
+                            "Used",
+                            Quantity::measured(self.used, DisplayUnit::Unitless, 2),
+                        ),
+                        LabeledValue::new(
+                            "Used Share",
+                            Quantity::share(self.used_share).decimals(2),
+                        ),
+                        LabeledValue::new(
+                            "Remaining",
+                            Quantity::measured(self.remaining, DisplayUnit::Unitless, 2),
+                        ),
+                        LabeledValue::new("Limit", Quantity::count(self.limit)),
+                    ]
+                    .into_iter()
+                    .chain(self.reset.map(|at| {
+                        LabeledValue::new(
+                            "Resets",
+                            ValueCell::Time {
+                                at,
+                                format: LocalizedTimeFormat::Date,
+                            },
+                        )
+                    })),
+                ),
+            ),
+        ]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

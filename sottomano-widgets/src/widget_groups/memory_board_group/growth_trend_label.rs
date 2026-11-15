@@ -14,7 +14,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
@@ -92,7 +92,7 @@ impl GroupItemReading for MemoryGrowth {
         })
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let trend_rows = [LabeledValue::new(
             "Growth per minute",
             self.used_per_minute.map_or_else(
@@ -111,13 +111,15 @@ impl GroupItemReading for MemoryGrowth {
                 Quantity::size(process.growth_per_minute),
             )
         });
-        HoverCardBody::sections(
-            [Section::dictionary(trend_rows)].into_iter().chain(
-                (!self.growing_processes.is_empty()).then(|| {
-                    Section::dictionary(process_rows).titled("Growing fastest, per minute")
-                }),
-            ),
-        )
+        [Section::new("Trend", dictionary_table(trend_rows))]
+            .into_iter()
+            .chain((!self.growing_processes.is_empty()).then(|| {
+                Section::new(
+                    "Growing fastest, per minute",
+                    dictionary_table(process_rows),
+                )
+            }))
+            .collect()
     }
 }
 

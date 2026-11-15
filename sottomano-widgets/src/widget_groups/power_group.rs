@@ -27,10 +27,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         power_group::power_draw_gauge::PowerSource,
         widget_group_content::{
@@ -41,9 +38,9 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::SubscribedSnapshot,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -204,33 +201,37 @@ impl PowerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: PowerTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: PowerTarget, clock: Clock) -> Vec<Section> {
         match target {
-            PowerTarget::Battery => self.battery.hover_card_with_groups(
-                self.battery
-                    .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
-                clock,
-            ),
-            PowerTarget::Draw => {
-                let draw = self.draw()?;
-                let charger = if draw.power_source() == PowerSource::Battery {
-                    None
-                } else {
-                    self.charger.sections(clock)
-                };
-                Some(
+            PowerTarget::Battery => {
+                let mut sections = self.battery.hover_card(clock);
+                sections.extend(
                     self.battery
-                        .hover_card_with(draw.hover_card(clock))?
-                        .with_groups(charger),
-                )
+                        .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
+                );
+                sections
             }
-            PowerTarget::BatteryTime => self
-                .battery
-                .hover_card_with(self.time.as_ref()?.hover_card(clock)),
-            PowerTarget::Profile => self
-                .power_profile
-                .hover_card(clock)
-                .map(|hover_card| hover_card.with_groups(self.cpu_tuning.sections(clock))),
+            PowerTarget::Draw => {
+                let Some(draw) = self.draw() else {
+                    return Vec::new();
+                };
+                let mut sections = self.battery.hover_card_with(draw.hover_card(clock));
+                if draw.power_source() != PowerSource::Battery {
+                    sections.extend(self.charger.sections(clock));
+                }
+                sections
+            }
+            PowerTarget::BatteryTime => {
+                let Some(battery_time) = self.time.as_ref() else {
+                    return Vec::new();
+                };
+                self.battery.hover_card_with(battery_time.hover_card(clock))
+            }
+            PowerTarget::Profile => {
+                let mut sections = self.power_profile.hover_card(clock);
+                sections.extend(self.cpu_tuning.sections(clock));
+                sections
+            }
         }
     }
 

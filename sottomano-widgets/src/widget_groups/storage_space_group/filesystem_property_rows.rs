@@ -11,7 +11,7 @@ use super::{
 use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{HoverTarget, hover_card_body::Section},
 };
 
 const LISTED_PROPERTIES: [FilesystemProperty; 7] = [
@@ -115,7 +115,7 @@ impl<'a> FilesystemPropertyRow<'a> {
         }
     }
 
-    pub(super) fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    pub(super) fn hover_card(&self, clock: Clock) -> Vec<Section> {
         match self {
             FilesystemPropertyRow::Mount(row) => row.hover_card(clock),
             FilesystemPropertyRow::Volume(row) => row.hover_card(clock),

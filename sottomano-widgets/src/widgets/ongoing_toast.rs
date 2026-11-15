@@ -280,7 +280,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        hover_cards::hover_card_body::HoverCardBody,
+        hover_cards::hover_card_body::Section,
         widget_groups::power_group::PowerTarget,
         widgets::{
             icon_glyph::IconGlyph,
@@ -310,8 +310,8 @@ mod tests {
             self.threshold
         }
 
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections([])
+        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+            vec![]
         }
     }
 

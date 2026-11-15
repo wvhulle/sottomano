@@ -9,7 +9,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
         value_cells::{LabeledValue, ValueCell},
@@ -96,7 +96,7 @@ impl MeasuredReportTiming {
                     .collect()
             }
         };
-        Section::dictionary(entries).titled(title)
+        Section::new(title, dictionary_table(entries))
     }
 }
 
@@ -116,17 +116,19 @@ impl KernelErrorListing<'_> {
                 )
                 .level(Severity::Warning)
             });
-            Section::dictionary(
-                [LabeledValue::new(
-                    "Errors in the last 10 minutes",
-                    Quantity::count(self.kernel_errors.len()),
+            Section::new(
+                "Kernel messages",
+                dictionary_table(
+                    [LabeledValue::new(
+                        "Errors in the last 10 minutes",
+                        Quantity::count(self.kernel_errors.len()),
+                    )
+                    .level(Severity::Warning)]
+                    .into_iter()
+                    .chain(listed),
                 )
-                .level(Severity::Warning)]
-                .into_iter()
-                .chain(listed),
+                .truncated_to(LISTED_KERNEL_ERRORS),
             )
-            .truncated_to(LISTED_KERNEL_ERRORS)
-            .titled("Kernel messages")
         })
     }
 }

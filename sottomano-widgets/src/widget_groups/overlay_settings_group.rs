@@ -8,7 +8,7 @@ use crate::{
         group_item::GroupItem,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -131,7 +131,7 @@ impl OverlaySettingsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: OverlaySettingsTarget, clock: Clock) -> HoverCard {
+    pub fn hover_card_for(&self, target: OverlaySettingsTarget, clock: Clock) -> Vec<Section> {
         match target {
             OverlaySettingsTarget::ToastSpatialLayout => {
                 toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card(clock)

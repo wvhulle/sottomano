@@ -25,7 +25,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -322,7 +322,7 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &DriveTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &DriveTarget, clock: Clock) -> Vec<Section> {
         let readings_of = |name: &String| {
             self.disks
                 .iter()
@@ -331,9 +331,13 @@ impl PhysicalDriveGroup {
         };
         match target {
             DriveTarget::MountDiscovery => self.discovery.hover_card(clock),
-            DriveTarget::Space(name) => readings_of(name)?.space.hover_card(clock),
+            DriveTarget::Space(name) => readings_of(name)
+                .map(|readings| readings.space.hover_card(clock))
+                .unwrap_or_default(),
             DriveTarget::Read(name) => {
-                let readings = readings_of(name)?;
+                let Some(readings) = readings_of(name) else {
+                    return Vec::new();
+                };
                 match readings.activity.get() {
                     Some(activity) => readings
                         .activity
@@ -342,21 +346,32 @@ impl PhysicalDriveGroup {
                 }
             }
             DriveTarget::Write(name) => {
-                let readings = readings_of(name)?;
+                let Some(readings) = readings_of(name) else {
+                    return Vec::new();
+                };
+                let Some(activity) = readings.activity.get() else {
+                    return Vec::new();
+                };
                 readings
                     .activity
-                    .hover_card_with(readings.activity.get()?.write.hover_card(clock))
+                    .hover_card_with(activity.write.hover_card(clock))
             }
-            DriveTarget::DriveHealth(name) => readings_of(name)?.drive_health.hover_card(clock),
+            DriveTarget::DriveHealth(name) => readings_of(name)
+                .map(|readings| readings.drive_health.hover_card(clock))
+                .unwrap_or_default(),
             DriveTarget::BcachefsMember { disk, partition } => {
-                let readings = readings_of(disk)?;
-                let device = readings
-                    .space
-                    .get()?
-                    .filesystem_shares
-                    .iter()
-                    .flat_map(|share| &share.bcachefs_members)
-                    .find(|device| &device.partition == partition)?;
+                let Some(readings) = readings_of(disk) else {
+                    return Vec::new();
+                };
+                let Some(device) = readings.space.get().and_then(|space| {
+                    space
+                        .filesystem_shares
+                        .iter()
+                        .flat_map(|share| &share.bcachefs_members)
+                        .find(|device| &device.partition == partition)
+                }) else {
+                    return Vec::new();
+                };
                 readings
                     .space
                     .hover_card_with(BcachefsMemberRow { device }.hover_card(clock))

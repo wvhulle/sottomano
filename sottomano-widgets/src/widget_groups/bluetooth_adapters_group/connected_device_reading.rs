@@ -16,7 +16,7 @@ use crate::{
         gauge::percent_fill, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
     widgets::{
         icon_glyph::IconGlyph,
@@ -147,7 +147,7 @@ impl ConnectedDeviceReading<'_> {
         } else {
             reconnects
         };
-        Section::dictionary([reconnects]).titled("Link")
+        Section::new("Link", dictionary_table([reconnects]))
     }
 
     fn battery_section(&self) -> Option<Section> {
@@ -158,8 +158,9 @@ impl ConnectedDeviceReading<'_> {
         else {
             return None;
         };
-        Some(
-            Section::dictionary(
+        Some(Section::new(
+            "Battery",
+            dictionary_table(
                 once(LabeledValue::new(
                     "Level",
                     Quantity::whole_percent(level_percent),
@@ -168,9 +169,8 @@ impl ConnectedDeviceReading<'_> {
                     charging_description(charging)
                         .map(|description| LabeledValue::new("Status", description)),
                 ),
-            )
-            .titled("Battery"),
-        )
+            ),
+        ))
     }
 }
 
@@ -208,21 +208,23 @@ impl GroupItemReading for ConnectedDeviceReading<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            [
-                Some(Section::note(self.device.name.clone())),
-                self.input_report_section(),
-                Some(self.link_section()),
-                KernelErrorListing {
-                    kernel_errors: &self.kernel_errors,
-                }
-                .section(),
-                self.battery_section(),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        [
+            Some(Section::new(
+                "Device",
+                SectionWidget::paragraph(self.device.name.clone()),
+            )),
+            self.input_report_section(),
+            Some(self.link_section()),
+            KernelErrorListing {
+                kernel_errors: &self.kernel_errors,
+            }
+            .section(),
+            self.battery_section(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 

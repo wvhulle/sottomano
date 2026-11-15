@@ -22,7 +22,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widget_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         sqlite_charge_power_curve,
@@ -197,12 +197,15 @@ impl IdleBattery {
         }
     }
 
-    fn hover_card(self) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Status", self.explanation()),
-            LabeledValue::new("Charge", Quantity::share(self.capacity)),
-            LabeledValue::new("Charge limit", Quantity::share(self.charge_limit)),
-        ])
+    fn hover_card(self) -> Vec<Section> {
+        vec![Section::new(
+            "Charge",
+            dictionary_table([
+                LabeledValue::new("Status", self.explanation()),
+                LabeledValue::new("Charge", Quantity::share(self.capacity)),
+                LabeledValue::new("Charge limit", Quantity::share(self.charge_limit)),
+            ]),
+        )]
     }
 }
 
@@ -254,11 +257,14 @@ impl GroupItemReading for BatteryTime {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match self {
             BatteryTime::Idle(idle) => idle.hover_card(),
             BatteryTime::Countdown(countdown) => {
-                HoverCardBody::sections([Section::column_table(ESTIMATE_HEADINGS, [*countdown])])
+                vec![Section::new(
+                    "Estimate",
+                    headed_table(ESTIMATE_HEADINGS, [*countdown]),
+                )]
             }
         }
     }

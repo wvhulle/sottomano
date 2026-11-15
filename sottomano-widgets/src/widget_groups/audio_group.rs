@@ -27,7 +27,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         widget_group_content::{
@@ -37,8 +37,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -283,28 +283,36 @@ impl AudioGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: AudioTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: AudioTarget, clock: Clock) -> Vec<Section> {
         let AudioTarget::Control(kind) = target else {
             return self.state.hover_card(clock);
         };
-        let state = self.state.get()?;
-        let (reading, control) = match kind {
-            ControlKind::Sink => (state.sink.as_ref()?, &self.sink_control),
-            ControlKind::Source => (state.source.as_ref()?, &self.source_control),
+        let Some(state) = self.state.get() else {
+            return Vec::new();
+        };
+        let (channel_reading, control) = match kind {
+            ControlKind::Sink => (state.sink.as_ref(), &self.sink_control),
+            ControlKind::Source => (state.source.as_ref(), &self.source_control),
+        };
+        let Some(reading) = channel_reading else {
+            return Vec::new();
         };
         let state = reading.mute_state.label();
         let device = reading
             .device
             .as_deref()
             .map(|device| LabeledValue::new("Device", device));
-        self.state.hover_card_with(HoverCardBody::dictionary(
-            [
-                LabeledValue::new(kind.label(), control.readout_cell()),
-                LabeledValue::new("State", state),
-            ]
-            .into_iter()
-            .chain(device),
-        ))
+        self.state.hover_card_with(vec![Section::new(
+            "Level",
+            dictionary_table(
+                [
+                    LabeledValue::new(kind.label(), control.readout_cell()),
+                    LabeledValue::new("State", state),
+                ]
+                .into_iter()
+                .chain(device),
+            ),
+        )])
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {

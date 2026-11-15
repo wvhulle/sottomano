@@ -9,7 +9,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -46,48 +46,56 @@ impl GroupItemReading for GpuMemory {
         }
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.sections(clock))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.sections(clock).into_iter().collect::<Vec<_>>()
     }
 }
 
 impl ReadingSections for GpuMemory {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         match self {
-            GpuMemory::Dedicated(vram) => vec![Section::dictionary([
-                LabeledValue::new("VRAM", Quantity::share(vram.fill())),
-                LabeledValue::new("Used", Quantity::size(vram.used)),
-                LabeledValue::new("Total", Quantity::size(vram.total)),
-            ])],
+            GpuMemory::Dedicated(vram) => vec![Section::new(
+                "Usage",
+                dictionary_table([
+                    LabeledValue::new("VRAM", Quantity::share(vram.fill())),
+                    LabeledValue::new("Used", Quantity::size(vram.used)),
+                    LabeledValue::new("Total", Quantity::size(vram.total)),
+                ]),
+            )],
             GpuMemory::SharedWithSystem(shared) => shared_memory_sections(shared),
         }
     }
 }
 
 fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
-    let buffers = Section::dictionary([
-        LabeledValue::new("Allocated", Quantity::size(shared.allocated)),
-        LabeledValue::new("Resident", Quantity::size(shared.resident)),
-    ])
-    .titled("GPU buffers");
-    let system = Section::dictionary(shared.system.as_ref().map(|system| {
-        LabeledValue::new(
-            "Used",
-            format!(
-                "{} of {}",
-                system.used.display().iec(),
-                system.total.display().iec()
-            ),
-        )
-    }))
-    .titled("System memory");
+    let buffers = Section::new(
+        "GPU buffers",
+        dictionary_table([
+            LabeledValue::new("Allocated", Quantity::size(shared.allocated)),
+            LabeledValue::new("Resident", Quantity::size(shared.resident)),
+        ]),
+    );
+    let system = Section::new(
+        "System memory",
+        dictionary_table(shared.system.as_ref().map(|system| {
+            LabeledValue::new(
+                "Used",
+                format!(
+                    "{} of {}",
+                    system.used.display().iec(),
+                    system.total.display().iec()
+                ),
+            )
+        })),
+    );
     vec![buffers, system]
 }
 
 impl ReadingSections for GpuProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(self.processes.iter().filter_map(
-            |process| {
+        vec![Section::new(
+            "Processes",
+            dictionary_table(self.processes.iter().filter_map(|process| {
                 Some(LabeledValue::new(
                     process
                         .name
@@ -95,7 +103,7 @@ impl ReadingSections for GpuProcesses {
                         .unwrap_or_else(|| process.pid.to_string()),
                     Quantity::size(process.resident_memory?),
                 ))
-            },
-        ))]
+            })),
+        )]
     }
 }

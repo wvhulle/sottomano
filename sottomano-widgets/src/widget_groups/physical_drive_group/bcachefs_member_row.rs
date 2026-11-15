@@ -10,7 +10,7 @@ use crate::{
         gauge::percent_fill, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -66,20 +66,24 @@ impl GroupItemReading for BcachefsMemberRow<'_> {
         ))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let metadata_text = if self.device.holds_metadata {
             "data and metadata"
         } else {
             "data only"
         };
-        HoverCardBody::dictionary([
-            LabeledValue::new("Device label", self.device.label.clone()),
-            LabeledValue::new("Partition", self.device.partition.clone()),
-            LabeledValue::new("State", self.device.state.clone()).level(self.writable_severity()),
-            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_percent()))),
-            LabeledValue::new("Free", Quantity::size(self.device.free)),
-            LabeledValue::new("Capacity", Quantity::size(self.device.capacity)),
-            LabeledValue::new("Holds", metadata_text),
-        ])
+        vec![Section::new(
+            "Device",
+            dictionary_table([
+                LabeledValue::new("Device label", self.device.label.clone()),
+                LabeledValue::new("Partition", self.device.partition.clone()),
+                LabeledValue::new("State", self.device.state.clone())
+                    .level(self.writable_severity()),
+                LabeledValue::new("Used", Quantity::share(percent_fill(self.used_percent()))),
+                LabeledValue::new("Free", Quantity::size(self.device.free)),
+                LabeledValue::new("Capacity", Quantity::size(self.device.capacity)),
+                LabeledValue::new("Holds", metadata_text),
+            ]),
+        )]
     }
 }

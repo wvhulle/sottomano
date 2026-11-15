@@ -7,7 +7,7 @@ use sottomano_desktop_sources::ai_usage_spend::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
@@ -22,7 +22,10 @@ impl Section {
         sources: impl IntoIterator<Item = LabeledValue>,
         budget: &SpendBudget,
     ) -> Self {
-        Section::dictionary(sources.into_iter().chain(pacing_entries(&budget.pacing)))
+        Section::new(
+            "Forecast Basis",
+            dictionary_table(sources.into_iter().chain(pacing_entries(&budget.pacing))),
+        )
     }
 }
 

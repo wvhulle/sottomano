@@ -25,7 +25,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         login_session_group::{
             account_face::AccountFace, compositor_face::CompositorFace,
@@ -39,8 +39,8 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -228,39 +228,59 @@ impl LoginSessionGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: LoginSessionTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: LoginSessionTarget, clock: Clock) -> Vec<Section> {
         let session_face =
             |face: &dyn GroupItemReading| self.identity.hover_card_with(face.hover_card(clock));
         let identity = self.identity.get();
         match target {
-            LoginSessionTarget::Kernel => self.system.hover_card_with(
-                (KernelFace {
-                    system: self.system.get()?,
-                })
-                .hover_card(clock),
-            ),
+            LoginSessionTarget::Kernel => {
+                let Some(system) = self.system.get() else {
+                    return Vec::new();
+                };
+                self.system
+                    .hover_card_with(KernelFace { system }.hover_card(clock))
+            }
             LoginSessionTarget::Seat => {
-                let identity = identity?;
+                let Some(identity) = identity else {
+                    return Vec::new();
+                };
                 session_face(&SeatFace {
                     seat: &identity.seat,
                     virtual_terminal: identity.virtual_terminal,
                 })
             }
-            LoginSessionTarget::Login => session_face(&LoginFace {
-                identity: identity?,
-            })
-            .map(|hover_card| hover_card.with_groups(self.session.sections(clock))),
-            LoginSessionTarget::Account => session_face(&AccountFace {
-                identity: identity?,
-            }),
-            LoginSessionTarget::Compositor => session_face(&CompositorFace {
-                identity: identity?,
-            })
-            .map(|hover_card| hover_card.with_groups(self.graphical.sections(clock))),
-            LoginSessionTarget::ServiceManager => session_face(&ServiceManagerFace)
-                .map(|hover_card| hover_card.with_groups(self.service_manager.sections(clock))),
-            LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
-                .map(|hover_card| hover_card.with_groups(self.graphical_target.sections(clock))),
+            LoginSessionTarget::Login => {
+                let Some(identity) = identity else {
+                    return Vec::new();
+                };
+                let mut sections = session_face(&LoginFace { identity });
+                sections.extend(self.session.sections(clock));
+                sections
+            }
+            LoginSessionTarget::Account => {
+                let Some(identity) = identity else {
+                    return Vec::new();
+                };
+                session_face(&AccountFace { identity })
+            }
+            LoginSessionTarget::Compositor => {
+                let Some(identity) = identity else {
+                    return Vec::new();
+                };
+                let mut sections = session_face(&CompositorFace { identity });
+                sections.extend(self.graphical.sections(clock));
+                sections
+            }
+            LoginSessionTarget::ServiceManager => {
+                let mut sections = session_face(&ServiceManagerFace);
+                sections.extend(self.service_manager.sections(clock));
+                sections
+            }
+            LoginSessionTarget::DesktopServices => {
+                let mut sections = session_face(&DesktopServicesFace);
+                sections.extend(self.graphical_target.sections(clock));
+                sections
+            }
         }
     }
 }

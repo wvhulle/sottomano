@@ -10,7 +10,7 @@ use uom::si::f64::InformationRate;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
         icon_glyph::IconGlyph,
@@ -61,8 +61,8 @@ impl GroupItemReading for InterfaceAddressReading {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -77,8 +77,8 @@ impl GroupItemReading for InterfaceDnsReading {
         Phosphor::AddressBook(Weight::Regular).into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 
@@ -108,7 +108,7 @@ pub fn address_section(label: &str, block: Option<&AddressBlock>) -> Section {
         .into_iter()
         .chain(gateway)
     });
-    Section::dictionary(entries).titled(label)
+    Section::new(label, dictionary_table(entries))
 }
 
 pub fn family_address_sections(
@@ -124,12 +124,14 @@ pub fn family_address_sections(
 }
 
 pub fn dns_section(servers: &[String]) -> Section {
-    Section::dictionary(
-        servers
-            .iter()
-            .map(|server| LabeledValue::new("Server", server.as_str())),
+    Section::new(
+        "DNS",
+        dictionary_table(
+            servers
+                .iter()
+                .map(|server| LabeledValue::new("Server", server.as_str())),
+        ),
     )
-    .titled("DNS")
 }
 
 pub fn dns_server_sections(servers: &[String]) -> Vec<Section> {
@@ -174,7 +176,10 @@ pub fn link_stats_section(
     .map(|(fault_label, fault_count, fault_level)| {
         LabeledValue::new(fault_label, Quantity::count(fault_count)).level(fault_level)
     });
-    Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries)).titled(title)
+    Section::new(
+        title,
+        dictionary_table(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries)),
+    )
 }
 
 pub fn family_router_sections(
@@ -189,6 +194,6 @@ pub fn family_router_sections(
             gateway_latency.interface == interface_name
                 && family == AddressFamily::from(gateway_latency.window.host)
         })
-        .map(|gateway_latency| probe_window_section(&gateway_latency.window).titled("Router"))
+        .map(|gateway_latency| probe_window_section("Router", &gateway_latency.window))
         .collect()
 }

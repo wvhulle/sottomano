@@ -13,7 +13,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         amount_text::{percent_text, spend_text},
         icon_glyph::IconGlyph,
@@ -66,7 +66,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             })
     }
 
-    fn hover_card(&self) -> HoverCardBody {
+    fn hover_card(&self) -> Vec<Section> {
         let ranked = self.ranked_models();
         let listed = &ranked[..ranked.len().min(LISTED_MODELS)];
         let other = TableRecord::new(
@@ -81,30 +81,32 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                 ValueCell::from(Quantity::spend(unlisted))
             }),
         );
-        HoverCardBody::sections([Section::column_table(
-            self.narrowest_to_widest
-                .map(|span| ColumnHeading::titled(span.heading)),
-            listed
-                .iter()
-                .map(|model| {
-                    TableRecord::new(
-                        *model,
-                        self.narrowest_to_widest.map(|span| {
-                            Quantity::spend(
-                                span.models
-                                    .cost_of(model)
-                                    .unwrap_or_else(|| usd(Decimal::ZERO)),
-                            )
-                            .into()
-                        }),
-                    )
-                })
-                .chain((ranked.len() > LISTED_MODELS).then_some(other)),
-        )
-        .titled(("Spend by Model", self.source))])
+        vec![Section::new(
+            SectionTitle::captioned("Spend by Model", self.source),
+            headed_table(
+                self.narrowest_to_widest
+                    .map(|span| ColumnHeading::titled(span.heading)),
+                listed
+                    .iter()
+                    .map(|model| {
+                        TableRecord::new(
+                            *model,
+                            self.narrowest_to_widest.map(|span| {
+                                Quantity::spend(
+                                    span.models
+                                        .cost_of(model)
+                                        .unwrap_or_else(|| usd(Decimal::ZERO)),
+                                )
+                                .into()
+                            }),
+                        )
+                    })
+                    .chain((ranked.len() > LISTED_MODELS).then_some(other)),
+            ),
+        )]
     }
 
-    fn top_model_share(&self) -> HoverCardBody {
+    fn top_model_share(&self) -> Vec<Section> {
         let top = self
             .top()
             .map(|spend| spend.model.clone())
@@ -121,7 +123,10 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                 ),
             ))
         });
-        HoverCardBody::sections([Section::dictionary(span_shares).titled((top, self.source))])
+        vec![Section::new(
+            SectionTitle::captioned(top.clone(), self.source),
+            dictionary_table(span_shares),
+        )]
     }
 }
 
@@ -144,7 +149,7 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
         ReadingDisplayState::Idle
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         self.0.hover_card()
     }
 }
@@ -168,7 +173,7 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
         ReadingDisplayState::Idle
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         self.0.top_model_share()
     }
 }

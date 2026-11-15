@@ -14,7 +14,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -40,8 +40,8 @@ impl GroupItemReading for AutoBrightness {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![]
     }
 }
 

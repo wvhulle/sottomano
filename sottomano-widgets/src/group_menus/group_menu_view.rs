@@ -34,8 +34,10 @@ use crate::{
     },
     hover_cards::{
         HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
-        announcing_hoverable, hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_content::HoverCardContent, press_toggled_hoverable,
+        announcing_hoverable,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+        hover_card_content::HoverCardContent,
+        press_toggled_hoverable,
     },
     widget_groups::{
         widget_group_content::{
@@ -62,7 +64,8 @@ pub struct GroupMenuCascadeSurfaces<'a, Message> {
 }
 
 pub struct InspectionCard<'c, 'a> {
-    pub hover_card: &'c HoverCard,
+    pub sections: &'c [Section],
+    pub announcement: HoverAnnouncement,
     pub card_appearance: LayerAppearance,
     pub assets: WindowAssets<'a>,
     pub clock: Clock,
@@ -70,9 +73,8 @@ pub struct InspectionCard<'c, 'a> {
 
 impl InspectionCard<'_, '_> {
     pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
-        (!self.hover_card.is_empty()
-            || self.hover_card.announcement != HoverAnnouncement::default())
-        .then(|| HoverCardContent::new(self.hover_card, config, self.assets, self.clock).view())
+        let hover_card = HoverCard::new(self.sections.to_vec(), self.announcement.clone())?;
+        Some(HoverCardContent::new(&hover_card, config, self.assets, self.clock).view())
     }
 }
 
@@ -496,7 +498,6 @@ mod tests {
         },
         hover_cards::{
             HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
-            hover_card_body::hover_card_source_delivery::HoverCard,
         },
         widget_groups::{
             widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
@@ -509,7 +510,7 @@ mod tests {
 
     struct MenuTestBench {
         config: Config,
-        hover_card: HoverCard,
+        announcement: HoverAnnouncement,
         entries: DesktopIndex,
         favicons: Favicons,
         controller_artwork: ControllerArtwork,
@@ -520,7 +521,7 @@ mod tests {
         fn default() -> Self {
             MenuTestBench {
                 config: Config::default(),
-                hover_card: HoverCard::empty(),
+                announcement: HoverAnnouncement::default(),
                 entries: DesktopIndex::default(),
                 favicons: Favicons::default(),
                 controller_artwork: ControllerArtwork::decoded(),
@@ -532,7 +533,8 @@ mod tests {
     impl MenuTestBench {
         fn inspection_card(&self) -> InspectionCard<'_, '_> {
             InspectionCard {
-                hover_card: &self.hover_card,
+                sections: &[],
+                announcement: self.announcement.clone(),
                 card_appearance: ShellLayer::Overlays.default_appearance(),
                 assets: WindowAssets {
                     entries: &self.entries,
@@ -764,9 +766,11 @@ mod tests {
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
-    fn inspection_card_view(hover_card: HoverCard) -> Option<Element<'static, PopupMessage>> {
+    fn inspection_card_view(
+        announcement: HoverAnnouncement,
+    ) -> Option<Element<'static, PopupMessage>> {
         let bench = MenuTestBench {
-            hover_card,
+            announcement,
             ..MenuTestBench::default()
         };
         bench.inspection_card().view(&bench.config)
@@ -774,17 +778,16 @@ mod tests {
 
     #[test]
     fn an_announcement_only_card_is_shown_in_a_menu() {
-        let announced =
-            HoverCard::empty().with_announcement(HoverAnnouncement::from_reading(PressHints {
-                left: Some("switch something"),
-                ..PressHints::default()
-            }));
+        let announced = HoverAnnouncement::from_reading(PressHints {
+            left: Some("switch something"),
+            ..PressHints::default()
+        });
         assert!(inspection_card_view(announced).is_some());
     }
 
     #[test]
     fn a_card_without_sections_or_announcement_stays_hidden() {
-        assert!(inspection_card_view(HoverCard::empty()).is_none());
+        assert!(inspection_card_view(HoverAnnouncement::default()).is_none());
     }
 
     #[derive(Debug, Clone, PartialEq)]

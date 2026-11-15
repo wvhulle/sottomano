@@ -79,10 +79,7 @@ impl ConnectedOutput<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        hover_cards::hover_card_body::{Section, SectionBody},
-        widgets::{simple_icons::SimpleIcon, value_cells::ValueCell},
-    };
+    use crate::widgets::{simple_icons::SimpleIcon, value_cells::ValueCell};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -126,33 +123,27 @@ mod tests {
             ]
         );
         assert_eq!(
-            Section::hardware_identity(output.hardware_entries()),
-            Section::dictionary([LabeledValue::new(
+            output.hardware_entries(),
+            [LabeledValue::new(
                 "Make",
                 ValueCell::BrandedText {
                     text: "LG Display".to_owned(),
                     glyph: SimpleIcon::LG.into(),
                 }
-            )])
-            .titled("Hardware")
+            )]
         );
     }
 
     #[test]
     fn placeholder_model_is_not_shown() {
         let outputs = laptop_panel();
-        let hardware = Section::hardware_identity(
-            ConnectedOutput::driving(&internal_backlight(), &outputs)
-                .expect("internal panel")
-                .hardware_entries(),
-        );
-        let SectionBody::ColumnTable(table) = hardware.body() else {
-            panic!("expected a table");
-        };
+        let hardware_entries = ConnectedOutput::driving(&internal_backlight(), &outputs)
+            .expect("internal panel")
+            .hardware_entries();
         assert!(
-            table
-                .records()
-                .all(|record| *record.key() != ValueCell::from("Model"))
+            hardware_entries
+                .iter()
+                .all(|entry| entry.key != ValueCell::from("Model"))
         );
     }
 

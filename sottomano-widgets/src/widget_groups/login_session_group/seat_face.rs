@@ -5,7 +5,7 @@ use chrono::Locale;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -35,40 +35,44 @@ impl GroupItemReading for SeatFace<'_> {
         )
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let seat = Section::dictionary([
-            LabeledValue::new("Hardware seat", self.seat.to_owned()),
-            LabeledValue::new(
-                "Wiki",
-                ValueCell::BrandedLink {
-                    label: "Multiseat".to_owned(),
-                    url: "https://wiki.archlinux.org/title/Multiseat".to_owned(),
-                    glyph: SimpleIcon::ArchLinux.into(),
-                },
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        let seat = Section::new(
+            SectionTitle::captioned(
+                "Hardware seat in use",
+                "The screen, keyboard and mouse this login owns.",
             ),
-        ])
-        .titled((
-            "Hardware seat in use",
-            "The screen, keyboard and mouse this login owns.",
-        ));
-        let console = self.virtual_terminal.map(|vt| {
-            Section::dictionary([
-                LabeledValue::new("Virtual console", format!("tty{vt}")),
-                LabeledValue::new("Switch with", format!("Ctrl+Alt+F{vt}")),
+            dictionary_table([
+                LabeledValue::new("Hardware seat", self.seat.to_owned()),
                 LabeledValue::new(
                     "Wiki",
                     ValueCell::BrandedLink {
-                        label: "Linux console".to_owned(),
-                        url: "https://wiki.archlinux.org/title/Linux_console".to_owned(),
+                        label: "Multiseat".to_owned(),
+                        url: "https://wiki.archlinux.org/title/Multiseat".to_owned(),
                         glyph: SimpleIcon::ArchLinux.into(),
                     },
                 ),
-            ])
-            .titled((
-                "Virtual console this login started on",
-                "The text terminal this login started on; the compositor took it over.",
-            ))
+            ]),
+        );
+        let console = self.virtual_terminal.map(|vt| {
+            Section::new(
+                SectionTitle::captioned(
+                    "Virtual console this login started on",
+                    "The text terminal this login started on; the compositor took it over.",
+                ),
+                dictionary_table([
+                    LabeledValue::new("Virtual console", format!("tty{vt}")),
+                    LabeledValue::new("Switch with", format!("Ctrl+Alt+F{vt}")),
+                    LabeledValue::new(
+                        "Wiki",
+                        ValueCell::BrandedLink {
+                            label: "Linux console".to_owned(),
+                            url: "https://wiki.archlinux.org/title/Linux_console".to_owned(),
+                            glyph: SimpleIcon::ArchLinux.into(),
+                        },
+                    ),
+                ]),
+            )
         });
-        HoverCardBody::sections([seat].into_iter().chain(console))
+        [seat].into_iter().chain(console).collect::<Vec<_>>()
     }
 }

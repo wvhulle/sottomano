@@ -14,7 +14,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -127,41 +127,56 @@ impl GroupItemReading for MetadataRoomRow<'_> {
         Some(Quantity::size(self.room()).localized_text(locale))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let pressure = self.pressure();
         match self {
             MetadataRoomRow::Btrfs(space) => {
                 let reclaim_hint = (pressure > MetadataPressure::Comfortable)
                     .then(|| LabeledValue::new("Reclaim with", BTRFS_RECLAIM_COMMAND));
-                HoverCardBody::dictionary(
-                    [
-                        LabeledValue::new("Unallocated space", Quantity::size(space.unallocated))
+                vec![Section::new(
+                    "Space",
+                    dictionary_table(
+                        [
+                            LabeledValue::new(
+                                "Unallocated space",
+                                Quantity::size(space.unallocated),
+                            )
                             .level(pressure.severity()),
-                        LabeledValue::new("Metadata in use", Quantity::size(space.metadata.used)),
-                        LabeledValue::new(
-                            "Metadata reserved",
-                            Quantity::size(space.metadata.allocated),
-                        ),
-                        LabeledValue::new("Global reserve", Quantity::size(space.global_reserve)),
-                    ]
-                    .into_iter()
-                    .chain(reclaim_hint),
-                )
-            }
-            MetadataRoomRow::Bcachefs(space) => HoverCardBody::dictionary([
-                LabeledValue::new(
-                    format!("Room for metadata at {}×", space.metadata_replicas),
-                    Quantity::size(space.metadata_headroom()),
-                )
-                .level(pressure.severity()),
-                LabeledValue::new(
-                    "Replicas",
-                    format!(
-                        "data {}, metadata {}",
-                        space.data_replicas, space.metadata_replicas
+                            LabeledValue::new(
+                                "Metadata in use",
+                                Quantity::size(space.metadata.used),
+                            ),
+                            LabeledValue::new(
+                                "Metadata reserved",
+                                Quantity::size(space.metadata.allocated),
+                            ),
+                            LabeledValue::new(
+                                "Global reserve",
+                                Quantity::size(space.global_reserve),
+                            ),
+                        ]
+                        .into_iter()
+                        .chain(reclaim_hint),
                     ),
-                ),
-            ]),
+                )]
+            }
+            MetadataRoomRow::Bcachefs(space) => vec![Section::new(
+                "Space",
+                dictionary_table([
+                    LabeledValue::new(
+                        format!("Room for metadata at {}×", space.metadata_replicas),
+                        Quantity::size(space.metadata_headroom()),
+                    )
+                    .level(pressure.severity()),
+                    LabeledValue::new(
+                        "Replicas",
+                        format!(
+                            "data {}, metadata {}",
+                            space.data_replicas, space.metadata_replicas
+                        ),
+                    ),
+                ]),
+            )],
         }
     }
 }

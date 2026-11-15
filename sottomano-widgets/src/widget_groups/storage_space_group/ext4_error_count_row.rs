@@ -9,7 +9,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -58,27 +58,33 @@ impl GroupItemReading for Ext4ErrorCountRow {
         })
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match self.recorded_errors {
             RecordedErrors::Clean => {
-                HoverCardBody::dictionary([LabeledValue::new("Recorded errors", "none")])
+                vec![Section::new(
+                    "History",
+                    dictionary_table([LabeledValue::new("Recorded errors", "none")]),
+                )]
             }
             RecordedErrors::Recorded {
                 count,
                 first_seen,
                 last_seen,
-            } => HoverCardBody::dictionary([
-                LabeledValue::new("Recorded errors", Quantity::count(count))
-                    .level(Severity::Warning),
-                LabeledValue::new(
-                    "First seen",
-                    first_seen.format(ERROR_MOMENT_FORMAT).to_string(),
-                ),
-                LabeledValue::new(
-                    "Last seen",
-                    last_seen.format(ERROR_MOMENT_FORMAT).to_string(),
-                ),
-            ]),
+            } => vec![Section::new(
+                "History",
+                dictionary_table([
+                    LabeledValue::new("Recorded errors", Quantity::count(count))
+                        .level(Severity::Warning),
+                    LabeledValue::new(
+                        "First seen",
+                        first_seen.format(ERROR_MOMENT_FORMAT).to_string(),
+                    ),
+                    LabeledValue::new(
+                        "Last seen",
+                        last_seen.format(ERROR_MOMENT_FORMAT).to_string(),
+                    ),
+                ]),
+            )],
         }
     }
 }

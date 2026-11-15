@@ -37,7 +37,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -282,60 +282,65 @@ impl ComputeGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: ComputeTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: ComputeTarget, clock: Clock) -> Vec<Section> {
         let live = self.live();
         match target {
-            ComputeTarget::CpuLoad => self.cpu_load.hover_card_with_groups(
-                [
-                    self.cpu_busy_processes.sections(clock),
+            ComputeTarget::CpuLoad => {
+                let mut sections = self.cpu_load.hover_card(clock);
+                sections.extend(self.cpu_busy_processes.sections(clock));
+                sections.extend(
                     self.core_loads
                         .sections_described_by(|loads| live.core_load_sections(loads)),
-                ]
-                .into_iter()
-                .flatten(),
-                clock,
-            ),
-            ComputeTarget::CpuClock => self.cpu_clock.hover_card_with_groups(
-                self.cpu_clock.sections_described_by(|cpu_clock| {
-                    live.clock_sections(cpu_clock, self.core_loads.reading())
-                }),
-                clock,
-            ),
-            ComputeTarget::CpuClockLimits => {
-                let limits = ClockLimitCauses {
-                    clock: self.cpu_clock.get()?,
-                };
-                self.cpu_clock.hover_card_with(
-                    (limits.panel_visibility() == PanelVisibility::Shown)
-                        .then(|| limits.hover_card(clock))?,
-                )
+                );
+                sections
             }
-            ComputeTarget::CpuTemperature => self.cpu_temperature.hover_card_with_groups(
-                self.core_temperatures
-                    .sections_described_by(|temperatures| {
-                        live.core_temperature_sections(temperatures)
-                    }),
-                clock,
-            ),
+            ComputeTarget::CpuClock => {
+                let mut sections = self.cpu_clock.hover_card(clock);
+                sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+                    live.clock_sections(cpu_clock, self.core_loads.reading())
+                }));
+                sections
+            }
+            ComputeTarget::CpuClockLimits => {
+                let Some(cpu_clock) = self.cpu_clock.get() else {
+                    return Vec::new();
+                };
+                let limits = ClockLimitCauses { clock: cpu_clock };
+                if limits.panel_visibility() != PanelVisibility::Shown {
+                    return Vec::new();
+                }
+                self.cpu_clock.hover_card_with(limits.hover_card(clock))
+            }
+            ComputeTarget::CpuTemperature => {
+                let mut sections = self.cpu_temperature.hover_card(clock);
+                sections.extend(
+                    self.core_temperatures
+                        .sections_described_by(|temperatures| {
+                            live.core_temperature_sections(temperatures)
+                        }),
+                );
+                sections
+            }
             ComputeTarget::CpuPowerDraw => self.cpu_power_draw.hover_card(clock),
             ComputeTarget::CpuModel => {
-                let model = &self.host_hardware.get()?.cpu;
-                self.host_hardware.hover_card_with(
-                    (model.panel_visibility() == PanelVisibility::Shown)
-                        .then(|| model.hover_card(clock))?,
-                )
+                let Some(host_hardware) = self.host_hardware.get() else {
+                    return Vec::new();
+                };
+                let model = &host_hardware.cpu;
+                if model.panel_visibility() != PanelVisibility::Shown {
+                    return Vec::new();
+                }
+                self.host_hardware.hover_card_with(model.hover_card(clock))
             }
             ComputeTarget::X3dCachePreference => {
-                self.x3d_cache_preference
-                    .hover_card(clock)
-                    .map(|hover_card| {
-                        hover_card.with_groups(self.cpu_clock.sections_described_by(|clock| {
-                            ChipletRoles {
-                                topology: &clock.topology,
-                            }
-                            .sections()
-                        }))
-                    })
+                let mut sections = self.x3d_cache_preference.hover_card(clock);
+                sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+                    ChipletRoles {
+                        topology: &cpu_clock.topology,
+                    }
+                    .sections()
+                }));
+                sections
             }
         }
     }

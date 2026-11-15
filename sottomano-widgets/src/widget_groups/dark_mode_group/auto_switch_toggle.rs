@@ -11,10 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{
-        HoverCardBody,
-        hover_card_source_delivery::{DeliveryTiming, HoverCard},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::{
         AutoSwitchArming, DarkModeSchedule,
     },
@@ -62,8 +59,8 @@ impl AutoSwitchToggle {
         }
     }
 
-    pub fn schedule_hover_card(&self, clock: Clock) -> HoverCard {
-        HoverCard::sourced(self.hover_card(clock), DeliveryTiming::LivePush)
+    pub fn schedule_hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.hover_card(clock).into_iter().collect()
     }
 
     pub fn press_does(&self) -> &'static str {
@@ -151,20 +148,20 @@ impl GroupItemReading for AutoSwitchToggle {
         ReadingDisplayState::from(self.saved_schedule.auto_switch_arming)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let upcoming = match self.status_at(clock.utc()) {
-            ScheduleStatus::Disarmed => return HoverCardBody::sections([]),
+            ScheduleStatus::Disarmed => return vec![],
             ScheduleStatus::AwaitingLocationFix => {
-                return HoverCardBody::dictionary([LabeledValue::new(
-                    "Next",
-                    "waiting for a location fix",
-                )]);
+                return vec![Section::new(
+                    "Next switch",
+                    dictionary_table([LabeledValue::new("Next", "waiting for a location fix")]),
+                )];
             }
             ScheduleStatus::NoSunEvents => {
-                return HoverCardBody::dictionary([LabeledValue::new(
-                    "Next",
-                    "no sunrise or sunset soon",
-                )]);
+                return vec![Section::new(
+                    "Next switch",
+                    dictionary_table([LabeledValue::new("Next", "no sunrise or sunset soon")]),
+                )];
             }
             ScheduleStatus::Following { upcoming, .. } => upcoming,
         };
@@ -172,22 +169,25 @@ impl GroupItemReading for AutoSwitchToggle {
             .saved_schedule
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
-        HoverCardBody::dictionary([
-            LabeledValue::new(
-                upcoming.target_mode.sun_event_label().to_owned(),
-                ValueCell::Time {
-                    at: upcoming.switch_time - offset,
-                    format: LocalizedTimeFormat::TimeOfDay,
-                },
-            ),
-            LabeledValue::new("Offset".to_owned(), ValueCell::SignedDuration(offset)),
-            LabeledValue::new(
-                format!("Switch to {}", upcoming.target_mode.umbra_name()),
-                ValueCell::Time {
-                    at: upcoming.switch_time,
-                    format: LocalizedTimeFormat::TimeOfDay,
-                },
-            ),
-        ])
+        vec![Section::new(
+            "Next switch",
+            dictionary_table([
+                LabeledValue::new(
+                    upcoming.target_mode.sun_event_label().to_owned(),
+                    ValueCell::Time {
+                        at: upcoming.switch_time - offset,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                ),
+                LabeledValue::new("Offset".to_owned(), ValueCell::SignedDuration(offset)),
+                LabeledValue::new(
+                    format!("Switch to {}", upcoming.target_mode.umbra_name()),
+                    ValueCell::Time {
+                        at: upcoming.switch_time,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                ),
+            ]),
+        )]
     }
 }

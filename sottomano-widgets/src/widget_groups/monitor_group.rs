@@ -29,7 +29,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -38,8 +38,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -230,15 +230,20 @@ impl MonitorGroup {
         target: &MonitorTarget,
         outputs: &HashMap<String, OutputInfo>,
         clock: Clock,
-    ) -> Option<HoverCard> {
+    ) -> Vec<Section> {
         match target {
             MonitorTarget::Backlight(serial) => {
-                let backlight = self
-                    .backlights
-                    .get()?
-                    .iter()
-                    .find(|b| &b.serial == serial)?;
-                let brightness = self.sliders.get(serial)?.readout_cell();
+                let Some(backlight) = self.backlights.get().and_then(|backlights| {
+                    backlights
+                        .iter()
+                        .find(|known_backlight| &known_backlight.serial == serial)
+                }) else {
+                    return Vec::new();
+                };
+                let Some(brightness_slider) = self.sliders.get(serial) else {
+                    return Vec::new();
+                };
+                let brightness = brightness_slider.readout_cell();
                 self.backlights
                     .hover_card_with(backlight_display::hover_card(
                         backlight,

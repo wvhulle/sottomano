@@ -35,7 +35,7 @@ use crate::{
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         voice_dictation_group::{
             dictation_phase_item::press_does,
@@ -50,8 +50,8 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFailuresAfterSuccess, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFailuresAfterSuccess, SubscribedSnapshot},
     },
 };
 
@@ -268,7 +268,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn runtime_hover_card(&self, clock: Clock) -> Option<HoverCard> {
+    fn runtime_hover_card(&self, clock: Clock) -> Vec<Section> {
         let runtime_sections = self
             .engine
             .sections_described_by(|reading| match &reading.engine {
@@ -277,36 +277,44 @@ impl VoiceDictationGroup {
                     Vec::new()
                 }
             });
-        Some(
-            self.runtime
-                .hover_card(
-                    self.dictation
-                        .get()
-                        .map_or(ServiceReadiness::NotYetServing, |_| {
-                            ServiceReadiness::Serving
-                        }),
-                    clock,
-                )?
-                .with_groups(runtime_sections),
-        )
+        let mut sections = self.runtime.hover_card(
+            self.dictation
+                .get()
+                .map_or(ServiceReadiness::NotYetServing, |_| {
+                    ServiceReadiness::Serving
+                }),
+            clock,
+        );
+        sections.extend(runtime_sections);
+        sections
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: VoiceDictationTarget, clock: Clock) -> Vec<Section> {
         match target {
             VoiceDictationTarget::InterfaceMismatch => self.interface_mismatch.hover_card(clock),
             VoiceDictationTarget::Dictation => self.dictation.hover_card(clock),
             VoiceDictationTarget::Pipeline => self.pipeline.hover_card(clock),
             VoiceDictationTarget::Runtime => self.runtime_hover_card(clock),
-            VoiceDictationTarget::SpeechModel => self
-                .engine
-                .hover_card_with_groups(self.model_card.sections(clock), clock),
-            VoiceDictationTarget::RuntimeConfiguration => self
-                .engine
-                .hover_card_with(RuntimeConfiguration(self.loaded_engine()?).hover_card(clock)),
-            VoiceDictationTarget::InferenceHardware => self
-                .engine
-                .hover_card_with(InferenceHardware(self.loaded_engine()?).hover_card(clock)),
+            VoiceDictationTarget::SpeechModel => {
+                let mut sections = self.engine.hover_card(clock);
+                sections.extend(self.model_card.sections(clock));
+                sections
+            }
+            VoiceDictationTarget::RuntimeConfiguration => {
+                let Some(loaded_engine) = self.loaded_engine() else {
+                    return Vec::new();
+                };
+                self.engine
+                    .hover_card_with(RuntimeConfiguration(loaded_engine).hover_card(clock))
+            }
+            VoiceDictationTarget::InferenceHardware => {
+                let Some(loaded_engine) = self.loaded_engine() else {
+                    return Vec::new();
+                };
+                self.engine
+                    .hover_card_with(InferenceHardware(loaded_engine).hover_card(clock))
+            }
             VoiceDictationTarget::TypingOutput => self.output_problems.hover_card(clock),
         }
     }

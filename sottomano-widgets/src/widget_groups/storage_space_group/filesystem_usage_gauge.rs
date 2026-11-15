@@ -15,7 +15,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -68,12 +68,16 @@ impl GroupItemReading for FilesystemUsage {
         Some(percent_fill(self.used_pct()))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
-            LabeledValue::new("Free", Quantity::size(self.free)).level(free_space_severity(self)),
-            LabeledValue::new("Total", Quantity::size(self.total)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Space",
+            dictionary_table([
+                LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
+                LabeledValue::new("Free", Quantity::size(self.free))
+                    .level(free_space_severity(self)),
+                LabeledValue::new("Total", Quantity::size(self.total)),
+            ]),
+        )]
     }
 }
 
@@ -92,11 +96,14 @@ impl GroupItemReading for SnapshotDeletionRow {
         Some("in progress".to_owned())
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Snapshot deletion", "in progress"),
-            LabeledValue::new("Free space", "grows as it finishes"),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("Snapshot deletion", "in progress"),
+                LabeledValue::new("Free space", "grows as it finishes"),
+            ]),
+        )]
     }
 }
 

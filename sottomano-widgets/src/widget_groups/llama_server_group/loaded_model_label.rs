@@ -10,7 +10,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -61,8 +61,11 @@ impl GroupItemReading for LlamaModel {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new("Status", self.status)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([LabeledValue::new("Status", self.status)]),
+        )]
     }
 }
 
@@ -90,11 +93,9 @@ impl GroupItemReading for ServedModel<'_> {
             .map_or(ReadingDisplayState::Off, |resident| resident.state(clock))
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        self.resident.map_or_else(
-            || HoverCardBody::sections([]),
-            |resident| resident.hover_card(clock),
-        )
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.resident
+            .map_or_else(Vec::new, |resident| resident.hover_card(clock))
     }
 }
 
@@ -109,12 +110,15 @@ impl ReadingSections for LlamaModelProps {
         .filter_map(|(modality, supported)| supported.then_some(modality))
         .collect::<Vec<_>>()
         .join(", ");
-        vec![Section::dictionary([
-            LabeledValue::new("File", ValueCell::Path(self.path.clone())),
-            LabeledValue::new("Quantization", self.quantization.clone()),
-            LabeledValue::new("Slots", Quantity::count(self.total_slots)),
-            LabeledValue::new("Input", modalities),
-            LabeledValue::new("Build", self.build.clone()),
-        ])]
+        vec![Section::new(
+            "Configuration",
+            dictionary_table([
+                LabeledValue::new("File", ValueCell::Path(self.path.clone())),
+                LabeledValue::new("Quantization", self.quantization.clone()),
+                LabeledValue::new("Slots", Quantity::count(self.total_slots)),
+                LabeledValue::new("Input", modalities),
+                LabeledValue::new("Build", self.build.clone()),
+            ]),
+        )]
     }
 }

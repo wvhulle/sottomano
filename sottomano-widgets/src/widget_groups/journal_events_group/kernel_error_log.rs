@@ -11,7 +11,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
         journal_events_group::{
             JournalEventsInteraction, JournalScopeGroup, JournalTarget, MESSAGE_CAP,
@@ -86,42 +86,49 @@ impl GroupItemReading for Vec<KernelOccurrence> {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let hidden_notice = self
-            .len()
-            .checked_sub(HOVER_CARD_ROWS)
-            .filter(|hidden| *hidden > 0)
-            .map(|hidden| {
-                TableRecord::new(
-                    "",
-                    [
-                        ValueCell::Blank,
-                        format!("{hidden} earlier not shown").into(),
-                    ],
-                )
-            });
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Count"),
-                ColumnHeading::titled("Message").align_x(Horizontal::Left),
-            ],
-            hidden_notice.into_iter().chain(
-                self.iter()
-                    .rev()
-                    .take(HOVER_CARD_ROWS)
-                    .rev()
-                    .map(IntoTableRecord::into_table_record),
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Messages",
+                "Kernel messages at warning or worse in the last hour, repeats merged.",
             ),
-        )
-        .titled((
-            "Kernel log",
-            "Kernel messages at warning or worse in the last hour, repeats merged.",
-        ))])
+            kernel_message_table(self),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
         shown_while_alerting(self.iter().map(|occurrence| occurrence.severity))
     }
+}
+
+fn kernel_message_table(occurrences: &[KernelOccurrence]) -> SectionTable {
+    let hidden_notice = occurrences
+        .len()
+        .checked_sub(HOVER_CARD_ROWS)
+        .filter(|hidden| *hidden > 0)
+        .map(|hidden| {
+            TableRecord::new(
+                "",
+                [
+                    ValueCell::Blank,
+                    format!("{hidden} earlier not shown").into(),
+                ],
+            )
+        });
+    headed_table(
+        [
+            ColumnHeading::titled("Count"),
+            ColumnHeading::titled("Message").align_x(Horizontal::Left),
+        ],
+        hidden_notice.into_iter().chain(
+            occurrences
+                .iter()
+                .rev()
+                .take(HOVER_CARD_ROWS)
+                .rev()
+                .map(IntoTableRecord::into_table_record),
+        ),
+    )
 }
 
 #[cfg(test)]
@@ -134,7 +141,6 @@ mod tests {
     use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
 
     use super::*;
-    use crate::hover_cards::hover_card_body::SectionBody;
 
     fn kernel_occurrences_at(severities: &[Severity]) -> Vec<KernelOccurrence> {
         KernelOccurrence::merged_oldest_first(
@@ -174,11 +180,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
         );
-        let body = errors.hover_card(Clock::real());
-        let sections = body.listed_sections();
-        let SectionBody::ColumnTable(table) = sections[0].body() else {
-            panic!("expected column table");
-        };
+        let table = kernel_message_table(&errors);
         let values: Vec<ValueCell> = table
             .records()
             .filter_map(|record| record.cell(1).cloned())

@@ -12,7 +12,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -83,12 +83,15 @@ impl GroupItemReading for InodeUsageRow {
         Some(percent_fill(self.used_percent()))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_percent()))),
-            LabeledValue::new("Free", Quantity::count(self.inodes.free)).level(self.severity()),
-            LabeledValue::new("Total", Quantity::count(self.inodes.total)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Usage",
+            dictionary_table([
+                LabeledValue::new("Used", Quantity::share(percent_fill(self.used_percent()))),
+                LabeledValue::new("Free", Quantity::count(self.inodes.free)).level(self.severity()),
+                LabeledValue::new("Total", Quantity::count(self.inodes.total)),
+            ]),
+        )]
     }
 }
 

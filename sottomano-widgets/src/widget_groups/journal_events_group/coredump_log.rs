@@ -11,7 +11,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
         journal_events_group::{
             JournalEventsInteraction, JournalScopeGroup, JournalTarget, shown_while_alerting,
@@ -86,20 +86,22 @@ impl GroupItemReading for Vec<CoredumpEntry> {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Process").align_x(Horizontal::Left),
-                ColumnHeading::titled("Signal").align_x(Horizontal::Left),
-                ColumnHeading::titled("PID"),
-                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
-            ],
-            self.iter(),
-        )
-        .titled((
-            "Coredumps",
-            "Programs that crashed in the last hour, as recorded by systemd-coredump.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Coredumps",
+                "Programs that crashed in the last hour, as recorded by systemd-coredump.",
+            ),
+            headed_table(
+                [
+                    ColumnHeading::titled("Process").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Signal").align_x(Horizontal::Left),
+                    ColumnHeading::titled("PID"),
+                    ColumnHeading::titled("Unit").align_x(Horizontal::Left),
+                ],
+                self.iter(),
+            ),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

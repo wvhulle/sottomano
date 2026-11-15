@@ -38,10 +38,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            HoverCardBody, Section,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
+        hover_card_body::{Section, SectionWidget},
     },
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
@@ -145,8 +142,11 @@ impl GroupItemReading for MenuLookupFailureReading<'_> {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::from(Section::error(self.lookup_failure))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Error",
+            SectionWidget::paragraph(self.lookup_failure.to_string()),
+        )]
     }
 }
 
@@ -491,32 +491,33 @@ impl GlobalMenuGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &GlobalMenuTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &GlobalMenuTarget, clock: Clock) -> Vec<Section> {
         match target {
             GlobalMenuTarget::Use => {
-                Some(global_menu_use_toggle(self.global_menu_use).switch_hover_card(clock))
+                global_menu_use_toggle(self.global_menu_use).switch_hover_card(clock)
             }
-            GlobalMenuTarget::LookupFailure => self.lookup_failure().map(|lookup_failure| {
-                HoverCard::sourced(
-                    MenuLookupFailureReading { lookup_failure }.hover_card(clock),
-                    DeliveryTiming::LivePush,
-                )
-            }),
+            GlobalMenuTarget::LookupFailure => self
+                .lookup_failure()
+                .map(|lookup_failure| MenuLookupFailureReading { lookup_failure }.hover_card(clock))
+                .unwrap_or_default(),
             GlobalMenuTarget::Entry { label_path, .. } => {
                 let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
-                    return None;
+                    return Vec::new();
                 };
-                let entry_note = Section::note(label_path.clone());
-                let body = match shown_menu_bar.menu_bar_match {
+                let entry_note =
+                    Section::new("Menu path", SectionWidget::paragraph(label_path.clone()));
+                match shown_menu_bar.menu_bar_match {
                     MenuBarMatch::ExactWindow | MenuBarMatch::OnlyProcessCandidate => {
-                        HoverCardBody::from(entry_note)
+                        vec![entry_note]
                     }
-                    MenuBarMatch::MostRecentProcessCandidate => HoverCardBody::sections([
+                    MenuBarMatch::MostRecentProcessCandidate => vec![
                         entry_note,
-                        Section::note(MOST_RECENT_OF_SEVERAL_NOTE.to_owned()),
-                    ]),
-                };
-                Some(HoverCard::sourced(body, DeliveryTiming::LivePush))
+                        Section::new(
+                            "Menu bar",
+                            SectionWidget::paragraph(MOST_RECENT_OF_SEVERAL_NOTE),
+                        ),
+                    ],
+                }
             }
         }
     }
@@ -638,8 +639,16 @@ impl GroupItemReading for GlobalMenuGroup {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.lookup_failure().map(Section::error))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        self.lookup_failure()
+            .map(|lookup_failure| {
+                Section::new(
+                    "Error",
+                    SectionWidget::paragraph(lookup_failure.to_string()),
+                )
+            })
+            .into_iter()
+            .collect()
     }
 }
 

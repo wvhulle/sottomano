@@ -26,7 +26,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -35,9 +35,9 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -247,20 +247,30 @@ impl ClaudeUsageGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Vec<Section> {
         match target {
             ClaudeUsageTarget::UsageWindows => self.usage_windows.hover_card(clock),
-            ClaudeUsageTarget::EnterpriseSpend => self
-                .enterprise_spend
-                .hover_card_with_groups(self.organization.sections(clock), clock),
+            ClaudeUsageTarget::EnterpriseSpend => {
+                let mut sections = self.enterprise_spend.hover_card(clock);
+                sections.extend(self.organization.sections(clock));
+                sections
+            }
             ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.hover_card(clock),
             ClaudeUsageTarget::CcusageBlock => self.ccusage_block.hover_card(clock),
-            ClaudeUsageTarget::MostUsedModel => self
-                .ccusage_models
-                .hover_card_with(MostUsedModel(self.model_ranking()?).hover_card(clock)),
-            ClaudeUsageTarget::MostUsedModelSpend => self.ccusage_models.hover_card_with(
-                MostUsedModelSpend(self.billed_model_ranking()?).hover_card(clock),
-            ),
+            ClaudeUsageTarget::MostUsedModel => {
+                let Some(ranking) = self.model_ranking() else {
+                    return Vec::new();
+                };
+                self.ccusage_models
+                    .hover_card_with(MostUsedModel(ranking).hover_card(clock))
+            }
+            ClaudeUsageTarget::MostUsedModelSpend => {
+                let Some(ranking) = self.billed_model_ranking() else {
+                    return Vec::new();
+                };
+                self.ccusage_models
+                    .hover_card_with(MostUsedModelSpend(ranking).hover_card(clock))
+            }
         }
     }
 

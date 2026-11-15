@@ -2,7 +2,7 @@ use sottomano_desktop_sources::voice_dictation_input::huggingface_model_card::Hu
 
 use crate::{
     clock::Clock,
-    hover_cards::hover_card_body::{ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
         value_cells::{LabeledValue, ValueCell},
@@ -15,20 +15,23 @@ fn filled_text(text: &str) -> Option<&str> {
 
 impl ReadingSections for HuggingFaceModelCard {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(
-            [
-                Some(LabeledValue::new("Likes", Quantity::count(self.likes))),
-                filled_text(&self.pipeline_tag)
-                    .map(|pipeline_task| LabeledValue::new("Task", pipeline_task)),
-                filled_text(&self.library_name)
-                    .map(|library_name| LabeledValue::new("Library", library_name)),
-                Some(LabeledValue::new(
-                    "Updated",
-                    ValueCell::RelativeMoment(self.last_modified),
-                )),
-            ]
-            .into_iter()
-            .flatten(),
+        vec![Section::new(
+            "Model",
+            dictionary_table(
+                [
+                    Some(LabeledValue::new("Likes", Quantity::count(self.likes))),
+                    filled_text(&self.pipeline_tag)
+                        .map(|pipeline_task| LabeledValue::new("Task", pipeline_task)),
+                    filled_text(&self.library_name)
+                        .map(|library_name| LabeledValue::new("Library", library_name)),
+                    Some(LabeledValue::new(
+                        "Updated",
+                        ValueCell::RelativeMoment(self.last_modified),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         )]
     }
 }

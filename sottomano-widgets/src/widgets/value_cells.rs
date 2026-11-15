@@ -102,6 +102,11 @@ impl SliderReadout {
 
 impl ValueCell {
     #[must_use]
+    pub fn is_blank(&self) -> bool {
+        matches!(self, ValueCell::Blank)
+    }
+
+    #[must_use]
     pub fn duration(length: impl LengthOfTime) -> Self {
         ValueCell::Duration(length.elapsed_length())
     }

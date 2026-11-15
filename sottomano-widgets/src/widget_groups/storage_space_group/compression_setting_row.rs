@@ -9,7 +9,7 @@ use sottomano_desktop_sources::disk_storage::{
 use crate::{
     clock::Clock,
     group_items::group_item_reading::{GroupItemReading, PanelVisibility},
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::{Quantity, localized_decimal},
@@ -87,7 +87,7 @@ impl GroupItemReading for CompressionSettingRow<'_> {
         })
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let compressed_sizes = match self {
             CompressionSettingRow::Bcachefs(space)
                 if space.compressed_extents.compressed > ByteSize::default() =>
@@ -105,10 +105,13 @@ impl GroupItemReading for CompressionSettingRow<'_> {
             }
             CompressionSettingRow::Bcachefs(_) | CompressionSettingRow::Btrfs(_) => Vec::new(),
         };
-        HoverCardBody::dictionary(
-            [LabeledValue::new("Compression", self.algorithm_text())]
-                .into_iter()
-                .chain(compressed_sizes),
-        )
+        vec![Section::new(
+            "Setting",
+            dictionary_table(
+                [LabeledValue::new("Compression", self.algorithm_text())]
+                    .into_iter()
+                    .chain(compressed_sizes),
+            ),
+        )]
     }
 }

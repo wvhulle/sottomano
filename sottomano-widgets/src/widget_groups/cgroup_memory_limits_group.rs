@@ -19,7 +19,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         terminal_command::TerminalCommand,
@@ -30,8 +30,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -143,8 +143,11 @@ impl GroupItemReading for LimitedCgroupRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.detail_entries())
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Memory",
+            dictionary_table(self.detail_entries()),
+        )]
     }
 }
 
@@ -230,11 +233,14 @@ impl CgroupMemoryLimitsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &CgroupMemoryLimitTarget) -> Option<HoverCard> {
-        let cgroup = self
+    pub fn hover_card_for(&self, target: &CgroupMemoryLimitTarget) -> Vec<Section> {
+        let Some(cgroup) = self
             .listed_cgroups()
             .iter()
-            .find(|cgroup| cgroup.cgroup_path == target.cgroup_path)?;
+            .find(|cgroup| cgroup.cgroup_path == target.cgroup_path)
+        else {
+            return Vec::new();
+        };
         self.listing
             .hover_card_with(self.cgroup_row(cgroup).hover_card(Clock::real()))
     }
@@ -291,17 +297,20 @@ impl GroupItemReading for CgroupMemoryLimitsGroup {
             .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let total_in_use = self
             .listed_cgroups()
             .iter()
             .filter(|cgroup| cgroup.memory.is_limited())
             .map(|cgroup| cgroup.memory.current.as_u64())
             .sum::<u64>();
-        HoverCardBody::dictionary([
-            LabeledValue::new("Capped cgroups", self.listed_cgroups().len().to_string()),
-            LabeledValue::new("In use under caps", ByteSize::b(total_in_use).to_string()),
-        ])
+        vec![Section::new(
+            "Totals",
+            dictionary_table([
+                LabeledValue::new("Capped cgroups", self.listed_cgroups().len().to_string()),
+                LabeledValue::new("In use under caps", ByteSize::b(total_in_use).to_string()),
+            ]),
+        )]
     }
 }
 

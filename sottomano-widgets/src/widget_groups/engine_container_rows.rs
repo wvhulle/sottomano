@@ -19,7 +19,10 @@ use crate::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{Section, dictionary_table},
+    },
     widget_groups::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::WidgetGroupExpansionMessage,
@@ -124,7 +127,7 @@ impl GroupItemReading for RunningContainerRow<'_> {
         ContainerRunState::Running.into()
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let container = self.container;
         let mut detail_entries = vec![
             LabeledValue::new("State", ContainerRunState::Running.label()),
@@ -142,7 +145,7 @@ impl GroupItemReading for RunningContainerRow<'_> {
             LabeledValue::new("Name", container.container_name.clone()),
             LabeledValue::new("Engine", self.owner.to_string()),
         ]);
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Container", dictionary_table(detail_entries))]
     }
 }
 
@@ -168,14 +171,17 @@ impl GroupItemReading for StoppedContainerRow<'_> {
         ContainerRunState::Stopped.into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let container = self.container;
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", ContainerRunState::Stopped.label()),
-            LabeledValue::new("Image", container.image.clone()),
-            LabeledValue::new("Name", container.container_name.clone()),
-            LabeledValue::new("Engine", self.owner.to_string()),
-        ])
+        vec![Section::new(
+            "Container",
+            dictionary_table([
+                LabeledValue::new("State", ContainerRunState::Stopped.label()),
+                LabeledValue::new("Image", container.image.clone()),
+                LabeledValue::new("Name", container.container_name.clone()),
+                LabeledValue::new("Engine", self.owner.to_string()),
+            ]),
+        )]
     }
 }
 
@@ -200,11 +206,14 @@ impl GroupItemReading for HiddenContainersRow {
         ReadingDisplayState::Idle
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "Not shown",
-            self.hidden_count.to_string(),
-        )])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Hidden",
+            dictionary_table([LabeledValue::new(
+                "Not shown",
+                self.hidden_count.to_string(),
+            )]),
+        )]
     }
 }
 
@@ -271,7 +280,7 @@ impl<'a> EngineContainers<'a> {
             .collect()
     }
 
-    pub(crate) fn hover_body_of(&self, container_id: &str, clock: Clock) -> Option<HoverCardBody> {
+    pub(crate) fn hover_body_of(&self, container_id: &str, clock: Clock) -> Option<Vec<Section>> {
         let owner = self.owner;
         if let Some(container) = self
             .listing

@@ -19,7 +19,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -47,14 +47,18 @@ fn swap_share(activity: &SwapActivity) -> Option<Ratio> {
     }
 }
 
+fn swapped_process_table(swapped: &SwappedProcesses) -> SectionTable {
+    dictionary_table(
+        swapped.processes.iter().map(|process| {
+            LabeledValue::new(process.name.clone(), Quantity::size(process.swapped))
+        }),
+    )
+    .truncated_to(LISTED_PROCESSES)
+}
+
 impl ReadingSections for SwappedProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().map(|process| {
-                LabeledValue::new(process.name.clone(), Quantity::size(process.swapped))
-            }))
-            .truncated_to(LISTED_PROCESSES),
-        ]
+        vec![Section::new("Swap use", swapped_process_table(self))]
     }
 }
 
@@ -100,7 +104,7 @@ impl GroupItemReading for SwapActivity {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let occupancy_rows = match self.swap {
             Swap::NotConfigured => vec![LabeledValue::new("Swap", "none")],
             Swap::Configured { used, total } => vec![
@@ -108,10 +112,13 @@ impl GroupItemReading for SwapActivity {
                 LabeledValue::new("Total", Quantity::size(total)),
             ],
         };
-        HoverCardBody::dictionary(occupancy_rows.into_iter().chain([
-            LabeledValue::new("Swapped in", paging_rate(self.paged_in_per_second)),
-            LabeledValue::new("Swapped out", paging_rate(self.paged_out_per_second)),
-        ]))
+        vec![Section::new(
+            "Usage",
+            dictionary_table(occupancy_rows.into_iter().chain([
+                LabeledValue::new("Swapped in", paging_rate(self.paged_in_per_second)),
+                LabeledValue::new("Swapped out", paging_rate(self.paged_out_per_second)),
+            ])),
+        )]
     }
 }
 
@@ -120,11 +127,8 @@ mod tests {
     use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::SwappedProcess;
 
     use super::*;
-    use crate::{
-        hover_cards::hover_card_body::SectionBody,
-        widgets::{
-            keyed_record_table::KeyedTableRow, ongoing_toast::reading_display_state_alert_severity,
-        },
+    use crate::widgets::{
+        keyed_record_table::KeyedTableRow, ongoing_toast::reading_display_state_alert_severity,
     };
 
     fn swap_with(used_gibibytes: u64, paged_in_per_second: ByteSize) -> SwapActivity {
@@ -172,10 +176,7 @@ mod tests {
                 })
                 .collect(),
         };
-        let sections = swapped.sections(Clock::real());
-        let SectionBody::ColumnTable(table) = sections[0].body() else {
-            panic!("swapped processes render as a column table");
-        };
+        let table = swapped_process_table(&swapped);
         assert_eq!(table.rows().len(), 11);
         assert_eq!(
             table.rows().last(),

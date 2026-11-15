@@ -19,7 +19,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -82,28 +82,34 @@ impl GroupItemReading for Throughput {
         Some(Ratio::new::<ratio>(f64::from(self.current_fraction())))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         if self.interfaces.is_empty() {
-            return HoverCardBody::dictionary([LabeledValue::new("Interfaces", "none")]);
+            return vec![Section::new(
+                "Rate",
+                dictionary_table([LabeledValue::new("Interfaces", "none")]),
+            )];
         }
         let rate_label = match self.direction {
             NetworkTrafficDirection::Upload => "Up",
             NetworkTrafficDirection::Download => "Down",
         };
-        HoverCardBody::dictionary(
-            [
-                LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-                LabeledValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
-                LabeledValue::new("Interfaces", self.interfaces.join(", ")),
-            ]
-            .into_iter()
-            .chain([LabeledValue::new(
-                "Capacity",
-                Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
-                    SCALE_END_MB_PER_S,
-                )),
-            )]),
-        )
+        vec![Section::new(
+            "Rate",
+            dictionary_table(
+                [
+                    LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+                    LabeledValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
+                    LabeledValue::new("Interfaces", self.interfaces.join(", ")),
+                ]
+                .into_iter()
+                .chain([LabeledValue::new(
+                    "Capacity",
+                    Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
+                        SCALE_END_MB_PER_S,
+                    )),
+                )]),
+            ),
+        )]
     }
 }
 
@@ -120,10 +126,13 @@ impl GroupItemReading for InterfaceThroughput {
         PanelVisibility::Hidden
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Down", Quantity::transfer_rate(self.down.rate)),
-            LabeledValue::new("Up", Quantity::transfer_rate(self.up.rate)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Rate",
+            dictionary_table([
+                LabeledValue::new("Down", Quantity::transfer_rate(self.down.rate)),
+                LabeledValue::new("Up", Quantity::transfer_rate(self.up.rate)),
+            ]),
+        )]
     }
 }

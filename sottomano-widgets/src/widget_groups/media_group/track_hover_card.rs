@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     desktop_index::DesktopIndex,
-    hover_cards::hover_card_body::Section,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
@@ -111,17 +111,19 @@ pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
         };
         Some(LabeledValue::new("Source", link))
     });
-    Section::dictionary(
-        [
-            ("Title", media.title.clone()),
-            ("Artist", media.joined_artists()),
-            ("Album", media.album.clone()),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(LabeledValue::new(key, value?)))
-        .chain(source),
+    Section::new(
+        "Metadata",
+        dictionary_table(
+            [
+                ("Title", media.title.clone()),
+                ("Artist", media.joined_artists()),
+                ("Album", media.album.clone()),
+            ]
+            .into_iter()
+            .filter_map(|(key, value)| Some(LabeledValue::new(key, value?)))
+            .chain(source),
+        ),
     )
-    .titled("Track")
 }
 
 pub fn playback_section(media: &Media, now: Instant) -> Section {
@@ -130,23 +132,25 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
     let duration = |key, duration: Option<Duration>| {
         duration.map(|duration| LabeledValue::new(key, ValueCell::duration(duration)))
     };
-    Section::dictionary(
-        [
-            LabeledValue::new("Player", media.identity.as_str()),
-            LabeledValue::new("State", status.label()),
-        ]
-        .into_iter()
-        .chain(
+    Section::new(
+        "Playback",
+        dictionary_table(
             [
-                duration("Played", progress.played(status, now)),
-                duration("Remaining", progress.remaining(status, now)),
-                duration("Length", progress.length()),
+                LabeledValue::new("Player", media.identity.as_str()),
+                LabeledValue::new("State", status.label()),
             ]
             .into_iter()
-            .flatten(),
+            .chain(
+                [
+                    duration("Played", progress.played(status, now)),
+                    duration("Remaining", progress.remaining(status, now)),
+                    duration("Length", progress.length()),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         ),
     )
-    .titled("Playback")
 }
 
 pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
@@ -171,7 +175,7 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
                 )
             })
     });
-    Section::dictionary(links).titled("Search")
+    Section::new("Search", dictionary_table(links))
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::link_stats_section,
     widgets::{
         icon_glyph::IconGlyph,
@@ -65,15 +65,18 @@ impl GroupItemReading for PortLinkReading<'_> {
         ReadingDisplayState::from(self.port_state.link_state)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Port", self.port_state.name.as_str()),
-            LabeledValue::new(
-                "Attachment",
-                attachment_description(self.port_state.attachment),
-            ),
-            LabeledValue::new("Connection", self.port_state.link_state.label()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Port",
+            dictionary_table([
+                LabeledValue::new("Port", self.port_state.name.as_str()),
+                LabeledValue::new(
+                    "Attachment",
+                    attachment_description(self.port_state.attachment),
+                ),
+                LabeledValue::new("Connection", self.port_state.link_state.label()),
+            ]),
+        )]
     }
 }
 
@@ -105,19 +108,24 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
         ReadingDisplayState::from(self.port_state.link_state)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Port", self.port_state.name.as_str()),
-            LabeledValue::new("Connection", self.port_state.link_state.label()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Port",
+            dictionary_table([
+                LabeledValue::new("Port", self.port_state.name.as_str()),
+                LabeledValue::new("Connection", self.port_state.link_state.label()),
+            ]),
+        )]
     }
 }
 
 pub fn link_detail_sections(link: &Link) -> Vec<Section> {
-    let profile_section = link
-        .connection
-        .as_deref()
-        .map(|profile| Section::dictionary([LabeledValue::new("Network Profile", profile)]));
+    let profile_section = link.connection.as_deref().map(|profile| {
+        Section::new(
+            "Profile",
+            dictionary_table([LabeledValue::new("Network Profile", profile)]),
+        )
+    });
     profile_section
         .into_iter()
         .chain([link_stats_section(
@@ -131,16 +139,14 @@ pub fn link_detail_sections(link: &Link) -> Vec<Section> {
 }
 
 pub fn port_identity_sections(port: &Port) -> Vec<Section> {
-    let mac_section = port
-        .link
-        .as_ref()
-        .map(|link| Section::dictionary([LabeledValue::new("MAC Address", link.mac.as_str())]));
+    let mac_section = port.link.as_ref().map(|link| {
+        Section::new(
+            "Address",
+            dictionary_table([LabeledValue::new("MAC Address", link.mac.as_str())]),
+        )
+    });
     mac_section
         .into_iter()
-        .chain(
-            port.adapter
-                .iter()
-                .map(|adapter| Section::from(adapter).titled("Hardware")),
-        )
+        .chain(port.adapter.iter().map(Section::from))
         .collect()
 }

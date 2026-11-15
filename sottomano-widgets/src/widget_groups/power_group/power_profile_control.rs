@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    iter::once,
     ops::RangeInclusive,
     time::{Duration, Instant},
 };
@@ -21,7 +22,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::slider_control::{Action, ControlMessage, SliderControl},
-    hover_cards::hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
@@ -29,8 +30,8 @@ use crate::{
     },
     widgets::{
         keyed_record_table::{IntoTableRecord, TableRecord},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -280,20 +281,20 @@ impl PowerProfileControl {
             .flatten()
     }
 
-    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
-        let profile =
-            Section::dictionary([LabeledValue::new("Active", self.control.readout_cell())]).titled(
-                (
-                    "Power profile",
-                    "Lower profiles trade speed for less power draw, heat and fan noise.",
-                ),
-            );
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        let profile = Section::new(
+            SectionTitle::captioned(
+                "Power profile",
+                "Lower profiles trade speed for less power draw, heat and fan noise.",
+            ),
+            dictionary_table([LabeledValue::new("Active", self.control.readout_cell())]),
+        );
         let battery_life = (!self.estimates.is_empty()).then(|| self.battery_life_section());
-        self.status
-            .hover_card_with(HoverCardBody::sections(
-                [Some(profile), battery_life].into_iter().flatten(),
-            ))
-            .map(|hover_card| hover_card.with_groups(self.status.sections(clock)))
+        let mut sections = self
+            .status
+            .hover_card_with(once(profile).chain(battery_life).collect());
+        sections.extend(self.status.sections(clock));
+        sections
     }
 
     fn battery_life_section(&self) -> Section {
@@ -306,10 +307,13 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        Section::column_table(ESTIMATE_HEADINGS, lives).titled((
-            "Battery life",
-            "Time until empty if you switch to each profile now.",
-        ))
+        Section::new(
+            SectionTitle::captioned(
+                "Battery life",
+                "Time until empty if you switch to each profile now.",
+            ),
+            headed_table(ESTIMATE_HEADINGS, lives),
+        )
     }
 
     pub fn slider(&self) -> Option<&SliderControl> {

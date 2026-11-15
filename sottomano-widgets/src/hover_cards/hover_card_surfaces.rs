@@ -408,9 +408,12 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
+    pub fn departure<'a, Message>(
+        &self,
+        content_of: impl FnOnce(&HoverTarget, HoverAnnouncement) -> Option<HoverContent<'a, Message>>,
+    ) -> Option<Departed> {
         let current = self.transition.current()?;
-        let departed_content = match content.with_announcement(current.announcement.clone()) {
+        let departed_content = match content_of(&current.target, current.announcement.clone())? {
             HoverContent::Described(hover_card) => DepartedContent::Described(hover_card),
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => {
                 DepartedContent::Interactive
@@ -448,7 +451,7 @@ impl HoverCardHost {
         config: &'a Config,
         surface_style: HoverCardSurfaceStyle,
         assets: WindowAssets<'a>,
-        content_of: impl Fn(&HoverTarget) -> HoverContent<'a, Message>,
+        content_of: impl Fn(&HoverTarget, HoverAnnouncement) -> Option<HoverContent<'a, Message>>,
         clock: Clock,
     ) -> Element<'a, Message> {
         let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
@@ -457,16 +460,7 @@ impl HoverCardHost {
         };
         let render = |content: HoverContent<'a, Message>| match content {
             HoverContent::Described(hover_card) => Rendered::framed(describe(&hover_card)),
-            HoverContent::Interactive { described, panel } => {
-                if described.is_empty() {
-                    Rendered::framed(panel)
-                } else {
-                    Rendered::framed(
-                        HoverCardContent::new(&described, config, assets, clock)
-                            .view_enclosing(panel),
-                    )
-                }
-            }
+            HoverContent::Interactive { panel } => Rendered::framed(panel),
             HoverContent::GroupMenu {
                 primary,
                 satellites,
@@ -504,16 +498,21 @@ impl HoverCardHost {
         if let Some(previous) = self.transition.previous() {
             let departed = match &previous.content {
                 DepartedContent::Described(hover_card) => {
-                    HoverContent::Described(hover_card.clone())
+                    Some(HoverContent::Described(hover_card.clone()))
                 }
-                DepartedContent::Interactive => content_of(&previous.target),
+                DepartedContent::Interactive => {
+                    content_of(&previous.target, HoverAnnouncement::default())
+                }
             };
-            let Rendered { element, framing } = render(departed);
-            renderings.push(PopupRendering::outgoing(element).framing(framing));
+            if let Some(departed) = departed {
+                let Rendered { element, framing } = render(departed);
+                renderings.push(PopupRendering::outgoing(element).framing(framing));
+            }
         }
-        if let Some(current) = self.transition.current() {
-            let Rendered { element, framing } =
-                render(content_of(&current.target).with_announcement(current.announcement.clone()));
+        if let Some(current) = self.transition.current()
+            && let Some(content) = content_of(&current.target, current.announcement.clone())
+        {
+            let Rendered { element, framing } = render(content);
             renderings.push(PopupRendering::incoming(hoverable_content(element)).framing(framing));
         }
         let shown_presence = self.transition.current().and_then(|current| {
@@ -556,7 +555,6 @@ impl HoverCardHost {
 pub enum HoverContent<'a, Message> {
     Described(HoverCard),
     Interactive {
-        described: HoverCard,
         panel: Element<'a, Message>,
     },
     GroupMenu {
@@ -576,36 +574,6 @@ impl<'a, Message> Rendered<'a, Message> {
         Self {
             element,
             framing: PopupFraming::WholeContent,
-        }
-    }
-}
-
-impl<Message> HoverContent<'_, Message> {
-    #[must_use]
-    pub fn with_announcement(self, announcement: HoverAnnouncement) -> Self {
-        match self {
-            HoverContent::Described(hover_card) => {
-                HoverContent::Described(hover_card.with_announcement(announcement))
-            }
-            HoverContent::Interactive { described, panel } => HoverContent::Interactive {
-                described: described.with_announcement(announcement),
-                panel,
-            },
-            cascade @ HoverContent::GroupMenu { .. } => cascade,
-        }
-    }
-
-    #[must_use]
-    pub fn card_substance(&self, announcement: &HoverAnnouncement) -> CardSubstance {
-        if match self {
-            HoverContent::Described(hover_card) => {
-                !hover_card.is_empty() || *announcement != HoverAnnouncement::default()
-            }
-            HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => true,
-        } {
-            CardSubstance::HasContent
-        } else {
-            CardSubstance::Empty
         }
     }
 }
@@ -647,12 +615,6 @@ pub enum HoverEffect {
 pub enum ShownWidgetPresence {
     Dropped,
     Present,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CardSubstance {
-    HasContent,
-    Empty,
 }
 
 #[cfg(test)]

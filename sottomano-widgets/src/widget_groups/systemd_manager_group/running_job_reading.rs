@@ -15,7 +15,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget},
         terminal_command::TerminalCommand,
@@ -122,17 +122,19 @@ impl GroupItemReading for SlowJobs {
         ReadingDisplayState::Warning
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Job").align_x(Horizontal::Left),
-                ColumnHeading::titled("Since"),
-            ],
-            self.jobs.iter(),
-        )
-        .titled((
-            self.name(),
-            "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
-        ))])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            SectionTitle::captioned(
+                self.name(),
+                "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
+            ),
+            headed_table(
+                [
+                    ColumnHeading::titled("Job").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Since"),
+                ],
+                self.jobs.iter(),
+            ),
+        )]
     }
 }

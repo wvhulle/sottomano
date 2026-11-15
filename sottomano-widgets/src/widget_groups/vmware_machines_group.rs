@@ -11,7 +11,10 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{Section, dictionary_table},
+    },
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -66,11 +69,14 @@ impl GroupItemReading for VmwareMachineListingRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", "running"),
-            LabeledValue::new("PID", self.listing.pid.to_string()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("State", "running"),
+                LabeledValue::new("PID", self.listing.pid.to_string()),
+            ]),
+        )]
     }
 }
 
@@ -95,7 +101,7 @@ impl GroupItemReading for VmwareMachineRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let machine = self.machine;
         let mut detail_entries = vec![LabeledValue::new(
             "Memory use",
@@ -118,7 +124,7 @@ impl GroupItemReading for VmwareMachineRow<'_> {
             ),
             LabeledValue::new("PID", machine.pid.to_string()),
         ]);
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Machine", dictionary_table(detail_entries))]
     }
 }
 

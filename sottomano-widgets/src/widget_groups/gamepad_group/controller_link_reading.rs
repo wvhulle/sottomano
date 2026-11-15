@@ -14,7 +14,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
@@ -102,28 +102,36 @@ impl ControllerLinkReading<'_> {
                     }
                 };
                 vec![
-                    Section::dictionary(
-                        [
-                            LabeledValue::new("Wi-Fi network", network_name),
-                            LabeledValue::new("Frequency", Quantity::clock_megahertz(frequency)),
-                            LabeledValue::new(
-                                "Channel",
-                                two_point_four_gigahertz_channel(frequency).to_string(),
-                            ),
-                        ]
-                        .into_iter()
-                        .chain(ethernet),
-                    )
-                    .titled("Interference"),
-                    Section::detailed_note("Shared radio band", remedy),
+                    Section::new(
+                        "Interference",
+                        dictionary_table(
+                            [
+                                LabeledValue::new("Wi-Fi network", network_name),
+                                LabeledValue::new(
+                                    "Frequency",
+                                    Quantity::clock_megahertz(frequency),
+                                ),
+                                LabeledValue::new(
+                                    "Channel",
+                                    two_point_four_gigahertz_channel(frequency).to_string(),
+                                ),
+                            ]
+                            .into_iter()
+                            .chain(ethernet),
+                        ),
+                    ),
+                    Section::new("Shared radio band", SectionWidget::paragraph(remedy)),
                 ]
             }
             _ if matches!(self.transport, GamepadTransport::Bluetooth { .. })
                 && self.link_stability() == LinkStability::Unstable =>
             {
-                vec![Section::detailed_note(
+                vec![Section::new(
                     "Unstable Bluetooth link",
-                    "Move the controller closer to the Bluetooth adapter, or connect it by cable.",
+                    SectionWidget::paragraph(
+                        "Move the controller closer to the Bluetooth adapter, or connect it by \
+                         cable.",
+                    ),
                 )]
             }
             _ => Vec::new(),
@@ -165,22 +173,21 @@ impl GroupItemReading for ControllerLinkReading<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(
-            [
-                Some(
-                    self.report_timing
-                        .report_section("Controller reports, last 2 s"),
-                ),
-                KernelErrorListing {
-                    kernel_errors: &self.kernel_errors,
-                }
-                .section(),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(self.interference_sections()),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        [
+            Some(
+                self.report_timing
+                    .report_section("Controller reports, last 2 s"),
+            ),
+            KernelErrorListing {
+                kernel_errors: &self.kernel_errors,
+            }
+            .section(),
+        ]
+        .into_iter()
+        .flatten()
+        .chain(self.interference_sections())
+        .collect::<Vec<_>>()
     }
 }
 

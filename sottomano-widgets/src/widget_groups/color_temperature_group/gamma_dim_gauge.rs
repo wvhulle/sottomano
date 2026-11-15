@@ -8,7 +8,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{gauge::percent_fill, group_item_reading::GroupItemReading},
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -30,10 +30,13 @@ impl GroupItemReading for ColorTemperature {
         Some(percent_fill(self.brightness))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Dim", Quantity::share(percent_fill(self.brightness))),
-            LabeledValue::new("Temperature", Quantity::color_temperature(self.temperature)),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Setting",
+            dictionary_table([
+                LabeledValue::new("Dim", Quantity::share(percent_fill(self.brightness))),
+                LabeledValue::new("Temperature", Quantity::color_temperature(self.temperature)),
+            ]),
+        )]
     }
 }

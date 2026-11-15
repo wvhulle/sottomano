@@ -14,7 +14,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, headed_table},
     widget_groups::{
         pending_upgrades_group::{
             PendingUpgradesGroup, PendingUpgradesInteraction, PendingUpgradesTarget,
@@ -83,19 +83,21 @@ impl GroupItemReading for Vec<FirmwareUpgrade> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([Section::column_table(
-            [
-                ColumnHeading::titled("Vendor").align_x(Horizontal::Left),
-                ColumnHeading::titled("Installed"),
-                ColumnHeading::titled("Offered"),
-                ColumnHeading::titled("Released"),
-                ColumnHeading::titled("Urgency").align_x(Horizontal::Left),
-                ColumnHeading::titled("Summary").align_x(Horizontal::Left),
-            ],
-            self.iter(),
-        )
-        .titled(LABEL)])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            LABEL,
+            headed_table(
+                [
+                    ColumnHeading::titled("Vendor").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Installed"),
+                    ColumnHeading::titled("Offered"),
+                    ColumnHeading::titled("Released"),
+                    ColumnHeading::titled("Urgency").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Summary").align_x(Horizontal::Left),
+                ],
+                self.iter(),
+            ),
+        )]
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

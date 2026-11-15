@@ -13,7 +13,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::session_focus_group::WarningSnooze,
     widgets::{
         icon_glyph::IconGlyph,
@@ -98,24 +98,26 @@ impl SessionFace<'_> {
 
     fn session_alerts(&self) -> Section {
         let config = self.accounting.config;
-        Section::dictionary([
-            LabeledValue::new(
-                "Warning after active for",
-                ValueCell::duration(config.session_warning),
+        Section::new(
+            SectionTitle::captioned(
+                "Session alerts".to_owned(),
+                "Alerts follow 'Active since last break'. From the alert, 'Screen off' starts a \
+                 break at once, 'Lock screen' starts one once input stays idle, and 'Snooze' \
+                 silences the alert for the time shown."
+                    .to_owned(),
             ),
-            LabeledValue::new(
-                "Critical after active for",
-                ValueCell::duration(config.session_critical),
-            ),
-            LabeledValue::new("Snooze lasts", ValueCell::duration(config.warning_snooze)),
-        ])
-        .titled((
-            "Session alerts".to_owned(),
-            "Alerts follow 'Active since last break'. From the alert, 'Screen off' starts a break \
-             at once, 'Lock screen' starts one once input stays idle, and 'Snooze' silences the \
-             alert for the time shown."
-                .to_owned(),
-        ))
+            dictionary_table([
+                LabeledValue::new(
+                    "Warning after active for",
+                    ValueCell::duration(config.session_warning),
+                ),
+                LabeledValue::new(
+                    "Critical after active for",
+                    ValueCell::duration(config.session_critical),
+                ),
+                LabeledValue::new("Snooze lasts", ValueCell::duration(config.warning_snooze)),
+            ]),
+        )
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> [Section; 2] {
@@ -154,12 +156,15 @@ impl SessionFace<'_> {
                 LabeledValue::new("Last break lasted", ValueCell::duration(until - from))
             }),
         ];
-        Section::dictionary(entries.into_iter().flatten()).titled((
-            "Current session".to_owned(),
-            "Active means recent keyboard or pointer input. The count starts when the last break \
-             ended; the Breaks reading shows what counts as one."
-                .to_owned(),
-        ))
+        Section::new(
+            SectionTitle::captioned(
+                "Current session".to_owned(),
+                "Active means recent keyboard or pointer input. The count starts when the last \
+                 break ended; the Breaks reading shows what counts as one."
+                    .to_owned(),
+            ),
+            dictionary_table(entries.into_iter().flatten()),
+        )
     }
 }
 
@@ -194,8 +199,8 @@ impl GroupItemReading for SessionFace<'_> {
         self.screen_run_summary(clock.utc(), locale)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }
 

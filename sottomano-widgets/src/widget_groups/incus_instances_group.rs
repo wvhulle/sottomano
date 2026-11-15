@@ -23,7 +23,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         process_usage_cells::approximate_memory_text,
@@ -34,8 +34,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -159,7 +159,7 @@ impl GroupItemReading for IncusInstanceRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let instance = self.instance;
         let mut detail_entries = vec![
             LabeledValue::new("Kind", kind_text(instance.kind)),
@@ -182,7 +182,7 @@ impl GroupItemReading for IncusInstanceRow<'_> {
         if let Some(image_description) = &instance.image_description {
             detail_entries.push(LabeledValue::new("Image", image_description.clone()));
         }
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Instance", dictionary_table(detail_entries))]
     }
 }
 
@@ -216,13 +216,16 @@ impl GroupItemReading for IncusInstanceListingRow<'_> {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Kind", kind_text(self.listing.kind)),
-            LabeledValue::new("Status", self.listing.status_text.clone()),
-            LabeledValue::new("Daemon", self.instance_daemon.product_name()),
-            LabeledValue::new("Project", self.listing.project_name.clone()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Instance",
+            dictionary_table([
+                LabeledValue::new("Kind", kind_text(self.listing.kind)),
+                LabeledValue::new("Status", self.listing.status_text.clone()),
+                LabeledValue::new("Daemon", self.instance_daemon.product_name()),
+                LabeledValue::new("Project", self.listing.project_name.clone()),
+            ]),
+        )]
     }
 }
 
@@ -251,22 +254,27 @@ impl GroupItemReading for UnreadableDaemonRow {
         ReadingDisplayState::Failed
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("Problem", self.failure.to_string()),
-            LabeledValue::new(
-                "Socket",
-                self.instance_daemon.socket_path().display().to_string(),
-            ),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Error",
+            dictionary_table([
+                LabeledValue::new("Problem", self.failure.to_string()),
+                LabeledValue::new(
+                    "Socket",
+                    self.instance_daemon.socket_path().display().to_string(),
+                ),
+            ]),
+        )]
     }
 }
 
 #[derive(Default)]
 pub struct IncusInstancesGroup {
     probes: BTreeMap<InstanceDaemon, SubscribedSnapshot<Availability, HidesFetchFailures>>,
-    listings: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstanceListings, HidesFetchFailures>>,
-    details: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstancesReadout, HidesFetchFailures>>,
+    listings:
+        BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstanceListings, HidesFetchFailures>>,
+    details:
+        BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstancesReadout, HidesFetchFailures>>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -378,13 +386,19 @@ impl IncusInstancesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &IncusInstanceTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &IncusInstanceTarget, clock: Clock) -> Vec<Section> {
         if let Some(detail_reading) = self.details.get(&target.instance_daemon) {
-            match detail_reading.get()? {
+            let Some(detail_readout) = detail_reading.get() else {
+                return Vec::new();
+            };
+            match detail_readout {
                 DaemonInstancesReadout::Instances(instances) => {
-                    let instance = instances
+                    let Some(instance) = instances
                         .iter()
-                        .find(|instance| instance.instance_name == target.instance_name)?;
+                        .find(|instance| instance.instance_name == target.instance_name)
+                    else {
+                        return Vec::new();
+                    };
                     return detail_reading.hover_card_with(
                         IncusInstanceRow {
                             instance_daemon: target.instance_daemon,
@@ -404,12 +418,20 @@ impl IncusInstancesGroup {
                 }
             }
         }
-        let listing_reading = self.listings.get(&target.instance_daemon)?;
-        match listing_reading.get()? {
+        let Some(listing_reading) = self.listings.get(&target.instance_daemon) else {
+            return Vec::new();
+        };
+        let Some(listing_readout) = listing_reading.get() else {
+            return Vec::new();
+        };
+        match listing_readout {
             DaemonInstanceListings::Instances(listings) => {
-                let listing = listings
+                let Some(listing) = listings
                     .iter()
-                    .find(|listing| listing.instance_name == target.instance_name)?;
+                    .find(|listing| listing.instance_name == target.instance_name)
+                else {
+                    return Vec::new();
+                };
                 listing_reading.hover_card_with(
                     IncusInstanceListingRow {
                         instance_daemon: target.instance_daemon,
@@ -563,21 +585,24 @@ impl GroupItemReading for IncusInstancesGroup {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            WATCHED_DAEMONS
-                .into_iter()
-                .filter_map(|instance_daemon| {
-                    let availability = self.probe_availability(instance_daemon)?;
-                    Some(LabeledValue::new(
-                        instance_daemon.product_name(),
-                        match availability {
-                            Availability::Available => "socket present",
-                            Availability::Unavailable => "socket missing",
-                        },
-                    ))
-                })
-                .collect::<Vec<LabeledValue>>(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Daemon sockets",
+            dictionary_table(
+                WATCHED_DAEMONS
+                    .into_iter()
+                    .filter_map(|instance_daemon| {
+                        let availability = self.probe_availability(instance_daemon)?;
+                        Some(LabeledValue::new(
+                            instance_daemon.product_name(),
+                            match availability {
+                                Availability::Available => "socket present",
+                                Availability::Unavailable => "socket missing",
+                            },
+                        ))
+                    })
+                    .collect::<Vec<LabeledValue>>(),
+            ),
+        )]
     }
 }

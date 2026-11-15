@@ -17,7 +17,7 @@ use crate::{
         gauge::percent_fill,
         group_item_reading::{GroupItemReading, PanelVisibility},
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -55,7 +55,7 @@ impl GroupItemReading for SubvolumeUsageRow<'_> {
         Some(Quantity::size(self.subvolume.used).localized_text(locale))
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let mounted_at = self
             .subvolume
             .mounts
@@ -75,16 +75,19 @@ impl GroupItemReading for SubvolumeUsageRow<'_> {
             })
             .into_iter()
             .flatten();
-        HoverCardBody::dictionary(
-            [
-                LabeledValue::new("Subvolume", self.subvolume.path.display().to_string()),
-                LabeledValue::new("Mounted at", mounted_at),
-                LabeledValue::new("Used", Quantity::size(self.subvolume.used)),
-                LabeledValue::new("Share of filesystem", Quantity::share(self.pool_share())),
-            ]
-            .into_iter()
-            .chain(snapshot_entries),
-        )
+        vec![Section::new(
+            "Usage",
+            dictionary_table(
+                [
+                    LabeledValue::new("Subvolume", self.subvolume.path.display().to_string()),
+                    LabeledValue::new("Mounted at", mounted_at),
+                    LabeledValue::new("Used", Quantity::size(self.subvolume.used)),
+                    LabeledValue::new("Share of filesystem", Quantity::share(self.pool_share())),
+                ]
+                .into_iter()
+                .chain(snapshot_entries),
+            ),
+        )]
     }
 }
 
@@ -108,13 +111,16 @@ impl GroupItemReading for BcachefsSubvolumeUsage {
         PanelVisibility::Hidden
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(self.subvolumes.iter().map(|subvolume| {
-            LabeledValue::new(
-                subvolume.path.display().to_string(),
-                Quantity::size(subvolume.used),
-            )
-        }))
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Usage",
+            dictionary_table(self.subvolumes.iter().map(|subvolume| {
+                LabeledValue::new(
+                    subvolume.path.display().to_string(),
+                    Quantity::size(subvolume.used),
+                )
+            })),
+        )]
     }
 }
 

@@ -1,11 +1,5 @@
 use sottomano_widgets::{
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
         window_group::{WindowGroup, WindowTarget},
@@ -17,79 +11,62 @@ use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
     #[must_use]
-    pub fn hover_card_for(&self, target: &HoverTarget) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &HoverTarget) -> Vec<Section> {
         match target {
-            HoverTarget::PanelSettings(target) => Some(
-                self.widget_groups
-                    .panel_settings_group
-                    .hover_card_for(*target, self.clock),
-            ),
-            HoverTarget::AppearancePresets(target) => Some(
-                self.widget_groups
-                    .appearance_presets_group
-                    .hover_card_for(*target),
-            ),
-            HoverTarget::SidebarSettings(target) => Some(
-                self.widget_groups
-                    .sidebar_settings_group
-                    .hover_card_for(*target, self.clock),
-            ),
-            HoverTarget::OverlaySettings(target) => Some(
-                self.widget_groups
-                    .overlay_settings_group
-                    .hover_card_for(*target, self.clock),
-            ),
-            HoverTarget::Notification(target) => {
-                Some(self.widget_groups.notification_group.hover_card_for(
-                    *target,
-                    self.notification_status(),
-                    self.clock,
-                ))
-            }
-            HoverTarget::AppLauncher(target) => Some(
-                self.widget_groups
-                    .app_launcher_group
-                    .hover_card_for(target, self.clock),
-            ),
-            HoverTarget::GroupMenuSettings(target) => Some(
-                self.widget_groups
-                    .group_menus
-                    .settings_hover_card(*target, self.clock),
-            ),
-            HoverTarget::GroupMenu(_) | HoverTarget::GroupFace(_) => Some(HoverCard::sourced(
-                HoverCardBody::sections([]),
-                DeliveryTiming::LivePush,
-            )),
-            HoverTarget::Session(target) => Some(
-                self.widget_groups
-                    .session_power_group
-                    .hover_card_for(*target),
-            ),
+            HoverTarget::PanelSettings(target) => self
+                .widget_groups
+                .panel_settings_group
+                .hover_card_for(*target, self.clock),
+            HoverTarget::AppearancePresets(target) => self
+                .widget_groups
+                .appearance_presets_group
+                .hover_card_for(*target),
+            HoverTarget::SidebarSettings(target) => self
+                .widget_groups
+                .sidebar_settings_group
+                .hover_card_for(*target, self.clock),
+            HoverTarget::OverlaySettings(target) => self
+                .widget_groups
+                .overlay_settings_group
+                .hover_card_for(*target, self.clock),
+            HoverTarget::Notification(target) => self
+                .widget_groups
+                .notification_group
+                .hover_card_for(*target, self.notification_status(), self.clock),
+            HoverTarget::AppLauncher(target) => self
+                .widget_groups
+                .app_launcher_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::GroupMenuSettings(target) => self
+                .widget_groups
+                .group_menus
+                .settings_hover_card(*target, self.clock),
+            HoverTarget::GroupMenu(_)
+            | HoverTarget::GroupFace(_)
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => Vec::new(),
+            HoverTarget::Session(target) => self
+                .widget_groups
+                .session_power_group
+                .hover_card_for(*target),
             HoverTarget::Tray(address) => self.widget_groups.tray_group.hover_card_for(address),
             HoverTarget::GlobalMenu(target) => self
                 .widget_groups
                 .global_menu_group
                 .hover_card_for(target, self.clock),
-            HoverTarget::Window(WindowTarget::Inspect(_)) => Some(
-                self.widget_groups
-                    .window_group
-                    .inspect_hover_card(self.clock),
-            ),
+            HoverTarget::Window(WindowTarget::Inspect(_)) => self
+                .widget_groups
+                .window_group
+                .inspect_hover_card(self.clock),
             HoverTarget::Window(WindowTarget::Usage(window)) => {
-                let window_usage = self
-                    .widget_groups
-                    .session_focus_group
-                    .window_usage_hover_card(*window, &self.config, self.clock);
-                Some(
-                    match WindowGroup::window_identity_hover_card(
-                        &self.compositor,
-                        *window,
-                        self.clock,
-                    ) {
-                        Some(window_identity) => window_identity.with_groups(window_usage.groups),
-                        None => window_usage,
-                    },
-                )
+                let mut window_sections =
+                    WindowGroup::window_identity_hover_card(&self.compositor, *window, self.clock);
+                window_sections.extend(
+                    self.widget_groups
+                        .session_focus_group
+                        .window_usage_hover_card(*window, &self.config, self.clock),
+                );
+                window_sections
             }
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.window_snapshot,
@@ -99,12 +76,11 @@ impl DesktopShell {
                     .app_window_layout(),
                 *workspace,
             ),
-            HoverTarget::WorkspaceOrder | HoverTarget::WorkspaceFolding => Some(HoverCard::empty()),
             source_target => self.source_group_hover_card_for(source_target),
         }
     }
 
-    fn bluetooth_hover_card_for(&self, target: &BluetoothTarget) -> Option<HoverCard> {
+    fn bluetooth_hover_card_for(&self, target: &BluetoothTarget) -> Vec<Section> {
         self.widget_groups.bluetooth_adapters_group.hover_card_for(
             target,
             &|hardware_address| {
@@ -117,7 +93,7 @@ impl DesktopShell {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn source_group_hover_card_for(&self, target: &HoverTarget) -> Option<HoverCard> {
+    fn source_group_hover_card_for(&self, target: &HoverTarget) -> Vec<Section> {
         match target {
             HoverTarget::Compute(target) => self
                 .widget_groups
@@ -143,11 +119,10 @@ impl DesktopShell {
                 .widget_groups
                 .power_group
                 .hover_card_for(*target, self.clock),
-            HoverTarget::CompositorStyling(target) => Some(
-                self.widget_groups
-                    .compositor_styling_group
-                    .hover_card_for(*target, self.clock),
-            ),
+            HoverTarget::CompositorStyling(target) => self
+                .widget_groups
+                .compositor_styling_group
+                .hover_card_for(*target, self.clock),
             HoverTarget::Systemd(target) => self
                 .widget_groups
                 .systemd_manager_group
@@ -194,11 +169,10 @@ impl DesktopShell {
                 .widget_groups
                 .voice_dictation_group
                 .hover_card_for(*target, self.clock),
-            HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => Some(
-                self.widget_groups
-                    .idle_pause_groups
-                    .hover_card_for(*kind, self.clock),
-            ),
+            HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => self
+                .widget_groups
+                .idle_pause_groups
+                .hover_card_for(*kind, self.clock),
             HoverTarget::PauseBlocker(target) => self
                 .widget_groups
                 .idle_pause_groups
@@ -315,13 +289,10 @@ impl DesktopShell {
                 .widget_groups
                 .ci_runs_group
                 .hover_card_for(target, self.clock),
-            HoverTarget::SessionFocus(target) => {
-                Some(self.widget_groups.session_focus_group.hover_card_for(
-                    *target,
-                    &self.config,
-                    self.clock,
-                ))
-            }
+            HoverTarget::SessionFocus(target) => self
+                .widget_groups
+                .session_focus_group
+                .hover_card_for(*target, &self.config, self.clock),
             HoverTarget::LoginSession(target) => self
                 .widget_groups
                 .login_session_group
@@ -349,7 +320,7 @@ impl DesktopShell {
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
             | HoverTarget::WorkspaceOrder
-            | HoverTarget::WorkspaceFolding => None,
+            | HoverTarget::WorkspaceFolding => Vec::new(),
         }
     }
 }

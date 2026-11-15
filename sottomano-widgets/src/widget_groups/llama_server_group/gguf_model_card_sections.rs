@@ -4,7 +4,7 @@ use sottomano_desktop_sources::ai_usage_spend::gguf_header_model_card::{
 
 use crate::{
     clock::Clock,
-    hover_cards::hover_card_body::{ReadingSections, Section},
+    hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
     widgets::{
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
@@ -51,42 +51,44 @@ fn license_cell(card: &GgufModelCard) -> Option<ValueCell> {
     })
 }
 
+fn gguf_metadata_table(card: &GgufModelCard) -> SectionTable {
+    let identity_rows = [
+        filled_text(&card.name).map(|model_name| LabeledValue::new("Name", model_name)),
+        filled_text(&card.size_label)
+            .map(|parameter_count| LabeledValue::new("Parameters", parameter_count)),
+        license_cell(card).map(|license_cell| LabeledValue::new("License", license_cell)),
+        filled_text(&card.quantized_by)
+            .map(|quantizer_name| LabeledValue::new("Quantized by", quantizer_name)),
+        repository_link(&card.repository_url)
+            .map(|repository_link| LabeledValue::new("GGUF repository", repository_link)),
+        repository_link(&card.source_url)
+            .map(|source_link| LabeledValue::new("Source", source_link)),
+    ]
+    .into_iter()
+    .flatten();
+    let lineage_rows = card.base_models.iter().map(base_model_row);
+    let tags = (!card.tags.is_empty()).then(|| LabeledValue::new("Tags", card.tags.join(", ")));
+    let description = filled_text(&card.description).map(|description| {
+        LabeledValue::new("Description", ValueCell::Hint(description.to_owned()))
+    });
+    dictionary_table(
+        identity_rows
+            .chain(lineage_rows)
+            .chain(tags)
+            .chain(description),
+    )
+}
+
 impl ReadingSections for GgufModelCard {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let identity_rows = [
-            filled_text(&self.name).map(|model_name| LabeledValue::new("Name", model_name)),
-            filled_text(&self.size_label)
-                .map(|parameter_count| LabeledValue::new("Parameters", parameter_count)),
-            license_cell(self).map(|license_cell| LabeledValue::new("License", license_cell)),
-            filled_text(&self.quantized_by)
-                .map(|quantizer_name| LabeledValue::new("Quantized by", quantizer_name)),
-            repository_link(&self.repository_url)
-                .map(|repository_link| LabeledValue::new("GGUF repository", repository_link)),
-            repository_link(&self.source_url)
-                .map(|source_link| LabeledValue::new("Source", source_link)),
-        ]
-        .into_iter()
-        .flatten();
-        let lineage_rows = self.base_models.iter().map(base_model_row);
-        let tags = (!self.tags.is_empty()).then(|| LabeledValue::new("Tags", self.tags.join(", ")));
-        let description = filled_text(&self.description).map(|description| {
-            LabeledValue::new("Description", ValueCell::Hint(description.to_owned()))
-        });
-        vec![Section::dictionary(
-            identity_rows
-                .chain(lineage_rows)
-                .chain(tags)
-                .chain(description),
-        )]
+        vec![Section::new("GGUF metadata", gguf_metadata_table(self))]
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        hover_cards::hover_card_body::SectionBody, widgets::keyed_record_table::RecordCells,
-    };
+    use crate::widgets::keyed_record_table::RecordCells;
 
     #[test]
     fn base_models_link_to_their_hugging_face_repository() {
@@ -100,10 +102,7 @@ mod tests {
             }],
             ..GgufModelCard::default()
         };
-        let sections = card.sections(Clock::real());
-        let SectionBody::ColumnTable(table) = sections[0].body() else {
-            panic!("expected a table");
-        };
+        let table = gguf_metadata_table(&card);
         let keys: Vec<&ValueCell> = table.records().map(RecordCells::key).collect();
         assert_eq!(
             keys,

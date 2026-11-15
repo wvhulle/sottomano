@@ -24,7 +24,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
         process_usage_cells::{approximate_memory_text, uptime_entry},
@@ -35,8 +35,8 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -82,11 +82,14 @@ impl GroupItemReading for StoppedVirtualBoxMachineRow<'_> {
         ReadingDisplayState::Off
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", "stopped"),
-            LabeledValue::new("UUID", self.machine.machine_uuid.clone()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("State", "stopped"),
+                LabeledValue::new("UUID", self.machine.machine_uuid.clone()),
+            ]),
+        )]
     }
 }
 
@@ -117,12 +120,15 @@ impl GroupItemReading for VirtualBoxMachineListingRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([
-            LabeledValue::new("State", "running"),
-            LabeledValue::new("Machine", self.listing.machine_reference.clone()),
-            LabeledValue::new("PID", self.listing.pid.to_string()),
-        ])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("State", "running"),
+                LabeledValue::new("Machine", self.listing.machine_reference.clone()),
+                LabeledValue::new("PID", self.listing.pid.to_string()),
+            ]),
+        )]
     }
 }
 
@@ -147,7 +153,7 @@ impl GroupItemReading for VirtualBoxMachineRow<'_> {
         ReadingDisplayState::On
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let machine = self.machine;
         let mut detail_entries = vec![
             LabeledValue::new(
@@ -176,7 +182,7 @@ impl GroupItemReading for VirtualBoxMachineRow<'_> {
             LabeledValue::new("Machine", machine.machine_reference.clone()),
             LabeledValue::new("PID", machine.pid.to_string()),
         ]);
-        HoverCardBody::dictionary(detail_entries)
+        vec![Section::new("Machine", dictionary_table(detail_entries))]
     }
 }
 
@@ -272,37 +278,38 @@ impl VirtualBoxMachinesGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &VirtualBoxMachineTarget,
-        clock: Clock,
-    ) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &VirtualBoxMachineTarget, clock: Clock) -> Vec<Section> {
         let pid = match target {
             VirtualBoxMachineTarget::RunningProcess { pid } => *pid,
             VirtualBoxMachineTarget::StoppedMachine { machine_uuid } => {
-                let machine = self
-                    .listings
-                    .get()?
-                    .stopped_machines
-                    .iter()
-                    .find(|machine| machine.machine_uuid == machine_uuid.as_ref())?;
+                let Some(machine) = self.listings.get().and_then(|listings| {
+                    listings
+                        .stopped_machines
+                        .iter()
+                        .find(|machine| machine.machine_uuid == machine_uuid.as_ref())
+                }) else {
+                    return Vec::new();
+                };
                 return self
                     .listings
                     .hover_card_with(StoppedVirtualBoxMachineRow { machine }.hover_card(clock));
             }
         };
         if let Some(detail) = self.detail.get() {
-            let machine = detail.machines.iter().find(|machine| machine.pid == pid)?;
+            let Some(machine) = detail.machines.iter().find(|machine| machine.pid == pid) else {
+                return Vec::new();
+            };
             return self
                 .detail
                 .hover_card_with(VirtualBoxMachineRow { machine }.hover_card(clock));
         }
-        let listing = self
+        let Some(listing) = self
             .listings
-            .get()?
-            .listings
-            .iter()
-            .find(|listing| listing.pid == pid)?;
+            .get()
+            .and_then(|listings| listings.listings.iter().find(|listing| listing.pid == pid))
+        else {
+            return Vec::new();
+        };
         self.listings
             .hover_card_with(VirtualBoxMachineListingRow { listing }.hover_card(clock))
     }
@@ -416,17 +423,20 @@ impl GroupItemReading for VirtualBoxMachinesGroup {
             .map_or(ReadingDisplayState::Off, |_| ReadingDisplayState::On)
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![LabeledValue::new(
-                        "Running",
-                        probe.running_count.to_string(),
-                    )]
-                })
-                .unwrap_or_default(),
-        )
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        vec![Section::new(
+            "Counts",
+            dictionary_table(
+                self.probe
+                    .get()
+                    .map(|probe| {
+                        vec![LabeledValue::new(
+                            "Running",
+                            probe.running_count.to_string(),
+                        )]
+                    })
+                    .unwrap_or_default(),
+            ),
+        )]
     }
 }

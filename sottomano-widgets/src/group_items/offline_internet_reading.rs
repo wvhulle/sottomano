@@ -5,7 +5,6 @@ use sottomano_desktop_sources::{
     SnapshotSource, ai_usage_spend::usage_quota::Quota,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
-use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -15,33 +14,16 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        HoverCardBody, Section,
-        hover_card_source_delivery::{DeliveryTiming, SnapshotFreshness},
+        Section,
+        hover_card_source_delivery::{DeliveryStamp, SnapshotFreshness, SourceDelivery},
     },
-    widgets::{icon_glyph::IconGlyph, value_cells::LabeledValue},
+    widgets::icon_glyph::IconGlyph,
 };
-
-impl From<InternetUnreachable> for Section {
-    fn from(offline_reason: InternetUnreachable) -> Self {
-        Section::dictionary([
-            LabeledValue::new("Offline", offline_reason.to_string()).level(Severity::Warning)
-        ])
-    }
-}
 
 pub struct OfflineSnapshot<S> {
     pub held_snapshot: S,
     pub offline_reason: Box<InternetUnreachable>,
-    pub delivery_timing: DeliveryTiming,
-}
-
-impl<S> OfflineSnapshot<S> {
-    pub fn offline_sections(&self, clock: Clock) -> Vec<Section> {
-        match self.delivery_timing.freshness_at(clock) {
-            SnapshotFreshness::Fresh => Vec::new(),
-            SnapshotFreshness::PastPollPeriod => vec![(*self.offline_reason).clone().into()],
-        }
-    }
+    pub delivery_timing: DeliveryStamp,
 }
 
 impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
@@ -84,10 +66,8 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.quota_windows(now)
     }
 
-    fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        self.held_snapshot
-            .hover_card(clock)
-            .with_sections(self.offline_sections(clock))
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        self.held_snapshot.hover_card(clock)
     }
 }
 
@@ -99,6 +79,20 @@ pub enum PlaceholderCause {
 pub struct SnapshotPlaceholder<S> {
     pub placeholder_cause: PlaceholderCause,
     pub placeholder_source: PhantomData<S>,
+}
+
+impl<S: SnapshotSource> SnapshotPlaceholder<S> {
+    #[must_use]
+    pub fn source_state(&self) -> Section {
+        match &self.placeholder_cause {
+            PlaceholderCause::Offline(offline_reason) => {
+                Section::source_state::<S>(SourceDelivery::Offline, offline_reason.to_string())
+            }
+            PlaceholderCause::AwaitingFirstSnapshot => {
+                Section::source_state::<S>(SourceDelivery::Loading, "")
+            }
+        }
+    }
 }
 
 impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlaceholder<S> {
@@ -117,10 +111,7 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([match &self.placeholder_cause {
-            PlaceholderCause::Offline(offline_reason) => offline_reason.clone().into(),
-            PlaceholderCause::AwaitingFirstSnapshot => Section::section_seeding(),
-        }])
+    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        Vec::new()
     }
 }
