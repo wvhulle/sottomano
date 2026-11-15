@@ -133,7 +133,7 @@ impl ChargerSupply {
         ready(Ok(ChargerSupply {
             limit: list_dir(POWER_SUPPLY)
                 .iter()
-                .find_map(|supply| ChargerLimit::of_supply(supply)),
+                .find_map(|supply| ChargerLimit::read_online_supply(supply)),
         }))
     }
 }
@@ -150,7 +150,7 @@ impl ChargerLimit {
         self.voltage * self.current
     }
 
-    fn of_supply(dir: &Path) -> Option<Self> {
+    fn read_online_supply(dir: &Path) -> Option<Self> {
         let online = read_trimmed(dir.join("online")).is_some_and(|online| online == "1");
         let limit = ChargerLimit {
             voltage: ElectricPotential::new::<microvolt>(read_i64(dir.join("voltage_max"))? as f64),

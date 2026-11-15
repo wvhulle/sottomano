@@ -48,13 +48,6 @@ pub enum VirtualBoxMachineTarget {
     StoppedMachine { machine_uuid: Cow<'static, str> },
 }
 
-impl VirtualBoxMachineTarget {
-    #[must_use]
-    pub const fn of_pid(pid: i32) -> Self {
-        Self::RunningProcess { pid }
-    }
-}
-
 struct StoppedVirtualBoxMachineRow<'a> {
     machine: &'a RegisteredVirtualBoxMachine,
 }
@@ -362,7 +355,7 @@ impl VirtualBoxMachinesGroup {
                 .map(|machine| {
                     GroupItem::reading(
                         VirtualBoxMachineRow { machine },
-                        VirtualBoxMachineTarget::of_pid(machine.pid),
+                        VirtualBoxMachineTarget::RunningProcess { pid: machine.pid },
                     )
                     .on_switch_press(
                         SwitchPosition::On,
@@ -383,7 +376,7 @@ impl VirtualBoxMachinesGroup {
                     .map(|listing| {
                         GroupItem::reading(
                             VirtualBoxMachineListingRow { listing },
-                            VirtualBoxMachineTarget::of_pid(listing.pid),
+                            VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
                         )
                         .on_switch_press(
                             SwitchPosition::On,

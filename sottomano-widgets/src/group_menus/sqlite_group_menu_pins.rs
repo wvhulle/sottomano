@@ -41,7 +41,7 @@ async fn read_pins(
             (),
         )
         .await?;
-    let group_columns = Columns::of(&group_rows);
+    let group_columns = Columns::from(&group_rows);
     while let Some(row) = group_rows.next().await? {
         pins.insert(StoredGroupMenuPin::Group {
             menu_topic: group_columns.text(&row, "menu_topic")?,
@@ -55,7 +55,7 @@ async fn read_pins(
             (),
         )
         .await?;
-    let item_columns = Columns::of(&item_rows);
+    let item_columns = Columns::from(&item_rows);
     while let Some(row) = item_rows.next().await? {
         pins.insert(StoredGroupMenuPin::Item {
             menu_topic: item_columns.text(&row, "menu_topic")?,

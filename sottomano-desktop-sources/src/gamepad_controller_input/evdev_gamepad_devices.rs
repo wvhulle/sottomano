@@ -166,7 +166,7 @@ pub enum GamepadOrigin {
 }
 
 impl GamepadOrigin {
-    fn of_input_node(slot: usize, device: &Device) -> Self {
+    fn probe_input_node(slot: usize, device: &Device) -> Self {
         kernel_device_of_input_node(slot).map_or(GamepadOrigin::Virtual, |kernel_device| {
             GamepadOrigin::Physical(PhysicalGamepadLink {
                 kernel_device,
@@ -318,7 +318,7 @@ impl GamepadEventTranslator {
         }
     }
 
-    fn of_device(slot: usize, device: &Device) -> Self {
+    fn probe_device_axes(slot: usize, device: &Device) -> Self {
         let ranges = device
             .get_absinfo()
             .into_iter()
@@ -571,7 +571,7 @@ fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
                 slot,
                 name: device.name().unwrap_or("Game controller").to_owned(),
                 vendor_id: device.input_id().vendor(),
-                origin: GamepadOrigin::of_input_node(slot, &device),
+                origin: GamepadOrigin::probe_input_node(slot, &device),
             })
         })
         .collect();
@@ -584,7 +584,7 @@ fn gamepad_events(
 ) -> impl Stream<Item = RawGamepadEvent> + Send + use<> {
     let opened_device = Device::open(gamepad.input_node())
         .and_then(|device| {
-            let translator = GamepadEventTranslator::of_device(gamepad.slot, &device);
+            let translator = GamepadEventTranslator::probe_device_axes(gamepad.slot, &device);
             Ok(OpenedGamepad {
                 translator,
                 events: device.into_event_stream()?,

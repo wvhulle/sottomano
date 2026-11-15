@@ -74,7 +74,7 @@ fn forgejo_tasks(
             })),
             images: images_of(&containers),
             usage: TaskUsage::from(containers.as_slice()),
-            stop_control: TaskStopControl::of_containers(engine_socket, &containers),
+            stop_control: TaskStopControl::stopping_containers(engine_socket, &containers),
         })
         .collect()
 }

@@ -41,14 +41,7 @@ const CGTOP_PRESS_HINT: &str = "watch it in systemd-cgtop";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CgroupMemoryLimitTarget {
-    cgroup_path: Cow<'static, str>,
-}
-
-impl CgroupMemoryLimitTarget {
-    #[must_use]
-    pub const fn of_cgroup(cgroup_path: Cow<'static, str>) -> Self {
-        Self { cgroup_path }
-    }
+    pub cgroup_path: Cow<'static, str>,
 }
 
 impl From<CgroupMemoryLimitTarget> for HoverTarget {
@@ -252,7 +245,9 @@ impl CgroupMemoryLimitsGroup {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(
                 self.cgroup_row(cgroup),
-                CgroupMemoryLimitTarget::of_cgroup(Cow::Owned(cgroup.cgroup_path.clone())),
+                CgroupMemoryLimitTarget {
+                    cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
+                },
             )
             .on_press(
                 CGTOP_PRESS_HINT,

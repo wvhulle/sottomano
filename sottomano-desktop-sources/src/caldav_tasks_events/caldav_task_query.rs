@@ -22,7 +22,7 @@ pub enum PriorityBand {
 
 impl PriorityBand {
     #[must_use]
-    pub fn of_ical_priority(priority: u32) -> Option<Self> {
+    pub fn banded_ical_priority(priority: u32) -> Option<Self> {
         match priority {
             1..=4 => Some(PriorityBand::High),
             5 => Some(PriorityBand::Medium),
@@ -78,7 +78,7 @@ impl TaskPriority {
     #[must_use]
     pub fn band(self) -> Option<PriorityBand> {
         match self {
-            TaskPriority::Ranked(priority) => PriorityBand::of_ical_priority(priority),
+            TaskPriority::Ranked(priority) => PriorityBand::banded_ical_priority(priority),
             TaskPriority::Unranked => None,
         }
     }
@@ -174,7 +174,7 @@ fn open_task(object_href: &str, todo: &Todo, calendar_name: &str) -> OpenTask {
         calendar: calendar_name.to_owned(),
         object_href: object_href.to_owned(),
         deadline: todo.get_due().map_or(TaskDeadline::Undated, |due| {
-            TaskDeadline::Due(AgendaMoment::of(due))
+            TaskDeadline::Due(AgendaMoment::from(due))
         }),
         priority: todo
             .get_priority()
@@ -262,9 +262,12 @@ mod tests {
         assert_eq!(tasks[0].priority.band(), Some(PriorityBand::High));
         assert_eq!(tasks[2].priority.band(), None);
         assert_eq!(
-            PriorityBand::of_ical_priority(5),
+            PriorityBand::banded_ical_priority(5),
             Some(PriorityBand::Medium)
         );
-        assert_eq!(PriorityBand::of_ical_priority(7), Some(PriorityBand::Low));
+        assert_eq!(
+            PriorityBand::banded_ical_priority(7),
+            Some(PriorityBand::Low)
+        );
     }
 }

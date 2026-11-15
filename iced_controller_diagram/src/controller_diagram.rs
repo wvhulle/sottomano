@@ -146,7 +146,7 @@ impl<'a, Message: 'a> From<ControllerDiagram<'a, Message>>
             .zip(&layout.tops)
             .map(|(callout, &top)| {
                 (
-                    CalloutSide::of(diagram.model, callout.anchor),
+                    CalloutSide::nearest_body_half(diagram.model, callout.anchor),
                     top,
                     callout.label,
                 )

@@ -36,7 +36,7 @@ async fn read_covariances(
             (battery,),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut entries: HashMap<String, Vec<(usize, usize, f64)>> = HashMap::new();
     while let Some(row) = rows.next().await? {
         let index_of =
@@ -77,7 +77,7 @@ async fn read_models(
             (battery,),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut states = HashMap::new();
     while let Some(row) = rows.next().await? {
         let profile_name = columns.text(&row, "profile")?;

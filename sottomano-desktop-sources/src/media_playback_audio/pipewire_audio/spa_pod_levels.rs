@@ -102,7 +102,7 @@ pub(super) fn parse_route(pod: &Pod) -> Option<RouteLevels> {
     Some(RouteLevels {
         index: route_number(&object, SPA_PARAM_ROUTE_index, "index")?,
         route_device: route_number(&object, SPA_PARAM_ROUTE_device, "device")?,
-        port_kind: route_info_value(&object, "port.type").and_then(OutputKind::of_port_type),
+        port_kind: route_info_value(&object, "port.type").and_then(OutputKind::port_type_kind),
         update: nested_props(&object)
             .as_ref()
             .map(levels_update)

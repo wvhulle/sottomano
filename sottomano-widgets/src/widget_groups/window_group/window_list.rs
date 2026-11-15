@@ -296,7 +296,7 @@ impl WindowList {
                     self.process_tree.sections_described_by(|tree| {
                         let kept = self
                             .window_processes
-                            .of_window(*window)
+                            .window_terminal_pids(*window)
                             .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
                         vec![Section::new(
                             "Processes",

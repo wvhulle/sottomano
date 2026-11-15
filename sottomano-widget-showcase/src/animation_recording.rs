@@ -112,7 +112,7 @@ impl<'session> DemoRecorder<'session> {
     }
 
     fn top_right_pixel(&mut self) -> [u8; 4] {
-        let top_right = (usize::from(FrameSize::of_canvas(self.canvas).width) - 1) * 4;
+        let top_right = (usize::from(FrameSize::from(self.canvas).width) - 1) * 4;
         self.screenshot()[top_right..top_right + 4]
             .try_into()
             .expect("a pixel has four channels")
@@ -318,7 +318,7 @@ impl<'session> DemoRecorder<'session> {
             content: ContentRows::differing_from(
                 self.background,
                 &rgba,
-                FrameSize::of_canvas(self.canvas),
+                FrameSize::from(self.canvas),
             ),
             captured_at: self.clock.instant,
         }
@@ -444,8 +444,8 @@ struct FrameSize {
     height: u16,
 }
 
-impl FrameSize {
-    fn of_canvas(canvas: Size) -> Self {
+impl From<Size> for FrameSize {
+    fn from(canvas: Size) -> Self {
         let physical = |logical: f32| {
             let pixels = (logical * SCALE_FACTOR).round();
             u16::try_from(pixels as u32).expect("canvas fits a GIF")
@@ -600,7 +600,7 @@ impl RecordingSession {
             opening.into_iter().chain(scripted).chain(closing).collect();
         let crop = ContentCrop::around_content(
             &frames,
-            FrameSize::of_canvas(demo.backdrop.canvas()),
+            FrameSize::from(demo.backdrop.canvas()),
             recorder.background,
             margin_pixels,
         );

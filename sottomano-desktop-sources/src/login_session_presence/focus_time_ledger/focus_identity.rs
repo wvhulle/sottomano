@@ -21,7 +21,10 @@ pub struct FocusIdentity {
 
 impl FocusIdentity {
     #[must_use]
-    pub fn of(compositor: &CompositorWindowState, processes: &WindowProcesses) -> Option<Self> {
+    pub fn focused_window_identity(
+        compositor: &CompositorWindowState,
+        processes: &WindowProcesses,
+    ) -> Option<Self> {
         let window = compositor.focused_window()?;
         let app_id = window.app_id.clone().filter(|app_id| !app_id.is_empty())?;
         Some(Self {

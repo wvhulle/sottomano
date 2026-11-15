@@ -230,7 +230,7 @@ pub struct HiddenScrollEdges {
 
 impl HiddenScrollEdges {
     #[must_use]
-    pub fn of(scrolled_px: f32, content_span: f32, visible_span: f32) -> Self {
+    pub fn clamped_scroll_overflow(scrolled_px: f32, content_span: f32, visible_span: f32) -> Self {
         let max_scrolled = (content_span - visible_span).max(0.0);
         let scrolled = scrolled_px.clamp(0.0, max_scrolled);
         Self {
@@ -277,7 +277,8 @@ mod tests {
     #[test]
     fn only_edges_with_hidden_content_are_faded() {
         let hidden = |scrolled_px, content_span, visible_span| {
-            let edges = HiddenScrollEdges::of(scrolled_px, content_span, visible_span);
+            let edges =
+                HiddenScrollEdges::clamped_scroll_overflow(scrolled_px, content_span, visible_span);
             [edges.start, edges.end]
         };
         assert_eq!(hidden(0.0, 80.0, 100.0), [false, false]);
@@ -288,7 +289,7 @@ mod tests {
 
     #[test]
     fn subpixel_overflow_draws_no_fade() {
-        let edges = HiddenScrollEdges::of(0.0, 100.25, 100.0);
+        let edges = HiddenScrollEdges::clamped_scroll_overflow(0.0, 100.25, 100.0);
         assert_eq!([edges.start, edges.end], [false, false]);
     }
 

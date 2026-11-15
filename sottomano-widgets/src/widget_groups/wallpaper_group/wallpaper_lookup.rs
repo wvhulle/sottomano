@@ -33,13 +33,12 @@ pub struct Lookup {
     pub(super) photo: Photo,
 }
 
-impl Lookup {
-    #[must_use]
-    pub fn of(wallpaper: &Wallpaper) -> Self {
+impl From<&Wallpaper> for Lookup {
+    fn from(wallpaper: &Wallpaper) -> Self {
         Self {
-            place: Place::of(wallpaper),
-            article: Article::of(wallpaper),
-            photo: Photo::of(wallpaper),
+            place: Place::wallpaper_place(wallpaper),
+            article: wallpaper.article.as_ref().map(Article::from),
+            photo: Photo::from(wallpaper),
         }
     }
 }
@@ -102,12 +101,12 @@ fn displayed_lookups(
     match credited_photo {
         Err(settled) => stream::iter([settled]).left_stream(),
         Ok((path, id)) => {
-            let unresolved = Lookup::of(&wallpaper_place_article::unresolved(&path, &id));
+            let unresolved = Lookup::from(&wallpaper_place_article::unresolved(&path, &id));
             let resolved = async move {
                 SnapshotDelivery::live_push(
                     wallpaper_place_article::resolve(path, id, &unsplash_key)
                         .await
-                        .map(|wallpaper| Lookup::of(&wallpaper))
+                        .map(|wallpaper| Lookup::from(&wallpaper))
                         .map_err(Failure::Resolve),
                 )
             };

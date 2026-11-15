@@ -233,7 +233,7 @@ async fn sender_process(connection: &Connection, header: &Header<'_>) -> OwnerPr
         .build()
         .await;
     match dbus {
-        Ok(dbus) => OwnerProcess::of_bus(&dbus, BusName::from(sender.clone())).await,
+        Ok(dbus) => OwnerProcess::query_bus_owner(&dbus, BusName::from(sender.clone())).await,
         Err(e) => {
             tracing::debug!("notifications: bus proxy: {e}");
             OwnerProcess::Unidentified

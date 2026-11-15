@@ -36,14 +36,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlatpakSandboxTarget {
-    instance_id: Cow<'static, str>,
-}
-
-impl FlatpakSandboxTarget {
-    #[must_use]
-    pub const fn of_instance(instance_id: Cow<'static, str>) -> Self {
-        Self { instance_id }
-    }
+    pub instance_id: Cow<'static, str>,
 }
 
 impl From<FlatpakSandboxTarget> for HoverTarget {
@@ -189,7 +182,9 @@ impl ContainerFamily for FlatpakFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: FlatpakSandboxTarget::of_instance(Cow::Owned(listing.instance_id.clone())),
+                target: FlatpakSandboxTarget {
+                    instance_id: Cow::Owned(listing.instance_id.clone()),
+                },
                 reading: FlatpakSandboxListingRow { listing },
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
@@ -201,7 +196,9 @@ impl ContainerFamily for FlatpakFamily {
             .sandboxes
             .iter()
             .map(|sandbox| FamilyRow {
-                target: FlatpakSandboxTarget::of_instance(Cow::Owned(sandbox.instance_id.clone())),
+                target: FlatpakSandboxTarget {
+                    instance_id: Cow::Owned(sandbox.instance_id.clone()),
+                },
                 reading: FlatpakSandboxRow { sandbox },
                 power: RowPower::Stoppable(sandbox.instance_id.clone()),
             })

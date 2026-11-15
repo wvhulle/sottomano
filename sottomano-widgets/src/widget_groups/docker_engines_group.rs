@@ -51,14 +51,11 @@ pub enum DockerEngineTarget {
     HiddenContainers,
 }
 
-impl DockerEngineTarget {
-    #[must_use]
-    pub const fn of_socket(socket_path: Cow<'static, str>) -> Self {
-        Self::Engine { socket_path }
-    }
-
-    fn of_engine(engine: &DockerEngineSocket) -> Self {
-        Self::of_socket(Cow::Owned(engine.socket_path.display().to_string()))
+impl From<&DockerEngineSocket> for DockerEngineTarget {
+    fn from(engine: &DockerEngineSocket) -> Self {
+        Self::Engine {
+            socket_path: Cow::Owned(engine.socket_path.display().to_string()),
+        }
     }
 }
 
@@ -414,7 +411,7 @@ impl DockerEnginesGroup {
                 Some(EngineReadout::Unreadable(EngineReadError::SocketMissing)) => {}
                 Some(EngineReadout::Unreadable(failure)) => failure_rows.push(GroupItem::reading(
                     UnreadableEngineRow { engine, failure },
-                    DockerEngineTarget::of_engine(engine),
+                    DockerEngineTarget::from(engine),
                 )),
                 None => running_rows.extend(self.listed_rows(engine)),
             }

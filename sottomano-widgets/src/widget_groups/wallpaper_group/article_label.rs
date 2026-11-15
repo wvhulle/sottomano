@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
+use sottomano_desktop_sources::wallpaper_place_article::WikipediaArticle;
 
 use crate::{
     clock::Clock,
@@ -59,13 +59,12 @@ impl GroupItemReading for Article {
     }
 }
 
-impl Article {
-    pub(super) fn of(wallpaper: &Wallpaper) -> Option<Self> {
-        let article = wallpaper.article.as_ref()?;
-        Some(Self {
+impl From<&WikipediaArticle> for Article {
+    fn from(article: &WikipediaArticle) -> Self {
+        Self {
             title: article.title.clone(),
             url: article.url.clone(),
             summary: article.summary.clone(),
-        })
+        }
     }
 }

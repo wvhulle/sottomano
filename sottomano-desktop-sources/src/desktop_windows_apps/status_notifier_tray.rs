@@ -56,10 +56,10 @@ impl IconSource {
                 tracing::warn!("tray icon: {trim_failure}");
             })
             .ok()?;
-        Some(Self::of_trimmed_theme_file(theme_file, trimmed_icon))
+        Some(Self::classified_theme_icon(theme_file, trimmed_icon))
     }
 
-    fn of_trimmed_theme_file(theme_file: &Path, trimmed_icon: TrimmedIcon) -> Self {
+    fn classified_theme_icon(theme_file: &Path, trimmed_icon: TrimmedIcon) -> Self {
         let is_symbolic_file_name = theme_file
             .file_stem()
             .and_then(|file_stem| file_stem.to_str())
@@ -78,7 +78,7 @@ pub struct Tip {
 }
 
 impl Tip {
-    fn of(title: String, description: String) -> Option<Self> {
+    fn non_empty_tip(title: String, description: String) -> Option<Self> {
         let tip = Self {
             title: non_empty(title),
             body: non_empty(description),
@@ -224,7 +224,7 @@ fn resolve_visual(
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
     let tip = item.tool_tip.as_ref()?;
-    Tip::of(tip.title.clone(), tip.description.clone())
+    Tip::non_empty_tip(tip.title.clone(), tip.description.clone())
 }
 
 fn build_item(
@@ -269,7 +269,7 @@ impl TrayOwnerLookup {
 
     async fn owner_of(&self, address: &str) -> OwnerProcess {
         match BusName::try_from(address) {
-            Ok(bus_name) => OwnerProcess::of_bus(&self.0, bus_name).await,
+            Ok(bus_name) => OwnerProcess::query_bus_owner(&self.0, bus_name).await,
             Err(_) => OwnerProcess::Unidentified,
         }
     }
@@ -459,7 +459,8 @@ fn apply(
                 UpdateEvent::Status(status) => item.status = status,
                 UpdateEvent::Title(title) => item.title = title.and_then(non_empty),
                 UpdateEvent::Tooltip(tooltip) => {
-                    item.tooltip = tooltip.and_then(|tip| Tip::of(tip.title, tip.description));
+                    item.tooltip =
+                        tooltip.and_then(|tip| Tip::non_empty_tip(tip.title, tip.description));
                 }
                 UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_) => {
                     item.menu = menu.unwrap_or_default();
@@ -514,7 +515,7 @@ mod tests {
     fn symbolic_svg_is_tinted_by_the_panel() {
         let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune-symbolic.svg");
         assert_eq!(
-            IconSource::of_trimmed_theme_file(
+            IconSource::classified_theme_icon(
                 theme_file,
                 TrimmedIcon::Svg(placeholder_svg_bytes())
             ),
@@ -526,7 +527,7 @@ mod tests {
     fn full_colour_svg_keeps_its_colours() {
         let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune.svg");
         assert_eq!(
-            IconSource::of_trimmed_theme_file(
+            IconSource::classified_theme_icon(
                 theme_file,
                 TrimmedIcon::Svg(placeholder_svg_bytes())
             ),
@@ -539,7 +540,7 @@ mod tests {
         let theme_file = Path::new("/absent/icons/network-wireless-symbolic.png");
         let decoded_pixels = Arc::new(RgbaImage::new(4, 4));
         assert_eq!(
-            IconSource::of_trimmed_theme_file(
+            IconSource::classified_theme_icon(
                 theme_file,
                 TrimmedIcon::Raster(decoded_pixels.clone())
             ),

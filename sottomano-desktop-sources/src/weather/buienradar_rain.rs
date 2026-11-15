@@ -73,13 +73,15 @@ pub enum RainOutlook {
     OutlastsForecastUntil(DateTime<Local>),
 }
 
-impl RainOutlook {
-    fn of(forecast: &[Downpour]) -> Self {
-        Self::of_rain_above(forecast, Velocity::default())
+impl From<&[Downpour]> for RainOutlook {
+    fn from(forecast: &[Downpour]) -> Self {
+        Self::rain_above_threshold(forecast, Velocity::default())
     }
+}
 
+impl RainOutlook {
     #[must_use]
-    pub fn of_rain_above(forecast: &[Downpour], threshold: Velocity) -> Self {
+    pub fn rain_above_threshold(forecast: &[Downpour], threshold: Velocity) -> Self {
         let Some((now, later)) = forecast.split_first() else {
             return RainOutlook::Dry;
         };
@@ -181,7 +183,7 @@ impl Rain {
         Some(Rain {
             intensity: forecast.first()?.intensity,
             peak,
-            outlook: RainOutlook::of(&forecast),
+            outlook: RainOutlook::from(forecast.as_slice()),
             forecast,
         })
     }
@@ -256,7 +258,7 @@ mod tests {
             ("2026-09-27T11:15:00", 0.0),
         ]);
         assert_eq!(
-            RainOutlook::of(&forecast),
+            RainOutlook::from(forecast.as_slice()),
             RainOutlook::StartsAt(september_27_utc(11, 10))
         );
     }
@@ -269,7 +271,7 @@ mod tests {
             ("2026-09-28T00:00:00", 0.0),
         ]);
         assert_eq!(
-            RainOutlook::of(&forecast),
+            RainOutlook::from(forecast.as_slice()),
             RainOutlook::StopsAt(september_27_utc(23, 50) + TimeDelta::minutes(10))
         );
     }
@@ -279,7 +281,7 @@ mod tests {
         let forecast =
             decoded_forecast(&[("2026-09-27T11:00:00", 1.2), ("2026-09-27T11:05:00", 1.2)]);
         assert_eq!(
-            RainOutlook::of(&forecast),
+            RainOutlook::from(forecast.as_slice()),
             RainOutlook::OutlastsForecastUntil(september_27_utc(11, 5))
         );
     }
@@ -288,6 +290,6 @@ mod tests {
     fn no_rain_in_the_forecast_is_dry() {
         let forecast =
             decoded_forecast(&[("2026-09-27T11:00:00", 0.0), ("2026-09-27T11:05:00", 0.0)]);
-        assert_eq!(RainOutlook::of(&forecast), RainOutlook::Dry);
+        assert_eq!(RainOutlook::from(forecast.as_slice()), RainOutlook::Dry);
     }
 }

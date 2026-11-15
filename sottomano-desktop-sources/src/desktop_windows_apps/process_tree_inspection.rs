@@ -97,20 +97,6 @@ impl Process {
             Duration::ZERO
         })
     }
-
-    fn of(process: &Proc, stat: Stat, uptime: Duration, cpu: Ratio) -> Self {
-        Self {
-            pid: stat.pid,
-            parent: stat.ppid,
-            memory: ByteSize::b(stat.rss_bytes().get()),
-            cpu,
-            threads: u64::try_from(stat.num_threads)
-                .expect("the kernel never reports a negative thread count"),
-            uptime,
-            name: binary_name(process).unwrap_or(stat.comm),
-            children: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -138,8 +124,8 @@ struct Incarnation {
     started: u64,
 }
 
-impl Incarnation {
-    fn of(stat: &Stat) -> Self {
+impl From<&Stat> for Incarnation {
+    fn from(stat: &Stat) -> Self {
         Self {
             pid: stat.pid,
             started: stat.starttime,
@@ -257,12 +243,22 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
                     tracing::debug!("process tree: stat of {}: {stat_failure}", process.pid);
                 })
                 .ok()?;
-            let incarnation = Incarnation::of(&stat);
+            let incarnation = Incarnation::from(&stat);
             let ticks = stat.utime + stat.stime;
             samples.ticks.insert(incarnation, ticks);
             let uptime = Process::born(&stat, booted);
             let cpu = window.busy_fraction(incarnation, ticks, uptime);
-            Some(Process::of(&process, stat, uptime, cpu))
+            Some(Process {
+                pid: stat.pid,
+                parent: stat.ppid,
+                memory: ByteSize::b(stat.rss_bytes().get()),
+                cpu,
+                threads: u64::try_from(stat.num_threads)
+                    .expect("the kernel never reports a negative thread count"),
+                uptime,
+                name: binary_name(&process).unwrap_or(stat.comm),
+                children: Vec::new(),
+            })
         })
         .collect();
     let live: HashSet<i32> = running.iter().map(|node| node.pid).collect();
@@ -377,7 +373,9 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     let provenance = launch
         .binary
         .as_deref()
-        .map(|binary| Provenance::of(binary, &launch.arguments, watched.app_id.as_deref()))
+        .map(|binary| {
+            Provenance::trace_launch(binary, &launch.arguments, watched.app_id.as_deref())
+        })
         .unwrap_or_default();
     Some(Inspection {
         pid: watched.pid,

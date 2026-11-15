@@ -58,13 +58,6 @@ pub enum VirtualMachineTarget {
     InactiveDomain { domain_name: Cow<'static, str> },
 }
 
-impl VirtualMachineTarget {
-    #[must_use]
-    pub const fn of_pid(pid: i32) -> Self {
-        Self::RunningProcess { pid }
-    }
-}
-
 impl From<VirtualMachineTarget> for HoverTarget {
     fn from(target: VirtualMachineTarget) -> Self {
         HoverTarget::VirtualMachine(target)
@@ -404,7 +397,7 @@ impl VirtualMachinesGroup {
         let rows = machines.iter().map(|machine| {
             let row = GroupItem::reading(
                 VirtualMachineRow { machine },
-                VirtualMachineTarget::of_pid(machine.pid),
+                VirtualMachineTarget::RunningProcess { pid: machine.pid },
             );
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(

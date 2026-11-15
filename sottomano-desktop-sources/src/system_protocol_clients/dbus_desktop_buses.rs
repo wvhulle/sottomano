@@ -133,12 +133,12 @@ pub enum OwnerProcess {
 }
 
 impl OwnerProcess {
-    pub async fn of_bus(dbus: &DBusProxy<'_>, bus: BusName<'_>) -> Self {
+    pub async fn query_bus_owner(dbus: &DBusProxy<'_>, bus: BusName<'_>) -> Self {
         let described = bus.to_string();
         match dbus.get_connection_unix_process_id(bus).await {
             Ok(pid) => Self::Identified(pid),
-            Err(e) => {
-                tracing::debug!("{described}: no owner process: {e}");
+            Err(query_failure) => {
+                tracing::debug!("{described}: no owner process: {query_failure}");
                 Self::Unidentified
             }
         }

@@ -26,7 +26,11 @@ struct PhysicalCoreClock {
 }
 
 impl PhysicalCoreClock {
-    fn of(core: &PhysicalCore, clock: &CpuClock, loads: Option<&CpuCoreLoads>) -> Option<Self> {
+    fn fastest_thread_clock(
+        core: &PhysicalCore,
+        clock: &CpuClock,
+        loads: Option<&CpuCoreLoads>,
+    ) -> Option<Self> {
         let threads: Vec<&CoreFreq> = clock
             .cores
             .iter()
@@ -108,7 +112,9 @@ impl ChipletClockTable<'_> {
             .group
             .physical_cores()
             .iter()
-            .filter_map(|core| PhysicalCoreClock::of(core, self.clock, self.loads))
+            .filter_map(|core| {
+                PhysicalCoreClock::fastest_thread_clock(core, self.clock, self.loads)
+            })
             .collect();
         rows.sort_by_key(|row| row.first_thread);
         headed_table(

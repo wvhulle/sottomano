@@ -153,7 +153,10 @@ pub(super) fn lyrics_item<'a>(
     sampled_at: Instant,
 ) -> Option<GroupItem<'a, MediaInteraction>> {
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
-        return lyrics_snapshot.group_item(PlayerTarget::of(&media.bus, MediaTarget::Lyrics));
+        return lyrics_snapshot.group_item(PlayerTarget {
+            bus: media.bus.clone().into(),
+            control: MediaTarget::Lyrics,
+        });
     };
     Some(current_lyric_line(config, media, timed_line, sampled_at))
 }
@@ -193,7 +196,10 @@ fn current_lyric_line<'a>(
     });
     GroupItem::composed_pinnable(
         identity,
-        PlayerTarget::of(&media.bus, MediaTarget::Lyrics),
+        PlayerTarget {
+            bus: media.bus.clone().into(),
+            control: MediaTarget::Lyrics,
+        },
         value,
     )
 }

@@ -29,7 +29,7 @@ async fn read_driving_controllers(
             (),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut driving_controllers = BTreeSet::new();
     while let Some(row) = rows.next().await? {
         driving_controllers.insert(columns.text(&row, "controller_key")?);

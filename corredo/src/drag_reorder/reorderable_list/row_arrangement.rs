@@ -10,7 +10,7 @@ impl RowArrangement {
         slot_count + group_index
     }
 
-    pub(super) fn of(
+    pub(super) fn interleave_group_headings(
         slot_count: usize,
         grouped_slots: &[GroupedSlots],
         spacing: f32,
@@ -69,7 +69,8 @@ mod tests {
             positions: 1..3,
             tile_inset: TILE_INSET,
         }];
-        let row_arrangement = RowArrangement::of(4, &grouped_slots, 0.0, 4.0);
+        let row_arrangement =
+            RowArrangement::interleave_group_headings(4, &grouped_slots, 0.0, 4.0);
         assert_eq!(row_arrangement.placement_order, [0, 4, 1, 2, 3]);
     }
 
@@ -79,13 +80,14 @@ mod tests {
             positions: 0..2,
             tile_inset: TILE_INSET,
         }];
-        let row_arrangement = RowArrangement::of(4, &grouped_slots, 0.0, 4.0);
+        let row_arrangement =
+            RowArrangement::interleave_group_headings(4, &grouped_slots, 0.0, 4.0);
         assert_eq!(row_arrangement.gaps_after, [3.0, 7.0, 0.0, 0.0, 3.0]);
     }
 
     #[test]
     fn spacing_is_dropped_after_the_last_slot() {
-        let row_arrangement = RowArrangement::of(3, &[], 5.0, 4.0);
+        let row_arrangement = RowArrangement::interleave_group_headings(3, &[], 5.0, 4.0);
         assert_eq!(row_arrangement.gaps_after, [5.0, 5.0, 0.0]);
     }
 }

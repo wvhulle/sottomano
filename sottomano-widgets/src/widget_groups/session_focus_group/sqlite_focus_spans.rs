@@ -74,7 +74,7 @@ async fn read_spans(
             (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut facet_rows = Vec::new();
     while let Some(row) = rows.next().await? {
         let stored = columns
@@ -120,7 +120,7 @@ async fn read_spans(
             (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut presence_spans = Vec::new();
     while let Some(row) = rows.next().await? {
         let (Ok(started_at), Ok(ended_at), Ok(state)) = (
@@ -316,7 +316,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let columns = Columns::of(&rows);
+        let columns = Columns::from(&rows);
         let row = rows.next().await.unwrap().unwrap();
         assert_eq!(columns.integer(&row, "facets").unwrap(), 0);
     }

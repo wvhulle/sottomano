@@ -263,7 +263,9 @@ impl TailnetGroup {
                     .hover_card_with(ExitOfferRow { tailnet }.hover_card(clock))
             }
             TailnetTarget::OwnNode => {
-                let Some(own_node_row) = self.tailscale.get().and_then(OwnNodeRow::of) else {
+                let Some(own_node_row) =
+                    self.tailscale.get().and_then(OwnNodeRow::running_own_node)
+                else {
                     return Vec::new();
                 };
                 self.tailscale
@@ -434,7 +436,7 @@ impl TailnetGroup {
         let own_node_item = self
             .tailscale
             .get()
-            .and_then(OwnNodeRow::of)
+            .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| GroupItem::reading(own_node_row, TailnetTarget::OwnNode));
         let inbound_access_item = self
             .running_tailnet()

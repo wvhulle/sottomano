@@ -54,7 +54,13 @@ pub(super) fn track_item<'a>(
             name: "Track".into(),
             icon,
         },
-        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Track).into()),
+        GroupItemHoverArea::WholeItem(
+            PlayerTarget {
+                bus: media.bus.clone().into(),
+                control: MediaTarget::Track,
+            }
+            .into(),
+        ),
         GroupItemValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
@@ -101,7 +107,13 @@ pub(super) fn player_item<'a>(
             name: "Player".into(),
             icon: GroupItemIcon::IconGlyph { glyph, state },
         },
-        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Player).into()),
+        GroupItemHoverArea::WholeItem(
+            PlayerTarget {
+                bus: media.bus.clone().into(),
+                control: MediaTarget::Player,
+            }
+            .into(),
+        ),
         value,
     )
 }

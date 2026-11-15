@@ -70,7 +70,11 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     move |theme| tint.color(theme),
                     (self.on_command)(Command::Stop),
                 ),
-                PlayerTarget::of(&self.media.bus, MediaTarget::Stop).into(),
+                PlayerTarget {
+                    bus: self.media.bus.clone().into(),
+                    control: MediaTarget::Stop,
+                }
+                .into(),
                 PressHints {
                     left: Some("stop playback"),
                     ..PressHints::default()
@@ -94,7 +98,11 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     self.on_quit.clone(),
                     self.on_cancel_quit.clone(),
                 ),
-                PlayerTarget::of(&self.media.bus, MediaTarget::Quit).into(),
+                PlayerTarget {
+                    bus: self.media.bus.clone().into(),
+                    control: MediaTarget::Quit,
+                }
+                .into(),
                 PressHints {
                     left: Some(match self.quit_button.stage() {
                         ConfirmStage::Armed => "confirm quitting the player",

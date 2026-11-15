@@ -352,7 +352,7 @@ fn secret_memory_holders(
         .iter()
         .map(|pid| SecretMemoryHolder {
             name: app_names
-                .of_process(*pid)
+                .process_app_name(*pid)
                 .unwrap_or_else(|| format!("Process {pid}")),
             pid: *pid,
             window_ownership: window_owners.window_ownership(*pid),
@@ -449,7 +449,7 @@ fn blocking_inhibitors(
     rows.into_iter()
         .filter(|row| matches!(row.mode.as_str(), "block" | "block-weak"))
         .flat_map(|row| {
-            let holder = app_names.of_lock_holder(&row.who, row.pid);
+            let holder = app_names.lock_holder_app_name(&row.who, row.pid);
             let reason = non_empty(row.why);
             row.what
                 .split(':')

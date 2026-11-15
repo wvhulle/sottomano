@@ -256,7 +256,7 @@ fn absent_outside_store(
 fn hovered_package(watched: &Watched) -> Result<StorePackage, Error> {
     let launched = launch(watched.pid).ok_or(Error::OutsideStore)?;
     let binary = launched.binary.as_deref().ok_or(Error::OutsideStore)?;
-    Provenance::of(binary, &launched.arguments, watched.app_id.as_deref())
+    Provenance::trace_launch(binary, &launched.arguments, watched.app_id.as_deref())
         .package
         .ok_or(Error::OutsideStore)
 }

@@ -182,7 +182,7 @@ impl PowerGroup {
     fn draw(&self) -> Option<PowerDraw> {
         self.battery
             .get()
-            .map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()))
+            .map(|battery| PowerDraw::battery_draw(battery, self.power_profile.expected_draw()))
     }
 
     fn observe_battery(&mut self, clock: Clock) -> Task<PowerMessage> {

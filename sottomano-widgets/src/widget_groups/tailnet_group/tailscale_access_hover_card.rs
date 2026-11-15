@@ -39,7 +39,7 @@ pub(super) struct OwnNodeRow<'a> {
 }
 
 impl<'a> OwnNodeRow<'a> {
-    pub(super) fn of(tailscale: &'a Tailscale) -> Option<Self> {
+    pub(super) fn running_own_node(tailscale: &'a Tailscale) -> Option<Self> {
         match tailscale {
             Tailscale::Running(tailnet) => Some(Self { tailnet }),
             Tailscale::Stopped | Tailscale::Starting => None,

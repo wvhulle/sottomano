@@ -46,21 +46,8 @@ const STOP_HINT: &str = "stop the instance";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncusInstanceTarget {
-    instance_daemon: InstanceDaemon,
-    instance_name: Cow<'static, str>,
-}
-
-impl IncusInstanceTarget {
-    #[must_use]
-    pub const fn of_instance(
-        instance_daemon: InstanceDaemon,
-        instance_name: Cow<'static, str>,
-    ) -> Self {
-        Self {
-            instance_daemon,
-            instance_name,
-        }
-    }
+    pub instance_daemon: InstanceDaemon,
+    pub instance_name: Cow<'static, str>,
 }
 
 impl From<IncusInstanceTarget> for HoverTarget {
@@ -487,10 +474,10 @@ impl IncusInstancesGroup {
                             instance_daemon,
                             instance,
                         },
-                        IncusInstanceTarget::of_instance(
+                        IncusInstanceTarget {
                             instance_daemon,
-                            Cow::Owned(instance.instance_name.clone()),
-                        ),
+                            instance_name: Cow::Owned(instance.instance_name.clone()),
+                        },
                     );
                     instance_power_switch(
                         row,
@@ -518,10 +505,10 @@ impl IncusInstancesGroup {
                             instance_daemon,
                             listing,
                         },
-                        IncusInstanceTarget::of_instance(
+                        IncusInstanceTarget {
                             instance_daemon,
-                            Cow::Owned(listing.instance_name.clone()),
-                        ),
+                            instance_name: Cow::Owned(listing.instance_name.clone()),
+                        },
                     );
                     instance_power_switch(
                         row,
@@ -538,10 +525,10 @@ impl IncusInstancesGroup {
                     instance_daemon,
                     failure: failure.clone(),
                 },
-                IncusInstanceTarget::of_instance(
+                IncusInstanceTarget {
                     instance_daemon,
-                    Cow::Borrowed(instance_daemon.product_name()),
-                ),
+                    instance_name: Cow::Borrowed(instance_daemon.product_name()),
+                },
             )],
         }
     }

@@ -109,7 +109,7 @@ fn woodpecker_tasks(
                 images: images_of(&containers),
                 usage: TaskUsage::from(containers.as_slice()),
                 web_log: pipeline_web_log(&containers),
-                stop_control: TaskStopControl::of_containers(engine_socket, &containers),
+                stop_control: TaskStopControl::stopping_containers(engine_socket, &containers),
             }
         })
         .collect()

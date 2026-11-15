@@ -273,7 +273,7 @@ fn modem_reading(
             manufacturer: reported_prop(modem, "Manufacturer"),
             model: reported_prop(modem, "Model"),
             revision: reported_prop(modem, "Revision"),
-            adapter: prop::<String>(modem, "Device").and_then(Adapter::of_device),
+            adapter: prop::<String>(modem, "Device").and_then(Adapter::read_sysfs_device),
         },
         operator: modem_3gpp
             .and_then(|iface| prop::<String>(iface, "OperatorName"))

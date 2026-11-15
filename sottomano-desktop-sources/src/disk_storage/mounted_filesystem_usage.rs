@@ -104,7 +104,7 @@ fn read_filesystem_usage(mount: FilesystemMount) -> Result<FilesystemUsage, Erro
         free: ByteSize::b(stat.f_bavail * stat.f_frsize),
         block_size: ByteSize::b(stat.f_bsize),
         access: MountAccess::from(stat.f_flag),
-        volume: VolumeIdentity::of_devices(&mount.devices),
+        volume: VolumeIdentity::read_first_identified(&mount.devices),
         filesystem: read_filesystem_space(&mount, &stat)?,
         mount,
     })

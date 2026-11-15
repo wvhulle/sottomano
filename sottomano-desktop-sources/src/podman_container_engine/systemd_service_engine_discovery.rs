@@ -35,7 +35,7 @@ impl Display for EngineOwner {
 }
 
 impl EngineOwner {
-    fn of_service(scope: SystemdUnitScope, account: &ServiceAccount) -> Self {
+    fn service_account_owner(scope: SystemdUnitScope, account: &ServiceAccount) -> Self {
         match (scope, account) {
             (SystemdUnitScope::UserSession, _) => EngineOwner::YourUser,
             (SystemdUnitScope::SystemWide, ServiceAccount::ManagerOwner) => EngineOwner::Root,
@@ -77,7 +77,7 @@ impl DiscoveredPodmanEngine {
             return None;
         }
         let service_arguments: Vec<&str> = command.arguments_after(&SERVICE_SUBCOMMAND)?.collect();
-        let owner = EngineOwner::of_service(scope, &command.account);
+        let owner = EngineOwner::service_account_owner(scope, &command.account);
         let socket_path = match service_arguments
             .iter()
             .find(|argument| argument.contains(':'))

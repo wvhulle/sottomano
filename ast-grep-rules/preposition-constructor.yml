@@ -1,0 +1,19 @@
+id: preposition-constructor
+language: rust
+severity: error
+message: A function named of, of_*, from_* or for_* is a bespoke constructor or lookup.
+note: Implement From, TryFrom or FromStr for a single-value conversion, build the value with a struct literal, or name a lookup after what it returns.
+files:
+  - corredo/src/**/*.rs
+  - iced_controller_diagram/src/**/*.rs
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+rule:
+  kind: function_item
+  has:
+    field: name
+    regex: ^(of|of_.+|from_.+|for_.+)$

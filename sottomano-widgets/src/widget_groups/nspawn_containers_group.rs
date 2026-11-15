@@ -48,14 +48,7 @@ const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NspawnContainerTarget {
-    machine_name: Cow<'static, str>,
-}
-
-impl NspawnContainerTarget {
-    #[must_use]
-    pub const fn of_machine(machine_name: Cow<'static, str>) -> Self {
-        Self { machine_name }
-    }
+    pub machine_name: Cow<'static, str>,
 }
 
 impl From<NspawnContainerTarget> for HoverTarget {
@@ -326,7 +319,9 @@ impl NspawnContainersGroup {
         let rows = containers.iter().map(|container| {
             let row = GroupItem::reading(
                 self.container_row(container),
-                NspawnContainerTarget::of_machine(Cow::Owned(container.machine_name.clone())),
+                NspawnContainerTarget {
+                    machine_name: Cow::Owned(container.machine_name.clone()),
+                },
             );
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(

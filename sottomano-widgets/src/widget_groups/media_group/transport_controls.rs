@@ -91,7 +91,11 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
                 move |theme| tint.color(theme),
                 (self.on_command)(press.command),
             ),
-            PlayerTarget::of(&self.media.bus, press.target).into(),
+            PlayerTarget {
+                bus: self.media.bus.clone().into(),
+                control: press.target,
+            }
+            .into(),
             PressHints {
                 left: Some(press.does),
                 ..PressHints::default()

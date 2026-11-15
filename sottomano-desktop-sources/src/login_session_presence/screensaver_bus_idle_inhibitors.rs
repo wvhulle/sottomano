@@ -149,7 +149,7 @@ async fn named_inhibitors(
             IdleInhibitor {
                 holder: caller_pid.map_or_else(
                     || inhibit.stated_name.clone(),
-                    |pid| app_names.of_lock_holder(&inhibit.stated_name, pid),
+                    |pid| app_names.lock_holder_app_name(&inhibit.stated_name, pid),
                 ),
                 reason: non_empty(inhibit.reason.clone()),
             }

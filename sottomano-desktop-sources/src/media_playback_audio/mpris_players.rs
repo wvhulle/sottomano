@@ -453,7 +453,7 @@ async fn properties(
 
 async fn owner_process(dbus: &DBusProxy<'_>, bus: &str) -> OwnerProcess {
     match BusName::try_from(bus) {
-        Ok(name) => OwnerProcess::of_bus(dbus, name).await,
+        Ok(name) => OwnerProcess::query_bus_owner(dbus, name).await,
         Err(_) => OwnerProcess::Unidentified,
     }
 }

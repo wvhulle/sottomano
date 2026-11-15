@@ -39,14 +39,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ApptainerContainerTarget {
-    runtime_pid: i32,
-}
-
-impl ApptainerContainerTarget {
-    #[must_use]
-    pub const fn of_runtime(runtime_pid: i32) -> Self {
-        Self { runtime_pid }
-    }
+    pub runtime_pid: i32,
 }
 
 impl From<ApptainerContainerTarget> for HoverTarget {
@@ -181,7 +174,9 @@ impl ContainerFamily for ApptainerFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: ApptainerContainerTarget::of_runtime(listing.runtime_pid),
+                target: ApptainerContainerTarget {
+                    runtime_pid: listing.runtime_pid,
+                },
                 reading: ApptainerContainerListingRow { listing },
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
@@ -195,7 +190,9 @@ impl ContainerFamily for ApptainerFamily {
             .containers
             .iter()
             .map(|container| FamilyRow {
-                target: ApptainerContainerTarget::of_runtime(container.runtime_pid),
+                target: ApptainerContainerTarget {
+                    runtime_pid: container.runtime_pid,
+                },
                 reading: ApptainerContainerRow { container },
                 power: RowPower::Stoppable(container.runtime_pid),
             })

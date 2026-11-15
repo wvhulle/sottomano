@@ -51,7 +51,7 @@ impl DeviceBattery {
         }
     }
 
-    fn of_power_supply(supply: &Path) -> Self {
+    fn read_power_supply(supply: &Path) -> Self {
         let Some(capacity) = read_i64(supply.join("capacity")) else {
             return DeviceBattery::Unreported;
         };
@@ -64,10 +64,10 @@ impl DeviceBattery {
         }
     }
 
-    fn of_hid_device(hid_device: &Path) -> Self {
+    fn read_hid_device(hid_device: &Path) -> Self {
         list_dir(hid_device.join("power_supply"))
             .iter()
-            .map(|supply| DeviceBattery::of_power_supply(supply))
+            .map(|supply| DeviceBattery::read_power_supply(supply))
             .find(|battery| matches!(battery, DeviceBattery::Reported { .. }))
             .unwrap_or(DeviceBattery::Unreported)
     }
@@ -99,7 +99,7 @@ fn hid_peripheral_of(hid_device: &Path) -> Option<HidPeripheral> {
     let sysfs_name = hid_device.file_name()?.to_str()?;
     Some(HidPeripheral {
         kernel_device: format!("+hid:{sysfs_name}"),
-        battery: DeviceBattery::of_hid_device(hid_device),
+        battery: DeviceBattery::read_hid_device(hid_device),
     })
 }
 

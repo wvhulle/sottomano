@@ -71,7 +71,7 @@ pub struct Provenance {
 }
 
 impl Provenance {
-    pub fn of(binary: &Path, arguments: &[String], app_id: Option<&str>) -> Self {
+    pub fn trace_launch(binary: &Path, arguments: &[String], app_id: Option<&str>) -> Self {
         let executing = package(binary);
         let candidates = candidates(executing.clone(), arguments);
         let identified = app_id.map(app_slug).and_then(|slug| {

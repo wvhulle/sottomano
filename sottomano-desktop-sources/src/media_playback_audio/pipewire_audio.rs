@@ -95,14 +95,14 @@ pub enum OutputKind {
 }
 
 impl OutputKind {
-    fn of_described_props(props: &DictRef, icon_key: &str) -> Option<Self> {
+    fn described_props_kind(props: &DictRef, icon_key: &str) -> Option<Self> {
         props
             .get("device.form-factor")
-            .and_then(Self::of_form_factor)
-            .or_else(|| props.get(icon_key).and_then(Self::of_icon_name))
+            .and_then(Self::form_factor_kind)
+            .or_else(|| props.get(icon_key).and_then(Self::icon_name_kind))
     }
 
-    fn of_icon_name(icon_name: &str) -> Option<Self> {
+    fn icon_name_kind(icon_name: &str) -> Option<Self> {
         if icon_name.contains("headset") {
             Some(Self::Headset)
         } else if icon_name.contains("headphone") {
@@ -116,7 +116,7 @@ impl OutputKind {
         }
     }
 
-    fn of_port_type(port_type: &str) -> Option<Self> {
+    fn port_type_kind(port_type: &str) -> Option<Self> {
         match port_type {
             "headphones" => Some(Self::Headphones),
             "headset" | "handset" | "handsfree" => Some(Self::Headset),
@@ -125,7 +125,7 @@ impl OutputKind {
         }
     }
 
-    fn of_form_factor(form_factor: &str) -> Option<Self> {
+    fn form_factor_kind(form_factor: &str) -> Option<Self> {
         match form_factor {
             "headphone" => Some(Self::Headphones),
             "headset" | "hands-free" | "handset" => Some(Self::Headset),
@@ -458,23 +458,23 @@ mod tests {
             OutputKind::Speaker
         );
         assert_eq!(
-            OutputKind::of_form_factor("headset"),
+            OutputKind::form_factor_kind("headset"),
             Some(OutputKind::Headset)
         );
-        assert_eq!(OutputKind::of_form_factor("unheard-of"), None);
+        assert_eq!(OutputKind::form_factor_kind("unheard-of"), None);
         assert_eq!(
-            OutputKind::of_icon_name("audio-headset-bluetooth"),
+            OutputKind::icon_name_kind("audio-headset-bluetooth"),
             Some(OutputKind::Headset)
         );
         assert_eq!(
-            OutputKind::of_icon_name("audio-headphones"),
+            OutputKind::icon_name_kind("audio-headphones"),
             Some(OutputKind::Headphones)
         );
-        assert_eq!(OutputKind::of_icon_name("audio-card-analog-usb"), None);
+        assert_eq!(OutputKind::icon_name_kind("audio-card-analog-usb"), None);
         assert_eq!(
-            OutputKind::of_port_type("headphones"),
+            OutputKind::port_type_kind("headphones"),
             Some(OutputKind::Headphones)
         );
-        assert_eq!(OutputKind::of_port_type("speaker"), None);
+        assert_eq!(OutputKind::port_type_kind("speaker"), None);
     }
 }

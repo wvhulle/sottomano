@@ -90,8 +90,8 @@ pub struct Pollen {
     pub concentrations: Vec<AllergenConcentration>,
 }
 
-impl Pollen {
-    fn of(readings: &PollenReadings) -> Self {
+impl From<&PollenReadings> for Pollen {
+    fn from(readings: &PollenReadings) -> Self {
         Self {
             concentrations: Allergen::ALL
                 .into_iter()
@@ -104,7 +104,9 @@ impl Pollen {
                 .collect(),
         }
     }
+}
 
+impl Pollen {
     #[must_use]
     pub fn concentration(&self, allergen: Allergen) -> Option<&AllergenConcentration> {
         self.concentrations
@@ -146,7 +148,7 @@ impl Pollen {
             here.longitude_degrees()
         );
         let air: AirQuality = http_json_client::get_json(&url, &[]).await?;
-        Ok(Pollen::of(&air.current))
+        Ok(Pollen::from(&air.current))
     }
 }
 
@@ -173,7 +175,7 @@ mod tests {
     #[test]
     fn allergens_without_model_coverage_are_left_out() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY_OUTSIDE_EUROPE).unwrap();
-        let pollen = Pollen::of(&air.current);
+        let pollen = Pollen::from(&air.current);
         assert!(pollen.concentrations.is_empty());
         assert_eq!(pollen.airborne().count(), 0);
     }
@@ -181,7 +183,7 @@ mod tests {
     #[test]
     fn allergens_select_their_own_species() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
-        let pollen = Pollen::of(&air.current);
+        let pollen = Pollen::from(&air.current);
         let grains = |allergen| {
             pollen
                 .concentration(allergen)
@@ -196,7 +198,7 @@ mod tests {
     #[test]
     fn only_allergens_with_pollen_in_the_air_are_airborne() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
-        let airborne: Vec<Allergen> = Pollen::of(&air.current)
+        let airborne: Vec<Allergen> = Pollen::from(&air.current)
             .airborne()
             .map(|concentration| concentration.allergen)
             .collect();

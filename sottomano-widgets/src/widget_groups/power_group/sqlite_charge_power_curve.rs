@@ -31,7 +31,7 @@ async fn read_curve(
             (battery,),
         )
         .await?;
-    let columns = Columns::of(&bin_rows);
+    let columns = Columns::from(&bin_rows);
     while let Some(row) = bin_rows.next().await? {
         let stored_bin = columns.integer(&row, "bin")?;
         let bin = match usize::try_from(stored_bin) {

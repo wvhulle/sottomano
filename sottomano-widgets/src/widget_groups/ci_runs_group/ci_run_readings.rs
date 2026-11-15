@@ -117,7 +117,7 @@ impl GroupItemReading for CiRunnerFailureRow<'_> {
 }
 
 impl<'a> CiRunnerFailureRow<'a> {
-    pub(super) fn of_failing(watched: WatchedCiRunner<'a>) -> Option<Self> {
+    pub(super) fn failing_runner(watched: WatchedCiRunner<'a>) -> Option<Self> {
         match watched.runner.access {
             RunnerAccess::Complete => None,
             RunnerAccess::EngineUnreadable(_) | RunnerAccess::AgentUnreachable(_) => {
@@ -335,8 +335,8 @@ mod tests {
             runner_label: "codeberg",
             runner,
         };
-        assert!(CiRunnerFailureRow::of_failing(watched(&healthy_runner)).is_none());
-        assert!(CiRunnerFailureRow::of_failing(watched(&denied_runner)).is_some());
+        assert!(CiRunnerFailureRow::failing_runner(watched(&healthy_runner)).is_none());
+        assert!(CiRunnerFailureRow::failing_runner(watched(&denied_runner)).is_some());
     }
 
     #[test]

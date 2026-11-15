@@ -61,7 +61,7 @@ async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, Store
             (),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut timeouts = Timeouts::default();
     while let Some(row) = rows.next().await? {
         let after = Some(Duration::from_secs(

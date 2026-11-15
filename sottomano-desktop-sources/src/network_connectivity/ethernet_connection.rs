@@ -62,7 +62,7 @@ async fn port(
     connection: &Connection,
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Port> {
-    let adapter = Adapter::of_net_interface(&device.interface);
+    let adapter = Adapter::read_net_interface(&device.interface);
     let link = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
         Some(link(connection, &device).await?)
     } else {

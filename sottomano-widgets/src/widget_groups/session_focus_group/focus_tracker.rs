@@ -73,7 +73,7 @@ impl FocusTracker {
         compositor: &CompositorWindowState,
         processes: &WindowProcesses,
     ) -> Option<impl Future<Output = TrackerMessage> + Send + use<>> {
-        let probed = FocusIdentity::of(compositor, processes).map_or(
+        let probed = FocusIdentity::focused_window_identity(compositor, processes).map_or(
             ProbedWindowFocus::NoWindowFocused,
             ProbedWindowFocus::FocusedWindowIdentity,
         );

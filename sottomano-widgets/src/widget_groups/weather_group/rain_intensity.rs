@@ -517,7 +517,7 @@ impl RadarRainForecast<'_> {
         let minimum =
             Velocity::new::<millimeter_per_hour>(self.alerts.minimum_millimeters_per_hour);
         let remaining = self.remaining_frames(now);
-        let outlook = RainOutlook::of_rain_above(remaining, minimum);
+        let outlook = RainOutlook::rain_above_threshold(remaining, minimum);
         let starts_at = match outlook {
             RainOutlook::Dry => return None,
             RainOutlook::StartsAt(at) => at,

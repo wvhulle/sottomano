@@ -277,7 +277,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 press_toggled_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
             }
         };
-        let indicator = EdgeIndicator::of_menu_handle(highest_alert_severity, handle_indicator);
+        let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
         PanelSlot::new(handle, indicator)
             .view(panel_position)
             .map(M::from)

@@ -28,7 +28,7 @@ pub struct ContextFill<'a> {
 }
 
 impl<'a> ContextFill<'a> {
-    pub fn of_busy_slots(slots: &'a [LlamaSlot], server: &'a str) -> Option<Self> {
+    pub fn fullest_busy_slot(slots: &'a [LlamaSlot], server: &'a str) -> Option<Self> {
         let fullest = slots
             .iter()
             .filter(|slot| slot.processing)

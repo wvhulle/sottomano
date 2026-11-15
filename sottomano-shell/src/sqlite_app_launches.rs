@@ -33,7 +33,7 @@ async fn read_launches(connection: &turso::Connection) -> Result<Vec<Launch>, St
             (),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut launches = Vec::new();
     while let Some(row) = rows.next().await? {
         let Ok(launched_at) = DateTime::parse_from_rfc3339(&columns.text(&row, "launched_at")?)

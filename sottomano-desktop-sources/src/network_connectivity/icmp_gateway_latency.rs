@@ -31,17 +31,6 @@ pub struct GatewayLatencies {
     pub gateways: Vec<GatewayLatency>,
 }
 
-impl GatewayLatencies {
-    pub fn of_interface<'latencies>(
-        &'latencies self,
-        interface: &'latencies str,
-    ) -> impl Iterator<Item = &'latencies GatewayLatency> {
-        self.gateways
-            .iter()
-            .filter(move |gateway_latency| gateway_latency.interface == interface)
-    }
-}
-
 impl SnapshotSource for GatewayLatencies {
     type Error = LatencyProbeError;
     type StreamInputs = DesktopBuses;

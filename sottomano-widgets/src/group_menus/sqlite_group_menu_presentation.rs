@@ -54,7 +54,7 @@ async fn read_presentation(
             (),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let Some(row) = rows.next().await? else {
         return Ok(NestedMenuPresentation::default());
     };

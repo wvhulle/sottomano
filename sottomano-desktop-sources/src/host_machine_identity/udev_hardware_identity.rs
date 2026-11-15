@@ -146,7 +146,7 @@ pub enum BusId {
 }
 
 impl BusId {
-    fn of_device(device: &Path) -> Option<Self> {
+    fn read_sysfs_device(device: &Path) -> Option<Self> {
         match link_target_name(&device.join("subsystem"))?.as_str() {
             "pci" => Some(BusId::Pci {
                 vendor: hex_attribute(&device.join("vendor"))?,
@@ -232,11 +232,11 @@ pub struct Adapter {
 }
 
 impl Adapter {
-    pub fn of_class_device(class_device: impl AsRef<Path>) -> Option<Self> {
-        Self::of_device(class_device.as_ref().join("device"))
+    pub fn read_class_device(class_device: impl AsRef<Path>) -> Option<Self> {
+        Self::read_sysfs_device(class_device.as_ref().join("device"))
     }
 
-    pub fn of_device(device: impl AsRef<Path>) -> Option<Self> {
+    pub fn read_sysfs_device(device: impl AsRef<Path>) -> Option<Self> {
         let device = device.as_ref();
         let function = fs::canonicalize(device)
             .inspect_err(|resolve_failure| {
@@ -248,7 +248,7 @@ impl Adapter {
             .ok()?;
         let (bus_device, bus_id) = function
             .ancestors()
-            .find_map(|device| Some((device.to_path_buf(), BusId::of_device(device)?)))?;
+            .find_map(|device| Some((device.to_path_buf(), BusId::read_sysfs_device(device)?)))?;
         let properties = UdevProperties::from(bus_device.as_path());
         Some(Adapter {
             vendor: properties.vendor(),
@@ -259,8 +259,8 @@ impl Adapter {
     }
 
     #[must_use]
-    pub fn of_net_interface(interface: &str) -> Option<Self> {
-        Self::of_class_device(PathBuf::from("/sys/class/net").join(interface))
+    pub fn read_net_interface(interface: &str) -> Option<Self> {
+        Self::read_class_device(PathBuf::from("/sys/class/net").join(interface))
     }
 }
 
@@ -413,7 +413,7 @@ impl CpuIdentity {
     fn parse(first_core: &str) -> Self {
         let field = |name| cpuinfo_field(first_core, name).map(str::to_owned);
         CpuIdentity {
-            vendor: CpuVendor::of_first_core(first_core),
+            vendor: CpuVendor::reported_by_core(first_core),
             name: field("model name"),
             microcode: field("microcode"),
         }
@@ -431,7 +431,7 @@ pub enum CpuVendor {
 }
 
 impl CpuVendor {
-    fn of_first_core(first_core: &str) -> Option<Self> {
+    fn reported_by_core(first_core: &str) -> Option<Self> {
         match cpuinfo_field(first_core, "vendor_id") {
             Some("AuthenticAMD") => return Some(CpuVendor::Amd),
             Some("GenuineIntel") => return Some(CpuVendor::Intel),
@@ -844,17 +844,17 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
     #[test]
     fn cpuinfo_vendor_covers_x86_and_arm_implementers() {
         assert_eq!(
-            CpuVendor::of_first_core("vendor_id\t: GenuineIntel\n"),
+            CpuVendor::reported_by_core("vendor_id\t: GenuineIntel\n"),
             Some(CpuVendor::Intel)
         );
         assert_eq!(
-            CpuVendor::of_first_core(
+            CpuVendor::reported_by_core(
                 "processor\t: 0\nCPU implementer\t: 0x61\nCPU part\t: 0x022\n"
             ),
             Some(CpuVendor::Apple)
         );
         assert_eq!(
-            CpuVendor::of_first_core("vendor_id\t: HygonGenuine\n"),
+            CpuVendor::reported_by_core("vendor_id\t: HygonGenuine\n"),
             None
         );
     }

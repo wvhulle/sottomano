@@ -33,7 +33,7 @@ pub struct PowerDraw {
 }
 
 impl PowerDraw {
-    pub fn of(battery: &Battery, expected_laptop: Option<Power>) -> Self {
+    pub fn battery_draw(battery: &Battery, expected_laptop: Option<Power>) -> Self {
         PowerDraw {
             power: battery.power,
             status: battery.status,

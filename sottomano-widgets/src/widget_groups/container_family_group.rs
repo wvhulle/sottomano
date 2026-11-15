@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(group.group_rows().len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget::of_pid(LISTED_PID), clock)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
                 .is_empty()
         );
     }
@@ -382,12 +382,12 @@ mod tests {
         assert_eq!(group.group_rows().len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget::of_pid(DETAILED_PID), clock)
+                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock)
                 .is_empty()
         );
         assert!(
             group
-                .hover_card_for(&VmwareMachineTarget::of_pid(LISTED_PID), clock)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
                 .is_empty()
         );
     }

@@ -180,7 +180,7 @@ fn errors_on_disk(
 impl DriveTemperature {
     fn read(choice: &SensorChoice, disk: &KernelDevice, controller: &Path) -> Self {
         let candidates = match choice {
-            SensorChoice::Automatic => HwmonChip::of_device(controller)
+            SensorChoice::Automatic => HwmonChip::device_chips(controller)
                 .into_iter()
                 .map(|chip| ChosenSensors {
                     sensors: chip.temperature_sensors(),
@@ -191,11 +191,11 @@ impl DriveTemperature {
         };
         candidates
             .iter()
-            .find_map(Self::of_chosen)
+            .find_map(Self::read_chosen_sensors)
             .unwrap_or_else(|| DriveTemperature::Unreported(MissingSensor::for_disk(disk)))
     }
 
-    fn of_chosen(chosen: &ChosenSensors) -> Option<Self> {
+    fn read_chosen_sensors(chosen: &ChosenSensors) -> Option<Self> {
         let sensor = chosen
             .sensors
             .iter()

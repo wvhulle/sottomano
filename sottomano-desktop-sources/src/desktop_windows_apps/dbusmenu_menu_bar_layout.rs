@@ -144,7 +144,9 @@ pub async fn exported_menu_bars_of_process(
         join_all(unique_names.into_iter().map(|unique_name| {
             let dbus = &dbus;
             async move {
-                let owner = OwnerProcess::of_bus(dbus, BusName::Unique(unique_name.as_ref())).await;
+                let owner =
+                    OwnerProcess::query_bus_owner(dbus, BusName::Unique(unique_name.as_ref()))
+                        .await;
                 (owner == OwnerProcess::Identified(process_id)).then_some(unique_name)
             }
         }))

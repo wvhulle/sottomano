@@ -64,7 +64,7 @@ impl WindowProcesses {
     }
 
     #[must_use]
-    pub fn of_window(&self, window: u64) -> Option<&[i32]> {
+    pub fn window_terminal_pids(&self, window: u64) -> Option<&[i32]> {
         self.by_window
             .get(&window)
             .map(|paired| paired.pids.as_slice())

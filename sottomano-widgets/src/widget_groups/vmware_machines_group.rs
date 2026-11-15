@@ -32,14 +32,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VmwareMachineTarget {
-    pid: i32,
-}
-
-impl VmwareMachineTarget {
-    #[must_use]
-    pub const fn of_pid(pid: i32) -> Self {
-        Self { pid }
-    }
+    pub pid: i32,
 }
 
 impl From<VmwareMachineTarget> for HoverTarget {
@@ -163,7 +156,7 @@ impl ContainerFamily for VmwareFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: VmwareMachineTarget::of_pid(listing.pid),
+                target: VmwareMachineTarget { pid: listing.pid },
                 reading: VmwareMachineListingRow { listing },
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
@@ -175,7 +168,7 @@ impl ContainerFamily for VmwareFamily {
             .machines
             .iter()
             .map(|machine| FamilyRow {
-                target: VmwareMachineTarget::of_pid(machine.pid),
+                target: VmwareMachineTarget { pid: machine.pid },
                 reading: VmwareMachineRow { machine },
                 power: RowPower::Stoppable(machine.configuration_file.clone()),
             })

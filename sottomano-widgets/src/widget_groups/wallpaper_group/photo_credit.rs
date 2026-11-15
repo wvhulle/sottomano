@@ -70,8 +70,8 @@ impl GroupItemReading for Photo {
     }
 }
 
-impl Photo {
-    pub(super) fn of(wallpaper: &Wallpaper) -> Self {
+impl From<&Wallpaper> for Photo {
+    fn from(wallpaper: &Wallpaper) -> Self {
         Self {
             file_name: wallpaper.file_name.clone(),
             photographer: wallpaper.photographer.clone(),

@@ -41,7 +41,7 @@ pub struct NearbyWifiNetworks {
 
 impl NearbyWifiNetworks {
     #[must_use]
-    pub fn of_adapter(&self, adapter_device: &str) -> Option<&AdapterNearbyNetworks> {
+    pub fn adapter_networks(&self, adapter_device: &str) -> Option<&AdapterNearbyNetworks> {
         self.adapters
             .iter()
             .find(|adapter_networks| adapter_networks.device == adapter_device)

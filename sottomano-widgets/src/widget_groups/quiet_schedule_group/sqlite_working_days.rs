@@ -34,7 +34,7 @@ async fn read_days(connection: &turso::Connection) -> Result<WeekdaySet, StoreEr
     let mut rows = connection
         .query("SELECT days_from_monday, is_working FROM working_days", ())
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let mut stored_any_day = false;
     let mut working_days = WeekdaySet::EMPTY;
     while let Some(row) = rows.next().await? {

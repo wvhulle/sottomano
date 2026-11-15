@@ -22,7 +22,7 @@ pub(super) async fn read_layout(connection: &turso::Connection) -> Result<PanelL
             (),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let Some(row) = rows.next().await? else {
         return Ok(PanelLayout::default());
     };

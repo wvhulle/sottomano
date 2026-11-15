@@ -284,7 +284,7 @@ impl ScopedLlamaServers {
             }
             LlamaServerReading::ContextFill => {
                 let Some(context_fill) = server.and_then(|server| {
-                    ContextFill::of_busy_slots(&server.slots, &readings.server_label)
+                    ContextFill::fullest_busy_slot(&server.slots, &readings.server_label)
                 }) else {
                     return Vec::new();
                 };
@@ -344,7 +344,7 @@ impl ScopedLlamaServers {
                             target(LlamaServerReading::Slots),
                         )
                     }),
-                busy.and_then(|server| ContextFill::of_busy_slots(&server.slots, server_label))
+                busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
                     .map(|fill| GroupItem::reading(fill, target(LlamaServerReading::ContextFill))),
                 readings.switch.group_item(
                     readings

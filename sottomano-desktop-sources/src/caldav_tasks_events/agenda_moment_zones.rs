@@ -12,9 +12,8 @@ pub enum AgendaMoment {
     Zoned(DateTime<Tz>),
 }
 
-impl AgendaMoment {
-    #[must_use]
-    pub fn of(moment: DatePerhapsTime) -> Self {
+impl From<DatePerhapsTime> for AgendaMoment {
+    fn from(moment: DatePerhapsTime) -> Self {
         match moment {
             DatePerhapsTime::Date(day) => AgendaMoment::AllDay(day),
             DatePerhapsTime::DateTime(CalendarDateTime::Floating(wall_clock)) => {
@@ -34,7 +33,9 @@ impl AgendaMoment {
             }
         }
     }
+}
 
+impl AgendaMoment {
     #[must_use]
     pub fn default_event_end(self) -> Self {
         match self {
@@ -136,10 +137,11 @@ mod tests {
 
     #[test]
     fn a_zoned_time_keeps_its_source_zone_and_instant() {
-        let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-            date_time: wall_clock(14),
-            tzid: "Europe/Brussels".to_owned(),
-        }));
+        let moment =
+            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
+                date_time: wall_clock(14),
+                tzid: "Europe/Brussels".to_owned(),
+            }));
         assert_eq!(moment.source_zone(), Some(Brussels));
         assert_eq!(
             moment.starts_in(&Utc),
@@ -150,10 +152,11 @@ mod tests {
 
     #[test]
     fn a_windows_zone_name_resolves_to_its_iana_zone() {
-        let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-            date_time: wall_clock(14),
-            tzid: "W. Europe Standard Time".to_owned(),
-        }));
+        let moment =
+            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
+                date_time: wall_clock(14),
+                tzid: "W. Europe Standard Time".to_owned(),
+            }));
         assert_eq!(
             moment.starts_in(&Utc),
             Utc.with_ymd_and_hms(2026, 10, 30, 13, 0, 0).unwrap()
@@ -162,10 +165,11 @@ mod tests {
 
     #[test]
     fn an_unknown_zone_name_falls_back_to_the_viewers_wall_clock() {
-        let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-            date_time: wall_clock(14),
-            tzid: "Olympus Mons Standard Time".to_owned(),
-        }));
+        let moment =
+            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
+                date_time: wall_clock(14),
+                tzid: "Olympus Mons Standard Time".to_owned(),
+            }));
         assert_eq!(moment, AgendaMoment::Floating(wall_clock(14)));
         assert_eq!(moment.starts_in(&New_York).naive_local(), wall_clock(14));
     }
@@ -173,7 +177,7 @@ mod tests {
     #[test]
     fn a_utc_time_is_zoned_in_utc() {
         let instant = Utc.with_ymd_and_hms(2026, 10, 30, 23, 30, 0).unwrap();
-        let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::Utc(instant)));
+        let moment = AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::Utc(instant)));
         assert_eq!(moment.source_zone(), Some(Tz::UTC));
         assert_eq!(
             moment.day_in(&Brussels),

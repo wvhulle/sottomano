@@ -57,7 +57,7 @@ async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff,
             (source.to_string(),),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let row = rows.next().await?.ok_or(StoreError::NoRow)?;
     Ok(Backoff {
         retry_after_unix: columns.integer(&row, "retry_after_unix")?,

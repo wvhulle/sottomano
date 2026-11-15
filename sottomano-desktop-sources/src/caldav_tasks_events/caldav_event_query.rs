@@ -153,18 +153,18 @@ fn calendar_object_event(
         tracing::warn!("calendar object {object_href}: event has no readable start");
         return None;
     };
-    let start = AgendaMoment::of(event_start);
+    let start = AgendaMoment::from(event_start);
     Some(UpcomingEvent {
         summary: displayed_summary(event.get_summary().unwrap_or_default()),
         calendar: calendar_name.to_owned(),
         origin: EventOrigin::CalendarObject {
             object_href: object_href.to_owned(),
-            recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::of),
+            recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::from),
         },
         start,
         end: event
             .get_end()
-            .map_or_else(|| start.default_event_end(), AgendaMoment::of),
+            .map_or_else(|| start.default_event_end(), AgendaMoment::from),
         location: event.get_location().unwrap_or_default().trim().to_owned(),
     })
 }

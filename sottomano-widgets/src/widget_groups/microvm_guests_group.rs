@@ -60,13 +60,6 @@ pub enum MicrovmGuestTarget {
     Unit { instance_name: Cow<'static, str> },
 }
 
-impl MicrovmGuestTarget {
-    #[must_use]
-    pub const fn of_pid(pid: i32) -> Self {
-        Self::RunningProcess { pid }
-    }
-}
-
 struct MicrovmUnitRow<'a> {
     unit: &'a MicrovmUnit,
     activity: UnitActivity,
@@ -444,7 +437,7 @@ impl MicrovmGuestsGroup {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
                 MicrovmGuestRow { machine },
-                MicrovmGuestTarget::of_pid(machine.pid),
+                MicrovmGuestTarget::RunningProcess { pid: machine.pid },
             ),
             None => GroupItem::reading(
                 MicrovmUnitRow {
@@ -482,7 +475,7 @@ impl MicrovmGuestsGroup {
                 .map(|machine| {
                     let row = GroupItem::reading(
                         MicrovmGuestRow { machine },
-                        MicrovmGuestTarget::of_pid(machine.pid),
+                        MicrovmGuestTarget::RunningProcess { pid: machine.pid },
                     );
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
@@ -511,7 +504,7 @@ impl MicrovmGuestsGroup {
                     .map(|listing| {
                         GroupItem::reading(
                             MicrovmGuestListingRow { listing },
-                            MicrovmGuestTarget::of_pid(listing.pid),
+                            MicrovmGuestTarget::RunningProcess { pid: listing.pid },
                         )
                     })
                     .collect()

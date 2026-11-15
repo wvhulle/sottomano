@@ -319,7 +319,7 @@ fn fold_toggle(
 }
 
 impl Branch {
-    fn of(node: &Process, depth: usize, fold: Fold) -> Self {
+    fn listed_process(node: &Process, depth: usize, fold: Fold) -> Self {
         Self {
             depth,
             entry: Entry::Listed(Listing {
@@ -340,13 +340,13 @@ impl Branch {
         } else {
             Fold::Unfolded
         };
-        Self::of(node, depth, fold)
+        Self::listed_process(node, depth, fold)
     }
 
     fn folded(node: &Process, depth: usize) -> Self {
         match node.count() - 1 {
             0 => Self::unfolded(node, depth),
-            hidden => Self::of(node, depth, Fold::Folded { hidden }),
+            hidden => Self::listed_process(node, depth, Fold::Folded { hidden }),
         }
     }
 }

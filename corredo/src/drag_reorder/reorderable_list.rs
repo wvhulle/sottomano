@@ -212,7 +212,12 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
                 .chain(alarms.iter().map(|alarm| alarm.position))
                 .collect(),
         };
-        let row_arrangement = RowArrangement::of(slot_count, &grouped_slots, spacing, group_gap);
+        let row_arrangement = RowArrangement::interleave_group_headings(
+            slot_count,
+            &grouped_slots,
+            spacing,
+            group_gap,
+        );
         let mut highlighted_slot =
             highlight
                 .zip(highlighted_position)
@@ -230,7 +235,6 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
                     ),
                     color: slot_highlight.color,
                 });
-        let alarm_tiles = alarm_tiles_of(alarms, &slot_marking);
         let mut row_children: Vec<(RowKey<SlotKey>, Element<'a, Message>)> =
             keys.iter().copied().map(RowKey::Slot).zip(slots).collect();
         let mut enclosed_groups = Vec::with_capacity(groups.len());
@@ -259,7 +263,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
         let painted_row = RowPainters {
             alarm_tiles: AlarmTiles {
                 pager_axis,
-                alarm_tiles,
+                alarm_tiles: alarm_tiles_of(alarms, &slot_marking),
             },
             travelling_highlight: TravellingHighlight {
                 pager_axis,
@@ -272,11 +276,18 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             },
         }
         .painted_under(sliding_row);
-        let departing_row = match left_list_message {
-            Some(left_list_message) => mouse_area(painted_row).on_exit(left_list_message).into(),
-            None => painted_row,
-        };
+        let departing_row = exiting_with(painted_row, left_list_message);
         wheel_selecting(departing_row, wheel_select, keys, highlighted_position)
+    }
+}
+
+fn exiting_with<'a, Message: Clone + 'a>(
+    row: Element<'a, Message>,
+    left_list_message: Option<Message>,
+) -> Element<'a, Message> {
+    match left_list_message {
+        Some(left_list_message) => mouse_area(row).on_exit(left_list_message).into(),
+        None => row,
     }
 }
 

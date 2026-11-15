@@ -1,0 +1,10 @@
+id: preposition-constructor
+valid:
+  - "impl From<&Wallpaper> for PlaceLabel { fn from(wallpaper: &Wallpaper) -> Self { todo!() } }"
+  - "impl AppNames { fn process_app_name(&self, pid: u32) -> Option<String> { None } }"
+  - "fn offset_slider(edge: ColorMode) -> u8 { 0 }"
+invalid:
+  - "impl PlaceLabel { fn of(wallpaper: &Wallpaper) -> Self { todo!() } }"
+  - "impl Target { const fn of_pid(pid: i32) -> Self { todo!() } }"
+  - "impl Delivery { fn from_cadence(cadence: Cadence) -> Self { todo!() } }"
+  - "impl Target { fn for_window(window: u64) -> Self { todo!() } }"

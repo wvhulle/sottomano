@@ -59,15 +59,6 @@ struct Icon {
     slug: String,
 }
 
-impl Icon {
-    fn of(slug: &str) -> Self {
-        Self {
-            variant: pascal_case(slug),
-            slug: slug.to_owned(),
-        }
-    }
-}
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -144,7 +135,10 @@ impl Phosphor {{
 fn icons(regular_dir: &Path) -> Vec<Icon> {
     svg_slugs(regular_dir)
         .iter()
-        .map(|slug| Icon::of(slug))
+        .map(|slug| Icon {
+            variant: pascal_case(slug),
+            slug: slug.to_owned(),
+        })
         .collect()
 }
 

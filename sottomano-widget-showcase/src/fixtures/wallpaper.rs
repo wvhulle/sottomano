@@ -14,7 +14,7 @@ use crate::showcased_group::ShowcasedGroup;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = WallpaperGroup::new(&SecretPaths::default());
     let _ = group.update(
-        WallpaperMessage::Lookup(Box::new(SnapshotDelivery::live_push(Ok(Lookup::of(
+        WallpaperMessage::Lookup(Box::new(SnapshotDelivery::live_push(Ok(Lookup::from(
             &milos(),
         ))))),
         clock,

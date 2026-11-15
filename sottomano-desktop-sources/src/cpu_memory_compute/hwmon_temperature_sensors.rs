@@ -36,7 +36,7 @@ impl HwmonChip {
     }
 
     #[must_use]
-    pub fn of_device(device: &Path) -> Vec<Self> {
+    pub fn device_chips(device: &Path) -> Vec<Self> {
         let multipath_controllers = list_dir(device)
             .into_iter()
             .filter(|entry| numbered_suffix(entry, "nvme").is_some());
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn chips_behind_multipath_controllers_are_found_with_plausible_limits() {
         let subsystem = multipath_nvme_subsystem();
-        let chips = HwmonChip::of_device(&subsystem);
+        let chips = HwmonChip::device_chips(&subsystem);
         let sensors = chips.first().map(HwmonChip::temperature_sensors);
         let composite = chips.first().zip(sensors.as_ref()).map(|(chip, sensors)| {
             let composite = &sensors[0];

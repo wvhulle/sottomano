@@ -80,8 +80,8 @@ struct HoverState {
     presence: Arc<()>,
 }
 
-impl HoverState {
-    fn of(target: HoverTarget) -> Self {
+impl From<HoverTarget> for HoverState {
+    fn from(target: HoverTarget) -> Self {
         Self {
             target,
             pointer_presence: PointerPresence::NotPointedAt,
@@ -98,7 +98,7 @@ impl<M> HoverArea<'_, M> {
         if state.target == self.target {
             return None;
         }
-        let replaced = replace(state, HoverState::of(self.target.clone()));
+        let replaced = replace(state, HoverState::from(self.target.clone()));
         (replaced.pointer_presence == PointerPresence::PointedAt).then(|| {
             (self.wrap)(match self.opening {
                 CardOpening::OnHover => HoverCardMessage::Exit {
@@ -208,7 +208,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(HoverState::of(self.target.clone()))
+        tree::State::new(HoverState::from(self.target.clone()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -504,7 +504,7 @@ mod tests {
     }
 
     fn fresh_state() -> HoverState {
-        HoverState::of(HoverTarget::Workspace(7))
+        HoverState::from(HoverTarget::Workspace(7))
     }
 
     fn anchor_at(horizontal_position: f32) -> Rectangle {

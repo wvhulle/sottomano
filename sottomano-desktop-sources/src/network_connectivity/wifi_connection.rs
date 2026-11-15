@@ -140,7 +140,7 @@ async fn adapter_details(
         None
     };
     Ok(WifiAdapterDetails {
-        adapter: Adapter::of_net_interface(&device.interface),
+        adapter: Adapter::read_net_interface(&device.interface),
         device: device.interface,
         addressing,
     })

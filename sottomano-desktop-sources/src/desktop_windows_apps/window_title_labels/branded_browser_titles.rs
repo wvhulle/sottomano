@@ -10,7 +10,7 @@ pub enum BrandedBrowser {
 
 impl BrandedBrowser {
     #[must_use]
-    pub fn of_app_id(app_id: &str) -> Option<Self> {
+    pub fn recognised_app_id(app_id: &str) -> Option<Self> {
         match app_id {
             "librewolf" | "io.gitlab.librewolf-community" => Some(BrandedBrowser::LibreWolf),
             "chromium" | "chromium-browser" | "org.chromium.Chromium" => {
@@ -56,9 +56,9 @@ mod tests {
     #[test]
     fn branded_browsers_are_recognised_by_exact_app_id() {
         assert_eq!(
-            BrandedBrowser::of_app_id("org.chromium.Chromium"),
+            BrandedBrowser::recognised_app_id("org.chromium.Chromium"),
             Some(BrandedBrowser::Chromium)
         );
-        assert_eq!(BrandedBrowser::of_app_id("chromium-like"), None);
+        assert_eq!(BrandedBrowser::recognised_app_id("chromium-like"), None);
     }
 }

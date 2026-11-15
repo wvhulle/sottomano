@@ -816,7 +816,7 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
-    let indicator = EdgeIndicator::of_menu_handle(highest_alert_severity, handle_indicator);
+    let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
     PanelSlot::new(row.into(), indicator).view(panel_position)
 }
 
@@ -828,7 +828,7 @@ pub(crate) struct EdgeIndicator {
 }
 
 impl EdgeIndicator {
-    pub(crate) fn of_menu_handle<'a, M: 'a>(
+    pub(crate) fn menu_handle_view<'a, M: 'a>(
         highest_alert_severity: Severity,
         handle_indicator: MenuHandleIndicator,
     ) -> Element<'a, M> {

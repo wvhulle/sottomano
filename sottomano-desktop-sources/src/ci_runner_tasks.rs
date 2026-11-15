@@ -82,7 +82,7 @@ pub enum TaskStopControl {
 }
 
 impl TaskStopControl {
-    fn of_containers(engine_socket: &Path, containers: &[&RunningContainer]) -> Self {
+    fn stopping_containers(engine_socket: &Path, containers: &[&RunningContainer]) -> Self {
         if containers.is_empty() {
             return TaskStopControl::NoContainerNow;
         }

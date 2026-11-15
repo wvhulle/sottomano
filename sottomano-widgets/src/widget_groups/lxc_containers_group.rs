@@ -35,14 +35,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LxcContainerTarget {
-    container_name: Cow<'static, str>,
-}
-
-impl LxcContainerTarget {
-    #[must_use]
-    pub const fn of_container(container_name: Cow<'static, str>) -> Self {
-        Self { container_name }
-    }
+    pub container_name: Cow<'static, str>,
 }
 
 impl From<LxcContainerTarget> for HoverTarget {
@@ -169,9 +162,9 @@ impl ContainerFamily for LxcFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: LxcContainerTarget::of_container(Cow::Owned(
-                    listing.container_name.clone(),
-                )),
+                target: LxcContainerTarget {
+                    container_name: Cow::Owned(listing.container_name.clone()),
+                },
                 reading: LxcContainerListingRow { listing },
                 power: match listing.run_state {
                     ContainerRunState::Running => {
@@ -190,9 +183,9 @@ impl ContainerFamily for LxcFamily {
             .containers
             .iter()
             .map(|container| FamilyRow {
-                target: LxcContainerTarget::of_container(Cow::Owned(
-                    container.container_name.clone(),
-                )),
+                target: LxcContainerTarget {
+                    container_name: Cow::Owned(container.container_name.clone()),
+                },
                 reading: LxcContainerRow { container },
                 power: match container.run_state {
                     ContainerRunState::Running => {

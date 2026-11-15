@@ -106,16 +106,6 @@ pub struct PlayerTarget {
     pub control: MediaTarget,
 }
 
-impl PlayerTarget {
-    #[must_use]
-    pub fn of(bus: &str, control: MediaTarget) -> Self {
-        Self {
-            bus: Cow::Owned(bus.to_owned()),
-            control,
-        }
-    }
-}
-
 impl From<PlayerTarget> for HoverTarget {
     fn from(target: PlayerTarget) -> Self {
         HoverTarget::Media(target)
@@ -521,7 +511,11 @@ fn session_buttons_item<'a>(
                 icon: GroupItemIcon::Absent,
             },
             GroupItemHoverArea::ByChildren {
-                row_target: PlayerTarget::of(bus, MediaTarget::SessionControls).into(),
+                row_target: PlayerTarget {
+                    bus: bus.to_owned().into(),
+                    control: MediaTarget::SessionControls,
+                }
+                .into(),
             },
             GroupItemValue::drawn(move |reveal| {
                 lifted_to_player(bus, session_controls(config, media, session, reveal).into())
@@ -539,6 +533,13 @@ fn player_group<'a>(
     lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
 ) -> WidgetGroupContent<'a, MediaInteraction> {
     let bus = media.bus.as_str();
+    let player_target = move |control| -> HoverTarget {
+        PlayerTarget {
+            bus: bus.to_owned().into(),
+            control,
+        }
+        .into()
+    };
     let seek_availability = SeekBar::seek_availability(media, clock.instant);
     let gauge_fraction = media
         .progress
@@ -557,7 +558,7 @@ fn player_group<'a>(
                 },
             },
             GroupItemHoverArea::ByChildren {
-                row_target: PlayerTarget::of(bus, MediaTarget::Seek).into(),
+                row_target: player_target(MediaTarget::Seek),
             },
             GroupItemValue::drawn(move |_| {
                 let bar = session
@@ -571,7 +572,7 @@ fn player_group<'a>(
                     bus,
                     hoverable(
                         bar,
-                        PlayerTarget::of(bus, MediaTarget::Seek).into(),
+                        player_target(MediaTarget::Seek),
                         PressHints {
                             left: Some("jump to this point"),
                             scroll: Some("seek"),
@@ -589,7 +590,7 @@ fn player_group<'a>(
             icon: GroupItemIcon::Absent,
         },
         GroupItemHoverArea::ByChildren {
-            row_target: PlayerTarget::of(bus, MediaTarget::Transport).into(),
+            row_target: player_target(MediaTarget::Transport),
         },
         GroupItemValue::drawn(move |reveal| {
             lifted_to_player(

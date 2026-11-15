@@ -138,7 +138,7 @@ async fn summed_since(
             ),
         )
         .await?;
-    let columns = Columns::of(&summed_rows);
+    let columns = Columns::from(&summed_rows);
     let Some(summed_row) = summed_rows.next().await? else {
         return Ok(TransferTotals::default());
     };
@@ -154,7 +154,7 @@ async fn first_counted_day(
     let mut first_day_rows = connection
         .query("SELECT MIN(day) AS first_day FROM metered_volume", ())
         .await?;
-    let columns = Columns::of(&first_day_rows);
+    let columns = Columns::from(&first_day_rows);
     Ok(first_day_rows
         .next()
         .await?

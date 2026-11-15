@@ -231,7 +231,7 @@ impl CiRunsGroup {
     pub fn hover_card_for(&self, target: &CiRunsTarget, clock: Clock) -> Vec<Section> {
         match target {
             CiRunsTarget::Runner(reference) => self.runner_hover_card(reference, |watched| {
-                CiRunnerFailureRow::of_failing(watched).map(|row| row.hover_card(clock))
+                CiRunnerFailureRow::failing_runner(watched).map(|row| row.hover_card(clock))
             }),
             CiRunsTarget::Run { runner, run_label } => self.runner_hover_card(runner, |watched| {
                 let task = watched
@@ -258,7 +258,7 @@ impl CiRunsGroup {
             .sum();
         let runner_rows = watched_runners.into_iter().flat_map(|watched| {
             let reference = CiRunnerReference::from(&watched);
-            let failure_row = CiRunnerFailureRow::of_failing(watched)
+            let failure_row = CiRunnerFailureRow::failing_runner(watched)
                 .map(|row| GroupItem::reading(row, CiRunsTarget::Runner(reference.clone())));
             let run_rows = watched.runner.tasks.iter().map(move |task| {
                 let row = GroupItem::reading(

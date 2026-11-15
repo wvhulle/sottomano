@@ -73,7 +73,8 @@ impl AppMenuRegistrar {
         };
         let owner_bus_name = OwnedUniqueName::from(sender.clone());
         let dbus = DBusProxy::new(connection).await?;
-        let owner_process = OwnerProcess::of_bus(&dbus, BusName::from(sender.clone())).await;
+        let owner_process =
+            OwnerProcess::query_bus_owner(&dbus, BusName::from(sender.clone())).await;
         tracing::debug!(
             "appmenu registrar: window {window_id} of {owner_bus_name} exports {menu_object_path}"
         );

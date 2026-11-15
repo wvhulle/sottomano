@@ -257,9 +257,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("QEMU machines"),
-            Step::Hover(HoverTarget::VirtualMachine(VirtualMachineTarget::of_pid(
-                virtual_machines::INTERACTIVE_VM_PID,
-            ))),
+            Step::Hover(HoverTarget::VirtualMachine(
+                VirtualMachineTarget::RunningProcess {
+                    pid: virtual_machines::INTERACTIVE_VM_PID,
+                },
+            )),
         ],
     },
     Demo {
@@ -271,9 +273,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("microvm.nix guests"),
-            Step::Hover(HoverTarget::MicrovmGuest(MicrovmGuestTarget::of_pid(
-                microvm_guests::HOVERED_MICROVM_PID,
-            ))),
+            Step::Hover(HoverTarget::MicrovmGuest(
+                MicrovmGuestTarget::RunningProcess {
+                    pid: microvm_guests::HOVERED_MICROVM_PID,
+                },
+            )),
         ],
     },
     Demo {
@@ -285,11 +289,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("nspawn containers"),
-            Step::Hover(HoverTarget::NspawnContainer(
-                NspawnContainerTarget::of_machine(Cow::Borrowed(
-                    nspawn_containers::HOVERED_CONTAINER_NAME,
-                )),
-            )),
+            Step::Hover(HoverTarget::NspawnContainer(NspawnContainerTarget {
+                machine_name: Cow::Borrowed(nspawn_containers::HOVERED_CONTAINER_NAME),
+            })),
         ],
     },
     Demo {
@@ -301,12 +303,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Incus instances"),
-            Step::Hover(HoverTarget::IncusInstance(
-                IncusInstanceTarget::of_instance(
-                    InstanceDaemon::Incus,
-                    Cow::Borrowed(incus_instances::HOVERED_INSTANCE_NAME),
-                ),
-            )),
+            Step::Hover(HoverTarget::IncusInstance(IncusInstanceTarget {
+                instance_daemon: InstanceDaemon::Incus,
+                instance_name: Cow::Borrowed(incus_instances::HOVERED_INSTANCE_NAME),
+            })),
         ],
     },
     Demo {
@@ -318,9 +318,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("LXC containers"),
-            Step::Hover(HoverTarget::LxcContainer(LxcContainerTarget::of_container(
-                Cow::Borrowed(lxc_containers::HOVERED_CONTAINER_NAME),
-            ))),
+            Step::Hover(HoverTarget::LxcContainer(LxcContainerTarget {
+                container_name: Cow::Borrowed(lxc_containers::HOVERED_CONTAINER_NAME),
+            })),
         ],
     },
     Demo {
@@ -332,11 +332,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Flatpak apps"),
-            Step::Hover(HoverTarget::FlatpakSandbox(
-                FlatpakSandboxTarget::of_instance(Cow::Borrowed(
-                    flatpak_sandboxes::HOVERED_INSTANCE_ID,
-                )),
-            )),
+            Step::Hover(HoverTarget::FlatpakSandbox(FlatpakSandboxTarget {
+                instance_id: Cow::Borrowed(flatpak_sandboxes::HOVERED_INSTANCE_ID),
+            })),
         ],
     },
     Demo {
@@ -363,7 +361,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VirtualBox machines"),
             Step::Hover(HoverTarget::VirtualBoxMachine(
-                VirtualBoxMachineTarget::of_pid(virtualbox_machines::HOVERED_MACHINE_PID),
+                VirtualBoxMachineTarget::RunningProcess {
+                    pid: virtualbox_machines::HOVERED_MACHINE_PID,
+                },
             )),
         ],
     },
@@ -376,9 +376,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VMware machines"),
-            Step::Hover(HoverTarget::VmwareMachine(VmwareMachineTarget::of_pid(
-                vmware_machines::HOVERED_MACHINE_PID,
-            ))),
+            Step::Hover(HoverTarget::VmwareMachine(VmwareMachineTarget {
+                pid: vmware_machines::HOVERED_MACHINE_PID,
+            })),
         ],
     },
     Demo {
@@ -390,9 +390,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Apptainer containers"),
-            Step::Hover(HoverTarget::ApptainerContainer(
-                ApptainerContainerTarget::of_runtime(apptainer_containers::HOVERED_RUNTIME_PID),
-            )),
+            Step::Hover(HoverTarget::ApptainerContainer(ApptainerContainerTarget {
+                runtime_pid: apptainer_containers::HOVERED_RUNTIME_PID,
+            })),
         ],
     },
     Demo {
@@ -421,11 +421,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Memory limits"),
-            Step::Hover(HoverTarget::CgroupMemoryLimit(
-                CgroupMemoryLimitTarget::of_cgroup(Cow::Borrowed(
-                    cgroup_memory_limits::HOVERED_CGROUP_PATH,
-                )),
-            )),
+            Step::Hover(HoverTarget::CgroupMemoryLimit(CgroupMemoryLimitTarget {
+                cgroup_path: Cow::Borrowed(cgroup_memory_limits::HOVERED_CGROUP_PATH),
+            })),
         ],
     },
     Demo {

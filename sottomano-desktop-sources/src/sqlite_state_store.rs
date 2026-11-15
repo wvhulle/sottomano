@@ -138,15 +138,15 @@ pub async fn singleton_row<Read>(
     read: impl FnOnce(&Columns, &turso::Row) -> Result<Read, StoreError>,
 ) -> Result<Option<Read>, StoreError> {
     let mut rows = connection.query(query, ()).await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     match rows.next().await? {
         Some(row) => read(&columns, &row).map(Some),
         None => Ok(None),
     }
 }
 
-impl Columns {
-    pub fn of(rows: &turso::Rows) -> Self {
+impl From<&turso::Rows> for Columns {
+    fn from(rows: &turso::Rows) -> Self {
         Self(
             rows.column_names()
                 .into_iter()
@@ -155,7 +155,9 @@ impl Columns {
                 .collect(),
         )
     }
+}
 
+impl Columns {
     fn value(&self, row: &turso::Row, name: &str) -> Result<turso::Value, StoreError> {
         let index =
             self.0

@@ -358,7 +358,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
             return;
         };
         let state = tree.state.downcast_ref::<ScrollerState>();
-        let hidden_edges = HiddenScrollEdges::of(
+        let hidden_edges = HiddenScrollEdges::clamped_scroll_overflow(
             state.scroll_motion.drawn_offset(),
             self.axis.span_of(content_layout(layout).bounds().size()),
             self.axis.span_of(bounds.size()),

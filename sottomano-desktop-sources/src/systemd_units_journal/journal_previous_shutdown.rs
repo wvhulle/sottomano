@@ -236,7 +236,7 @@ impl ShutdownEvent {
         MessageId::UNIT_STOPPED,
     ];
 
-    fn of_record(record: ShutdownRecord, at: SystemTime) -> Option<Self> {
+    fn recorded_at(record: ShutdownRecord, at: SystemTime) -> Option<Self> {
         let ShutdownRecord {
             message_id,
             unit,
@@ -345,7 +345,7 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
         let decoded = decode_record(record)
             .inspect_err(|e| tracing::debug!("systemd last shutdown: malformed record: {e}"))
             .ok();
-        events.extend(decoded.and_then(|record| ShutdownEvent::of_record(record, at)));
+        events.extend(decoded.and_then(|record| ShutdownEvent::recorded_at(record, at)));
     }
     LastShutdown::assemble(events, ended_at, slow_stop).ok_or(ShutdownReadError::NoShutdownRecorded)
 }
@@ -420,7 +420,7 @@ mod tests {
         .expect("a well-formed stop record");
         let Some(ShutdownEvent::Stopped {
             job, job_result, ..
-        }) = ShutdownEvent::of_record(record, SystemTime::UNIX_EPOCH)
+        }) = ShutdownEvent::recorded_at(record, SystemTime::UNIX_EPOCH)
         else {
             panic!("a stopped unit event");
         };

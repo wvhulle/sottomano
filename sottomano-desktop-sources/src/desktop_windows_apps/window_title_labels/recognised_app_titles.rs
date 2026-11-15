@@ -42,7 +42,7 @@ impl TryFrom<&str> for RecognisedApp {
         if THUNDERBIRD_APP_IDS.contains(&app_id) {
             return Ok(RecognisedApp::Thunderbird);
         }
-        BrandedBrowser::of_app_id(app_id)
+        BrandedBrowser::recognised_app_id(app_id)
             .map(RecognisedApp::BrandedBrowser)
             .ok_or(UnrecognisedApp)
     }

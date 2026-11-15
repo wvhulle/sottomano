@@ -185,7 +185,7 @@ async fn read_layer_appearance(
             (layer.key(),),
         )
         .await?;
-    let columns = Columns::of(&rows);
+    let columns = Columns::from(&rows);
     let Some(row) = rows.next().await? else {
         return Ok(defaults);
     };

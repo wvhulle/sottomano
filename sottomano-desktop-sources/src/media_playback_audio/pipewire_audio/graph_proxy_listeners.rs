@@ -213,7 +213,7 @@ fn track_node(
                 if let Some(placement) = route_placement(props) {
                     live_graph.update(|graph| graph.set_placement(id, placement));
                 }
-                if let Some(kind) = OutputKind::of_described_props(props, "device.icon_name") {
+                if let Some(kind) = OutputKind::described_props_kind(props, "device.icon_name") {
                     live_graph.update(|graph| graph.set_kind_hint(id, kind));
                 }
             }
@@ -299,9 +299,9 @@ fn track_device(
             let live_graph = live_graph.clone();
             move |info: &DeviceInfoRef| {
                 if info.change_mask().contains(DeviceChangeMask::PROPS)
-                    && let Some(kind) = info
-                        .props()
-                        .and_then(|props| OutputKind::of_described_props(props, "device.icon-name"))
+                    && let Some(kind) = info.props().and_then(|props| {
+                        OutputKind::described_props_kind(props, "device.icon-name")
+                    })
                 {
                     live_graph.update(|graph| graph.set_device_kind(id, kind));
                 }

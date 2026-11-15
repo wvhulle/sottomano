@@ -29,7 +29,7 @@ pub struct VolumeIdentity {
 
 impl VolumeIdentity {
     #[must_use]
-    pub fn of_devices(devices: &[KernelDevice]) -> Self {
+    pub fn read_first_identified(devices: &[KernelDevice]) -> Self {
         devices
             .iter()
             .filter_map(|device| {

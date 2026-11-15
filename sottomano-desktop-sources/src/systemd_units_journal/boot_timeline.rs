@@ -85,7 +85,7 @@ pub struct BootPhase {
 }
 
 impl BootPhases {
-    fn of_timestamps(timestamps: &ManagerTimestamps, finish: Duration) -> Option<Self> {
+    fn phases_until_finish(timestamps: &ManagerTimestamps, finish: Duration) -> Option<Self> {
         let userspace_start = timestamps.userspace?;
         let loader_start = timestamps.loader;
         Some(Self {
@@ -185,7 +185,7 @@ pub struct DurationComparison {
 }
 
 impl DurationComparison {
-    fn of(
+    fn compared_durations(
         current: Duration,
         previous: Duration,
         thresholds: StartupSlowdownThresholds,
@@ -233,7 +233,7 @@ pub struct StartupComparison {
 }
 
 impl StartupComparison {
-    fn of(
+    fn compared_startups(
         current: OsStartupPhases,
         previous: OsStartupPhases,
         thresholds: StartupSlowdownThresholds,
@@ -243,7 +243,7 @@ impl StartupComparison {
             .filter_map(|stage| {
                 Some(StageComparison {
                     stage,
-                    comparison: DurationComparison::of(
+                    comparison: DurationComparison::compared_durations(
                         current.stage_duration(stage)?,
                         previous.stage_duration(stage)?,
                         thresholds,
@@ -252,7 +252,11 @@ impl StartupComparison {
             })
             .collect();
         Some(Self {
-            os_startup: DurationComparison::of(current.total(), previous.total(), thresholds)?,
+            os_startup: DurationComparison::compared_durations(
+                current.total(),
+                previous.total(),
+                thresholds,
+            )?,
             stages,
         })
     }
@@ -343,7 +347,7 @@ impl SnapshotSource for BootTimeline {
                             startup
                                 .inspect_err(|e| tracing::warn!("systemd user startup: {e}"))
                                 .ok()
-                                .and_then(UserStartup::of),
+                                .and_then(UserStartup::measured_startup),
                         )
                     })
                     .map({
@@ -366,7 +370,7 @@ async fn system_boot(
     slowdown_thresholds: StartupSlowdownThresholds,
 ) -> zbus::Result<BootTimeline> {
     let startup = finished_startup(system, slow_unit).await?;
-    let phases = BootPhases::of_timestamps(&startup.timestamps, startup.finish)
+    let phases = BootPhases::phases_until_finish(&startup.timestamps, startup.finish)
         .ok_or_else(|| zbus::Error::Failure("systemd reports no userspace start".to_owned()))?;
     let previous_os_startup = blocking("systemd startup history", || {
         read_previous_os_startup().unwrap_or_else(|history_failure| {
@@ -377,7 +381,7 @@ async fn system_boot(
     .await;
     Ok(BootTimeline {
         startup_comparison: previous_os_startup.and_then(|previous| {
-            StartupComparison::of(phases.os_startup(), previous, slowdown_thresholds)
+            StartupComparison::compared_startups(phases.os_startup(), previous, slowdown_thresholds)
         }),
         phases,
         system_startup: SystemStartup {
@@ -389,7 +393,7 @@ async fn system_boot(
 }
 
 impl UserStartup {
-    fn of(startup: ManagerStartup) -> Option<Self> {
+    fn measured_startup(startup: ManagerStartup) -> Option<Self> {
         let started_at = startup.timestamps.userspace?;
         Some(Self {
             started_at,
@@ -569,7 +573,7 @@ mod tests {
 
     #[test]
     fn startup_compares_only_stages_both_boots_had() {
-        let comparison = StartupComparison::of(
+        let comparison = StartupComparison::compared_startups(
             os_phases(0.5, Some(6.0), 12.0),
             os_phases(0.6, None, 10.0),
             THRESHOLDS,
@@ -590,7 +594,7 @@ mod tests {
     #[test]
     fn comparison_grades_by_thresholds_and_ignores_sub_second_slowdowns() {
         let graded = |current: f64| {
-            DurationComparison::of(seconds(current), seconds(10.0), THRESHOLDS)
+            DurationComparison::compared_durations(seconds(current), seconds(10.0), THRESHOLDS)
                 .expect("a comparison")
         };
         assert_whole_percent(graded(9.0).change, -10.0);
@@ -598,12 +602,12 @@ mod tests {
         assert_eq!(graded(12.5).severity, Severity::Warning);
         assert_eq!(graded(15.9).severity, Severity::Warning);
         assert_eq!(graded(16.0).severity, Severity::Critical);
-        let tiny =
-            DurationComparison::of(seconds(0.9), seconds(0.5), THRESHOLDS).expect("a comparison");
+        let tiny = DurationComparison::compared_durations(seconds(0.9), seconds(0.5), THRESHOLDS)
+            .expect("a comparison");
         assert_whole_percent(tiny.change, 80.0);
         assert_eq!(tiny.severity, Severity::Normal);
         assert_eq!(
-            DurationComparison::of(seconds(1.0), Duration::ZERO, THRESHOLDS),
+            DurationComparison::compared_durations(seconds(1.0), Duration::ZERO, THRESHOLDS),
             None
         );
     }
@@ -618,7 +622,7 @@ mod tests {
             finish: Some(seconds(37.0)),
         };
         let phases =
-            BootPhases::of_timestamps(&timestamps, Duration::from_secs(37)).expect("phases");
+            BootPhases::phases_until_finish(&timestamps, Duration::from_secs(37)).expect("phases");
         assert_eq!(
             phases.present(),
             [

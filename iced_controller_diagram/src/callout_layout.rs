@@ -13,7 +13,7 @@ pub(crate) enum CalloutSide {
 }
 
 impl CalloutSide {
-    pub(crate) fn of(model: ControllerModel, anchor: DiagramAnchor) -> Self {
+    pub(crate) fn nearest_body_half(model: ControllerModel, anchor: DiagramAnchor) -> Self {
         if anchor_point(model, anchor).x < body_size(model).width / 2.0 {
             CalloutSide::Left
         } else {
@@ -56,7 +56,7 @@ fn stacked_tops(
         anchor_point(model, anchor).y * metrics.scale - metrics.row_height / 2.0
     };
     let mut members: Vec<usize> = (0..anchors.len())
-        .filter(|&index| CalloutSide::of(model, anchors[index]) == side)
+        .filter(|&index| CalloutSide::nearest_body_half(model, anchors[index]) == side)
         .collect();
     members.sort_by(|&a, &b| desired_top(anchors[a]).total_cmp(&desired_top(anchors[b])));
     let pitch = metrics.row_height + metrics.row_gap;
@@ -114,7 +114,7 @@ pub(crate) fn callout_layout(
         .map(|(&anchor, &top)| {
             let row = top + metrics.row_height / 2.0;
             let point = anchor_point(model, anchor);
-            let (edge, stub) = match CalloutSide::of(model, anchor) {
+            let (edge, stub) = match CalloutSide::nearest_body_half(model, anchor) {
                 CalloutSide::Left => (0.0, metrics.stub),
                 CalloutSide::Right => (art_width, -metrics.stub),
             };
@@ -171,7 +171,7 @@ mod tests {
                 let mut tops: Vec<f32> = anchors
                     .iter()
                     .zip(&layout.tops)
-                    .filter(|(anchor, _)| CalloutSide::of(model, **anchor) == side)
+                    .filter(|(anchor, _)| CalloutSide::nearest_body_half(model, **anchor) == side)
                     .map(|(_, &top)| top)
                     .collect();
                 tops.sort_by(f32::total_cmp);

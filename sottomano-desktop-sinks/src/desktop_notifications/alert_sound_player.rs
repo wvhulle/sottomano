@@ -17,8 +17,8 @@ enum Alert {
     Passive,
 }
 
-impl Alert {
-    fn of(data: &NotificationData) -> Self {
+impl From<&NotificationData> for Alert {
+    fn from(data: &NotificationData) -> Self {
         if matches!(data.severity, Severity::Critical) {
             return Self::Critical;
         }
@@ -26,13 +26,17 @@ impl Alert {
             return Self::Interactive;
         }
         match data.category.as_deref() {
-            Some(c) if c.starts_with("email") || c.starts_with("im") => Self::NewMessage,
+            Some(category) if category.starts_with("email") || category.starts_with("im") => {
+                Self::NewMessage
+            }
             Some("transfer.complete") => Self::Complete,
-            Some(c) if c.rsplit('.').next() == Some("error") => Self::Error,
+            Some(category) if category.rsplit('.').next() == Some("error") => Self::Error,
             _ => Self::Passive,
         }
     }
+}
 
+impl Alert {
     fn theme_name(self) -> &'static str {
         match self {
             Self::Critical => "window-attention",
@@ -92,7 +96,7 @@ impl SoundTheme {
 
 pub fn play(data: &NotificationData, theme: &SoundTheme) -> impl Future<Output = ()> + use<> {
     let explicit = data.sound_file.clone();
-    let alert = Alert::of(data);
+    let alert = Alert::from(data);
     let theme = theme.clone();
     blocking("notification sound", move || {
         if let Some(file) = resolve(explicit, alert, &theme) {

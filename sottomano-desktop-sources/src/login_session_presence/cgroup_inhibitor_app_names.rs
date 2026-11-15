@@ -28,17 +28,17 @@ impl InhibitorAppNames {
     }
 
     #[must_use]
-    pub fn of_process(&self, pid: u32) -> Option<String> {
+    pub fn process_app_name(&self, pid: u32) -> Option<String> {
         let process = readable_process(pid)?;
         self.scope_app_name(process.pid, &process)
             .or_else(|| own_process_name(&process))
     }
 
     #[must_use]
-    pub fn of_lock_holder(&self, stated_name: &str, pid: u32) -> String {
+    pub fn lock_holder_app_name(&self, stated_name: &str, pid: u32) -> String {
         match stated_name_kind(stated_name, pid) {
             StatedNameKind::RuntimeOnly => self
-                .of_process(pid)
+                .process_app_name(pid)
                 .unwrap_or_else(|| stated_name.to_owned()),
             StatedNameKind::AppName => stated_name.to_owned(),
         }

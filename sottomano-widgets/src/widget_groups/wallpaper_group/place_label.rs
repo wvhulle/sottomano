@@ -53,7 +53,7 @@ impl GroupItemReading for Place {
 }
 
 impl Place {
-    pub(super) fn of(wallpaper: &Wallpaper) -> Option<Self> {
+    pub(super) fn wallpaper_place(wallpaper: &Wallpaper) -> Option<Self> {
         Some(Self {
             name: wallpaper.place.clone()?,
             position: wallpaper.position,
