@@ -306,29 +306,29 @@ impl CompositorStylingGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: CompositorStylingTarget) -> Vec<Section> {
-        let control = match target {
-            CompositorStylingTarget::CornerRadius => self
-                .corner_radius
-                .readout_hover_card("Window corner radius"),
-            CompositorStylingTarget::Gaps => self.gaps.readout_hover_card("Window gaps"),
-            CompositorStylingTarget::Xray => xray_toggle(self.blur_depth).switch_hover_card(),
-            CompositorStylingTarget::SwitchHeat => self.switch_heat.toggle().switch_hover_card(),
-        };
-        control
-            .into_iter()
-            .chain(self.rules_file.unwritable().map(|unwritable| {
-                Section::new(
-                    "The compositor rules are not written",
-                    dictionary_table([LabeledValue::new(
-                        ValueCell::Path(unwritable.path.to_path_buf()),
-                        unwritable.kind.to_string(),
+    fn with_unwritable_rules_warning<'a>(
+        &'a self,
+        styling_item: GroupItem<'a, CompositorStylingMessage>,
+    ) -> GroupItem<'a, CompositorStylingMessage> {
+        if self.rules_file.unwritable().is_none() {
+            return styling_item;
+        }
+        styling_item.with_hover_card(Box::new(move |_| {
+            self.rules_file
+                .unwritable()
+                .map(|unwritable| {
+                    Section::new(
+                        "The compositor rules are not written",
+                        dictionary_table([LabeledValue::new(
+                            ValueCell::Path(unwritable.path.to_path_buf()),
+                            unwritable.kind.to_string(),
+                        )
+                        .level(Severity::Critical)]),
                     )
-                    .level(Severity::Critical)]),
-                )
-            }))
-            .collect()
+                })
+                .into_iter()
+                .collect()
+        }))
     }
 
     fn close_sliders(&mut self) {
@@ -426,7 +426,7 @@ impl CompositorStylingGroup {
                 .filter(|(control, _)| {
                     self.control_support(*control) == CompositorFeatureSupport::Available
                 })
-                .map(|(_, styling_item)| styling_item),
+                .map(|(_, styling_item)| self.with_unwritable_rules_warning(styling_item)),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: compositor_face(self.rules_file.compositor()),

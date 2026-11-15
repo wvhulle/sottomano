@@ -24,6 +24,7 @@ fn megahertz_text(frequency: Frequency) -> String {
     format!("{:.0}", frequency.into_format_args(megahertz, Abbreviation))
 }
 
+#[derive(Clone, Copy)]
 pub struct GpuClockLabel {
     pub current: Frequency,
 }
@@ -45,7 +46,7 @@ impl GpuClockLabel {
         }
     }
 
-    pub fn hover_card(&self) -> Vec<Section> {
+    pub fn hover_card(self) -> Vec<Section> {
         vec![Section::new(
             "Now",
             dictionary_table([LabeledValue::new(

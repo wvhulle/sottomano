@@ -513,7 +513,7 @@ impl DesktopShell {
         }
         match self.interactive_panel(target) {
             Some(panel) => Some(HoverContent::Interactive { panel }),
-            None => HoverCard::new(self.hover_card_for(target), announcement)
+            None => HoverCard::new(self.hover_card_sections(target), announcement)
                 .map(HoverContent::Described),
         }
     }
@@ -557,12 +557,11 @@ impl DesktopShell {
             return None;
         };
         let group_menu = self.group_menu_of(*topic, self.hovered_output());
-        let inspected_target = self.widget_groups.group_menus.inspected_target(*topic);
-        let inspected_sections = inspected_target
-            .map(|target| self.hover_card_for(target))
-            .unwrap_or_default();
-        let inspected_announcement = inspected_target
-            .and_then(|target| group_menu.announcement_of(target))
+        let inspected_card = self
+            .widget_groups
+            .group_menus
+            .inspected_target(*topic)
+            .and_then(|target| group_menu.row_hover_card(target, self.clock))
             .unwrap_or_default();
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()
@@ -576,8 +575,8 @@ impl DesktopShell {
                 .appearance()
                 .with_background_faded(satellite_fade_level),
             &InspectionCard {
-                sections: &inspected_sections,
-                announcement: inspected_announcement,
+                sections: &inspected_card.sections,
+                announcement: inspected_card.announcement,
                 card_appearance: self
                     .widget_groups
                     .overlay_settings_group

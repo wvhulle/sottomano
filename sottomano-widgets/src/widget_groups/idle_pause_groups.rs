@@ -287,8 +287,7 @@ impl IdlePauseGroups {
             .filter(move |blocker| blocker.pause == pause)
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, kind: IdleAction, clock: Clock) -> Vec<Section> {
+    fn pause_sections(&self, kind: IdleAction, clock: Clock) -> Vec<Section> {
         let timer = &self.pause(kind).timer;
         let timer_card = if kind == IdleAction::ScreenOff
             && let Some(override_timeout) = self.quiet_screen_off
@@ -313,13 +312,9 @@ impl IdlePauseGroups {
             .collect()
     }
 
-    #[must_use]
-    pub fn blocker_hover_card_for(&self, target: &PauseBlockerTarget) -> Vec<Section> {
-        self.sleep_obstacles.hover_card_with(
-            blocker_sections(self.blockers_of(target.pause))
-                .into_iter()
-                .collect::<Vec<_>>(),
-        )
+    fn blocker_group_sections(&self, pause: IdleAction) -> Vec<Section> {
+        self.sleep_obstacles
+            .hover_card_with(blocker_sections(self.blockers_of(pause)))
     }
 
     pub fn override_screen_off(&mut self, timeout: Option<Duration>) -> Task<IdlePauseMessage> {
@@ -385,7 +380,10 @@ impl IdlePauseGroups {
         let timeout_slider =
             GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
                 IdlePauseInteraction::Timer(pause, message)
-            });
+            })
+            .with_hover_card(Box::new(move |card_clock| {
+                self.pause_sections(pause, card_clock)
+            }));
         let timeout_slider = match first_blocker {
             Some(_) => timeout_slider,
             None => timeout_slider.previewed_on_handle(),
@@ -400,7 +398,8 @@ impl IdlePauseGroups {
                         pause,
                         holder: blocker.holder.clone(),
                     }),
-                );
+                )
+                .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)));
                 match position {
                     0 => blocker_item.previewed_on_handle(),
                     _ => blocker_item,
@@ -416,6 +415,9 @@ impl IdlePauseGroups {
                     NextSleepStateRow { state }.reading_row(),
                     HoverTarget::IdleOutcome(IdleAction::Sleep),
                 )
+                .with_hover_card(Box::new(move |card_clock| {
+                    self.pause_sections(IdleAction::Sleep, card_clock)
+                }))
             });
         let scheduled_shutdown = self
             .sleep_obstacles
@@ -427,6 +429,9 @@ impl IdlePauseGroups {
                     ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
                     HoverTarget::IdleOutcome(IdleAction::PowerOff),
                 )
+                .with_hover_card(Box::new(move |card_clock| {
+                    self.pause_sections(IdleAction::PowerOff, card_clock)
+                }))
             });
         let glyph = pause_glyph(pause).into();
         let face = match first_blocker {

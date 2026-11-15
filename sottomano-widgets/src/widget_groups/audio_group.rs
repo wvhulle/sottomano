@@ -11,13 +11,14 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{
-        self, AudioConnectError, AudioEvent, AudioState, Commands, Peaks, Target, WindowAudio,
+        self, AudioConnectError, AudioEvent, AudioState, ChannelLevels, Commands, Peaks, Target,
+        WindowAudio,
     },
 };
 use sottomano_toml_config::Config;
 use tokio::task::spawn_blocking;
 
-use self::channel_level_control::{audio_output_icon, audio_state_hover_card, feed, input_glyph};
+use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
     group_items::{
@@ -283,22 +284,12 @@ impl AudioGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: AudioTarget) -> Vec<Section> {
-        let AudioTarget::Control(kind) = target else {
-            return self.state.sections_described_by(audio_state_hover_card);
-        };
-        let Some(state) = self.state.get() else {
-            return Vec::new();
-        };
-        let (channel_reading, control) = match kind {
-            ControlKind::Sink => (state.sink.as_ref(), &self.sink_control),
-            ControlKind::Source => (state.source.as_ref(), &self.source_control),
-        };
-        let Some(reading) = channel_reading else {
-            return Vec::new();
-        };
-        let state = reading.mute_state.label();
+    fn channel_level_sections(
+        &self,
+        kind: ControlKind,
+        reading: &ChannelLevels,
+        control: &SliderControl,
+    ) -> Vec<Section> {
         let device = reading
             .device
             .as_deref()
@@ -308,7 +299,7 @@ impl AudioGroup {
             dictionary_table(
                 [
                     LabeledValue::new(kind.label(), control.readout_cell()),
-                    LabeledValue::new("State", state),
+                    LabeledValue::new("State", reading.mute_state.label()),
                 ]
                 .into_iter()
                 .chain(device),
@@ -324,20 +315,30 @@ impl AudioGroup {
             &self.expansion,
             AudioMessage::Expansion,
             [
-                sink.map(|_| {
+                sink.map(|reading| {
                     GroupItem::slider(
                         &self.sink_control,
                         config,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
                     .previewed_on_handle()
+                    .with_hover_card(Box::new(move |_| {
+                        self.channel_level_sections(ControlKind::Sink, reading, &self.sink_control)
+                    }))
                 }),
-                source.map(|_| {
+                source.map(|reading| {
                     GroupItem::slider(
                         &self.source_control,
                         config,
                         AudioMessage::Control.with(ControlKind::Source),
                     )
+                    .with_hover_card(Box::new(move |_| {
+                        self.channel_level_sections(
+                            ControlKind::Source,
+                            reading,
+                            &self.source_control,
+                        )
+                    }))
                 }),
                 self.state.failure().map(|failure| {
                     GroupItem::reading(

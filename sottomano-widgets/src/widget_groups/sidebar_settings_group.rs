@@ -12,7 +12,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -194,20 +194,6 @@ impl SidebarSettingsGroup {
                 self.reveal_fold_timer = Some(handle.abort_on_drop());
                 timer
             }
-        }
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: SidebarSettingsTarget) -> Vec<Section> {
-        match target {
-            SidebarSettingsTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(self.workspaces_placement).switch_hover_card()
-            }
-            SidebarSettingsTarget::AutoCollapseWorkspaces => {
-                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode())
-                    .switch_hover_card()
-            }
-            SidebarSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
         }
     }
 

@@ -8,7 +8,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{WidgetGroupContent, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -127,26 +127,6 @@ impl GroupMenuState {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),
             state: ReadingDisplayState::Idle,
         })
-    }
-
-    #[must_use]
-    pub fn settings_hover_card(&self, target: GroupMenuSettingsTarget) -> Vec<Section> {
-        let presentation = self.presentation();
-        match target {
-            GroupMenuSettingsTarget::AccordionLayout => {
-                accordion_layout_toggle(presentation).switch_hover_card()
-            }
-            GroupMenuSettingsTarget::ClickToOpenMenus => {
-                click_to_open_menus_toggle(presentation).switch_hover_card()
-            }
-            GroupMenuSettingsTarget::KeepOneGroupOpen => {
-                keep_one_group_open_toggle(presentation).switch_hover_card()
-            }
-            GroupMenuSettingsTarget::SubmenuConnector => {
-                submenu_connector_toggle(presentation).switch_hover_card()
-            }
-            GroupMenuSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
-        }
     }
 }
 

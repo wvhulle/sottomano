@@ -37,7 +37,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -202,33 +202,6 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: OpenRouterCreditTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            OpenRouterCreditTarget::SoftBudget => self
-                .spend
-                .sections_described_by(|snapshot| spend_hover_card(snapshot, clock)),
-            OpenRouterCreditTarget::StrictBudget => self
-                .strict_budget
-                .sections_described_by(strict_budget_hover_card),
-            OpenRouterCreditTarget::BestModelsWithinCap => self
-                .model_rankings
-                .sections_described_by(best_models_hover_card),
-            OpenRouterCreditTarget::MostUsedModel => {
-                let Some(ranking) = self.model_ranking() else {
-                    return Vec::new();
-                };
-                self.spend.hover_card_with(ranking.hover_card())
-            }
-            OpenRouterCreditTarget::MostUsedModelSpend => {
-                let Some(ranking) = self.model_ranking() else {
-                    return Vec::new();
-                };
-                self.spend.hover_card_with(ranking.top_model_share())
-            }
-        }
-    }
-
     pub fn group_content(
         &self,
         clock: Clock,
@@ -245,19 +218,40 @@ impl OpenRouterCreditGroup {
                         OpenRouterCreditTarget::SoftBudget,
                         clock,
                     )
-                    .map(GroupItem::previewed_on_handle),
-                self.strict_budget.group_item(
-                    OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
-                    |snapshot| strict_budget_reading_row(snapshot),
-                    OpenRouterCreditTarget::StrictBudget,
-                    clock,
-                ),
-                self.model_rankings.group_item(
-                    OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
-                    |snapshot| best_models_reading_row(snapshot),
-                    OpenRouterCreditTarget::BestModelsWithinCap,
-                    clock,
-                ),
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |card_clock| {
+                            self.spend.sections_described_by(|snapshot| {
+                                spend_hover_card(snapshot, card_clock)
+                            })
+                        }))
+                        .previewed_on_handle()
+                    }),
+                self.strict_budget
+                    .group_item(
+                        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
+                        |snapshot| strict_budget_reading_row(snapshot),
+                        OpenRouterCreditTarget::StrictBudget,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.strict_budget
+                                .sections_described_by(strict_budget_hover_card)
+                        }))
+                    }),
+                self.model_rankings
+                    .group_item(
+                        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
+                        |snapshot| best_models_reading_row(snapshot),
+                        OpenRouterCreditTarget::BestModelsWithinCap,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.model_rankings
+                                .sections_described_by(best_models_hover_card)
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten()
@@ -266,11 +260,17 @@ impl OpenRouterCreditGroup {
                     GroupItem::reading(
                         ranking.most_used_model_row(),
                         OpenRouterCreditTarget::MostUsedModel,
-                    ),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.spend.hover_card_with(ranking.hover_card())
+                    })),
                     GroupItem::reading(
                         ranking.most_used_spend_row(),
                         OpenRouterCreditTarget::MostUsedModelSpend,
-                    ),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.spend.hover_card_with(ranking.top_model_share())
+                    })),
                 ]
             })),
         )

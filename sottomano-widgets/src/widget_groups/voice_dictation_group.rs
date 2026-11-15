@@ -313,48 +313,61 @@ impl VoiceDictationGroup {
         sections
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: VoiceDictationTarget) -> Vec<Section> {
-        match target {
-            VoiceDictationTarget::InterfaceMismatch => self
-                .interface_mismatch
-                .sections_described_by(notulist_interface_mismatch_hover_card),
-            VoiceDictationTarget::Dictation => self
-                .dictation
-                .sections_described_by(notulist_dictation_hover_card),
-            VoiceDictationTarget::Pipeline => self
-                .pipeline
-                .sections_described_by(notulist_pipeline_hover_card),
-            VoiceDictationTarget::Runtime => self.runtime_hover_card(),
-            VoiceDictationTarget::SpeechModel => {
-                let mut sections = self
-                    .engine
-                    .sections_described_by(notulist_engine_hover_card);
-                sections.extend(
-                    self.model_card.sections_described_by(|snapshot| {
-                        hugging_face_model_card_sections(snapshot)
-                    }),
-                );
-                sections
-            }
-            VoiceDictationTarget::RuntimeConfiguration => {
-                let Some(loaded_engine) = self.loaded_engine() else {
-                    return Vec::new();
-                };
-                self.engine
-                    .hover_card_with(RuntimeConfiguration(loaded_engine).hover_card())
-            }
-            VoiceDictationTarget::InferenceHardware => {
-                let Some(loaded_engine) = self.loaded_engine() else {
-                    return Vec::new();
-                };
-                self.engine
-                    .hover_card_with(InferenceHardware(loaded_engine).hover_card())
-            }
-            VoiceDictationTarget::TypingOutput => self
-                .output_problems
-                .sections_described_by(notulist_output_problems_hover_card),
-        }
+    fn engine_items(&self, clock: Clock) -> [Option<GroupItem<'_, VoiceDictationInteraction>>; 4] {
+        let engine = self.loaded_engine();
+        [
+            self.engine
+                .group_item(
+                    NOTULIST_ENGINE_FALLBACK_GLYPH,
+                    |snapshot| notulist_engine_reading_row(snapshot),
+                    VoiceDictationTarget::SpeechModel,
+                    clock,
+                )
+                .map(|item| {
+                    item.with_hover_card(Box::new(move |_| {
+                        let mut sections = self
+                            .engine
+                            .sections_described_by(notulist_engine_hover_card);
+                        sections.extend(self.model_card.sections_described_by(|snapshot| {
+                            hugging_face_model_card_sections(snapshot)
+                        }));
+                        sections
+                    }))
+                }),
+            engine.map(|loaded| {
+                GroupItem::reading(
+                    RuntimeConfiguration(loaded).reading_row(),
+                    VoiceDictationTarget::RuntimeConfiguration,
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.engine
+                        .hover_card_with(RuntimeConfiguration(loaded).hover_card())
+                }))
+            }),
+            engine.map(|loaded| {
+                GroupItem::reading(
+                    InferenceHardware(loaded).reading_row(),
+                    VoiceDictationTarget::InferenceHardware,
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.engine
+                        .hover_card_with(InferenceHardware(loaded).hover_card())
+                }))
+            }),
+            self.output_problems
+                .group_item(
+                    NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
+                    |snapshot| notulist_output_problems_reading_row(snapshot),
+                    VoiceDictationTarget::TypingOutput,
+                    clock,
+                )
+                .map(|item| {
+                    item.with_hover_card(Box::new(move |_| {
+                        self.output_problems
+                            .sections_described_by(notulist_output_problems_hover_card)
+                    }))
+                }),
+        ]
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
@@ -367,12 +380,19 @@ impl VoiceDictationGroup {
             &self.expansion,
             VoiceDictationInteraction::Expansion,
             [
-                self.interface_mismatch.group_item(
-                    NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
-                    |snapshot| notulist_interface_mismatch_reading_row(snapshot),
-                    VoiceDictationTarget::InterfaceMismatch,
-                    clock,
-                ),
+                self.interface_mismatch
+                    .group_item(
+                        NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
+                        |snapshot| notulist_interface_mismatch_reading_row(snapshot),
+                        VoiceDictationTarget::InterfaceMismatch,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.interface_mismatch
+                                .sections_described_by(notulist_interface_mismatch_hover_card)
+                        }))
+                    }),
                 self.dictation
                     .group_item(
                         IconGlyph::default(),
@@ -386,6 +406,10 @@ impl VoiceDictationGroup {
                             dictation.map_or("start dictating at the cursor", press_does),
                             VoiceDictationInteraction::ToggleRecording,
                         )
+                        .with_hover_card(Box::new(move |_| {
+                            self.dictation
+                                .sections_described_by(notulist_dictation_hover_card)
+                        }))
                         .previewed_on_handle()
                     }),
                 self.pipeline
@@ -395,6 +419,12 @@ impl VoiceDictationGroup {
                         VoiceDictationTarget::Pipeline,
                         clock,
                     )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.pipeline
+                                .sections_described_by(notulist_pipeline_hover_card)
+                        }))
+                    })
                     .filter(|_| {
                         self.dictation.get().is_some_and(|dictation| {
                             matches!(
@@ -403,41 +433,20 @@ impl VoiceDictationGroup {
                             )
                         }) || self.pipeline.failure().is_some()
                     }),
-                self.runtime.group_item_with_glyph(
-                    runtime_glyph,
-                    dictation.map_or(ServiceReadiness::NotYetServing, |_| {
-                        ServiceReadiness::Serving
-                    }),
-                    VoiceDictationTarget::Runtime,
-                    VoiceDictationInteraction::RuntimePressed,
-                ),
-                self.engine.group_item(
-                    NOTULIST_ENGINE_FALLBACK_GLYPH,
-                    |snapshot| notulist_engine_reading_row(snapshot),
-                    VoiceDictationTarget::SpeechModel,
-                    clock,
-                ),
-                engine.map(|loaded| {
-                    GroupItem::reading(
-                        RuntimeConfiguration(loaded).reading_row(),
-                        VoiceDictationTarget::RuntimeConfiguration,
+                self.runtime
+                    .group_item_with_glyph(
+                        runtime_glyph,
+                        dictation.map_or(ServiceReadiness::NotYetServing, |_| {
+                            ServiceReadiness::Serving
+                        }),
+                        VoiceDictationTarget::Runtime,
+                        VoiceDictationInteraction::RuntimePressed,
                     )
-                }),
-                engine.map(|loaded| {
-                    GroupItem::reading(
-                        InferenceHardware(loaded).reading_row(),
-                        VoiceDictationTarget::InferenceHardware,
-                    )
-                }),
-                self.output_problems.group_item(
-                    NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
-                    |snapshot| notulist_output_problems_reading_row(snapshot),
-                    VoiceDictationTarget::TypingOutput,
-                    clock,
-                ),
+                    .map(|item| item.with_hover_card(Box::new(move |_| self.runtime_hover_card()))),
             ]
             .into_iter()
-            .flatten(),
+            .flatten()
+            .chain(self.engine_items(clock).into_iter().flatten()),
         )
         .face(self.handle_face(clock))
     }

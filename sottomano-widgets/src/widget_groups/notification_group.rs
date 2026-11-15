@@ -14,7 +14,7 @@ use crate::{
         hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
-        quiet_schedule_group::{QuietScheduleTarget, quiet_window::QuietPhase},
+        quiet_schedule_group::{QuietScheduleGroup, QuietScheduleTarget, quiet_window::QuietPhase},
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -126,18 +126,6 @@ impl NotificationGroup {
         self.alert_sound
     }
 
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: NotificationTarget,
-        status: NotificationStatus,
-    ) -> Vec<Section> {
-        match target {
-            NotificationTarget::Status => status.hover_card().into_iter().collect(),
-            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_hover_card(),
-        }
-    }
-
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -163,10 +151,11 @@ impl NotificationGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
+    pub fn group_content<'a>(
+        &'a self,
         status: NotificationStatus,
-    ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
+        quiet_schedule: &'a QuietScheduleGroup,
+    ) -> WidgetGroupContent<'a, NotificationGroupMessage> {
         let quiet_phase = status.quiet_phase;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
@@ -185,7 +174,10 @@ impl NotificationGroup {
                         QuietPhase::Inactive => "start do not disturb now",
                     },
                     NotificationGroupMessage::ToggleDoNotDisturb,
-                ),
+                )
+                .with_hover_card(Box::new(move |clock| {
+                    quiet_schedule.do_not_disturb_hover_card(clock)
+                })),
                 GroupItem::toggle(
                     sound_toggle(self.alert_sound),
                     NotificationTarget::Sound,

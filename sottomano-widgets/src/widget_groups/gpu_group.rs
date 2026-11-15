@@ -298,6 +298,102 @@ impl GpuGroup {
         Task::none()
     }
 
+    fn device_items<'a>(
+        &'a self,
+        bus: &'a PciBusId,
+        device: &'a GpuDevice,
+        clock: Clock,
+    ) -> [Option<GroupItem<'a, GpuInteraction>>; 5] {
+        let target = |reading| GpuTarget {
+            bus: bus.clone(),
+            reading,
+        };
+        let model_sections = move || {
+            self.discovery
+                .sections_described_by(|_| vec![Section::from(&device.model)])
+        };
+        let readable_snapshot = match &device.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => Some(snapshot),
+            GpuDeviceAccess::Unreadable { .. } => None,
+        };
+        [
+            match &device.access {
+                GpuDeviceAccess::Readable { snapshot, .. } => snapshot
+                    .group_item(
+                        GPU_SNAPSHOT_FALLBACK_GLYPH,
+                        gpu_load_reading_row,
+                        target(GpuReading::Load),
+                        clock,
+                    )
+                    .map(|load_item| {
+                        load_item.with_hover_card(Box::new(move |_| {
+                            snapshot
+                                .sections_described_by(gpu_load_hover_card)
+                                .into_iter()
+                                .chain(model_sections())
+                                .collect()
+                        }))
+                    }),
+                GpuDeviceAccess::Unreadable { handle_failure } => Some(
+                    GroupItem::reading(
+                        handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH),
+                        target(GpuReading::Load),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        [handle_failure.source_state()]
+                            .into_iter()
+                            .chain(model_sections())
+                            .collect()
+                    })),
+                ),
+            },
+            readable_snapshot
+                .zip(device.clock_label())
+                .map(|(snapshot, label)| {
+                    GroupItem::reading(label.reading_row(), target(GpuReading::Clock))
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections = snapshot.hover_card_with(label.hover_card());
+                            sections.extend(self.hovered_sections(bus, |group| {
+                                group.clocks.sections_described_by(gpu_clocks_sections)
+                            }));
+                            sections
+                        }))
+                }),
+            readable_snapshot
+                .zip(device.memory())
+                .map(|(snapshot, memory)| {
+                    let card_memory = memory.clone();
+                    GroupItem::reading(gpu_memory_reading_row(memory), target(GpuReading::Memory))
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections =
+                                snapshot.hover_card_with(gpu_memory_sections(&card_memory));
+                            sections.extend(self.hovered_sections(bus, |group| {
+                                group
+                                    .processes
+                                    .sections_described_by(gpu_processes_sections)
+                            }));
+                            sections
+                        }))
+                }),
+            readable_snapshot
+                .zip(device.temperature_label())
+                .map(|(snapshot, label)| {
+                    GroupItem::reading(label.reading_row(), target(GpuReading::Temperature))
+                        .with_hover_card(Box::new(move |_| {
+                            snapshot.hover_card_with(label.hover_card())
+                        }))
+                }),
+            readable_snapshot
+                .zip(device.power_label())
+                .map(|(snapshot, label)| {
+                    GroupItem::reading(gpu_power_reading_row(label), target(GpuReading::Power))
+                        .with_hover_card(Box::new(move |_| {
+                            snapshot.hover_card_with(gpu_power_hover_card(&label))
+                        }))
+                }),
+        ]
+    }
+
     pub fn group_contents(
         &self,
         clock: Clock,
@@ -312,45 +408,12 @@ impl GpuGroup {
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
-                let target = |reading| GpuTarget {
-                    bus: bus.clone(),
-                    reading,
-                };
-                let items = [
-                    match &device.access {
-                        GpuDeviceAccess::Readable { snapshot, .. } => snapshot.group_item(
-                            GPU_SNAPSHOT_FALLBACK_GLYPH,
-                            gpu_load_reading_row,
-                            target(GpuReading::Load),
-                            clock,
-                        ),
-                        GpuDeviceAccess::Unreadable { handle_failure } => Some(GroupItem::reading(
-                            handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH),
-                            target(GpuReading::Load),
-                        )),
-                    },
-                    device.clock_label().map(|label| {
-                        GroupItem::reading(label.reading_row(), target(GpuReading::Clock))
-                    }),
-                    device.memory().map(|memory| {
-                        GroupItem::reading(
-                            gpu_memory_reading_row(memory),
-                            target(GpuReading::Memory),
-                        )
-                    }),
-                    device.temperature_label().map(|label| {
-                        GroupItem::reading(label.reading_row(), target(GpuReading::Temperature))
-                    }),
-                    device.power_label().map(|label| {
-                        GroupItem::reading(gpu_power_reading_row(label), target(GpuReading::Power))
-                    }),
-                ];
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    items.into_iter().flatten(),
+                    self.device_items(bus, device, clock).into_iter().flatten(),
                 )
             })
     }
@@ -368,62 +431,6 @@ impl GpuGroup {
         let bus = target.bus.clone();
         first_delivery::<GpuSnapshot>(handle)
             .map(move |reading| GpuMessage::Snapshot(bus.clone(), reading))
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &GpuTarget) -> Vec<Section> {
-        let Some(device) = self.devices.get(&target.bus) else {
-            return Vec::new();
-        };
-        let model_sections = self
-            .discovery
-            .sections_described_by(|_| vec![Section::from(&device.model)]);
-        let snapshot = match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => snapshot,
-            GpuDeviceAccess::Unreadable { handle_failure } => {
-                return [handle_failure.source_state()]
-                    .into_iter()
-                    .chain(model_sections)
-                    .collect();
-            }
-        };
-        match target.reading {
-            GpuReading::Load => snapshot
-                .sections_described_by(gpu_load_hover_card)
-                .into_iter()
-                .chain(model_sections)
-                .collect(),
-            GpuReading::Clock => {
-                let Some(clock_label) = device.clock_label() else {
-                    return Vec::new();
-                };
-                let mut sections = snapshot.hover_card_with(clock_label.hover_card());
-                sections.extend(self.hovered_sections(&target.bus, |group| {
-                    group.clocks.sections_described_by(gpu_clocks_sections)
-                }));
-                sections
-            }
-            GpuReading::Memory => {
-                let Some(memory) = device.memory() else {
-                    return Vec::new();
-                };
-                let mut sections = snapshot.hover_card_with(gpu_memory_sections(&memory));
-                sections.extend(self.hovered_sections(&target.bus, |group| {
-                    group
-                        .processes
-                        .sections_described_by(gpu_processes_sections)
-                }));
-                sections
-            }
-            GpuReading::Temperature => device
-                .temperature_label()
-                .map(|temperature_label| snapshot.hover_card_with(temperature_label.hover_card()))
-                .unwrap_or_default(),
-            GpuReading::Power => device
-                .power_label()
-                .map(|power_label| snapshot.hover_card_with(gpu_power_hover_card(&power_label)))
-                .unwrap_or_default(),
-        }
     }
 }
 

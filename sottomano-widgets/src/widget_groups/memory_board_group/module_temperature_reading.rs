@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
 pub struct MemoryModuleTemperatureReading {
     pub bus_address: String,
     pub temperature: ThermodynamicTemperature,

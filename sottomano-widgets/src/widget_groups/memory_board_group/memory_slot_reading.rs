@@ -21,6 +21,7 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
 pub struct MemorySlotReading {
     pub slot_module: MemorySlotModule,
     pub machine: MachineInfo,

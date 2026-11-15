@@ -65,7 +65,7 @@ impl PanelBarComposition {
     }
 }
 
-fn all_panel_entries() -> impl Iterator<Item = PanelZoneEntry> {
+pub(crate) fn all_panel_entries() -> impl Iterator<Item = PanelZoneEntry> {
     TOP_PANEL.entries().chain(BOTTOM_PANEL.entries())
 }
 

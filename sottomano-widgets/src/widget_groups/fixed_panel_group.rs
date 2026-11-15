@@ -6,7 +6,7 @@ use sottomano_toml_config::{screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::group_item::{GroupItem, RowHoverCard},
     hover_cards::{HoverTarget, MenuHandleIndicator},
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
@@ -31,6 +31,14 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
     #[must_use]
     pub fn handle_target(&self) -> Option<&HoverTarget> {
         self.item.as_ref().and_then(GroupItem::whole_item_target)
+    }
+
+    #[must_use]
+    pub fn row_hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
+        self.item
+            .as_ref()
+            .filter(|item| item.owns_target(target))
+            .map(|item| item.row_hover_card(clock))
     }
 
     #[must_use]

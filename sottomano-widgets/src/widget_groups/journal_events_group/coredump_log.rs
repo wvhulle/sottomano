@@ -58,13 +58,18 @@ impl JournalScopeGroup {
             clock,
         )?;
         Some(
-            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope)).on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                    config,
-                    CoredumpEntry::follow_log_args(),
-                )),
-            ),
+            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope))
+                .on_press(
+                    TerminalCommand::JOURNAL_PRESS_HINT,
+                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                        config,
+                        CoredumpEntry::follow_log_args(),
+                    )),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.coredumps
+                        .sections_described_by(|snapshot| coredump_log_hover_card(snapshot))
+                })),
         )
     }
 }

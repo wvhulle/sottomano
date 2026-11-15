@@ -360,19 +360,6 @@ impl AppLauncherGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &AppLauncherTarget) -> Vec<Section> {
-        match target {
-            AppLauncherTarget::App(app_id) => self.app_hover_card(app_id),
-            AppLauncherTarget::HideOpenApps => {
-                hide_open_apps_toggle(self.open_app_listing).switch_hover_card()
-            }
-            AppLauncherTarget::SortByUsage => {
-                sort_by_usage_toggle(self.category_app_order).switch_hover_card()
-            }
-        }
-    }
-
     fn app_hover_card(&self, app_id: &str) -> Vec<Section> {
         let Some(app) = self.catalog.iter().find(|app| app.app_id == app_id) else {
             return Vec::new();
@@ -505,35 +492,41 @@ impl AppLauncherGroup {
     }
 
     fn frequent_row<'a>(
-        &self,
+        &'a self,
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
     ) -> GroupItem<'a, AppLauncherMessage> {
+        let card_app_id = app.app_id.clone();
         self.with_app_gestures(
             GroupItem::composed(
                 app.name.clone(),
                 Self::app_icon(app, index),
                 GroupItemHoverArea::WholeItem(AppLauncherTarget::App(app.app_id.clone()).into()),
                 self.jump_indicator(app, config),
-            ),
+                Box::new(|_| Vec::new()),
+            )
+            .with_hover_card(Box::new(move |_| self.app_hover_card(&card_app_id))),
             app,
         )
     }
 
     fn category_row<'a>(
-        &self,
+        &'a self,
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
     ) -> GroupItem<'a, AppLauncherMessage> {
+        let card_app_id = app.app_id.clone();
         self.with_app_gestures(
             GroupItem::composed_pinnable(
                 app.name.clone(),
                 Self::app_icon(app, index),
                 AppLauncherTarget::App(app.app_id.clone()),
                 self.jump_indicator(app, config),
-            ),
+                Box::new(|_| Vec::new()),
+            )
+            .with_hover_card(Box::new(move |_| self.app_hover_card(&card_app_id))),
             app,
         )
     }

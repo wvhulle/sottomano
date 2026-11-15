@@ -279,73 +279,21 @@ impl TailnetGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &TailnetTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            TailnetTarget::Membership => self
-                .tailscale
-                .sections_described_by(|snapshot| tailscale_hover_card(snapshot, clock)),
-            TailnetTarget::ExitOffer => {
-                let Some(tailnet) = self.running_tailnet() else {
-                    return Vec::new();
-                };
-                self.tailscale
-                    .hover_card_with(ExitOfferRow { tailnet }.hover_card())
-            }
-            TailnetTarget::OwnNode => {
-                let Some(own_node_row) =
-                    self.tailscale.get().and_then(OwnNodeRow::running_own_node)
-                else {
-                    return Vec::new();
-                };
-                self.tailscale.hover_card_with(own_node_row.hover_card())
-            }
-            TailnetTarget::InboundAccess => self
-                .inbound_access
-                .sections_described_by(tailscale_inbound_access_sections),
-            TailnetTarget::PolicyFile => self.policy_file_access.sections(),
-            TailnetTarget::ExitNodeChoice { exit_node_ip } => {
-                let Some(exit_node_choices) = self.running_exit_node_choices() else {
-                    return Vec::new();
-                };
-                let Some(exit_node_option) = exit_node_choices
-                    .options
-                    .iter()
-                    .find(|exit_node_option| exit_node_option.ip == exit_node_ip.as_ref())
-                else {
-                    return Vec::new();
-                };
-                self.tailscale_exit_nodes.hover_card_with(
-                    ExitNodeChoiceRow {
-                        exit_node_option,
-                        exit_node_choices,
-                    }
-                    .hover_card(),
-                )
-            }
-            TailnetTarget::ExitNodeLanAccess => {
-                let Some(exit_node_choices) = self.running_exit_node_choices() else {
-                    return Vec::new();
-                };
-                self.tailscale_exit_nodes
-                    .hover_card_with(ExitNodeLanAccessRow { exit_node_choices }.hover_card())
-            }
-            TailnetTarget::ExitNodeListFailure => self
-                .tailscale_exit_nodes
-                .sections_described_by(|_| Vec::new()),
-        }
-    }
-
     fn membership_item(&self, clock: Clock) -> Option<GroupItem<'_, TailnetInteraction>> {
         let membership_row = self.tailscale.reading_row(
             IconGlyph::default(),
             |snapshot| tailscale_reading_row(snapshot, clock),
             clock,
         )?;
-        let item = GroupItem::reading(membership_row, TailnetTarget::Membership).on_right_press(
-            "open the Tailscale admin console",
-            TailnetInteraction::OpenAdminConsole,
-        );
+        let item = GroupItem::reading(membership_row, TailnetTarget::Membership)
+            .on_right_press(
+                "open the Tailscale admin console",
+                TailnetInteraction::OpenAdminConsole,
+            )
+            .with_hover_card(Box::new(move |card_clock| {
+                self.tailscale
+                    .sections_described_by(|snapshot| tailscale_hover_card(snapshot, card_clock))
+            }));
         Some(match self.tailscale.get().map(Tailscale::switch) {
             Some(TailscaleSwitch::Up) => item.on_switch_press(
                 SwitchPosition::Off,
@@ -372,10 +320,10 @@ impl TailnetGroup {
         self.running_tailnet()?;
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
-            PolicyFileAccess::ApiToken { .. } => Some(GroupItem::reading(
-                PolicyFileRow::reading_row(),
-                TailnetTarget::PolicyFile,
-            )),
+            PolicyFileAccess::ApiToken { .. } => Some(
+                GroupItem::reading(PolicyFileRow::reading_row(), TailnetTarget::PolicyFile)
+                    .with_hover_card(Box::new(move |_| self.policy_file_access.sections())),
+            ),
         }
     }
 
@@ -465,12 +413,27 @@ impl TailnetGroup {
             .options
             .iter()
             .map(|exit_node_option| {
-                Self::exit_node_choice_item(exit_node_option, exit_node_choices)
+                Self::exit_node_choice_item(exit_node_option, exit_node_choices).with_hover_card(
+                    Box::new(move |_| {
+                        self.tailscale_exit_nodes.hover_card_with(
+                            ExitNodeChoiceRow {
+                                exit_node_option,
+                                exit_node_choices,
+                            }
+                            .hover_card(),
+                        )
+                    }),
+                )
             })
-            .chain(
-                (!exit_node_choices.options.is_empty())
-                    .then(|| Self::exit_node_lan_access_item(exit_node_choices)),
-            )
+            .chain((!exit_node_choices.options.is_empty()).then(|| {
+                Self::exit_node_lan_access_item(exit_node_choices).with_hover_card(Box::new(
+                    move |_| {
+                        self.tailscale_exit_nodes.hover_card_with(
+                            ExitNodeLanAccessRow { exit_node_choices }.hover_card(),
+                        )
+                    },
+                ))
+            }))
             .collect()
     }
 
@@ -481,12 +444,19 @@ impl TailnetGroup {
             .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| {
                 GroupItem::reading(own_node_row.reading_row(), TailnetTarget::OwnNode)
+                    .with_hover_card(Box::new(move |_| {
+                        self.tailscale.hover_card_with(own_node_row.hover_card())
+                    }))
             });
         let inbound_access_item = self.running_tailnet().map(|_| {
             GroupItem::reading(
                 InboundAccessRow::reading_row(),
                 TailnetTarget::InboundAccess,
             )
+            .with_hover_card(Box::new(move |_| {
+                self.inbound_access
+                    .sections_described_by(tailscale_inbound_access_sections)
+            }))
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
@@ -497,16 +467,22 @@ impl TailnetGroup {
                 .chain(own_node_item)
                 .chain(inbound_access_item)
                 .chain(self.policy_file_item())
-                .chain(
-                    self.running_tailnet()
-                        .map(|tailnet| Self::exit_offer_item(tailnet)),
-                )
+                .chain(self.running_tailnet().map(|tailnet| {
+                    Self::exit_offer_item(tailnet).with_hover_card(Box::new(move |_| {
+                        self.tailscale
+                            .hover_card_with(ExitOfferRow { tailnet }.hover_card())
+                    }))
+                }))
                 .chain(self.exit_node_choice_items())
                 .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
                     GroupItem::reading(
                         failure_reading.reading_row(IconGlyph::default()),
                         TailnetTarget::ExitNodeListFailure,
                     )
+                    .with_hover_card(Box::new(move |_| {
+                        self.tailscale_exit_nodes
+                            .sections_described_by(|_| Vec::new())
+                    }))
                 })),
         )
         .face(WidgetGroupFace::Glyph {

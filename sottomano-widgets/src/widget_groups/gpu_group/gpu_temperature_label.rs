@@ -19,6 +19,7 @@ use crate::{
     },
 };
 
+#[derive(Clone, Copy)]
 pub struct GpuTemperatureLabel {
     pub current: ThermodynamicTemperature,
     pub limits: GpuTemperatureLimits,

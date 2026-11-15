@@ -114,11 +114,6 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_hover_card(&self) -> Vec<Section> {
-        Vec::new()
-    }
-
-    #[must_use]
     pub fn reading_row(self) -> ReadingRow<'static> {
         ReadingRow::glyph_only(
             self.name,

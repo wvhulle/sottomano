@@ -59,17 +59,6 @@ pub enum EthernetPortTarget {
     },
 }
 
-impl EthernetPortTarget {
-    fn port_name(&self) -> &str {
-        match self {
-            EthernetPortTarget::Link { port_name }
-            | EthernetPortTarget::Connection { port_name }
-            | EthernetPortTarget::Addresses { port_name, .. }
-            | EthernetPortTarget::Dns { port_name } => port_name,
-        }
-    }
-}
-
 impl From<EthernetPortTarget> for HoverTarget {
     fn from(target: EthernetPortTarget) -> Self {
         HoverTarget::EthernetPort(target)
@@ -186,14 +175,6 @@ impl EthernetPortsGroup {
         }
     }
 
-    fn port_state_named(&self, port_name: &str) -> Option<&PortState> {
-        self.ethernet
-            .get()?
-            .ports
-            .iter()
-            .find(|port_state| port_state.name == port_name)
-    }
-
     fn port_marking(&self, port_state: &PortState) -> PortMarking {
         let Some(ethernet) = self.ethernet.get() else {
             return PortMarking::UniqueAttachment;
@@ -232,56 +213,54 @@ impl EthernetPortsGroup {
         })
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &EthernetPortTarget) -> Vec<Section> {
-        let port_name = target.port_name();
-        let Some(port_state) = self.port_state_named(port_name) else {
-            return Vec::new();
+    fn port_link_hover_card(&self, port_state: &PortState) -> Vec<Section> {
+        let link_reading = PortLinkReading {
+            port_state,
+            marking: self.port_marking(port_state),
         };
-        match target {
-            EthernetPortTarget::Link { .. } => {
-                let link_reading = PortLinkReading {
-                    port_state,
-                    marking: self.port_marking(port_state),
-                };
-                let mut sections = self.ethernet.hover_card_with(link_reading.hover_card());
-                sections.extend(self.port_detail_sections(port_name, port_identity_sections));
-                sections
-            }
-            EthernetPortTarget::Connection { .. } => {
-                let link_details = self.port_detail_sections(port_name, |port| {
-                    port.link
-                        .as_ref()
-                        .map(link_detail_sections)
-                        .unwrap_or_default()
-                });
-                let mut sections = self
-                    .ethernet
-                    .hover_card_with(PortConnectionSwitch { port_state }.hover_card());
-                sections.extend(link_details);
-                sections
-            }
-            EthernetPortTarget::Addresses { family, .. } => {
-                let address_details = self.port_detail_sections(port_name, |port| {
-                    port.link
-                        .as_ref()
-                        .map(|link| {
-                            family_address_sections(*family, link.ipv4.as_ref(), link.ipv6.as_ref())
-                        })
-                        .unwrap_or_default()
-                });
-                let router_details = self.gateway_latencies.sections_described_by(|latencies| {
-                    family_router_sections(latencies, port_name, *family)
-                });
-                address_details.into_iter().chain(router_details).collect()
-            }
-            EthernetPortTarget::Dns { .. } => self.port_detail_sections(port_name, |port| {
-                port.link
-                    .as_ref()
-                    .map(|link| dns_server_sections(&link.dns))
-                    .unwrap_or_default()
-            }),
-        }
+        let mut sections = self.ethernet.hover_card_with(link_reading.hover_card());
+        sections.extend(self.port_detail_sections(&port_state.name, port_identity_sections));
+        sections
+    }
+
+    fn port_connection_hover_card(&self, port_state: &PortState) -> Vec<Section> {
+        let link_details = self.port_detail_sections(&port_state.name, |port| {
+            port.link
+                .as_ref()
+                .map(link_detail_sections)
+                .unwrap_or_default()
+        });
+        let mut sections = self
+            .ethernet
+            .hover_card_with(PortConnectionSwitch { port_state }.hover_card());
+        sections.extend(link_details);
+        sections
+    }
+
+    fn interface_address_hover_card(
+        &self,
+        port_state: &PortState,
+        family: AddressFamily,
+    ) -> Vec<Section> {
+        let address_details = self.port_detail_sections(&port_state.name, |port| {
+            port.link
+                .as_ref()
+                .map(|link| family_address_sections(family, link.ipv4.as_ref(), link.ipv6.as_ref()))
+                .unwrap_or_default()
+        });
+        let router_details = self.gateway_latencies.sections_described_by(|latencies| {
+            family_router_sections(latencies, &port_state.name, family)
+        });
+        address_details.into_iter().chain(router_details).collect()
+    }
+
+    fn interface_dns_hover_card(&self, port_state: &PortState) -> Vec<Section> {
+        self.port_detail_sections(&port_state.name, |port| {
+            port.link
+                .as_ref()
+                .map(|link| dns_server_sections(&link.dns))
+                .unwrap_or_default()
+        })
     }
 
     fn port_group<'a>(
@@ -299,7 +278,8 @@ impl EthernetPortsGroup {
             EthernetPortTarget::Link {
                 port_name: port_state.name.clone(),
             },
-        );
+        )
+        .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)));
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
         let connection_item = GroupItem::reading(
@@ -312,7 +292,10 @@ impl EthernetPortsGroup {
             port_state.link_state,
             connection_press_does,
             EthernetPortsInteraction::TogglePort(port_state.name.clone()),
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.port_connection_hover_card(port_state)
+        }));
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
             .filter(|_| port_state.link_state == LinkPhase::Up)
@@ -324,6 +307,9 @@ impl EthernetPortsGroup {
                         family,
                     },
                 )
+                .with_hover_card(Box::new(move |_| {
+                    self.interface_address_hover_card(port_state, family)
+                }))
             });
         let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
@@ -332,6 +318,7 @@ impl EthernetPortsGroup {
                     port_name: port_state.name.clone(),
                 },
             )
+            .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
         });
         let port_name = port_state.name.clone();
         Some(WidgetGroupContent::expandable_instance(

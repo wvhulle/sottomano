@@ -9,6 +9,7 @@ use sottomano_desktop_sources::{
         SystemdUnitScope, service_commands::ServiceCommands, unit_active_state::UnitActivity,
     },
 };
+use uom::si::f64::Frequency;
 
 use super::{
     LlamaServerReading, LlamaServerTarget, SERVER_SWITCH, context_fill_gauge::ContextFill,
@@ -37,6 +38,80 @@ struct ServerReadings {
 }
 
 impl ServerReadings {
+    fn model_hover_card(&self, model_sections: Vec<Section>) -> Vec<Section> {
+        let Some(server) = self.server.get() else {
+            return Vec::new();
+        };
+        let resident = server.resident_model();
+        let endpoint = &self.discovered.endpoint;
+        let status_and_web_ui = Section::new(
+            "Status",
+            dictionary_table(
+                resident
+                    .map(|model| LabeledValue::new("Status", model.status))
+                    .into_iter()
+                    .chain([LabeledValue::new(
+                        "Web UI",
+                        ValueCell::Link {
+                            label: endpoint.clone(),
+                            url: endpoint.clone(),
+                        },
+                    )]),
+            ),
+        );
+        let available_models = Section::new(
+            "Available models",
+            dictionary_table(
+                server
+                    .models
+                    .iter()
+                    .filter(|model| Some(*model) != resident)
+                    .map(|model| LabeledValue::new(model.id.clone(), model.status)),
+            ),
+        );
+        let mut sections = self
+            .server
+            .hover_card_with(vec![status_and_web_ui, available_models]);
+        sections.extend(model_sections);
+        sections
+    }
+
+    fn service_readiness(&self) -> ServiceReadiness {
+        self.server
+            .get()
+            .map_or(ServiceReadiness::NotYetServing, |_| {
+                ServiceReadiness::Serving
+            })
+    }
+
+    fn generation_rate_hover_card(&self, rate: Frequency) -> Vec<Section> {
+        self.server.hover_card_with(
+            GenerationRate {
+                rate,
+                server: &self.server_label,
+            }
+            .hover_card(),
+        )
+    }
+
+    fn slot_occupancy_hover_card(&self, server: &LlamaServer) -> Vec<Section> {
+        self.server.hover_card_with(
+            SlotOccupancy {
+                slots: &server.slots,
+                server: &self.server_label,
+            }
+            .hover_card(),
+        )
+    }
+
+    fn context_fill_hover_card(&self, fill: &ContextFill) -> Vec<Section> {
+        self.server.hover_card_with(fill.hover_card())
+    }
+
+    fn switch_hover_card(&self) -> Vec<Section> {
+        self.switch.hover_card(self.service_readiness())
+    }
+
     fn new(scope: SystemdUnitScope, discovered: LlamaServerUnit) -> Self {
         let unit_stem = discovered
             .unit
@@ -200,98 +275,10 @@ impl ScopedLlamaServers {
             .clone()
     }
 
-    pub fn hover_card_for(
-        &self,
-        target: &LlamaServerTarget,
-        model_groups: Vec<Section>,
-    ) -> Vec<Section> {
-        let Some(readings) = self.servers.get(&target.unit) else {
-            return Vec::new();
-        };
-        let reading = &readings.server;
-        let server = reading.get();
-        match target.reading {
-            LlamaServerReading::Switch => {
-                readings
-                    .switch
-                    .hover_card(server.map_or(ServiceReadiness::NotYetServing, |_| {
-                        ServiceReadiness::Serving
-                    }))
-            }
-            LlamaServerReading::Model => {
-                let Some(server) = server else {
-                    return Vec::new();
-                };
-                let resident = server.resident_model();
-                let endpoint = &readings.discovered.endpoint;
-                let status_and_web_ui = Section::new(
-                    "Status",
-                    dictionary_table(
-                        resident
-                            .map(|model| LabeledValue::new("Status", model.status))
-                            .into_iter()
-                            .chain([LabeledValue::new(
-                                "Web UI",
-                                ValueCell::Link {
-                                    label: endpoint.clone(),
-                                    url: endpoint.clone(),
-                                },
-                            )]),
-                    ),
-                );
-                let available_models = Section::new(
-                    "Available models",
-                    dictionary_table(
-                        server
-                            .models
-                            .iter()
-                            .filter(|model| Some(*model) != resident)
-                            .map(|model| LabeledValue::new(model.id.clone(), model.status)),
-                    ),
-                );
-                let mut sections =
-                    reading.hover_card_with(vec![status_and_web_ui, available_models]);
-                sections.extend(model_groups);
-                sections
-            }
-            LlamaServerReading::GenerationRate => {
-                let Some(rate) = server.and_then(|server| server.generation_rate) else {
-                    return Vec::new();
-                };
-                reading.hover_card_with(
-                    GenerationRate {
-                        rate,
-                        server: &readings.server_label,
-                    }
-                    .hover_card(),
-                )
-            }
-            LlamaServerReading::Slots => {
-                let Some(server) = server else {
-                    return Vec::new();
-                };
-                reading.hover_card_with(
-                    SlotOccupancy {
-                        slots: &server.slots,
-                        server: &readings.server_label,
-                    }
-                    .hover_card(),
-                )
-            }
-            LlamaServerReading::ContextFill => {
-                let Some(context_fill) = server.and_then(|server| {
-                    ContextFill::fullest_busy_slot(&server.slots, &readings.server_label)
-                }) else {
-                    return Vec::new();
-                };
-                reading.hover_card_with(context_fill.hover_card())
-            }
-        }
-    }
-
     pub fn items<'a, M: 'a>(
         &'a self,
         lift: fn(ScopedServersInteraction) -> M,
+        model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
@@ -315,7 +302,10 @@ impl ScopedLlamaServers {
                         }
                         .reading_row(),
                         target(LlamaServerReading::Model),
-                    );
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        readings.model_hover_card(model_sections())
+                    }));
                     match resident {
                         Some(_) => model_item.previewed_on_handle(),
                         None => model_item,
@@ -330,6 +320,7 @@ impl ScopedLlamaServers {
                         .reading_row(),
                         target(LlamaServerReading::GenerationRate),
                     )
+                    .with_hover_card(Box::new(move |_| readings.generation_rate_hover_card(rate)))
                 }),
                 running
                     .filter(|server| !server.slots.is_empty())
@@ -342,6 +333,9 @@ impl ScopedLlamaServers {
                             .reading_row(),
                             target(LlamaServerReading::Slots),
                         )
+                        .with_hover_card(Box::new(move |_| {
+                            readings.slot_occupancy_hover_card(server)
+                        }))
                     }),
                 busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
                     .map(|fill| {
@@ -349,17 +343,18 @@ impl ScopedLlamaServers {
                             fill.reading_row(),
                             target(LlamaServerReading::ContextFill),
                         )
+                        .with_hover_card(Box::new(move |_| readings.context_fill_hover_card(&fill)))
                     }),
-                readings.switch.group_item(
-                    readings
-                        .server
-                        .get()
-                        .map_or(ServiceReadiness::NotYetServing, |_| {
-                            ServiceReadiness::Serving
-                        }),
-                    target(LlamaServerReading::Switch),
-                    lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
-                ),
+                readings
+                    .switch
+                    .group_item(
+                        readings.service_readiness(),
+                        target(LlamaServerReading::Switch),
+                        lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
+                    )
+                    .map(|switch_item| {
+                        switch_item.with_hover_card(Box::new(move |_| readings.switch_hover_card()))
+                    }),
             ]
             .into_iter()
             .flatten()

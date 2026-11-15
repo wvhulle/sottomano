@@ -57,13 +57,18 @@ impl JournalScopeGroup {
             clock,
         )?;
         Some(
-            GroupItem::reading(kills, JournalTarget::OomKills(self.unit_scope)).on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                    config,
-                    OomKillEntry::follow_log_args(),
-                )),
-            ),
+            GroupItem::reading(kills, JournalTarget::OomKills(self.unit_scope))
+                .on_press(
+                    TerminalCommand::JOURNAL_PRESS_HINT,
+                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                        config,
+                        OomKillEntry::follow_log_args(),
+                    )),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.oom_kills
+                        .sections_described_by(|snapshot| oom_kill_log_hover_card(snapshot))
+                })),
         )
     }
 }

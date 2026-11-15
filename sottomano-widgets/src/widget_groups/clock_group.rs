@@ -17,7 +17,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -121,31 +121,6 @@ impl ClockGroup {
         &mut self.zone_times[position].1
     }
 
-    fn zone_time(&self, zone: Tz) -> Option<&SubscribedSnapshot<ZoneTime>> {
-        self.zone_times
-            .iter()
-            .find(|(known, _)| *known == zone)
-            .map(|(_, zone_time)| zone_time)
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &ClockTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            ClockTarget::LocalTime => self
-                .time
-                .sections_described_by(|_| LocalTime::hover_card(clock)),
-            ClockTarget::LocalDate => self
-                .date
-                .sections_described_by(|_| LocalDate::hover_card(clock)),
-            ClockTarget::ZoneTime(zone) => self
-                .zone_time(*zone)
-                .map(|zone_time| {
-                    zone_time.sections_described_by(|snapshot| snapshot.hover_card(clock))
-                })
-                .unwrap_or_default(),
-        }
-    }
-
     pub fn group_content(
         &self,
         clock: Clock,
@@ -156,27 +131,48 @@ impl ClockGroup {
             &self.expansion,
             identity,
             [
-                self.time.group_item(
-                    IconGlyph::default(),
-                    |_| LocalTime::reading_row(clock, locale),
-                    ClockTarget::LocalTime,
-                    clock,
-                ),
-                self.date.group_item(
-                    IconGlyph::default(),
-                    |_| LocalDate::reading_row(clock, locale),
-                    ClockTarget::LocalDate,
-                    clock,
-                ),
+                self.time
+                    .group_item(
+                        IconGlyph::default(),
+                        |_| LocalTime::reading_row(clock, locale),
+                        ClockTarget::LocalTime,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(|card_clock| {
+                            self.time
+                                .sections_described_by(|_| LocalTime::hover_card(card_clock))
+                        }))
+                    }),
+                self.date
+                    .group_item(
+                        IconGlyph::default(),
+                        |_| LocalDate::reading_row(clock, locale),
+                        ClockTarget::LocalDate,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(|card_clock| {
+                            self.date
+                                .sections_described_by(|_| LocalDate::hover_card(card_clock))
+                        }))
+                    }),
             ]
             .into_iter()
             .chain(self.zone_times.iter().map(|(zone, zone_time)| {
-                zone_time.group_item(
-                    IconGlyph::default(),
-                    |snapshot| snapshot.reading_row(clock, locale),
-                    ClockTarget::ZoneTime(*zone),
-                    clock,
-                )
+                zone_time
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| snapshot.reading_row(clock, locale),
+                        ClockTarget::ZoneTime(*zone),
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(|card_clock| {
+                            zone_time
+                                .sections_described_by(|snapshot| snapshot.hover_card(card_clock))
+                        }))
+                    })
             }))
             .flatten(),
         )

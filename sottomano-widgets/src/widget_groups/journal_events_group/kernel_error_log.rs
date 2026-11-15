@@ -40,13 +40,20 @@ impl JournalScopeGroup {
             |snapshot| kernel_log_reading_row(snapshot),
             clock,
         )?;
-        Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                config,
-                KernelOccurrence::follow_log_args(),
-            )),
-        ))
+        Some(
+            GroupItem::reading(kernel, JournalTarget::Kernel)
+                .on_press(
+                    TerminalCommand::JOURNAL_PRESS_HINT,
+                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                        config,
+                        KernelOccurrence::follow_log_args(),
+                    )),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.kernel
+                        .sections_described_by(|snapshot| kernel_log_hover_card(snapshot))
+                })),
+        )
     }
 }
 

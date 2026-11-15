@@ -207,41 +207,6 @@ impl PowerGroup {
         ])
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: PowerTarget) -> Vec<Section> {
-        match target {
-            PowerTarget::Battery => {
-                let mut sections = self.battery.sections_described_by(battery_hover_card);
-                sections.extend(
-                    self.battery
-                        .sections_described_by(|battery| vec![Section::from(battery)]),
-                );
-                sections
-            }
-            PowerTarget::Draw => {
-                let Some(draw) = self.draw() else {
-                    return Vec::new();
-                };
-                let mut sections = self.battery.hover_card_with(draw.hover_card());
-                if draw.power_source() != PowerSource::Battery {
-                    sections.extend(self.charger.sections_described_by(charger_supply_sections));
-                }
-                sections
-            }
-            PowerTarget::BatteryTime => {
-                let Some(battery_time) = self.time.as_ref() else {
-                    return Vec::new();
-                };
-                self.battery.hover_card_with(battery_time.hover_card())
-            }
-            PowerTarget::Profile => {
-                let mut sections = self.power_profile.hover_card();
-                sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
-                sections
-            }
-        }
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -270,12 +235,40 @@ impl PowerGroup {
                         PowerTarget::Battery,
                         clock,
                     )
-                    .map(GroupItem::previewed_on_handle),
-                self.draw()
-                    .map(|draw| GroupItem::reading(draw.reading_row(), PowerTarget::Draw)),
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            let mut sections =
+                                self.battery.sections_described_by(battery_hover_card);
+                            sections.extend(
+                                self.battery
+                                    .sections_described_by(|battery| vec![Section::from(battery)]),
+                            );
+                            sections
+                        }))
+                        .previewed_on_handle()
+                    }),
+                self.draw().map(|draw| {
+                    GroupItem::reading(draw.reading_row(), PowerTarget::Draw).with_hover_card(
+                        Box::new(move |_| {
+                            self.draw().map_or_else(Vec::new, |current_draw| {
+                                let mut sections =
+                                    self.battery.hover_card_with(current_draw.hover_card());
+                                if current_draw.power_source() != PowerSource::Battery {
+                                    sections.extend(
+                                        self.charger.sections_described_by(charger_supply_sections),
+                                    );
+                                }
+                                sections
+                            })
+                        }),
+                    )
+                }),
                 self.time.as_ref().map(|time| {
                     GroupItem::reading(time.reading_row(locale), PowerTarget::BatteryTime)
                         .ongoing_toast_action_buttons(switch_to_saving_profiles)
+                        .with_hover_card(Box::new(move |_| {
+                            self.battery.hover_card_with(time.hover_card())
+                        }))
                 }),
                 self.power_profile.slider().map(|slider| {
                     GroupItem::slider(slider, config, |control_message| {
@@ -283,6 +276,11 @@ impl PowerGroup {
                             control_message,
                         ))
                     })
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections = self.power_profile.hover_card();
+                        sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
+                        sections
+                    }))
                 }),
             ]
             .into_iter()

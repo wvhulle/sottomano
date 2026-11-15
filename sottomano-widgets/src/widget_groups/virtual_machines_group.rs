@@ -362,40 +362,6 @@ impl VirtualMachinesGroup {
         }
     }
 
-    fn machine_with_pid(&self, pid: i32) -> Option<&RunningVirtualMachine> {
-        self.readout
-            .get()?
-            .machines
-            .iter()
-            .find(|machine| machine.pid == pid)
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &VirtualMachineTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            VirtualMachineTarget::RunningProcess { pid } => {
-                let Some(machine) = self.machine_with_pid(*pid) else {
-                    return Vec::new();
-                };
-                self.readout
-                    .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
-            }
-            VirtualMachineTarget::InactiveDomain { domain_name } => {
-                let is_inactive = self.readout.get().is_some_and(|readout| {
-                    readout
-                        .inactive_domains
-                        .iter()
-                        .any(|inactive| inactive.as_str() == domain_name.as_ref())
-                });
-                if !is_inactive {
-                    return Vec::new();
-                }
-                self.readout
-                    .hover_card_with(InactiveDomainRow::hover_card())
-            }
-        }
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
         let machines = self
             .readout
@@ -406,7 +372,11 @@ impl VirtualMachinesGroup {
             let row = GroupItem::reading(
                 VirtualMachineRow { machine }.reading_row(),
                 VirtualMachineTarget::RunningProcess { pid: machine.pid },
-            );
+            )
+            .with_hover_card(Box::new(move |clock| {
+                self.readout
+                    .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
+            }));
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(
                     FOCUS_WINDOW_HINT,
@@ -439,6 +409,10 @@ impl VirtualMachinesGroup {
                     domain_name: Cow::Owned(domain_name.clone()),
                 },
             )
+            .with_hover_card(Box::new(|_| {
+                self.readout
+                    .hover_card_with(InactiveDomainRow::hover_card())
+            }))
             .on_switch_press(
                 SwitchPosition::Off,
                 POWER_ON_HINT,
@@ -504,11 +478,16 @@ mod tests {
         let target_of = |domain_name: &'static str| VirtualMachineTarget::InactiveDomain {
             domain_name: Cow::Borrowed(domain_name),
         };
+        let content = group.group_content();
         assert!(
-            !group
-                .hover_card_for(&target_of("windows-11"), clock)
-                .is_empty()
+            content
+                .row_hover_card(&target_of("windows-11").into(), clock)
+                .is_some_and(|card| !card.sections.is_empty())
         );
-        assert!(group.hover_card_for(&target_of("debian"), clock).is_empty());
+        assert!(
+            content
+                .row_hover_card(&target_of("debian").into(), clock)
+                .is_none()
+        );
     }
 }

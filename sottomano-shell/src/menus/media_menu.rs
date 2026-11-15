@@ -10,7 +10,7 @@ impl DesktopShell {
         let media_groups = self
             .widget_groups
             .media_group
-            .group_contents(config, self.clock)
+            .group_contents(config, &self.desktop_entries, self.clock)
             .map(|group| group.map(ShellInteraction::Media));
         let gamepad_groups = self
             .widget_groups

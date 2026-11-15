@@ -192,6 +192,7 @@ fn current_lyric_line<'a>(
             control: MediaTarget::Lyrics,
         },
         value,
+        Box::new(|_| Vec::new()),
     )
 }
 

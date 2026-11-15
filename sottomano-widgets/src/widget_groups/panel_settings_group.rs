@@ -11,7 +11,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -286,26 +286,6 @@ impl PanelSettingsGroup {
     #[must_use]
     pub fn float_offset_px(&self) -> f32 {
         self.float_offset.expanding_slider.reported_value()
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: PanelSettingsTarget) -> Vec<Section> {
-        match target {
-            PanelSettingsTarget::DisconnectedGroups => {
-                disconnected_toggle(self.group_framing).switch_hover_card()
-            }
-            PanelSettingsTarget::AutoCollapseGroups => {
-                pinned_groups_toggle(self.group_collapsing).switch_hover_card()
-            }
-            PanelSettingsTarget::WindowRowLayout => {
-                window_row_layout_toggle(self.window_row_layout).switch_hover_card()
-            }
-            PanelSettingsTarget::WindowTitleLength => {
-                window_title_length_toggle(self.window_title_length).switch_hover_card()
-            }
-            PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
-            PanelSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
-        }
     }
 
     fn stored_layout(&self) -> PanelLayout {

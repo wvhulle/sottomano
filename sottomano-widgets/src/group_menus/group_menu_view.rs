@@ -17,6 +17,7 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
+    group_items::group_item::RowHoverCard,
     group_menus::{
         cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{
@@ -179,10 +180,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     }
 
     #[must_use]
-    pub fn announcement_of(&self, target: &HoverTarget) -> Option<HoverAnnouncement> {
+    pub fn row_hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
         self.groups
             .iter()
-            .find_map(|group| group.item_announcement(target))
+            .find_map(|group| group.row_hover_card(target, clock))
     }
 
     #[must_use]
@@ -720,6 +721,7 @@ mod tests {
                 GroupItemIcon::Absent,
                 GroupItemHoverArea::WholeItem(HoverTarget::Workspace(position)),
                 GroupItemValue::Nothing,
+                Box::new(|_| Vec::new()),
             )
         });
         let group = WidgetGroupContent::expandable(
@@ -1088,6 +1090,7 @@ mod tests {
                 GroupItemIcon::Absent,
                 target,
                 GroupItemValue::drawn(|_| text("the sung line").into()),
+                Box::new(|_| Vec::new()),
             )],
         );
         let panel_views: Vec<_> = GroupMenuView::new(

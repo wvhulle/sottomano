@@ -373,62 +373,6 @@ impl IncusInstancesGroup {
             .map(|InstanceDaemonProbe(availability)| *availability)
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &IncusInstanceTarget) -> Vec<Section> {
-        let instance_daemon = target.instance_daemon;
-        if let Some(detail_reading) = self.details.get(&instance_daemon) {
-            if let Some(instances) = detail_reading.get() {
-                return instances
-                    .details
-                    .iter()
-                    .find(|instance| instance.listing.instance_name == target.instance_name)
-                    .map(|instance| {
-                        detail_reading.hover_card_with(
-                            IncusInstanceRow {
-                                instance_daemon,
-                                instance,
-                            }
-                            .hover_card(),
-                        )
-                    })
-                    .unwrap_or_default();
-            }
-            if let Some(read_failure) = detail_reading.fetch_failure() {
-                return UnreadableDaemonRow {
-                    instance_daemon,
-                    read_failure,
-                }
-                .hover_card();
-            }
-            return Vec::new();
-        }
-        let Some(listing_reading) = self.listings.get(&instance_daemon) else {
-            return Vec::new();
-        };
-        if let Some(read_failure) = listing_reading.fetch_failure() {
-            return UnreadableDaemonRow {
-                instance_daemon,
-                read_failure,
-            }
-            .hover_card();
-        }
-        let Some(listing) = listing_reading.get().and_then(|listings| {
-            listings
-                .listings
-                .iter()
-                .find(|listing| listing.instance_name == target.instance_name)
-        }) else {
-            return Vec::new();
-        };
-        listing_reading.hover_card_with(
-            IncusInstanceListingRow {
-                instance_daemon,
-                listing,
-            }
-            .hover_card(),
-        )
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
         let rows = WATCHED_DAEMONS
             .into_iter()
@@ -455,10 +399,8 @@ impl IncusInstancesGroup {
         &self,
         instance_daemon: InstanceDaemon,
     ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
-        if let Some(instances) = self
-            .details
-            .get(&instance_daemon)
-            .and_then(SubscribedSnapshot::get)
+        if let Some(detail_reading) = self.details.get(&instance_daemon)
+            && let Some(instances) = detail_reading.get()
         {
             return instances
                 .details
@@ -475,7 +417,17 @@ impl IncusInstancesGroup {
                             instance_name: Cow::Owned(instance.listing.instance_name.clone()),
                         },
                     );
-                    instance_power_switch(row, instance_daemon, &instance.listing)
+                    instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
+                        Box::new(move |_| {
+                            detail_reading.hover_card_with(
+                                IncusInstanceRow {
+                                    instance_daemon,
+                                    instance,
+                                }
+                                .hover_card(),
+                            )
+                        }),
+                    )
                 })
                 .collect();
         }
@@ -512,7 +464,17 @@ impl IncusInstancesGroup {
                         instance_name: Cow::Owned(listing.instance_name.clone()),
                     },
                 );
-                instance_power_switch(row, instance_daemon, listing)
+                instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
+                    move |_| {
+                        listing_reading.hover_card_with(
+                            IncusInstanceListingRow {
+                                instance_daemon,
+                                listing,
+                            }
+                            .hover_card(),
+                        )
+                    },
+                ))
             })
             .collect()
     }

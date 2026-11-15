@@ -53,7 +53,14 @@ fn preset_group_item<'a>(
         },
         GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Preset(preset).into()),
         GroupItemValue::Nothing,
+        Box::new(|_| Vec::new()),
     )
+    .with_hover_card(Box::new(move |_| {
+        vec![Section::new(
+            "Description",
+            SectionWidget::paragraph(preset.description()),
+        )]
+    }))
     .on_press(preset.press_does(), AppearancePresetsMessage::Apply(preset))
 }
 
@@ -69,18 +76,6 @@ impl AppearancePresetsGroup {
 
     pub fn update_expansion(&mut self, message: WidgetGroupExpansionMessage) {
         self.expansion.update(message);
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: AppearancePresetsTarget) -> Vec<Section> {
-        match target {
-            AppearancePresetsTarget::Preset(preset) => vec![Section::new(
-                "Description",
-                SectionWidget::paragraph(preset.description()),
-            )]
-            .into_iter()
-            .collect(),
-        }
     }
 
     pub fn group_content<'a>(

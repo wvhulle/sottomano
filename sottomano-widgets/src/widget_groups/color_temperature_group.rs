@@ -239,21 +239,6 @@ impl ColorTemperatureGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: ColorTemperatureTarget) -> Vec<Section> {
-        match target {
-            ColorTemperatureTarget::GammaDim => self.gamma.hover_card_with(vec![Section::new(
-                "Setting",
-                dictionary_table([LabeledValue::new("Dim", self.dim.readout_cell())]),
-            )]),
-            ColorTemperatureTarget::Temperature => self.gamma.hover_card_with(vec![Section::new(
-                "Setting",
-                dictionary_table([LabeledValue::new("Temperature", self.warmth.readout_cell())]),
-            )]),
-            ColorTemperatureTarget::Automatic => self.auto.hover_card(ServiceReadiness::Serving),
-        }
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -267,15 +252,39 @@ impl ColorTemperatureGroup {
                 gamma_available.then(|| {
                     GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
                         .previewed_on_handle()
+                        .with_hover_card(Box::new(move |_| {
+                            self.gamma.hover_card_with(vec![Section::new(
+                                "Setting",
+                                dictionary_table([LabeledValue::new(
+                                    "Temperature",
+                                    self.warmth.readout_cell(),
+                                )]),
+                            )])
+                        }))
                 }),
                 gamma_available.then(|| {
                     GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
+                        .with_hover_card(Box::new(move |_| {
+                            self.gamma.hover_card_with(vec![Section::new(
+                                "Setting",
+                                dictionary_table([LabeledValue::new(
+                                    "Dim",
+                                    self.dim.readout_cell(),
+                                )]),
+                            )])
+                        }))
                 }),
-                self.auto.group_item(
-                    ServiceReadiness::Serving,
-                    ColorTemperatureTarget::Automatic,
-                    ColorTemperatureInteraction::AutoPressed,
-                ),
+                self.auto
+                    .group_item(
+                        ServiceReadiness::Serving,
+                        ColorTemperatureTarget::Automatic,
+                        ColorTemperatureInteraction::AutoPressed,
+                    )
+                    .map(|auto_item| {
+                        auto_item.with_hover_card(Box::new(move |_| {
+                            self.auto.hover_card(ServiceReadiness::Serving)
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten(),

@@ -229,9 +229,8 @@ impl LlamaServerGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &LlamaServerTarget) -> Vec<Section> {
-        let model_groups: Vec<_> = [
+    fn model_sections(&self) -> Vec<Section> {
+        [
             self.model_props
                 .sections_described_by(llama_model_props_sections),
             self.gguf_card
@@ -241,11 +240,7 @@ impl LlamaServerGroup {
         ]
         .into_iter()
         .flatten()
-        .collect();
-        match target.bus {
-            Bus::Session => self.user.hover_card_for(target, model_groups),
-            Bus::System => self.system.hover_card_for(target, model_groups),
-        }
+        .collect()
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
@@ -254,8 +249,10 @@ impl LlamaServerGroup {
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerInteraction::User)
-                .chain(self.system.items(LlamaServerInteraction::System)),
+                .items(LlamaServerInteraction::User, move || self.model_sections())
+                .chain(self.system.items(LlamaServerInteraction::System, move || {
+                    self.model_sections()
+                })),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Robot(Weight::Regular).into(),

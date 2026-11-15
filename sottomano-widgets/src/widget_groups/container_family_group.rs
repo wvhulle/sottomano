@@ -15,7 +15,7 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -178,42 +178,25 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             .unwrap_or_default()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Vec<Section> {
-        let detail_rows = self.detail_rows();
-        let shown_card = if detail_rows.is_empty() {
-            self.listing_rows()
-                .into_iter()
-                .find(|row| row.target == *target)
-                .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
-        } else {
-            detail_rows
-                .into_iter()
-                .find(|row| row.target == *target)
-                .map(|row| self.detail.hover_card_with(row.reading.hover_card(clock)))
-        };
-        shown_card
-            .or_else(|| {
-                self.stopped_rows()
-                    .into_iter()
-                    .find(|row| row.target == *target)
-                    .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
-            })
-            .unwrap_or_default()
-    }
-
     fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
         let detail_rows = self.detail_rows();
         let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
             if detail_rows.is_empty() {
                 self.listing_rows()
                     .into_iter()
-                    .map(switchable_item)
+                    .map(|row| switchable_item(stamped_by_source(&self.listings, row)))
                     .collect()
             } else {
-                detail_rows.into_iter().map(switchable_item).collect()
+                detail_rows
+                    .into_iter()
+                    .map(|row| switchable_item(stamped_by_source(&self.detail, row)))
+                    .collect()
             };
-        group_rows.extend(self.stopped_rows().into_iter().map(switchable_item));
+        group_rows.extend(
+            self.stopped_rows()
+                .into_iter()
+                .map(|row| switchable_item(stamped_by_source(&self.listings, row))),
+        );
         group_rows
     }
 
@@ -239,6 +222,20 @@ fn refused_power_change<Family: ContainerFamily>(
 ) -> Task<ContainerFamilyMessage<Family>> {
     Task::future(async move { power_change.await.err() })
         .and_then(|refusal| Task::done(ContainerFamilyMessage::PowerChangeRefused(refusal)))
+}
+
+fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
+    source: &'a SubscribedSnapshot<Source>,
+    row: FamilyRow<'a, Family>,
+) -> FamilyRow<'a, Family> {
+    let row_card = row.reading.card;
+    FamilyRow {
+        reading: ReadingRow {
+            card: Box::new(move |clock| source.hover_card_with(row_card(clock))),
+            ..row.reading
+        },
+        ..row
+    }
 }
 
 fn switchable_item<Family: ContainerFamily>(
@@ -280,9 +277,10 @@ mod tests {
         vmware_machines::{VmwareMachine, VmwareMachineListing},
     };
 
-    use super::{ContainerFamily, RowPower};
+    use super::{ContainerFamily, ContainerFamilyGroup, RowPower};
     use crate::{
         clock::Clock,
+        hover_cards::hover_card_body::Section,
         widget_groups::{
             lxc_containers_group::LxcFamily,
             virtualbox_machines_group::{
@@ -302,6 +300,18 @@ mod tests {
             Ok(snapshot),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )
+    }
+
+    fn shown_card_sections<Family: ContainerFamily>(
+        group: &ContainerFamilyGroup<Family>,
+        target: Family::Target,
+        clock: Clock,
+    ) -> Vec<Section> {
+        group
+            .group_content()
+            .row_hover_card(&target.into(), clock)
+            .map(|row_card| row_card.sections)
+            .unwrap_or_default()
     }
 
     fn group_with_listing(clock: Clock) -> VmwareMachinesGroup {
@@ -342,9 +352,7 @@ mod tests {
         let group = group_with_listing(clock);
         assert_eq!(group.group_rows().len(), 1);
         assert!(
-            !group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
-                .is_empty()
+            !shown_card_sections(&group, VmwareMachineTarget { pid: LISTED_PID }, clock).is_empty()
         );
     }
 
@@ -358,14 +366,11 @@ mod tests {
         );
         assert_eq!(group.group_rows().len(), 1);
         assert!(
-            !group
-                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock)
+            !shown_card_sections(&group, VmwareMachineTarget { pid: DETAILED_PID }, clock)
                 .is_empty()
         );
         assert!(
-            group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
-                .is_empty()
+            shown_card_sections(&group, VmwareMachineTarget { pid: LISTED_PID }, clock).is_empty()
         );
     }
 
@@ -429,14 +434,14 @@ mod tests {
         );
         assert_eq!(group.group_rows().len(), 2);
         assert!(
-            !group
-                .hover_card_for(
-                    &VirtualBoxMachineTarget::StoppedMachine {
-                        machine_uuid: "0b1c2d3e".into(),
-                    },
-                    clock,
-                )
-                .is_empty()
+            !shown_card_sections(
+                &group,
+                VirtualBoxMachineTarget::StoppedMachine {
+                    machine_uuid: "0b1c2d3e".into(),
+                },
+                clock
+            )
+            .is_empty()
         );
     }
 }

@@ -232,19 +232,6 @@ impl CgroupMemoryLimitsGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &CgroupMemoryLimitTarget) -> Vec<Section> {
-        let Some(cgroup) = self
-            .listed_cgroups()
-            .iter()
-            .find(|cgroup| cgroup.cgroup_path == target.cgroup_path)
-        else {
-            return Vec::new();
-        };
-        self.listing
-            .hover_card_with(self.cgroup_row(cgroup).hover_card())
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -256,6 +243,10 @@ impl CgroupMemoryLimitsGroup {
                     cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
                 },
             )
+            .with_hover_card(Box::new(move |_| {
+                self.listing
+                    .hover_card_with(self.cgroup_row(cgroup).hover_card())
+            }))
             .on_press(
                 CGTOP_PRESS_HINT,
                 CgroupMemoryLimitsInteraction::OpenCgroupTop(TerminalCommand::running(

@@ -233,29 +233,6 @@ impl CiRunsGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &CiRunsTarget) -> Vec<Section> {
-        match target {
-            CiRunsTarget::Runner(reference) => self.runner_hover_card(reference, |watched| {
-                CiRunnerFailureRow::failing_runner(watched).map(|row| row.hover_card())
-            }),
-            CiRunsTarget::Run { runner, run_label } => self.runner_hover_card(runner, |watched| {
-                let task = watched
-                    .runner
-                    .tasks
-                    .iter()
-                    .find(|task| task.run_label == *run_label)?;
-                Some(
-                    CiTaskRow {
-                        kind: watched.kind,
-                        task,
-                    }
-                    .hover_card(),
-                )
-            }),
-        }
-    }
-
     pub fn group_content(
         &self,
         clock: Clock,
@@ -266,12 +243,20 @@ impl CiRunsGroup {
             .iter()
             .map(|watched| watched.runner.tasks.len())
             .sum();
-        let runner_rows = watched_runners.into_iter().flat_map(|watched| {
+        let runner_rows = watched_runners.into_iter().flat_map(move |watched| {
             let reference = CiRunnerReference::from(&watched);
+            let failure_reference = reference.clone();
             let failure_row = CiRunnerFailureRow::failing_runner(watched).map(|row| {
                 GroupItem::reading(row.reading_row(), CiRunsTarget::Runner(reference.clone()))
+                    .with_hover_card(Box::new(move |_| {
+                        self.runner_hover_card(&failure_reference, |watched_runner| {
+                            CiRunnerFailureRow::failing_runner(watched_runner)
+                                .map(|failing_row| failing_row.hover_card())
+                        })
+                    }))
             });
             let run_rows = watched.runner.tasks.iter().map(move |task| {
+                let task_reference = reference.clone();
                 let row = GroupItem::reading(
                     CiTaskRow {
                         kind: watched.kind,
@@ -282,7 +267,18 @@ impl CiRunsGroup {
                         runner: reference.clone(),
                         run_label: Cow::Owned(task.run_label.clone()),
                     },
-                );
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.runner_hover_card(&task_reference, |watched_runner| {
+                        Some(
+                            CiTaskRow {
+                                kind: watched_runner.kind,
+                                task,
+                            }
+                            .hover_card(),
+                        )
+                    })
+                }));
                 match &task.stop_control {
                     TaskStopControl::NoContainerNow => row,
                     stop_control @ TaskStopControl::StopContainers { .. } => row.on_right_press(

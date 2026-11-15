@@ -34,7 +34,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
         widget_group_content::{
@@ -333,21 +333,6 @@ impl DarkModeGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: DarkModeTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            DarkModeTarget::Mode => self.mode_toggle.hover_card(),
-            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_hover_card(clock),
-            DarkModeTarget::SunriseOffset => self.offset_slider_hover_card(ColorMode::Light),
-            DarkModeTarget::SunsetOffset => self.offset_slider_hover_card(ColorMode::Dark),
-        }
-    }
-
-    fn offset_slider_hover_card(&self, edge: ColorMode) -> Vec<Section> {
-        self.offset_slider_for(edge)
-            .readout_hover_card(format!("{} offset", edge.sun_event_label()))
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -375,7 +360,11 @@ impl DarkModeGroup {
                         DarkModeInteraction::ModeTogglePressed,
                         clock,
                     )
-                    .map(GroupItem::previewed_on_handle),
+                    .map(|mode_item| {
+                        mode_item
+                            .previewed_on_handle()
+                            .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
+                    }),
                 mode_known.then(|| {
                     GroupItem::reading(
                         self.auto_switch_toggle.reading_row(clock, locale),

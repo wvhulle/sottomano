@@ -20,7 +20,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         source_reading::GroupItemIcon,
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         fixed_panel_group::FixedPanelGroup,
         idle_pause_groups::{ScheduledAfterIdle, Timeouts},
@@ -145,13 +145,6 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: SessionTarget) -> Vec<Section> {
-        match target {
-            SessionTarget::Menu => Vec::new(),
-        }
-    }
-
-    #[must_use]
     pub fn menu_panel<'a>(
         &self,
         config: &'a Config,
@@ -194,6 +187,7 @@ impl SessionPowerGroup {
                 },
                 GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
                 GroupItemValue::Nothing,
+                Box::new(|_| Vec::new()),
             )
         }))
     }

@@ -34,6 +34,7 @@ use crate::{
     group_items::{
         group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::ReadingDisplayState,
+        reading_row::DescribeCard,
         source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -425,43 +426,6 @@ impl MediaGroup {
         }))
     }
 
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &PlayerTarget,
-        index: &DesktopIndex,
-        clock: Clock,
-    ) -> Vec<Section> {
-        let Some(media) = self.player(&target.bus) else {
-            return Vec::new();
-        };
-        match target.control {
-            MediaTarget::Player => self.players.hover_card_with(vec![Section::new(
-                "Status",
-                dictionary_table([
-                    LabeledValue::new("Player", media.identity.clone()),
-                    LabeledValue::new("State", media.status.label()),
-                ]),
-            )]),
-            MediaTarget::Track => self.players.hover_card_with(vec![
-                track_section(media, index),
-                playback_section(media, clock.instant),
-                search_section(media, index),
-            ]),
-            MediaTarget::Lyrics => self.lyrics_hover_card(media, clock),
-            MediaTarget::Seek
-            | MediaTarget::Shuffle
-            | MediaTarget::Previous
-            | MediaTarget::PlayPause
-            | MediaTarget::Next
-            | MediaTarget::Loop
-            | MediaTarget::Transport
-            | MediaTarget::Stop
-            | MediaTarget::Quit
-            | MediaTarget::SessionControls => self.players.hover_card_with(vec![]),
-        }
-    }
-
     fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Vec<Section> {
         let Some(lyrics_snapshot) = self.lyrics_of(media) else {
             return Vec::new();
@@ -476,9 +440,28 @@ impl MediaGroup {
         lyrics_snapshot.hover_card_with(vec![lyrics_section(track_lyrics, played)])
     }
 
+    fn player_hover_card(&self, media: &Media) -> Vec<Section> {
+        self.players.hover_card_with(vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("Player", media.identity.clone()),
+                LabeledValue::new("State", media.status.label()),
+            ]),
+        )])
+    }
+
+    fn track_hover_card(&self, media: &Media, index: &DesktopIndex, clock: Clock) -> Vec<Section> {
+        self.players.hover_card_with(vec![
+            track_section(media, index),
+            playback_section(media, clock.instant),
+            search_section(media, index),
+        ])
+    }
+
     pub fn group_contents<'a>(
         &'a self,
         config: &'a Config,
+        index: &'a DesktopIndex,
         clock: Clock,
     ) -> impl Iterator<Item = WidgetGroupContent<'a, MediaInteraction>> {
         self.titled_players().into_iter().filter_map(move |media| {
@@ -491,6 +474,13 @@ impl MediaGroup {
                 media,
                 session,
                 self.lyrics_of(media),
+                PlayerCards {
+                    player: Box::new(move |_| self.player_hover_card(media)),
+                    track: Box::new(move |card_clock| {
+                        self.track_hover_card(media, index, card_clock)
+                    }),
+                    lyrics: Box::new(move |card_clock| self.lyrics_hover_card(media, card_clock)),
+                },
             ))
         })
     }
@@ -514,78 +504,85 @@ fn session_buttons_item<'a>(
                     control: MediaTarget::SessionControls,
                 }
                 .into(),
+                child_targets: Vec::new(),
             },
             GroupItemValue::drawn(move |reveal| {
                 lifted_to_player(bus, session_controls(config, media, session, reveal).into())
             }),
+            Box::new(|_| Vec::new()),
         )
     })
 }
 
-fn player_group<'a>(
+struct PlayerCards<'a> {
+    player: DescribeCard<'a>,
+    track: DescribeCard<'a>,
+    lyrics: DescribeCard<'a>,
+}
+
+fn player_hover_target(bus: &str, control: MediaTarget) -> HoverTarget {
+    PlayerTarget {
+        bus: bus.to_owned().into(),
+        control,
+    }
+    .into()
+}
+
+fn seek_position_item<'a>(
     config: &'a Config,
     clock: Clock,
-    group_title: WidgetGroupTitle,
     media: &'a Media,
     session: &'a PlayerSession,
-    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
-) -> WidgetGroupContent<'a, MediaInteraction> {
+) -> GroupItem<'a, MediaInteraction> {
     let bus = media.bus.as_str();
-    let player_target = move |control| -> HoverTarget {
-        PlayerTarget {
-            bus: bus.to_owned().into(),
-            control,
-        }
-        .into()
-    };
-    let seek_availability = SeekBar::seek_availability(media, clock.instant);
-    let gauge_fraction = media
-        .progress
-        .fraction(media.status, clock.instant)
-        .filter(|_| {
-            !(seek_availability == SeekAvailability::Seekable
-                && session.expansion.state() == ExpansionState::Expanded)
-        });
-    let seek = (seek_availability == SeekAvailability::Seekable).then(|| {
-        GroupItem::composed(
-            "Position",
-            GroupItemIcon::IconGlyph {
-                glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
-                state: ReadingDisplayState::Idle,
-            },
-            GroupItemHoverArea::ByChildren {
-                row_target: player_target(MediaTarget::Seek),
-            },
-            GroupItemValue::drawn(move |_| {
-                let bar = session
-                    .seek_bar
-                    .view(config, media, clock.instant)
-                    .map_or_else(
-                        || Row::new().into(),
-                        |bar| bar.map(|seek| GroupEvent::Group(PlayerInteraction::Seek(seek))),
-                    );
-                lifted_to_player(
-                    bus,
-                    hoverable(
-                        NestedMenuOpenTrigger::Hover,
-                        bar,
-                        player_target(MediaTarget::Seek),
-                        PressHints {
-                            left: Some("jump to this point"),
-                            scroll: Some("seek"),
-                            ..PressHints::default()
-                        },
-                        GroupEvent::HoverCard,
-                    ),
-                )
-            }),
-        )
-    });
-    let transport = GroupItem::composed(
+    GroupItem::composed(
+        "Position",
+        GroupItemIcon::IconGlyph {
+            glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
+        },
+        GroupItemHoverArea::ByChildren {
+            row_target: player_hover_target(bus, MediaTarget::Seek),
+            child_targets: Vec::new(),
+        },
+        GroupItemValue::drawn(move |_| {
+            let bar = session
+                .seek_bar
+                .view(config, media, clock.instant)
+                .map_or_else(
+                    || Row::new().into(),
+                    |bar| bar.map(|seek| GroupEvent::Group(PlayerInteraction::Seek(seek))),
+                );
+            lifted_to_player(
+                bus,
+                hoverable(
+                    NestedMenuOpenTrigger::Hover,
+                    bar,
+                    player_hover_target(bus, MediaTarget::Seek),
+                    PressHints {
+                        left: Some("jump to this point"),
+                        scroll: Some("seek"),
+                        ..PressHints::default()
+                    },
+                    GroupEvent::HoverCard,
+                ),
+            )
+        }),
+        Box::new(|_| Vec::new()),
+    )
+}
+
+fn transport_controls_item<'a>(
+    config: &'a Config,
+    media: &'a Media,
+) -> GroupItem<'a, MediaInteraction> {
+    let bus = media.bus.as_str();
+    GroupItem::composed(
         "Playback",
         GroupItemIcon::Absent,
         GroupItemHoverArea::ByChildren {
-            row_target: player_target(MediaTarget::Transport),
+            row_target: player_hover_target(bus, MediaTarget::Transport),
+            child_targets: Vec::new(),
         },
         GroupItemValue::drawn(move |reveal| {
             lifted_to_player(
@@ -600,7 +597,31 @@ fn player_group<'a>(
                 .into(),
             )
         }),
-    );
+        Box::new(|_| Vec::new()),
+    )
+}
+
+fn player_group<'a>(
+    config: &'a Config,
+    clock: Clock,
+    group_title: WidgetGroupTitle,
+    media: &'a Media,
+    session: &'a PlayerSession,
+    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
+    cards: PlayerCards<'a>,
+) -> WidgetGroupContent<'a, MediaInteraction> {
+    let bus = media.bus.as_str();
+    let seek_availability = SeekBar::seek_availability(media, clock.instant);
+    let gauge_fraction = media
+        .progress
+        .fraction(media.status, clock.instant)
+        .filter(|_| {
+            !(seek_availability == SeekAvailability::Seekable
+                && session.expansion.state() == ExpansionState::Expanded)
+        });
+    let seek = (seek_availability == SeekAvailability::Seekable)
+        .then(|| seek_position_item(config, clock, media, session));
+    let transport = transport_controls_item(config, media);
     let session_buttons = session_buttons_item(config, media, session);
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),
@@ -608,14 +629,18 @@ fn player_group<'a>(
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
         [
-            Some(player_item(config, media, gauge_fraction)),
-            Some(track_item(
-                config,
-                media,
-                session.cover_art.as_ref().map(|art| &art.handle),
-            )),
+            Some(player_item(config, media, gauge_fraction).with_hover_card(cards.player)),
+            Some(
+                track_item(
+                    config,
+                    media,
+                    session.cover_art.as_ref().map(|art| &art.handle),
+                )
+                .with_hover_card(cards.track),
+            ),
             lyrics_snapshot.and_then(|lyrics_snapshot| {
                 lyrics_item(config, media, lyrics_snapshot, clock.instant, clock)
+                    .map(|lyrics_row| lyrics_row.with_hover_card(cards.lyrics))
             }),
             seek,
             Some(transport),

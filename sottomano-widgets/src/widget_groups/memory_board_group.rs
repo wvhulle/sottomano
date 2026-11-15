@@ -39,7 +39,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         memory_board_group::{
             memory_usage_gauge::memory_processes_sections,
@@ -175,83 +175,138 @@ impl MemoryBoardGroup {
         Task::none()
     }
 
-    pub fn group_content(
+    fn slot_items(
         &self,
-        clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let slot_items = self.hardware.get().into_iter().flat_map(|hardware| {
+    ) -> impl Iterator<Item = GroupItem<'_, WidgetGroupExpansionMessage>> {
+        self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
             hardware
                 .memory
                 .0
                 .iter()
                 .enumerate()
-                .map(|(slot_index, slot_module)| {
+                .map(move |(slot_index, slot_module)| {
+                    let slot_reading = MemorySlotReading {
+                        slot_module: slot_module.clone(),
+                        machine: if slot_index == 0 {
+                            machine.clone()
+                        } else {
+                            MachineInfo::default()
+                        },
+                    };
                     GroupItem::reading(
-                        MemorySlotReading {
-                            slot_module: slot_module.clone(),
-                            machine: if slot_index == 0 {
-                                machine.clone()
-                            } else {
-                                MachineInfo::default()
-                            },
-                        }
-                        .reading_row(locale),
+                        slot_reading.clone().reading_row(locale),
                         MemoryBoardTarget::Slot(slot_module.locator.clone()),
                     )
+                    .with_hover_card(Box::new(move |_| {
+                        self.hardware.hover_card_with(slot_reading.hover_card())
+                    }))
                 })
-        });
-        let temperature_items =
-            self.module_temperatures
-                .get()
-                .into_iter()
-                .flat_map(|temperatures| {
-                    temperatures.modules.iter().map(|module| {
-                        GroupItem::reading(
-                            MemoryModuleTemperatureReading {
-                                bus_address: module.bus_address.clone(),
-                                temperature: module.temperature,
-                            }
-                            .reading_row(),
-                            MemoryBoardTarget::TemperatureSensor(module.bus_address.clone()),
-                        )
-                    })
-                });
+        })
+    }
+
+    fn temperature_items(
+        &self,
+    ) -> impl Iterator<Item = GroupItem<'_, WidgetGroupExpansionMessage>> {
+        self.module_temperatures
+            .get()
+            .into_iter()
+            .flat_map(move |temperatures| {
+                temperatures.modules.iter().map(move |module| {
+                    let temperature_reading = MemoryModuleTemperatureReading {
+                        bus_address: module.bus_address.clone(),
+                        temperature: module.temperature,
+                    };
+                    GroupItem::reading(
+                        temperature_reading.clone().reading_row(),
+                        MemoryBoardTarget::TemperatureSensor(module.bus_address.clone()),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.module_temperatures
+                            .hover_card_with(temperature_reading.hover_card())
+                    }))
+                })
+            })
+    }
+
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             &self.expansion,
             identity,
             [
-                self.memory.group_item(
-                    IconGlyph::default(),
-                    |snapshot| memory_reading_row(snapshot, locale),
-                    MemoryBoardTarget::Memory,
-                    clock,
-                ),
-                self.memory_growth.group_item(
-                    IconGlyph::default(),
-                    |snapshot| memory_growth_reading_row(snapshot, locale),
-                    MemoryBoardTarget::Growth,
-                    clock,
-                ),
-                self.stall_pressure.group_item(
-                    IconGlyph::default(),
-                    |snapshot| memory_stall_reading_row(snapshot, locale),
-                    MemoryBoardTarget::Pressure,
-                    clock,
-                ),
-                self.swap_activity.group_item(
-                    IconGlyph::default(),
-                    |snapshot| swap_activity_reading_row(snapshot, locale),
-                    MemoryBoardTarget::Swap,
-                    clock,
-                ),
+                self.memory
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| memory_reading_row(snapshot, locale),
+                        MemoryBoardTarget::Memory,
+                        clock,
+                    )
+                    .map(|memory_item| {
+                        memory_item.with_hover_card(Box::new(move |_| {
+                            let mut sections = self.memory.sections_described_by(memory_hover_card);
+                            sections.extend(
+                                self.memory_processes
+                                    .sections_described_by(memory_processes_sections),
+                            );
+                            sections
+                        }))
+                    }),
+                self.memory_growth
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| memory_growth_reading_row(snapshot, locale),
+                        MemoryBoardTarget::Growth,
+                        clock,
+                    )
+                    .map(|growth_item| {
+                        growth_item.with_hover_card(Box::new(move |_| {
+                            self.memory_growth
+                                .sections_described_by(memory_growth_hover_card)
+                        }))
+                    }),
+                self.stall_pressure
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| memory_stall_reading_row(snapshot, locale),
+                        MemoryBoardTarget::Pressure,
+                        clock,
+                    )
+                    .map(|pressure_item| {
+                        pressure_item.with_hover_card(Box::new(move |_| {
+                            self.stall_pressure
+                                .sections_described_by(memory_stall_hover_card)
+                        }))
+                    }),
+                self.swap_activity
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| swap_activity_reading_row(snapshot, locale),
+                        MemoryBoardTarget::Swap,
+                        clock,
+                    )
+                    .map(|swap_item| {
+                        swap_item.with_hover_card(Box::new(move |_| {
+                            let mut sections = self
+                                .swap_activity
+                                .sections_described_by(swap_activity_hover_card);
+                            sections.extend(
+                                self.swapped_processes
+                                    .sections_described_by(swapped_processes_sections),
+                            );
+                            sections
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten()
-            .chain(slot_items)
-            .chain(temperature_items),
+            .chain(self.slot_items(locale))
+            .chain(self.temperature_items()),
         )
     }
 
@@ -281,75 +336,6 @@ impl MemoryBoardGroup {
             MemoryBoardTarget::TemperatureSensor(_) => {
                 first_delivery::<MemoryModuleTemperatures>(())
                     .map(MemoryBoardMessage::ModuleTemperatures)
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &MemoryBoardTarget) -> Vec<Section> {
-        match target {
-            MemoryBoardTarget::Memory => {
-                let mut sections = self.memory.sections_described_by(memory_hover_card);
-                sections.extend(
-                    self.memory_processes
-                        .sections_described_by(memory_processes_sections),
-                );
-                sections
-            }
-            MemoryBoardTarget::Growth => self
-                .memory_growth
-                .sections_described_by(memory_growth_hover_card),
-            MemoryBoardTarget::Pressure => self
-                .stall_pressure
-                .sections_described_by(memory_stall_hover_card),
-            MemoryBoardTarget::Swap => {
-                let mut sections = self
-                    .swap_activity
-                    .sections_described_by(swap_activity_hover_card);
-                sections.extend(
-                    self.swapped_processes
-                        .sections_described_by(swapped_processes_sections),
-                );
-                sections
-            }
-            MemoryBoardTarget::Slot(locator) => {
-                let Some(hardware) = self.hardware.get() else {
-                    return Vec::new();
-                };
-                let Some(slot_module) = hardware
-                    .memory
-                    .0
-                    .iter()
-                    .find(|slot_module| slot_module.locator == *locator)
-                else {
-                    return Vec::new();
-                };
-                let machine = if slot_module.locator == hardware.memory.0[0].locator {
-                    hardware.machine.clone()
-                } else {
-                    MachineInfo::default()
-                };
-                let reading = MemorySlotReading {
-                    slot_module: slot_module.clone(),
-                    machine,
-                };
-                self.hardware.hover_card_with(reading.hover_card())
-            }
-            MemoryBoardTarget::TemperatureSensor(bus_address) => {
-                let Some(module) = self.module_temperatures.get().and_then(|temperatures| {
-                    temperatures
-                        .modules
-                        .iter()
-                        .find(|module| &module.bus_address == bus_address)
-                }) else {
-                    return Vec::new();
-                };
-                let reading = MemoryModuleTemperatureReading {
-                    bus_address: module.bus_address.clone(),
-                    temperature: module.temperature,
-                };
-                self.module_temperatures
-                    .hover_card_with(reading.hover_card())
             }
         }
     }

@@ -183,14 +183,6 @@ impl WifiAdaptersGroup {
         }
     }
 
-    fn adapter_named(&self, adapter_device: &str) -> Option<&WifiAdapter> {
-        self.wifi
-            .get()?
-            .adapters
-            .iter()
-            .find(|adapter| adapter.device == adapter_device)
-    }
-
     fn adapter_detail_sections(
         &self,
         adapter_device: &str,
@@ -206,74 +198,61 @@ impl WifiAdaptersGroup {
         })
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &WifiAdapterTarget) -> Vec<Section> {
-        let Some(wifi) = self.wifi.get() else {
-            return Vec::new();
+    fn adapter_signal_hover_card(
+        &self,
+        adapter: &WifiAdapter,
+        radio_power: RadioPower,
+    ) -> Vec<Section> {
+        let signal_reading = AdapterSignalReading {
+            adapter,
+            radio_power,
         };
-        let radio_power = wifi.radio_power;
-        match target {
-            WifiAdapterTarget::Signal { adapter_device } => {
-                let Some(adapter) = self.adapter_named(adapter_device) else {
-                    return Vec::new();
-                };
-                let signal_reading = AdapterSignalReading {
-                    adapter,
-                    radio_power,
-                };
-                let mut sections = self.wifi.hover_card_with(signal_reading.hover_card());
-                sections.extend(
-                    self.adapter_detail_sections(adapter_device, adapter_identity_sections),
-                );
-                sections
-            }
-            WifiAdapterTarget::Connection { adapter_device } => {
-                let Some(adapter) = self.adapter_named(adapter_device) else {
-                    return Vec::new();
-                };
-                let mut sections = self
-                    .wifi
-                    .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card());
-                sections.extend(
-                    self.adapter_detail_sections(adapter_device, adapter_radio_stats_sections),
-                );
-                sections
-            }
-            WifiAdapterTarget::Addresses {
-                adapter_device,
-                family,
-            } => {
-                let address_details = self.adapter_detail_sections(adapter_device, |details| {
-                    details
-                        .addressing
-                        .as_ref()
-                        .map(|addressing| {
-                            family_address_sections(
-                                *family,
-                                addressing.ipv4.as_ref(),
-                                addressing.ipv6.as_ref(),
-                            )
-                        })
-                        .unwrap_or_default()
-                });
-                let router_details = self.gateway_latencies.sections_described_by(|latencies| {
-                    family_router_sections(latencies, adapter_device, *family)
-                });
-                address_details.into_iter().chain(router_details).collect()
-            }
-            WifiAdapterTarget::Dns { adapter_device } => {
-                self.adapter_detail_sections(adapter_device, |details| {
-                    details
-                        .addressing
-                        .as_ref()
-                        .map(|addressing| dns_server_sections(&addressing.dns))
-                        .unwrap_or_default()
+        let mut sections = self.wifi.hover_card_with(signal_reading.hover_card());
+        sections.extend(self.adapter_detail_sections(&adapter.device, adapter_identity_sections));
+        sections
+    }
+
+    fn adapter_connection_hover_card(&self, adapter: &WifiAdapter) -> Vec<Section> {
+        let mut sections = self
+            .wifi
+            .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card());
+        sections
+            .extend(self.adapter_detail_sections(&adapter.device, adapter_radio_stats_sections));
+        sections
+    }
+
+    fn adapter_address_hover_card(
+        &self,
+        adapter: &WifiAdapter,
+        family: AddressFamily,
+    ) -> Vec<Section> {
+        let address_details = self.adapter_detail_sections(&adapter.device, |details| {
+            details
+                .addressing
+                .as_ref()
+                .map(|addressing| {
+                    family_address_sections(
+                        family,
+                        addressing.ipv4.as_ref(),
+                        addressing.ipv6.as_ref(),
+                    )
                 })
-            }
-            WifiAdapterTarget::AllRadios => self
-                .wifi
-                .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card()),
-        }
+                .unwrap_or_default()
+        });
+        let router_details = self.gateway_latencies.sections_described_by(|latencies| {
+            family_router_sections(latencies, &adapter.device, family)
+        });
+        address_details.into_iter().chain(router_details).collect()
+    }
+
+    fn adapter_dns_hover_card(&self, adapter: &WifiAdapter) -> Vec<Section> {
+        self.adapter_detail_sections(&adapter.device, |details| {
+            details
+                .addressing
+                .as_ref()
+                .map(|addressing| dns_server_sections(&addressing.dns))
+                .unwrap_or_default()
+        })
     }
 
     fn adapter_group<'a>(
@@ -292,7 +271,10 @@ impl WifiAdaptersGroup {
             WifiAdapterTarget::Signal {
                 adapter_device: adapter.device.clone(),
             },
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.adapter_signal_hover_card(adapter, radio_power)
+        }));
         let connection_item = (radio_power == RadioPower::On).then(|| {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
@@ -307,6 +289,9 @@ impl WifiAdaptersGroup {
                 connection_press_does,
                 WifiAdaptersInteraction::ToggleAdapter(adapter.device.clone()),
             )
+            .with_hover_card(Box::new(move |_| {
+                self.adapter_connection_hover_card(adapter)
+            }))
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
@@ -319,6 +304,9 @@ impl WifiAdaptersGroup {
                         family,
                     },
                 )
+                .with_hover_card(Box::new(move |_| {
+                    self.adapter_address_hover_card(adapter, family)
+                }))
             });
         let dns_item = (adapter.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
@@ -327,6 +315,7 @@ impl WifiAdaptersGroup {
                     adapter_device: adapter.device.clone(),
                 },
             )
+            .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter)))
         });
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
@@ -336,7 +325,11 @@ impl WifiAdaptersGroup {
                     radio_power,
                     radios_press_does,
                     WifiAdaptersInteraction::ToggleAllRadios,
-                );
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.wifi
+                        .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
+                }));
         let adapter_device = adapter.device.clone();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),

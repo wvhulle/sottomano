@@ -314,23 +314,4 @@ impl SessionFocusGroup {
             [session, breaks, focus_run, totals, switches],
         )
     }
-
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: SessionFocusTarget,
-        config: &Config,
-        clock: Clock,
-    ) -> Vec<Section> {
-        let body = match target {
-            SessionFocusTarget::Session => self.session_face(config).hover_card(clock),
-            SessionFocusTarget::Breaks => self.break_log(config).hover_card(clock),
-            SessionFocusTarget::FocusRun => self.focus_run_reading(config).hover_card(clock),
-            SessionFocusTarget::DailyTotals => self.daily_totals.hover_card(),
-            SessionFocusTarget::ContextSwitches => {
-                self.context_switch_rate(config).hover_card(clock)
-            }
-        };
-        body.into_iter().collect()
-    }
 }

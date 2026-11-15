@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
@@ -32,7 +29,8 @@ use crate::{
     widget_groups::{
         engine_container_rows::{
             EngineContainerInteraction, EngineContainerTarget, EngineContainers,
-            container_switch_task, engine_failure_label, rows_ending_in_hidden_count,
+            RunningContainerRow, StoppedContainerRow, container_switch_task, engine_failure_label,
+            rows_ending_in_hidden_count,
         },
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -108,11 +106,6 @@ impl<'a> UnreadableEngineRow<'a> {
             ..base
         }
     }
-}
-
-struct PodmanEngineReading<'a> {
-    engine: &'a DiscoveredPodmanEngine,
-    reading: &'a SubscribedSnapshot<EngineListing>,
 }
 
 #[derive(Default)]
@@ -203,58 +196,66 @@ impl PodmanEnginesGroup {
         Task::none()
     }
 
-    fn engine_reading(&self, socket_path: &Path) -> Option<PodmanEngineReading<'_>> {
-        let engine = self
-            .engines
-            .iter()
-            .find(|engine| engine.socket_path == socket_path)?;
-        Some(PodmanEngineReading {
-            engine,
-            reading: self.readouts.get(socket_path)?,
-        })
+    fn running_container_rows<'a>(
+        engine: &'a DiscoveredPodmanEngine,
+        listing: &'a EngineListing,
+        reading: &'a SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupItem<'a, PodmanEnginesInteraction>> {
+        let engine_containers = EngineContainers {
+            socket_path: &engine.socket_path,
+            owner: &engine.owner,
+            listing,
+        };
+        engine_containers
+            .running_rows(
+                container_hover_target,
+                EngineContainerInteraction::SwitchContainer,
+            )
+            .into_iter()
+            .zip(&listing.running.containers)
+            .map(|(row, container)| {
+                row.with_hover_card(Box::new(move |clock| {
+                    reading.hover_card_with(
+                        RunningContainerRow {
+                            container,
+                            owner: &engine.owner,
+                        }
+                        .hover_card(clock),
+                    )
+                }))
+            })
+            .collect()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &PodmanEngineTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            PodmanEngineTarget::Engine { socket_path } => {
-                let Some(PodmanEngineReading { engine, reading }) =
-                    self.engine_reading(socket_path)
-                else {
-                    return Vec::new();
-                };
-                let Some(read_failure) = reading.fetch_failure() else {
-                    return Vec::new();
-                };
-                UnreadableEngineRow {
-                    engine,
-                    read_failure,
-                }
-                .hover_card()
-            }
-            PodmanEngineTarget::Container(container_target) => {
-                let Some(PodmanEngineReading { engine, reading }) =
-                    self.engine_reading(Path::new(container_target.socket_path.as_ref()))
-                else {
-                    return Vec::new();
-                };
-                let Some(listing) = reading.get() else {
-                    return Vec::new();
-                };
-                let engine_containers = EngineContainers {
-                    socket_path: &engine.socket_path,
-                    owner: &engine.owner,
-                    listing,
-                };
-                let Some(container_body) =
-                    engine_containers.hover_body_of(&container_target.container_id, clock)
-                else {
-                    return Vec::new();
-                };
-                reading.hover_card_with(container_body)
-            }
-            PodmanEngineTarget::HiddenContainers => Vec::new(),
-        }
+    fn stopped_container_rows<'a>(
+        engine: &'a DiscoveredPodmanEngine,
+        listing: &'a EngineListing,
+        reading: &'a SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupItem<'a, PodmanEnginesInteraction>> {
+        let engine_containers = EngineContainers {
+            socket_path: &engine.socket_path,
+            owner: &engine.owner,
+            listing,
+        };
+        engine_containers
+            .stopped_rows(
+                container_hover_target,
+                EngineContainerInteraction::SwitchContainer,
+            )
+            .into_iter()
+            .zip(&listing.stopped)
+            .map(|(row, container)| {
+                row.with_hover_card(Box::new(move |_| {
+                    reading.hover_card_with(
+                        StoppedContainerRow {
+                            container,
+                            owner: &engine.owner,
+                        }
+                        .hover_card(),
+                    )
+                }))
+            })
+            .collect()
     }
 
     fn container_rows(&self) -> Vec<GroupItem<'_, PodmanEnginesInteraction>> {
@@ -266,19 +267,8 @@ impl PodmanEnginesGroup {
                 continue;
             };
             if let Some(listing) = reading.get() {
-                let engine_containers = EngineContainers {
-                    socket_path: &engine.socket_path,
-                    owner: &engine.owner,
-                    listing,
-                };
-                running_rows.extend(engine_containers.running_rows(
-                    container_hover_target,
-                    EngineContainerInteraction::SwitchContainer,
-                ));
-                stopped_rows.extend(engine_containers.stopped_rows(
-                    container_hover_target,
-                    EngineContainerInteraction::SwitchContainer,
-                ));
+                running_rows.extend(Self::running_container_rows(engine, listing, reading));
+                stopped_rows.extend(Self::stopped_container_rows(engine, listing, reading));
             } else if let Some(read_failure) = reading.fetch_failure() {
                 failure_rows.push(GroupItem::reading(
                     UnreadableEngineRow {

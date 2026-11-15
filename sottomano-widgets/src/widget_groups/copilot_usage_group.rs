@@ -35,7 +35,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -161,29 +161,6 @@ impl CopilotUsageGroup {
         Task::none()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: CopilotUsageTarget) -> Vec<Section> {
-        match target {
-            CopilotUsageTarget::Metered => self
-                .metered
-                .sections_described_by(copilot_metered_hover_card),
-            CopilotUsageTarget::Free => self.free.sections_described_by(copilot_free_hover_card),
-            CopilotUsageTarget::Cli => self.cli.sections_described_by(copilot_ccusage_hover_card),
-            CopilotUsageTarget::MostUsedModel => {
-                let Some(ranking) = self.model_ranking() else {
-                    return Vec::new();
-                };
-                self.cli.hover_card_with(ranking.hover_card())
-            }
-            CopilotUsageTarget::MostUsedModelSpend => {
-                let Some(ranking) = self.model_ranking() else {
-                    return Vec::new();
-                };
-                self.cli.hover_card_with(ranking.top_model_share())
-            }
-        }
-    }
-
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 1>> {
         let cli = self.cli.visible_reading(copilot_ccusage_panel_visibility)?;
         ModelSpendRanking::new(
@@ -211,19 +188,37 @@ impl CopilotUsageGroup {
                         CopilotUsageTarget::Metered,
                         clock,
                     )
-                    .map(GroupItem::previewed_on_handle),
-                self.free.group_item(
-                    COPILOT_FREE_FALLBACK_GLYPH,
-                    |snapshot| copilot_free_reading_row(snapshot),
-                    CopilotUsageTarget::Free,
-                    clock,
-                ),
-                self.cli.group_item(
-                    COPILOT_CCUSAGE_FALLBACK_GLYPH,
-                    |snapshot| copilot_ccusage_reading_row(snapshot, clock),
-                    CopilotUsageTarget::Cli,
-                    clock,
-                ),
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.metered
+                                .sections_described_by(copilot_metered_hover_card)
+                        }))
+                        .previewed_on_handle()
+                    }),
+                self.free
+                    .group_item(
+                        COPILOT_FREE_FALLBACK_GLYPH,
+                        |snapshot| copilot_free_reading_row(snapshot),
+                        CopilotUsageTarget::Free,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.free.sections_described_by(copilot_free_hover_card)
+                        }))
+                    }),
+                self.cli
+                    .group_item(
+                        COPILOT_CCUSAGE_FALLBACK_GLYPH,
+                        |snapshot| copilot_ccusage_reading_row(snapshot, clock),
+                        CopilotUsageTarget::Cli,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.cli.sections_described_by(copilot_ccusage_hover_card)
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten()
@@ -232,11 +227,17 @@ impl CopilotUsageGroup {
                     GroupItem::reading(
                         ranking.most_used_model_row(),
                         CopilotUsageTarget::MostUsedModel,
-                    ),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.cli.hover_card_with(ranking.hover_card())
+                    })),
                     GroupItem::reading(
                         ranking.most_used_spend_row(),
                         CopilotUsageTarget::MostUsedModelSpend,
-                    ),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.cli.hover_card_with(ranking.top_model_share())
+                    })),
                 ]
             })),
         )

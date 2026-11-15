@@ -390,12 +390,10 @@ impl ShowcaseState {
 
     fn menu_cascade(&self, kind: GroupMenuTopic) -> Option<HoverContent<'_, ShowcaseInteraction>> {
         let group_menu = self.group_menu(kind);
-        let inspected_target = self.group_menus.inspected_target(kind);
-        let inspected_sections = inspected_target
-            .map(|target| self.group.hover_card_for(target, &self.config, self.clock))
-            .unwrap_or_default();
-        let inspected_announcement = inspected_target
-            .and_then(|target| group_menu.announcement_of(target))
+        let inspected_card = self
+            .group_menus
+            .inspected_target(kind)
+            .and_then(|target| group_menu.row_hover_card(target, self.clock))
             .unwrap_or_default();
         let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation = CascadeOrientation::toward_room(
@@ -407,8 +405,8 @@ impl ShowcaseState {
             &self.config,
             &self.appearance.menus,
             &InspectionCard {
-                sections: &inspected_sections,
-                announcement: inspected_announcement,
+                sections: &inspected_card.sections,
+                announcement: inspected_card.announcement,
                 card_appearance: self.appearance.overlays,
                 assets: self.window_assets(),
                 clock: self.clock,
@@ -514,7 +512,8 @@ impl ShowcaseState {
             return self.menu_cascade(*kind);
         }
         HoverCard::new(
-            self.group.hover_card_for(target, &self.config, self.clock),
+            self.group
+                .hover_card_sections(target, &self.config, self.clock),
             announcement,
         )
         .map(HoverContent::Described)

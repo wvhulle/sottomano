@@ -17,7 +17,7 @@ use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -148,22 +148,6 @@ impl WireguardTunnelsGroup {
             .map(|tunnel| tunnel.interface.as_str())
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &WireguardTunnelTarget) -> Vec<Section> {
-        let Some(tunnel) = self
-            .listed_tunnels()
-            .find(|tunnel| tunnel.interface == target.interface.as_ref())
-        else {
-            return Vec::new();
-        };
-        let mut sections = self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
-        sections.extend(
-            self.tunnel_address
-                .sections_described_by(tunnel_address_sections),
-        );
-        sections
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
         let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
@@ -177,7 +161,15 @@ impl WireguardTunnelsGroup {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
                     WireguardTunnelsInteraction::SwitchTunnel,
-                );
+                )
+                .with_hover_card(Box::new(move |_| {
+                    let mut sections = self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+                    sections.extend(
+                        self.tunnel_address
+                            .sections_described_by(tunnel_address_sections),
+                    );
+                    sections
+                }));
                 if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
                     tunnel_item.previewed_on_handle()
                 } else {

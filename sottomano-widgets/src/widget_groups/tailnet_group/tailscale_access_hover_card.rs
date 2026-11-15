@@ -28,6 +28,7 @@ use crate::{
 
 const NO_TAGS_TEXT: &str = "none";
 
+#[derive(Clone, Copy)]
 pub(super) struct OwnNodeRow<'a> {
     tailnet: &'a Tailnet,
 }
@@ -40,7 +41,7 @@ impl<'a> OwnNodeRow<'a> {
         }
     }
 
-    fn own_tags_text(&self) -> String {
+    fn own_tags_text(self) -> String {
         match self.tailnet.own_node.tags.as_slice() {
             [] => NO_TAGS_TEXT.to_owned(),
             tags => tags.join(", "),
@@ -65,7 +66,7 @@ impl<'a> OwnNodeRow<'a> {
         }
     }
 
-    pub(super) fn hover_card(&self) -> Vec<Section> {
+    pub(super) fn hover_card(self) -> Vec<Section> {
         vec![
             Section::new(
                 "Identity",

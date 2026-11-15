@@ -322,18 +322,7 @@ impl WaydroidContainerGroup {
         self.listing.get().map(ShownWaydroid::Listed)
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &WaydroidContainerTarget) -> Vec<Section> {
-        let Some(shown) = self.shown_waydroid() else {
-            return Vec::new();
-        };
-        let body = match target {
-            WaydroidContainerTarget::Container => WaydroidContainerRow { shown }.hover_card(),
-            WaydroidContainerTarget::Session => WaydroidSessionRow {
-                state: shown.state(),
-            }
-            .hover_card(),
-        };
+    fn stamped_card(&self, shown: ShownWaydroid<'_>, body: Vec<Section>) -> Vec<Section> {
         match shown {
             ShownWaydroid::Detailed(_) => self.detail.hover_card_with(body),
             ShownWaydroid::Listed(_) => self.listing.hover_card_with(body),
@@ -361,7 +350,10 @@ impl WaydroidContainerGroup {
         let row = GroupItem::reading(
             WaydroidContainerRow { shown }.reading_row(),
             WaydroidContainerTarget::Container,
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
+        }));
         match self.container_switch.activity() {
             Some(_) => self
                 .container_switch
@@ -387,7 +379,16 @@ impl WaydroidContainerGroup {
             }
             .reading_row(),
             WaydroidContainerTarget::Session,
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.stamped_card(
+                shown,
+                WaydroidSessionRow {
+                    state: shown.state(),
+                }
+                .hover_card(),
+            )
+        }));
         let session_row = match shown.state() {
             WaydroidState::Session { .. } => session_row.on_switch_press(
                 SwitchPosition::On,

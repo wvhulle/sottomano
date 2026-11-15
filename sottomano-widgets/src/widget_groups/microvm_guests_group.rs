@@ -373,48 +373,6 @@ impl MicrovmGuestsGroup {
             .find(|machine| machine.unit_name.as_deref() == Some(unit.unit_name.as_str()))
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &MicrovmGuestTarget, clock: Clock) -> Vec<Section> {
-        let pid = match target {
-            MicrovmGuestTarget::RunningProcess { pid } => *pid,
-            MicrovmGuestTarget::Unit { instance_name } => {
-                let Some(unit) = self
-                    .unit_listing()
-                    .iter()
-                    .find(|unit| unit.instance_name == instance_name.as_ref())
-                else {
-                    return Vec::new();
-                };
-                let activity = self.unit_activity(unit);
-                return self
-                    .units
-                    .hover_card_with(MicrovmUnitRow { unit, activity }.hover_card());
-            }
-        };
-        if let Some(detail) = self.detail.get() {
-            return detail
-                .details
-                .iter()
-                .find(|machine| machine.listing.pid == pid)
-                .map(|machine| {
-                    self.detail
-                        .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
-                })
-                .unwrap_or_default();
-        }
-        let is_listed = self.listings.get().is_some_and(|guest_listings| {
-            guest_listings
-                .listings
-                .iter()
-                .any(|listing| listing.pid == pid)
-        });
-        if !is_listed {
-            return Vec::new();
-        }
-        self.listings
-            .hover_card_with(MicrovmGuestListingRow::hover_card())
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
@@ -444,7 +402,11 @@ impl MicrovmGuestsGroup {
                 MicrovmGuestTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
-            ),
+            )
+            .with_hover_card(Box::new(move |clock| {
+                self.detail
+                    .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+            })),
             None => GroupItem::reading(
                 MicrovmUnitRow {
                     unit,
@@ -454,7 +416,12 @@ impl MicrovmGuestsGroup {
                 MicrovmGuestTarget::Unit {
                     instance_name: Cow::Owned(unit.instance_name.clone()),
                 },
-            ),
+            )
+            .with_hover_card(Box::new(move |_| {
+                let activity = self.unit_activity(unit);
+                self.units
+                    .hover_card_with(MicrovmUnitRow { unit, activity }.hover_card())
+            })),
         };
         match self.unit_switches.get(&unit.instance_name) {
             Some(unit_switch) => unit_switch.attach_switch_press(
@@ -485,7 +452,11 @@ impl MicrovmGuestsGroup {
                         MicrovmGuestTarget::RunningProcess {
                             pid: machine.listing.pid,
                         },
-                    );
+                    )
+                    .with_hover_card(Box::new(move |clock| {
+                        self.detail
+                            .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                    }));
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
                             POWER_BUTTON_HINT,
@@ -515,6 +486,10 @@ impl MicrovmGuestsGroup {
                             MicrovmGuestListingRow { listing }.reading_row(),
                             MicrovmGuestTarget::RunningProcess { pid: listing.pid },
                         )
+                        .with_hover_card(Box::new(move |_| {
+                            self.listings
+                                .hover_card_with(MicrovmGuestListingRow::hover_card())
+                        }))
                     })
                     .collect()
             })

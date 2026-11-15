@@ -8,7 +8,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -128,16 +128,6 @@ impl OverlaySettingsGroup {
     #[must_use]
     pub fn toast_arrangement(&self) -> ToastArrangement {
         self.toast_arrangement
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: OverlaySettingsTarget) -> Vec<Section> {
-        match target {
-            OverlaySettingsTarget::ToastSpatialLayout => {
-                toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card()
-            }
-            OverlaySettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
-        }
     }
 
     pub fn collapse(&mut self) {

@@ -86,16 +86,37 @@ enum ItemHandlePreview {
 
 pub enum GroupItemHoverArea {
     WholeItem(HoverTarget),
-    ByChildren { row_target: HoverTarget },
+    ByChildren {
+        row_target: HoverTarget,
+        child_targets: Vec<HoverTarget>,
+    },
 }
 
 impl GroupItemHoverArea {
     fn target(&self) -> &HoverTarget {
         match self {
             GroupItemHoverArea::WholeItem(target)
-            | GroupItemHoverArea::ByChildren { row_target: target } => target,
+            | GroupItemHoverArea::ByChildren {
+                row_target: target, ..
+            } => target,
         }
     }
+
+    fn owns_target(&self, hovered_target: &HoverTarget) -> bool {
+        match self {
+            GroupItemHoverArea::WholeItem(target) => target == hovered_target,
+            GroupItemHoverArea::ByChildren {
+                row_target,
+                child_targets,
+            } => row_target == hovered_target || child_targets.contains(hovered_target),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct RowHoverCard {
+    pub sections: Vec<Section>,
+    pub announcement: HoverAnnouncement,
 }
 
 pub enum GroupItemValue<'a, M> {
@@ -294,6 +315,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             },
             GroupItemHoverArea::ByChildren {
                 row_target: slider.target().clone(),
+                child_targets: Vec::new(),
             },
             ItemPinning::Pinnable,
             card,
@@ -306,6 +328,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         icon: GroupItemIcon,
         hover: GroupItemHoverArea,
         value: GroupItemValue<'a, M>,
+        card: DescribeCard<'a>,
     ) -> Self {
         Self::assembled_row(
             RowFace {
@@ -316,7 +339,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             RowValueControl::Drawn(value),
             hover,
             ItemPinning::Unpinnable,
-            Box::new(|_| Vec::new()),
+            card,
             ReadingAlerts::default(),
         )
     }
@@ -326,6 +349,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         icon: GroupItemIcon,
         target: impl Into<HoverTarget>,
         value: GroupItemValue<'a, M>,
+        card: DescribeCard<'a>,
     ) -> Self {
         Self {
             pinning: ItemPinning::Pinnable,
@@ -334,6 +358,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 icon,
                 GroupItemHoverArea::WholeItem(target.into()),
                 value,
+                card,
             )
         }
     }
@@ -439,6 +464,22 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     #[must_use]
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         (self.card)(clock)
+    }
+
+    #[must_use]
+    pub fn with_hover_card(self, card: DescribeCard<'a>) -> Self {
+        Self { card, ..self }
+    }
+
+    pub(crate) fn owns_target(&self, hovered_target: &HoverTarget) -> bool {
+        self.hover.owns_target(hovered_target)
+    }
+
+    pub(crate) fn row_hover_card(&self, clock: Clock) -> RowHoverCard {
+        RowHoverCard {
+            sections: self.hover_card(clock),
+            announcement: self.announcement(),
+        }
     }
 
     pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
@@ -760,6 +801,7 @@ mod tests {
             GroupItemIcon::Absent,
             hover,
             GroupItemValue::Nothing,
+            Box::new(|_| Vec::new()),
         )
     }
 
@@ -806,6 +848,7 @@ mod tests {
             GroupItemIcon::Absent,
             SessionTarget::Menu,
             GroupItemValue::Nothing,
+            Box::new(|_| Vec::new()),
         );
         assert_eq!(composed.pinning(), ItemPinning::Pinnable);
         assert_eq!(reading.item_in_group_name(), composed.item_in_group_name());

@@ -15,14 +15,13 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::workspace_window_snapshot::Snapshot,
 };
 use sottomano_toml_config::{
-    Config,
-    screen_edges::Position,
-    widget_groups::{caldav_account::CaldavAccountConfig, gamepad_bindings::GamepadBindingsConfig},
+    Config, screen_edges::Position, widget_groups::gamepad_bindings::GamepadBindingsConfig,
 };
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
+    group_items::group_item::RowHoverCard,
     group_menus::group_menu_state::GroupMenuState,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -214,19 +213,6 @@ impl ShowcasedShellSettings {
                 .into(),
         }
     }
-
-    fn hover_card_for(&self, target: &HoverTarget) -> Vec<Section> {
-        match target {
-            HoverTarget::PanelSettings(target) => self.panels.hover_card_for(*target),
-            HoverTarget::SidebarSettings(target) => self.sidebar.hover_card_for(*target),
-            HoverTarget::OverlaySettings(target) => self.overlays.hover_card_for(*target),
-            HoverTarget::CompositorStyling(target) => {
-                self.compositor_styling.hover_card_for(*target)
-            }
-            HoverTarget::GroupMenuSettings(target) => self.menus.settings_hover_card(*target),
-            _ => Vec::new(),
-        }
-    }
 }
 
 pub struct ShowcasedAppLauncher {
@@ -393,7 +379,7 @@ impl ShowcasedDesktopSession {
         workspaces.into_iter().chain(windows).collect()
     }
 
-    fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Vec<Section> {
+    fn standalone_hover_card(&self, target: &HoverTarget, clock: Clock) -> Vec<Section> {
         match target {
             HoverTarget::Window(WindowTarget::Usage(window)) => {
                 WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
@@ -496,7 +482,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::Media(media) => media
                 .group
-                .group_contents(config, clock)
+                .group_contents(config, &media.desktop_entries, clock)
                 .map(|group| group.map(ShowcaseInteraction::Media))
                 .collect(),
             ShowcasedGroup::IdleTimeouts(group) => group
@@ -996,207 +982,31 @@ impl ShowcasedGroup {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
-    pub fn hover_card_for(
+    pub fn row_hover_card(
+        &self,
+        target: &HoverTarget,
+        config: &Config,
+        clock: Clock,
+    ) -> Option<RowHoverCard> {
+        self.group_contents(config, clock)
+            .iter()
+            .find_map(|group| group.row_hover_card(target, clock))
+    }
+
+    pub fn hover_card_sections(
         &self,
         target: &HoverTarget,
         config: &Config,
         clock: Clock,
     ) -> Vec<Section> {
+        if let Some(row_card) = self.row_hover_card(target, config, clock) {
+            return row_card.sections;
+        }
         match self {
-            ShowcasedGroup::Compute(group) => {
-                let HoverTarget::Compute(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target)
-            }
-            ShowcasedGroup::MemoryBoard(group) => {
-                let HoverTarget::MemoryBoard(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::Weather(group) => {
-                let HoverTarget::Weather(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target, config, clock)
-            }
-            ShowcasedGroup::ClaudeUsage(group) => {
-                let HoverTarget::ClaudeUsage(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target, clock)
-            }
-            ShowcasedGroup::Media(media) => {
-                let HoverTarget::Media(target) = target else {
-                    return Vec::new();
-                };
-                media
-                    .group
-                    .hover_card_for(target, &media.desktop_entries, clock)
-            }
-            ShowcasedGroup::IdleTimeouts(group) => match target {
-                HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => {
-                    group.hover_card_for(*kind, clock)
-                }
-                HoverTarget::PauseBlocker(blocker) => group.blocker_hover_card_for(blocker),
-                _ => Vec::new(),
-            },
-            ShowcasedGroup::Wallpaper(group) => {
-                let HoverTarget::Wallpaper(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target)
-            }
-            ShowcasedGroup::AppLauncher(launcher) => {
-                let HoverTarget::AppLauncher(target) = target else {
-                    return Vec::new();
-                };
-                launcher.group.hover_card_for(target)
-            }
-            ShowcasedGroup::Audio(group) => {
-                let HoverTarget::Audio(kind) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*kind)
-            }
-            ShowcasedGroup::Gamepad(gamepad) => {
-                let HoverTarget::Gamepad(target) = target else {
-                    return Vec::new();
-                };
-                gamepad.group.hover_card_for(*target, &gamepad.bindings)
-            }
-            ShowcasedGroup::VoiceDictation(group) => {
-                let HoverTarget::VoiceDictation(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target)
-            }
-            ShowcasedGroup::PodmanEngines(group) => {
-                let HoverTarget::PodmanEngine(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::VirtualMachines(group) => {
-                let HoverTarget::VirtualMachine(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::NspawnContainers(group) => {
-                let HoverTarget::NspawnContainer(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::DockerEngines(group) => {
-                let HoverTarget::DockerEngine(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::ApptainerContainers(group) => {
-                let HoverTarget::ApptainerContainer(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::VmwareMachines(group) => {
-                let HoverTarget::VmwareMachine(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::VirtualBoxMachines(group) => {
-                let HoverTarget::VirtualBoxMachine(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::WaydroidContainer(group) => {
-                let HoverTarget::WaydroidContainer(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::FlatpakSandboxes(group) => {
-                let HoverTarget::FlatpakSandbox(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::LxcContainers(group) => {
-                let HoverTarget::LxcContainer(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::IncusInstances(group) => {
-                let HoverTarget::IncusInstance(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::MicrovmGuests(group) => {
-                let HoverTarget::MicrovmGuest(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::CgroupMemoryLimits(group) => {
-                let HoverTarget::CgroupMemoryLimit(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::CiRuns(group) => {
-                let HoverTarget::CiRuns(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::Caldav(group) => {
-                let HoverTarget::Caldav(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target, &CaldavAccountConfig::default(), clock)
-            }
-            ShowcasedGroup::WireguardTunnels(group) => {
-                let HoverTarget::WireguardTunnel(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target)
-            }
-            ShowcasedGroup::Tailnet(group) => {
-                let HoverTarget::Tailnet(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(target, clock)
-            }
-            ShowcasedGroup::LoginSession(group) => {
-                let HoverTarget::LoginSession(target) = target else {
-                    return Vec::new();
-                };
-                group.hover_card_for(*target)
-            }
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                session.hover_card_for(target, clock)
+                session.standalone_hover_card(target, clock)
             }
-            ShowcasedGroup::AppearancePresets(presets) => {
-                let HoverTarget::AppearancePresets(target) = target else {
-                    return Vec::new();
-                };
-                presets.group.hover_card_for(*target)
-            }
-            ShowcasedGroup::MenuMembers(groups) => groups
-                .iter()
-                .map(|member| member.hover_card_for(target, config, clock))
-                .find(|sections| !sections.is_empty())
-                .unwrap_or_default(),
-            ShowcasedGroup::ShellSettings(settings) => settings.hover_card_for(target),
-            ShowcasedGroup::Toasts(_) => Vec::new(),
+            _ => Vec::new(),
         }
     }
 

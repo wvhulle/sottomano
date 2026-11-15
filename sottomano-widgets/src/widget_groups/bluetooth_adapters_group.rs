@@ -26,7 +26,7 @@ use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
@@ -152,14 +152,6 @@ impl BluetoothAdaptersGroup {
         );
     }
 
-    fn adapter_named(&self, controller_name: &str) -> Option<&BluetoothAdapter> {
-        self.bluetooth
-            .get()?
-            .adapters
-            .iter()
-            .find(|adapter| adapter.controller_name == controller_name)
-    }
-
     fn adapter_naming(&self, adapter: &BluetoothAdapter) -> AdapterNaming {
         let Some(bluetooth) = self.bluetooth.get() else {
             return AdapterNaming::SoleAdapter;
@@ -197,7 +189,7 @@ impl BluetoothAdaptersGroup {
         &'a self,
         device: &'a ConnectedDevice,
         siblings: &[ConnectedDevice],
-        report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
+        input_reports: InputReports,
         clock: Clock,
     ) -> ConnectedDeviceReading<'a> {
         ConnectedDeviceReading {
@@ -211,52 +203,8 @@ impl BluetoothAdaptersGroup {
                 .iter()
                 .filter(|error| device.kernel_devices.contains(&error.kernel_device))
                 .collect(),
-            input_reports: report_timing_for(&device.address)
-                .map_or(InputReports::NotStreamed, |timing| {
-                    InputReports::Streamed(MeasuredReportTiming::Measured(timing))
-                }),
+            input_reports,
         }
-    }
-
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &BluetoothTarget,
-        report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
-        clock: Clock,
-    ) -> Vec<Section> {
-        let body = match target {
-            BluetoothTarget::Adapter { controller_name } => {
-                let Some(adapter) = self.adapter_named(controller_name) else {
-                    return Vec::new();
-                };
-                self.adapter_reading(adapter).hover_card()
-            }
-            BluetoothTarget::PowerSwitch { controller_name } => {
-                let Some(adapter) = self.adapter_named(controller_name) else {
-                    return Vec::new();
-                };
-                AdapterPowerSwitch { adapter }.hover_card()
-            }
-            BluetoothTarget::Device {
-                controller_name,
-                object_path,
-            } => {
-                let Some(adapter) = self.adapter_named(controller_name) else {
-                    return Vec::new();
-                };
-                let siblings = adapter.power.connected_devices();
-                let Some(device) = siblings
-                    .iter()
-                    .find(|device| device.object_path == *object_path)
-                else {
-                    return Vec::new();
-                };
-                self.device_reading(device, siblings, report_timing_for, clock)
-                    .hover_card()
-            }
-        };
-        self.bluetooth.hover_card_with(body)
     }
 
     fn adapter_group<'a>(
@@ -271,7 +219,11 @@ impl BluetoothAdaptersGroup {
             BluetoothTarget::Adapter {
                 controller_name: adapter.controller_name.clone(),
             },
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.bluetooth
+                .hover_card_with(self.adapter_reading(adapter).hover_card())
+        }));
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
         let power_item = GroupItem::reading(
@@ -284,12 +236,20 @@ impl BluetoothAdaptersGroup {
             &adapter.power,
             power_press_does,
             BluetoothInteraction::ToggleAdapterPower(adapter.object_path.clone()),
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.bluetooth
+                .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
+        }));
         let siblings = adapter.power.connected_devices();
         let device_items: Vec<GroupItem<'a, BluetoothInteraction>> = siblings
             .iter()
             .map(|device| {
-                let reading = self.device_reading(device, siblings, report_timing_for, clock);
+                let input_reports = report_timing_for(&device.address)
+                    .map_or(InputReports::NotStreamed, |timing| {
+                        InputReports::Streamed(MeasuredReportTiming::Measured(timing))
+                    });
+                let reading = self.device_reading(device, siblings, input_reports, clock);
                 let device_row = reading.reading_row();
                 let reading_state = device_row.shown_state();
                 let device_item = GroupItem::reading(
@@ -302,7 +262,13 @@ impl BluetoothAdaptersGroup {
                 .on_press(
                     ConnectedDeviceReading::PRESS_DOES,
                     BluetoothInteraction::Disconnect(device.object_path.clone()),
-                );
+                )
+                .with_hover_card(Box::new(move |card_clock| {
+                    self.bluetooth.hover_card_with(
+                        self.device_reading(device, siblings, input_reports, card_clock)
+                            .hover_card(),
+                    )
+                }));
                 match reading_state {
                     ReadingDisplayState::Critical => device_item.previewed_on_handle(),
                     _ => device_item,

@@ -29,8 +29,7 @@ use sottomano_toml_config::{SecretPaths, widget_groups::caldav_account::CaldavAc
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -134,26 +133,6 @@ impl CaldavGroup {
         Task::none()
     }
 
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: CaldavTarget,
-        config: &CaldavAccountConfig,
-        clock: Clock,
-    ) -> Vec<Section> {
-        match target {
-            CaldavTarget::UpcomingEvents if self.account(config).is_some() => self
-                .upcoming_events
-                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, clock)),
-            CaldavTarget::UpcomingEvents => self
-                .upcoming_events
-                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, clock)),
-            CaldavTarget::OpenTasks => self
-                .open_tasks
-                .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, clock)),
-        }
-    }
-
     fn account_handle_glyph(&self) -> IconGlyph {
         let provider = self
             .upcoming_events
@@ -196,13 +175,28 @@ impl CaldavGroup {
             &self.expansion,
             identity,
             [
-                upcoming_events_item.map(GroupItem::previewed_on_handle),
-                self.open_tasks.group_item(
-                    IconGlyph::default(),
-                    |snapshot| open_tasks_reading_row(snapshot, clock),
-                    CaldavTarget::OpenTasks,
-                    clock,
-                ),
+                upcoming_events_item.map(|item| {
+                    item.with_hover_card(Box::new(move |card_clock| {
+                        self.upcoming_events.sections_described_by(|snapshot| {
+                            upcoming_events_hover_card(snapshot, card_clock)
+                        })
+                    }))
+                    .previewed_on_handle()
+                }),
+                self.open_tasks
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| open_tasks_reading_row(snapshot, clock),
+                        CaldavTarget::OpenTasks,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |card_clock| {
+                            self.open_tasks.sections_described_by(|snapshot| {
+                                open_tasks_hover_card(snapshot, card_clock)
+                            })
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten(),

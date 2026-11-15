@@ -757,11 +757,7 @@ mod tests {
                 showcased_group
                     .group_contents(&config, clock)
                     .iter()
-                    .flat_map(|group| {
-                        group.card_title_clashes(|target| {
-                            showcased_group.hover_card_for(target, &config, clock)
-                        })
-                    })
+                    .flat_map(|group| group.card_title_clashes(clock))
                     .map(|clash| (demo.name.to_owned(), clash.item_name, clash.clashing_title))
                     .collect::<Vec<_>>()
             })

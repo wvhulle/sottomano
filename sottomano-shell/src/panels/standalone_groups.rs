@@ -39,7 +39,10 @@ impl DesktopShell {
             StandaloneWidgetGroup::Notifications => self
                 .widget_groups
                 .notification_group
-                .group_content(self.notification_status())
+                .group_content(
+                    self.notification_status(),
+                    &self.widget_groups.quiet_schedule_group,
+                )
                 .map(ShellInteraction::NotificationGroup),
             StandaloneWidgetGroup::Tray => self
                 .widget_groups

@@ -196,17 +196,6 @@ impl TrayGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, address: &str) -> Vec<Section> {
-        self.items
-            .get()
-            .into_iter()
-            .flatten()
-            .find(|item| item.address == address)
-            .map(|item| self.items.hover_card_with(Self::item_hover_card(item)))
-            .unwrap_or_default()
-    }
-
     fn item_hover_card(item: &TrayItem) -> Vec<Section> {
         let tip = item.tooltip.as_ref();
         let title = tip
@@ -296,10 +285,12 @@ impl TrayGroup {
                     GroupItemIcon::Absent,
                     GroupItemHoverArea::ByChildren {
                         row_target: HoverTarget::Tray(item.address.clone()),
+                        child_targets: Vec::new(),
                     },
                     GroupItemValue::drawn(move |reveal| {
                         item_view(config, &self.pixmap_handles, item, &item_window, reveal)
                     }),
+                    Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
                 )
             })
             .collect();

@@ -48,11 +48,7 @@ pub struct EngineContainerTarget {
     pub container_id: Cow<'static, str>,
 }
 
-impl EngineContainerTarget {
-    pub(crate) fn names_socket(&self, socket_path: &Path) -> bool {
-        Path::new(self.socket_path.as_ref()) == socket_path
-    }
-}
+impl EngineContainerTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerSwitchRequest {
@@ -272,25 +268,6 @@ impl<'a> EngineContainers<'a> {
                 )
             })
             .collect()
-    }
-
-    pub(crate) fn hover_body_of(&self, container_id: &str, clock: Clock) -> Option<Vec<Section>> {
-        let owner = self.owner;
-        if let Some(container) = self
-            .listing
-            .running
-            .containers
-            .iter()
-            .find(|container| container.id == container_id)
-        {
-            return Some(RunningContainerRow { container, owner }.hover_card(clock));
-        }
-        let container = self
-            .listing
-            .stopped
-            .iter()
-            .find(|container| container.id == container_id)?;
-        Some(StoppedContainerRow { container, owner }.hover_card())
     }
 }
 

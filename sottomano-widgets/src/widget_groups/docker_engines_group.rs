@@ -1,8 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
@@ -35,8 +31,8 @@ use crate::{
     widget_groups::{
         engine_container_rows::{
             EngineContainerInteraction, EngineContainerTarget, EngineContainers,
-            container_switch_task, engine_container_name, engine_failure_label,
-            rows_ending_in_hidden_count, with_container_switch,
+            RunningContainerRow, StoppedContainerRow, container_switch_task, engine_container_name,
+            engine_failure_label, rows_ending_in_hidden_count, with_container_switch,
         },
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -291,67 +287,66 @@ impl DockerEnginesGroup {
         self.listings.get(&engine.socket_path)?.get()
     }
 
-    fn engine_named(&self, socket_path: &Path) -> Option<&DockerEngineSocket> {
-        self.engines
-            .iter()
-            .find(|engine| engine.socket_path == socket_path)
+    fn running_container_rows<'a>(
+        engine: &'a DockerEngineSocket,
+        listing: &'a EngineListing,
+        engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
+    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+        let engine_containers = EngineContainers {
+            socket_path: &engine.socket_path,
+            owner: &engine.owner,
+            listing,
+        };
+        engine_containers
+            .running_rows(
+                container_hover_target,
+                EngineContainerInteraction::SwitchContainer,
+            )
+            .into_iter()
+            .zip(&listing.running.containers)
+            .map(|(row, container)| {
+                row.with_hover_card(Box::new(move |clock| {
+                    engine_readout.hover_card_with(
+                        RunningContainerRow {
+                            container,
+                            owner: &engine.owner,
+                        }
+                        .hover_card(clock),
+                    )
+                }))
+            })
+            .collect()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &DockerEngineTarget, clock: Clock) -> Vec<Section> {
-        match target {
-            DockerEngineTarget::Engine { socket_path } => {
-                let Some(engine) = self.engine_named(Path::new(socket_path.as_ref())) else {
-                    return Vec::new();
-                };
-                let Some(read_failure) = self.readout_failure(engine) else {
-                    return Vec::new();
-                };
-                UnreadableEngineRow {
-                    engine,
-                    read_failure,
-                }
-                .hover_card()
-            }
-            DockerEngineTarget::Container(container_target) => {
-                let Some(engine) = self
-                    .engines
-                    .iter()
-                    .find(|engine| container_target.names_socket(&engine.socket_path))
-                else {
-                    return Vec::new();
-                };
-                if let Some(listing) = self.readout_of(engine) {
-                    let engine_containers = EngineContainers {
-                        socket_path: &engine.socket_path,
-                        owner: &engine.owner,
-                        listing,
-                    };
-                    let Some(engine_readout) = self.readouts.get(&engine.socket_path) else {
-                        return Vec::new();
-                    };
-                    let Some(container_body) =
-                        engine_containers.hover_body_of(&container_target.container_id, clock)
-                    else {
-                        return Vec::new();
-                    };
-                    return engine_readout.hover_card_with(container_body);
-                }
-                let Some(listed) = self.listing_of(engine).and_then(|engine_listing| {
-                    engine_listing
-                        .listings
-                        .iter()
-                        .find(|listed| listed.id == container_target.container_id.as_ref())
-                }) else {
-                    return Vec::new();
-                };
-                let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
-                    return Vec::new();
-                };
-                engine_listings.hover_card_with(ListedContainerRow { engine, listed }.hover_card())
-            }
-            DockerEngineTarget::HiddenContainers => Vec::new(),
-        }
+    fn stopped_container_rows<'a>(
+        engine: &'a DockerEngineSocket,
+        listing: &'a EngineListing,
+        engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
+    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+        let engine_containers = EngineContainers {
+            socket_path: &engine.socket_path,
+            owner: &engine.owner,
+            listing,
+        };
+        engine_containers
+            .stopped_rows(
+                container_hover_target,
+                EngineContainerInteraction::SwitchContainer,
+            )
+            .into_iter()
+            .zip(&listing.stopped)
+            .map(|(row, container)| {
+                row.with_hover_card(Box::new(move |_| {
+                    engine_readout.hover_card_with(
+                        StoppedContainerRow {
+                            container,
+                            owner: &engine.owner,
+                        }
+                        .hover_card(),
+                    )
+                }))
+            })
+            .collect()
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
@@ -371,6 +366,9 @@ impl DockerEnginesGroup {
         &'a self,
         engine: &'a DockerEngineSocket,
     ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+        let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
+            return Vec::new();
+        };
         self.listing_of(engine)
             .map(|listing| listing.listings.as_slice())
             .unwrap_or_default()
@@ -389,6 +387,10 @@ impl DockerEnginesGroup {
                     target,
                     EngineContainerInteraction::SwitchContainer,
                 )
+                .with_hover_card(Box::new(move |_| {
+                    engine_listings
+                        .hover_card_with(ListedContainerRow { engine, listed }.hover_card())
+                }))
             })
             .collect()
     }
@@ -398,19 +400,18 @@ impl DockerEnginesGroup {
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
         for engine in &self.engines {
-            if let Some(listing) = self.readout_of(engine) {
-                let engine_containers = EngineContainers {
-                    socket_path: &engine.socket_path,
-                    owner: &engine.owner,
+            if let Some(engine_readout) = self.readouts.get(&engine.socket_path)
+                && let Some(listing) = self.readout_of(engine)
+            {
+                running_rows.extend(Self::running_container_rows(
+                    engine,
                     listing,
-                };
-                running_rows.extend(engine_containers.running_rows(
-                    container_hover_target,
-                    EngineContainerInteraction::SwitchContainer,
+                    engine_readout,
                 ));
-                stopped_rows.extend(engine_containers.stopped_rows(
-                    container_hover_target,
-                    EngineContainerInteraction::SwitchContainer,
+                stopped_rows.extend(Self::stopped_container_rows(
+                    engine,
+                    listing,
+                    engine_readout,
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
                 failure_rows.push(GroupItem::reading(
@@ -494,9 +495,13 @@ mod tests {
         );
         assert_eq!(group.container_rows().len(), 1);
         assert!(
-            !group
-                .hover_card_for(&DockerEngineTarget::from(&group.engines[0]), Clock::real())
-                .is_empty()
+            group
+                .group_content()
+                .row_hover_card(
+                    &DockerEngineTarget::from(&group.engines[0]).into(),
+                    Clock::real()
+                )
+                .is_some_and(|card| !card.sections.is_empty())
         );
     }
 

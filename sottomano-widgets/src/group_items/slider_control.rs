@@ -325,13 +325,14 @@ impl SliderControl {
         ))
     }
 
-    pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> Vec<Section> {
+    fn readout_hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Value",
-            dictionary_table([LabeledValue::new(label, self.readout_cell())]),
+            dictionary_table([LabeledValue::new(
+                self.name().into_owned(),
+                self.readout_cell(),
+            )]),
         )]
-        .into_iter()
-        .collect()
     }
 
     fn severity(&self) -> Severity {
@@ -397,7 +398,7 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'static> {
+    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'_> {
         ReadingRow {
             face: RowFace {
                 name: self.name(),
@@ -417,7 +418,7 @@ impl SliderControl {
                 ..ReadingAlerts::default()
             },
             panel_visibility: PanelVisibility::Shown,
-            card: Box::new(|_| Vec::new()),
+            card: Box::new(|_| self.readout_hover_card()),
         }
     }
 

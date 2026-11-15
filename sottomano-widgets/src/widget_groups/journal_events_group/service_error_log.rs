@@ -41,16 +41,25 @@ impl JournalScopeGroup {
         else {
             return self.service_errors.failure().map(|failure| {
                 GroupItem::reading(failure.reading_row(IconGlyph::default()), target)
+                    .with_hover_card(Box::new(move |_| {
+                        self.service_errors
+                            .sections_described_by(service_errors_hover_card)
+                    }))
             });
         };
         Some(
-            GroupItem::reading(service_errors_reading_row(service_errors), target).on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                    config,
-                    service_errors.follow_log_args(),
-                )),
-            ),
+            GroupItem::reading(service_errors_reading_row(service_errors), target)
+                .on_press(
+                    TerminalCommand::JOURNAL_PRESS_HINT,
+                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                        config,
+                        service_errors.follow_log_args(),
+                    )),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.service_errors
+                        .sections_described_by(service_errors_hover_card)
+                })),
         )
     }
 }

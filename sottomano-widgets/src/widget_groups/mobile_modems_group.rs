@@ -132,14 +132,6 @@ impl MobileModemsGroup {
         );
     }
 
-    fn modem_at(&self, modem_path: &str) -> Option<&Mobile> {
-        self.mobile_modems
-            .get()?
-            .modems
-            .iter()
-            .find(|modem| modem.modem_path == modem_path)
-    }
-
     fn any_radio_power(&self) -> RadioPower {
         let any_radio_on = self.mobile_modems.get().is_some_and(|mobile_modems| {
             mobile_modems
@@ -154,45 +146,24 @@ impl MobileModemsGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &MobileModemTarget) -> Vec<Section> {
-        let hover_card_body = match target {
-            MobileModemTarget::Signal { modem_path } => {
-                let Some(modem) = self.modem_at(modem_path) else {
-                    return Vec::new();
-                };
-                ModemSignalReading { modem }.hover_card()
-            }
-            MobileModemTarget::Connection { modem_path } => {
-                let Some(modem) = self.modem_at(modem_path) else {
-                    return Vec::new();
-                };
-                ModemConnectionSwitch { modem }.hover_card()
-            }
-            MobileModemTarget::Address { modem_path, family } => {
-                let Some(address) = self
-                    .modem_at(modem_path)
-                    .and_then(|modem| modem_family_address(modem, *family))
-                else {
-                    return Vec::new();
-                };
-                vec![Section::new(
-                    "Address",
-                    dictionary_table([LabeledValue::new("Address", address)]),
-                )]
-            }
-            MobileModemTarget::Data { modem_path } => {
-                let Some(modem) = self.modem_at(modem_path) else {
-                    return Vec::new();
-                };
-                ModemDataReading { modem }.hover_card()
-            }
-            MobileModemTarget::AllRadios => AllMobileRadiosSwitch {
-                radio_power: self.any_radio_power(),
-            }
-            .hover_card(),
+    fn modem_address_hover_card(&self, modem: &Mobile, family: AddressFamily) -> Vec<Section> {
+        let Some(address) = modem_family_address(modem, family) else {
+            return Vec::new();
         };
-        self.mobile_modems.hover_card_with(hover_card_body)
+        self.mobile_modems.hover_card_with(vec![Section::new(
+            "Address",
+            dictionary_table([LabeledValue::new("Address", address)]),
+        )])
+    }
+
+    fn all_radios_hover_card(&self, radio_power: RadioPower) -> Vec<Section> {
+        self.mobile_modems
+            .hover_card_with(AllMobileRadiosSwitch { radio_power }.hover_card())
+    }
+
+    fn modem_connection_hover_card(&self, modem: &Mobile) -> Vec<Section> {
+        self.mobile_modems
+            .hover_card_with(ModemConnectionSwitch { modem }.hover_card())
     }
 
     fn modem_group<'a>(
@@ -207,7 +178,11 @@ impl MobileModemsGroup {
             MobileModemTarget::Signal {
                 modem_path: modem_path(),
             },
-        );
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.mobile_modems
+                .hover_card_with(ModemSignalReading { modem }.hover_card())
+        }));
         let connection_item = (modem.radio_power() == RadioPower::On).then(|| {
             let connection_switch = ModemConnectionSwitch { modem };
             let connection_press_does = connection_switch.press_does();
@@ -217,6 +192,7 @@ impl MobileModemsGroup {
                     modem_path: modem_path(),
                 },
             )
+            .with_hover_card(Box::new(move |_| self.modem_connection_hover_card(modem)))
             .on_switch_press(
                 modem.link_state(),
                 connection_press_does,
@@ -237,6 +213,9 @@ impl MobileModemsGroup {
                         family,
                     },
                 )
+                .with_hover_card(Box::new(move |_| {
+                    self.modem_address_hover_card(modem, family)
+                }))
             });
         let data_item = (modem.rx.is_some() || modem.tx.is_some()).then(|| {
             GroupItem::reading(
@@ -245,6 +224,10 @@ impl MobileModemsGroup {
                     modem_path: modem_path(),
                 },
             )
+            .with_hover_card(Box::new(move |_| {
+                self.mobile_modems
+                    .hover_card_with(ModemDataReading { modem }.hover_card())
+            }))
         });
         let any_radio_power = self.any_radio_power();
         let radios_switch = AllMobileRadiosSwitch {
@@ -257,7 +240,10 @@ impl MobileModemsGroup {
                     any_radio_power,
                     radios_press_does,
                     MobileModemsInteraction::ToggleAllRadios,
-                );
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.all_radios_hover_card(any_radio_power)
+                }));
         let expanded_modem_path = modem_path();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),

@@ -26,7 +26,9 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
         aligned_quantity::ItemAlignment,
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue, MenuParts, RowScroll},
+        group_item::{
+            GroupItem, GroupItemHoverArea, GroupItemValue, MenuParts, RowHoverCard, RowScroll,
+        },
         group_item_gestures::GroupItemGestures,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::{GroupItemIcon, reading_value},
@@ -44,8 +46,7 @@ use crate::{
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, MenuHandleIndicator,
         PanelPinOrigin, PointerPresence, PressHints,
-        hover_card_body::{Section, hover_card_source_delivery::SectionSource},
-        hoverable,
+        hover_card_body::hover_card_source_delivery::SectionSource, hoverable,
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -220,8 +221,10 @@ impl WidgetGroupFace {
             GroupItemIcon::IconGlyph { glyph, state },
             GroupItemHoverArea::ByChildren {
                 row_target: HoverTarget::GroupFace(Box::new(group_identity.clone())),
+                child_targets: Vec::new(),
             },
             GroupItemValue::Nothing,
+            Box::new(|_| Vec::new()),
         )
     }
 
@@ -364,17 +367,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         }
     }
 
-    pub fn card_title_clashes(
-        &self,
-        hover_card_of: impl Fn(&HoverTarget) -> Vec<Section>,
-    ) -> Vec<CardTitleClash> {
+    #[must_use]
+    pub fn card_title_clashes(&self, clock: Clock) -> Vec<CardTitleClash> {
         let group_title = self.group_title.to_string();
         self.items
             .iter()
             .flat_map(|item| {
                 let item_name = item.item_in_group_name().into_owned();
                 let group_title = group_title.clone();
-                hover_card_of(item.inspected_target())
+                item.hover_card(clock)
                     .into_iter()
                     .map(|section| {
                         let source_name = match section.source() {
@@ -496,11 +497,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn item_announcement(&self, target: &HoverTarget) -> Option<HoverAnnouncement> {
+    #[must_use]
+    pub fn row_hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
         self.items
             .iter()
-            .find(|item| item.inspected_target() == target)
-            .map(GroupItem::announcement)
+            .find(|item| item.owns_target(target))
+            .map(|item| item.row_hover_card(clock))
     }
 
     pub(crate) fn group_identity(&self) -> &WidgetGroupIdentity {
@@ -874,6 +876,7 @@ mod tests {
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
     use crate::{
+        clock::Clock,
         group_items::{
             group_item::GroupItem, reading_display_state::ReadingDisplayState,
             reading_row::ReadingRow,
@@ -952,8 +955,8 @@ mod tests {
         };
         let left_hint = |description| {
             group_pressing(description)
-                .item_announcement(&HoverTarget::Workspace(7))
-                .and_then(|announcement| announcement.press_hints.left)
+                .row_hover_card(&HoverTarget::Workspace(7), Clock::real())
+                .and_then(|row_card| row_card.announcement.press_hints.left)
         };
         assert_eq!(left_hint("connect the VPN"), Some("connect the VPN"));
         assert_eq!(left_hint("disconnect the VPN"), Some("disconnect the VPN"));

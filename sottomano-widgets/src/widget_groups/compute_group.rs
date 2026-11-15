@@ -247,18 +247,26 @@ impl ComputeGroup {
             &self.expansion,
             ComputeInteraction::Expansion,
             [
-                self.cpu_load.group_item(
-                    IconGlyph::default(),
-                    |snapshot| cpu_usage_reading_row(snapshot),
-                    ComputeTarget::CpuLoad,
-                    clock,
-                ),
-                self.cpu_clock.group_item(
-                    IconGlyph::default(),
-                    |snapshot| cpu_clock_reading_row(snapshot),
-                    ComputeTarget::CpuClock,
-                    clock,
-                ),
+                self.cpu_load
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| cpu_usage_reading_row(snapshot),
+                        ComputeTarget::CpuLoad,
+                        clock,
+                    )
+                    .map(|row_item| {
+                        row_item.with_hover_card(Box::new(move |_| self.cpu_load_card()))
+                    }),
+                self.cpu_clock
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| cpu_clock_reading_row(snapshot),
+                        ComputeTarget::CpuClock,
+                        clock,
+                    )
+                    .map(|row_item| {
+                        row_item.with_hover_card(Box::new(move |_| self.cpu_clock_card()))
+                    }),
                 self.cpu_clock
                     .get()
                     .map(|clock_reading| {
@@ -268,34 +276,125 @@ impl ComputeGroup {
                         .reading_row()
                     })
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-                    .map(|row| GroupItem::reading(row, ComputeTarget::CpuClockLimits)),
-                self.cpu_temperature.group_item(
-                    IconGlyph::default(),
-                    |snapshot| temperature_reading_row(snapshot, clock, locale),
-                    ComputeTarget::CpuTemperature,
-                    clock,
-                ),
+                    .map(|row| {
+                        GroupItem::reading(row, ComputeTarget::CpuClockLimits)
+                            .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
+                    }),
+                self.cpu_temperature
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| temperature_reading_row(snapshot, clock, locale),
+                        ComputeTarget::CpuTemperature,
+                        clock,
+                    )
+                    .map(|row_item| {
+                        row_item.with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
+                    }),
                 self.cpu_power_draw
                     .get()
                     .map(|power| cpu_power_reading_row(power))
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-                    .map(|row| GroupItem::reading(row, ComputeTarget::CpuPowerDraw)),
+                    .map(|row| {
+                        GroupItem::reading(row, ComputeTarget::CpuPowerDraw).with_hover_card(
+                            Box::new(move |_| {
+                                self.cpu_power_draw
+                                    .sections_described_by(cpu_power_hover_card)
+                            }),
+                        )
+                    }),
                 self.host_hardware
                     .get()
                     .map(|hardware| cpu_model_reading_row(&hardware.cpu))
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-                    .map(|row| GroupItem::reading(row, ComputeTarget::CpuModel)),
-                self.x3d_cache_preference.group_item(
-                    IconGlyph::default(),
-                    |snapshot| x3d_cache_preference_reading_row(snapshot),
-                    ComputeTarget::X3dCachePreference,
-                    ComputeInteraction::X3dCachePreferencePressed,
-                    clock,
-                ),
+                    .map(|row| {
+                        GroupItem::reading(row, ComputeTarget::CpuModel)
+                            .with_hover_card(Box::new(move |_| self.cpu_model_card()))
+                    }),
+                self.x3d_cache_preference
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| x3d_cache_preference_reading_row(snapshot),
+                        ComputeTarget::X3dCachePreference,
+                        ComputeInteraction::X3dCachePreferencePressed,
+                        clock,
+                    )
+                    .map(|row_item| {
+                        row_item
+                            .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
+                    }),
             ]
             .into_iter()
             .flatten(),
         )
+    }
+
+    fn cpu_load_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self.cpu_load.sections_described_by(cpu_usage_hover_card);
+        sections.extend(
+            self.cpu_busy_processes
+                .sections_described_by(cpu_busy_processes_sections),
+        );
+        sections.extend(
+            self.core_loads
+                .sections_described_by(|loads| live.core_load_sections(loads)),
+        );
+        sections
+    }
+
+    fn cpu_clock_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self.cpu_clock.sections_described_by(cpu_clock_hover_card);
+        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+            live.clock_sections(cpu_clock, self.core_loads.reading())
+        }));
+        sections
+    }
+
+    fn cpu_clock_limits_card(&self) -> Vec<Section> {
+        let Some(cpu_clock) = self.cpu_clock.get() else {
+            return Vec::new();
+        };
+        let limits = ClockLimitCauses { clock: cpu_clock };
+        if limits.panel_visibility() != PanelVisibility::Shown {
+            return Vec::new();
+        }
+        self.cpu_clock.hover_card_with(limits.hover_card())
+    }
+
+    fn cpu_temperature_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self
+            .cpu_temperature
+            .sections_described_by(temperature_hover_card);
+        sections.extend(
+            self.core_temperatures
+                .sections_described_by(|temperatures| live.core_temperature_sections(temperatures)),
+        );
+        sections
+    }
+
+    fn cpu_model_card(&self) -> Vec<Section> {
+        let Some(host_hardware) = self.host_hardware.get() else {
+            return Vec::new();
+        };
+        let model = &host_hardware.cpu;
+        if cpu_model_panel_visibility(model) != PanelVisibility::Shown {
+            return Vec::new();
+        }
+        self.host_hardware
+            .hover_card_with(cpu_model_hover_card(model))
+    }
+
+    fn x3d_cache_preference_card(&self) -> Vec<Section> {
+        let mut sections = self.x3d_cache_preference.hover_card();
+        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+            ChipletRoles {
+                topology: &cpu_clock.topology,
+            }
+            .sections()
+        }));
+        sections
     }
 
     pub fn refresh(target: ComputeTarget, sensor: &SensorConfig) -> Task<ComputeMessage> {
@@ -313,78 +412,6 @@ impl ComputeGroup {
             ComputeTarget::CpuModel => Task::none(),
             ComputeTarget::X3dCachePreference => ToggleControl::<X3dCachePreference>::refresh(())
                 .map(ComputeMessage::X3dCachePreference),
-        }
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: ComputeTarget) -> Vec<Section> {
-        let live = self.live();
-        match target {
-            ComputeTarget::CpuLoad => {
-                let mut sections = self.cpu_load.sections_described_by(cpu_usage_hover_card);
-                sections.extend(
-                    self.cpu_busy_processes
-                        .sections_described_by(cpu_busy_processes_sections),
-                );
-                sections.extend(
-                    self.core_loads
-                        .sections_described_by(|loads| live.core_load_sections(loads)),
-                );
-                sections
-            }
-            ComputeTarget::CpuClock => {
-                let mut sections = self.cpu_clock.sections_described_by(cpu_clock_hover_card);
-                sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
-                    live.clock_sections(cpu_clock, self.core_loads.reading())
-                }));
-                sections
-            }
-            ComputeTarget::CpuClockLimits => {
-                let Some(cpu_clock) = self.cpu_clock.get() else {
-                    return Vec::new();
-                };
-                let limits = ClockLimitCauses { clock: cpu_clock };
-                if limits.panel_visibility() != PanelVisibility::Shown {
-                    return Vec::new();
-                }
-                self.cpu_clock.hover_card_with(limits.hover_card())
-            }
-            ComputeTarget::CpuTemperature => {
-                let mut sections = self
-                    .cpu_temperature
-                    .sections_described_by(temperature_hover_card);
-                sections.extend(
-                    self.core_temperatures
-                        .sections_described_by(|temperatures| {
-                            live.core_temperature_sections(temperatures)
-                        }),
-                );
-                sections
-            }
-            ComputeTarget::CpuPowerDraw => self
-                .cpu_power_draw
-                .sections_described_by(cpu_power_hover_card),
-            ComputeTarget::CpuModel => {
-                let Some(host_hardware) = self.host_hardware.get() else {
-                    return Vec::new();
-                };
-                let model = &host_hardware.cpu;
-                if cpu_model_panel_visibility(model) != PanelVisibility::Shown {
-                    return Vec::new();
-                }
-                self.host_hardware
-                    .hover_card_with(cpu_model_hover_card(model))
-            }
-            ComputeTarget::X3dCachePreference => {
-                let mut sections = self.x3d_cache_preference.hover_card();
-                sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
-                    ChipletRoles {
-                        topology: &cpu_clock.topology,
-                    }
-                    .sections()
-                }));
-                sections
-            }
         }
     }
 }

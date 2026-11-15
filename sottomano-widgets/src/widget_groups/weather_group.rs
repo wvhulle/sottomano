@@ -182,33 +182,6 @@ impl WeatherGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: WeatherTarget,
-        config: &Config,
-        clock: Clock,
-    ) -> Vec<Section> {
-        match target {
-            WeatherTarget::Temperature => self
-                .temperature
-                .sections_described_by(temperature_hover_card),
-            WeatherTarget::Wind => self.wind.sections_described_by(wind_hover_card),
-            WeatherTarget::Rain => self.rain_hover_card(config, clock),
-            WeatherTarget::Pollen => self.pollen.sections_described_by(|_pollen| Vec::new()),
-            WeatherTarget::Allergen(allergen) => self
-                .pollen
-                .get()
-                .and_then(|pollen| pollen.concentration(allergen))
-                .map(|concentration| {
-                    self.pollen
-                        .hover_card_with(allergen_hover_card(concentration))
-                })
-                .unwrap_or_default(),
-            WeatherTarget::Location => self.location.sections_described_by(location_hover_card),
-        }
-    }
-
     fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
         let visible_radar = self.rain.get();
         let visible_model = self.precipitation_model.get();
@@ -256,7 +229,7 @@ impl WeatherGroup {
         clock: Clock,
     ) -> Option<GroupItem<'a, WidgetGroupExpansionMessage>> {
         let locale = config.calendar.locale;
-        match self.rain_forecast(config) {
+        let rain_item = match self.rain_forecast(config) {
             Some(forecast) => Some(GroupItem::reading(
                 forecast.reading_row(clock, locale),
                 WeatherTarget::Rain,
@@ -277,7 +250,12 @@ impl WeatherGroup {
                         clock,
                     )
                 }),
-        }
+        };
+        rain_item.map(|item| {
+            item.with_hover_card(Box::new(move |card_clock| {
+                self.rain_hover_card(config, card_clock)
+            }))
+        })
     }
 
     pub fn group_content<'a>(
@@ -291,6 +269,10 @@ impl WeatherGroup {
                     allergen_reading_row(concentration),
                     WeatherTarget::Allergen(concentration.allergen),
                 )
+                .with_hover_card(Box::new(move |_| {
+                    self.pollen
+                        .hover_card_with(allergen_hover_card(concentration))
+                }))
             })
         });
         WidgetGroupContent::expandable(
@@ -298,19 +280,32 @@ impl WeatherGroup {
             &self.expansion,
             identity,
             [
-                self.temperature.group_item(
-                    TEMPERATURE_FALLBACK_GLYPH,
-                    |snapshot| temperature_reading_row(snapshot),
-                    WeatherTarget::Temperature,
-                    clock,
-                ),
+                self.temperature
+                    .group_item(
+                        TEMPERATURE_FALLBACK_GLYPH,
+                        |snapshot| temperature_reading_row(snapshot),
+                        WeatherTarget::Temperature,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.temperature
+                                .sections_described_by(temperature_hover_card)
+                        }))
+                    }),
                 self.rain_item(config, clock),
-                self.wind.group_item(
-                    WIND_FALLBACK_GLYPH,
-                    |snapshot| wind_reading_row(snapshot),
-                    WeatherTarget::Wind,
-                    clock,
-                ),
+                self.wind
+                    .group_item(
+                        WIND_FALLBACK_GLYPH,
+                        |snapshot| wind_reading_row(snapshot),
+                        WeatherTarget::Wind,
+                        clock,
+                    )
+                    .map(|item| {
+                        item.with_hover_card(Box::new(move |_| {
+                            self.wind.sections_described_by(wind_hover_card)
+                        }))
+                    }),
             ]
             .into_iter()
             .flatten()
@@ -322,13 +317,22 @@ impl WeatherGroup {
                             widget.reading_row(POLLEN_FALLBACK_GLYPH),
                             WeatherTarget::Pollen,
                         )
+                        .with_hover_card(Box::new(move |_| {
+                            self.pollen.sections_described_by(|_pollen| Vec::new())
+                        }))
                     }),
-                    self.location.group_item(
-                        LOCATION_FALLBACK_GLYPH,
-                        |snapshot| location_reading_row(snapshot),
-                        WeatherTarget::Location,
-                        clock,
-                    ),
+                    self.location
+                        .group_item(
+                            LOCATION_FALLBACK_GLYPH,
+                            |snapshot| location_reading_row(snapshot),
+                            WeatherTarget::Location,
+                            clock,
+                        )
+                        .map(|item| {
+                            item.with_hover_card(Box::new(move |_| {
+                                self.location.sections_described_by(location_hover_card)
+                            }))
+                        }),
                 ]
                 .into_iter()
                 .flatten(),

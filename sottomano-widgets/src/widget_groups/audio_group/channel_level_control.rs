@@ -2,18 +2,9 @@ use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
     AudioState, ChannelLevels, MuteState, OutputKind,
 };
 
-use super::ControlKind;
 use crate::{
-    group_items::{
-        gauge::percent_fill,
-        slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
-    },
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    group_items::slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
@@ -30,34 +21,6 @@ pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
         OutputKind::Headset => Phosphor::Headset(Weight::Regular),
         OutputKind::Display => Phosphor::Television(Weight::Regular),
     }
-}
-
-pub fn audio_state_hover_card(state: &AudioState) -> Vec<Section> {
-    let sink = state
-        .sink
-        .iter()
-        .flat_map(|sink| device_entries(ControlKind::Sink, sink));
-    let source = state
-        .source
-        .iter()
-        .flat_map(|source| device_entries(ControlKind::Source, source));
-    vec![Section::new("Levels", dictionary_table(sink.chain(source)))]
-}
-
-pub(super) fn device_entries(
-    kind: ControlKind,
-    reading: &ChannelLevels,
-) -> impl Iterator<Item = LabeledValue> {
-    let device = reading
-        .device
-        .as_deref()
-        .map(|device| LabeledValue::new("Device", device));
-    [LabeledValue::new(
-        kind.label(),
-        Quantity::share(percent_fill(reading.percent)),
-    )]
-    .into_iter()
-    .chain(device)
 }
 
 impl From<MuteState> for SliderActivity {

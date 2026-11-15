@@ -71,6 +71,7 @@ pub(super) fn track_item<'a>(
                 .line_height(LINE_HEIGHT)
                 .into()
         }),
+        Box::new(|_| Vec::new()),
     );
     if raisable {
         track.on_press(
@@ -110,6 +111,7 @@ pub(super) fn player_item<'a>(
             .into(),
         ),
         value,
+        Box::new(|_| Vec::new()),
     )
 }
 

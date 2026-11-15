@@ -228,47 +228,42 @@ impl MonitorGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(
+    fn backlight_hover_card(
         &self,
-        target: &MonitorTarget,
+        serial: &str,
+        brightness_slider: &SliderControl,
         outputs: &HashMap<String, OutputInfo>,
     ) -> Vec<Section> {
-        match target {
-            MonitorTarget::Backlight(serial) => {
-                let Some(backlight) = self.backlights.get().and_then(|backlights| {
-                    backlights
-                        .iter()
-                        .find(|known_backlight| &known_backlight.serial == serial)
-                }) else {
-                    return Vec::new();
-                };
-                let Some(brightness_slider) = self.sliders.get(serial) else {
-                    return Vec::new();
-                };
-                let brightness = brightness_slider.readout_cell();
-                self.backlights
-                    .hover_card_with(backlight_display::hover_card(
-                        backlight,
-                        brightness,
-                        ConnectedOutput::driving(backlight, outputs).as_ref(),
-                    ))
-            }
-            MonitorTarget::ClightAuto => self.clight.hover_card(),
-        }
+        let Some(backlight) = self.backlights.get().and_then(|backlights| {
+            backlights
+                .iter()
+                .find(|known_backlight| known_backlight.serial == serial)
+        }) else {
+            return Vec::new();
+        };
+        self.backlights
+            .hover_card_with(backlight_display::hover_card(
+                backlight,
+                brightness_slider.readout_cell(),
+                ConnectedOutput::driving(backlight, outputs).as_ref(),
+            ))
     }
 
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        outputs: &'a HashMap<String, OutputInfo>,
         clock: Clock,
     ) -> WidgetGroupContent<'a, MonitorInteraction> {
-        let backlight_items = self.sliders.iter().map(|(serial, slider)| {
-            let serial = serial.clone();
+        let backlight_items = self.sliders.iter().map(|(backlight_serial, slider)| {
+            let message_serial = backlight_serial.clone();
             GroupItem::slider(slider, config, move |control_message| {
-                MonitorInteraction::Backlight(serial.clone(), control_message)
+                MonitorInteraction::Backlight(message_serial.clone(), control_message)
             })
             .previewed_on_handle()
+            .with_hover_card(Box::new(move |_| {
+                self.backlight_hover_card(backlight_serial, slider, outputs)
+            }))
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
@@ -283,7 +278,11 @@ impl MonitorGroup {
                         MonitorInteraction::AutoBrightnessPressed,
                         clock,
                     )
-                    .map(GroupItem::previewed_on_handle),
+                    .map(|clight_item| {
+                        clight_item
+                            .previewed_on_handle()
+                            .with_hover_card(Box::new(move |_| self.clight.hover_card()))
+                    }),
             ),
         )
         .face(WidgetGroupFace::Glyph {

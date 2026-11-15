@@ -487,12 +487,6 @@ impl GamepadGroup {
             .unwrap_or(Action::Idle)
     }
 
-    fn controller(&self, slot: usize) -> Option<&ConnectedGamepad> {
-        self.controllers
-            .iter()
-            .find(|controller| controller.slot == slot)
-    }
-
     fn physical_controllers(
         &self,
     ) -> impl Iterator<Item = (&ConnectedGamepad, &PhysicalGamepadLink)> {
@@ -610,36 +604,6 @@ impl GamepadGroup {
         }
     }
 
-    fn hover_card_body(
-        &self,
-        target: GamepadTarget,
-        bindings: &GamepadBindingsConfig,
-    ) -> Option<Vec<Section>> {
-        Some(match target {
-            GamepadTarget::Controller { slot } => self
-                .face_reading(self.controller(slot)?, self.physical_link(slot)?, bindings)
-                .hover_card(),
-            GamepadTarget::Battery { slot } => ControllerBatteryReading {
-                power: self.controller(slot)?.power,
-            }
-            .hover_card(),
-            GamepadTarget::Link { slot } => self
-                .link_reading(slot, self.physical_link(slot)?)
-                .hover_card(),
-            GamepadTarget::UsbCable { slot } => UsbCableReading {
-                role: usb_cable_role(self.physical_link(slot)?.transport)?,
-            }
-            .hover_card(),
-            GamepadTarget::CompositorDriving { slot } => {
-                self.physical_link(slot)?;
-                self.compositor_driving_hover_card(slot)
-            }
-            GamepadTarget::ControllerDiscovery => {
-                self.controller_discovery_failure_reading()?.hover_card()
-            }
-        })
-    }
-
     fn compositor_driving_hover_card(&self, slot: usize) -> Vec<Section> {
         let (note_title, note_body) = match self.controller_custody(slot) {
             ControllerCustody::Compositor => (
@@ -659,15 +623,6 @@ impl GamepadGroup {
             note_title,
             SectionWidget::paragraph(note_body),
         )]
-    }
-
-    #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: GamepadTarget,
-        bindings: &GamepadBindingsConfig,
-    ) -> Vec<Section> {
-        self.hover_card_body(target, bindings).unwrap_or_default()
     }
 
     fn controller_discovery_failure_reading(
@@ -735,7 +690,8 @@ impl GamepadGroup {
             compositor_driving_toggle(self.controller_custody(slot)),
             GamepadTarget::CompositorDriving { slot },
             GamepadInteraction::ToggleCompositorDriving { slot },
-        );
+        )
+        .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot)));
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item = GroupItem::reading(
                 UsbCableReading { role }.reading_row(),
@@ -1169,7 +1125,11 @@ mod tests {
 
     fn marking_of(group: &GamepadGroup, slot: usize) -> ControllerMarking<'_> {
         group.controller_marking(
-            group.controller(slot).unwrap(),
+            group
+                .controllers
+                .iter()
+                .find(|controller| controller.slot == slot)
+                .unwrap(),
             group.physical_link(slot).unwrap(),
         )
     }

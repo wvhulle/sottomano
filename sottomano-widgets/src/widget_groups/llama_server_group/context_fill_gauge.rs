@@ -21,6 +21,7 @@ fn context_fill(task: &SlotTask, context: u32) -> Ratio {
     Ratio::new::<ratio>(f64::from(task.tokens()) / f64::from(context))
 }
 
+#[derive(Clone, Copy)]
 pub struct ContextFill<'a> {
     pub slots: &'a [LlamaSlot],
     pub fullest: Ratio,

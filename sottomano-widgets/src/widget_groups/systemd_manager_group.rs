@@ -33,7 +33,7 @@ use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManag
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -103,6 +103,52 @@ impl From<SystemdTarget> for HoverTarget {
     fn from(target: SystemdTarget) -> Self {
         HoverTarget::Systemd(target)
     }
+}
+
+fn slow_jobs_entry<'a>(
+    snapshot: &'a SubscribedSnapshot<SlowJobs>,
+    target: SystemdTarget,
+    config: &'a Config,
+    clock: Clock,
+) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
+    snapshot
+        .visible_reading(slow_jobs_panel_visibility)
+        .map(|jobs| {
+            slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
+                snapshot.sections_described_by(slow_jobs_hover_card)
+            }))
+        })
+        .or_else(|| {
+            snapshot.group_item(
+                IconGlyph::default(),
+                |slow_jobs| slow_jobs_reading_row(slow_jobs),
+                target,
+                clock,
+            )
+        })
+}
+
+fn failed_units_entry<'a>(
+    snapshot: &'a SubscribedSnapshot<FailedUnits>,
+    target: SystemdTarget,
+    config: &'a Config,
+    clock: Clock,
+) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
+    snapshot
+        .visible_reading(failed_units_panel_visibility)
+        .map(|failed| {
+            failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
+                snapshot.sections_described_by(failed_units_hover_card)
+            }))
+        })
+        .or_else(|| {
+            snapshot.group_item(
+                IconGlyph::default(),
+                |failed_units| failed_units_reading_row(failed_units),
+                target,
+                clock,
+            )
+        })
 }
 
 #[derive(Default)]
@@ -228,40 +274,6 @@ impl SystemdManagerGroup {
         Task::none()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &SystemdTarget) -> Vec<Section> {
-        match target {
-            SystemdTarget::BootPhases => self.boot.sections_described_by(boot_timeline_hover_card),
-            SystemdTarget::StartupUnits => self
-                .boot
-                .get()
-                .map(|timeline| {
-                    self.boot
-                        .hover_card_with(StartupUnits { timeline }.hover_card())
-                })
-                .unwrap_or_default(),
-            SystemdTarget::FailedSystemUnits => self
-                .failed_system
-                .sections_described_by(failed_units_hover_card),
-            SystemdTarget::FailedUserUnits => self
-                .failed_user
-                .sections_described_by(failed_units_hover_card),
-            SystemdTarget::SlowSystemJobs => self
-                .slow_system_jobs
-                .sections_described_by(slow_jobs_hover_card),
-            SystemdTarget::SlowUserJobs => self
-                .slow_user_jobs
-                .sections_described_by(slow_jobs_hover_card),
-            SystemdTarget::LastShutdown => self
-                .last_shutdown
-                .sections_described_by(last_shutdown_hover_card),
-            SystemdTarget::FailedSystemUnit(_)
-            | SystemdTarget::FailedUserUnit(_)
-            | SystemdTarget::SlowSystemJob(_)
-            | SystemdTarget::SlowUserJob(_) => Vec::new(),
-        }
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -280,57 +292,44 @@ impl SystemdManagerGroup {
                         SystemdTarget::BootPhases,
                     )
                     .previewed_on_handle()
+                    .with_hover_card(Box::new(move |_| {
+                        self.boot.sections_described_by(boot_timeline_hover_card)
+                    }))
                 }),
                 boot.map(|timeline| {
                     GroupItem::reading(
                         StartupUnits { timeline }.reading_row(),
                         SystemdTarget::StartupUnits,
                     )
+                    .with_hover_card(Box::new(move |_| {
+                        self.boot
+                            .hover_card_with(StartupUnits { timeline }.hover_card())
+                    }))
                 }),
-                self.slow_system_jobs
-                    .visible_reading(slow_jobs_panel_visibility)
-                    .map(|jobs| slow_jobs_item(jobs, config, clock))
-                    .or_else(|| {
-                        self.slow_system_jobs.group_item(
-                            IconGlyph::default(),
-                            |snapshot| slow_jobs_reading_row(snapshot),
-                            SystemdTarget::SlowSystemJobs,
-                            clock,
-                        )
-                    }),
-                self.slow_user_jobs
-                    .visible_reading(slow_jobs_panel_visibility)
-                    .map(|jobs| slow_jobs_item(jobs, config, clock))
-                    .or_else(|| {
-                        self.slow_user_jobs.group_item(
-                            IconGlyph::default(),
-                            |snapshot| slow_jobs_reading_row(snapshot),
-                            SystemdTarget::SlowUserJobs,
-                            clock,
-                        )
-                    }),
-                self.failed_system
-                    .visible_reading(failed_units_panel_visibility)
-                    .map(|failed| failed_units_item(failed, config, clock))
-                    .or_else(|| {
-                        self.failed_system.group_item(
-                            IconGlyph::default(),
-                            |snapshot| failed_units_reading_row(snapshot),
-                            SystemdTarget::FailedSystemUnits,
-                            clock,
-                        )
-                    }),
-                self.failed_user
-                    .visible_reading(failed_units_panel_visibility)
-                    .map(|failed| failed_units_item(failed, config, clock))
-                    .or_else(|| {
-                        self.failed_user.group_item(
-                            IconGlyph::default(),
-                            |snapshot| failed_units_reading_row(snapshot),
-                            SystemdTarget::FailedUserUnits,
-                            clock,
-                        )
-                    }),
+                slow_jobs_entry(
+                    &self.slow_system_jobs,
+                    SystemdTarget::SlowSystemJobs,
+                    config,
+                    clock,
+                ),
+                slow_jobs_entry(
+                    &self.slow_user_jobs,
+                    SystemdTarget::SlowUserJobs,
+                    config,
+                    clock,
+                ),
+                failed_units_entry(
+                    &self.failed_system,
+                    SystemdTarget::FailedSystemUnits,
+                    config,
+                    clock,
+                ),
+                failed_units_entry(
+                    &self.failed_user,
+                    SystemdTarget::FailedUserUnits,
+                    config,
+                    clock,
+                ),
                 self.last_shutdown
                     .get()
                     .map(|last| {
@@ -345,6 +344,10 @@ impl SystemdManagerGroup {
                                 last.follow_log_args(),
                             )),
                         )
+                        .with_hover_card(Box::new(move |_| {
+                            self.last_shutdown
+                                .sections_described_by(last_shutdown_hover_card)
+                        }))
                     })
                     .or_else(|| {
                         self.last_shutdown.group_item(

@@ -101,16 +101,6 @@ impl PendingUpgradesGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: PendingUpgradesTarget) -> Vec<Section> {
-        match target {
-            PendingUpgradesTarget::Firmware => self
-                .firmware
-                .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot)),
-            PendingUpgradesTarget::Summary => self.firmware.hover_card_with(self.hover_card()),
-        }
-    }
-
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
@@ -124,6 +114,9 @@ impl PendingUpgradesGroup {
             [
                 has_categories.then(|| {
                     GroupItem::reading(self.reading_row(clock), PendingUpgradesTarget::Summary)
+                        .with_hover_card(Box::new(move |_| {
+                            self.firmware.hover_card_with(self.hover_card())
+                        }))
                 }),
                 self.firmware_upgrade_item(config),
                 self.firmware.failure().map(|failure| {
@@ -131,6 +124,11 @@ impl PendingUpgradesGroup {
                         failure.reading_row(IconGlyph::default()),
                         PendingUpgradesTarget::Firmware,
                     )
+                    .with_hover_card(Box::new(move |_| {
+                        self.firmware.sections_described_by(|snapshot| {
+                            firmware_upgrades_hover_card(snapshot)
+                        })
+                    }))
                 }),
             ]
             .into_iter()

@@ -14,7 +14,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widgets::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
@@ -229,28 +229,6 @@ impl LayerAppearanceControls {
         self.shadow_softness.close();
         self.shadow_opacity.close();
         self.outline_opacity.close();
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: AppearanceTarget) -> Vec<Section> {
-        match target {
-            AppearanceTarget::Opacity => self.opacity.readout_hover_card("Opacity"),
-            AppearanceTarget::CornerRadius => {
-                self.corner_radius.readout_hover_card("Corner radius")
-            }
-            AppearanceTarget::Blur => blur_toggle(self.backdrop_blur).switch_hover_card(),
-            AppearanceTarget::DropShadow => shadow_toggle(self.shadow_casting).switch_hover_card(),
-            AppearanceTarget::ShadowSoftness => {
-                self.shadow_softness.readout_hover_card("Shadow softness")
-            }
-            AppearanceTarget::ShadowOpacity => {
-                self.shadow_opacity.readout_hover_card("Shadow opacity")
-            }
-            AppearanceTarget::Outline => outline_toggle(self.outline_tracing).switch_hover_card(),
-            AppearanceTarget::OutlineOpacity => {
-                self.outline_opacity.readout_hover_card("Outline opacity")
-            }
-        }
     }
 
     pub fn update(&mut self, msg: AppearanceMessage) -> Task<AppearanceMessage> {

@@ -32,7 +32,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::HoverTarget,
     widget_groups::{
         storage_space_group::{
             block_filesystem_discovery_hover_card, block_filesystem_discovery_reading_row,
@@ -246,6 +246,65 @@ impl PhysicalDriveGroup {
             })
     }
 
+    fn transfer_items<'a>(
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+    ) -> impl Iterator<Item = GroupItem<'a, DriveInteraction>> {
+        readings
+            .activity
+            .get()
+            .into_iter()
+            .flat_map(move |activity| {
+                [
+                    GroupItem::reading(
+                        disk_transfer_reading_row(&activity.read),
+                        DriveTarget::Read(disk.name.clone()),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        readings
+                            .activity
+                            .hover_card_with(disk_transfer_hover_card(&activity.read))
+                    })),
+                    GroupItem::reading(
+                        disk_transfer_reading_row(&activity.write),
+                        DriveTarget::Write(disk.name.clone()),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        readings
+                            .activity
+                            .hover_card_with(disk_transfer_hover_card(&activity.write))
+                    })),
+                ]
+            })
+    }
+
+    fn member_items<'a>(
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+        locale: Locale,
+    ) -> impl Iterator<Item = GroupItem<'a, DriveInteraction>> {
+        readings
+            .space
+            .get()
+            .into_iter()
+            .flat_map(|occupancy| &occupancy.filesystem_shares)
+            .flat_map(|share| &share.bcachefs_members)
+            .map(move |device| {
+                GroupItem::reading(
+                    BcachefsMemberRow { device }.reading_row(locale),
+                    DriveTarget::BcachefsMember {
+                        disk: disk.name.clone(),
+                        partition: device.partition.clone(),
+                    },
+                )
+                .with_hover_card(Box::new(move |_| {
+                    readings
+                        .space
+                        .hover_card_with(BcachefsMemberRow { device }.hover_card())
+                }))
+            })
+    }
+
     fn disk_group<'a>(
         &'a self,
         disk: &'a KernelDevice,
@@ -265,54 +324,50 @@ impl PhysicalDriveGroup {
                 space_target,
                 clock,
             ),
-        };
-        let transfer_items = readings
-            .activity
-            .get()
-            .into_iter()
-            .flat_map(move |activity| {
-                [
-                    GroupItem::reading(
-                        disk_transfer_reading_row(&activity.read),
-                        DriveTarget::Read(disk.name.clone()),
-                    ),
-                    GroupItem::reading(
-                        disk_transfer_reading_row(&activity.write),
-                        DriveTarget::Write(disk.name.clone()),
-                    ),
-                ]
-            });
-        let member_items = readings
-            .space
-            .get()
-            .into_iter()
-            .flat_map(|occupancy| &occupancy.filesystem_shares)
-            .flat_map(|share| &share.bcachefs_members)
-            .map(|device| {
-                GroupItem::reading(
-                    BcachefsMemberRow { device }.reading_row(locale),
-                    DriveTarget::BcachefsMember {
-                        disk: disk.name.clone(),
-                        partition: device.partition.clone(),
-                    },
-                )
-            });
+        }
+        .map(|space_item| {
+            space_item.with_hover_card(Box::new(move |_| {
+                readings.space.sections_described_by(disk_space_hover_card)
+            }))
+        });
         let items = space_item
             .into_iter()
-            .chain(member_items)
-            .chain(readings.drive_health.group_item(
-                IconGlyph::default(),
-                |snapshot| drive_health_reading_row(snapshot),
-                DriveTarget::DriveHealth(disk.name.clone()),
-                clock,
-            ))
-            .chain(readings.activity.group_item(
-                IconGlyph::default(),
-                |snapshot| disk_activity_reading_row(snapshot),
-                DriveTarget::Read(disk.name.clone()),
-                clock,
-            ))
-            .chain(transfer_items);
+            .chain(Self::member_items(disk, readings, locale))
+            .chain(
+                readings
+                    .drive_health
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| drive_health_reading_row(snapshot),
+                        DriveTarget::DriveHealth(disk.name.clone()),
+                        clock,
+                    )
+                    .map(|health_item| {
+                        health_item.with_hover_card(Box::new(move |_| {
+                            readings
+                                .drive_health
+                                .sections_described_by(drive_health_hover_card)
+                        }))
+                    }),
+            )
+            .chain(
+                readings
+                    .activity
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| disk_activity_reading_row(snapshot),
+                        DriveTarget::Read(disk.name.clone()),
+                        clock,
+                    )
+                    .map(|activity_item| {
+                        activity_item.with_hover_card(Box::new(move |_| {
+                            readings.activity.sections_described_by(|snapshot| {
+                                disk_transfer_hover_card(&snapshot.read)
+                            })
+                        }))
+                    }),
+            )
+            .chain(Self::transfer_items(disk, readings));
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
@@ -335,12 +390,19 @@ impl PhysicalDriveGroup {
             WidgetGroupFamily::PhysicalDrive,
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            self.discovery.group_item(
-                IconGlyph::default(),
-                |snapshot| block_filesystem_discovery_reading_row(snapshot),
-                DriveTarget::MountDiscovery,
-                clock,
-            ),
+            self.discovery
+                .group_item(
+                    IconGlyph::default(),
+                    |snapshot| block_filesystem_discovery_reading_row(snapshot),
+                    DriveTarget::MountDiscovery,
+                    clock,
+                )
+                .map(|discovery_item| {
+                    discovery_item.with_hover_card(Box::new(move |_| {
+                        self.discovery
+                            .sections_described_by(block_filesystem_discovery_hover_card)
+                    }))
+                }),
         );
         [discovery_group]
             .into_iter()
@@ -350,72 +412,6 @@ impl PhysicalDriveGroup {
                     .map(|(disk, readings)| self.disk_group(disk, readings, clock, locale)),
             )
             .collect()
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &DriveTarget) -> Vec<Section> {
-        let readings_of = |name: &String| {
-            self.disks
-                .iter()
-                .find(|(disk, _)| &disk.name == name)
-                .map(|(_, readings)| readings)
-        };
-        match target {
-            DriveTarget::MountDiscovery => self
-                .discovery
-                .sections_described_by(block_filesystem_discovery_hover_card),
-            DriveTarget::Space(name) => readings_of(name)
-                .map(|readings| readings.space.sections_described_by(disk_space_hover_card))
-                .unwrap_or_default(),
-            DriveTarget::Read(name) => {
-                let Some(readings) = readings_of(name) else {
-                    return Vec::new();
-                };
-                match readings.activity.get() {
-                    Some(activity) => readings
-                        .activity
-                        .hover_card_with(disk_transfer_hover_card(&activity.read)),
-                    None => readings
-                        .activity
-                        .sections_described_by(|snapshot| disk_transfer_hover_card(&snapshot.read)),
-                }
-            }
-            DriveTarget::Write(name) => {
-                let Some(readings) = readings_of(name) else {
-                    return Vec::new();
-                };
-                let Some(activity) = readings.activity.get() else {
-                    return Vec::new();
-                };
-                readings
-                    .activity
-                    .hover_card_with(disk_transfer_hover_card(&activity.write))
-            }
-            DriveTarget::DriveHealth(name) => readings_of(name)
-                .map(|readings| {
-                    readings
-                        .drive_health
-                        .sections_described_by(drive_health_hover_card)
-                })
-                .unwrap_or_default(),
-            DriveTarget::BcachefsMember { disk, partition } => {
-                let Some(readings) = readings_of(disk) else {
-                    return Vec::new();
-                };
-                let Some(device) = readings.space.get().and_then(|space| {
-                    space
-                        .filesystem_shares
-                        .iter()
-                        .flat_map(|share| &share.bcachefs_members)
-                        .find(|device| &device.partition == partition)
-                }) else {
-                    return Vec::new();
-                };
-                readings
-                    .space
-                    .hover_card_with(BcachefsMemberRow { device }.hover_card())
-            }
-        }
     }
 }
 

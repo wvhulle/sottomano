@@ -490,35 +490,22 @@ impl GlobalMenuGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &GlobalMenuTarget) -> Vec<Section> {
-        match target {
-            GlobalMenuTarget::Use => {
-                global_menu_use_toggle(self.global_menu_use).switch_hover_card()
+    fn entry_sections(&self, label_path: &str) -> Vec<Section> {
+        let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
+            return Vec::new();
+        };
+        let entry_note = Section::new("Menu path", SectionWidget::paragraph(label_path));
+        match shown_menu_bar.menu_bar_match {
+            MenuBarMatch::ExactWindow | MenuBarMatch::OnlyProcessCandidate => {
+                vec![entry_note]
             }
-            GlobalMenuTarget::LookupFailure => self
-                .lookup_failure()
-                .map(|lookup_failure| MenuLookupFailureReading { lookup_failure }.hover_card())
-                .unwrap_or_default(),
-            GlobalMenuTarget::Entry { label_path, .. } => {
-                let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
-                    return Vec::new();
-                };
-                let entry_note =
-                    Section::new("Menu path", SectionWidget::paragraph(label_path.clone()));
-                match shown_menu_bar.menu_bar_match {
-                    MenuBarMatch::ExactWindow | MenuBarMatch::OnlyProcessCandidate => {
-                        vec![entry_note]
-                    }
-                    MenuBarMatch::MostRecentProcessCandidate => vec![
-                        entry_note,
-                        Section::new(
-                            "Menu bar",
-                            SectionWidget::paragraph(MOST_RECENT_OF_SEVERAL_NOTE),
-                        ),
-                    ],
-                }
-            }
+            MenuBarMatch::MostRecentProcessCandidate => vec![
+                entry_note,
+                Section::new(
+                    "Menu bar",
+                    SectionWidget::paragraph(MOST_RECENT_OF_SEVERAL_NOTE),
+                ),
+            ],
         }
     }
 
@@ -567,6 +554,7 @@ impl GlobalMenuGroup {
                 },
             },
         };
+        let card_label_path = entry.label_path.clone();
         let entry_item = GroupItem::composed_pinnable(
             entry.label_path.clone(),
             icon,
@@ -575,7 +563,9 @@ impl GlobalMenuGroup {
                 label_path: entry.label_path,
             },
             GroupItemValue::Nothing,
-        );
+            Box::new(|_| Vec::new()),
+        )
+        .with_hover_card(Box::new(move |_| self.entry_sections(&card_label_path)));
         if node.enabled {
             entry_item.on_press(RUN_ENTRY_HINT, GlobalMenuInteraction::ItemPressed(node.id))
         } else {

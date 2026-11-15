@@ -307,20 +307,6 @@ impl NspawnContainersGroup {
         }
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &NspawnContainerTarget, clock: Clock) -> Vec<Section> {
-        let Some(container) = self.listing.get().and_then(|container_listing| {
-            container_listing
-                .containers
-                .iter()
-                .find(|container| container.machine_name == target.machine_name)
-        }) else {
-            return Vec::new();
-        };
-        self.listing
-            .hover_card_with(self.container_row(container).hover_card(clock))
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, NspawnContainersInteraction> {
         let containers = self
             .listing
@@ -333,7 +319,11 @@ impl NspawnContainersGroup {
                 NspawnContainerTarget {
                     machine_name: Cow::Owned(container.machine_name.clone()),
                 },
-            );
+            )
+            .with_hover_card(Box::new(move |clock| {
+                self.listing
+                    .hover_card_with(self.container_row(container).hover_card(clock))
+            }));
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(
                     row,

@@ -463,38 +463,7 @@ impl QuietScheduleGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: QuietScheduleTarget,
-        locale: Locale,
-        clock: Clock,
-    ) -> Vec<Section> {
-        match target {
-            QuietScheduleTarget::DoNotDisturb => self.status_hover_card(clock),
-            QuietScheduleTarget::FollowSchedule => {
-                self.follow_schedule_toggle().switch_hover_card()
-            }
-            QuietScheduleTarget::Start => self.start_slider.readout_hover_card("Quiet from"),
-            QuietScheduleTarget::End => self.end_slider.readout_hover_card("Quiet until"),
-            QuietScheduleTarget::ScreenOff => self
-                .screen_off_slider
-                .readout_hover_card("Screen off while quiet"),
-            QuietScheduleTarget::WorkingDays => Vec::new(),
-            QuietScheduleTarget::WorkingDay(day) => {
-                let kind = if self.working_days().contains(day) {
-                    "working day"
-                } else {
-                    "day off"
-                };
-                vec![Section::new(
-                    "Schedule",
-                    dictionary_table([LabeledValue::new(weekday_name(day, locale), kind)]),
-                )]
-            }
-        }
-    }
-
-    fn status_hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn do_not_disturb_hover_card(&self, clock: Clock) -> Vec<Section> {
         let now = clock.local();
         let manual = self
             .manual_at(now)
@@ -518,6 +487,21 @@ impl QuietScheduleGroup {
         vec![Section::new(
             "Next change",
             dictionary_table(manual.into_iter().chain(upcoming.into_iter().flatten())),
+        )]
+    }
+
+    fn working_days_hover_card(&self, locale: Locale) -> Vec<Section> {
+        let working_days = self.working_days();
+        vec![Section::new(
+            "Schedule",
+            dictionary_table(WeekdaySet::ALL.iter(Weekday::Mon).map(|day| {
+                let day_kind = if working_days.contains(day) {
+                    "working day"
+                } else {
+                    "day off"
+                };
+                LabeledValue::new(weekday_name(day, locale), day_kind)
+            })),
         )]
     }
 
@@ -550,6 +534,10 @@ impl QuietScheduleGroup {
                     GroupItemIcon::Absent,
                     GroupItemHoverArea::ByChildren {
                         row_target: QuietScheduleTarget::WorkingDays.into(),
+                        child_targets: WeekdaySet::ALL
+                            .iter(Weekday::Mon)
+                            .map(|day| QuietScheduleTarget::WorkingDay(day).into())
+                            .collect(),
                     },
                     GroupItemValue::drawn(move |reveal| {
                         WeekdayPicker::new(
@@ -570,6 +558,7 @@ impl QuietScheduleGroup {
                         )
                         .into()
                     }),
+                    Box::new(move |_| self.working_days_hover_card(config.calendar.locale)),
                 ),
             ],
         )

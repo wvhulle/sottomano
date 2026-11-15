@@ -187,28 +187,6 @@ impl ReachabilityGroup {
         )
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &ReachabilityTarget) -> Vec<Section> {
-        match target {
-            ReachabilityTarget::Down => self
-                .throughput
-                .get()
-                .map(|throughput| self.direction_hover_card(&throughput.down))
-                .unwrap_or_default(),
-            ReachabilityTarget::Up => self
-                .throughput
-                .get()
-                .map(|throughput| self.direction_hover_card(&throughput.up))
-                .unwrap_or_default(),
-            ReachabilityTarget::Throughput => self
-                .throughput
-                .sections_described_by(interface_throughput_hover_card),
-            ReachabilityTarget::Latency => self
-                .latency
-                .sections_described_by(internet_latency_hover_card),
-        }
-    }
-
     fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
         let connectivity_row = self.connectivity.reading_row(
             IconGlyph::default(),
@@ -244,26 +222,47 @@ impl ReachabilityGroup {
                     ReachabilityTarget::Throughput,
                     clock,
                 )
+                .map(|throughput_item| {
+                    throughput_item.with_hover_card(Box::new(move |_| {
+                        self.throughput
+                            .sections_described_by(interface_throughput_hover_card)
+                    }))
+                })
                 .into_iter()
-                .chain(throughput.into_iter().flat_map(|readings| {
+                .chain(throughput.into_iter().flat_map(move |readings| {
                     [
                         GroupItem::reading(
                             throughput_reading_row(&readings.down),
                             ReachabilityTarget::Down,
                         )
-                        .previewed_on_handle(),
+                        .previewed_on_handle()
+                        .with_hover_card(Box::new(move |_| {
+                            self.direction_hover_card(&readings.down)
+                        })),
                         GroupItem::reading(
                             throughput_reading_row(&readings.up),
                             ReachabilityTarget::Up,
-                        ),
+                        )
+                        .with_hover_card(Box::new(move |_| {
+                            self.direction_hover_card(&readings.up)
+                        })),
                     ]
                 }))
-                .chain(self.latency.group_item(
-                    IconGlyph::default(),
-                    |snapshot| internet_latency_reading_row(snapshot),
-                    ReachabilityTarget::Latency,
-                    clock,
-                )),
+                .chain(
+                    self.latency
+                        .group_item(
+                            IconGlyph::default(),
+                            |snapshot| internet_latency_reading_row(snapshot),
+                            ReachabilityTarget::Latency,
+                            clock,
+                        )
+                        .map(|latency_item| {
+                            latency_item.with_hover_card(Box::new(move |_| {
+                                self.latency
+                                    .sections_described_by(internet_latency_hover_card)
+                            }))
+                        }),
+                ),
         )
         .face(self.handle_face(clock))
     }

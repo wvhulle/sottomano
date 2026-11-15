@@ -12,7 +12,7 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .monitor_group
-                    .group_content(config, self.clock)
+                    .group_content(config, &self.outputs, self.clock)
                     .map(ShellInteraction::Monitor),
                 self.widget_groups
                     .dark_mode_group

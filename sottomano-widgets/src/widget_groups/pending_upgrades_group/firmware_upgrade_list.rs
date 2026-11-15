@@ -54,7 +54,11 @@ impl PendingUpgradesGroup {
                 button_label: "Install".to_owned(),
                 tint: ActionTint::Proceed,
                 on_button_pressed: install,
-            }]),
+            }])
+            .with_hover_card(Box::new(move |_| {
+                self.firmware
+                    .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot))
+            })),
         )
     }
 }
