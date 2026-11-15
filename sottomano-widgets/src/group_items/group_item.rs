@@ -801,7 +801,7 @@ mod tests {
     use crate::{
         group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPinDuration},
-        hover_cards::{HoverCardMessage, PanelPinOrigin},
+        hover_cards::{AnchorEvent, HoverCardMessage, PanelPinOrigin},
         widget_groups::{
             dark_mode_group::DarkModeTarget,
             session_power_group::SessionTarget,
@@ -1002,9 +1002,10 @@ mod tests {
         let entered_announcement = events_from_pointing_at_pinned_slider(SliderPointing::Hover)
             .into_iter()
             .find_map(|event| match event {
-                GroupEvent::HoverCard(HoverCardMessage::EnterAnchor { announcement, .. }) => {
-                    Some(announcement)
-                }
+                GroupEvent::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
+                    announcement,
+                    ..
+                })) => Some(announcement),
                 _ => None,
             })
             .expect("hovering opens the hover card");

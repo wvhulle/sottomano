@@ -37,17 +37,6 @@ pub struct Departed {
     pub placement: Placement,
 }
 
-impl Departed {
-    #[must_use]
-    pub fn new(target: HoverTarget, content: DepartedContent, placement: Placement) -> Self {
-        Self {
-            target,
-            content,
-            placement,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShownTarget {
     Nothing,

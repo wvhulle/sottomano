@@ -88,17 +88,11 @@ impl HoverCardHost {
                 self.toast_cards_by_output.insert(output, toast_cards);
                 None
             }
-            HoverCardMessage::Enter { .. }
-            | HoverCardMessage::EnterAnchor { .. }
-            | HoverCardMessage::AnchorLaidOut(..)
-            | HoverCardMessage::LaidOut { .. }
+            HoverCardMessage::Anchor(_)
+            | HoverCardMessage::OnSurface { .. }
             | HoverCardMessage::DismissHeldOpen
             | HoverCardMessage::ShownWidgetDropped
             | HoverCardMessage::ConfirmShownWidgetDropped
-            | HoverCardMessage::MenuHandlePointed { .. }
-            | HoverCardMessage::MenuHandlePointedAnchor { .. }
-            | HoverCardMessage::MenuHandlePressed { .. }
-            | HoverCardMessage::MenuHandlePressedAnchor { .. }
             | HoverCardMessage::SwitchIntentElapsed => None,
         }
     }
@@ -233,15 +227,12 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn shown_widget_presence(&self) -> ShownWidgetPresence {
-        if self.transition.current().is_some_and(|current| {
-            self.laid_out_anchors
-                .anchored_widget_liveness(&current.placement.output, &current.target)
-                == WidgetLiveness::Dropped
-        }) {
-            ShownWidgetPresence::Dropped
-        } else {
-            ShownWidgetPresence::Present
+    pub fn shown_widget_liveness(&self) -> WidgetLiveness {
+        match self.transition.current() {
+            Some(current) => self
+                .laid_out_anchors
+                .anchored_widget_liveness(&current.placement.output, &current.target),
+            None => WidgetLiveness::Alive,
         }
     }
 
@@ -419,11 +410,11 @@ impl HoverCardHost {
                 DepartedContent::Interactive
             }
         };
-        Some(Departed::new(
-            current.target.clone(),
-            departed_content,
-            current.placement.clone(),
-        ))
+        Some(Departed {
+            target: current.target.clone(),
+            content: departed_content,
+            placement: current.placement.clone(),
+        })
     }
 
     fn press_catcher_on<Message: From<PopupMessage>>(&self, output: &str) -> PressCatcher<Message> {
@@ -611,12 +602,6 @@ pub enum HoverEffect {
     KeepsMenu,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShownWidgetPresence {
-    Dropped,
-    Present,
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -636,9 +621,8 @@ mod tests {
         clock::Clock,
         hover_cards::{
             CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-            WidgetAnchor,
-            hover_card_surfaces::{HoverEffect, ShownWidgetPresence},
-            hover_card_transition::CardRetention,
+            WidgetAnchor, hover_card_surfaces::HoverEffect, hover_card_transition::CardRetention,
+            laid_out_anchors::WidgetLiveness,
         },
         layer_surfaces::PanelEdge,
     };
@@ -717,9 +701,9 @@ mod tests {
             },
         );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
-        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
+        assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
         drop(widget);
-        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Dropped);
+        assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Dropped);
     }
 
     #[test]
@@ -738,7 +722,7 @@ mod tests {
             );
             host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         }
-        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Dropped);
+        assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Dropped);
         remember(
             &mut host,
             "DP-1",
@@ -747,7 +731,7 @@ mod tests {
                 ..widget_at(1.0, CardOpening::OnHover)
             },
         );
-        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
+        assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
     }
 
     #[test]
@@ -756,7 +740,7 @@ mod tests {
         let mut host = HoverCardHost::default();
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         host.dismiss(None, now);
-        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
+        assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
     }
 
     fn remember(host: &mut HoverCardHost, output: &str, widget_anchor: WidgetAnchor) {

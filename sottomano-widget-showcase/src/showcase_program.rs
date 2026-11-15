@@ -32,12 +32,12 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget, PointerPresence,
+        AnchorEvent, HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
+        PointerPresence,
         hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::{
-            HoverCardSurfaceStyle, HoverContent, HoverEffect, ShownWidgetPresence,
-        },
+        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, HoverEffect},
         hover_card_transition::CardRetention,
+        laid_out_anchors::WidgetLiveness,
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{
@@ -216,7 +216,9 @@ impl ShowcaseState {
 
     fn route_message(&mut self, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
-            ShowcaseMessage::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
+            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::LaidOut(
+                widget_anchor,
+            ))) => {
                 let _hide_due = self.hover_card.remember_anchor(
                     SHOWCASE_OUTPUT,
                     widget_anchor,
@@ -224,20 +226,20 @@ impl ShowcaseState {
                 );
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::EnterAnchor {
+            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
                 target,
                 announcement,
-            }) => {
+            })) => {
                 if self.hover_card.shown_retention() != CardRetention::UntilDismissed {
                     self.open_hover_card(target, announcement);
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
+            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
                 target,
                 pointing,
                 announcement,
-            }) => {
+            })) => {
                 self.hover_card
                     .set_handle_pointing(SHOWCASE_OUTPUT, &target, pointing);
                 if pointing == PointerPresence::PointedAt
@@ -248,10 +250,10 @@ impl ShowcaseState {
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
+            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::HandlePressed {
                 target,
                 announcement,
-            }) => {
+            })) => {
                 self.hover_card.set_handle_pointing(
                     SHOWCASE_OUTPUT,
                     &target,
@@ -268,7 +270,7 @@ impl ShowcaseState {
                 ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped),
             ),
             ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped) => {
-                if self.hover_card.shown_widget_presence() == ShownWidgetPresence::Dropped {
+                if self.hover_card.shown_widget_liveness() == WidgetLiveness::Dropped {
                     self.dismiss_hover_card();
                 }
                 Task::none()

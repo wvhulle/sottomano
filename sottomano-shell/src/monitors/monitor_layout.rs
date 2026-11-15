@@ -6,7 +6,7 @@ use iced::{
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_cards::{HoverCardMessage, WidgetAnchor},
+    hover_cards::{AnchorEvent, HoverCardMessage, WidgetAnchor},
     widget_groups::{window_group::WindowGroupInteraction, workspaces_group},
     widgets::pointer_drag::DraggedPanelSlot,
 };
@@ -24,44 +24,19 @@ fn anchor_hover_cards_on_surface(
     content: Element<'_, ShellInteraction>,
 ) -> Element<'_, ShellInteraction> {
     content.map(move |message| match message {
-        ShellInteraction::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
-            ShellInteraction::HoverCard(HoverCardMessage::LaidOut {
+        ShellInteraction::HoverCard(HoverCardMessage::Anchor(event)) => {
+            ShellInteraction::HoverCard(HoverCardMessage::OnSurface {
                 surface,
-                widget_anchor: WidgetAnchor {
-                    anchor: widget_anchor.anchor + origin_in_overlay,
-                    ..widget_anchor
-                },
+                position,
+                event: Box::new(match event {
+                    AnchorEvent::LaidOut(widget_anchor) => AnchorEvent::LaidOut(WidgetAnchor {
+                        anchor: widget_anchor.anchor + origin_in_overlay,
+                        ..widget_anchor
+                    }),
+                    pointer_event => pointer_event,
+                }),
             })
         }
-        ShellInteraction::HoverCard(HoverCardMessage::EnterAnchor {
-            target,
-            announcement,
-        }) => ShellInteraction::HoverCard(HoverCardMessage::Enter {
-            surface,
-            position,
-            target,
-            announcement,
-        }),
-        ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
-            target,
-            pointing,
-            announcement,
-        }) => ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePointed {
-            surface,
-            position,
-            target,
-            pointing,
-            announcement,
-        }),
-        ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
-            target,
-            announcement,
-        }) => ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePressed {
-            surface,
-            position,
-            target,
-            announcement,
-        }),
         unanchored => unanchored,
     })
 }

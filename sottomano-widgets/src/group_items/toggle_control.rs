@@ -248,10 +248,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::hover_cards::hover_card_body::hover_card_source_delivery::{
-        SectionSource, SourceDelivery,
+    use crate::{
+        hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
+        widget_groups::compute_group::ComputeTarget,
     };
-    use crate::widget_groups::compute_group::ComputeTarget;
 
     fn refused_write() -> Error {
         Error::Unwritable {

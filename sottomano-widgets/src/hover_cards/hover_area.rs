@@ -14,8 +14,8 @@ use iced::{
 use crate::{
     group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{
-        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence, PressHints,
-        WidgetAnchor,
+        AnchorEvent, CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget,
+        PointerPresence, PressHints, WidgetAnchor,
     },
 };
 
@@ -104,11 +104,11 @@ impl<M> HoverArea<'_, M> {
                 CardOpening::OnHover => HoverCardMessage::Exit {
                     target: replaced.target,
                 },
-                CardOpening::OnPress => HoverCardMessage::MenuHandlePointedAnchor {
+                CardOpening::OnPress => HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
                     target: replaced.target,
                     pointing: PointerPresence::NotPointedAt,
                     announcement: replaced.announced,
-                },
+                }),
             })
         })
     }
@@ -130,36 +130,38 @@ impl<M> HoverArea<'_, M> {
         }
         state.reported_anchor = Some(anchor);
         state.reported_visible = visible;
-        Some((self.wrap)(HoverCardMessage::AnchorLaidOut(WidgetAnchor {
-            target: self.target.clone(),
-            opening: self.opening,
-            anchor,
-            visible,
-            presence: Arc::downgrade(&state.presence),
-        })))
+        Some((self.wrap)(HoverCardMessage::Anchor(AnchorEvent::LaidOut(
+            WidgetAnchor {
+                target: self.target.clone(),
+                opening: self.opening,
+                anchor,
+                visible,
+                presence: Arc::downgrade(&state.presence),
+            },
+        ))))
     }
 
     fn enter(&self, state: &mut HoverState) -> M {
         state.announced = self.announcement.clone();
-        (self.wrap)(HoverCardMessage::EnterAnchor {
+        (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::Entered {
             target: self.target.clone(),
             announcement: self.announcement.clone(),
-        })
+        }))
     }
 
     fn menu_handle_pointed(&self, pointing: PointerPresence) -> M {
-        (self.wrap)(HoverCardMessage::MenuHandlePointedAnchor {
+        (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
             target: self.target.clone(),
             pointing,
             announcement: self.announcement.clone(),
-        })
+        }))
     }
 
     fn menu_handle_pressed(&self) -> M {
-        (self.wrap)(HoverCardMessage::MenuHandlePressedAnchor {
+        (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::HandlePressed {
             target: self.target.clone(),
             announcement: self.announcement.clone(),
-        })
+        }))
     }
 
     fn exit(&self) -> M {
@@ -384,8 +386,8 @@ mod tests {
 
     use super::{HoverArea, HoverState, announcing_hoverable, press_toggled_hoverable};
     use crate::hover_cards::{
-        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-        WidgetAnchor, laid_out_anchors::WidgetLiveness,
+        AnchorEvent, CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget,
+        PointerPresence, WidgetAnchor, laid_out_anchors::WidgetLiveness,
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
@@ -444,11 +446,11 @@ mod tests {
             matches!(
                 messages.as_slice(),
                 [
-                    HoverCardMessage::AnchorLaidOut(..),
-                    HoverCardMessage::MenuHandlePointedAnchor {
+                    HoverCardMessage::Anchor(AnchorEvent::LaidOut(..)),
+                    HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
                         pointing: PointerPresence::PointedAt,
                         ..
-                    }
+                    })
                 ]
             ),
             "{messages:?}"
@@ -463,9 +465,9 @@ mod tests {
             matches!(
                 messages.as_slice(),
                 [
-                    HoverCardMessage::AnchorLaidOut(..),
-                    HoverCardMessage::MenuHandlePointedAnchor { .. },
-                    HoverCardMessage::MenuHandlePressedAnchor { .. }
+                    HoverCardMessage::Anchor(AnchorEvent::LaidOut(..)),
+                    HoverCardMessage::Anchor(AnchorEvent::HandlePointed { .. }),
+                    HoverCardMessage::Anchor(AnchorEvent::HandlePressed { .. })
                 ]
             ),
             "{messages:?}"
@@ -479,8 +481,8 @@ mod tests {
             matches!(
                 messages.as_slice(),
                 [
-                    HoverCardMessage::AnchorLaidOut(..),
-                    HoverCardMessage::EnterAnchor { .. }
+                    HoverCardMessage::Anchor(AnchorEvent::LaidOut(..)),
+                    HoverCardMessage::Anchor(AnchorEvent::Entered { .. })
                 ]
             ),
             "{messages:?}"
@@ -634,10 +636,12 @@ mod tests {
                 PointerPresence::PointedAt,
                 anchor_at(0.0)
             ),
-            Some(HoverCardMessage::AnchorLaidOut(WidgetAnchor {
-                target: HoverTarget::Workspace(8),
-                ..
-            }))
+            Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(
+                WidgetAnchor {
+                    target: HoverTarget::Workspace(8),
+                    ..
+                }
+            )))
         ));
     }
 
@@ -669,11 +673,11 @@ mod tests {
         };
         assert!(matches!(
             second.exit_of_replaced_target(&mut hovered),
-            Some(HoverCardMessage::MenuHandlePointedAnchor {
+            Some(HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
                 target: HoverTarget::Workspace(7),
                 pointing: PointerPresence::NotPointedAt,
                 ..
-            })
+            }))
         ));
     }
 
@@ -681,7 +685,7 @@ mod tests {
     fn dropping_the_state_shows_in_the_reported_presence() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) = report_of(
+        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
             &area,
             &mut state,
             PointerPresence::PointedAt,
@@ -698,7 +702,7 @@ mod tests {
     fn a_replaced_target_no_longer_counts_as_the_old_widget() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) = report_of(
+        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
             &area,
             &mut state,
             PointerPresence::PointedAt,
@@ -716,7 +720,9 @@ mod tests {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
         let visibility = |message: Option<HoverCardMessage>| match message {
-            Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) => Some(widget_anchor.visible),
+            Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) => {
+                Some(widget_anchor.visible)
+            }
             _ => None,
         };
         assert_eq!(

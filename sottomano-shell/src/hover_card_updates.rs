@@ -4,9 +4,10 @@ use iced::{Task, window::Id};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-        hover_card_surfaces::{HoverEffect, ShownWidgetPresence},
+        AnchorEvent, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
+        hover_card_surfaces::HoverEffect,
         hover_card_transition::{CardRetention, Departed},
+        laid_out_anchors::WidgetLiveness,
     },
     layer_surfaces::PanelEdge,
     widgets::pointer_drag::PointerDrag,
@@ -27,62 +28,16 @@ fn hide_hover_card_at(due: Instant) -> Task<Message> {
 impl DesktopShell {
     pub fn update_hover_card(&mut self, msg: HoverCardMessage) -> Task<Message> {
         match msg {
-            HoverCardMessage::LaidOut {
-                surface,
-                widget_anchor,
-            } => {
-                let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone())
-                else {
-                    return Task::none();
-                };
-                self.hover_card
-                    .remember_anchor(&output, widget_anchor, self.clock.instant)
-                    .map_or_else(Task::none, hide_hover_card_at)
-            }
-            HoverCardMessage::Enter {
+            HoverCardMessage::OnSurface {
                 surface,
                 position,
-                target,
-                announcement,
-            } => {
-                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
-                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "ignored: a card is held open");
-                    return Task::none();
-                }
-                let Some(parent) =
-                    self.hover_card_parent(surface, position, &target, &announcement)
-                else {
-                    return Task::none();
-                };
-                if let Some(intent_elapsed) =
-                    self.hover_card
-                        .defer_switch(&parent, &target, announcement.clone())
-                {
-                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "deferred switch");
-                    return intent_elapsed.map(Message::HoverCard);
-                }
-                tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "opened");
-                self.hover_card.open(&parent, target, announcement);
-                Task::none()
-            }
-            HoverCardMessage::MenuHandlePointed {
-                surface,
-                position,
-                target,
-                pointing,
-                announcement,
-            } => self.follow_menu_handle_pointer(surface, position, target, pointing, announcement),
-            HoverCardMessage::MenuHandlePressed {
-                surface,
-                position,
-                target,
-                announcement,
-            } => self.toggle_menu_of_handle(surface, position, target, announcement),
+                event,
+            } => self.on_surface_event(surface, position, *event),
             HoverCardMessage::ShownWidgetDropped => Task::done(Message::HoverCard(
                 HoverCardMessage::ConfirmShownWidgetDropped,
             )),
             HoverCardMessage::ConfirmShownWidgetDropped => {
-                if self.hover_card.shown_widget_presence() == ShownWidgetPresence::Dropped {
+                if self.hover_card.shown_widget_liveness() == WidgetLiveness::Dropped {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()
@@ -108,10 +63,7 @@ impl DesktopShell {
                 }
                 Task::none()
             }
-            unanchored @ (HoverCardMessage::EnterAnchor { .. }
-            | HoverCardMessage::AnchorLaidOut(..)
-            | HoverCardMessage::MenuHandlePointedAnchor { .. }
-            | HoverCardMessage::MenuHandlePressedAnchor { .. }) => {
+            unanchored @ HoverCardMessage::Anchor(_) => {
                 tracing::trace!(target: HOVER_LOG_TARGET, message = ?unanchored, "dropped: reached the shell without its surface and screen edge");
                 Task::none()
             }
@@ -119,6 +71,58 @@ impl DesktopShell {
                 .hover_card
                 .update(other, self.clock.instant)
                 .map_or_else(Task::none, hide_hover_card_at),
+        }
+    }
+
+    fn on_surface_event(
+        &mut self,
+        surface: Id,
+        position: Position,
+        event: AnchorEvent,
+    ) -> Task<Message> {
+        match event {
+            AnchorEvent::LaidOut(widget_anchor) => {
+                let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone())
+                else {
+                    return Task::none();
+                };
+                self.hover_card
+                    .remember_anchor(&output, widget_anchor, self.clock.instant)
+                    .map_or_else(Task::none, hide_hover_card_at)
+            }
+            AnchorEvent::Entered {
+                target,
+                announcement,
+            } => {
+                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "ignored: a card is held open");
+                    return Task::none();
+                }
+                let Some(parent) =
+                    self.hover_card_parent(surface, position, &target, &announcement)
+                else {
+                    return Task::none();
+                };
+                if let Some(intent_elapsed) =
+                    self.hover_card
+                        .defer_switch(&parent, &target, announcement.clone())
+                {
+                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "deferred switch");
+                    return intent_elapsed.map(Message::HoverCard);
+                }
+                tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "opened");
+                self.hover_card.open(&parent, target, announcement);
+                Task::none()
+            }
+            AnchorEvent::HandlePointed {
+                target,
+                pointing,
+                announcement,
+            } => self.follow_menu_handle_pointer(surface, position, target, pointing, announcement),
+            AnchorEvent::HandlePressed {
+                target,
+                announcement,
+            } => self.toggle_menu_of_handle(surface, position, target, announcement),
         }
     }
 

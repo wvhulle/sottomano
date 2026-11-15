@@ -312,47 +312,34 @@ pub enum PointerPresence {
 }
 
 #[derive(Debug, Clone)]
+pub enum AnchorEvent {
+    LaidOut(WidgetAnchor),
+    Entered {
+        target: HoverTarget,
+        announcement: HoverAnnouncement,
+    },
+    HandlePointed {
+        target: HoverTarget,
+        pointing: PointerPresence,
+        announcement: HoverAnnouncement,
+    },
+    HandlePressed {
+        target: HoverTarget,
+        announcement: HoverAnnouncement,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub enum HoverCardMessage {
-    AnchorLaidOut(WidgetAnchor),
+    Anchor(AnchorEvent),
+    OnSurface {
+        surface: Id,
+        position: Position,
+        event: Box<AnchorEvent>,
+    },
     ToastCardsLaidOut {
         output: String,
         toast_cards: Vec<Rectangle>,
-    },
-    LaidOut {
-        surface: Id,
-        widget_anchor: WidgetAnchor,
-    },
-    EnterAnchor {
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    },
-    Enter {
-        surface: Id,
-        position: Position,
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    },
-    MenuHandlePointedAnchor {
-        target: HoverTarget,
-        pointing: PointerPresence,
-        announcement: HoverAnnouncement,
-    },
-    MenuHandlePointed {
-        surface: Id,
-        position: Position,
-        target: HoverTarget,
-        pointing: PointerPresence,
-        announcement: HoverAnnouncement,
-    },
-    MenuHandlePressedAnchor {
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    },
-    MenuHandlePressed {
-        surface: Id,
-        position: Position,
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
     },
     Exit {
         target: HoverTarget,
