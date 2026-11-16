@@ -21,7 +21,7 @@ pub(crate) enum PanelZone {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StandaloneWidgetGroup {
+pub(crate) enum StandaloneIndicatorGroup {
     Clock,
     Notifications,
     Tray,
@@ -35,7 +35,7 @@ pub(crate) enum FixedPanelEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PanelZoneEntry {
     Menu(GroupMenuTopic),
-    Standalone(StandaloneWidgetGroup),
+    Standalone(StandaloneIndicatorGroup),
     Fixed(FixedPanelEntry),
     InlineWorkspaces,
     OutputWindows,
@@ -76,7 +76,7 @@ pub(crate) fn composed_menu_topics() -> impl Iterator<Item = GroupMenuTopic> {
     })
 }
 
-pub(crate) fn composed_standalone_groups() -> impl Iterator<Item = StandaloneWidgetGroup> {
+pub(crate) fn composed_standalone_groups() -> impl Iterator<Item = StandaloneIndicatorGroup> {
     all_panel_entries().filter_map(|entry| match entry {
         Standalone(group) => Some(group),
         Menu(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
@@ -90,7 +90,7 @@ mod tests {
     use super::{
         BOTTOM_PANEL, PanelZone,
         PanelZoneEntry::{Menu, Standalone},
-        StandaloneWidgetGroup::{self, Clock, Notifications, Tray},
+        StandaloneIndicatorGroup::{self, Clock, Notifications, Tray},
         TOP_PANEL, composed_menu_topics, composed_standalone_groups,
     };
 
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn standalone_groups_appear_once() {
-        let composed: Vec<StandaloneWidgetGroup> = composed_standalone_groups().collect();
+        let composed: Vec<StandaloneIndicatorGroup> = composed_standalone_groups().collect();
         for group in [Clock, Notifications, Tray] {
             assert_eq!(
                 composed.iter().filter(|placed| **placed == group).count(),

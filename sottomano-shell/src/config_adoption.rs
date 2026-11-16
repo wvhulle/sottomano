@@ -26,7 +26,7 @@ impl DesktopShell {
         self.typing_under_cards
             .adopt_config(&config.overlay_surfaces);
         let previous = mem::replace(&mut self.config, config);
-        self.widget_groups.adopt_config(&previous, &self.config);
+        self.indicator_groups.adopt_config(&previous, &self.config);
         self.theme = configured_theme(&self.config.theme.palette);
         Task::batch([
             self.notifications
@@ -58,7 +58,7 @@ impl DesktopShell {
             && self.config.theme.spacing == previous.theme.spacing
             && (self.config.theme.font.text_size_px - previous.theme.font.text_size_px).abs()
                 < f32::EPSILON
-            && self.config.widget_group_layout == previous.widget_group_layout
+            && self.config.indicator_group_layout == previous.indicator_group_layout
             && self.config.group_items == previous.group_items
             && self.config.group_menus == previous.group_menus;
         if unchanged {
@@ -77,7 +77,7 @@ impl DesktopShell {
             .show_change_watch_failure(
                 stopped_watch,
                 watch_failure,
-                &self.widget_groups.toast_context(
+                &self.indicator_groups.toast_context(
                     &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,
@@ -94,7 +94,7 @@ impl DesktopShell {
             .show_config_error(
                 path,
                 error,
-                &self.widget_groups.toast_context(
+                &self.indicator_groups.toast_context(
                     &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,

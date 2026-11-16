@@ -9,8 +9,10 @@ use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     hover_cards::{HoverTarget, IndicatorKey},
-    widget_groups::{
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance},
+    indicator_groups::{
+        indicator_group_identity::{
+            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
+        },
         window_group::WindowTarget,
     },
 };
@@ -40,7 +42,7 @@ pub enum GroupShown {
     },
     PinnedFrom {
         menu: GroupMenuTopic,
-        group: WidgetGroupIdentity,
+        group: IndicatorGroupIdentity,
     },
 }
 
@@ -72,24 +74,27 @@ impl DemoBackdrop {
 pub enum Step {
     Hover(HoverTarget),
     Press(HoverTarget),
-    HoverFace(WidgetGroupIdentity),
-    PressFace(WidgetGroupIdentity),
+    HoverFace(IndicatorGroupIdentity),
+    PressFace(IndicatorGroupIdentity),
     PressPin(GroupMenuPin),
-    DragFace { group: WidgetGroupIdentity, by: f32 },
+    DragFace {
+        group: IndicatorGroupIdentity,
+        by: f32,
+    },
     HoverText(&'static str),
     PressText(&'static str),
     RestFor(Duration),
 }
 
-const fn instance_row(group: WidgetGroupIdentity, row_name: &'static str) -> HoverTarget {
+const fn instance_row(group: IndicatorGroupIdentity, row_name: &'static str) -> HoverTarget {
     HoverTarget::Indicator(IndicatorKey {
         group,
         name: Cow::Borrowed(row_name),
     })
 }
 
-const fn indicator_row(family: WidgetGroupFamily, row_name: &'static str) -> HoverTarget {
-    instance_row(WidgetGroupIdentity::sole(family), row_name)
+const fn indicator_row(family: IndicatorGroupFamily, row_name: &'static str) -> HoverTarget {
+    instance_row(IndicatorGroupIdentity::sole(family), row_name)
 }
 
 pub const DEMOS: &[Demo] = &[
@@ -103,9 +108,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
             Step::PressText("Frequently launched on this workspace"),
             Step::Hover(instance_row(
-                WidgetGroupIdentity {
-                    family: WidgetGroupFamily::AppLauncher,
-                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("frequent")),
+                IndicatorGroupIdentity {
+                    family: IndicatorGroupFamily::AppLauncher,
+                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("frequent")),
                 },
                 "Firefox",
             )),
@@ -132,7 +137,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Compute, "CPU load")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU load")),
         ],
     },
     Demo {
@@ -144,7 +149,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Compute, "CPU model")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU model")),
         ],
     },
     Demo {
@@ -156,7 +161,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Memory"),
-            Step::Hover(indicator_row(WidgetGroupFamily::MemoryBoard, "RAM")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::MemoryBoard, "RAM")),
         ],
     },
     Demo {
@@ -169,7 +174,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("Tailscale"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::Tailnet,
+                IndicatorGroupFamily::Tailnet,
                 "Exit via home-server",
             )),
         ],
@@ -184,7 +189,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("WireGuard"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::WireguardTunnels,
+                IndicatorGroupFamily::WireguardTunnels,
                 "wg-home",
             )),
         ],
@@ -198,7 +203,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("Tailscale"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Tailnet, "Reachable from")),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Tailnet,
+                "Reachable from",
+            )),
         ],
     },
     Demo {
@@ -211,7 +219,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::Weather,
+                IndicatorGroupFamily::Weather,
                 "Temperature forecast",
             )),
         ],
@@ -225,7 +233,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Weather, "Rain")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Weather, "Rain")),
         ],
     },
     Demo {
@@ -249,7 +257,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("QEMU machines"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::VirtualMachines,
+                IndicatorGroupFamily::VirtualMachines,
                 "sample-vm-slow-services from bootvine pid 4100",
             )),
         ],
@@ -264,7 +272,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("microvm.nix guests"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::MicrovmGuests,
+                IndicatorGroupFamily::MicrovmGuests,
                 "ci-builder",
             )),
         ],
@@ -279,7 +287,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("nspawn containers"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::NspawnContainers,
+                IndicatorGroupFamily::NspawnContainers,
                 "arr-proton",
             )),
         ],
@@ -294,7 +302,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Incus instances"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::IncusInstances,
+                IndicatorGroupFamily::IncusInstances,
                 "build-box",
             )),
         ],
@@ -308,7 +316,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("LXC containers"),
-            Step::Hover(indicator_row(WidgetGroupFamily::LxcContainers, "media")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::LxcContainers, "media")),
         ],
     },
     Demo {
@@ -321,7 +329,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Flatpak apps"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::FlatpakSandboxes,
+                IndicatorGroupFamily::FlatpakSandboxes,
                 "com.spotify.Client 1849302754",
             )),
         ],
@@ -336,7 +344,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Waydroid"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::WaydroidContainer,
+                IndicatorGroupFamily::WaydroidContainer,
                 "Session",
             )),
         ],
@@ -351,7 +359,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VirtualBox machines"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::VirtualBoxMachines,
+                IndicatorGroupFamily::VirtualBoxMachines,
                 "windows11 pid 61402",
             )),
         ],
@@ -366,7 +374,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VMware machines"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::VmwareMachines,
+                IndicatorGroupFamily::VmwareMachines,
                 "Ubuntu 26.04",
             )),
         ],
@@ -381,7 +389,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Apptainer containers"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::ApptainerContainers,
+                IndicatorGroupFamily::ApptainerContainers,
                 "pytorch_24.08 pid 70215",
             )),
         ],
@@ -396,7 +404,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Docker containers"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::DockerEngines,
+                IndicatorGroupFamily::DockerEngines,
                 "postgres as root",
             )),
         ],
@@ -411,7 +419,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Memory limits"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::CgroupMemoryLimits,
+                IndicatorGroupFamily::CgroupMemoryLimits,
                 "ci-runners.slice",
             )),
         ],
@@ -425,7 +433,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("3 CI runs"),
-            Step::Hover(indicator_row(WidgetGroupFamily::CiRuns, "website #185")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::CiRuns, "website #185")),
         ],
     },
     Demo {
@@ -437,8 +445,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Calendar"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Caldav, "Upcoming events")),
-            Step::Hover(indicator_row(WidgetGroupFamily::Caldav, "Open tasks")),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Caldav,
+                "Upcoming events",
+            )),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Caldav, "Open tasks")),
         ],
     },
     Demo {
@@ -451,7 +462,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("Claude usage"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::ClaudeUsage,
+                IndicatorGroupFamily::ClaudeUsage,
                 "Subscription windows",
             )),
         ],
@@ -466,9 +477,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Spotify"),
             Step::Hover(instance_row(
-                WidgetGroupIdentity {
-                    family: WidgetGroupFamily::Media,
-                    instance: WidgetGroupInstance::Session {
+                IndicatorGroupIdentity {
+                    family: IndicatorGroupFamily::Media,
+                    instance: IndicatorGroupInstance::Session {
                         durable: Cow::Borrowed("Spotify"),
                         session: Cow::Borrowed("org.mpris.MediaPlayer2.spotify"),
                     },
@@ -487,9 +498,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::PressText("Screen off"),
             Step::Hover(instance_row(
-                WidgetGroupIdentity {
-                    family: WidgetGroupFamily::IdleTimeouts,
-                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("screen_off")),
+                IndicatorGroupIdentity {
+                    family: IndicatorGroupFamily::IdleTimeouts,
+                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("screen_off")),
                 },
                 "Screen-off timeout",
             )),
@@ -505,12 +516,12 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
             Step::PressText("Looks"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::AppearancePresets,
+                IndicatorGroupFamily::AppearancePresets,
                 "Frosted dark",
             )),
             Step::PressText("Frosted dark"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::AppearancePresets,
+                IndicatorGroupFamily::AppearancePresets,
                 "Clear dark",
             )),
             Step::RestFor(Duration::from_millis(1200)),
@@ -526,9 +537,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("DualSense Wireless Controller"),
             Step::Hover(instance_row(
-                WidgetGroupIdentity {
-                    family: WidgetGroupFamily::Gamepad,
-                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("d4:2f:4b:69:6b:2f")),
+                IndicatorGroupIdentity {
+                    family: IndicatorGroupFamily::Gamepad,
+                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("d4:2f:4b:69:6b:2f")),
                 },
                 "Game controller",
             )),
@@ -541,10 +552,10 @@ pub const DEMOS: &[Demo] = &[
         backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[
-            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio)),
-            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio)),
+            Step::PressFace(IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio)),
+            Step::PressFace(IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio)),
             Step::DragFace {
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
+                group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio),
                 by: -24.0,
             },
         ],
@@ -559,7 +570,7 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Voice dictation"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::VoiceDictation,
+                IndicatorGroupFamily::VoiceDictation,
                 "Speech model",
             )),
         ],
@@ -573,8 +584,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::PressText("Login session"),
-            Step::Hover(indicator_row(WidgetGroupFamily::LoginSession, "Kernel")),
-            Step::Hover(indicator_row(WidgetGroupFamily::LoginSession, "Compositor")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::LoginSession, "Kernel")),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::LoginSession,
+                "Compositor",
+            )),
         ],
     },
     Demo {
@@ -587,11 +601,11 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
             Step::PressText("Wallpaper"),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::Wallpaper,
+                IndicatorGroupFamily::Wallpaper,
                 "Wallpaper lookup",
             )),
             Step::Hover(indicator_row(
-                WidgetGroupFamily::Wallpaper,
+                IndicatorGroupFamily::Wallpaper,
                 "Wallpaper article",
             )),
         ],
@@ -689,7 +703,10 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Spotify"),
             Step::PressText("Audio"),
-            Step::Hover(indicator_row(WidgetGroupFamily::Audio, "Microphone volume")),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Audio,
+                "Microphone volume",
+            )),
         ],
     },
     Demo {
@@ -700,8 +717,8 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressPin(GroupMenuPin::Group(WidgetGroupIdentity::sole(
-                WidgetGroupFamily::MemoryBoard,
+            Step::PressPin(GroupMenuPin::Group(IndicatorGroupIdentity::sole(
+                IndicatorGroupFamily::MemoryBoard,
             ))),
             Step::RestFor(Duration::from_millis(1500)),
         ],
@@ -723,11 +740,11 @@ pub const DEMOS: &[Demo] = &[
         backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Hardware,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
+            group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute),
         },
         script: &[
-            Step::HoverFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Compute)),
-            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Compute)),
+            Step::HoverFace(IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute)),
+            Step::PressFace(IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute)),
         ],
     },
 ];
@@ -737,7 +754,7 @@ mod tests {
     use sottomano_toml_config::Config;
     use sottomano_widgets::{
         clock::Clock, hover_cards::HoverTarget,
-        widget_groups::widget_group_content::WidgetGroupContent,
+        indicator_groups::indicator_group_content::IndicatorGroupContent,
     };
 
     use super::{DEMOS, Step};
@@ -797,7 +814,7 @@ mod tests {
                 let contents = showcased_group.group_contents(&config, clock);
                 let known_rows: Vec<String> = contents
                     .iter()
-                    .flat_map(WidgetGroupContent::indicator_keys)
+                    .flat_map(IndicatorGroupContent::indicator_keys)
                     .map(|indicator_key| format!("{indicator_key:?}"))
                     .collect();
                 demo.script

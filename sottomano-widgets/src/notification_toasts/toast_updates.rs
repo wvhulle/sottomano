@@ -56,16 +56,16 @@ use super::{
 use crate::{
     background_work::compositor_request,
     hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
+    indicator_groups::{
+        indicator_group_content::GroupToastRequests, notification_group::AlertSound,
+        quiet_schedule_group::quiet_window::QuietPhase,
+    },
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     notification_toasts::{
         NotificationSettings, ToastLayerHost,
         toast_lifecycle::{CountdownExpiry, FadeState, ToastSender},
     },
     toast_messages::NotificationMessage,
-    widget_groups::{
-        notification_group::AlertSound, quiet_schedule_group::quiet_window::QuietPhase,
-        widget_group_content::GroupToastRequests,
-    },
     widgets::{
         announced_level::{LevelToastChange, LevelToastRequest},
         ongoing_toast::{OngoingKey, OngoingToast},

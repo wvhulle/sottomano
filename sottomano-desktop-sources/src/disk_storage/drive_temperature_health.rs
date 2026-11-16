@@ -2,8 +2,8 @@ use std::{path::Path, time::Duration};
 
 use futures::Stream;
 use sottomano_toml_config::{
+    indicator_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     severity::Severity,
-    widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
 };
 use uom::si::f64::ThermodynamicTemperature;
 

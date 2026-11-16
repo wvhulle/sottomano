@@ -5,7 +5,7 @@ use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::audio_group::{AudioGroup, AudioMessage},
+    indicator_groups::audio_group::{AudioGroup, AudioMessage},
 };
 
 use crate::{

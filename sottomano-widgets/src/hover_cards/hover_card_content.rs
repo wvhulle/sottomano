@@ -43,7 +43,7 @@ use crate::{
             hover_card_source_delivery::{DeliveryStamp, HoverCard, SectionSource, SourceDelivery},
         },
     },
-    widget_groups::{
+    indicator_groups::{
         window_group::process_tree::{Folding, ProcessTree},
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },

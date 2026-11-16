@@ -18,7 +18,7 @@ use sottomano_desktop_sources::{
 use sottomano_widgets::{
     clock::Clock,
     group_indicators::unit_switch::UnitSwitchMessage,
-    widget_groups::voice_dictation_group::{
+    indicator_groups::voice_dictation_group::{
         VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationMessage,
     },
 };

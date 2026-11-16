@@ -38,16 +38,16 @@ use sottomano_widgets::{
         hover_card_transition::CardRetention,
         laid_out_anchors::WidgetLiveness,
     },
+    indicator_groups::{
+        appearance_presets_group::AppearancePresetsMessage,
+        indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
+        quiet_schedule_group::quiet_window::QuietPhase,
+    },
     layer_surfaces::PanelEdge,
     notification_toasts::{
         NotificationLayer, NotificationSettings, ToastContext, ToastSurfaceStyle,
     },
     toast_messages::NotificationMessage,
-    widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage, notification_group::AlertSound,
-        quiet_schedule_group::quiet_window::QuietPhase,
-        widget_group_interaction::WidgetGroupInteraction,
-    },
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
@@ -236,13 +236,13 @@ impl ShowcaseState {
 
     fn interact(&mut self, interaction: ShowcaseInteraction) -> Task<ShowcaseMessage> {
         match interaction {
-            ShowcaseInteraction::Group(WidgetGroupInteraction::GroupMenus(message)) => {
+            ShowcaseInteraction::Group(IndicatorGroupInteraction::GroupMenus(message)) => {
                 self.update_group_menus(message)
             }
             ShowcaseInteraction::Group(group_interaction) => {
-                if let WidgetGroupInteraction::AppearancePresets(AppearancePresetsMessage::Apply(
-                    preset,
-                )) = &group_interaction
+                if let IndicatorGroupInteraction::AppearancePresets(
+                    AppearancePresetsMessage::Apply(preset),
+                ) = &group_interaction
                 {
                     self.appearance = preset.applied_to(self.appearance);
                     self.theme =
@@ -264,7 +264,7 @@ impl ShowcaseState {
             PopupMessage::HoverCard(hover_card) => self.update_hover_card(hover_card),
             PopupMessage::WindowGroup(window_interaction) => {
                 let _interaction_for_another_group = self.group.interact(
-                    WidgetGroupInteraction::WindowGroup(window_interaction),
+                    IndicatorGroupInteraction::WindowGroup(window_interaction),
                     &self.config,
                     self.clock,
                 );

@@ -14,7 +14,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
@@ -331,7 +331,7 @@ impl LayerAppearanceControls {
         )
     }
 
-    pub fn indicators<'a, M: Into<WidgetGroupInteraction> + 'a>(
+    pub fn indicators<'a, M: Into<IndicatorGroupInteraction> + 'a>(
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,

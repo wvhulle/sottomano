@@ -4,7 +4,7 @@ use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 use crate::panels::{
     PanelBarComposition,
     PanelZoneEntry::{InlineWorkspaces, Menu, OutputWindows, Standalone},
-    StandaloneWidgetGroup::Tray,
+    StandaloneIndicatorGroup::Tray,
 };
 
 pub(crate) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {

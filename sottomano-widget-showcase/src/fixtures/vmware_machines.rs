@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::vmware_machines_group::{VmwareMachinesGroup, VmwareMachinesMessage},
+    indicator_groups::vmware_machines_group::{VmwareMachinesGroup, VmwareMachinesMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

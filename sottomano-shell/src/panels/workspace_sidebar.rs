@@ -9,7 +9,7 @@ use sottomano_widgets::{
         panel_frame::{outlined_sides_inward_of, panel_frame},
         region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
-    widget_groups::{
+    indicator_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
     },
 };
@@ -22,12 +22,16 @@ impl DesktopShell {
         window: Id,
         output: &str,
     ) -> Element<'a, ShellInteraction> {
-        let sidebar = self.widget_groups.sidebar_settings_group.layer.appearance();
+        let sidebar = self
+            .indicator_groups
+            .sidebar_settings_group
+            .layer
+            .appearance();
         let frame_style = sidebar.frame;
         let outlined_sides = outlined_sides_inward_of(Position::Left)
-            .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
+            .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
         let framed_workspaces = (self
-            .widget_groups
+            .indicator_groups
             .sidebar_settings_group
             .workspaces_placement()
             == WorkspacesPlacement::Sidebar)
@@ -37,7 +41,7 @@ impl DesktopShell {
                     snapshot,
                     output,
                     self.configured_workspaces.as_ref(),
-                    self.widget_groups
+                    self.indicator_groups
                         .sidebar_settings_group
                         .empty_workspace_folding(),
                     frame_style.drawn_corners(outlined_sides),

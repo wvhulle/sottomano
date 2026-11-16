@@ -13,7 +13,7 @@ mod virtualization_menu;
 
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_content::WidgetGroupContent,
+    indicator_groups::indicator_group_content::IndicatorGroupContent,
 };
 
 use crate::desktop_shell::DesktopShell;
@@ -39,28 +39,28 @@ impl DesktopShell {
     fn group_menu<'a>(
         &'a self,
         topic: GroupMenuTopic,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a>>,
+        groups: impl IntoIterator<Item = IndicatorGroupContent<'a>>,
     ) -> GroupMenuView<'a> {
-        GroupMenuView::new(topic, &self.widget_groups.group_menus, groups)
+        GroupMenuView::new(topic, &self.indicator_groups.group_menus, groups)
     }
 
-    fn settings_groups(&self) -> [WidgetGroupContent<'_>; 6] {
+    fn settings_groups(&self) -> [IndicatorGroupContent<'_>; 6] {
         let config = &self.config;
         [
-            self.widget_groups
+            self.indicator_groups
                 .panel_settings_group
                 .group_content(config),
-            self.widget_groups
+            self.indicator_groups
                 .sidebar_settings_group
                 .group_content(config),
-            self.widget_groups
+            self.indicator_groups
                 .overlay_settings_group
                 .group_content(config),
-            self.widget_groups
+            self.indicator_groups
                 .compositor_styling_group
                 .group_content(config),
-            self.widget_groups.group_menus.settings_content(config),
-            self.widget_groups.global_menu_group.switch_content(),
+            self.indicator_groups.group_menus.settings_content(config),
+            self.indicator_groups.global_menu_group.switch_content(),
         ]
     }
 }

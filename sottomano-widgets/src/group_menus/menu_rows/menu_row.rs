@@ -4,7 +4,7 @@ use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent};
 use iced::{Element, widget::text::Wrapping};
 use sottomano_toml_config::Config;
 
-use crate::{widget_groups::widget_group_content::GroupEvent, widgets::text::panel_text};
+use crate::{indicator_groups::indicator_group_content::GroupEvent, widgets::text::panel_text};
 
 pub(crate) fn menu_metrics(config: &Config) -> NestedMenuMetrics {
     NestedMenuMetrics {

@@ -10,8 +10,8 @@ use sottomano_widgets::{
         hover_card_transition::{CardRetention, Departed},
         laid_out_anchors::WidgetLiveness,
     },
+    indicator_groups::window_group::WindowInspection,
     layer_surfaces::PanelEdge,
-    widget_groups::window_group::WindowInspection,
     widgets::pointer_drag::PointerDrag,
 };
 use tokio::time::sleep_until;
@@ -205,7 +205,7 @@ impl DesktopShell {
     pub(crate) fn hovered_indicator_target(&self) -> Option<HoverTarget> {
         match self.hover_card.target() {
             Some(HoverTarget::GroupMenu(topic)) => Some(
-                self.widget_groups
+                self.indicator_groups
                     .group_menus
                     .inspected_indicator(*topic)
                     .cloned()
@@ -251,7 +251,7 @@ impl DesktopShell {
         };
         let hovered_target = self.hovered_indicator_target();
         let watched_window = self
-            .widget_groups
+            .indicator_groups
             .window_group
             .follow_window_inspection(
                 &self.compositor,

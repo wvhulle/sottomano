@@ -12,7 +12,7 @@ use sottomano_widgets::{
     },
     group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
-    widget_groups::{
+    indicator_groups::{
         panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
         workspaces_group::inline_strip,
     },
@@ -61,7 +61,7 @@ impl DesktopShell {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(GroupMenuTopic::ApplicationMenu)
-                if !self.widget_groups.global_menu_group.shows_top_menus() =>
+                if !self.indicator_groups.global_menu_group.shows_top_menus() =>
             {
                 Vec::new()
             }
@@ -92,7 +92,10 @@ impl DesktopShell {
                     .view(
                         config,
                         position,
-                        self.widget_groups.group_menus.presentation().open_trigger,
+                        self.indicator_groups
+                            .group_menus
+                            .presentation()
+                            .open_trigger,
                         handle_indicator,
                         self.clock,
                     )
@@ -116,7 +119,11 @@ impl DesktopShell {
         position: Position,
         content: impl Into<Element<'a, ShellInteraction>>,
     ) -> Element<'a, ShellInteraction> {
-        let panels = self.widget_groups.panel_settings_group.layer.appearance();
+        let panels = self
+            .indicator_groups
+            .panel_settings_group
+            .layer
+            .appearance();
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -124,7 +131,7 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(ShellInteraction::DismissPressed);
-        let group_framing = self.widget_groups.panel_settings_group.group_framing();
+        let group_framing = self.indicator_groups.panel_settings_group.group_framing();
         let band = container(centered)
             .width(Length::Fill)
             .height(Length::Fixed(self.config.desktop_panels.height));
@@ -140,7 +147,7 @@ impl DesktopShell {
             right: false,
             ..outlined_sides_inward_of(position)
         }
-        .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
+        .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
         let strip = panel_frame(band, panels.frame)
             .outlined_sides(outlined_sides)
             .backdrop_blur(panels.backdrop_blur);
@@ -157,11 +164,15 @@ impl DesktopShell {
         groups: impl IntoIterator<Item = Element<'a, ShellInteraction>>,
     ) -> Element<'a, ShellInteraction> {
         let config = &self.config;
-        let panels = self.widget_groups.panel_settings_group.layer.appearance();
-        let group_framing = self.widget_groups.panel_settings_group.group_framing();
+        let panels = self
+            .indicator_groups
+            .panel_settings_group
+            .layer
+            .appearance();
+        let group_framing = self.indicator_groups.panel_settings_group.group_framing();
         let frame_style = panels.frame;
         let outlined_sides = outlined_sides_inward_of(position)
-            .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
+            .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {
             if group_framing == PanelGroupFraming::Joined {
                 return group;
@@ -194,7 +205,7 @@ impl DesktopShell {
         output: &'a str,
     ) -> Option<Element<'a, ShellInteraction>> {
         match self
-            .widget_groups
+            .indicator_groups
             .sidebar_settings_group
             .workspaces_placement()
         {
@@ -203,7 +214,7 @@ impl DesktopShell {
                 &self.window_snapshot,
                 output,
                 self.configured_workspaces.as_ref(),
-                self.widget_groups
+                self.indicator_groups
                     .sidebar_settings_group
                     .empty_workspace_folding(),
                 self.panel_slot_context(position),
@@ -217,12 +228,12 @@ impl DesktopShell {
         position: Position,
         output: &'a str,
     ) -> Option<Element<'a, ShellInteraction>> {
-        self.widget_groups
+        self.indicator_groups
             .window_group
             .view(
                 &self.window_snapshot,
                 self.window_assets(),
-                self.widget_groups.audio_group.window_audio(),
+                self.indicator_groups.audio_group.window_audio(),
                 output,
                 self.panel_slot_context(position),
             )

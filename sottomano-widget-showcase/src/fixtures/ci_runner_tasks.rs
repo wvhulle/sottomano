@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::ci_runs_group::{CiRunsGroup, CiRunsMessage},
+    indicator_groups::ci_runs_group::{CiRunsGroup, CiRunsMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

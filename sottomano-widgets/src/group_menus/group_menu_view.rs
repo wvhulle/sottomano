@@ -39,12 +39,12 @@ use crate::{
         hover_card_content::HoverCardContent,
         hoverable,
     },
-    widget_groups::{
-        widget_group_content::{
-            GroupEvent, GroupToastRequests, WidgetGroupContent, edge_indicator,
+    indicator_groups::{
+        indicator_group_content::{
+            GroupEvent, GroupToastRequests, IndicatorGroupContent, edge_indicator,
         },
-        widget_group_identity::WidgetGroupIdentity,
-        widget_group_interaction::WidgetGroupInteraction,
+        indicator_group_identity::IndicatorGroupIdentity,
+        indicator_group_interaction::IndicatorGroupInteraction,
     },
     widgets::{
         configured_scroll::configured_scroll, icon_glyph::IconGlyph,
@@ -55,7 +55,7 @@ use crate::{
 pub struct GroupMenuView<'a> {
     group_menus: &'a GroupMenuState,
     messenger: GroupMenuMessenger,
-    groups: Vec<WidgetGroupContent<'a>>,
+    groups: Vec<IndicatorGroupContent<'a>>,
 }
 
 pub struct GroupMenuCascadeSurfaces<'a, Message> {
@@ -82,7 +82,7 @@ pub(crate) struct GroupMenuMessenger {
 }
 
 pub(crate) fn menu_event(message: GroupMenuMessage) -> GroupEvent {
-    GroupEvent::Interaction(WidgetGroupInteraction::GroupMenus(message))
+    GroupEvent::Interaction(IndicatorGroupInteraction::GroupMenus(message))
 }
 
 impl GroupMenuMessenger {
@@ -93,21 +93,21 @@ impl GroupMenuMessenger {
         })
     }
 
-    pub(crate) fn reveal_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+    pub(crate) fn reveal_group(&self, group_identity: IndicatorGroupIdentity) -> GroupEvent {
         menu_event(GroupMenuMessage::RevealMenuGroup {
             menu: self.topic,
             group_identity,
         })
     }
 
-    pub(crate) fn intend_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+    pub(crate) fn intend_group_reveal(&self, group_identity: IndicatorGroupIdentity) -> GroupEvent {
         menu_event(GroupMenuMessage::IntendRevealMenuGroup {
             menu: self.topic,
             group_identity,
         })
     }
 
-    pub(crate) fn toggle_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+    pub(crate) fn toggle_group(&self, group_identity: IndicatorGroupIdentity) -> GroupEvent {
         menu_event(GroupMenuMessage::ToggleMenuGroup {
             menu: self.topic,
             group_identity,
@@ -150,7 +150,7 @@ impl<'a> GroupMenuView<'a> {
     pub fn new(
         topic: GroupMenuTopic,
         group_menus: &'a GroupMenuState,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a>>,
+        groups: impl IntoIterator<Item = IndicatorGroupContent<'a>>,
     ) -> Self {
         Self {
             group_menus,
@@ -228,7 +228,7 @@ impl<'a> GroupMenuView<'a> {
         let highest_alert_severity = self
             .groups
             .iter()
-            .map(WidgetGroupContent::highest_alert_severity)
+            .map(IndicatorGroupContent::highest_alert_severity)
             .max()
             .unwrap_or_default();
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
@@ -470,12 +470,12 @@ mod tests {
             IndicatorKey, MenuHandleIndicator, MouseGesture, PopupMessage, PressAction,
             hover_card_body::Section,
         },
-        widget_groups::{
+        indicator_groups::{
             clock_group::ClockInteraction,
             compositor_styling_group::CompositorStylingMessage,
-            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
-            widget_group_interaction::WidgetGroupInteraction,
+            indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+            indicator_group_interaction::IndicatorGroupInteraction,
         },
         widgets::{
             favicon::Favicons, icon_glyph::IconGlyph, shell_layer_appearance::ShellLayer,
@@ -574,7 +574,7 @@ mod tests {
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(presentation));
         let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
             menu: GroupMenuTopic::Hardware,
-            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+            group_identity: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu),
         });
         group_menus
     }
@@ -588,11 +588,11 @@ mod tests {
             clock,
             ..MenuTestBench::default()
         };
-        let expansion = WidgetGroupExpansion::default();
-        let group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
+        let expansion = IndicatorGroupExpansion::default();
+        let group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Gpu,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::Gpu.title(),
+                IndicatorGroupFamily::Gpu.title(),
                 IconGlyph::default(),
                 IndicatorState::Idle,
             ),
@@ -608,7 +608,7 @@ mod tests {
             surfaces.primary,
         );
         let header_top = primary
-            .find(WidgetGroupFamily::Gpu.title())
+            .find(IndicatorGroupFamily::Gpu.title())
             .expect("the group row is on screen")
             .visible_bounds()
             .expect("the group row is visible")
@@ -624,11 +624,11 @@ mod tests {
     #[test]
     fn a_group_without_indicators_leaves_the_menu() {
         let group_menus = opened_menu_state(every_presentation()[0]);
-        let expansion = WidgetGroupExpansion::default();
-        let empty_group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
+        let expansion = IndicatorGroupExpansion::default();
+        let empty_group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Gpu,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::Gpu.title(),
+                IndicatorGroupFamily::Gpu.title(),
                 IconGlyph::default(),
                 IndicatorState::Idle,
             ),
@@ -643,16 +643,16 @@ mod tests {
     #[test]
     fn a_headline_indicator_is_not_listed_among_the_group_indicators() {
         let group_menus = opened_menu_state(every_presentation()[0]);
-        let expansion = WidgetGroupExpansion::default();
-        let headline_group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
+        let expansion = IndicatorGroupExpansion::default();
+        let headline_group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Gpu,
             named_test_indicator("Headline").with_headline_glyph(IconGlyph::default()),
             &expansion,
             ClockInteraction::Expansion,
             [named_test_indicator("Listed")],
         );
         let indicator_key = |name: &str| IndicatorKey {
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+            group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu),
             name: name.to_owned().into(),
         };
         let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [headline_group]);
@@ -685,7 +685,7 @@ mod tests {
         item_list_scrolled_px: f32,
         row_name: &str,
     ) -> f32 {
-        let expansion = WidgetGroupExpansion::default();
+        let expansion = IndicatorGroupExpansion::default();
         let long_list = (0..40).map(|position| {
             GroupIndicator::composed(
                 format!("Row {position}"),
@@ -694,10 +694,10 @@ mod tests {
                 Box::new(|_| Vec::new()),
             )
         });
-        let group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Media,
+        let group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Media,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::Media.title(),
+                IndicatorGroupFamily::Media.title(),
                 IconGlyph::default(),
                 IndicatorState::Idle,
             ),
@@ -714,7 +714,7 @@ mod tests {
         ));
         let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
             menu: GroupMenuTopic::Media,
-            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+            group_identity: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Media),
         });
         let _ = group_menus.update(GroupMenuMessage::ItemListScrolled {
             menu: GroupMenuTopic::Media,
@@ -786,19 +786,19 @@ mod tests {
     enum RowPointerMessage {
         RowInspected(IndicatorKey),
         RowAction,
-        Revealed(WidgetGroupIdentity),
-        RevealIntended(WidgetGroupIdentity),
-        RevealCancelled(WidgetGroupIdentity),
+        Revealed(IndicatorGroupIdentity),
+        RevealIntended(IndicatorGroupIdentity),
+        RevealCancelled(IndicatorGroupIdentity),
         Unrelated,
     }
 
     impl From<GroupEvent> for RowPointerMessage {
         fn from(event: GroupEvent) -> Self {
             match event {
-                GroupEvent::Interaction(WidgetGroupInteraction::CompositorStyling(
+                GroupEvent::Interaction(IndicatorGroupInteraction::CompositorStyling(
                     CompositorStylingMessage::ToggleXray,
                 )) => RowPointerMessage::RowAction,
-                GroupEvent::Interaction(WidgetGroupInteraction::GroupMenus(menu_message)) => {
+                GroupEvent::Interaction(IndicatorGroupInteraction::GroupMenus(menu_message)) => {
                     match menu_message {
                         GroupMenuMessage::InspectRow { indicator, .. } => {
                             RowPointerMessage::RowInspected(indicator)
@@ -822,7 +822,7 @@ mod tests {
 
     fn pointed_row() -> IndicatorKey {
         IndicatorKey {
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+            group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu),
             name: "Smoke item".into(),
         }
     }
@@ -846,12 +846,12 @@ mod tests {
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
-        let expansion = WidgetGroupExpansion::default();
+        let expansion = IndicatorGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
-        let group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
+        let group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Gpu,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::Gpu.title(),
+                IndicatorGroupFamily::Gpu.title(),
                 IconGlyph::default(),
                 IndicatorState::Idle,
             ),
@@ -906,10 +906,10 @@ mod tests {
 
     fn compute_reveal_messages(approach: PointerApproach) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
-        let expansion = WidgetGroupExpansion::default();
+        let expansion = IndicatorGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
-        let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
-            WidgetGroupContent::expandable(
+        let groups = [IndicatorGroupFamily::Gpu, IndicatorGroupFamily::Compute].map(|family| {
+            IndicatorGroupContent::expandable(
                 family,
                 GroupIndicator::glyph_only(
                     family.title(),
@@ -952,7 +952,7 @@ mod tests {
                 position: pointer,
             })]);
         }
-        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let compute = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute);
         simulator
             .into_messages()
             .map(RowPointerMessage::from)
@@ -967,7 +967,7 @@ mod tests {
 
     #[test]
     fn pointing_straight_down_onto_a_group_row_reveals_it_at_once() {
-        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let compute = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute);
         assert_eq!(
             compute_reveal_messages(PointerApproach::StraightDown),
             [
@@ -979,7 +979,7 @@ mod tests {
 
     #[test]
     fn crossing_a_group_row_toward_the_open_satellite_defers_its_reveal() {
-        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let compute = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute);
         assert_eq!(
             compute_reveal_messages(PointerApproach::TowardTheSatellite),
             [
@@ -1043,15 +1043,15 @@ mod tests {
         let _ = group_menus.update(GroupMenuMessage::TogglePin {
             menu: GroupMenuTopic::Media,
             entry: GroupMenuPin::Item(IndicatorKey {
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+                group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Media),
                 name: "Lyrics".into(),
             }),
         });
-        let expansion = WidgetGroupExpansion::default();
-        let group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Media,
+        let expansion = IndicatorGroupExpansion::default();
+        let group = IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Media,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::Media.title(),
+                IndicatorGroupFamily::Media.title(),
                 IconGlyph::default(),
                 IndicatorState::Idle,
             ),

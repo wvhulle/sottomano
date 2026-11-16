@@ -12,12 +12,14 @@ use sottomano_toml_config::Config;
 use crate::{
     group_indicators::aligned_quantity::AlignedQuantity,
     group_menus::menu_rows::menu_row::menu_row_height,
-    widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupTitle},
+    indicator_groups::{
+        indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupTitle,
+    },
     widgets::text::{column_heading, row_key_label},
 };
 
 pub(crate) struct QuantityTableColumn<'a> {
-    pub group_title: WidgetGroupTitle,
+    pub group_title: IndicatorGroupTitle,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent>>,
 }
 

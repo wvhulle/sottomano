@@ -1,0 +1,901 @@
+use std::{
+    collections::HashMap,
+    iter,
+    time::{Duration, Instant},
+};
+
+use corredo::{
+    press_actions::{ConfirmButton, ConfirmPolicy, ConfirmPress},
+    transitions::ExpansionState,
+    value_controls::SeekMessage,
+};
+use iced::{Element, Subscription, Task, time::every, widget::Row};
+use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
+use sottomano_desktop_sources::{
+    SnapshotDelivery,
+    desktop_windows_apps::window_edge_placement::WindowOwner,
+    media_playback_audio::{
+        lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
+        mpris_players::{self, Command, Media, Progress, Status},
+    },
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus, OwnerProcess},
+};
+use sottomano_toml_config::{
+    Config,
+    indicator_groups::media_lyrics::{LrclibLookup, MediaLyricsConfig},
+};
+
+use crate::{
+    background_work::snapshot_subscription,
+    clock::Clock,
+    desktop_index::DesktopIndex,
+    group_indicators::{
+        group_indicator::{DescribeCard, GroupIndicator, IndicatorValue, PanelVisibility},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
+    },
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        MouseGesture, PressAction,
+        hover_card_body::{Section, dictionary_table},
+    },
+    indicator_groups::{
+        indicator_group_content::{
+            GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
+            IndicatorGroupExpansionMessage,
+        },
+        indicator_group_identity::{
+            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
+            IndicatorGroupTitle,
+        },
+        media_group::seek_bar::SeekAvailability,
+    },
+    widgets::{
+        app_window_focus::AppWindowFocus,
+        icon_handle::IconHandle,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+        value_cells::LabeledValue,
+    },
+};
+
+pub mod confirm_button;
+pub mod karaoke_lyric_line;
+mod seek_bar;
+mod session_controls;
+mod synced_lyrics_view;
+mod track_face;
+mod track_hover_card;
+mod transport_controls;
+
+use self::{
+    seek_bar::SeekBar,
+    session_controls::{SessionControls, SessionMessages},
+    synced_lyrics_view::{
+        TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
+        track_lyrics_indicator,
+    },
+    track_face::{player_headline_indicator, track_indicator, wired_player_indicator},
+    track_hover_card::{playback_section, search_section, track_section},
+    transport_controls::TransportControls,
+};
+
+const PROGRESS_TICK: Duration = Duration::from_secs(1);
+const LYRICS_TICK: Duration = Duration::from_millis(250);
+const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlaybackPace {
+    Singing,
+    Progressing,
+    Still,
+}
+
+#[derive(Default)]
+pub struct MediaGroup {
+    players: SubscribedSnapshot<Vec<Media>>,
+    sessions: HashMap<String, PlayerSession>,
+    lyrics_snapshots: HashMap<LyricsQuery, SubscribedSnapshot<TrackLyrics>>,
+}
+
+struct PlayerSession {
+    cover_art: Option<CoverArt>,
+    seek_bar: SeekBar,
+    quit_button: ConfirmButton,
+    expansion: IndicatorGroupExpansion,
+}
+
+impl Default for PlayerSession {
+    fn default() -> Self {
+        Self {
+            cover_art: None,
+            seek_bar: SeekBar::default(),
+            quit_button: ConfirmButton::new(ConfirmPolicy::ConfirmFirst),
+            expansion: IndicatorGroupExpansion::default(),
+        }
+    }
+}
+
+struct CoverArt {
+    url: String,
+    handle: IconHandle,
+}
+
+#[derive(Debug)]
+pub enum MediaMessage {
+    Sample(SnapshotDelivery<Vec<Media>>),
+    LyricsIndicator {
+        query: LyricsQuery,
+        delivery: SnapshotDelivery<TrackLyrics>,
+    },
+    ArtLoaded {
+        bus: String,
+        url: String,
+        handle: Option<IconHandle>,
+    },
+    ProgressAdvanced,
+    PlayerFallback(MediaInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MediaInteraction {
+    Player {
+        bus: String,
+        interaction: PlayerInteraction,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum PlayerInteraction {
+    Expansion(IndicatorGroupExpansionMessage),
+    Command(Command),
+    Seek(SeekMessage),
+    Quit,
+    CancelQuit,
+    RaiseByMpris,
+}
+
+pub enum Action {
+    Run(Task<MediaMessage>),
+    FocusAppWindow(AppWindowFocus<MediaMessage>),
+}
+
+fn player_group_identity(media: &Media, bus: &str) -> IndicatorGroupIdentity {
+    IndicatorGroupIdentity {
+        family: IndicatorGroupFamily::Media,
+        instance: IndicatorGroupInstance::Session {
+            durable: media.identity.clone().into(),
+            session: bus.to_owned().into(),
+        },
+    }
+}
+
+fn player_interaction(bus: &str, interaction: PlayerInteraction) -> MediaInteraction {
+    MediaInteraction::Player {
+        bus: bus.to_owned(),
+        interaction,
+    }
+}
+
+fn player_fallback_message(bus: &str, interaction: PlayerInteraction) -> MediaMessage {
+    MediaMessage::PlayerFallback(player_interaction(bus, interaction))
+}
+
+fn lifted_to_player<'a>(
+    bus: &'a str,
+    element: Element<'a, PlayerInteraction>,
+) -> Element<'a, GroupEvent> {
+    element.map(move |interaction| GroupEvent::from(player_interaction(bus, interaction)))
+}
+
+impl MediaGroup {
+    pub fn collapse(&mut self) {
+        for session in self.sessions.values_mut() {
+            session.expansion.collapse();
+        }
+    }
+
+    pub fn subscription(
+        &self,
+        buses: &DesktopBuses,
+        lyrics_config: &MediaLyricsConfig,
+        demand: &GroupSourceDemand,
+    ) -> Subscription<MediaMessage> {
+        let samples = snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Sample);
+        let lyrics_lookups = self
+            .unfetched_lyrics_queries()
+            .filter(|_| lyrics_config.lrclib_lookup == LrclibLookup::Enabled)
+            .map(|query| {
+                snapshot_subscription::<TrackLyrics>(OnBus {
+                    buses: buses.clone(),
+                    inputs: query.clone(),
+                })
+                .with(query)
+                .map(|(query, delivery)| MediaMessage::LyricsIndicator { query, delivery })
+            });
+        let progress_tick = match self.playback_pace() {
+            PlaybackPace::Singing => {
+                Some(every(LYRICS_TICK).map(|_| MediaMessage::ProgressAdvanced))
+            }
+            PlaybackPace::Progressing => {
+                Some(every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced))
+            }
+            PlaybackPace::Still => None,
+        }
+        .map(|tick| demand.while_any_indicator_shown(tick));
+        Subscription::batch(
+            iter::once(samples)
+                .chain(lyrics_lookups)
+                .chain(progress_tick),
+        )
+    }
+
+    fn playing_lyrics_queries(&self) -> impl Iterator<Item = LyricsQuery> {
+        self.all_players()
+            .filter(|media| media.status == Status::Playing)
+            .filter_map(Media::lyrics_query)
+    }
+
+    fn unfetched_lyrics_queries(&self) -> impl Iterator<Item = LyricsQuery> {
+        self.playing_lyrics_queries().filter(|query| {
+            self.lyrics_snapshots
+                .get(query)
+                .is_none_or(|lyrics_snapshot| lyrics_snapshot.get().is_none())
+        })
+    }
+
+    fn playback_pace(&self) -> PlaybackPace {
+        let singing = self.playing_lyrics_queries().any(|query| {
+            matches!(
+                self.lyrics_snapshots
+                    .get(&query)
+                    .and_then(SubscribedSnapshot::get),
+                Some(TrackLyrics::Synced(_))
+            )
+        });
+        let progressing = self.all_players().any(|media| {
+            media.status == Status::Playing && matches!(media.progress, Progress::Timed { .. })
+        });
+        match (singing, progressing) {
+            (true, _) => PlaybackPace::Singing,
+            (false, true) => PlaybackPace::Progressing,
+            (false, false) => PlaybackPace::Still,
+        }
+    }
+
+    fn lyrics_of(&self, media: &Media) -> Option<&SubscribedSnapshot<TrackLyrics>> {
+        self.lyrics_snapshots.get(&media.lyrics_query()?)
+    }
+
+    fn all_players(&self) -> impl Iterator<Item = &Media> {
+        self.players.get().into_iter().flatten()
+    }
+
+    fn player(&self, bus: &str) -> Option<&Media> {
+        self.all_players().find(|media| media.bus == bus)
+    }
+
+    fn titled_players(&self) -> Vec<&Media> {
+        let mut titled: Vec<&Media> = self
+            .all_players()
+            .filter(|media| media.title.is_some())
+            .collect();
+        titled.sort_by(|left, right| left.bus.cmp(&right.bus));
+        titled
+    }
+
+    fn group_title_of(&self, media: &Media) -> IndicatorGroupTitle {
+        let earlier_namesakes = self
+            .titled_players()
+            .into_iter()
+            .take_while(|other| other.bus != media.bus)
+            .filter(|other| other.identity == media.identity)
+            .count();
+        IndicatorGroupTitle::numbered_from_second(media.identity.clone(), earlier_namesakes)
+    }
+
+    pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
+        match msg {
+            MediaMessage::LyricsIndicator { query, delivery } => {
+                self.lyrics_snapshots
+                    .entry(query)
+                    .or_default()
+                    .receive(delivery, clock);
+            }
+            MediaMessage::ProgressAdvanced => {}
+            MediaMessage::Sample(delivery) => {
+                self.players.receive(delivery, clock);
+                self.follow_players(clock.instant);
+                return Action::Run(self.art_loads());
+            }
+            MediaMessage::ArtLoaded { bus, url, handle } => {
+                let still_shown = self
+                    .player(&bus)
+                    .is_some_and(|media| media.art_url.as_deref() == Some(url.as_str()));
+                if let Some(handle) = handle.filter(|_| still_shown)
+                    && let Some(session) = self.sessions.get_mut(&bus)
+                {
+                    session.cover_art = Some(CoverArt { url, handle });
+                }
+            }
+            MediaMessage::PlayerFallback(fallback_interaction) => {
+                return self.interact(fallback_interaction, clock);
+            }
+        }
+        Action::Run(Task::none())
+    }
+
+    pub fn interact(&mut self, interaction: MediaInteraction, clock: Clock) -> Action {
+        let MediaInteraction::Player {
+            bus,
+            interaction: player_interaction,
+        } = interaction;
+        self.update_player(&bus, player_interaction, clock)
+    }
+
+    fn follow_players(&mut self, now: Instant) {
+        let players: Vec<Media> = self.all_players().cloned().collect();
+        self.sessions
+            .retain(|bus, _| players.iter().any(|media| &media.bus == bus));
+        let current_queries: Vec<LyricsQuery> =
+            players.iter().filter_map(Media::lyrics_query).collect();
+        self.lyrics_snapshots
+            .retain(|query, _| current_queries.contains(query));
+        for media in &players {
+            let session = self.sessions.entry(media.bus.clone()).or_default();
+            session.seek_bar.player_reported(media, now);
+            if session
+                .cover_art
+                .as_ref()
+                .is_some_and(|art| media.art_url.as_deref() != Some(art.url.as_str()))
+            {
+                session.cover_art = None;
+            }
+        }
+    }
+
+    fn update_player(&mut self, bus: &str, interaction: PlayerInteraction, clock: Clock) -> Action {
+        let (Some(media), Some(session)) = (self.player(bus).cloned(), self.sessions.get_mut(bus))
+        else {
+            return Action::Run(Task::none());
+        };
+        let task = match interaction {
+            PlayerInteraction::Expansion(IndicatorGroupExpansionMessage::HandleScrolled(delta)) => {
+                seek_by(session, &media, SeekMessage::Scroll(delta), clock.instant)
+            }
+            PlayerInteraction::Expansion(expansion) => {
+                session.expansion.update(expansion);
+                Task::none()
+            }
+            PlayerInteraction::Command(Command::Raise) => return raise(&media),
+            PlayerInteraction::RaiseByMpris => raise_by_mpris(&media),
+            PlayerInteraction::Command(command) => send(&media, command),
+            PlayerInteraction::Seek(seek) => seek_by(session, &media, seek, clock.instant),
+            PlayerInteraction::CancelQuit => {
+                session.quit_button.disarm();
+                Task::none()
+            }
+            PlayerInteraction::Quit => match session.quit_button.press() {
+                ConfirmPress::Armed => Task::none(),
+                ConfirmPress::Fire => send(&media, Command::Quit),
+            },
+        };
+        Action::Run(task)
+    }
+
+    fn art_loads(&self) -> Task<MediaMessage> {
+        Task::batch(self.all_players().filter_map(|media| {
+            let shown = self
+                .sessions
+                .get(&media.bus)
+                .and_then(|session| session.cover_art.as_ref());
+            let url = media.art_url.clone().filter(|_| shown.is_none())?;
+            let bus = media.bus.clone();
+            let loading = {
+                let url = url.clone();
+                async move { mpris_players::load_art(&url).await }
+            };
+            Some(Task::perform(loading, move |pixels| {
+                MediaMessage::ArtLoaded {
+                    bus: bus.clone(),
+                    url: url.clone(),
+                    handle: pixels.as_ref().map(IconHandle::from),
+                }
+            }))
+        }))
+    }
+
+    fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Vec<Section> {
+        let Some(lyrics_snapshot) = self.lyrics_of(media) else {
+            return Vec::new();
+        };
+        let Some(track_lyrics) = lyrics_snapshot.get() else {
+            return lyrics_snapshot
+                .sections_described_by(|snapshot| vec![lyrics_section(snapshot, Duration::ZERO)]);
+        };
+        let Some(played) = media.progress.played(media.status, clock.instant) else {
+            return Vec::new();
+        };
+        lyrics_snapshot.hover_card_with(vec![lyrics_section(track_lyrics, played)])
+    }
+
+    fn player_hover_card(&self, media: &Media) -> Vec<Section> {
+        self.players.hover_card_with(vec![Section::new(
+            "Status",
+            dictionary_table([
+                LabeledValue::new("Player", media.identity.clone()),
+                LabeledValue::new("State", media.status.label()),
+            ]),
+        )])
+    }
+
+    fn track_hover_card(&self, media: &Media, index: &DesktopIndex, clock: Clock) -> Vec<Section> {
+        self.players.hover_card_with(vec![
+            track_section(media, index),
+            playback_section(media, clock.instant),
+            search_section(media, index),
+        ])
+    }
+
+    pub fn group_contents<'a>(
+        &'a self,
+        config: &'a Config,
+        index: &'a DesktopIndex,
+        clock: Clock,
+    ) -> impl Iterator<Item = IndicatorGroupContent<'a>> {
+        self.titled_players().into_iter().filter_map(move |media| {
+            let session = self.sessions.get(&media.bus)?;
+            let group_title = self.group_title_of(media);
+            Some(player_group(
+                config,
+                clock,
+                group_title,
+                media,
+                session,
+                self.lyrics_of(media),
+                PlayerCards {
+                    headline: Box::new(move |_| self.player_hover_card(media)),
+                    player: Box::new(move |_| self.player_hover_card(media)),
+                    track: Box::new(move |card_clock| {
+                        self.track_hover_card(media, index, card_clock)
+                    }),
+                    lyrics: Box::new(move |card_clock| self.lyrics_hover_card(media, card_clock)),
+                },
+            ))
+        })
+    }
+}
+
+fn session_buttons_indicator<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    session: &'a PlayerSession,
+) -> GroupIndicator<'a> {
+    let bus = media.bus.as_str();
+    GroupIndicator::composed(
+        "Session",
+        IndicatorIcon::Absent,
+        IndicatorValue::drawn(move |reveal| {
+            lifted_to_player(bus, session_controls(config, media, session, reveal).into())
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions(session_controls(config, media, session, 1.0).press_actions())
+}
+
+struct PlayerCards<'a> {
+    headline: DescribeCard<'a>,
+    player: DescribeCard<'a>,
+    track: DescribeCard<'a>,
+    lyrics: DescribeCard<'a>,
+}
+
+fn seek_position_indicator<'a>(
+    config: &'a Config,
+    clock: Clock,
+    media: &'a Media,
+    session: &'a PlayerSession,
+) -> GroupIndicator<'a> {
+    let bus = media.bus.as_str();
+    GroupIndicator::composed(
+        "Position",
+        IndicatorIcon::IconGlyph {
+            glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
+            state: IndicatorState::Idle,
+        },
+        IndicatorValue::drawn(move |_| {
+            let bar = session
+                .seek_bar
+                .view(config, media, clock.instant)
+                .map_or_else(|| Row::new().into(), |bar| bar.map(PlayerInteraction::Seek));
+            lifted_to_player(bus, bar)
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions([
+        PressAction::new(MouseGesture::LeftClick, "Seek bar: jump to this point"),
+        PressAction::new(MouseGesture::Scroll, "Seek bar: seek"),
+    ])
+}
+
+fn transport_controls_indicator<'a>(config: &'a Config, media: &'a Media) -> GroupIndicator<'a> {
+    let bus = media.bus.as_str();
+    let press_actions =
+        TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
+    GroupIndicator::composed(
+        "Playback",
+        IndicatorIcon::Absent,
+        IndicatorValue::drawn(move |reveal| {
+            lifted_to_player(
+                bus,
+                TransportControls::new(config, media, reveal, PlayerInteraction::Command).into(),
+            )
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions(press_actions)
+}
+
+fn player_group<'a>(
+    config: &'a Config,
+    clock: Clock,
+    group_title: IndicatorGroupTitle,
+    media: &'a Media,
+    session: &'a PlayerSession,
+    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
+    cards: PlayerCards<'a>,
+) -> IndicatorGroupContent<'a> {
+    let bus = media.bus.as_str();
+    let seek_availability = SeekBar::seek_availability(media, clock.instant);
+    let gauge_fraction = media
+        .progress
+        .fraction(media.status, clock.instant)
+        .filter(|_| {
+            !(seek_availability == SeekAvailability::Seekable
+                && session.expansion.state() == ExpansionState::Expanded)
+        });
+    let headline_indicator =
+        player_headline_indicator(media, gauge_fraction).with_hover_card(cards.headline);
+    let mut rows = vec![
+        wired_player_indicator(config, media, gauge_fraction).with_hover_card(cards.player),
+        track_indicator(
+            config,
+            media,
+            session.cover_art.as_ref().map(|art| &art.handle),
+        )
+        .with_hover_card(cards.track),
+    ];
+    if let Some(lyrics_snapshot) = lyrics_snapshot {
+        if let Some(timed_line) = singing_line(lyrics_snapshot, media, clock.instant) {
+            rows.push(
+                current_lyric_line(config, media, timed_line, clock.instant)
+                    .with_hover_card(cards.lyrics),
+            );
+        } else {
+            match lyrics_snapshot {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    let lyrics_indicator = track_lyrics_indicator(held_snapshot);
+                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
+                    }
+                }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    let lyrics_indicator = troubled_snapshot.shown_over(
+                        track_lyrics_indicator(&troubled_snapshot.held_snapshot),
+                        clock,
+                    );
+                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
+                    }
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => {
+                    rows.push(
+                        placeholder
+                            .indicator(TRACK_LYRICS_FALLBACK_GLYPH)
+                            .with_hover_card(cards.lyrics),
+                    );
+                }
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
+            }
+        }
+    }
+    if seek_availability == SeekAvailability::Seekable {
+        rows.push(seek_position_indicator(config, clock, media, session));
+    }
+    rows.push(transport_controls_indicator(config, media));
+    if (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit {
+        rows.push(session_buttons_indicator(config, media, session));
+    }
+    IndicatorGroupContent::expandable_instance(
+        player_group_identity(media, bus),
+        group_title,
+        headline_indicator,
+        &session.expansion,
+        move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
+        rows,
+    )
+    .forwards_scroll(
+        (seek_availability == SeekAvailability::Seekable).then_some("seek in the track"),
+    )
+}
+
+fn session_controls<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    session: &'a PlayerSession,
+    reveal: f32,
+) -> SessionControls<'a, PlayerInteraction> {
+    SessionControls::new(
+        config,
+        media,
+        &session.quit_button,
+        reveal,
+        SessionMessages {
+            command: PlayerInteraction::Command,
+            quit: PlayerInteraction::Quit,
+            cancel_quit: PlayerInteraction::CancelQuit,
+        },
+    )
+}
+
+fn seek_by(
+    session: &mut PlayerSession,
+    media: &Media,
+    message: SeekMessage,
+    now: Instant,
+) -> Task<MediaMessage> {
+    let Some(command) = session.seek_bar.update(message, media, now) else {
+        return Task::none();
+    };
+    let bus = media.bus.clone();
+    Task::future(mpris_player_commands::control(bus.clone(), command)).then(move |dispatched| {
+        match dispatched {
+            Ok(()) => Task::none(),
+            Err(bus_failure) => {
+                tracing::warn!("mpris {bus}: seeking: {bus_failure}");
+                Task::done(player_fallback_message(
+                    &bus,
+                    PlayerInteraction::Seek(SeekMessage::Rejected),
+                ))
+            }
+        }
+    })
+}
+
+fn raise(media: &Media) -> Action {
+    let OwnerProcess::Identified(pid) = media.owner else {
+        return Action::Run(raise_by_mpris(media));
+    };
+    Action::FocusAppWindow(AppWindowFocus {
+        owner: WindowOwner::Process(pid),
+        unmatched: player_fallback_message(&media.bus, PlayerInteraction::RaiseByMpris),
+    })
+}
+
+fn raise_by_mpris(media: &Media) -> Task<MediaMessage> {
+    if media.capabilities.raise {
+        send(media, Command::Raise)
+    } else {
+        Task::none()
+    }
+}
+
+fn send(media: &Media, command: Command) -> Task<MediaMessage> {
+    let bus = media.bus.clone();
+    Task::future(async move {
+        if let Err(bus_failure) = mpris_player_commands::control(bus.clone(), command).await {
+            tracing::warn!("mpris {bus}: {bus_failure}");
+        }
+    })
+    .discard()
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_desktop_sources::{
+        media_playback_audio::mpris_players::{Capabilities, PlayerSetting, SeekMode},
+        system_protocol_clients::http_json_client,
+    };
+
+    use super::*;
+    use crate::widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon};
+
+    fn titled_player(bus: &str, status: Status) -> Media {
+        Media {
+            bus: bus.to_owned(),
+            owner: OwnerProcess::Unidentified,
+            identity: bus.to_owned(),
+            desktop_entry: None,
+            title: Some("track".to_owned()),
+            artists: Vec::new(),
+            album: None,
+            url: None,
+            status,
+            progress: Progress::Untimed,
+            art_url: None,
+            capabilities: Capabilities::default(),
+            queue_order: PlayerSetting::Uncontrollable,
+            loop_mode: PlayerSetting::Uncontrollable,
+            seek_mode: SeekMode::Relative,
+        }
+    }
+
+    fn reported(group: &mut MediaGroup, players: Vec<Media>, clock: Clock) {
+        let _ = group.update(
+            MediaMessage::Sample(SnapshotDelivery::live_push(Ok(players))),
+            clock,
+        );
+    }
+
+    #[test]
+    fn each_player_keeps_its_own_session() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        reported(
+            &mut group,
+            vec![
+                titled_player("org.mpris.MediaPlayer2.spotify", Status::Playing),
+                titled_player("org.mpris.MediaPlayer2.firefox", Status::Paused),
+            ],
+            clock,
+        );
+        let _ = group.interact(
+            player_interaction(
+                "org.mpris.MediaPlayer2.firefox",
+                PlayerInteraction::Expansion(IndicatorGroupExpansionMessage::Toggle),
+            ),
+            clock,
+        );
+        let expansion_states: Vec<ExpansionState> = [
+            "org.mpris.MediaPlayer2.firefox",
+            "org.mpris.MediaPlayer2.spotify",
+        ]
+        .iter()
+        .map(|bus| group.sessions[*bus].expansion.state())
+        .collect();
+        assert_eq!(
+            expansion_states,
+            [ExpansionState::Expanded, ExpansionState::Collapsed]
+        );
+        assert_eq!(group.titled_players().len(), 2);
+    }
+
+    #[test]
+    fn each_player_titles_its_own_group() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        let named_player = |bus: &str, identity: &str| Media {
+            identity: identity.to_owned(),
+            ..titled_player(bus, Status::Playing)
+        };
+        reported(
+            &mut group,
+            vec![
+                named_player("org.mpris.MediaPlayer2.spotify", "Spotify"),
+                named_player("org.mpris.MediaPlayer2.firefox.instance1", "Firefox"),
+                named_player("org.mpris.MediaPlayer2.firefox.instance2", "Firefox"),
+            ],
+            clock,
+        );
+        let titles: Vec<String> = group
+            .titled_players()
+            .into_iter()
+            .map(|media| group.group_title_of(media).to_string())
+            .collect();
+        assert_eq!(titles, ["Firefox", "Firefox 2", "Spotify"]);
+    }
+
+    #[test]
+    fn vanished_player_drops_its_session() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        reported(
+            &mut group,
+            vec![
+                titled_player("org.mpris.MediaPlayer2.spotify", Status::Playing),
+                titled_player("org.mpris.MediaPlayer2.firefox", Status::Paused),
+            ],
+            clock,
+        );
+        reported(
+            &mut group,
+            vec![titled_player(
+                "org.mpris.MediaPlayer2.spotify",
+                Status::Playing,
+            )],
+            clock,
+        );
+        assert_eq!(
+            group.sessions.keys().collect::<Vec<_>>(),
+            ["org.mpris.MediaPlayer2.spotify"]
+        );
+    }
+
+    fn singing_player(title: &str, clock: Clock) -> Media {
+        Media {
+            title: Some(title.to_owned()),
+            artists: vec!["The Harbour Lights".to_owned()],
+            progress: Progress::Timed {
+                position: Duration::from_secs(15),
+                sampled_at: clock.instant,
+                length: Duration::from_secs(241),
+                rate: 1.0,
+            },
+            ..titled_player("org.mpris.MediaPlayer2.spotify", Status::Playing)
+        }
+    }
+
+    fn lyrics_delivered(group: &mut MediaGroup, media: &Media, clock: Clock) {
+        let _ = group.update(
+            MediaMessage::LyricsIndicator {
+                query: media
+                    .lyrics_query()
+                    .expect("a timed, titled track has a query"),
+                delivery: SnapshotDelivery::single_read(Ok(TrackLyrics::synced_from_lrc(
+                    "[00:10.00]Low tide, low tide",
+                ))),
+            },
+            clock,
+        );
+    }
+
+    #[test]
+    fn delivered_lyrics_follow_the_track_and_drop_on_a_track_change() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        let low_tide = singing_player("Low Tide", clock);
+        reported(&mut group, vec![low_tide.clone()], clock);
+        assert_eq!(group.unfetched_lyrics_queries().count(), 1);
+        lyrics_delivered(&mut group, &low_tide, clock);
+        assert_eq!(group.playback_pace(), PlaybackPace::Singing);
+        assert_eq!(group.unfetched_lyrics_queries().count(), 0);
+        reported(&mut group, vec![singing_player("High Water", clock)], clock);
+        assert!(group.lyrics_snapshots.is_empty());
+        assert_ne!(group.playback_pace(), PlaybackPace::Singing);
+    }
+
+    #[test]
+    fn a_failed_attempt_shows_while_the_lookup_keeps_retrying() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        let low_tide = singing_player("Low Tide", clock);
+        reported(&mut group, vec![low_tide.clone()], clock);
+        let _ = group.update(
+            MediaMessage::LyricsIndicator {
+                query: low_tide
+                    .lyrics_query()
+                    .expect("a timed, titled track has a query"),
+                delivery: SnapshotDelivery::single_read(Err(http_json_client::Error::status(
+                    503, None,
+                ))),
+            },
+            clock,
+        );
+        assert_eq!(group.unfetched_lyrics_queries().count(), 1);
+        assert!(
+            group
+                .lyrics_of(&low_tide)
+                .is_some_and(|lyrics_snapshot| lyrics_snapshot.failure().is_some())
+        );
+    }
+
+    #[test]
+    fn a_spotify_handle_shows_the_spotify_glyph() {
+        let spotify = titled_player("Spotify", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&spotify, None).face().icon,
+            IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
+        ));
+    }
+
+    #[test]
+    fn an_unbranded_player_handle_shows_music_notes() {
+        let unbranded = titled_player("Unbranded test player", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&unbranded, None).face().icon,
+            IndicatorIcon::IconGlyph { glyph, .. }
+                if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
+        ));
+    }
+}

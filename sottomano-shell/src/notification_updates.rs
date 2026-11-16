@@ -4,17 +4,17 @@ use iced::{Task, window::Id};
 use sottomano_widgets::{
     group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
     hover_cards::PopupMessage,
-    notification_toasts::ToastContext,
-    toast_messages::NotificationMessage,
-    widget_groups::{
+    indicator_groups::{
+        indicator_group_content::GroupToastRequests,
+        indicator_group_interaction::IndicatorGroupInteraction,
         notification_group,
         notification_group::NotificationGroupMessage,
         quiet_schedule_group::{
             QuietChange, QuietScheduleMessage, QuietUpdate, quiet_window::QuietPhase,
         },
-        widget_group_content::GroupToastRequests,
-        widget_group_interaction::WidgetGroupInteraction,
     },
+    notification_toasts::ToastContext,
+    toast_messages::NotificationMessage,
 };
 
 use crate::{
@@ -32,7 +32,7 @@ pub(crate) enum AlertRescanNeed {
 pub(crate) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
     match message {
         Message::GroupMenuState(menu_message)
-        | Message::Interaction(ShellInteraction::Group(WidgetGroupInteraction::GroupMenus(
+        | Message::Interaction(ShellInteraction::Group(IndicatorGroupInteraction::GroupMenus(
             menu_message,
         ))) => menu_rescan_need(menu_message),
         Message::Interaction(ShellInteraction::Popup(PopupMessage::HoverCard(_)))
@@ -105,8 +105,8 @@ impl DesktopShell {
                     &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,
-                    self.widget_groups.notification_settings(),
-                    self.widget_groups.quiet_schedule_group.quiet_phase(),
+                    self.indicator_groups.notification_settings(),
+                    self.indicator_groups.quiet_schedule_group.quiet_phase(),
                     self.clock,
                 ),
                 &|output| toast_surfaces.get(output).copied(),
@@ -115,7 +115,7 @@ impl DesktopShell {
     }
 
     pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match self.widget_groups.notification_group.update(msg) {
+        match self.indicator_groups.notification_group.update(msg) {
             notification_group::Action::Run(task) => task.map(Message::NotificationGroup),
             notification_group::Action::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
@@ -125,7 +125,7 @@ impl DesktopShell {
 
     pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
         let QuietUpdate { task, change } = self
-            .widget_groups
+            .indicator_groups
             .quiet_schedule_group
             .update(msg, self.clock);
         Task::batch([
@@ -138,12 +138,12 @@ impl DesktopShell {
         match change {
             QuietChange::Unchanged => Task::none(),
             QuietChange::ScreenOffAfter(timeout) => self
-                .widget_groups
+                .indicator_groups
                 .idle_pause_groups
                 .override_screen_off(Some(timeout))
                 .map(Message::IdleTimeouts),
             QuietChange::ScreenOffFollowsIdleTimer => self
-                .widget_groups
+                .indicator_groups
                 .idle_pause_groups
                 .override_screen_off(None)
                 .map(Message::IdleTimeouts),
@@ -154,14 +154,14 @@ impl DesktopShell {
                         &self.compositor,
                         self.desktop_entries.get(),
                         &self.config,
-                        self.widget_groups.notification_settings(),
+                        self.indicator_groups.notification_settings(),
                         QuietPhase::Inactive,
                         self.clock,
                     ))
                     .map(Message::from);
                 Task::batch([
                     released,
-                    self.widget_groups
+                    self.indicator_groups
                         .idle_pause_groups
                         .override_screen_off(None)
                         .map(Message::IdleTimeouts),

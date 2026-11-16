@@ -1,0 +1,884 @@
+use std::{borrow::Cow, iter::once};
+
+use chrono::Locale;
+use iced::alignment::Horizontal;
+use sottomano_desktop_sources::login_session_presence::{
+    idle_session_actions::IdleAction,
+    kernel_sleep_obstacles::{
+        IdleActionSetting, InhibitedOperation, KernelHibernation, KernelSleepVerdict,
+        LogindCapability, ResumeDevice, ScheduledShutdown, SecretMemoryHolder, SleepObstacles,
+        SleepState, WindowOwnership,
+    },
+    screensaver_bus_idle_inhibitors::IdleInhibitor,
+};
+use sottomano_toml_config::severity::Severity;
+
+use crate::{
+    clock::Clock,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
+    },
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
+    widgets::{
+        idle::ActionTrigger,
+        keyed_record_table::{ColumnHeading, TableRecord},
+        ongoing_toast::moment_text,
+        phosphor::{Phosphor, Weight},
+        value_cells::LabeledValue,
+    },
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BlockerCause {
+    KernelSecretMemory,
+    KernelBootFlag,
+    KernelLockdown,
+    KernelUnidentified,
+    KernelUninspected,
+    LogindRefusal,
+    SleepLock,
+    ShutdownLock,
+    LogindIdleLock,
+    ScreenSaverHold,
+}
+
+impl BlockerCause {
+    fn section_heading(self) -> (&'static str, &'static str) {
+        match self {
+            BlockerCause::KernelSecretMemory => (
+                "Kernel",
+                "The kernel disables hibernation while these apps hold secret memory.",
+            ),
+            BlockerCause::KernelBootFlag => (
+                "Kernel",
+                "The kernel disables hibernation because of how it was booted.",
+            ),
+            BlockerCause::KernelLockdown => (
+                "Kernel",
+                "The kernel disables hibernation while lockdown is active.",
+            ),
+            BlockerCause::KernelUnidentified => (
+                "Kernel",
+                "Disabled by the kernel. No boot flag, lockdown or secret memory was found.",
+            ),
+            BlockerCause::KernelUninspected => (
+                "Kernel",
+                "Disabled by the kernel. Enable the NixOS module to see which app caused it.",
+            ),
+            BlockerCause::LogindRefusal => ("Sleep state", "As answered by logind."),
+            BlockerCause::SleepLock => {
+                ("Sleep", "These apps hold a logind lock that blocks sleep.")
+            }
+            BlockerCause::ShutdownLock => (
+                "Power-down",
+                "These apps hold a logind lock that blocks shutdown.",
+            ),
+            BlockerCause::LogindIdleLock => (
+                "logind idle action",
+                "These apps hold a logind lock that stops logind's own idle action.",
+            ),
+            BlockerCause::ScreenSaverHold => (
+                "Idle timers",
+                "These apps asked the compositor to hold idle timers, as seen since sottomano \
+                 started. Apps using Wayland's idle-inhibit protocol can't be listed.",
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum IdleActionBlocking {
+    StopsArmedAction,
+    LeavesActionRunning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PauseBlocker {
+    pub pause: IdleAction,
+    pub holder: String,
+    pub why: String,
+    pub cause: BlockerCause,
+    pub action_blocking: IdleActionBlocking,
+    pub holder_process: Option<HolderProcess>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct HolderProcess {
+    pub pid: u32,
+    pub window_ownership: WindowOwnership,
+}
+
+impl PauseBlocker {
+    fn blocked_phrase(&self) -> Cow<'static, str> {
+        match (self.cause, self.pause) {
+            (BlockerCause::ScreenSaverHold, pause) => format!("{} held", pause_title(pause)).into(),
+            (BlockerCause::LogindIdleLock, _) => "Idle action held".into(),
+            (_, IdleAction::Hibernate) => "No hibernate".into(),
+            (_, IdleAction::PowerOff) => "No power-down".into(),
+            (_, _) => "No sleep".into(),
+        }
+    }
+}
+
+#[must_use]
+pub(super) fn pause_title(pause: IdleAction) -> &'static str {
+    match pause {
+        IdleAction::Lock => "Lock",
+        IdleAction::ScreenOff => "Screen off",
+        IdleAction::Sleep => "Standby",
+        IdleAction::Hibernate => "Hibernate",
+        IdleAction::PowerOff => "Power-down",
+    }
+}
+
+impl PauseBlocker {
+    pub(super) fn display_state(&self) -> IndicatorState {
+        match (self.action_blocking, self.cause) {
+            (IdleActionBlocking::StopsArmedAction, _) => IndicatorState::Critical,
+            (
+                IdleActionBlocking::LeavesActionRunning,
+                BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold,
+            ) => IndicatorState::Idle,
+            (IdleActionBlocking::LeavesActionRunning, _) => IndicatorState::Warning,
+        }
+    }
+
+    pub(super) fn indicator(&self) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(
+            self.holder.clone(),
+            Phosphor::Warning(Weight::Regular).into(),
+            self.display_state(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.blocked_phrase().into_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
+    }
+
+    pub(super) fn hover_card(&self) -> Vec<Section> {
+        blocker_sections(once(self)).into_iter().collect::<Vec<_>>()
+    }
+}
+
+impl From<&PauseBlocker> for TableRecord<1> {
+    fn from(pause_blocker: &PauseBlocker) -> Self {
+        TableRecord::with_cells(
+            pause_blocker.holder.clone(),
+            [pause_blocker.why.clone().into()],
+        )
+    }
+}
+
+struct SecretMemoryHolderRecord<'a>(&'a PauseBlocker);
+
+impl From<SecretMemoryHolderRecord<'_>> for TableRecord<2> {
+    fn from(secret_memory_holder_record: SecretMemoryHolderRecord<'_>) -> Self {
+        let SecretMemoryHolderRecord(blocker) = secret_memory_holder_record;
+        let (pid_text, window_text) = blocker.holder_process.map_or_else(
+            || (String::new(), String::new()),
+            |process| {
+                (
+                    process.pid.to_string(),
+                    match process.window_ownership {
+                        WindowOwnership::OwnsWindow => "open",
+                        WindowOwnership::Windowless => "none",
+                    }
+                    .to_owned(),
+                )
+            },
+        );
+        TableRecord::with_cells(
+            blocker.holder.clone(),
+            [pid_text.into(), window_text.into()],
+        )
+    }
+}
+
+pub(super) struct NextSleepStateIndicator {
+    pub state: SleepState,
+}
+
+impl NextSleepStateIndicator {
+    pub(super) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            self.state.title(),
+            Phosphor::Bed(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("will run".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Vec::new()))
+    }
+}
+
+pub(super) struct ScheduledShutdownIndicator<'a> {
+    pub shutdown: &'a ScheduledShutdown,
+}
+
+impl ScheduledShutdownIndicator<'_> {
+    pub(super) fn indicator<'indicator>(
+        self,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupIndicator<'indicator> {
+        let name = match self.shutdown.kind.as_str() {
+            "poweroff" | "dry-poweroff" => "Power off scheduled",
+            "reboot" | "dry-reboot" => "Reboot scheduled",
+            "halt" | "dry-halt" => "Halt scheduled",
+            _ => "Shutdown scheduled",
+        };
+        let label = match self.shutdown.at {
+            Some(at) => ReadoutLabel::Labeled(moment_text(at, clock.utc(), locale)),
+            None => ReadoutLabel::Unlabeled,
+        };
+        GroupIndicator::glyph_only(
+            name,
+            Phosphor::Clock(Weight::Regular).into(),
+            IndicatorState::Warning,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Vec::new()))
+    }
+}
+
+pub(super) fn blocker_sections<'a>(
+    blockers: impl IntoIterator<Item = &'a PauseBlocker>,
+) -> Vec<Section> {
+    let blockers: Vec<&PauseBlocker> = blockers.into_iter().collect();
+    let mut causes: Vec<BlockerCause> = Vec::new();
+    for blocker in &blockers {
+        if !causes.contains(&blocker.cause) {
+            causes.push(blocker.cause);
+        }
+    }
+    causes
+        .into_iter()
+        .map(|cause| {
+            let rows = blockers
+                .iter()
+                .copied()
+                .filter(|blocker| blocker.cause == cause);
+            let blocker_table = if cause == BlockerCause::KernelSecretMemory {
+                headed_table(
+                    [
+                        ColumnHeading::titled("PID"),
+                        ColumnHeading::titled("Window").align_x(Horizontal::Left),
+                    ],
+                    rows.map(SecretMemoryHolderRecord),
+                )
+            } else {
+                headed_table(
+                    [ColumnHeading::titled("Why").align_x(Horizontal::Left)],
+                    rows,
+                )
+            };
+            let (heading, caption) = cause.section_heading();
+            Section::new(SectionTitle::captioned(heading, caption), blocker_table)
+        })
+        .collect()
+}
+
+pub(super) fn sleep_state_sections(obstacles: &SleepObstacles) -> Vec<Section> {
+    let state_that_runs = obstacles.sleep_state_that_runs();
+    let rows = SleepState::ALL.into_iter().map(|state| {
+        let answer = sleep_state_answer(obstacles, state, state_that_runs);
+        let row = LabeledValue::new(state.title(), answer);
+        match obstacles.capability_of(state) {
+            LogindCapability::Allowed | LogindCapability::AfterAuthorisation => row,
+            LogindCapability::NotPermitted | LogindCapability::Unsupported => {
+                row.level(Severity::Warning)
+            }
+        }
+    });
+    vec![Section::new(
+        SectionTitle::captioned(
+            "What standby does now",
+            "logind runs the first available state in its configured order.",
+        ),
+        dictionary_table(rows),
+    )]
+}
+
+fn sleep_state_answer(
+    obstacles: &SleepObstacles,
+    state: SleepState,
+    state_that_runs: Option<SleepState>,
+) -> String {
+    if state_that_runs == Some(state) {
+        return "will run".to_owned();
+    }
+    let sleep_lock_holders: Vec<&str> = obstacles
+        .inhibitors_of(InhibitedOperation::Sleep)
+        .map(|inhibitor| inhibitor.holder.as_str())
+        .collect();
+    match obstacles.capability_of(state) {
+        LogindCapability::Allowed => "available".to_owned(),
+        LogindCapability::AfterAuthorisation => "available after authorisation".to_owned(),
+        _ if obstacles.kernel_verdict(state) == KernelSleepVerdict::Blocked => {
+            kernel_refusal_text(&obstacles.kernel_hibernation)
+        }
+        _ if !sleep_lock_holders.is_empty() => {
+            format!(
+                "blocked by a sleep lock from {}",
+                sleep_lock_holders.join(", ")
+            )
+        }
+        LogindCapability::NotPermitted => "not permitted for this user".to_owned(),
+        LogindCapability::Unsupported => unsupported_by_logind_text().to_owned(),
+    }
+}
+
+fn kernel_refusal_text(kernel_hibernation: &KernelHibernation) -> String {
+    match kernel_hibernation {
+        KernelHibernation::Allowed => unsupported_by_logind_text().to_owned(),
+        KernelHibernation::DisabledByBootFlag(flag) => {
+            format!("disabled by the kernel: booted with {flag}")
+        }
+        KernelHibernation::DisabledByLockdown(level) => {
+            format!("disabled by the kernel: lockdown is {level}")
+        }
+        KernelHibernation::DisabledBySecretMemory(holders) => format!(
+            "disabled by the kernel while {} holds secret memory",
+            unique_holder_names(holders).join(", ")
+        ),
+        KernelHibernation::DisabledForUnidentifiedCause => {
+            "disabled by the kernel, with no boot flag, lockdown or secret memory found".to_owned()
+        }
+        KernelHibernation::DisabledWithoutInspection => {
+            "disabled by the kernel; enable the NixOS module to see which app".to_owned()
+        }
+    }
+}
+
+fn unique_holder_names(holders: &[SecretMemoryHolder]) -> Vec<&str> {
+    let mut names: Vec<&str> = holders.iter().map(|holder| holder.name.as_str()).collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+fn unsupported_by_logind_text() -> &'static str {
+    "logind reports this isn't supported on this machine"
+}
+
+pub(super) struct PauseFacts<'a> {
+    pub obstacles: Option<&'a SleepObstacles>,
+    pub idle_inhibitors: &'a [IdleInhibitor],
+    pub armed_triggers: &'a [ActionTrigger],
+    pub hibernate_timer: TimerArming,
+}
+
+pub(super) fn pause_blockers(facts: &PauseFacts<'_>) -> Vec<PauseBlocker> {
+    let logind_and_kernel = facts.obstacles.into_iter().flat_map(|obstacles| {
+        hibernate_blockers(obstacles, facts.hibernate_timer)
+            .into_iter()
+            .chain(lock_blockers(obstacles))
+            .chain(no_sleep_state_blocker(obstacles))
+    });
+    logind_and_kernel
+        .chain(screensaver_blockers(
+            facts.idle_inhibitors,
+            facts.armed_triggers,
+        ))
+        .fold(Vec::new(), merge_blocker_of_same_holder)
+}
+
+fn merge_blocker_of_same_holder(
+    mut merged_blockers: Vec<PauseBlocker>,
+    blocker: PauseBlocker,
+) -> Vec<PauseBlocker> {
+    let Some(same_holder) = merged_blockers
+        .iter_mut()
+        .find(|merged| merged.pause == blocker.pause && merged.holder == blocker.holder)
+    else {
+        merged_blockers.push(blocker);
+        return merged_blockers;
+    };
+    if !same_holder
+        .why
+        .split("; ")
+        .any(|reason| reason == blocker.why)
+    {
+        same_holder.why = format!("{}; {}", same_holder.why, blocker.why);
+    }
+    if blocker.action_blocking == IdleActionBlocking::StopsArmedAction {
+        same_holder.action_blocking = IdleActionBlocking::StopsArmedAction;
+    }
+    same_holder.holder_process = same_holder.holder_process.or(blocker.holder_process);
+    merged_blockers
+}
+
+fn hibernate_blockers(
+    obstacles: &SleepObstacles,
+    hibernate_timer: TimerArming,
+) -> Vec<PauseBlocker> {
+    let explained_by_sleep_lock = obstacles.kernel_hibernation == KernelHibernation::Allowed
+        && obstacles.inhibitors_of(InhibitedOperation::Sleep).count() > 0;
+    let hibernate_available = matches!(
+        obstacles.capability_of(SleepState::Hibernate),
+        LogindCapability::Allowed | LogindCapability::AfterAuthorisation
+    );
+    if hibernate_available || explained_by_sleep_lock {
+        return Vec::new();
+    }
+    let action_blocking = match (obstacles.resume_device, hibernate_timer) {
+        (ResumeDevice::Unset, TimerArming::Unarmed) => IdleActionBlocking::LeavesActionRunning,
+        (ResumeDevice::Configured, _) | (_, TimerArming::Armed) => {
+            IdleActionBlocking::StopsArmedAction
+        }
+    };
+    let blocker = |holder: String, why: String, cause: BlockerCause| PauseBlocker {
+        pause: IdleAction::Hibernate,
+        holder,
+        why,
+        cause,
+        action_blocking,
+        holder_process: None,
+    };
+    let refusal = kernel_refusal_text(&obstacles.kernel_hibernation);
+    let kernel = "Kernel".to_owned();
+    match &obstacles.kernel_hibernation {
+        KernelHibernation::Allowed => {
+            let why = match obstacles.capability_of(SleepState::Hibernate) {
+                LogindCapability::NotPermitted => "not permitted for this user".to_owned(),
+                LogindCapability::Allowed
+                | LogindCapability::AfterAuthorisation
+                | LogindCapability::Unsupported => unsupported_by_logind_text().to_owned(),
+            };
+            vec![blocker(
+                "logind".to_owned(),
+                why,
+                BlockerCause::LogindRefusal,
+            )]
+        }
+        KernelHibernation::DisabledBySecretMemory(holders) => holders
+            .iter()
+            .map(|holder| PauseBlocker {
+                holder_process: Some(HolderProcess {
+                    pid: holder.pid,
+                    window_ownership: holder.window_ownership,
+                }),
+                ..blocker(
+                    holder.name.clone(),
+                    "holds secret memory".to_owned(),
+                    BlockerCause::KernelSecretMemory,
+                )
+            })
+            .collect(),
+        KernelHibernation::DisabledByBootFlag(_) => {
+            vec![blocker(kernel, refusal, BlockerCause::KernelBootFlag)]
+        }
+        KernelHibernation::DisabledByLockdown(_) => {
+            vec![blocker(kernel, refusal, BlockerCause::KernelLockdown)]
+        }
+        KernelHibernation::DisabledForUnidentifiedCause => {
+            vec![blocker(kernel, refusal, BlockerCause::KernelUnidentified)]
+        }
+        KernelHibernation::DisabledWithoutInspection => {
+            vec![blocker(kernel, refusal, BlockerCause::KernelUninspected)]
+        }
+    }
+}
+
+fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocker> + '_ {
+    let stated_reason = |reason: &Option<String>, fallback: &str| {
+        reason.clone().unwrap_or_else(|| fallback.to_owned())
+    };
+    let sleep_locks =
+        obstacles
+            .inhibitors_of(InhibitedOperation::Sleep)
+            .flat_map(move |inhibitor| {
+                let why = stated_reason(&inhibitor.reason, "holds a sleep lock");
+                [
+                    (IdleAction::Sleep, IdleActionBlocking::StopsArmedAction),
+                    (
+                        IdleAction::Hibernate,
+                        IdleActionBlocking::LeavesActionRunning,
+                    ),
+                ]
+                .map(|(pause, action_blocking)| PauseBlocker {
+                    pause,
+                    holder: inhibitor.holder.clone(),
+                    why: why.clone(),
+                    cause: BlockerCause::SleepLock,
+                    action_blocking,
+                    holder_process: None,
+                })
+            });
+    let shutdown_locks =
+        obstacles
+            .inhibitors_of(InhibitedOperation::Shutdown)
+            .map(move |inhibitor| PauseBlocker {
+                pause: IdleAction::PowerOff,
+                holder: inhibitor.holder.clone(),
+                why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
+                cause: BlockerCause::ShutdownLock,
+                action_blocking: IdleActionBlocking::StopsArmedAction,
+                holder_process: None,
+            });
+    let idle_locks = obstacles
+        .inhibitors_of(InhibitedOperation::Idle)
+        .map(move |inhibitor| PauseBlocker {
+            pause: IdleAction::Sleep,
+            holder: inhibitor.holder.clone(),
+            why: stated_reason(&inhibitor.reason, "holds an idle lock"),
+            cause: BlockerCause::LogindIdleLock,
+            action_blocking: match obstacles.idle_action_setting {
+                IdleActionSetting::Acting => IdleActionBlocking::StopsArmedAction,
+                IdleActionSetting::Ignored => IdleActionBlocking::LeavesActionRunning,
+            },
+            holder_process: None,
+        });
+    sleep_locks.chain(shutdown_locks).chain(idle_locks)
+}
+
+fn no_sleep_state_blocker(obstacles: &SleepObstacles) -> Option<PauseBlocker> {
+    let no_lock_explains_it = obstacles.inhibitors_of(InhibitedOperation::Sleep).count() == 0;
+    (no_lock_explains_it
+        && !obstacles.sleep_order.is_empty()
+        && obstacles.sleep_state_that_runs().is_none())
+    .then(|| PauseBlocker {
+        pause: IdleAction::Sleep,
+        holder: "logind".to_owned(),
+        why: "no configured sleep state is available".to_owned(),
+        cause: BlockerCause::LogindRefusal,
+        action_blocking: IdleActionBlocking::StopsArmedAction,
+        holder_process: None,
+    })
+}
+
+fn screensaver_blockers<'a>(
+    idle_inhibitors: &'a [IdleInhibitor],
+    armed_triggers: &'a [ActionTrigger],
+) -> impl Iterator<Item = PauseBlocker> + 'a {
+    let first_to_fire = armed_triggers
+        .iter()
+        .min_by_key(|trigger| trigger.after)
+        .map(|trigger| trigger.tag);
+    idle_inhibitors.iter().flat_map(move |inhibitor| {
+        armed_triggers.iter().map(move |trigger| PauseBlocker {
+            pause: trigger.tag,
+            holder: inhibitor.holder.clone(),
+            why: inhibitor
+                .reason
+                .clone()
+                .unwrap_or_else(|| "asked the compositor to hold idle timers".to_owned()),
+            cause: BlockerCause::ScreenSaverHold,
+            action_blocking: if Some(trigger.tag) == first_to_fire {
+                IdleActionBlocking::StopsArmedAction
+            } else {
+                IdleActionBlocking::LeavesActionRunning
+            },
+            holder_process: None,
+        })
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TimerArming {
+    Armed,
+    Unarmed,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sottomano_desktop_sources::login_session_presence::{
+        idle_session_actions::IdleAction,
+        kernel_sleep_obstacles::{
+            BlockingInhibitor, IdleActionSetting, InhibitedOperation, KernelHibernation,
+            LogindCapability, ResumeDevice, SecretMemoryHolder, SleepObstacles, SleepState,
+            SleepStateSupport, WindowOwnership,
+        },
+        screensaver_bus_idle_inhibitors::IdleInhibitor,
+    };
+
+    use super::{
+        BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
+    };
+    use crate::{
+        group_indicators::indicator_state::IndicatorState,
+        indicator_groups::idle_pause_groups::pause_blocker_indicators::{
+            IdleActionBlocking, TimerArming,
+        },
+        widgets::idle::ActionTrigger,
+    };
+
+    fn clear_obstacles() -> SleepObstacles {
+        SleepObstacles {
+            sleep_states: SleepState::ALL
+                .map(|state| SleepStateSupport {
+                    state,
+                    capability: LogindCapability::Allowed,
+                })
+                .to_vec(),
+            sleep_order: vec![SleepState::Suspend],
+            kernel_hibernation: KernelHibernation::Allowed,
+            resume_device: ResumeDevice::Configured,
+            blocking_inhibitors: Vec::new(),
+            idle_action_setting: IdleActionSetting::Ignored,
+            scheduled_shutdown: None,
+        }
+    }
+
+    fn secret_memory_obstacles() -> SleepObstacles {
+        SleepObstacles {
+            sleep_states: SleepState::ALL
+                .map(|state| SleepStateSupport {
+                    state,
+                    capability: if state == SleepState::Suspend {
+                        LogindCapability::Allowed
+                    } else {
+                        LogindCapability::Unsupported
+                    },
+                })
+                .to_vec(),
+            kernel_hibernation: KernelHibernation::DisabledBySecretMemory(vec![
+                SecretMemoryHolder {
+                    name: "Bitwarden".to_owned(),
+                    pid: 6627,
+                    window_ownership: WindowOwnership::Windowless,
+                },
+            ]),
+            ..clear_obstacles()
+        }
+    }
+
+    fn blockers_of(obstacles: &SleepObstacles, hibernate_timer: TimerArming) -> Vec<PauseBlocker> {
+        pause_blockers(&PauseFacts {
+            obstacles: Some(obstacles),
+            idle_inhibitors: &[],
+            armed_triggers: &[],
+            hibernate_timer,
+        })
+    }
+
+    fn lock_of(operation: InhibitedOperation) -> BlockingInhibitor {
+        BlockingInhibitor {
+            holder: "Backup".to_owned(),
+            operation,
+            reason: Some("Backup running".to_owned()),
+        }
+    }
+
+    #[test]
+    fn nothing_blocks_a_clear_machine() {
+        assert!(blockers_of(&clear_obstacles(), TimerArming::Unarmed).is_empty());
+    }
+
+    #[test]
+    fn secret_memory_names_the_exact_app_under_hibernate_only() {
+        let blockers = blockers_of(&secret_memory_obstacles(), TimerArming::Unarmed);
+        assert_eq!(blockers.len(), 1);
+        assert_eq!(blockers[0].pause, IdleAction::Hibernate);
+        assert_eq!(blockers[0].holder, "Bitwarden");
+        assert_eq!(blockers[0].cause, BlockerCause::KernelSecretMemory);
+        assert_eq!(
+            blockers[0].holder_process,
+            Some(HolderProcess {
+                pid: 6627,
+                window_ownership: WindowOwnership::Windowless,
+            })
+        );
+        assert_eq!(
+            blockers[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
+    }
+
+    #[test]
+    fn without_the_helper_no_app_is_named() {
+        let obstacles = SleepObstacles {
+            kernel_hibernation: KernelHibernation::DisabledWithoutInspection,
+            ..secret_memory_obstacles()
+        };
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
+        assert_eq!(blockers[0].holder, "Kernel");
+        assert_eq!(blockers[0].cause, BlockerCause::KernelUninspected);
+    }
+
+    #[test]
+    fn a_machine_never_set_up_for_hibernation_stays_off_the_panel() {
+        let obstacles = SleepObstacles {
+            resume_device: ResumeDevice::Unset,
+            ..secret_memory_obstacles()
+        };
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::LeavesActionRunning
+        );
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Armed)[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
+    }
+
+    #[test]
+    fn a_sleep_lock_raises_standby_but_only_lists_under_hibernate() {
+        let obstacles = SleepObstacles {
+            blocking_inhibitors: vec![lock_of(InhibitedOperation::Sleep)],
+            ..clear_obstacles()
+        };
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
+        let rising: Vec<IdleAction> = blockers
+            .iter()
+            .filter(|blocker| blocker.display_state() == IndicatorState::Critical)
+            .map(|blocker| blocker.pause)
+            .collect();
+        assert_eq!(rising, vec![IdleAction::Sleep]);
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.pause == IdleAction::Hibernate)
+        );
+        assert_eq!(blockers[0].why, "Backup running");
+    }
+
+    #[test]
+    fn a_shutdown_lock_raises_power_down() {
+        let obstacles = SleepObstacles {
+            blocking_inhibitors: vec![lock_of(InhibitedOperation::Shutdown)],
+            ..clear_obstacles()
+        };
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
+        assert_eq!(blockers[0].pause, IdleAction::PowerOff);
+        assert_eq!(
+            blockers[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
+    }
+
+    #[test]
+    fn a_logind_idle_lock_only_rises_when_logind_has_an_idle_action() {
+        let without_action = SleepObstacles {
+            blocking_inhibitors: vec![lock_of(InhibitedOperation::Idle)],
+            ..clear_obstacles()
+        };
+        let with_action = SleepObstacles {
+            idle_action_setting: IdleActionSetting::Acting,
+            ..without_action.clone()
+        };
+        assert_eq!(
+            blockers_of(&without_action, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::LeavesActionRunning
+        );
+        assert_eq!(
+            blockers_of(&with_action, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
+    }
+
+    #[test]
+    fn a_screensaver_hold_lists_every_armed_timer_and_raises_the_first_to_fire() {
+        let idle_inhibitors = [IdleInhibitor {
+            holder: "Firefox".to_owned(),
+            reason: Some("Playing video".to_owned()),
+        }];
+        let armed_triggers = [
+            ActionTrigger {
+                after: Duration::from_mins(30),
+                tag: IdleAction::Sleep,
+            },
+            ActionTrigger {
+                after: Duration::from_mins(5),
+                tag: IdleAction::Lock,
+            },
+        ];
+        let blockers = pause_blockers(&PauseFacts {
+            obstacles: None,
+            idle_inhibitors: &idle_inhibitors,
+            armed_triggers: &armed_triggers,
+            hibernate_timer: TimerArming::Unarmed,
+        });
+        assert_eq!(blockers.len(), 2);
+        let rising: Vec<IdleAction> = blockers
+            .iter()
+            .filter(|blocker| blocker.action_blocking == IdleActionBlocking::StopsArmedAction)
+            .map(|blocker| blocker.pause)
+            .collect();
+        assert_eq!(rising, vec![IdleAction::Lock]);
+    }
+
+    #[test]
+    fn every_sleep_state_gets_its_own_exact_answer() {
+        let obstacles = secret_memory_obstacles();
+        let runs = obstacles.sleep_state_that_runs();
+        assert_eq!(
+            sleep_state_answer(&obstacles, SleepState::Suspend, runs),
+            "will run"
+        );
+        assert_eq!(
+            sleep_state_answer(&obstacles, SleepState::Hibernate, runs),
+            "disabled by the kernel while Bitwarden holds secret memory"
+        );
+    }
+
+    #[test]
+    fn a_sleep_lock_is_named_as_the_reason_rather_than_lack_of_support() {
+        let obstacles = SleepObstacles {
+            sleep_states: SleepState::ALL
+                .map(|state| SleepStateSupport {
+                    state,
+                    capability: LogindCapability::Unsupported,
+                })
+                .to_vec(),
+            blocking_inhibitors: vec![lock_of(InhibitedOperation::Sleep)],
+            ..clear_obstacles()
+        };
+        assert_eq!(
+            sleep_state_answer(&obstacles, SleepState::Suspend, None),
+            "blocked by a sleep lock from Backup"
+        );
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
+        assert!(blockers.iter().all(|blocker| blocker.holder == "Backup"));
+    }
+
+    #[test]
+    fn a_kernel_disabled_state_keeps_the_kernel_reason_during_a_sleep_lock() {
+        let obstacles = SleepObstacles {
+            blocking_inhibitors: vec![lock_of(InhibitedOperation::Sleep)],
+            ..secret_memory_obstacles()
+        };
+        assert_eq!(
+            sleep_state_answer(&obstacles, SleepState::Hibernate, None),
+            "disabled by the kernel while Bitwarden holds secret memory"
+        );
+    }
+
+    #[test]
+    fn logind_refusal_is_reported_as_answered_rather_than_explained() {
+        let obstacles = SleepObstacles {
+            sleep_states: SleepState::ALL
+                .map(|state| SleepStateSupport {
+                    state,
+                    capability: if state == SleepState::Hibernate {
+                        LogindCapability::Unsupported
+                    } else {
+                        LogindCapability::Allowed
+                    },
+                })
+                .to_vec(),
+            ..clear_obstacles()
+        };
+        assert_eq!(
+            sleep_state_answer(&obstacles, SleepState::Hibernate, Some(SleepState::Suspend)),
+            "logind reports this isn't supported on this machine"
+        );
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Unarmed)[0].holder,
+            "logind"
+        );
+    }
+}

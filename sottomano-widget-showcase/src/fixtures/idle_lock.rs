@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::idle_pause_groups::{IdlePauseGroups, IdlePauseMessage, Timeouts},
+    indicator_groups::idle_pause_groups::{IdlePauseGroups, IdlePauseMessage, Timeouts},
 };
 
 use crate::showcased_group::ShowcasedGroup;

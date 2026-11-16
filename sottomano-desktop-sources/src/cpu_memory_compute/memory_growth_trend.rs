@@ -12,7 +12,7 @@ use procfs::{
     process::{Process, all_processes},
 };
 use sottomano_toml_config::{
-    severity::Severity, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig,
+    indicator_groups::memory_growth_trend::MemoryGrowthTrendConfig, severity::Severity,
 };
 
 use crate::{

@@ -19,7 +19,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
+    indicator_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

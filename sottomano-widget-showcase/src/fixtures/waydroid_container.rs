@@ -8,7 +8,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::waydroid_container_group::{WaydroidContainerGroup, WaydroidContainerMessage},
+    indicator_groups::waydroid_container_group::{
+        WaydroidContainerGroup, WaydroidContainerMessage,
+    },
 };
 
 use crate::showcased_group::ShowcasedGroup;

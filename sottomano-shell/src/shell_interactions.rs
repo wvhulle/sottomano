@@ -4,10 +4,10 @@ use sottomano_widgets::{
     background_work::{compositor_request, copy_to_clipboard},
     group_menus::group_menu_state::{GroupMenuMessage, PanelPin, PanelPinDuration},
     hover_cards::PopupMessage,
-    widget_groups::{
+    indicator_groups::{
         appearance_presets_group::AppearancePresetsMessage,
+        indicator_group_interaction::{IndicatorGroupBusRequest, IndicatorGroupInteraction},
         sidebar_settings_group::SidebarSettingsMessage,
-        widget_group_interaction::{WidgetGroupBusRequest, WidgetGroupInteraction},
         workspaces_group::WorkspacesMessage,
     },
 };
@@ -24,7 +24,7 @@ impl DesktopShell {
             ShellInteraction::Popup(popup_message) => self.update_popup(popup_message),
             ShellInteraction::Notification(notification) => self.update_notification(notification),
             ShellInteraction::DismissPressed => {
-                self.widget_groups.collapse_when_auto_collapsing();
+                self.indicator_groups.collapse_when_auto_collapsing();
                 Task::none()
             }
             ShellInteraction::SidebarWidthChanged { window, width } => {
@@ -78,7 +78,7 @@ impl DesktopShell {
             WorkspacesMessage::Drag(drag) => self.update_pointer_drag(drag),
             WorkspacesMessage::RestoreOrder { output } => self.restore_workspace_order(&output),
             WorkspacesMessage::ToggleEmptyWorkspaces => {
-                self.interact_shell_group(WidgetGroupInteraction::SidebarSettings(
+                self.interact_shell_group(IndicatorGroupInteraction::SidebarSettings(
                     SidebarSettingsMessage::ToggleEmptyWorkspaces,
                 ))
             }
@@ -88,64 +88,72 @@ impl DesktopShell {
         }
     }
 
-    fn interact_group(&mut self, group_interaction: WidgetGroupInteraction) -> Task<Message> {
-        match WidgetGroupBusRequest::try_from(group_interaction) {
+    fn interact_group(&mut self, group_interaction: IndicatorGroupInteraction) -> Task<Message> {
+        match IndicatorGroupBusRequest::try_from(group_interaction) {
             Ok(bus_request) => {
                 let Some(buses) = &self.desktop_buses else {
                     return Task::none();
                 };
-                self.widget_groups
+                self.indicator_groups
                     .request_on_buses(bus_request, &self.config, buses, self.clock)
             }
             Err(local_interaction) => self.interact_shell_group(local_interaction),
         }
     }
 
-    fn interact_shell_group(&mut self, group_interaction: WidgetGroupInteraction) -> Task<Message> {
+    fn interact_shell_group(
+        &mut self,
+        group_interaction: IndicatorGroupInteraction,
+    ) -> Task<Message> {
         match group_interaction {
-            WidgetGroupInteraction::WindowGroup(interaction) => {
+            IndicatorGroupInteraction::WindowGroup(interaction) => {
                 self.interact_window_group(interaction)
             }
-            WidgetGroupInteraction::AppLauncher(message) => self.update_app_launcher(message),
-            WidgetGroupInteraction::Gamepad(interaction) => self.interact_gamepad(interaction),
-            WidgetGroupInteraction::PanelSettings(message) => self.update_panel_settings(message),
-            WidgetGroupInteraction::OverlaySettings(message) => {
+            IndicatorGroupInteraction::AppLauncher(message) => self.update_app_launcher(message),
+            IndicatorGroupInteraction::Gamepad(interaction) => self.interact_gamepad(interaction),
+            IndicatorGroupInteraction::PanelSettings(message) => {
+                self.update_panel_settings(message)
+            }
+            IndicatorGroupInteraction::OverlaySettings(message) => {
                 self.update_overlay_settings(message)
             }
-            WidgetGroupInteraction::NotificationGroup(message) => {
+            IndicatorGroupInteraction::NotificationGroup(message) => {
                 self.update_notification_group(message)
             }
-            WidgetGroupInteraction::QuietSchedule(message) => self.update_quiet_schedule(message),
-            WidgetGroupInteraction::Session(message) => self.update_session(message),
-            WidgetGroupInteraction::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
-                self.widget_groups.apply_appearance_preset(preset)
+            IndicatorGroupInteraction::QuietSchedule(message) => {
+                self.update_quiet_schedule(message)
             }
-            WidgetGroupInteraction::AppearancePresets(AppearancePresetsMessage::Expansion(
+            IndicatorGroupInteraction::Session(message) => self.update_session(message),
+            IndicatorGroupInteraction::AppearancePresets(AppearancePresetsMessage::Apply(
+                preset,
+            )) => self.indicator_groups.apply_appearance_preset(preset),
+            IndicatorGroupInteraction::AppearancePresets(AppearancePresetsMessage::Expansion(
                 expansion,
             )) => {
-                self.widget_groups
+                self.indicator_groups
                     .appearance_presets_group
                     .update_expansion(expansion);
                 Task::none()
             }
-            WidgetGroupInteraction::Media(interaction) => self.interact_media(interaction),
-            WidgetGroupInteraction::Tray(message) => self.update_tray(message),
-            WidgetGroupInteraction::GlobalMenu(interaction) => {
+            IndicatorGroupInteraction::Media(interaction) => self.interact_media(interaction),
+            IndicatorGroupInteraction::Tray(message) => self.update_tray(message),
+            IndicatorGroupInteraction::GlobalMenu(interaction) => {
                 self.interact_global_menu(interaction)
             }
-            WidgetGroupInteraction::VirtualMachines(interaction) => {
+            IndicatorGroupInteraction::VirtualMachines(interaction) => {
                 self.interact_virtual_machines(interaction)
             }
-            WidgetGroupInteraction::GroupMenus(message) => self.update_group_menus(message),
-            widget_group_interaction => {
-                self.widget_groups
-                    .interact(widget_group_interaction, &self.config, self.clock)
-            }
+            IndicatorGroupInteraction::GroupMenus(message) => self.update_group_menus(message),
+            indicator_group_interaction => self.indicator_groups.interact(
+                indicator_group_interaction,
+                &self.config,
+                self.clock,
+            ),
         }
     }
 
     pub(crate) fn update_group_menus(&mut self, message: GroupMenuMessage) -> Task<Message> {
-        self.widget_groups
+        self.indicator_groups
             .group_menus
             .update(message)
             .map(Message::GroupMenuState)

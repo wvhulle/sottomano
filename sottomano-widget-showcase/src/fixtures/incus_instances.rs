@@ -10,7 +10,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::incus_instances_group::{IncusInstancesGroup, IncusInstancesMessage},
+    indicator_groups::incus_instances_group::{IncusInstancesGroup, IncusInstancesMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

@@ -24,9 +24,7 @@ use sottomano_widgets::{
     desktop_panels::panel_slot_drag::DragMessage,
     group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{HoverCardMessage, PopupMessage},
-    layer_surfaces::SurfaceRequest,
-    toast_messages::NotificationMessage,
-    widget_groups::{
+    indicator_groups::{
         app_launcher_group::AppLauncherMessage,
         apptainer_containers_group::ApptainerContainersMessage, audio_group::AudioMessage,
         bluetooth_adapters_group::BluetoothMessage, caldav_group::CaldavMessage,
@@ -39,6 +37,8 @@ use sottomano_widgets::{
         flatpak_sandboxes_group::FlatpakSandboxesMessage, gamepad_group::GamepadMessage,
         global_menu_group::GlobalMenuMessage, gpu_group::GpuMessage,
         idle_pause_groups::IdlePauseMessage, incus_instances_group::IncusInstancesMessage,
+        indicator_group_content::GroupEvent,
+        indicator_group_interaction::IndicatorGroupInteraction,
         journal_events_group::JournalEventsMessage, llama_server_group::LlamaServerMessage,
         login_session_group::LoginSessionMessage, lxc_containers_group::LxcContainersMessage,
         media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
@@ -58,11 +58,12 @@ use sottomano_widgets::{
         virtualbox_machines_group::VirtualBoxMachinesMessage,
         vmware_machines_group::VmwareMachinesMessage, voice_dictation_group::VoiceDictationMessage,
         wallpaper_group::WallpaperMessage, waydroid_container_group::WaydroidContainerMessage,
-        weather_group::WeatherMessage, widget_group_content::GroupEvent,
-        widget_group_interaction::WidgetGroupInteraction, wifi_adapters_group::WifiAdaptersMessage,
+        weather_group::WeatherMessage, wifi_adapters_group::WifiAdaptersMessage,
         window_group::WindowGroupMessage, wireguard_tunnels_group::WireguardTunnelsMessage,
         workspaces_group::WorkspacesMessage,
     },
+    layer_surfaces::SurfaceRequest,
+    toast_messages::NotificationMessage,
     widgets::typing_under_cards::TypingSignal,
 };
 use strum::IntoStaticStr;
@@ -225,7 +226,7 @@ impl From<CompositorRequestFailure> for Message {
 
 #[derive(Debug, Clone, IntoStaticStr)]
 pub enum ShellInteraction {
-    Group(WidgetGroupInteraction),
+    Group(IndicatorGroupInteraction),
     Popup(PopupMessage),
     Notification(NotificationMessage),
     DismissPressed,
@@ -241,14 +242,14 @@ impl From<ShellInteraction> for Message {
     }
 }
 
-impl From<WidgetGroupInteraction> for Message {
-    fn from(group_interaction: WidgetGroupInteraction) -> Self {
+impl From<IndicatorGroupInteraction> for Message {
+    fn from(group_interaction: IndicatorGroupInteraction) -> Self {
         Message::Interaction(ShellInteraction::Group(group_interaction))
     }
 }
 
-impl From<WidgetGroupInteraction> for ShellInteraction {
-    fn from(group_interaction: WidgetGroupInteraction) -> Self {
+impl From<IndicatorGroupInteraction> for ShellInteraction {
+    fn from(group_interaction: IndicatorGroupInteraction) -> Self {
         ShellInteraction::Group(group_interaction)
     }
 }

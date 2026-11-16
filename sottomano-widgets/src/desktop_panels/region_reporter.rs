@@ -369,7 +369,7 @@ mod tests {
 
     use super::{PointerInput, RegionRoles, rounded_blur_rows};
 
-    fn widget_group_frame() -> Rectangle {
+    fn indicator_group_frame() -> Rectangle {
         Rectangle {
             x: 10.0,
             y: 0.0,
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn roles_without_input_or_blur_still_replace_earlier_regions() {
         let roles = RegionRoles::default();
-        let frames = [widget_group_frame()];
+        let frames = [indicator_group_frame()];
         assert!(!roles.input_region_actions(&frames).0.is_empty());
         assert!(!roles.blur_rows(&frames).0.is_empty());
     }
@@ -394,9 +394,9 @@ mod tests {
         };
         let collapsed = Rectangle {
             width: 0.0,
-            ..widget_group_frame()
+            ..indicator_group_frame()
         };
-        let reported = roles.input_region_actions(&[widget_group_frame(), collapsed]);
+        let reported = roles.input_region_actions(&[indicator_group_frame(), collapsed]);
         assert_eq!(reported.0.len(), 2);
     }
 
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn a_square_frame_blurs_as_one_rectangle() {
-        let region = rounded_blur_rows(widget_group_frame(), Radius::from(0.0));
+        let region = rounded_blur_rows(indicator_group_frame(), Radius::from(0.0));
         assert_eq!(region.len(), 1);
         assert_eq!(
             (region[0].x, region[0].width, region[0].height),
@@ -423,7 +423,7 @@ mod tests {
 
     #[test]
     fn rounded_corners_step_inwards_towards_the_edge() {
-        let region = rounded_blur_rows(widget_group_frame(), Radius::from(8.0));
+        let region = rounded_blur_rows(indicator_group_frame(), Radius::from(8.0));
         let top_row = region.iter().find(|row| row.y == 0).expect("top row");
         let middle = region.iter().find(|row| row.height > 1).expect("middle");
         assert!(top_row.x > 10 && top_row.width < 60);
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn the_radius_never_exceeds_half_the_frame() {
-        let region = rounded_blur_rows(widget_group_frame(), Radius::from(100.0));
+        let region = rounded_blur_rows(indicator_group_frame(), Radius::from(100.0));
         assert!(region.iter().all(|row| row.width > 0 && row.height > 0));
     }
 
@@ -444,7 +444,7 @@ mod tests {
             bottom_right: 8.0,
             bottom_left: 8.0,
         };
-        let region = rounded_blur_rows(widget_group_frame(), bottom_only);
+        let region = rounded_blur_rows(indicator_group_frame(), bottom_only);
         let top_row = region.iter().find(|row| row.y == 0).expect("top row");
         let bottom_row = region.iter().find(|row| row.y == 23).expect("bottom row");
         assert_eq!((top_row.x, top_row.width), (10, 60));
@@ -459,7 +459,7 @@ mod tests {
             bottom_right: 0.0,
             bottom_left: 8.0,
         };
-        let region = rounded_blur_rows(widget_group_frame(), left_only);
+        let region = rounded_blur_rows(indicator_group_frame(), left_only);
         let top_row = region.iter().find(|row| row.y == 0).expect("top row");
         assert!(top_row.x > 10);
         assert_eq!(top_row.x + top_row.width, 70);

@@ -1,0 +1,1103 @@
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    iter,
+    sync::LazyLock,
+};
+
+use chrono::{DateTime, Local, Locale, NaiveDate, Timelike, Utc};
+use iced::alignment::Horizontal;
+use sottomano_desktop_sources::weather::{
+    buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
+    open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
+    open_meteo_temperature::SkyWetness,
+};
+use sottomano_toml_config::{indicator_groups::rain_alerts::RainAlertsConfig, severity::Severity};
+use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
+
+use crate::{
+    clock::Clock,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
+    },
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
+    indicator_groups::weather_group::{
+        precipitation_type_forecast::{
+            MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
+        },
+        rain_forecast_ranking::{
+            RainRateIndicator, RankedRainProvider, RankedRateSource, frames_not_yet_over,
+            ranked_by_method, rate_indicators_by_rank,
+        },
+    },
+    widgets::{
+        icon_glyph::IconGlyph,
+        keyed_record_table::{ColumnHeading, TableRecord},
+        localized_durations::{duration_text, relative_moment_text},
+        localized_quantities::Quantity,
+        localized_time::LocalizedTimeFormat,
+        ongoing_toast::{
+            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+        },
+        phosphor::{Phosphor, Weight},
+        value_cells::{LabeledValue, ValueCell},
+        weather_icons::WeatherIcon,
+    },
+};
+
+fn intensity_text(intensity: Velocity) -> String {
+    format!(
+        "{:.1}",
+        intensity.into_format_args(millimeter_per_hour, Abbreviation)
+    )
+}
+
+fn current_intensity_text(intensity: Velocity) -> String {
+    if intensity <= Velocity::default() {
+        "none right now".to_string()
+    } else {
+        intensity_text(intensity)
+    }
+}
+
+fn current_intensity_cell(intensity: Velocity) -> ValueCell {
+    if intensity <= Velocity::default() {
+        "none right now".into()
+    } else {
+        Quantity::precipitation_rate(intensity).into()
+    }
+}
+const MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 0.5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RadarRainStrength {
+    Dry,
+    Light,
+    Moderate,
+    Heavy,
+}
+
+impl RadarRainStrength {
+    fn glyph(self) -> IconGlyph {
+        match self {
+            RadarRainStrength::Dry => Phosphor::DropSlash(Weight::Regular).into(),
+            RadarRainStrength::Light => WeatherIcon::Sprinkle.into(),
+            RadarRainStrength::Moderate => WeatherIcon::Rain.into(),
+            RadarRainStrength::Heavy => WeatherIcon::Raindrops.into(),
+        }
+    }
+}
+
+impl Display for RadarRainStrength {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            RadarRainStrength::Dry => "Dry",
+            RadarRainStrength::Light => "Light",
+            RadarRainStrength::Moderate => "Moderate",
+            RadarRainStrength::Heavy => "Heavy",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RainIntensityScale {
+    heavy_from: Velocity,
+}
+
+impl RainIntensityScale {
+    fn strength(self, intensity: Velocity) -> RadarRainStrength {
+        if intensity <= Velocity::default() {
+            RadarRainStrength::Dry
+        } else if intensity
+            < Velocity::new::<millimeter_per_hour>(
+                MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR,
+            )
+        {
+            RadarRainStrength::Light
+        } else if intensity < self.heavy_from {
+            RadarRainStrength::Moderate
+        } else {
+            RadarRainStrength::Heavy
+        }
+    }
+}
+
+struct OutlookTurn {
+    label: &'static str,
+    at: DateTime<Local>,
+}
+
+fn outlook_turn(outlook: RainOutlook) -> Option<OutlookTurn> {
+    let (label, at) = match outlook {
+        RainOutlook::Dry => return None,
+        RainOutlook::StartsAt(at) => ("Starts", at),
+        RainOutlook::StopsAt(at) => ("Stops", at),
+        RainOutlook::OutlastsForecastUntil(at) => ("Lasts past", at),
+    };
+    Some(OutlookTurn { label, at })
+}
+
+const TIMELINE_HEADINGS: [ColumnHeading; 3] = [
+    ColumnHeading::titled("Rain"),
+    ColumnHeading::untitled(),
+    ColumnHeading::titled("Type").align_x(Horizontal::Left),
+];
+
+#[derive(Debug, Clone, Copy)]
+enum PrecipitationTypeMarker<'a> {
+    Unmarked,
+    StartsQuarter(&'a ModelQuarterHour),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RainTimelineRow<'a> {
+    sample: RainRateIndicator<'a>,
+    type_marker: PrecipitationTypeMarker<'a>,
+    scale: RainIntensityScale,
+}
+
+impl RainTimelineRow<'_> {
+    fn starting_hour(self) -> TimelineHour {
+        let starts_at = self.sample.starts_at().with_timezone(&Local);
+        TimelineHour {
+            date: starts_at.date_naive(),
+            hour: starts_at.hour(),
+        }
+    }
+
+    fn sky_wetness(self) -> SkyWetness {
+        self.sample.sky_wetness()
+    }
+
+    fn glyph(self) -> IconGlyph {
+        let strength_glyph = self.scale.strength(self.sample.intensity()).glyph();
+        match self.sample {
+            RainRateIndicator::RadarFrame(_) => strength_glyph,
+            RainRateIndicator::ModelQuarter(quarter) => {
+                model_quarter_glyph(quarter, strength_glyph)
+            }
+        }
+    }
+
+    fn precipitation_type_cell(self) -> ValueCell {
+        match (self.sample, self.type_marker) {
+            (RainRateIndicator::ModelQuarter(quarter), _) => model_quarter_text(quarter).into(),
+            (sample, PrecipitationTypeMarker::StartsQuarter(quarter))
+                if sample.sky_wetness() == SkyWetness::Precipitating
+                    && quarter.condition.sky_wetness() == SkyWetness::Precipitating =>
+            {
+                model_quarter_text(quarter).into()
+            }
+            (RainRateIndicator::RadarFrame(_), _) => ValueCell::Blank,
+        }
+    }
+}
+
+fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> ValueCell {
+    match scale.strength(intensity) {
+        RadarRainStrength::Dry => ValueCell::from("–"),
+        _ => Quantity::precipitation_rate(intensity).into(),
+    }
+}
+
+impl From<&RainTimelineRow<'_>> for TableRecord<3> {
+    fn from(rain_timeline_row: &RainTimelineRow<'_>) -> Self {
+        let time = ValueCell::Time {
+            at: rain_timeline_row.sample.starts_at(),
+            format: LocalizedTimeFormat::HourAndMinute,
+        };
+        TableRecord::with_cells(
+            time,
+            [
+                rain_amount_cell(
+                    rain_timeline_row.sample.intensity(),
+                    rain_timeline_row.scale,
+                ),
+                ValueCell::IconGlyph(rain_timeline_row.glyph()),
+                rain_timeline_row.precipitation_type_cell(),
+            ],
+        )
+    }
+}
+
+fn model_quarter_containing<'a>(
+    quarters: &[&'a ModelQuarterHour],
+    at: DateTime<Utc>,
+) -> Option<&'a ModelQuarterHour> {
+    quarters
+        .iter()
+        .copied()
+        .find(|quarter| quarter.starts_at <= at && at < quarter.starts_at + MODEL_QUARTER_HOUR)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TimelineHour {
+    date: NaiveDate,
+    hour: u32,
+}
+
+fn rain_timeline<'a>(
+    rate_sources: Vec<RankedRateSource<'a>>,
+    type_quarters: &[&'a ModelQuarterHour],
+    scale: RainIntensityScale,
+) -> Vec<RainTimelineRow<'a>> {
+    rate_indicators_by_rank(rate_sources)
+        .into_iter()
+        .scan(None, |previous_quarter_start, sample| {
+            let type_marker = match model_quarter_containing(type_quarters, sample.starts_at()) {
+                Some(quarter) if *previous_quarter_start != Some(quarter.starts_at) => {
+                    *previous_quarter_start = Some(quarter.starts_at);
+                    PrecipitationTypeMarker::StartsQuarter(quarter)
+                }
+                _ => PrecipitationTypeMarker::Unmarked,
+            };
+            Some(RainTimelineRow {
+                sample,
+                type_marker,
+                scale,
+            })
+        })
+        .collect()
+}
+
+fn rain_timeline_section(rows: &[RainTimelineRow<'_>]) -> Section {
+    Section::new(
+        "Timeline",
+        headed_grouped_table(
+            TIMELINE_HEADINGS,
+            rows.chunk_by(|earlier, later| earlier.starting_hour() == later.starting_hour()),
+        )
+        .marked_as_continuing(),
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RainSources<'a> {
+    RadarAndModel {
+        radar: &'a Rain,
+        model: &'a PrecipitationModel,
+    },
+    Radar(&'a Rain),
+    Model(&'a PrecipitationModel),
+}
+
+impl<'a> RainSources<'a> {
+    #[must_use]
+    fn radar(self) -> Option<&'a Rain> {
+        match self {
+            RainSources::RadarAndModel { radar, .. } | RainSources::Radar(radar) => Some(radar),
+            RainSources::Model(_) => None,
+        }
+    }
+
+    fn model(self) -> Option<&'a PrecipitationModel> {
+        match self {
+            RainSources::RadarAndModel { model, .. } | RainSources::Model(model) => Some(model),
+            RainSources::Radar(_) => None,
+        }
+    }
+
+    fn rate_sources(self, clock: Clock) -> Vec<RankedRateSource<'a>> {
+        let radar_source = self.radar().map(|rain| rain.ranked_rate_source(clock));
+        let model_source = self.model().map(|model| model.ranked_rate_source(clock));
+        radar_source.into_iter().chain(model_source).collect()
+    }
+
+    fn caption(self, clock: Clock) -> String {
+        ranked_by_method(self.rate_sources(clock))
+            .iter()
+            .map(|source| format!("{}: {}", source.method, source.provider_name))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
+}
+
+pub struct RainForecast<'a> {
+    pub sources: RainSources<'a>,
+    pub alerts: &'a RainAlertsConfig,
+}
+
+impl RainForecast<'_> {
+    fn radar_forecast(&self) -> Option<RadarRainForecast<'_>> {
+        Some(RadarRainForecast {
+            rain: self.sources.radar()?,
+            alerts: self.alerts,
+        })
+    }
+
+    fn intensity_scale(&self) -> RainIntensityScale {
+        RainIntensityScale {
+            heavy_from: Velocity::new::<millimeter_per_hour>(
+                self.alerts.heavy_millimeters_per_hour,
+            ),
+        }
+    }
+
+    fn timeline(&self, clock: Clock) -> Vec<RainTimelineRow<'_>> {
+        let type_quarters: Vec<_> = self
+            .sources
+            .model()
+            .into_iter()
+            .flat_map(|model| quarters_not_yet_over(model, clock.utc()))
+            .collect();
+        rain_timeline(
+            self.sources.rate_sources(clock),
+            &type_quarters,
+            self.intensity_scale(),
+        )
+    }
+
+    fn summary_section(&self, clock: Clock) -> Section {
+        let time_of_day = |at: DateTime<Local>| ValueCell::Time {
+            at: at.to_utc(),
+            format: LocalizedTimeFormat::HourAndMinute,
+        };
+        let entries: Vec<LabeledValue> = match self.sources.radar() {
+            Some(rain) => match rain.forecast.last() {
+                Some(last_frame) if rain.outlook == RainOutlook::Dry => vec![
+                    LabeledValue::new("Rain", "none expected"),
+                    LabeledValue::new("Dry until at least", time_of_day(last_frame.at)),
+                ],
+                _ => {
+                    let peak = &rain.peak;
+                    iter::once(LabeledValue::new(
+                        "Now",
+                        current_intensity_cell(rain.intensity),
+                    ))
+                    .chain(
+                        outlook_turn(rain.outlook)
+                            .map(|turn| LabeledValue::new(turn.label, time_of_day(turn.at))),
+                    )
+                    .chain([
+                        LabeledValue::new("Peak", Quantity::precipitation_rate(peak.intensity)),
+                        LabeledValue::new("Peak at", time_of_day(peak.at)),
+                    ])
+                    .collect()
+                }
+            },
+            None => match self.sources.model() {
+                Some(model)
+                    if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+                {
+                    vec![
+                        LabeledValue::new("Now", model_quarter_text(&model.current)),
+                        LabeledValue::new(
+                            "Rain",
+                            Quantity::precipitation_rate(model.current.intensity),
+                        ),
+                    ]
+                }
+                Some(_) => vec![LabeledValue::new("Now", "Dry")],
+                None => Vec::new(),
+            },
+        };
+        let title = match self.sources {
+            RainSources::Model(_) => "Next 3 hours",
+            RainSources::RadarAndModel { .. } | RainSources::Radar(_) => "Next 2 hours",
+        };
+        Section::new(
+            SectionTitle::captioned(title, self.sources.caption(clock)),
+            dictionary_table(entries),
+        )
+    }
+}
+
+impl<'a> RainForecast<'a> {
+    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
+        let label = match self.label_text(clock, locale) {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        GroupIndicator::glyph_only("Rain", self.glyph(), self.display_state(clock))
+            .with_readout(IndicatorReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            })
+            .with_alerts(IndicatorAlerts {
+                state_toast: self.state_toast(clock, locale),
+                ..IndicatorAlerts::default()
+            })
+            .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
+    }
+
+    fn glyph(&self) -> IconGlyph {
+        match self.radar_forecast() {
+            Some(radar) => radar.glyph(),
+            None => match self.sources.model() {
+                Some(model) => model_quarter_glyph(
+                    &model.current,
+                    self.intensity_scale()
+                        .strength(model.current.intensity)
+                        .glyph(),
+                ),
+                None => RAIN_FALLBACK_GLYPH,
+            },
+        }
+    }
+
+    fn label_text(&self, clock: Clock, locale: Locale) -> Option<String> {
+        if let Some(radar) = self.radar_forecast() {
+            return rain_label_text(radar.rain, clock, locale);
+        }
+        let model = self.sources.model()?;
+        (model.current.condition.sky_wetness() == SkyWetness::Precipitating)
+            .then(|| model.current.condition.to_string())
+    }
+
+    fn display_state(&self, clock: Clock) -> IndicatorState {
+        match self.radar_forecast() {
+            Some(radar) => radar.display_state(clock),
+            None => match self.sources.model() {
+                Some(model)
+                    if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+                {
+                    IndicatorState::Idle
+                }
+                _ => IndicatorState::Off,
+            },
+        }
+    }
+
+    fn state_toast(&self, clock: Clock, locale: Locale) -> StateToast {
+        match self.radar_forecast() {
+            Some(radar) => StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Warning,
+                summary_text: "Rain on the radar",
+                body: radar
+                    .toast_body(clock, locale)
+                    .map_or(ToastBody::Bodiless, ToastBody::Text),
+                progress: ToastProgress::Unmeasured,
+            },
+            None => StateToast::NeverNotify,
+        }
+    }
+
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        let timeline = self.timeline(clock);
+        let timeline_section = timeline
+            .iter()
+            .any(|row| row.sky_wetness() == SkyWetness::Precipitating)
+            .then(|| rain_timeline_section(&timeline));
+        iter::once(self.summary_section(clock))
+            .chain(timeline_section)
+            .collect()
+    }
+}
+
+pub struct RadarRainForecast<'a> {
+    pub rain: &'a Rain,
+    pub alerts: &'a RainAlertsConfig,
+}
+
+static DEFAULT_RAIN_ALERTS: LazyLock<RainAlertsConfig> = LazyLock::new(RainAlertsConfig::default);
+
+impl<'a> RadarRainForecast<'a> {
+    fn with_default_alerts(rain: &'a Rain) -> Self {
+        RadarRainForecast {
+            rain,
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+    }
+}
+
+impl<'a> RainForecast<'a> {
+    fn modelled_with_default_alerts(model: &'a PrecipitationModel) -> Self {
+        RainForecast {
+            sources: RainSources::Model(model),
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+    }
+}
+
+struct RainSpell<'a> {
+    outlook: RainOutlook,
+    starts_at: DateTime<Local>,
+    peak: &'a Downpour,
+}
+
+impl RadarRainForecast<'_> {
+    fn remaining_frames(&self, now: DateTime<Local>) -> &[Downpour] {
+        frames_not_yet_over(&self.rain.forecast, now)
+    }
+
+    fn intensity_scale(&self) -> RainIntensityScale {
+        RainIntensityScale {
+            heavy_from: Velocity::new::<millimeter_per_hour>(
+                self.alerts.heavy_millimeters_per_hour,
+            ),
+        }
+    }
+
+    fn spell_above_minimum(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
+        let minimum =
+            Velocity::new::<millimeter_per_hour>(self.alerts.minimum_millimeters_per_hour);
+        let remaining = self.remaining_frames(now);
+        let outlook = RainOutlook::rain_above_threshold(remaining, minimum);
+        let starts_at = match outlook {
+            RainOutlook::Dry => return None,
+            RainOutlook::StartsAt(at) => at,
+            RainOutlook::StopsAt(_) | RainOutlook::OutlastsForecastUntil(_) => {
+                remaining.first()?.at
+            }
+        };
+        let peak = remaining
+            .iter()
+            .skip_while(|frame| frame.at < starts_at)
+            .take_while(|frame| frame.intensity > minimum)
+            .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))?;
+        Some(RainSpell {
+            outlook,
+            starts_at,
+            peak,
+        })
+    }
+
+    fn alerting_spell(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
+        let lead_time = self.alerts.lead_time;
+        self.spell_above_minimum(now)
+            .filter(|spell| spell.starts_at - now <= lead_time)
+    }
+
+    fn severity(&self, now: DateTime<Local>) -> Severity {
+        let heavy = Velocity::new::<millimeter_per_hour>(self.alerts.heavy_millimeters_per_hour);
+        match self.alerting_spell(now) {
+            Some(spell) if spell.peak.intensity >= heavy => Severity::Critical,
+            Some(_) => Severity::Warning,
+            None => Severity::Normal,
+        }
+    }
+}
+
+impl RadarRainForecast<'_> {
+    fn glyph(&self) -> IconGlyph {
+        self.intensity_scale()
+            .strength(self.rain.peak.intensity)
+            .glyph()
+    }
+
+    fn display_state(&self, clock: Clock) -> IndicatorState {
+        match self.severity(clock.local()) {
+            Severity::Normal => rain_display_state(self.rain),
+            alerting => alerting.into(),
+        }
+    }
+
+    fn toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
+        let now = clock.local();
+        let spell = self.spell_above_minimum(now)?;
+        let moment = |at: DateTime<Local>| moment_text(at.to_utc(), clock.utc(), locale);
+        let turn = outlook_turn(spell.outlook).map(|turn| (turn.label, moment(turn.at)));
+        let current_intensity = self
+            .remaining_frames(now)
+            .first()
+            .map_or_else(Velocity::default, |frame| frame.intensity);
+        Some(definition_list(turn.into_iter().chain([
+            ("Now", current_intensity_text(current_intensity)),
+            ("Peak", intensity_text(spell.peak.intensity)),
+            ("Peak at", moment(spell.peak.at)),
+        ])))
+    }
+
+    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        RainForecast {
+            sources: RainSources::Radar(self.rain),
+            alerts: self.alerts,
+        }
+        .hover_card(clock)
+    }
+}
+
+pub(crate) const RAIN_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::Raindrop);
+
+fn rain_label_text(rain: &Rain, clock: Clock, locale: Locale) -> Option<String> {
+    let remaining = |at: DateTime<Local>| duration_text(at - clock.local(), locale);
+    match rain.outlook {
+        RainOutlook::Dry => None,
+        RainOutlook::StartsAt(at) => Some(relative_moment_text(at.to_utc(), clock.utc(), locale)),
+        RainOutlook::StopsAt(at) => Some(format!("for {}", remaining(at))),
+        RainOutlook::OutlastsForecastUntil(at) => Some(format!("for {}+", remaining(at))),
+    }
+}
+
+fn rain_display_state(rain: &Rain) -> IndicatorState {
+    if rain.outlook == RainOutlook::Dry {
+        IndicatorState::Off
+    } else {
+        IndicatorState::Idle
+    }
+}
+
+pub fn rain_hover_card(rain: &Rain, clock: Clock) -> Vec<Section> {
+    RadarRainForecast::with_default_alerts(rain).hover_card(clock)
+}
+
+pub(crate) const PRECIPITATION_MODEL_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::WeatherIcon(WeatherIcon::Sprinkle);
+
+pub fn precipitation_model_hover_card(model: &PrecipitationModel, clock: Clock) -> Vec<Section> {
+    RainForecast::modelled_with_default_alerts(model).hover_card(clock)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sottomano_desktop_sources::weather::open_meteo_temperature::{
+        Daylight, Intensity, WeatherCondition,
+    };
+    use uom::si::{
+        f64::{Length, Time},
+        length::millimeter,
+        time::hour,
+    };
+
+    use super::*;
+    use crate::{
+        group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_groups::{
+            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+            weather_group::{WeatherInteraction, rain_forecast_ranking::RADAR_FRAME_LENGTH},
+        },
+        widgets::keyed_record_table::RecordCells,
+    };
+
+    #[test]
+    fn millimeter_per_hour_is_a_millimeter_each_hour() {
+        let from_unit = Velocity::new::<millimeter_per_hour>(2.5);
+        let from_parts = Length::new::<millimeter>(2.5) / Time::new::<hour>(1.0);
+        assert!((from_unit - from_parts).abs() < Velocity::new::<millimeter_per_hour>(1e-9));
+    }
+
+    fn radar_frames(clock: Clock, millimeters_per_hour: &[f64]) -> Rain {
+        Rain::try_from(
+            (0..)
+                .zip(millimeters_per_hour)
+                .map(|(frame, intensity)| Downpour {
+                    intensity: Velocity::new::<millimeter_per_hour>(*intensity),
+                    at: clock.local() + RADAR_FRAME_LENGTH * frame,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap()
+    }
+
+    fn severity_of(rain: &Rain, clock: Clock) -> Severity {
+        RadarRainForecast::with_default_alerts(rain).severity(clock.local())
+    }
+
+    #[test]
+    fn a_dry_forecast_never_alerts() {
+        let clock = Clock::real();
+        assert_eq!(
+            severity_of(&radar_frames(clock, &[0.0, 0.0]), clock),
+            Severity::Normal
+        );
+    }
+
+    #[test]
+    fn a_dry_forecast_stays_on_the_panel_as_inactive() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0]);
+        let forecast = RadarRainForecast::with_default_alerts(&rain);
+        assert_eq!(
+            RainForecast {
+                sources: RainSources::Radar(&rain),
+                alerts: &DEFAULT_RAIN_ALERTS,
+            }
+            .indicator(clock, Locale::default())
+            .panel_visibility(),
+            PanelVisibility::Shown
+        );
+        assert_eq!(forecast.display_state(clock), IndicatorState::Off);
+        assert_eq!(
+            forecast.glyph(),
+            IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
+        );
+        assert_eq!(
+            RadarRainForecast::with_default_alerts(&radar_frames(clock, &[0.0, 0.2]))
+                .display_state(clock),
+            IndicatorState::Idle
+        );
+    }
+
+    #[test]
+    fn rain_beyond_the_lead_time_waits_until_it_comes_closer() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0]);
+        assert_eq!(severity_of(&rain, clock), Severity::Normal);
+        assert_eq!(
+            severity_of(&rain, clock.advanced(Duration::from_mins(30))),
+            Severity::Warning
+        );
+    }
+
+    #[test]
+    fn heavy_rain_within_the_lead_time_is_critical() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 12.0]);
+        assert_eq!(severity_of(&rain, clock), Severity::Critical);
+    }
+
+    #[test]
+    fn drizzle_below_the_minimum_stays_quiet() {
+        let clock = Clock::real();
+        assert_eq!(
+            severity_of(&radar_frames(clock, &[0.2, 0.3, 0.2, 0.0]), clock),
+            Severity::Normal
+        );
+        assert_eq!(
+            severity_of(&radar_frames(clock, &[2.0, 2.0, 0.0]), clock),
+            Severity::Warning
+        );
+    }
+
+    #[test]
+    fn drizzle_now_does_not_bring_a_far_shower_forward() {
+        let clock = Clock::real();
+        let mut frames = vec![0.2; 20];
+        frames.push(12.0);
+        assert_eq!(
+            severity_of(&radar_frames(clock, &frames), clock),
+            Severity::Normal
+        );
+    }
+
+    #[test]
+    fn the_toast_describes_the_shower_rather_than_the_drizzle_before_it() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.2, 0.2, 3.0, 1.0, 0.0, 9.0]);
+        let body = RadarRainForecast::with_default_alerts(&rain)
+            .toast_body(clock, Locale::default())
+            .unwrap();
+        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert!(body.contains("<dt>Starts</dt>"));
+        assert!(body.contains("<dt>Peak</dt><dd>3.0 mm/h</dd>"));
+    }
+
+    #[test]
+    fn a_forecast_kept_through_failed_fetches_ages_out() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[3.0, 3.0, 3.0]);
+        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert_eq!(
+            severity_of(&rain, clock.advanced(Duration::from_mins(15))),
+            Severity::Normal
+        );
+    }
+
+    #[test]
+    fn the_label_counts_down_with_the_clock() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
+        let later = clock.advanced(Duration::from_mins(4));
+        assert_eq!(
+            rain_label_text(&rain, later, Locale::default()),
+            Some("in 6 min.".to_owned())
+        );
+    }
+
+    #[test]
+    fn the_toast_body_stays_the_same_as_the_clock_advances() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
+        let forecast = RadarRainForecast::with_default_alerts(&rain);
+        let body = forecast.toast_body(clock, Locale::default());
+        assert!(
+            body.as_deref()
+                .is_some_and(|body| body.contains("<dt>Starts</dt>"))
+        );
+        assert_eq!(
+            forecast.toast_body(clock.advanced(Duration::from_secs(50)), Locale::default()),
+            body
+        );
+    }
+
+    #[test]
+    fn rain_starting_soon_raises_a_toast() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 3.0]);
+        let rain_indicator: GroupIndicator<'_> = RainForecast {
+            sources: RainSources::Radar(&rain),
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+        .indicator(clock, Locale::default());
+        let toast = rain_indicator
+            .toast_requests(
+                &IndicatorGroupIdentity::sole(IndicatorGroupFamily::Weather),
+                WeatherInteraction::RefreshLocation.into(),
+                Locale::default(),
+                clock,
+            )
+            .ongoing_toasts
+            .into_iter()
+            .next();
+        assert_eq!(toast.map(|toast| toast.severity), Some(Severity::Warning));
+    }
+
+    #[test]
+    fn the_schedule_drops_frames_already_over() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[1.0, 2.0, 3.0, 0.0]);
+        let schedule = frames_not_yet_over(
+            &rain.forecast,
+            clock.advanced(Duration::from_mins(7)).local(),
+        );
+        assert_eq!(schedule.len(), 3);
+        assert_eq!(schedule[0], rain.forecast[1]);
+    }
+
+    fn model_quarters(clock: Clock, conditions: &[WeatherCondition]) -> PrecipitationModel {
+        let quarters: Vec<_> = (0..)
+            .zip(conditions)
+            .map(|(position, condition)| ModelQuarterHour {
+                starts_at: clock.utc() + MODEL_QUARTER_HOUR * position,
+                intensity: Velocity::new::<millimeter_per_hour>(match condition.sky_wetness() {
+                    SkyWetness::Precipitating => 1.2,
+                    SkyWetness::Dry => 0.0,
+                }),
+                condition: *condition,
+                daylight: Daylight::Day,
+            })
+            .collect();
+        PrecipitationModel {
+            current: quarters[0].clone(),
+            quarters,
+        }
+    }
+
+    fn default_scale() -> RainIntensityScale {
+        RainForecast {
+            sources: RainSources::Radar(&radar_frames(Clock::real(), &[0.0])),
+            alerts: &RainAlertsConfig::default(),
+        }
+        .intensity_scale()
+    }
+
+    fn timeline_of<'a>(forecast: &'a RainForecast<'a>, clock: Clock) -> Vec<RainTimelineRow<'a>> {
+        forecast.timeline(clock)
+    }
+
+    fn type_cells(timeline: &[RainTimelineRow<'_>]) -> Vec<ValueCell> {
+        timeline
+            .iter()
+            .map(|row| {
+                RecordCells::from(TableRecord::<3>::from(row))
+                    .cell(2)
+                    .cloned()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn radar_indicators_read_intensity_or_dry_without_a_model_type() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[2.0, 0.0]);
+        let scale = default_scale();
+        let row = |frame| {
+            RecordCells::from(TableRecord::<3>::from(&RainTimelineRow {
+                sample: RainRateIndicator::RadarFrame(frame),
+                type_marker: PrecipitationTypeMarker::Unmarked,
+                scale,
+            }))
+        };
+        let wet = row(&rain.forecast[0]);
+        assert_eq!(
+            match wet.cell(0).unwrap() {
+                ValueCell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
+                _ => String::new(),
+            },
+            "2.0 mm/h"
+        );
+        assert_eq!(
+            wet.cell(1),
+            Some(&ValueCell::IconGlyph(WeatherIcon::Rain.into()))
+        );
+        assert_eq!(wet.cell(2), Some(&ValueCell::Blank));
+        let dry = row(&rain.forecast[1]);
+        assert_eq!(dry.cell(0), Some(&ValueCell::from("–")));
+    }
+
+    #[test]
+    fn the_model_names_the_type_where_both_see_rain_and_continues_past_the_radar() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.4, 0.4, 0.4]);
+        let drizzle = WeatherCondition::Drizzle(Intensity::Light);
+        let model = model_quarters(clock, &[drizzle, drizzle, drizzle]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        let timeline = timeline_of(&forecast, clock);
+        assert_eq!(
+            type_cells(&timeline),
+            [
+                ValueCell::Blank,
+                ValueCell::Blank,
+                ValueCell::Blank,
+                ValueCell::from("Light drizzle"),
+                ValueCell::Blank,
+                ValueCell::Blank,
+                ValueCell::from("Light drizzle"),
+            ]
+        );
+        assert!(matches!(
+            timeline.last().map(|row| row.sample),
+            Some(RainRateIndicator::ModelQuarter(_))
+        ));
+    }
+
+    #[test]
+    fn a_dry_model_stays_silent_beside_radar_rain() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.4, 0.4, 0.4]);
+        let model = model_quarters(clock, &[WeatherCondition::Overcast]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        assert_eq!(
+            type_cells(&timeline_of(&forecast, clock)),
+            [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
+        );
+    }
+
+    #[test]
+    fn a_wet_model_does_not_wet_a_dry_radar_frame() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0]);
+        let model = model_quarters(clock, &[WeatherCondition::Drizzle(Intensity::Light)]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        let timeline = timeline_of(&forecast, clock);
+        assert_eq!(
+            type_cells(&timeline),
+            [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
+        );
+        assert!(
+            timeline
+                .iter()
+                .all(|row| row.sky_wetness() == SkyWetness::Dry)
+        );
+    }
+
+    #[test]
+    fn without_radar_the_timeline_lists_model_quarters_only() {
+        let clock = Clock::real();
+        let model = model_quarters(
+            clock,
+            &[WeatherCondition::Overcast, WeatherCondition::Overcast],
+        );
+        let forecast = RainForecast::modelled_with_default_alerts(&model);
+        let timeline = timeline_of(&forecast, clock);
+        assert_eq!(timeline.len(), 2);
+        assert!(
+            timeline
+                .iter()
+                .all(|row| matches!(row.sample, RainRateIndicator::ModelQuarter(_)))
+        );
+    }
+
+    #[test]
+    fn without_a_model_the_timeline_lists_radar_frames_only() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 1.0, 0.0]);
+        let forecast = RainForecast {
+            sources: RainSources::Radar(&rain),
+            alerts: &RainAlertsConfig::default(),
+        };
+        let timeline = timeline_of(&forecast, clock);
+        assert_eq!(timeline.len(), 3);
+        assert!(
+            timeline
+                .iter()
+                .all(|row| matches!(row.sample, RainRateIndicator::RadarFrame(_)))
+        );
+    }
+
+    #[test]
+    fn the_caption_lists_providers_from_most_to_least_trusted() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0]);
+        let model = model_quarters(clock, &[WeatherCondition::Overcast]);
+        let sources = RainSources::RadarAndModel {
+            radar: &rain,
+            model: &model,
+        };
+        assert_eq!(
+            sources.caption(clock),
+            "radar: Buienradar · model: Open-Meteo"
+        );
+    }
+
+    #[test]
+    fn a_model_without_radar_names_the_type_only_while_wet() {
+        let clock = Clock::real();
+        let alerts = RainAlertsConfig::default();
+        let snowing = model_quarters(clock, &[WeatherCondition::Snow(Intensity::Light)]);
+        let snow_forecast = RainForecast {
+            sources: RainSources::Model(&snowing),
+            alerts: &alerts,
+        };
+        assert_eq!(
+            snow_forecast.label_text(clock, Locale::default()),
+            Some("Light snow".to_owned())
+        );
+        let clear = model_quarters(clock, &[WeatherCondition::MainlyClear]);
+        let clear_forecast = RainForecast {
+            sources: RainSources::Model(&clear),
+            alerts: &alerts,
+        };
+        assert_eq!(clear_forecast.label_text(clock, Locale::default()), None);
+        assert_eq!(
+            clear_forecast.glyph(),
+            IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
+        );
+        assert_eq!(clear_forecast.display_state(clock), IndicatorState::Off);
+    }
+
+    #[test]
+    fn rain_strength_follows_the_met_office_and_the_configured_heavy_threshold() {
+        let alerts = RainAlertsConfig {
+            heavy_millimeters_per_hour: 10.0,
+            ..RainAlertsConfig::default()
+        };
+        let rain = radar_frames(Clock::real(), &[0.0]);
+        let scale = RadarRainForecast {
+            rain: &rain,
+            alerts: &alerts,
+        }
+        .intensity_scale();
+        let strength =
+            |millimeters| scale.strength(Velocity::new::<millimeter_per_hour>(millimeters));
+        assert_eq!(strength(0.0), RadarRainStrength::Dry);
+        assert_eq!(strength(0.4), RadarRainStrength::Light);
+        assert_eq!(strength(0.5), RadarRainStrength::Moderate);
+        assert_eq!(strength(9.9), RadarRainStrength::Moderate);
+        assert_eq!(strength(10.0), RadarRainStrength::Heavy);
+    }
+
+    #[test]
+    fn intensity_prints_in_millimeters_per_hour() {
+        assert_eq!(
+            intensity_text(Velocity::new::<millimeter_per_hour>(2.5)),
+            "2.5 mm/h"
+        );
+    }
+}

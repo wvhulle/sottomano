@@ -15,7 +15,7 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::workspace_window_snapshot::Snapshot,
 };
 use sottomano_toml_config::{
-    Config, screen_edges::Position, widget_groups::gamepad_bindings::GamepadBindingsConfig,
+    Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -27,7 +27,7 @@ use sottomano_widgets::{
         CardHeader, HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::{
+    indicator_groups::{
         app_launcher_group::AppLauncherGroup,
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
         apptainer_containers_group::ApptainerContainersGroup,
@@ -43,6 +43,8 @@ use sottomano_widgets::{
         gamepad_group::GamepadGroup,
         idle_pause_groups::IdlePauseGroups,
         incus_instances_group::IncusInstancesGroup,
+        indicator_group_content::IndicatorGroupContent,
+        indicator_group_interaction::IndicatorGroupInteraction,
         login_session_group::LoginSessionGroup,
         lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
@@ -61,8 +63,6 @@ use sottomano_widgets::{
         wallpaper_group::WallpaperGroup,
         waydroid_container_group::WaydroidContainerGroup,
         weather_group::WeatherGroup,
-        widget_group_content::WidgetGroupContent,
-        widget_group_interaction::WidgetGroupInteraction,
         window_group::{
             WindowGroup, WindowInspection, WindowRowLayout, WindowTarget, WindowTitleLength,
         },
@@ -187,7 +187,7 @@ pub enum ShownSettingItems {
 }
 
 impl ShowcasedShellSettings {
-    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<WidgetGroupContent<'a>> {
+    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<IndicatorGroupContent<'a>> {
         let inert_settings = [
             self.panels.group_content(config),
             self.sidebar.group_content(config),
@@ -197,10 +197,10 @@ impl ShowcasedShellSettings {
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
-                .map(WidgetGroupContent::only_aligned_indicators)
+                .map(IndicatorGroupContent::only_aligned_indicators)
                 .into(),
             ShownSettingItems::Remaining => inert_settings
-                .map(WidgetGroupContent::only_unaligned_indicators)
+                .map(IndicatorGroupContent::only_unaligned_indicators)
                 .into(),
         }
     }
@@ -448,7 +448,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'a>> {
         match self {
             ShowcasedGroup::AppLauncher(launcher) => launcher
                 .group
@@ -471,7 +471,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'a>> {
         let locale = config.calendar.locale;
         let sole_group = match self {
             ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
@@ -482,7 +482,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Audio(group) => group.group_content(config),
             ShowcasedGroup::VoiceDictation(group) => group.group_content(clock),
             ShowcasedGroup::Caldav(group) => {
-                group.group_content(&config.widget_groups.caldav, clock, locale)
+                group.group_content(&config.indicator_groups.caldav, clock, locale)
             }
             ShowcasedGroup::Tailnet(group) => group.group_content(clock),
             ShowcasedGroup::WireguardTunnels(group) => group.group_content(),
@@ -499,7 +499,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'a>> {
         match self {
             ShowcasedGroup::Media(media) => media
                 .group
@@ -521,7 +521,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'a>> {
         let locale = config.calendar.locale;
         let guest_group = match self {
             ShowcasedGroup::PodmanEngines(group) => group.group_content(),
@@ -711,80 +711,80 @@ impl ShowcasedGroup {
 
     pub fn interact(
         &mut self,
-        group_interaction: WidgetGroupInteraction,
+        group_interaction: IndicatorGroupInteraction,
         config: &Config,
         clock: Clock,
-    ) -> Result<(), Box<WidgetGroupInteraction>> {
+    ) -> Result<(), Box<IndicatorGroupInteraction>> {
         match (self, group_interaction) {
-            (ShowcasedGroup::Compute(group), WidgetGroupInteraction::Compute(interaction)) => {
+            (ShowcasedGroup::Compute(group), IndicatorGroupInteraction::Compute(interaction)) => {
                 let _ = group.interact(interaction, config, clock);
             }
             (
                 ShowcasedGroup::MemoryBoard(group),
-                WidgetGroupInteraction::MemoryBoard(interaction),
+                IndicatorGroupInteraction::MemoryBoard(interaction),
             ) => {
                 let _ = group.interact(interaction, config, clock);
             }
-            (ShowcasedGroup::Weather(group), WidgetGroupInteraction::Weather(interaction)) => {
+            (ShowcasedGroup::Weather(group), IndicatorGroupInteraction::Weather(interaction)) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::ClaudeUsage(group),
-                WidgetGroupInteraction::ClaudeUsage(interaction),
+                IndicatorGroupInteraction::ClaudeUsage(interaction),
             ) => {
                 let _ = group.interact(interaction, config);
             }
-            (ShowcasedGroup::Media(media), WidgetGroupInteraction::Media(interaction)) => {
+            (ShowcasedGroup::Media(media), IndicatorGroupInteraction::Media(interaction)) => {
                 let _ = media.group.interact(interaction, clock);
             }
             (
                 ShowcasedGroup::IdleTimeouts(group),
-                WidgetGroupInteraction::IdleTimeouts(interaction),
+                IndicatorGroupInteraction::IdleTimeouts(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
-            (ShowcasedGroup::Wallpaper(group), WidgetGroupInteraction::Wallpaper(expansion)) => {
+            (ShowcasedGroup::Wallpaper(group), IndicatorGroupInteraction::Wallpaper(expansion)) => {
                 let _ = group.interact(expansion);
             }
-            (ShowcasedGroup::Audio(group), WidgetGroupInteraction::Audio(message)) => {
+            (ShowcasedGroup::Audio(group), IndicatorGroupInteraction::Audio(message)) => {
                 let _ = group.update(message, clock);
             }
-            (ShowcasedGroup::Gamepad(gamepad), WidgetGroupInteraction::Gamepad(interaction)) => {
+            (ShowcasedGroup::Gamepad(gamepad), IndicatorGroupInteraction::Gamepad(interaction)) => {
                 let _ = gamepad.group.interact(interaction);
             }
             (
                 ShowcasedGroup::VoiceDictation(group),
-                WidgetGroupInteraction::VoiceDictation(interaction),
+                IndicatorGroupInteraction::VoiceDictation(interaction),
             ) => {
                 let _ = group.interact(interaction, config, clock);
             }
-            (ShowcasedGroup::Caldav(group), WidgetGroupInteraction::Caldav(expansion)) => {
+            (ShowcasedGroup::Caldav(group), IndicatorGroupInteraction::Caldav(expansion)) => {
                 let _ = group.interact(expansion);
             }
             (
                 ShowcasedGroup::WireguardTunnels(group),
-                WidgetGroupInteraction::WireguardTunnels(interaction),
+                IndicatorGroupInteraction::WireguardTunnels(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
-            (ShowcasedGroup::Tailnet(group), WidgetGroupInteraction::Tailnet(interaction)) => {
+            (ShowcasedGroup::Tailnet(group), IndicatorGroupInteraction::Tailnet(interaction)) => {
                 let _ = group.interact(interaction, config, clock);
             }
             (
                 ShowcasedGroup::LoginSession(group),
-                WidgetGroupInteraction::LoginSession(interaction),
+                IndicatorGroupInteraction::LoginSession(interaction),
             ) => {
                 let _ = group.interact(interaction, config, clock);
             }
             (
                 ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
-                WidgetGroupInteraction::WindowGroup(interaction),
+                IndicatorGroupInteraction::WindowGroup(interaction),
             ) => {
                 let _ = session.window_group.interact(interaction);
             }
             (
                 ShowcasedGroup::AppearancePresets(presets),
-                WidgetGroupInteraction::AppearancePresets(presets_message),
+                IndicatorGroupInteraction::AppearancePresets(presets_message),
             ) => match presets_message {
                 AppearancePresetsMessage::Apply(preset) => {
                     presets.appearance = preset.applied_to(presets.appearance);
@@ -812,87 +812,87 @@ impl ShowcasedGroup {
 
     fn interact_guest_group(
         &mut self,
-        group_interaction: WidgetGroupInteraction,
-    ) -> Result<(), Box<WidgetGroupInteraction>> {
+        group_interaction: IndicatorGroupInteraction,
+    ) -> Result<(), Box<IndicatorGroupInteraction>> {
         match (self, group_interaction) {
             (
                 ShowcasedGroup::PodmanEngines(group),
-                WidgetGroupInteraction::PodmanEngines(interaction),
+                IndicatorGroupInteraction::PodmanEngines(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::VirtualMachines(group),
-                WidgetGroupInteraction::VirtualMachines(interaction),
+                IndicatorGroupInteraction::VirtualMachines(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::NspawnContainers(group),
-                WidgetGroupInteraction::NspawnContainers(interaction),
+                IndicatorGroupInteraction::NspawnContainers(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
-            (ShowcasedGroup::CiRuns(group), WidgetGroupInteraction::CiRuns(interaction)) => {
+            (ShowcasedGroup::CiRuns(group), IndicatorGroupInteraction::CiRuns(interaction)) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::DockerEngines(group),
-                WidgetGroupInteraction::DockerEngines(interaction),
+                IndicatorGroupInteraction::DockerEngines(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::ApptainerContainers(group),
-                WidgetGroupInteraction::ApptainerContainers(interaction),
+                IndicatorGroupInteraction::ApptainerContainers(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::VmwareMachines(group),
-                WidgetGroupInteraction::VmwareMachines(interaction),
+                IndicatorGroupInteraction::VmwareMachines(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::VirtualBoxMachines(group),
-                WidgetGroupInteraction::VirtualBoxMachines(interaction),
+                IndicatorGroupInteraction::VirtualBoxMachines(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::WaydroidContainer(group),
-                WidgetGroupInteraction::WaydroidContainer(interaction),
+                IndicatorGroupInteraction::WaydroidContainer(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::FlatpakSandboxes(group),
-                WidgetGroupInteraction::FlatpakSandboxes(interaction),
+                IndicatorGroupInteraction::FlatpakSandboxes(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::LxcContainers(group),
-                WidgetGroupInteraction::LxcContainers(interaction),
+                IndicatorGroupInteraction::LxcContainers(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::IncusInstances(group),
-                WidgetGroupInteraction::IncusInstances(interaction),
+                IndicatorGroupInteraction::IncusInstances(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::MicrovmGuests(group),
-                WidgetGroupInteraction::MicrovmGuests(interaction),
+                IndicatorGroupInteraction::MicrovmGuests(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }
             (
                 ShowcasedGroup::CgroupMemoryLimits(group),
-                WidgetGroupInteraction::CgroupMemoryLimits(interaction),
+                IndicatorGroupInteraction::CgroupMemoryLimits(interaction),
             ) => {
                 let _ = group.interact(interaction);
             }

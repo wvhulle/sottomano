@@ -2,7 +2,7 @@ use std::iter::once;
 
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_content::WidgetGroupContent,
+    indicator_groups::indicator_group_content::IndicatorGroupContent,
 };
 
 use crate::desktop_shell::DesktopShell;
@@ -12,12 +12,12 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Behaviour,
             self.settings_groups()
-                .map(WidgetGroupContent::only_unaligned_indicators)
+                .map(IndicatorGroupContent::only_unaligned_indicators)
                 .into_iter()
                 .chain(once(
-                    self.widget_groups
+                    self.indicator_groups
                         .appearance_presets_group
-                        .group_content(&self.widget_groups.shell_appearance()),
+                        .group_content(&self.indicator_groups.shell_appearance()),
                 )),
         )
     }

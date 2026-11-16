@@ -46,14 +46,14 @@ use sottomano_widgets::{
         HoverCardHost, HoverTarget, hover_card_surfaces::HoverContent,
         hover_card_transition::CardRetention,
     },
+    indicator_groups::{
+        idle_pause_groups::IdlePauseMessage,
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+        indicator_group_interaction::IndicatorGroupInteraction,
+    },
     load_tally::{WorkKind, WorkMeasurement, record_update, record_view},
     notification_toasts::{
         NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
-    },
-    widget_groups::{
-        idle_pause_groups::IdlePauseMessage,
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
-        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         configured_theme::configured_theme,
@@ -66,12 +66,12 @@ use sottomano_widgets::{
 
 use crate::{
     compositor_updates::{SwitchHeatEffect, report_missing_compositor, switch_heat_effect},
+    indicator_groups::ShellIndicatorGroups,
     monitors::monitor_surfaces::{Surface, SurfaceRole, query_outputs},
     notification_updates::{AlertRescanNeed, GroupAlertScan, alert_rescan_need},
     pointer_drag::ShellDrag,
     shell_message::{Message, ShellInteraction},
     sqlite_app_launches,
-    widget_groups::ShellWidgetGroups,
 };
 
 pub struct DesktopShell {
@@ -81,7 +81,7 @@ pub struct DesktopShell {
     pub clock: Clock,
     pub config: Config,
     pub theme: iced::Theme,
-    pub widget_groups: ShellWidgetGroups,
+    pub indicator_groups: ShellIndicatorGroups,
     pub launch_tracker: LaunchTracker,
     pub compositor: CompositorWindowState,
     pub window_snapshot: workspace_window_snapshot::Snapshot,
@@ -116,7 +116,7 @@ impl DesktopShell {
         point_generic_font_families_at(&config.theme);
         let clock = Clock::real();
         let shell = Self {
-            widget_groups: ShellWidgetGroups::new(&config, secrets, compositor_rules, clock),
+            indicator_groups: ShellIndicatorGroups::new(&config, secrets, compositor_rules, clock),
             launch_tracker: LaunchTracker::default(),
             compositor: CompositorWindowState::default(),
             window_snapshot: workspace_window_snapshot::Snapshot::default(),
@@ -146,7 +146,7 @@ impl DesktopShell {
             Task::done(Message::ConfigLoaded(loaded)),
             Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
             Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
-            shell.widget_groups.load(clock),
+            shell.indicator_groups.load(clock),
             shell.read_niri_workspace_order(),
             report_missing_compositor(),
             Task::perform(
@@ -179,18 +179,18 @@ impl DesktopShell {
         let heat_effect = switch_heat_effect(&message);
         let alert_rescan = alert_rescan_need(&message);
         let dispatched = self.dispatch_message(message);
-        self.widget_groups
+        self.indicator_groups
             .session_focus_group
-            .refresh_daily_totals(&self.config.widget_groups.session_focus, self.clock);
+            .refresh_daily_totals(&self.config.indicator_groups.session_focus, self.clock);
         let reheated = if heat_effect == SwitchHeatEffect::Reheats {
-            self.widget_groups
+            self.indicator_groups
                 .reheat_switch_heat(&self.config, &self.compositor, self.clock)
         } else {
             Task::none()
         };
         if self.hover_card.target() != hover_card_target_before.as_ref() {
             let _closed = self
-                .widget_groups
+                .indicator_groups
                 .group_menus
                 .update(GroupMenuMessage::Closed);
         }
@@ -206,7 +206,7 @@ impl DesktopShell {
         let widget_toasts = match alert_rescan {
             AlertRescanNeed::Rescans => self.rescan_group_alerts(open_menu),
             AlertRescanNeed::Skips => {
-                self.widget_groups
+                self.indicator_groups
                     .group_menus
                     .track_open_menu(open_menu, self.clock.instant);
                 Task::none()
@@ -227,7 +227,7 @@ impl DesktopShell {
             toast_requests,
             panel_raises,
         } = self.scan_group_alerts();
-        self.widget_groups.group_menus.track_source_demand(
+        self.indicator_groups.group_menus.track_source_demand(
             open_menu,
             panel_raises,
             self.clock.instant,
@@ -235,7 +235,7 @@ impl DesktopShell {
         self.notifications
             .show_widget_toasts(
                 toast_requests,
-                &self.widget_groups.toast_context(
+                &self.indicator_groups.toast_context(
                     &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,
@@ -286,12 +286,16 @@ impl DesktopShell {
             Message::GlobalMenu(msg) => self.update_global_menu(msg),
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
-                .widget_groups
+                .indicator_groups
                 .session_focus_group
-                .screen_power_changed(edge, &self.config.widget_groups.session_focus, self.clock)
+                .screen_power_changed(
+                    edge,
+                    &self.config.indicator_groups.session_focus,
+                    self.clock,
+                )
                 .map(Message::SessionFocus),
             Message::IdleTimeouts(msg) => self
-                .widget_groups
+                .indicator_groups
                 .idle_pause_groups
                 .update(msg, self.clock)
                 .map(Message::IdleTimeouts),
@@ -340,7 +344,7 @@ impl DesktopShell {
                 self.notifications
                     .show_bus_failure(
                         &failure,
-                        &self.widget_groups.toast_context(
+                        &self.indicator_groups.toast_context(
                             &self.compositor,
                             self.desktop_entries.get(),
                             &self.config,
@@ -369,7 +373,7 @@ impl DesktopShell {
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => {
                 self.notifications.prune(self.clock.instant);
-                self.widget_groups
+                self.indicator_groups
                     .window_group
                     .settle_workspace_slides(self.clock.instant);
                 Task::none()
@@ -421,7 +425,7 @@ impl DesktopShell {
             | Message::SessionFocus(_)
             | Message::LoginSession(_)
             | Message::DarkMode(_)) => {
-                self.widget_groups
+                self.indicator_groups
                     .route(group_message, &self.config, self.clock)
             }
             Message::HoverCardFadeElapsed
@@ -512,7 +516,7 @@ impl DesktopShell {
         };
         let group_menu = self.group_menu_of(*topic, self.hovered_output());
         let inspected_sections = self
-            .widget_groups
+            .indicator_groups
             .group_menus
             .inspected_indicator(*topic)
             .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
@@ -524,7 +528,7 @@ impl DesktopShell {
             .surfaces(
                 &self.config,
                 &self
-                    .widget_groups
+                    .indicator_groups
                     .group_menus
                     .layer
                     .appearance()
@@ -532,7 +536,7 @@ impl DesktopShell {
                 &InspectionCard {
                     sections: &inspected_sections,
                     card_appearance: self
-                        .widget_groups
+                        .indicator_groups
                         .overlay_settings_group
                         .layer
                         .appearance()
@@ -554,7 +558,7 @@ impl DesktopShell {
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, ShellInteraction>> {
         let popup_corners = Radius::from(
-            self.widget_groups
+            self.indicator_groups
                 .overlay_settings_group
                 .layer
                 .appearance()
@@ -563,27 +567,28 @@ impl DesktopShell {
         );
         match target {
             HoverTarget::Indicator(indicator_key)
-                if indicator_key.group == WidgetGroupIdentity::sole(WidgetGroupFamily::Tray) =>
+                if indicator_key.group
+                    == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>
             {
-                self.widget_groups
+                self.indicator_groups
                     .tray_group
                     .menu_panel_named(&indicator_key.name, &self.config, popup_corners)
                     .map(|panel| {
                         panel.map(|tray_message| {
-                            ShellInteraction::Group(WidgetGroupInteraction::Tray(tray_message))
+                            ShellInteraction::Group(IndicatorGroupInteraction::Tray(tray_message))
                         })
                     })
             }
             HoverTarget::SessionMenu => Some(
-                self.widget_groups
+                self.indicator_groups
                     .session_power_group
                     .menu_panel(
                         &self.config,
                         popup_corners,
-                        self.widget_groups.idle_pause_groups.timeouts(),
+                        self.indicator_groups.idle_pause_groups.timeouts(),
                     )
                     .map(|session_message| {
-                        ShellInteraction::Group(WidgetGroupInteraction::Session(session_message))
+                        ShellInteraction::Group(IndicatorGroupInteraction::Session(session_message))
                     }),
             ),
             _ => None,
@@ -612,7 +617,7 @@ impl DesktopShell {
         self.hover_card.view(
             output,
             &self.config,
-            self.widget_groups
+            self.indicator_groups
                 .hover_card_surface_style(self.card_background_fade(output)),
             self.window_assets(),
             |target: &HoverTarget| self.hover_content(target),
@@ -645,18 +650,23 @@ impl DesktopShell {
                 output,
                 role: SurfaceRole::NotificationToasts,
                 ..
-            }) => Element::from(self.notifications.anchored_toasts(
-                output,
-                &self.config,
-                &self.theme,
-                ToastSurfaceStyle {
-                    overlay_appearance:
-                        self.widget_groups.overlay_settings_group.layer.appearance(),
-                    panel_clearance: self.panel_clearance(output),
-                    background_fade: self.card_background_fade(output),
-                },
-                self.clock,
-            ))
+            }) => Element::from(
+                self.notifications.anchored_toasts(
+                    output,
+                    &self.config,
+                    &self.theme,
+                    ToastSurfaceStyle {
+                        overlay_appearance: self
+                            .indicator_groups
+                            .overlay_settings_group
+                            .layer
+                            .appearance(),
+                        panel_clearance: self.panel_clearance(output),
+                        background_fade: self.card_background_fade(output),
+                    },
+                    self.clock,
+                ),
+            )
             .map(ShellInteraction::Notification),
             _ => blank().into(),
         }

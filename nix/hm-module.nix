@@ -96,7 +96,7 @@ in
           `/analytics/query`, which only management keys may access. The same key
           ranks the OpenRouter models with tool calls and at least 128k context
           that cost at most
-          `settings.widget_groups.openrouter_credit.max_blended_usd_per_million`
+          `settings.indicator_groups.openrouter_credit.max_blended_usd_per_million`
           by their Intelligence Index from OpenRouter's benchmarks. Symlinked into
           ~/.config/sottomano/, where the bar looks for it. When unset, the
           OpenRouter pill is hidden.
@@ -162,7 +162,7 @@ in
         default = null;
         description = ''
           Path to a file holding the CalDAV password of the account in
-          `settings.widget_groups.caldav` as plain text. Prefer an app password
+          `settings.indicator_groups.caldav` as plain text. Prefer an app password
           where the server offers one (Nextcloud: Personal settings → Security →
           Devices & sessions). The calendar group discovers the calendars through
           `/.well-known/caldav` and shows open tasks and upcoming events.

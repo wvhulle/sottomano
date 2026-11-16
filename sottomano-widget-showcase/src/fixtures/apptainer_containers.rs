@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::apptainer_containers_group::{
+    indicator_groups::apptainer_containers_group::{
         ApptainerContainersGroup, ApptainerContainersMessage,
     },
 };

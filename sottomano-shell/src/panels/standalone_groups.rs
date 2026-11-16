@@ -1,37 +1,42 @@
 use sottomano_desktop_sources::desktop_windows_apps::window_edge_placement::Placement;
-use sottomano_widgets::widget_groups::{
-    fixed_panel_group::FixedPanelGroup, notification_group::NotificationStatus,
-    widget_group_content::WidgetGroupContent,
+use sottomano_widgets::indicator_groups::{
+    fixed_panel_group::FixedPanelGroup, indicator_group_content::IndicatorGroupContent,
+    notification_group::NotificationStatus,
 };
 
 use crate::{
     desktop_shell::DesktopShell,
-    panels::{FixedPanelEntry, StandaloneWidgetGroup},
+    panels::{FixedPanelEntry, StandaloneIndicatorGroup},
 };
 
 impl DesktopShell {
     pub(crate) fn fixed_panel_group(&self, entry: FixedPanelEntry) -> FixedPanelGroup<'_> {
         match entry {
-            FixedPanelEntry::SessionPower => self.widget_groups.session_power_group.group_content(),
+            FixedPanelEntry::SessionPower => {
+                self.indicator_groups.session_power_group.group_content()
+            }
         }
     }
 
-    pub(crate) fn standalone_group(&self, group: StandaloneWidgetGroup) -> WidgetGroupContent<'_> {
+    pub(crate) fn standalone_group(
+        &self,
+        group: StandaloneIndicatorGroup,
+    ) -> IndicatorGroupContent<'_> {
         let config = &self.config;
         let window_placement = Placement::derive(&self.compositor);
         match group {
-            StandaloneWidgetGroup::Clock => self
-                .widget_groups
+            StandaloneIndicatorGroup::Clock => self
+                .indicator_groups
                 .clock_group
                 .group_content(self.clock, self.config.calendar.locale),
-            StandaloneWidgetGroup::Notifications => {
-                self.widget_groups.notification_group.group_content(
+            StandaloneIndicatorGroup::Notifications => {
+                self.indicator_groups.notification_group.group_content(
                     self.notification_status(),
-                    &self.widget_groups.quiet_schedule_group,
+                    &self.indicator_groups.quiet_schedule_group,
                 )
             }
-            StandaloneWidgetGroup::Tray => self
-                .widget_groups
+            StandaloneIndicatorGroup::Tray => self
+                .indicator_groups
                 .tray_group
                 .group_content(config, &|owner| {
                     window_placement.window_owned_by(owner).is_some()
@@ -41,7 +46,7 @@ impl DesktopShell {
 
     pub(crate) fn notification_status(&self) -> NotificationStatus {
         NotificationStatus {
-            quiet_phase: self.widget_groups.quiet_schedule_group.quiet_phase(),
+            quiet_phase: self.indicator_groups.quiet_schedule_group.quiet_phase(),
             live: self.notifications.live.len(),
             held: self.notifications.held.len(),
         }

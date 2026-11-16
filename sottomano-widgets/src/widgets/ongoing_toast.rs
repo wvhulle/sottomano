@@ -349,7 +349,9 @@ mod tests {
     use uom::si::ratio::percent;
 
     use super::*;
-    use crate::widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity};
+    use crate::indicator_groups::indicator_group_identity::{
+        IndicatorGroupFamily, IndicatorGroupIdentity,
+    };
 
     fn notifying_from(minimum_severity: Severity) -> StateToast {
         StateToast::NotifyFromSeverity {
@@ -368,7 +370,7 @@ mod tests {
         OngoingToast::indicator_state_alert(
             &RowNotice {
                 indicator: IndicatorKey {
-                    group: WidgetGroupIdentity::sole(WidgetGroupFamily::Power),
+                    group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Power),
                     name: "Fixed reading".into(),
                 },
                 widget_name: "Fixed reading".into(),

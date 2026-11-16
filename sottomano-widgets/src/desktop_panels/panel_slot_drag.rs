@@ -3,7 +3,7 @@ use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,
-    widget_groups::window_group::{WindowRowLayout, WindowTitleLength},
+    indicator_groups::window_group::{WindowRowLayout, WindowTitleLength},
     widgets::pointer_drag::{self, DragEvent, DragView, DraggedPanelSlot, ForeignHover},
 };
 

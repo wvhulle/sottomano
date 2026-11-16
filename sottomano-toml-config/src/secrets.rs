@@ -39,7 +39,7 @@ impl SecretFile {
                 "OpenRouter management key, plain text; a regular API key cannot call \
                  /analytics/query. Shows OpenRouter spend and ranks tool-capable OpenRouter models \
                  by Intelligence Index, within \
-                 widget_groups.openrouter_credit.max_blended_usd_per_million."
+                 indicator_groups.openrouter_credit.max_blended_usd_per_million."
             }
             SecretFile::ClaudeCodeOauth => {
                 "Claude Code credentials JSON (~/.claude/.credentials.json). Pro or Max shows the \
@@ -54,7 +54,7 @@ impl SecretFile {
             }
             SecretFile::CaldavPassword => {
                 "CalDAV password, plain text; prefer an app password (Nextcloud: Personal settings \
-                 → Security). Shows tasks and upcoming events of widget_groups.caldav."
+                 → Security). Shows tasks and upcoming events of indicator_groups.caldav."
             }
             SecretFile::TailscaleApiToken => {
                 "Tailscale API access token, plain text. Shows the tailnet policy file in the \

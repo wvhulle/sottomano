@@ -4,6 +4,8 @@ pub mod group_indicators;
 pub mod group_menus;
 pub mod hover_cards;
 pub mod humantime_time_delta;
+pub mod indicator_group_layout;
+pub mod indicator_groups;
 pub mod launched_programs;
 pub mod load;
 pub mod notification_toasts;
@@ -14,8 +16,6 @@ pub mod secrets;
 pub mod severity;
 pub mod spacing;
 pub mod theme;
-pub mod widget_group_layout;
-pub mod widget_groups;
 
 pub use load::{Config, ConfigFile, LoadError, config_home, default_config_toml};
 pub use secrets::SecretPaths;

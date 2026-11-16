@@ -5,7 +5,9 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::wallpaper_group::{WallpaperGroup, WallpaperMessage, wallpaper_lookup::Lookup},
+    indicator_groups::wallpaper_group::{
+        WallpaperGroup, WallpaperMessage, wallpaper_lookup::Lookup,
+    },
 };
 use uom::si::{angle::degree, f64::Angle};
 

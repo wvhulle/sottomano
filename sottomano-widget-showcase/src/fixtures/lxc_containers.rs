@@ -10,7 +10,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::lxc_containers_group::{LxcContainersGroup, LxcContainersMessage},
+    indicator_groups::lxc_containers_group::{LxcContainersGroup, LxcContainersMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

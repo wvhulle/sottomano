@@ -8,8 +8,9 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    widget_groups::{
-        widget_group_content::WidgetGroupContent, widget_group_identity::WidgetGroupFamily,
+    indicator_groups::{
+        indicator_group_content::IndicatorGroupContent,
+        indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -64,7 +65,7 @@ fn submenu_connector_toggle(presentation: NestedMenuPresentation) -> IconToggle 
 
 impl GroupMenuState {
     #[must_use]
-    pub fn settings_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
+    pub fn settings_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
         let presentation = self.presentation();
         let accordion_only_indicator =
             (presentation.layout == NestedMenuLayout::Accordion).then(|| {
@@ -73,10 +74,10 @@ impl GroupMenuState {
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
                 )
             });
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::GroupMenuSettings,
+        IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::GroupMenuSettings,
             GroupIndicator::glyph_only(
-                WidgetGroupFamily::GroupMenuSettings.title(),
+                IndicatorGroupFamily::GroupMenuSettings.title(),
                 Phosphor::ListDashes(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),
@@ -115,7 +116,9 @@ mod tests {
     fn switching_presentation_keeps_only_the_first_open_group_at_a_limit_of_one() {
         use crate::{
             group_menus::group_menu_state::GroupMenuTopic,
-            widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+            indicator_groups::indicator_group_identity::{
+                IndicatorGroupFamily, IndicatorGroupIdentity,
+            },
         };
         let several_open = NestedMenuPresentation {
             layout: NestedMenuLayout::Accordion,
@@ -123,10 +126,10 @@ mod tests {
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(several_open));
-        for family in [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute] {
+        for family in [IndicatorGroupFamily::Gpu, IndicatorGroupFamily::Compute] {
             let _ = group_menus.update(GroupMenuMessage::ToggleMenuGroup {
                 menu: GroupMenuTopic::Hardware,
-                group_identity: WidgetGroupIdentity::sole(family),
+                group_identity: IndicatorGroupIdentity::sole(family),
             });
         }
         assert_eq!(group_menus.open_groups(GroupMenuTopic::Hardware).len(), 2);

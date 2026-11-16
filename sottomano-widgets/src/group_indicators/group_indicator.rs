@@ -36,10 +36,10 @@ use crate::{
         CardHeader, HoverTarget, IndicatorKey, MouseGesture, PressAction, hover_card_body::Section,
         hoverable,
     },
-    widget_groups::{
-        widget_group_content::{GroupEvent, GroupToastRequests},
-        widget_group_identity::WidgetGroupIdentity,
-        widget_group_interaction::WidgetGroupInteraction,
+    indicator_groups::{
+        indicator_group_content::{GroupEvent, GroupToastRequests},
+        indicator_group_identity::IndicatorGroupIdentity,
+        indicator_group_interaction::IndicatorGroupInteraction,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -62,7 +62,7 @@ pub enum PanelVisibility {
 type DrawItem<'a> = Box<dyn Fn(f32) -> Element<'a, GroupEvent> + 'a>;
 type DrawControl<'a> = Box<dyn Fn(f32, Clock, IndicatorPlacement) -> Element<'a, GroupEvent> + 'a>;
 
-type AdjustByScroll<'a> = Rc<dyn Fn(ScrollDelta) -> WidgetGroupInteraction + 'a>;
+type AdjustByScroll<'a> = Rc<dyn Fn(ScrollDelta) -> IndicatorGroupInteraction + 'a>;
 
 pub(crate) enum RowScroll<'a> {
     Inert,
@@ -88,15 +88,15 @@ enum IndicatorPowerControl {
 pub enum HoverFetch {
     NothingToFetch,
     Fetch {
-        start: Box<WidgetGroupInteraction>,
-        stop: Box<WidgetGroupInteraction>,
+        start: Box<IndicatorGroupInteraction>,
+        stop: Box<IndicatorGroupInteraction>,
     },
 }
 
 #[derive(Debug, Clone)]
 pub enum IndicatorRefresh {
     Unrefreshable,
-    Refreshes(WidgetGroupInteraction),
+    Refreshes(IndicatorGroupInteraction),
 }
 
 pub struct RowHoverCard {
@@ -162,8 +162,8 @@ pub struct GroupIndicator<'a> {
     hover_fetch: HoverFetch,
     refresh: IndicatorRefresh,
     power_control: IndicatorPowerControl,
-    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<WidgetGroupInteraction>>,
-    ongoing_toasts: Vec<OngoingToast<WidgetGroupInteraction>>,
+    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<IndicatorGroupInteraction>>,
+    ongoing_toasts: Vec<OngoingToast<IndicatorGroupInteraction>>,
     alignment: IndicatorAlignment,
     card_opening_trigger: NestedMenuOpenTrigger,
     panel_visibility: PanelVisibility,
@@ -392,7 +392,7 @@ impl<'a> GroupIndicator<'a> {
         }
     }
 
-    pub fn slider<Interaction: Into<WidgetGroupInteraction>>(
+    pub fn slider<Interaction: Into<IndicatorGroupInteraction>>(
         slider: &'a SliderControl,
         config: &'a Config,
         on_control: impl Fn(ControlMessage) -> Interaction + 'a,
@@ -469,7 +469,7 @@ impl<'a> GroupIndicator<'a> {
         }
     }
 
-    pub fn toggle(toggle: IconToggle, message: impl Into<WidgetGroupInteraction>) -> Self {
+    pub fn toggle(toggle: IconToggle, message: impl Into<IndicatorGroupInteraction>) -> Self {
         let switch_position = toggle.switch_position;
         let press_does = toggle.press_does();
         toggle
@@ -482,7 +482,7 @@ impl<'a> GroupIndicator<'a> {
         mut self,
         switch_position: impl Into<SwitchPosition>,
         description: &'static str,
-        message: impl Into<WidgetGroupInteraction>,
+        message: impl Into<IndicatorGroupInteraction>,
     ) -> Self {
         self.power_control = IndicatorPowerControl::Switch(switch_position.into());
         self.on_press(description, message)
@@ -498,7 +498,7 @@ impl<'a> GroupIndicator<'a> {
     pub fn on_stop_press(
         mut self,
         description: &'static str,
-        message: impl Into<WidgetGroupInteraction>,
+        message: impl Into<IndicatorGroupInteraction>,
     ) -> Self {
         self.power_control = IndicatorPowerControl::StopGlyph;
         self.on_press(description, message)
@@ -508,7 +508,7 @@ impl<'a> GroupIndicator<'a> {
     pub fn on_press(
         mut self,
         description: &'static str,
-        message: impl Into<WidgetGroupInteraction>,
+        message: impl Into<IndicatorGroupInteraction>,
     ) -> Self {
         self.gestures.left = IndicatorGesture::Performs {
             description,
@@ -521,7 +521,7 @@ impl<'a> GroupIndicator<'a> {
     pub fn on_right_press(
         mut self,
         description: &'static str,
-        message: impl Into<WidgetGroupInteraction>,
+        message: impl Into<IndicatorGroupInteraction>,
     ) -> Self {
         self.gestures.right = IndicatorGesture::Performs {
             description,
@@ -544,8 +544,8 @@ impl<'a> GroupIndicator<'a> {
     #[must_use]
     pub fn fetching_on_hover(
         self,
-        start: impl Into<WidgetGroupInteraction>,
-        stop: impl Into<WidgetGroupInteraction>,
+        start: impl Into<IndicatorGroupInteraction>,
+        stop: impl Into<IndicatorGroupInteraction>,
     ) -> Self {
         Self {
             hover_fetch: HoverFetch::Fetch {
@@ -557,7 +557,7 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn refreshed_by(self, refresh: impl Into<WidgetGroupInteraction>) -> Self {
+    pub fn refreshed_by(self, refresh: impl Into<IndicatorGroupInteraction>) -> Self {
         Self {
             refresh: IndicatorRefresh::Refreshes(refresh.into()),
             ..self
@@ -605,7 +605,7 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn ongoing_toasts<Interaction: Into<WidgetGroupInteraction>>(
+    pub fn ongoing_toasts<Interaction: Into<IndicatorGroupInteraction>>(
         self,
         ongoing_toasts: impl IntoIterator<Item = OngoingToast<Interaction>>,
     ) -> Self {
@@ -619,7 +619,7 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn ongoing_toast_action_buttons<Interaction: Into<WidgetGroupInteraction>>(
+    pub fn ongoing_toast_action_buttons<Interaction: Into<IndicatorGroupInteraction>>(
         self,
         buttons: impl IntoIterator<Item = OngoingToastActionButton<Interaction>>,
     ) -> Self {
@@ -664,8 +664,8 @@ impl<'a> GroupIndicator<'a> {
 
     pub(crate) fn toast_requests(
         &self,
-        group: &WidgetGroupIdentity,
-        on_body_clicked: WidgetGroupInteraction,
+        group: &IndicatorGroupIdentity,
+        on_body_clicked: IndicatorGroupInteraction,
         locale: Locale,
         clock: Clock,
     ) -> GroupToastRequests {
@@ -781,7 +781,7 @@ impl<'a> GroupIndicator<'a> {
 
     pub(crate) fn row_emphasis(
         &self,
-        group: &WidgetGroupIdentity,
+        group: &IndicatorGroupIdentity,
         inspected_indicator: Option<&IndicatorKey>,
     ) -> NestedMenuRowEmphasis {
         if inspected_indicator == Some(&self.indicator_key(group)) {
@@ -805,7 +805,7 @@ impl<'a> GroupIndicator<'a> {
         self.pinning
     }
 
-    pub(crate) fn menu_pin(&self, group: &WidgetGroupIdentity) -> Option<GroupMenuPin> {
+    pub(crate) fn menu_pin(&self, group: &IndicatorGroupIdentity) -> Option<GroupMenuPin> {
         match self.pinning {
             IndicatorPinning::Pinnable => Some(GroupMenuPin::Item(self.indicator_key(group))),
             IndicatorPinning::Unpinnable => None,
@@ -813,7 +813,7 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn indicator_key(&self, group: &WidgetGroupIdentity) -> IndicatorKey {
+    pub fn indicator_key(&self, group: &IndicatorGroupIdentity) -> IndicatorKey {
         IndicatorKey {
             group: group.clone(),
             name: self.face.name.clone(),
@@ -881,9 +881,9 @@ mod tests {
         group_indicators::{group_indicator::named_test_indicator, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
         hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage},
-        widget_groups::{
+        indicator_groups::{
             compositor_styling_group::CompositorStylingMessage,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         },
         widgets::phosphor::{Phosphor, Weight},
     };
@@ -1057,7 +1057,7 @@ mod tests {
         HoverTarget::PinnedOnPanel(Box::new(PanelPin {
             menu: GroupMenuTopic::Media,
             entry: GroupMenuPin::Item(IndicatorKey {
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+                group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Media),
                 name: "pinned slider".into(),
             }),
             duration: PanelPinDuration::Permanent,
@@ -1114,7 +1114,7 @@ mod tests {
                 .iter()
                 .any(|event| matches!(
                     event,
-                    GroupEvent::Interaction(WidgetGroupInteraction::CompositorStyling(
+                    GroupEvent::Interaction(IndicatorGroupInteraction::CompositorStyling(
                         CompositorStylingMessage::CornerRadius(ControlMessage::Press)
                     ))
                 ))

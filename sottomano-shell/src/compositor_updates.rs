@@ -15,11 +15,11 @@ use sottomano_desktop_sources::{
         workspace_window_snapshot,
     },
 };
-use sottomano_widgets::widget_groups::{
+use sottomano_widgets::indicator_groups::{
     app_launcher_group::{
         AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
     },
-    widget_group_interaction::WidgetGroupInteraction,
+    indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::{
@@ -32,7 +32,7 @@ impl DesktopShell {
     pub(crate) fn derive_window_snapshot(&mut self) {
         self.window_snapshot = workspace_window_snapshot::Snapshot::derive(
             &self.compositor,
-            self.widget_groups.window_group.window_processes(),
+            self.indicator_groups.window_group.window_processes(),
         );
     }
 
@@ -45,7 +45,7 @@ impl DesktopShell {
         self.notifications
             .show_compositor_failure(
                 failure,
-                &self.widget_groups.toast_context(
+                &self.indicator_groups.toast_context(
                     &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,
@@ -81,16 +81,18 @@ impl DesktopShell {
             tasks.push(self.read_niri_workspace_order());
         }
         self.derive_window_snapshot();
-        self.widget_groups.window_group.observe_active_workspaces(
-            &self.window_snapshot,
-            self.clock,
-            self.config.widget_groups.window.workspace_slide_duration,
-        );
+        self.indicator_groups
+            .window_group
+            .observe_active_workspaces(
+                &self.window_snapshot,
+                self.clock,
+                self.config.indicator_groups.window.workspace_slide_duration,
+            );
         tasks.push(self.refocus_session());
         if focus_changed {
-            self.widget_groups.collapse_when_auto_collapsing();
+            self.indicator_groups.collapse_when_auto_collapsing();
         }
-        self.widget_groups
+        self.indicator_groups
             .global_menu_group
             .observe_focused_window(FocusedWindowIdentity::from(
                 self.compositor.focused_window(),
@@ -104,7 +106,7 @@ impl DesktopShell {
         }
         if workspaces_changed {
             tasks.push(
-                self.widget_groups
+                self.indicator_groups
                     .sidebar_settings_group
                     .observe_workspace_switch(&self.window_snapshot)
                     .map(Message::SidebarSettings),
@@ -172,7 +174,7 @@ impl DesktopShell {
                 .collect(),
             open_windows: open_windows_by_app(self.compositor.windows.values(), &entries),
         };
-        self.widget_groups.app_launcher_group.adopt_usage(usage);
+        self.indicator_groups.app_launcher_group.adopt_usage(usage);
         self.resolve_icons()
     }
 
@@ -204,9 +206,9 @@ pub(crate) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
         | Message::CompositorStyling(_)
         | Message::Clock(_)
         | Message::Interaction(ShellInteraction::Group(
-            WidgetGroupInteraction::SessionFocus(_)
-            | WidgetGroupInteraction::CompositorStyling(_)
-            | WidgetGroupInteraction::Clock(_),
+            IndicatorGroupInteraction::SessionFocus(_)
+            | IndicatorGroupInteraction::CompositorStyling(_)
+            | IndicatorGroupInteraction::Clock(_),
         )) => SwitchHeatEffect::Reheats,
         _ => SwitchHeatEffect::Unaffected,
     }

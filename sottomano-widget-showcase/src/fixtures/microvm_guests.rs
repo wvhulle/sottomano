@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::microvm_guests_group::{MicrovmGuestsGroup, MicrovmGuestsMessage},
+    indicator_groups::microvm_guests_group::{MicrovmGuestsGroup, MicrovmGuestsMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

@@ -20,7 +20,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
+    indicator_groups::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

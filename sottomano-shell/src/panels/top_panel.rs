@@ -5,7 +5,7 @@ use crate::panels::{
     FixedPanelEntry::SessionPower,
     PanelBarComposition,
     PanelZoneEntry::{Fixed, Menu, Standalone},
-    StandaloneWidgetGroup::{Clock, Notifications},
+    StandaloneIndicatorGroup::{Clock, Notifications},
 };
 
 pub(crate) const TOP_PANEL: PanelBarComposition = PanelBarComposition {

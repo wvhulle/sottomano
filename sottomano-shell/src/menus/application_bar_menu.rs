@@ -8,7 +8,7 @@ impl DesktopShell {
     pub(crate) fn application_bar_group_menu(&self) -> GroupMenuView<'_> {
         self.group_menu(
             GroupMenuTopic::ApplicationMenu,
-            self.widget_groups.global_menu_group.group_contents(),
+            self.indicator_groups.global_menu_group.group_contents(),
         )
     }
 }

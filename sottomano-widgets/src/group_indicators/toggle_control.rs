@@ -214,7 +214,7 @@ mod tests {
     use crate::{
         group_indicators::group_indicator::PanelVisibility,
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
-        widget_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_indicator,
+        indicator_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_indicator,
     };
 
     fn refused_write() -> FileReadError {

@@ -6,6 +6,7 @@ mod config_adoption;
 mod counting_allocator;
 mod desktop_shell;
 mod hover_card_updates;
+mod indicator_groups;
 mod menus;
 mod message_subscriptions;
 mod monitors;
@@ -16,7 +17,6 @@ mod process_load_report;
 mod shell_interactions;
 mod shell_message;
 mod sqlite_app_launches;
-mod widget_groups;
 
 use std::{
     env::{self, VarError},

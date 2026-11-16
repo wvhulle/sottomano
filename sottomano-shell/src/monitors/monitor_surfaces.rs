@@ -224,7 +224,7 @@ impl DesktopShell {
         if thickness <= 0.0 {
             return 0;
         }
-        (self.widget_groups.panel_settings_group.float_offset_px() + thickness).ceil() as i32
+        (self.indicator_groups.panel_settings_group.float_offset_px() + thickness).ceil() as i32
     }
 
     pub fn reserve(&self) -> Task<Message> {

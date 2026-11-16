@@ -43,14 +43,13 @@ use window_anchored_toasts::WindowAnchoredToasts;
 use crate::{
     clock::Clock,
     hover_cards::{PointerPresence, PopupMessage},
+    indicator_groups::{
+        indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
+        overlay_settings_group::ToastArrangement, quiet_schedule_group::quiet_window::QuietPhase,
+    },
     layer_surfaces::SurfaceRequest,
     notification_toasts::toast_lifecycle::ToastSender,
     toast_messages::NotificationMessage,
-    widget_groups::{
-        notification_group::AlertSound, overlay_settings_group::ToastArrangement,
-        quiet_schedule_group::quiet_window::QuietPhase,
-        widget_group_interaction::WidgetGroupInteraction,
-    },
     widgets::{
         announced_level::LevelToastRequest, ongoing_toast::OngoingKey,
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
@@ -119,7 +118,7 @@ pub trait ToastLayerHost:
     + From<SurfaceRequest>
     + From<NotificationMessage>
     + From<CompositorRequestFailure>
-    + From<WidgetGroupInteraction>
+    + From<IndicatorGroupInteraction>
 {
 }
 
@@ -131,7 +130,7 @@ impl<Routed> ToastLayerHost for Routed where
         + From<SurfaceRequest>
         + From<NotificationMessage>
         + From<CompositorRequestFailure>
-        + From<WidgetGroupInteraction>
+        + From<IndicatorGroupInteraction>
 {
 }
 
@@ -149,7 +148,7 @@ pub struct NotificationLayer<Routed> {
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
-    previous_levels: Vec<LevelToastRequest<WidgetGroupInteraction>>,
+    previous_levels: Vec<LevelToastRequest<IndicatorGroupInteraction>>,
 }
 
 impl<Routed> Default for NotificationLayer<Routed> {

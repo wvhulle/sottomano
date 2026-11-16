@@ -30,7 +30,7 @@ use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
     hover_cards::HoverTarget,
-    widget_groups::widget_group_identity::WidgetGroupIdentity,
+    indicator_groups::indicator_group_identity::IndicatorGroupIdentity,
 };
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
@@ -274,7 +274,7 @@ impl<'session> DemoRecorder<'session> {
         }
     }
 
-    fn face_target(&self, group: &WidgetGroupIdentity) -> HoverTarget {
+    fn face_target(&self, group: &IndicatorGroupIdentity) -> HoverTarget {
         match &self.demo.shown {
             GroupShown::PinnedFrom {
                 menu,

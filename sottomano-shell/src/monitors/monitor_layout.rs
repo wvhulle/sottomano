@@ -7,9 +7,9 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage, WidgetAnchor},
-    widget_groups::{
-        widget_group_interaction::WidgetGroupInteraction, window_group::WindowGroupInteraction,
-        workspaces_group,
+    indicator_groups::{
+        indicator_group_interaction::IndicatorGroupInteraction,
+        window_group::WindowGroupInteraction, workspaces_group,
     },
     widgets::pointer_drag::DraggedPanelSlot,
 };
@@ -50,7 +50,7 @@ impl DesktopShell {
         window: Id,
         output: &'a str,
     ) -> Element<'a, ShellInteraction> {
-        let float = self.widget_groups.panel_settings_group.float_offset_px();
+        let float = self.indicator_groups.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
             |position, content| anchor_hover_cards_on_surface(window, position, origin, content);
@@ -88,18 +88,18 @@ impl DesktopShell {
                     .map(ShellInteraction::from)
             }
             DraggedPanelSlot::Window { window, .. } => self
-                .widget_groups
+                .indicator_groups
                 .window_group
                 .window_list
                 .drag_ghost(
                     snapshot,
                     self.window_assets(),
-                    self.widget_groups.audio_group.window_audio(),
+                    self.indicator_groups.audio_group.window_audio(),
                     window,
                     slot_context,
                 )?
                 .map(|message| {
-                    ShellInteraction::Group(WidgetGroupInteraction::WindowGroup(
+                    ShellInteraction::Group(IndicatorGroupInteraction::WindowGroup(
                         WindowGroupInteraction::WindowList(message),
                     ))
                 }),

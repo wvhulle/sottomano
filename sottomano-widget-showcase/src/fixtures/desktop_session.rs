@@ -31,7 +31,7 @@ use sottomano_desktop_sources::{
 use sottomano_widgets::{
     desktop_index::DesktopIndex,
     hover_cards::HoverTarget,
-    widget_groups::window_group::{
+    indicator_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowRowLayout, WindowTarget,
         window_list::WindowListMessage,
     },

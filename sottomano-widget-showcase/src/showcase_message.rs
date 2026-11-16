@@ -4,15 +4,15 @@ use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{HoverCardMessage, PopupMessage},
-    layer_surfaces::SurfaceRequest,
-    toast_messages::NotificationMessage,
-    widget_groups::{
+    indicator_groups::{
         apptainer_containers_group::ApptainerContainersMessage, audio_group::AudioMessage,
         caldav_group::CaldavMessage, cgroup_memory_limits_group::CgroupMemoryLimitsMessage,
         ci_runs_group::CiRunsMessage, claude_usage_group::ClaudeUsageMessage,
         compute_group::ComputeMessage, docker_engines_group::DockerEnginesMessage,
         flatpak_sandboxes_group::FlatpakSandboxesMessage, gamepad_group::GamepadMessage,
         idle_pause_groups::IdlePauseMessage, incus_instances_group::IncusInstancesMessage,
+        indicator_group_content::GroupEvent,
+        indicator_group_interaction::IndicatorGroupInteraction,
         login_session_group::LoginSessionMessage, lxc_containers_group::LxcContainersMessage,
         media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
         microvm_guests_group::MicrovmGuestsMessage,
@@ -22,10 +22,11 @@ use sottomano_widgets::{
         virtualbox_machines_group::VirtualBoxMachinesMessage,
         vmware_machines_group::VmwareMachinesMessage, voice_dictation_group::VoiceDictationMessage,
         wallpaper_group::WallpaperMessage, waydroid_container_group::WaydroidContainerMessage,
-        weather_group::WeatherMessage, widget_group_content::GroupEvent,
-        widget_group_interaction::WidgetGroupInteraction, window_group::WindowGroupMessage,
+        weather_group::WeatherMessage, window_group::WindowGroupMessage,
         wireguard_tunnels_group::WireguardTunnelsMessage, workspaces_group::WorkspacesMessage,
     },
+    layer_surfaces::SurfaceRequest,
+    toast_messages::NotificationMessage,
 };
 
 #[derive(Debug)]
@@ -69,7 +70,7 @@ pub enum ShowcaseMessage {
 
 #[derive(Debug, Clone)]
 pub enum ShowcaseInteraction {
-    Group(WidgetGroupInteraction),
+    Group(IndicatorGroupInteraction),
     Popup(PopupMessage),
     Notification(NotificationMessage),
     OutsideShowcase,
@@ -87,8 +88,8 @@ impl From<HoverCardMessage> for ShowcaseInteraction {
     }
 }
 
-impl From<WidgetGroupInteraction> for ShowcaseInteraction {
-    fn from(group_interaction: WidgetGroupInteraction) -> Self {
+impl From<IndicatorGroupInteraction> for ShowcaseInteraction {
+    fn from(group_interaction: IndicatorGroupInteraction) -> Self {
         ShowcaseInteraction::Group(group_interaction)
     }
 }

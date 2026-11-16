@@ -8,7 +8,7 @@ use std::{
 use evdev::{AbsoluteAxisCode, BusType, Device, EventStream, EventSummary, InputEvent, KeyCode};
 use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
-use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
+use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadButton, GamepadStick};
 use tokio::time::sleep;
 
 use super::{

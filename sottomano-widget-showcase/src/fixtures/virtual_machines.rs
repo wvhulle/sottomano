@@ -18,7 +18,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::virtual_machines_group::{VirtualMachinesGroup, VirtualMachinesMessage},
+    indicator_groups::virtual_machines_group::{VirtualMachinesGroup, VirtualMachinesMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

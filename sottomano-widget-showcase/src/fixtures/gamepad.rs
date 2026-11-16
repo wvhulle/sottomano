@@ -9,8 +9,8 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     gamepad_input_machine::GamepadInput,
     player_indicator_leds::{LitPlayer, PlayerIndicator},
 };
-use sottomano_toml_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
-use sottomano_widgets::widget_groups::gamepad_group::{GamepadGroup, GamepadMessage};
+use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
+use sottomano_widgets::indicator_groups::gamepad_group::{GamepadGroup, GamepadMessage};
 use uom::si::{
     f64::{Frequency, Ratio},
     frequency::hertz,

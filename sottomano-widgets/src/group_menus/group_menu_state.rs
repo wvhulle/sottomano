@@ -22,11 +22,11 @@ use crate::{
         sqlite_group_menu_presentation,
     },
     hover_cards::{IndicatorKey, PanelPinOrigin, hover_card_surfaces::SWITCH_INTENT},
-    widget_groups::{
-        widget_group_content::{
-            ExpansionChange, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    indicator_groups::{
+        indicator_group_content::{
+            ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
@@ -125,7 +125,7 @@ impl GroupMenuTopic {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupMenuPin {
-    Group(WidgetGroupIdentity),
+    Group(IndicatorGroupIdentity),
     Item(IndicatorKey),
 }
 
@@ -187,19 +187,19 @@ pub enum GroupMenuMessage {
     PinSaved(Result<(), Arc<StoreError>>),
     RevealMenuGroup {
         menu: GroupMenuTopic,
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
     },
     IntendRevealMenuGroup {
         menu: GroupMenuTopic,
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
     },
     CancelRevealIntent {
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
     },
     RevealIntentElapsed,
     ToggleMenuGroup {
         menu: GroupMenuTopic,
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
     },
     InspectRow {
         menu: GroupMenuTopic,
@@ -213,7 +213,7 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         scrolled_px: f32,
     },
-    SettingsExpansion(WidgetGroupExpansionMessage),
+    SettingsExpansion(IndicatorGroupExpansionMessage),
     Appearance(AppearanceMessage),
     PresentationLoaded(NestedMenuPresentation),
     SwitchPresentation(NestedMenuPresentation),
@@ -235,7 +235,7 @@ impl PanelRaise {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenGroupMenu {
     pub topic: GroupMenuTopic,
-    pub families: Vec<WidgetGroupFamily>,
+    pub families: Vec<IndicatorGroupFamily>,
 }
 
 #[derive(Debug, Clone)]
@@ -250,7 +250,7 @@ enum GroupRevealIntent {
     Idle,
     Pending {
         menu: GroupMenuTopic,
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
         _intent_timer: task::Handle,
     },
 }
@@ -258,7 +258,7 @@ enum GroupRevealIntent {
 pub struct GroupMenuState {
     reveal_intent: GroupRevealIntent,
     pub layer: LayerAppearanceControls,
-    settings_expansion: WidgetGroupExpansion,
+    settings_expansion: IndicatorGroupExpansion,
     presentation: NestedMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
@@ -272,7 +272,7 @@ impl Default for GroupMenuState {
         Self {
             reveal_intent: GroupRevealIntent::Idle,
             layer: LayerAppearanceControls::new(ShellLayer::Menus),
-            settings_expansion: WidgetGroupExpansion::default(),
+            settings_expansion: IndicatorGroupExpansion::default(),
             presentation: NestedMenuPresentation::default(),
             pinned: BTreeSet::new(),
             inspection: GroupMenuInspection::default(),
@@ -322,7 +322,7 @@ impl GroupMenuState {
     pub(crate) fn indicator_pin(
         &self,
         menu: GroupMenuTopic,
-        group: &WidgetGroupIdentity,
+        group: &IndicatorGroupIdentity,
         indicator: &GroupIndicator<'_>,
         promotion_severity: Severity,
     ) -> IndicatorPin {
@@ -369,7 +369,7 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn source_demand(&self, family: WidgetGroupFamily) -> GroupSourceDemand {
+    pub fn source_demand(&self, family: IndicatorGroupFamily) -> GroupSourceDemand {
         let stored_family = family.stored_name();
         let menu_open = self
             .recently_open_menus
@@ -395,7 +395,7 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub(crate) const fn settings_expansion(&self) -> &WidgetGroupExpansion {
+    pub(crate) const fn settings_expansion(&self) -> &IndicatorGroupExpansion {
         &self.settings_expansion
     }
 
@@ -421,7 +421,7 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn open_groups(&self, menu: GroupMenuTopic) -> &[WidgetGroupIdentity] {
+    pub fn open_groups(&self, menu: GroupMenuTopic) -> &[IndicatorGroupIdentity] {
         self.inspection.open_groups(&menu)
     }
 
@@ -439,7 +439,7 @@ impl GroupMenuState {
     fn intend_group_reveal(
         &mut self,
         menu: GroupMenuTopic,
-        group_identity: WidgetGroupIdentity,
+        group_identity: IndicatorGroupIdentity,
     ) -> Task<GroupMenuMessage> {
         if self.open_groups(menu).contains(&group_identity) {
             self.reveal_intent = GroupRevealIntent::Idle;
@@ -456,7 +456,7 @@ impl GroupMenuState {
         intent_elapsed
     }
 
-    fn cancel_group_reveal(&mut self, group_identity: &WidgetGroupIdentity) {
+    fn cancel_group_reveal(&mut self, group_identity: &IndicatorGroupIdentity) {
         if matches!(
             &self.reveal_intent,
             GroupRevealIntent::Pending { group_identity: pending_identity, .. }
@@ -588,13 +588,13 @@ mod tests {
 
     use super::{
         AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-        GroupSourceDemand, MENU_SOURCE_LINGER, OpenGroupMenu, PanelPin, PanelPinDuration,
-        PanelRaise, WidgetGroupFamily, WidgetGroupIdentity,
+        GroupSourceDemand, IndicatorGroupFamily, IndicatorGroupIdentity, MENU_SOURCE_LINGER,
+        OpenGroupMenu, PanelPin, PanelPinDuration, PanelRaise,
     };
     use crate::{
         clock::Clock,
         hover_cards::{IndicatorKey, PanelPinOrigin},
-        widget_groups::widget_group_identity::WidgetGroupInstance,
+        indicator_groups::indicator_group_identity::IndicatorGroupInstance,
     };
 
     fn quiet_pin(
@@ -617,7 +617,8 @@ mod tests {
         }))
     }
 
-    const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
+    const GPU_GROUP: IndicatorGroupIdentity =
+        IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu);
 
     fn wired_gpu_load_indicator() -> GroupMenuPin {
         GroupMenuPin::Item(IndicatorKey {
@@ -636,22 +637,22 @@ mod tests {
     fn hardware_menu_open() -> OpenGroupMenu {
         OpenGroupMenu {
             topic: GroupMenuTopic::Hardware,
-            families: vec![WidgetGroupFamily::Gpu],
+            families: vec![IndicatorGroupFamily::Gpu],
         }
     }
 
     fn gpu_demand(group_menus: &GroupMenuState) -> GroupSourceDemand {
-        group_menus.source_demand(WidgetGroupFamily::Gpu)
+        group_menus.source_demand(IndicatorGroupFamily::Gpu)
     }
 
     fn collapsed_on_panel() -> GroupSourceDemand {
         GroupSourceDemand::on_panel()
     }
 
-    fn player_on_bus(player: &'static str, bus: &'static str) -> WidgetGroupIdentity {
-        WidgetGroupIdentity {
-            family: WidgetGroupFamily::Media,
-            instance: WidgetGroupInstance::Session {
+    fn player_on_bus(player: &'static str, bus: &'static str) -> IndicatorGroupIdentity {
+        IndicatorGroupIdentity {
+            family: IndicatorGroupFamily::Media,
+            instance: IndicatorGroupInstance::Session {
                 durable: player.into(),
                 session: bus.into(),
             },
@@ -844,7 +845,7 @@ mod tests {
         let _ = group_menus.update(toggle_in_hardware(wired_gpu_load_indicator()));
         assert_ne!(
             gpu_demand(&group_menus),
-            group_menus.source_demand(WidgetGroupFamily::Compute)
+            group_menus.source_demand(IndicatorGroupFamily::Compute)
         );
     }
 
@@ -852,14 +853,14 @@ mod tests {
     fn a_pinned_instance_demands_the_source_its_family_shares() {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(
-            WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp3s0"),
+            IndicatorGroupIdentity::durable(IndicatorGroupFamily::EthernetPorts, "enp3s0"),
         )));
         assert_eq!(
-            group_menus.source_demand(WidgetGroupFamily::EthernetPorts),
+            group_menus.source_demand(IndicatorGroupFamily::EthernetPorts),
             collapsed_on_panel()
         );
         assert_ne!(
-            group_menus.source_demand(WidgetGroupFamily::WifiAdapters),
+            group_menus.source_demand(IndicatorGroupFamily::WifiAdapters),
             collapsed_on_panel()
         );
     }
@@ -873,19 +874,21 @@ mod tests {
         group_menus.track_source_demand(None, Vec::new(), opened_at + Duration::from_secs(1));
         assert_ne!(
             gpu_demand(&group_menus),
-            GroupMenuState::default().source_demand(WidgetGroupFamily::Gpu)
+            GroupMenuState::default().source_demand(IndicatorGroupFamily::Gpu)
         );
         group_menus.track_source_demand(None, Vec::new(), opened_at + MENU_SOURCE_LINGER);
         assert_eq!(
             gpu_demand(&group_menus),
-            GroupMenuState::default().source_demand(WidgetGroupFamily::Gpu)
+            GroupMenuState::default().source_demand(IndicatorGroupFamily::Gpu)
         );
     }
 
     #[test]
     fn a_pin_follows_its_source_not_its_position() {
-        let first_port = WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp3s0");
-        let second_port = WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp4s0");
+        let first_port =
+            IndicatorGroupIdentity::durable(IndicatorGroupFamily::EthernetPorts, "enp3s0");
+        let second_port =
+            IndicatorGroupIdentity::durable(IndicatorGroupFamily::EthernetPorts, "enp4s0");
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(second_port.clone())));
         assert_eq!(
@@ -987,7 +990,7 @@ mod tests {
     fn leaving_another_row_keeps_the_intended_reveal() {
         let mut group_menus = state_intending_gpu_reveal();
         let _ = group_menus.update(GroupMenuMessage::CancelRevealIntent {
-            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
+            group_identity: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute),
         });
         let _ = group_menus.update(GroupMenuMessage::RevealIntentElapsed);
         assert_eq!(
@@ -1019,7 +1022,7 @@ mod tests {
 
     #[test]
     fn an_open_group_survives_pinning_an_earlier_group() {
-        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let compute = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Compute);
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
             menu: GroupMenuTopic::Hardware,

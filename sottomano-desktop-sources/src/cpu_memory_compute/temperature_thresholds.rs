@@ -1,6 +1,6 @@
 use sottomano_toml_config::{
+    indicator_groups::temperature_sensors::{Threshold, ThresholdOverrides},
     severity::Severity,
-    widget_groups::temperature_sensors::{Threshold, ThresholdOverrides},
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,

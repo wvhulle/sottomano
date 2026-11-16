@@ -2,8 +2,8 @@ use corredo::popovers::NestedMenuInspection;
 
 use crate::{
     group_menus::group_menu_state::GroupMenuTopic, hover_cards::IndicatorKey,
-    widget_groups::widget_group_identity::WidgetGroupIdentity,
+    indicator_groups::indicator_group_identity::IndicatorGroupIdentity,
 };
 
 pub(crate) type GroupMenuInspection =
-    NestedMenuInspection<GroupMenuTopic, WidgetGroupIdentity, IndicatorKey>;
+    NestedMenuInspection<GroupMenuTopic, IndicatorGroupIdentity, IndicatorKey>;

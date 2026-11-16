@@ -22,7 +22,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::weather_group::{WeatherGroup, WeatherMessage},
+    indicator_groups::weather_group::{WeatherGroup, WeatherMessage},
 };
 use uom::si::{
     angle::degree,

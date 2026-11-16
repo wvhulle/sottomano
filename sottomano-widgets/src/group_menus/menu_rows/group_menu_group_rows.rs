@@ -23,9 +23,9 @@ use crate::{
         menu_rows::menu_row::menu_row_content,
     },
     hover_cards::{IndicatorKey, marked_by_menu_pin},
-    widget_groups::{
-        widget_group_content::GroupEvent,
-        widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
+    indicator_groups::{
+        indicator_group_content::GroupEvent,
+        indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     },
     widgets::{
         glyph_button,
@@ -35,8 +35,8 @@ use crate::{
 };
 
 pub(crate) struct GroupMenuGroupRow<'a> {
-    pub group_identity: WidgetGroupIdentity,
-    pub group_title: WidgetGroupTitle,
+    pub group_identity: IndicatorGroupIdentity,
+    pub group_title: IndicatorGroupTitle,
     pub headline_indicator: GroupIndicator<'a>,
     pub indicators: Vec<GroupIndicator<'a>>,
 }
@@ -91,8 +91,8 @@ fn pinned_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> ic
 
 pub(crate) fn group_header<'a>(
     layout: &GroupMenuRowContext<'_>,
-    entry_identity: &WidgetGroupIdentity,
-    group_title: &WidgetGroupTitle,
+    entry_identity: &IndicatorGroupIdentity,
+    group_title: &IndicatorGroupTitle,
     headline_indicator: &GroupIndicator<'a>,
     emphasis: NestedMenuRowEmphasis,
 ) -> NestedMenuRow<'a, GroupEvent> {
@@ -171,7 +171,7 @@ pub(crate) fn group_header<'a>(
 
 pub(crate) fn indicator_entry<'a>(
     layout: &GroupMenuRowContext<'_>,
-    group_identity: &WidgetGroupIdentity,
+    group_identity: &IndicatorGroupIdentity,
     indicator: &GroupIndicator<'a>,
     beside: BesideRow<'a, GroupEvent>,
 ) -> NestedMenuItem<'a, IndicatorKey, GroupEvent> {
@@ -261,17 +261,20 @@ pub(crate) fn indicator_entry<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{GroupMenuGroupRow, WidgetGroupIdentity, one_row_per_identity};
+    use super::{GroupMenuGroupRow, IndicatorGroupIdentity, one_row_per_identity};
     use crate::{
         group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
+        indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
         widgets::icon_glyph::IconGlyph,
     };
 
-    fn row_of<'row>(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'row> {
+    fn row_of<'row>(
+        group_identity: IndicatorGroupIdentity,
+        title: &str,
+    ) -> GroupMenuGroupRow<'row> {
         GroupMenuGroupRow {
             group_identity,
-            group_title: WidgetGroupTitle::Named(title.to_owned().into()),
+            group_title: IndicatorGroupTitle::Named(title.to_owned().into()),
             headline_indicator: GroupIndicator::glyph_only(
                 title.to_owned(),
                 IconGlyph::default(),
@@ -283,7 +286,7 @@ mod tests {
 
     #[test]
     fn groups_of_one_identity_share_a_row() {
-        let gpu = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
+        let gpu = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu);
         let rows = one_row_per_identity([row_of(gpu.clone(), "GPU"), row_of(gpu, "GPU")]);
         assert_eq!(rows.len(), 1);
     }
@@ -292,11 +295,11 @@ mod tests {
     fn instances_of_one_family_keep_their_own_rows() {
         let rows = one_row_per_identity([
             row_of(
-                WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, "sda"),
+                IndicatorGroupIdentity::durable(IndicatorGroupFamily::PhysicalDrive, "sda"),
                 "a",
             ),
             row_of(
-                WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, "sdb"),
+                IndicatorGroupIdentity::durable(IndicatorGroupFamily::PhysicalDrive, "sdb"),
                 "b",
             ),
         ]);
@@ -306,9 +309,12 @@ mod tests {
     #[test]
     fn a_player_named_audio_keeps_its_own_row() {
         let rows = one_row_per_identity([
-            row_of(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio), "Audio"),
             row_of(
-                WidgetGroupIdentity::durable(WidgetGroupFamily::Media, "Audio"),
+                IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio),
+                "Audio",
+            ),
+            row_of(
+                IndicatorGroupIdentity::durable(IndicatorGroupFamily::Media, "Audio"),
                 "Audio",
             ),
         ]);

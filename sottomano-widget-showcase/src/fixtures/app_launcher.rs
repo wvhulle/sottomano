@@ -6,7 +6,7 @@ use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::
 use sottomano_widgets::{
     desktop_index::DesktopIndex,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuTopic},
-    widget_groups::app_launcher_group::{
+    indicator_groups::app_launcher_group::{
         AppLaunchUsage, AppLauncherGroup, FrequentApp, FrequentAppScope, OutputFrequentApps,
         WorkspaceWindowPresence,
     },

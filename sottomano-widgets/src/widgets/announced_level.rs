@@ -121,9 +121,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        widget_groups::{
+        indicator_groups::{
             audio_group::ControlKind,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         },
         widgets::phosphor::{Phosphor, Weight},
     };
@@ -141,7 +141,7 @@ mod tests {
     fn sample(kind: ControlKind, external_change_count: u64) -> LevelToastRequest<()> {
         LevelToastRequest {
             indicator: IndicatorKey {
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
+                group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio),
                 name: format!("{kind:?}").into(),
             },
             glyph: Phosphor::SpeakerHigh(Weight::Regular).into(),

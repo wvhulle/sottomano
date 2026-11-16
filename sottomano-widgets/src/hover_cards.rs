@@ -19,8 +19,8 @@ pub use crate::hover_cards::{
 };
 use crate::{
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPin},
-    widget_groups::{
-        widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
+    indicator_groups::{
+        indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
         window_group::{WindowGroupInteraction, WindowTarget},
     },
     widgets::phosphor::{Phosphor, Weight},
@@ -28,7 +28,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IndicatorKey {
-    pub group: WidgetGroupIdentity,
+    pub group: IndicatorGroupIdentity,
     pub name: Cow<'static, str>,
 }
 
@@ -36,7 +36,7 @@ pub struct IndicatorKey {
 pub enum HoverTarget {
     Indicator(IndicatorKey),
     PinnedOnPanel(Box<PanelPin>),
-    GroupHeadline(Box<WidgetGroupIdentity>),
+    GroupHeadline(Box<IndicatorGroupIdentity>),
     GroupMenu(GroupMenuTopic),
     SessionMenu,
     Window(WindowTarget),
@@ -71,7 +71,7 @@ impl HoverTarget {
     }
 
     #[must_use]
-    pub fn headline_group(&self) -> Option<&WidgetGroupIdentity> {
+    pub fn headline_group(&self) -> Option<&IndicatorGroupIdentity> {
         match self {
             HoverTarget::GroupHeadline(group_identity) => Some(group_identity),
             HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
@@ -139,7 +139,7 @@ impl PressAction {
 pub enum CardHeader {
     Unheaded,
     Pinned {
-        group_title: WidgetGroupTitle,
+        group_title: IndicatorGroupTitle,
         pin: Box<PanelPin>,
     },
 }

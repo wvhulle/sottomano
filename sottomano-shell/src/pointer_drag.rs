@@ -11,7 +11,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
-    widget_groups::{
+    indicator_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
     },
     widgets::{
@@ -31,7 +31,7 @@ impl DesktopShell {
     #[must_use]
     pub fn drag_view(&self) -> DragView {
         let dragging_sidebar_workspace = self
-            .widget_groups
+            .indicator_groups
             .sidebar_settings_group
             .workspaces_placement()
             == WorkspacesPlacement::Sidebar
@@ -43,32 +43,45 @@ impl DesktopShell {
                 })
             );
         let ghost_layer = if dragging_sidebar_workspace {
-            self.widget_groups.sidebar_settings_group.layer.appearance()
+            self.indicator_groups
+                .sidebar_settings_group
+                .layer
+                .appearance()
         } else {
-            self.widget_groups.panel_settings_group.layer.appearance()
+            self.indicator_groups
+                .panel_settings_group
+                .layer
+                .appearance()
         };
         DragView::new(&self.pointer_drag, ghost_layer.frame)
     }
 
     #[must_use]
     pub fn panel_slot_context(&self, edge: Position) -> PanelSlotContext<'_> {
-        let panel_appearance = self.widget_groups.panel_settings_group.layer.appearance();
+        let panel_appearance = self
+            .indicator_groups
+            .panel_settings_group
+            .layer
+            .appearance();
         PanelSlotContext {
             config: &self.config,
             edge,
             drag: self.drag_view(),
             clock: self.clock,
             panel_corner_radius_px: panel_appearance.frame.corner_radius_px,
-            panel_float_offset_px: self.widget_groups.panel_settings_group.float_offset_px(),
+            panel_float_offset_px: self.indicator_groups.panel_settings_group.float_offset_px(),
             compositor_window_gaps_px: self
-                .widget_groups
+                .indicator_groups
                 .compositor_styling_group
                 .app_window_layout()
                 .gaps_px,
             panel_frame_style: panel_appearance.frame,
-            window_row_layout: self.widget_groups.panel_settings_group.window_row_layout(),
+            window_row_layout: self
+                .indicator_groups
+                .panel_settings_group
+                .window_row_layout(),
             window_title_length: self
-                .widget_groups
+                .indicator_groups
                 .panel_settings_group
                 .window_title_length(),
         }
@@ -155,7 +168,7 @@ impl DesktopShell {
                         shown_workspaces(
                             snapshot,
                             &surface.output,
-                            self.widget_groups
+                            self.indicator_groups
                                 .sidebar_settings_group
                                 .empty_workspace_folding(),
                         )

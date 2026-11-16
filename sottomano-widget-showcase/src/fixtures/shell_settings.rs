@@ -4,7 +4,7 @@ use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::
 use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::CompositorKind;
 use sottomano_widgets::{
     group_menus::group_menu_state::GroupMenuState,
-    widget_groups::{
+    indicator_groups::{
         compositor_styling_group::CompositorStylingGroup,
         overlay_settings_group::OverlaySettingsGroup, panel_settings_group::PanelSettingsGroup,
         sidebar_settings_group::SidebarSettingsGroup,

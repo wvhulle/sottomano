@@ -65,7 +65,7 @@ focus_indicator_duration = "160ms"
 alert_promotion_severity = "critical"
 scroll_fade_rows = 1.5
 
-[widget_group_layout]
+[indicator_group_layout]
 expansion_duration = "180ms"
 
 [group_items]
@@ -99,7 +99,7 @@ surface_morph_duration = "160ms"
 typing_idle_delay = "750ms"
 typing_background_opacity = 0.3
 
-[widget_groups.window]
+[indicator_groups.window]
 audio_indicator = "shown"
 progress = "shown"
 count_badge = "shown"
@@ -107,63 +107,63 @@ nixpkgs_branch = "nixpkgs-unstable"
 maximum_window_title_width = "200px"
 workspace_slide_duration = "250ms"
 
-[widget_groups.window.agents]
+[indicator_groups.window.agents]
 kitty = "enabled"
 wezterm = "enabled"
 pty_shells = "enabled"
 
-[widget_groups.workspaces]
+[indicator_groups.workspaces]
 preview_scale = 0.19
 
-[widget_groups.tray.items.Signal_status_icon_1]
+[indicator_groups.tray.items.Signal_status_icon_1]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "signal"
 
-[widget_groups.tray.items.spotify-client]
+[indicator_groups.tray.items.spotify-client]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "spotify"
 
-[widget_groups.tray.items.steam]
+[indicator_groups.tray.items.steam]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "steam"
 
-[widget_groups.compute.temperature_sensors]
+[indicator_groups.compute.temperature_sensors]
 
-[widget_groups.memory_board.growth_trend]
+[indicator_groups.memory_board.growth_trend]
 trend_window = "2m"
 warning_when_full_within = "5m"
 critical_when_full_within = "1m"
 
-[widget_groups.physical_drive.temperature_sensors]
+[indicator_groups.physical_drive.temperature_sensors]
 
-[widget_groups.systemd_manager]
+[indicator_groups.systemd_manager]
 slow_job = "10s"
 slow_boot_unit = "5s"
 slow_shutdown_stop = "5s"
 slower_boot_warning_percent = 25
 slower_boot_critical_percent = 60
 
-[widget_groups.claude_usage]
+[indicator_groups.claude_usage]
 monthly_budget_usd = 200
 
-[widget_groups.copilot_usage]
+[indicator_groups.copilot_usage]
 monthly_budget_usd = 40
 
-[widget_groups.openrouter_credit]
+[indicator_groups.openrouter_credit]
 monthly_budget_usd = 20
 daily_warning_usd = 5
 max_blended_usd_per_million = 4.0
 
-[widget_groups.session_focus]
+[indicator_groups.session_focus]
 idle_detection_delay = "30s"
 shortest_counted_focus = "1s"
 idle_after = "3m"
@@ -176,33 +176,33 @@ switch_heat_span = "30m"
 switch_heat_warning = 20
 switch_heat_critical = 32
 
-[widget_groups.session_focus.app_daily_budget_minutes]
+[indicator_groups.session_focus.app_daily_budget_minutes]
 
-[widget_groups.session_focus.project_daily_budget_minutes]
+[indicator_groups.session_focus.project_daily_budget_minutes]
 
-[widget_groups.weather.rain_alerts]
+[indicator_groups.weather.rain_alerts]
 lead_time = "15m"
 minimum_millimeters_per_hour = 0.5
 heavy_millimeters_per_hour = 4.0
 
-[widget_groups.reachability]
+[indicator_groups.reachability]
 latency_target = "1.1.1.1"
 metered_cycle_start_day = 1
 
-[widget_groups.gamepad.navigation]
+[indicator_groups.gamepad.navigation]
 stick = "left"
 up = "focus_workspace_up"
 down = "focus_workspace_down"
 left = "focus_left"
 right = "focus_right"
 
-[widget_groups.gamepad.pointer]
+[indicator_groups.gamepad.pointer]
 stick = "right"
 pixels_per_second = 1600
 left_button = "right_trigger"
 right_button = "right_stick"
 
-[widget_groups.gamepad.typed_keys]
+[indicator_groups.gamepad.typed_keys]
 south = "Return"
 east = "BackSpace"
 north = "shift+Tab"
@@ -213,19 +213,19 @@ dpad_left = "Left"
 dpad_right = "Right"
 back = "Tab"
 
-[widget_groups.gamepad.compositor_actions]
+[indicator_groups.gamepad.compositor_actions]
 left_shoulder = "move_left"
 right_shoulder = "move_right"
 start = "maximize"
 guide = "toggle_overview"
 left_stick = "focus_previous_window"
 
-[widget_groups.gamepad.commands]
+[indicator_groups.gamepad.commands]
 
-[widget_groups.gamepad.push_to_talk]
+[indicator_groups.gamepad.push_to_talk]
 button = "left_trigger"
 
-[widget_groups.caldav]
+[indicator_groups.caldav]
 server_url = ""
 user = ""
 upcoming_days = 7
@@ -233,7 +233,7 @@ change_poll_interval = "1m"
 push_safety_recheck_interval = "15m"
 subscription_download_interval = "15m"
 
-[widget_groups.media.lyrics]
+[indicator_groups.media.lyrics]
 lrclib_lookup = "enabled"
 
 [notification_toasts.placement]

@@ -14,9 +14,9 @@ The repository is a cargo workspace:
 - `sottomano-desktop-sinks/` holds what the shell writes: commands, settings and
   signals sent to desktop services, built on the handles from the sources crate.
 - `corredo/` holds generic iced widgets that know nothing about the shell.
-- `sottomano-widgets/` holds the panels, group menus, widget groups, group items
+- `sottomano-widgets/` holds the panels, group menus, indicator groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
-  Each widget group restores and persists its own state.
+  Each indicator group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`).
   The widgets crate defines the interactions its groups emit; the shell and the
   showcase each wrap them in their own message type.
@@ -86,7 +86,7 @@ flowchart TB
 ## Messages to screen and back
 
 The update step applies each message, persisting state where needed, and the
-view renders the layer-shell surfaces. Each widget group updates and views its
+view renders the layer-shell surfaces. Each indicator group updates and views its
 own items, restoring and persisting its state in the per-group SQLite database.
 
 ```mermaid
@@ -96,15 +96,15 @@ flowchart TB
   app_launch_store["app launch history"]
 
   subgraph widgets_crate [sottomano-widgets]
-    widget_groups["widget groups<br>update, view"]
+    indicator_groups["indicator groups<br>update, view"]
     group_stores["per-group SQLite state<br>dark mode schedule, idle timeouts,<br>focus spans, shell settings, …"]
-    widget_groups <-->|restore / persist| group_stores
+    indicator_groups <-->|restore / persist| group_stores
   end
 
   layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, hover cards"]
   state_database[("$XDG_STATE_HOME/sottomano/state.db")]
 
-  shell_update <-->|group messages and tasks| widget_groups
+  shell_update <-->|group messages and tasks| indicator_groups
   shell_update -->|state| shell_view
   shell_view --> layer_surfaces
   group_stores & app_launch_store <--> state_database
@@ -113,14 +113,14 @@ flowchart TB
 
 ## Writes to the desktop
 
-The write tasks the widget groups produce go through the sinks crate: service
+The write tasks the indicator groups produce go through the sinks crate: service
 commands and notification signals, and the compositor requests that rewrite the
 running compositor's window styling rule file, which each
 [compositor's page](compositors/) includes in its config.
 
 ```mermaid
 flowchart TB
-  widget_groups["widget groups"]
+  indicator_groups["indicator groups"]
 
   subgraph sinks_crate [sottomano-desktop-sinks]
     service_commands["service commands<br>volume, power, network, tray, …"]
@@ -130,7 +130,7 @@ flowchart TB
 
   compositor_rules_file[("$XDG_CONFIG_HOME/sottomano/<br>niri.kdl, sway.conf or hyprland.lua")]
 
-  widget_groups -->|write tasks| service_commands & notification_signals & compositor_requests
+  indicator_groups -->|write tasks| service_commands & notification_signals & compositor_requests
   compositor_requests -->|rewrite| compositor_rules_file
 ```
 

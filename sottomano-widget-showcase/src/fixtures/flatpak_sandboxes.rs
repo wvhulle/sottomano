@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::flatpak_sandboxes_group::{FlatpakSandboxesGroup, FlatpakSandboxesMessage},
+    indicator_groups::flatpak_sandboxes_group::{FlatpakSandboxesGroup, FlatpakSandboxesMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

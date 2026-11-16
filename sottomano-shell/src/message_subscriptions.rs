@@ -52,7 +52,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .background_motion(state.clock.instant)
             == MotionState::Moving
         || state
-            .widget_groups
+            .indicator_groups
             .window_group
             .workspace_slide_motion(state.clock.instant)
             == MotionState::Moving
@@ -77,7 +77,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         })
         .map(Message::ConfigFileChanged),
         state
-            .widget_groups
+            .indicator_groups
             .subscription(&state.config, state.desktop_buses.as_ref()),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
@@ -85,7 +85,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .as_ref()
             .map_or_else(Subscription::none, |buses| {
                 state
-                    .widget_groups
+                    .indicator_groups
                     .desktop_bus_subscription(&state.config, buses)
             }),
         close_events().map(Message::WindowClosed),

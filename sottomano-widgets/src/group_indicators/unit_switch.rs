@@ -20,7 +20,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -85,7 +85,7 @@ impl UnitSwitchIndicator {
 
     pub fn wired_switch_indicator<'a>(
         self,
-        pressed: impl Into<WidgetGroupInteraction>,
+        pressed: impl Into<IndicatorGroupInteraction>,
     ) -> GroupIndicator<'a> {
         let switch_position = self.toggle.switch_position;
         let press_does = self.toggle.press_does();
@@ -258,7 +258,7 @@ impl UnitSwitch {
     pub fn attach_switch_press<'a>(
         &self,
         group_indicator: GroupIndicator<'a>,
-        pressed: impl Into<WidgetGroupInteraction>,
+        pressed: impl Into<IndicatorGroupInteraction>,
     ) -> GroupIndicator<'a> {
         match self.switch_indicator(ServiceReadiness::Serving) {
             Some(sample) => group_indicator.on_switch_press(

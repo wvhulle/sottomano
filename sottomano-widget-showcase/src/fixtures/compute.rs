@@ -14,11 +14,11 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
+use sottomano_toml_config::indicator_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_widgets::{
     clock::Clock,
     group_indicators::toggle_control::ToggleMessage,
-    widget_groups::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
+    indicator_groups::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
 };
 use uom::si::{
     f64::{Frequency, Power, Ratio, ThermodynamicTemperature},

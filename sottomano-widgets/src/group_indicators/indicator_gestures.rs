@@ -1,11 +1,11 @@
-use crate::widget_groups::widget_group_interaction::WidgetGroupInteraction;
+use crate::indicator_groups::indicator_group_interaction::IndicatorGroupInteraction;
 
 #[derive(Debug, Clone)]
 pub enum IndicatorGesture {
     Inert,
     Performs {
         description: &'static str,
-        message: WidgetGroupInteraction,
+        message: IndicatorGroupInteraction,
     },
 }
 

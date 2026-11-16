@@ -15,7 +15,7 @@ use std::{
 use futures::{Stream, StreamExt, future::ready, stream};
 use futures_rx::RxExt;
 use pty_shell_sessions::ShellSession;
-use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
+use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
 use terminal_shell_label::TerminalShellLabel;
 use tokio::task::spawn_blocking;
 
@@ -548,7 +548,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
+    use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
 
     use super::{
         Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelSource, TerminalWindow,

@@ -7,20 +7,20 @@ use crate::desktop_shell::DesktopShell;
 impl DesktopShell {
     pub(crate) fn media_group_menu(&self) -> GroupMenuView<'_> {
         let config = &self.config;
-        let media_groups = self.widget_groups.media_group.group_contents(
+        let media_groups = self.indicator_groups.media_group.group_contents(
             config,
             &self.desktop_entries,
             self.clock,
         );
         let gamepad_groups = self
-            .widget_groups
+            .indicator_groups
             .gamepad_group
-            .group_contents(&config.widget_groups.gamepad)
+            .group_contents(&config.indicator_groups.gamepad)
             .into_iter();
         let groups = media_groups
             .chain([
-                self.widget_groups.audio_group.group_content(config),
-                self.widget_groups
+                self.indicator_groups.audio_group.group_content(config),
+                self.indicator_groups
                     .voice_dictation_group
                     .group_content(self.clock),
             ])

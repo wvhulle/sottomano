@@ -10,18 +10,18 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Agenda,
             [
-                self.widget_groups.caldav_group.group_content(
-                    &config.widget_groups.caldav,
+                self.indicator_groups.caldav_group.group_content(
+                    &config.indicator_groups.caldav,
                     self.clock,
                     self.config.calendar.locale,
                 ),
-                self.widget_groups
+                self.indicator_groups
                     .weather_group
                     .group_content(config, self.clock),
-                self.widget_groups
+                self.indicator_groups
                     .quiet_schedule_group
                     .group_content(config),
-                self.widget_groups
+                self.indicator_groups
                     .session_focus_group
                     .group_content(config, self.clock),
             ],

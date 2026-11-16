@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    widget_groups::media_group::{MediaGroup, MediaMessage},
+    indicator_groups::media_group::{MediaGroup, MediaMessage},
 };
 
 use crate::showcased_group::{ShowcasedGroup, ShowcasedMedia};

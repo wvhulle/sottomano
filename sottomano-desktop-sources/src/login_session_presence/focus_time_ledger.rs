@@ -14,7 +14,7 @@ mod window_focus_timeline;
 use std::{mem::take, path::Path};
 
 use chrono::{DateTime, Utc};
-use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
+use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
 
 use self::{away_reasons::LatestAwayReasons, window_focus_timeline::OngoingWindowFocus};
 pub use self::{
