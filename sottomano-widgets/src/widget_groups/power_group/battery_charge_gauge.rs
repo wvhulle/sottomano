@@ -6,9 +6,9 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-pub fn battery_indicator(battery: &Battery) -> ReadingRow<'_> {
+pub fn battery_indicator(battery: &Battery) -> GroupIndicator<'_> {
     let state = if battery.capacity <= Ratio::new::<percent>(15.0) {
         IndicatorState::Critical
     } else if battery.capacity <= Ratio::new::<percent>(30.0) {
@@ -26,22 +26,20 @@ pub fn battery_indicator(battery: &Battery) -> ReadingRow<'_> {
     } else {
         IndicatorState::Idle
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Gauged {
-                fill: battery.capacity,
-                live: battery.capacity,
-            },
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        Battery::NAME,
+        Phosphor::BatteryCharging(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Gauged {
+            fill: battery.capacity,
+            live: battery.capacity,
         },
-        ..ReadingRow::glyph_only(
-            Battery::NAME,
-            Phosphor::BatteryCharging(Weight::Regular).into(),
-            state,
-            Box::new(move |_| battery_hover_card(battery)),
-        )
-    }
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_hover_card(Box::new(move |_| battery_hover_card(battery)))
 }
 
 pub fn battery_hover_card(battery: &Battery) -> Vec<Section> {

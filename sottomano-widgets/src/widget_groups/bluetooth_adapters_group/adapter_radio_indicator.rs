@@ -7,9 +7,9 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -75,7 +75,7 @@ impl AdapterRadioIndicator<'_> {
 
 impl<'a> AdapterRadioIndicator<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let glyph = match self.adapter.power {
             AdapterPower::On(_) | AdapterPower::SwitchingOn => {
                 Phosphor::Bluetooth(Weight::Regular).into()
@@ -102,19 +102,13 @@ impl<'a> AdapterRadioIndicator<'a> {
             0 => ReadoutBadge::Unbadged,
             connected_count => ReadoutBadge::Counted(connected_count),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Bluetooth adapter", glyph, state)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge,
-            },
-            ..ReadingRow::glyph_only(
-                "Bluetooth adapter",
-                glyph,
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]
@@ -153,25 +147,23 @@ impl From<&AdapterPower> for SwitchPosition {
 
 impl<'a> AdapterPowerSwitch<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let state = match self.adapter.power {
             AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => IndicatorState::Pending,
             AdapterPower::Off => IndicatorState::Off,
             AdapterPower::On(_) => IndicatorState::On,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(power_description(&self.adapter.power).to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Bluetooth power",
-                Phosphor::Power(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Bluetooth power",
+            Phosphor::Power(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(power_description(&self.adapter.power).to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]

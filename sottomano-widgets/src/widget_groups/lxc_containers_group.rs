@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -33,26 +33,24 @@ pub struct LxcContainerListingRow<'a> {
 }
 
 impl<'a> LxcContainerListingRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let listing = self.listing;
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(listing.run_state.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                listing.container_name.clone(),
-                Phosphor::Package(Weight::Regular).into(),
-                listing.run_state.into(),
-                Box::new(move |_| {
-                    vec![Section::new(
-                        "Status",
-                        dictionary_table([LabeledValue::new("State", listing.run_state.label())]),
-                    )]
-                }),
-            )
-        }
+        GroupIndicator::glyph_only(
+            listing.container_name.clone(),
+            Phosphor::Package(Weight::Regular).into(),
+            listing.run_state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(listing.run_state.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| {
+            vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new("State", listing.run_state.label())]),
+            )]
+        }))
     }
 }
 
@@ -61,7 +59,7 @@ pub struct LxcContainerRow<'a> {
 }
 
 impl<'a> LxcContainerRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let container = self.container;
         let label = match container.listing.run_state {
             ContainerRunState::Stopped => ContainerRunState::Stopped.label().to_owned(),
@@ -70,19 +68,17 @@ impl<'a> LxcContainerRow<'a> {
                 approximate_memory_text,
             ),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                container.listing.container_name.clone(),
-                Phosphor::Package(Weight::Regular).into(),
-                container.listing.run_state.into(),
-                Box::new(move |_| Self::hover_card(container)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            container.listing.container_name.clone(),
+            Phosphor::Package(Weight::Regular).into(),
+            container.listing.run_state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| Self::hover_card(container)))
     }
 
     fn hover_card(container: &LxcContainer) -> Vec<Section> {
@@ -143,7 +139,7 @@ impl ContainerFamily for LxcFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                sample: LxcContainerListingRow { listing }.reading_row(),
+                indicator: LxcContainerListingRow { listing }.indicator(),
                 power: container_power(listing),
             })
             .collect()
@@ -154,7 +150,7 @@ impl ContainerFamily for LxcFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                sample: LxcContainerRow { container }.reading_row(),
+                indicator: LxcContainerRow { container }.indicator(),
                 power: container_power(&container.listing),
             })
             .collect()

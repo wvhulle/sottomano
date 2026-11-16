@@ -3,9 +3,9 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::Section,
     widgets::{
@@ -22,20 +22,18 @@ pub struct MemoryModuleTemperatureIndicator {
 }
 
 impl MemoryModuleTemperatureIndicator {
-    pub fn reading_row(self) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(celsius_text(self.temperature)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("Module {}", self.bus_address),
-                Phosphor::ThermometerSimple(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            format!("Module {}", self.bus_address),
+            Phosphor::ThermometerSimple(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(celsius_text(self.temperature)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

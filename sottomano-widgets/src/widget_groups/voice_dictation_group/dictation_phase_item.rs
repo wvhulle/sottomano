@@ -6,7 +6,8 @@ use sottomano_desktop_sources::{
 use super::speech_model_item::model_load_error_rows;
 use crate::{
     group_indicators::{
-        indicator_state::IndicatorState, reading_row::ReadingRow, toggle_control::SwitchPosition,
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -49,7 +50,7 @@ impl From<&NotulistDictation> for SwitchPosition {
     }
 }
 
-pub fn notulist_dictation_indicator(dictation: &NotulistDictation) -> ReadingRow<'_> {
+pub fn notulist_dictation_indicator(dictation: &NotulistDictation) -> GroupIndicator<'_> {
     let glyph: IconGlyph = match dictation.phase {
         DictationPhase::LoadingModel => Phosphor::HourglassMedium(Weight::Regular),
         DictationPhase::Idle => Phosphor::Microphone(Weight::Regular),
@@ -64,12 +65,8 @@ pub fn notulist_dictation_indicator(dictation: &NotulistDictation) -> ReadingRow
         DictationPhase::LoadingModel | DictationPhase::Finishing => IndicatorState::Pending,
         DictationPhase::StoppedByError(_) => IndicatorState::Failed,
     };
-    ReadingRow::glyph_only(
-        NotulistDictation::NAME,
-        glyph,
-        state,
-        Box::new(move |_| notulist_dictation_hover_card(dictation)),
-    )
+    GroupIndicator::glyph_only(NotulistDictation::NAME, glyph, state)
+        .with_hover_card(Box::new(move |_| notulist_dictation_hover_card(dictation)))
 }
 
 pub fn notulist_dictation_hover_card(dictation: &NotulistDictation) -> Vec<Section> {

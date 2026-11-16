@@ -10,8 +10,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -37,7 +37,7 @@ pub fn copilot_ccusage_panel_visibility(ccusage: &CopilotCcusage) -> PanelVisibi
     }
 }
 
-pub fn copilot_ccusage_indicator(ccusage: &CopilotCcusage, clock: Clock) -> ReadingRow<'_> {
+pub fn copilot_ccusage_indicator(ccusage: &CopilotCcusage, clock: Clock) -> GroupIndicator<'_> {
     let label = if ccusage.period.usage.cost.is_positive() {
         format!("{} cli", spend_text(&ccusage.period.usage.cost))
     } else {
@@ -47,24 +47,22 @@ pub fn copilot_ccusage_indicator(ccusage: &CopilotCcusage, clock: Clock) -> Read
     let state = Quota::worst_severity(&quotas)
         .unwrap_or_else(|| level_from_cost(&ccusage.period.usage.cost))
         .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        alerts: IndicatorAlerts {
-            quota_windows: quotas,
-            ..IndicatorAlerts::default()
-        },
-        panel_visibility: copilot_ccusage_panel_visibility(ccusage),
-        ..ReadingRow::glyph_only(
-            CopilotCcusage::NAME,
-            Phosphor::TerminalWindow(Weight::Regular).into(),
-            state,
-            Box::new(move |_| copilot_ccusage_hover_card(ccusage)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        CopilotCcusage::NAME,
+        Phosphor::TerminalWindow(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(label),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows: quotas,
+        ..IndicatorAlerts::default()
+    })
+    .with_panel_visibility(copilot_ccusage_panel_visibility(ccusage))
+    .with_hover_card(Box::new(move |_| copilot_ccusage_hover_card(ccusage)))
 }
 
 pub fn copilot_ccusage_hover_card(ccusage: &CopilotCcusage) -> Vec<Section> {

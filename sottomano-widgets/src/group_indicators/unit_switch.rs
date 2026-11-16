@@ -17,7 +17,6 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -87,11 +86,8 @@ impl UnitSwitchIndicator {
     pub fn switch_item<'a>(self, pressed: impl Into<WidgetGroupInteraction>) -> GroupIndicator<'a> {
         let switch_position = self.toggle.switch_position;
         let press_does = self.toggle.press_does();
-        GroupIndicator::sample(self.reading_row()).on_switch_press(
-            switch_position,
-            press_does,
-            pressed,
-        )
+        self.indicator()
+            .on_switch_press(switch_position, press_does, pressed)
     }
 
     fn shown_state(&self) -> IndicatorState {
@@ -109,14 +105,14 @@ impl UnitSwitchIndicator {
         )]
     }
 
-    fn reading_row(&self) -> ReadingRow<'static> {
+    fn indicator<'indicator>(&self) -> GroupIndicator<'indicator> {
         let activity = self.activity;
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             self.toggle.name.clone(),
             self.shown_glyph,
             self.shown_state(),
-            Box::new(move |_| Self::status_sections(activity)),
         )
+        .with_hover_card(Box::new(move |_| Self::status_sections(activity)))
     }
 }
 

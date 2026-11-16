@@ -29,7 +29,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -156,20 +155,18 @@ struct InactiveDomainRow<'a> {
 }
 
 impl<'a> InactiveDomainRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled("shut off".to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.domain_name.to_owned(),
-                Phosphor::DesktopTower(Weight::Regular).into(),
-                IndicatorState::Off,
-                Box::new(|_| Self::hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.domain_name.to_owned(),
+            Phosphor::DesktopTower(Weight::Regular).into(),
+            IndicatorState::Off,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("shut off".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Self::hover_card()))
     }
 
     fn hover_card() -> Vec<Section> {
@@ -187,7 +184,7 @@ impl<'a> InactiveDomainRow<'a> {
 }
 
 impl<'a> VirtualMachineRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let machine = self.machine;
         let name = match &machine.launch_context {
             Some(launch_context) => format!(
@@ -205,19 +202,13 @@ impl<'a> VirtualMachineRow<'a> {
             GuestRunState::Paused => IndicatorState::Off,
             GuestRunState::ShuttingDown => IndicatorState::Pending,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only(name, Phosphor::DesktopTower(Weight::Regular).into(), state)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                Phosphor::DesktopTower(Weight::Regular).into(),
-                state,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -357,7 +348,8 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.machines.as_slice())
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
-            let row = GroupIndicator::sample(VirtualMachineRow { machine }.reading_row())
+            let row = VirtualMachineRow { machine }
+                .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.readout
                         .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
@@ -388,7 +380,8 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.inactive_domains.as_slice())
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
-            GroupIndicator::sample(InactiveDomainRow { domain_name }.reading_row())
+            InactiveDomainRow { domain_name }
+                .indicator()
                 .with_hover_card(Box::new(|_| {
                     self.readout
                         .hover_card_with(InactiveDomainRow::hover_card())

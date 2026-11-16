@@ -26,9 +26,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
@@ -282,7 +281,7 @@ impl MonitorGroup {
         match self.clight.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let brightness_row = auto_brightness_indicator(held_snapshot);
-                if brightness_row.panel_visibility == PanelVisibility::Shown {
+                if brightness_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
@@ -294,7 +293,7 @@ impl MonitorGroup {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let brightness_row =
                     troubled_snapshot.shown_over(auto_brightness_indicator(held_snapshot), clock);
-                if brightness_row.panel_visibility == PanelVisibility::Shown {
+                if brightness_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
@@ -304,9 +303,7 @@ impl MonitorGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.auto_brightness_item(
-                        placeholder.reading_row(AUTO_BRIGHTNESS_GLYPH.into()),
-                    ),
+                    self.auto_brightness_item(placeholder.indicator(AUTO_BRIGHTNESS_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -324,8 +321,11 @@ impl MonitorGroup {
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 
-    fn auto_brightness_item<'a>(&'a self, brightness_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(brightness_row)
+    fn auto_brightness_item<'a>(
+        &'a self,
+        brightness_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        brightness_row
             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
                 MonitorSource::AutoBrightness,

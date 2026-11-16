@@ -3,9 +3,9 @@ use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::Cl
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -21,7 +21,7 @@ use crate::{
 pub(crate) const CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Timer(Weight::Regular));
 
-pub fn claude_ccusage_block_indicator(block: &ClaudeCcusageBlock) -> ReadingRow<'_> {
+pub fn claude_ccusage_block_indicator(block: &ClaudeCcusageBlock) -> GroupIndicator<'_> {
     let (label, state, panel_visibility) = match &block.active {
         Some(active) => (
             ReadoutLabel::Labeled(format!("{} block", spend_text(&active.cost))),
@@ -34,20 +34,20 @@ pub fn claude_ccusage_block_indicator(block: &ClaudeCcusageBlock) -> ReadingRow<
             PanelVisibility::Hidden,
         ),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        panel_visibility,
-        ..ReadingRow::glyph_only(
-            ClaudeCcusageBlock::NAME,
-            Phosphor::Timer(Weight::Regular).into(),
-            state,
-            Box::new(move |clock| claude_ccusage_block_hover_card(block, clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        ClaudeCcusageBlock::NAME,
+        Phosphor::Timer(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_panel_visibility(panel_visibility)
+    .with_hover_card(Box::new(move |clock| {
+        claude_ccusage_block_hover_card(block, clock)
+    }))
 }
 
 pub fn claude_ccusage_block_hover_card(block: &ClaudeCcusageBlock, clock: Clock) -> Vec<Section> {

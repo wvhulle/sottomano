@@ -6,10 +6,9 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutBadge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::journal_events_group::{JournalScopeGroup, MESSAGE_CAP, shown_while_alerting},
@@ -26,9 +25,9 @@ pub(super) const SERVICE_ERRORS_GLYPH: Phosphor = Phosphor::WarningCircle(Weight
 impl JournalScopeGroup {
     pub(super) fn service_errors_item<'a>(
         &'a self,
-        service_errors_row: ReadingRow<'a>,
+        service_errors_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(service_errors_row).with_hover_card(Box::new(move |_| {
+        service_errors_row.with_hover_card(Box::new(move |_| {
             self.service_errors
                 .sections_described_by(service_errors_hover_card)
         }))
@@ -94,23 +93,17 @@ pub(super) fn service_errors_hover_card(errors: &ServiceErrors) -> Vec<Section> 
     )]
 }
 
-pub(super) fn service_errors_indicator(errors: &ServiceErrors) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn service_errors_indicator(errors: &ServiceErrors) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         ServiceErrors::NAME,
         SERVICE_ERRORS_GLYPH.into(),
         service_errors_state(errors),
-        Box::new(move |_| service_errors_hover_card(errors)),
-    );
+    )
+    .with_hover_card(Box::new(move |_| service_errors_hover_card(errors)));
     let badge = match errors.by_unit_oldest_first.len() {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            badge,
-            ..base.readout
-        },
-        panel_visibility: service_errors_panel_visibility(errors),
-        ..base
-    }
+    base.with_badge(badge)
+        .with_panel_visibility(service_errors_panel_visibility(errors))
 }

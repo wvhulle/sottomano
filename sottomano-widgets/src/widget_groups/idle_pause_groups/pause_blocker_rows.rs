@@ -16,9 +16,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -145,20 +145,18 @@ impl PauseBlocker {
         }
     }
 
-    pub(super) fn reading_row(&self) -> ReadingRow<'_> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.blocked_phrase().into_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.holder.clone(),
-                Phosphor::Warning(Weight::Regular).into(),
-                self.display_state(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(&self) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(
+            self.holder.clone(),
+            Phosphor::Warning(Weight::Regular).into(),
+            self.display_state(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.blocked_phrase().into_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
@@ -205,20 +203,18 @@ pub(super) struct NextSleepStateRow {
 }
 
 impl NextSleepStateRow {
-    pub(super) fn reading_row(self) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled("will run".to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.state.title(),
-                Phosphor::Bed(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(|_| Vec::new()),
-            )
-        }
+    pub(super) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            self.state.title(),
+            Phosphor::Bed(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("will run".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 
@@ -227,7 +223,11 @@ pub(super) struct ScheduledShutdownRow<'a> {
 }
 
 impl ScheduledShutdownRow<'_> {
-    pub(super) fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'static> {
+    pub(super) fn indicator<'indicator>(
+        self,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupIndicator<'indicator> {
         let name = match self.shutdown.kind.as_str() {
             "poweroff" | "dry-poweroff" => "Power off scheduled",
             "reboot" | "dry-reboot" => "Reboot scheduled",
@@ -238,19 +238,17 @@ impl ScheduledShutdownRow<'_> {
             Some(at) => ReadoutLabel::Labeled(moment_text(at, clock.utc(), locale)),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                Phosphor::Clock(Weight::Regular).into(),
-                IndicatorState::Warning,
-                Box::new(|_| Vec::new()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            name,
+            Phosphor::Clock(Weight::Regular).into(),
+            IndicatorState::Warning,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 

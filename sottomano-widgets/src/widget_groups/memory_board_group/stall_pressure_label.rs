@@ -8,8 +8,8 @@ use uom::si::ratio::percent;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
@@ -46,28 +46,29 @@ impl From<StalledTasksRow> for TableRecord<3> {
     }
 }
 
-pub fn memory_stall_indicator(pressure: &MemoryStallPressure, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_stall_indicator(
+    pressure: &MemoryStallPressure,
+    locale: Locale,
+) -> GroupIndicator<'_> {
     let state = match pressure.some.last_minute.get::<percent>() {
         stalled if stalled >= STALL_CRITICAL_PERCENT => Severity::Critical,
         stalled if stalled >= STALL_WARNING_PERCENT => Severity::Warning,
         _ => Severity::Normal,
     }
     .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(
-                Quantity::share(pressure.some.last_minute).localized_text(locale),
-            ),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            MemoryStallPressure::NAME,
-            Phosphor::Gauge(Weight::Regular).into(),
-            state,
-            Box::new(move |_| memory_stall_hover_card(pressure)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        MemoryStallPressure::NAME,
+        Phosphor::Gauge(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(
+            Quantity::share(pressure.some.last_minute).localized_text(locale),
+        ),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_hover_card(Box::new(move |_| memory_stall_hover_card(pressure)))
 }
 
 pub fn memory_stall_hover_card(pressure: &MemoryStallPressure) -> Vec<Section> {

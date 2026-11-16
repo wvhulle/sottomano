@@ -8,8 +8,8 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -101,30 +101,28 @@ impl MetadataRoomRow<'_> {
 }
 
 impl<'a> MetadataRoomRow<'a> {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
         let label = Quantity::size(self.room()).localized_text(locale);
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label.clone()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
+        GroupIndicator::glyph_only(
+            "Metadata room",
+            Phosphor::TreeStructure(Weight::Regular).into(),
+            self.pressure().severity().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label.clone()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_alerts(IndicatorAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "No room left for metadata",
+                body: ToastBody::Text(label),
+                progress: ToastProgress::Unmeasured,
             },
-            alerts: IndicatorAlerts {
-                state_toast: StateToast::NotifyFromSeverity {
-                    minimum_severity: Severity::Critical,
-                    summary_text: "No room left for metadata",
-                    body: ToastBody::Text(label),
-                    progress: ToastProgress::Unmeasured,
-                },
-                ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "Metadata room",
-                Phosphor::TreeStructure(Weight::Regular).into(),
-                self.pressure().severity().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            ..IndicatorAlerts::default()
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

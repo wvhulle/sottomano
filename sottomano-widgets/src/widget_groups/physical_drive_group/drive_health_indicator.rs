@@ -10,8 +10,8 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-pub(crate) fn drive_health_indicator(health: &DriveHealth) -> ReadingRow<'_> {
+pub(crate) fn drive_health_indicator(health: &DriveHealth) -> GroupIndicator<'_> {
     let error_level = if health.errors.iter().any(|errors| errors.total() > 0) {
         Severity::Critical
     } else {
@@ -33,28 +33,26 @@ pub(crate) fn drive_health_indicator(health: &DriveHealth) -> ReadingRow<'_> {
         Some(text) => (ReadoutLabel::Labeled(text.clone()), ToastBody::Text(text)),
         None => (ReadoutLabel::Unlabeled, ToastBody::Bodiless),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        DriveHealth::NAME,
+        Phosphor::Thermometer(Weight::Regular).into(),
+        health.temperature_level().max(error_level).into(),
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        state_toast: StateToast::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "Drive needs attention",
+            body,
+            progress: ToastProgress::Unmeasured,
         },
-        alerts: IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Critical,
-                summary_text: "Drive needs attention",
-                body,
-                progress: ToastProgress::Unmeasured,
-            },
-            ..IndicatorAlerts::default()
-        },
-        ..ReadingRow::glyph_only(
-            DriveHealth::NAME,
-            Phosphor::Thermometer(Weight::Regular).into(),
-            health.temperature_level().max(error_level).into(),
-            Box::new(move |_| drive_health_hover_card(health)),
-        )
-    }
+        ..IndicatorAlerts::default()
+    })
+    .with_hover_card(Box::new(move |_| drive_health_hover_card(health)))
 }
 
 pub(crate) fn drive_health_hover_card(health: &DriveHealth) -> Vec<Section> {

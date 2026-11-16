@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -23,31 +23,29 @@ use crate::{
     },
 };
 
-pub fn copilot_metered_indicator(metered: &CopilotMetered, clock: Clock) -> ReadingRow<'_> {
+pub fn copilot_metered_indicator(metered: &CopilotMetered, clock: Clock) -> GroupIndicator<'_> {
     let state = Quota::worst_severity(&metered.quotas(clock.utc()))
         .unwrap_or_else(|| level_from_used(metered.used_share))
         .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Gauged {
-                fill: metered.used_share,
-                live: metered.used_share,
-            },
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        CopilotMetered::NAME,
+        Phosphor::Gauge(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Gauged {
+            fill: metered.used_share,
+            live: metered.used_share,
         },
-        alerts: IndicatorAlerts {
-            quota_windows: metered.quotas(clock.utc()),
-            ..IndicatorAlerts::default()
-        },
-        panel_visibility: copilot_metered_panel_visibility(metered),
-        ..ReadingRow::glyph_only(
-            CopilotMetered::NAME,
-            Phosphor::Gauge(Weight::Regular).into(),
-            state,
-            Box::new(move |_| copilot_metered_hover_card(metered)),
-        )
-    }
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows: metered.quotas(clock.utc()),
+        ..IndicatorAlerts::default()
+    })
+    .with_panel_visibility(copilot_metered_panel_visibility(metered))
+    .with_hover_card(Box::new(move |_| copilot_metered_hover_card(metered)))
 }
 
 pub fn copilot_metered_panel_visibility(metered: &CopilotMetered) -> PanelVisibility {

@@ -4,9 +4,9 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -27,20 +27,18 @@ fn access_text(access: MountAccess) -> &'static str {
 }
 
 impl<'a> MountAccessRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(access_text(self.usage.access).to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Mount",
-                Phosphor::HardDrive(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            "Mount",
+            Phosphor::HardDrive(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(access_text(self.usage.access).to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

@@ -9,9 +9,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -34,28 +34,23 @@ pub(crate) fn strict_budget_panel_visibility(budget: &OpenRouterStrictBudget) ->
     }
 }
 
-pub(crate) fn strict_budget_indicator(budget: &OpenRouterStrictBudget) -> ReadingRow<'_> {
+pub(crate) fn strict_budget_indicator(budget: &OpenRouterStrictBudget) -> GroupIndicator<'_> {
     let state = match budget.credit_standing() {
         CreditStanding::Exhausted => IndicatorState::Critical,
         CreditStanding::Remaining => IndicatorState::Idle,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(format!(
-                "{} left",
-                spend_text(&budget.tightest_remaining())
-            )),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        panel_visibility: strict_budget_panel_visibility(budget),
-        ..ReadingRow::glyph_only(
-            OpenRouterStrictBudget::NAME,
-            Phosphor::Wallet(Weight::Regular).into(),
-            state,
-            Box::new(move |_| strict_budget_hover_card(budget)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        OpenRouterStrictBudget::NAME,
+        Phosphor::Wallet(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(format!("{} left", spend_text(&budget.tightest_remaining()))),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_panel_visibility(strict_budget_panel_visibility(budget))
+    .with_hover_card(Box::new(move |_| strict_budget_hover_card(budget)))
 }
 
 pub(crate) fn strict_budget_hover_card(budget: &OpenRouterStrictBudget) -> Vec<Section> {

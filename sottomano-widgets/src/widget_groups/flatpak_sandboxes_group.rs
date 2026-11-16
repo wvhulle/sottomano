@@ -10,9 +10,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -39,23 +39,21 @@ pub struct FlatpakSandboxListingRow<'a> {
 }
 
 impl<'a> FlatpakSandboxListingRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!(
-                    "{} {}",
-                    self.listing.application_id, self.listing.instance_id
-                ),
-                sandbox_icon(),
-                ContainerRunState::Running.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            format!(
+                "{} {}",
+                self.listing.application_id, self.listing.instance_id
+            ),
+            sandbox_icon(),
+            ContainerRunState::Running.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -74,27 +72,25 @@ pub struct FlatpakSandboxRow<'a> {
 }
 
 impl<'a> FlatpakSandboxRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.sandbox.memory_in_use {
             Some(memory_in_use) => ReadoutLabel::Labeled(approximate_memory_text(memory_in_use)),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!(
-                    "{} {}",
-                    self.sandbox.listing.application_id, self.sandbox.listing.instance_id
-                ),
-                sandbox_icon(),
-                IndicatorState::On,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            format!(
+                "{} {}",
+                self.sandbox.listing.application_id, self.sandbox.listing.instance_id
+            ),
+            sandbox_icon(),
+            IndicatorState::On,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -167,7 +163,7 @@ impl ContainerFamily for FlatpakFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                sample: FlatpakSandboxListingRow { listing }.reading_row(),
+                indicator: FlatpakSandboxListingRow { listing }.indicator(),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
@@ -178,7 +174,7 @@ impl ContainerFamily for FlatpakFamily {
             .details
             .iter()
             .map(|sandbox| FamilyRow {
-                sample: FlatpakSandboxRow { sandbox }.reading_row(),
+                indicator: FlatpakSandboxRow { sandbox }.indicator(),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()

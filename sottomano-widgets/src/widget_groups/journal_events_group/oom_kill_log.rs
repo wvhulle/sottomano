@@ -6,10 +6,9 @@ use sottomano_toml_config::Config;
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -47,9 +46,9 @@ impl JournalScopeGroup {
     pub(super) fn oom_kill_log_item<'a>(
         &'a self,
         config: &Config,
-        oom_kill_row: ReadingRow<'a>,
+        oom_kill_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(oom_kill_row)
+        oom_kill_row
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -77,21 +76,19 @@ pub(super) fn oom_kill_log_panel_visibility(entries: &[OomKillEntry]) -> PanelVi
     shown_while_alerting(entries.iter().map(|entry| entry.severity))
 }
 
-pub(super) fn oom_kill_log_indicator(entries: &[OomKillEntry]) -> ReadingRow<'_> {
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Counted(entries.len()),
-        },
-        panel_visibility: oom_kill_log_panel_visibility(entries),
-        ..ReadingRow::glyph_only(
-            "OOM kills",
-            OOM_KILL_LOG_GLYPH.into(),
-            oom_kill_log_state(entries),
-            Box::new(move |_| oom_kill_log_hover_card(entries)),
-        )
-    }
+pub(super) fn oom_kill_log_indicator(entries: &[OomKillEntry]) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        "OOM kills",
+        OOM_KILL_LOG_GLYPH.into(),
+        oom_kill_log_state(entries),
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Counted(entries.len()),
+    })
+    .with_panel_visibility(oom_kill_log_panel_visibility(entries))
+    .with_hover_card(Box::new(move |_| oom_kill_log_hover_card(entries)))
 }
 
 pub(super) fn oom_kill_log_hover_card(entries: &[OomKillEntry]) -> Vec<Section> {

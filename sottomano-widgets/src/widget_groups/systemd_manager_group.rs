@@ -32,8 +32,8 @@ use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManag
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_state::IndicatorState,
-        reading_row::PanelVisibility,
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_state::IndicatorState,
     },
     hover_cards::IndicatorKey,
     widget_groups::{
@@ -219,17 +219,17 @@ impl SystemdManagerGroup {
         let mut rows = Vec::new();
         if let Some(timeline) = self.boot.get() {
             rows.push(
-                GroupIndicator::sample(boot_timeline_indicator(timeline, locale)).with_hover_card(
-                    Box::new(move |_| self.boot.sections_described_by(boot_timeline_hover_card)),
-                ),
+                boot_timeline_indicator(timeline, locale).with_hover_card(Box::new(move |_| {
+                    self.boot.sections_described_by(boot_timeline_hover_card)
+                })),
             );
             rows.push(
-                GroupIndicator::sample(StartupUnits { timeline }.reading_row()).with_hover_card(
-                    Box::new(move |_| {
+                StartupUnits { timeline }
+                    .indicator()
+                    .with_hover_card(Box::new(move |_| {
                         self.boot
                             .hover_card_with(StartupUnits { timeline }.hover_card())
-                    }),
-                ),
+                    })),
             );
         }
         for slow_jobs in [&self.slow_system_jobs, &self.slow_user_jobs] {
@@ -246,9 +246,7 @@ impl SystemdManagerGroup {
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(GroupIndicator::sample(
-                        placeholder.reading_row(SLOW_JOBS_GLYPH.into()),
-                    ));
+                    rows.push(placeholder.indicator(SLOW_JOBS_GLYPH.into()));
                 }
                 SubscribedSnapshot::AwaitingFirstSnapshot
                 | SubscribedSnapshot::SourceUnavailable => {}
@@ -281,9 +279,7 @@ impl SystemdManagerGroup {
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(GroupIndicator::sample(
-                        placeholder.reading_row(failed_units_glyph.into()),
-                    ));
+                    rows.push(placeholder.indicator(failed_units_glyph.into()));
                 }
                 SubscribedSnapshot::AwaitingFirstSnapshot
                 | SubscribedSnapshot::SourceUnavailable => {}
@@ -297,9 +293,7 @@ impl SystemdManagerGroup {
                 rows.push(self.last_shutdown_item(&troubled_snapshot.held_snapshot, config));
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(GroupIndicator::sample(
-                    placeholder.reading_row(LAST_SHUTDOWN_GLYPH.into()),
-                ));
+                rows.push(placeholder.indicator(LAST_SHUTDOWN_GLYPH.into()));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -317,21 +311,18 @@ impl SystemdManagerGroup {
         last_shutdown: &'a LastShutdown,
         config: &'a Config,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(last_shutdown_indicator(
-            last_shutdown,
-            config.calendar.locale,
-        ))
-        .on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                config,
-                last_shutdown.follow_log_args(),
-            )),
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.last_shutdown
-                .sections_described_by(last_shutdown_hover_card)
-        }))
+        last_shutdown_indicator(last_shutdown, config.calendar.locale)
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    last_shutdown.follow_log_args(),
+                )),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.last_shutdown
+                    .sections_described_by(last_shutdown_hover_card)
+            }))
     }
 
     fn current_health_states(&self) -> [Option<IndicatorState>; 4] {

@@ -30,9 +30,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::{
         group_summary::GroupSummary,
@@ -219,7 +218,7 @@ impl CopilotUsageGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::GitHubCopilot.into(),
-                self.metered_item(placeholder.reading_row(Phosphor::Gauge(Weight::Regular).into())),
+                self.metered_item(placeholder.indicator(Phosphor::Gauge(Weight::Regular).into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
                 GroupSummary::glyph(SimpleIcon::GitHubCopilot.into(), IndicatorState::Pending)
@@ -234,7 +233,7 @@ impl CopilotUsageGroup {
         match &self.free {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let free_row = copilot_free_indicator(held_snapshot);
-                if free_row.panel_visibility == PanelVisibility::Shown {
+                if free_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.free_item(free_row));
                 }
             }
@@ -243,12 +242,12 @@ impl CopilotUsageGroup {
                     copilot_free_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if free_row.panel_visibility == PanelVisibility::Shown {
+                if free_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.free_item(free_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.free_item(placeholder.reading_row(COPILOT_FREE_FALLBACK_GLYPH)));
+                rows.push(self.free_item(placeholder.indicator(COPILOT_FREE_FALLBACK_GLYPH)));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -258,7 +257,7 @@ impl CopilotUsageGroup {
         match &self.cli {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let cli_row = copilot_ccusage_indicator(held_snapshot, clock);
-                if cli_row.panel_visibility == PanelVisibility::Shown {
+                if cli_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.cli_item(cli_row));
                 }
             }
@@ -267,12 +266,12 @@ impl CopilotUsageGroup {
                     copilot_ccusage_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if cli_row.panel_visibility == PanelVisibility::Shown {
+                if cli_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.cli_item(cli_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.cli_item(placeholder.reading_row(COPILOT_CCUSAGE_FALLBACK_GLYPH)));
+                rows.push(self.cli_item(placeholder.indicator(COPILOT_CCUSAGE_FALLBACK_GLYPH)));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -281,14 +280,16 @@ impl CopilotUsageGroup {
     fn push_model_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
-                GroupIndicator::sample(ranking.most_used_model_row())
+                ranking
+                    .most_used_model_row()
                     .with_hover_card(Box::new(move |_| {
                         self.cli.hover_card_with(ranking.hover_card())
                     }))
                     .refreshed_by(CopilotUsageInteraction::RefreshCli),
             );
             rows.push(
-                GroupIndicator::sample(ranking.most_used_spend_row())
+                ranking
+                    .most_used_spend_row()
                     .with_hover_card(Box::new(move |_| {
                         self.cli.hover_card_with(ranking.top_model_share())
                     }))
@@ -297,8 +298,8 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn metered_item<'a>(&'a self, metered_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(metered_row)
+    fn metered_item<'a>(&'a self, metered_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        metered_row
             .with_hover_card(Box::new(move |_| {
                 self.metered
                     .sections_described_by(copilot_metered_hover_card)
@@ -308,8 +309,8 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn free_item<'a>(&'a self, free_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(free_row)
+    fn free_item<'a>(&'a self, free_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        free_row
             .with_hover_card(Box::new(move |_| {
                 self.free.sections_described_by(copilot_free_hover_card)
             }))
@@ -318,8 +319,8 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn cli_item<'a>(&'a self, cli_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(cli_row)
+    fn cli_item<'a>(&'a self, cli_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        cli_row
             .with_hover_card(Box::new(move |_| {
                 self.cli.sections_described_by(copilot_ccusage_hover_card)
             }))

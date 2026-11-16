@@ -6,9 +6,9 @@ use sottomano_desktop_sources::network_connectivity::{
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -34,7 +34,7 @@ pub struct AllWifiRadiosSwitch {
 }
 
 impl<'a> AdapterSignalIndicator<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let state = if self.adapter.link_state == LinkPhase::Switching {
             IndicatorState::Pending
         } else {
@@ -50,19 +50,13 @@ impl<'a> AdapterSignalIndicator<'a> {
             }
             None => ReadoutGauge::Ungauged,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Signal", Phosphor::WifiHigh(Weight::Regular).into(), state)
+            .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Signal",
-                Phosphor::WifiHigh(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
@@ -113,18 +107,18 @@ impl<'a> AdapterConnectionSwitch<'a> {
         }
     }
 
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let glyph = if self.adapter.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
         };
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "Connection",
             glyph,
             IndicatorState::from(self.adapter.link_state),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
@@ -147,17 +141,17 @@ impl AllWifiRadiosSwitch {
         }
     }
 
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = match self.radio_power {
             RadioPower::On => Phosphor::WifiHigh(Weight::Regular).into(),
             RadioPower::Off => Phosphor::WifiSlash(Weight::Regular).into(),
         };
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "All Wi-Fi radios",
             glyph,
             IndicatorState::from(SwitchPosition::from(self.radio_power)),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

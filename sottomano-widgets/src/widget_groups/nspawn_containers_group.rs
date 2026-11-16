@@ -13,9 +13,8 @@ use crate::{
     clock::Clock,
     group_indicators::{
         group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutLabel},
+        indicator_drawing::ReadoutLabel,
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -135,24 +134,18 @@ impl<'a> NspawnContainerRow<'a> {
         )]
     }
 
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.label() {
             Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
             Some(_) | None => ReadoutLabel::Unlabeled,
         };
-        let base = ReadingRow::glyph_only(
+        let base = GroupIndicator::glyph_only(
             self.container.machine_name.clone(),
             Phosphor::ShippingContainer(Weight::Regular).into(),
             self.state(),
-            Box::new(move |card_clock| self.hover_card(card_clock)),
-        );
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                ..base.readout
-            },
-            ..base
-        }
+        )
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)));
+        base.with_label(label)
     }
 }
 
@@ -309,7 +302,9 @@ impl NspawnContainersGroup {
             .map(|readout| readout.containers.as_slice())
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
-            let row = GroupIndicator::sample(self.container_row(container).reading_row())
+            let row = self
+                .container_row(container)
+                .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.listing
                         .hover_card_with(self.container_row(container).hover_card(clock))

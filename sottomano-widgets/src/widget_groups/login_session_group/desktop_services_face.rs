@@ -1,7 +1,7 @@
 use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::{
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         localized_time::LocalizedTimeFormat,
@@ -13,13 +13,13 @@ use crate::{
 pub struct DesktopServicesFace;
 
 impl DesktopServicesFace {
-    pub fn reading_row() -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub fn indicator<'indicator>() -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             "Desktop services",
             Phosphor::ListChecks(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(|_| Self::hover_card()),
         )
+        .with_hover_card(Box::new(|_| Self::hover_card()))
     }
 
     pub fn hover_card() -> Vec<Section> {

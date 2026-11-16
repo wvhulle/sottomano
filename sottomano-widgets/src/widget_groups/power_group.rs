@@ -28,9 +28,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -254,20 +253,20 @@ impl PowerGroup {
         match &self.battery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let charge_row = battery_indicator(held_snapshot);
-                if charge_row.panel_visibility == PanelVisibility::Shown {
+                if charge_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.battery_charge_item(charge_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let charge_row = troubled_snapshot
                     .shown_over(battery_indicator(&troubled_snapshot.held_snapshot), clock);
-                if charge_row.panel_visibility == PanelVisibility::Shown {
+                if charge_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.battery_charge_item(charge_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.battery_charge_item(placeholder.reading_row(BATTERY_CHARGE_GLYPH.into())),
+                    self.battery_charge_item(placeholder.indicator(BATTERY_CHARGE_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -277,7 +276,7 @@ impl PowerGroup {
         }
         if let Some(time) = &self.time {
             rows.push(
-                GroupIndicator::sample(time.reading_row(locale))
+                time.indicator(locale)
                     .ongoing_toast_action_buttons(switch_to_saving_profiles)
                     .with_hover_card(Box::new(move |_| {
                         self.battery.hover_card_with(time.hover_card())
@@ -316,8 +315,8 @@ impl PowerGroup {
         )))
     }
 
-    fn battery_charge_item<'a>(&'a self, charge_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(charge_row)
+    fn battery_charge_item<'a>(&'a self, charge_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        charge_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.battery.sections_described_by(battery_hover_card);
                 sections.extend(
@@ -330,7 +329,7 @@ impl PowerGroup {
     }
 
     fn power_draw_item(&self, draw: PowerDraw) -> GroupIndicator<'_> {
-        GroupIndicator::sample(draw.reading_row())
+        draw.indicator()
             .with_hover_card(Box::new(move |_| {
                 self.draw().map_or_else(Vec::new, |current_draw| {
                     let mut sections = self.battery.hover_card_with(current_draw.hover_card());

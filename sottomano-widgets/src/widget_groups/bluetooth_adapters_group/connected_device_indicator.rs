@@ -10,9 +10,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
@@ -174,7 +174,7 @@ impl ConnectedDeviceIndicator<'_> {
 
 impl<'a> ConnectedDeviceIndicator<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let state =
             if self.battery_drain_to(CRITICAL_BATTERY_PERCENT) == BatteryDrain::BelowThreshold {
                 IndicatorState::Critical
@@ -197,19 +197,17 @@ impl<'a> ConnectedDeviceIndicator<'a> {
         } else {
             ReadoutLabel::Labeled(self.short_label.clone())
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("{} {}", self.device.name, self.device.address),
-                kind_glyph(self.device.kind),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            format!("{} {}", self.device.name, self.device.address),
+            kind_glyph(self.device.kind),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]

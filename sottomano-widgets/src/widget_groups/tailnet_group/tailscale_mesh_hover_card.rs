@@ -12,9 +12,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
@@ -96,7 +96,7 @@ impl From<&Peer> for TableRecord<7> {
     }
 }
 
-pub(super) fn tailscale_indicator(tailscale: &Tailscale, clock: Clock) -> ReadingRow<'_> {
+pub(super) fn tailscale_indicator(tailscale: &Tailscale, clock: Clock) -> GroupIndicator<'_> {
     let state = match tailscale {
         Tailscale::Stopped => IndicatorState::Off,
         Tailscale::Starting => IndicatorState::Pending,
@@ -115,19 +115,19 @@ pub(super) fn tailscale_indicator(tailscale: &Tailscale, clock: Clock) -> Readin
         }
         Tailscale::Running(_) | Tailscale::Stopped | Tailscale::Starting => ReadoutBadge::Unbadged,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Ungauged,
-            badge,
-        },
-        ..ReadingRow::glyph_only(
-            Tailscale::NAME,
-            Phosphor::Plugs(Weight::Regular).into(),
-            state,
-            Box::new(move |card_clock| tailscale_hover_card(tailscale, card_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        Tailscale::NAME,
+        Phosphor::Plugs(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Ungauged,
+        badge,
+    })
+    .with_hover_card(Box::new(move |card_clock| {
+        tailscale_hover_card(tailscale, card_clock)
+    }))
 }
 
 pub(super) fn tailscale_hover_card(tailscale: &Tailscale, clock: Clock) -> Vec<Section> {

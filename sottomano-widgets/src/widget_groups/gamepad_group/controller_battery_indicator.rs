@@ -3,9 +3,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -41,7 +41,7 @@ impl ControllerBatteryIndicator {
 }
 
 impl ControllerBatteryIndicator {
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = match self.power {
             GamepadPower::Charging(_) => Phosphor::BatteryCharging(Weight::Regular),
             GamepadPower::Full => Phosphor::BatteryFull(Weight::Regular),
@@ -67,19 +67,13 @@ impl ControllerBatteryIndicator {
         } else {
             IndicatorState::Idle
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Controller battery", glyph.into(), state)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Controller battery",
-                glyph.into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

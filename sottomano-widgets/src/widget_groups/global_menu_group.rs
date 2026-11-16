@@ -35,7 +35,6 @@ use crate::{
             IndicatorIcon, IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel,
         },
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -112,20 +111,18 @@ struct MenuLookupFailureIndicator<'failure> {
 }
 
 impl<'failure> MenuLookupFailureIndicator<'failure> {
-    fn reading_row(self) -> ReadingRow<'failure> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled("failed".to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Menu lookup",
-                Phosphor::Warning(Weight::Regular).into(),
-                IndicatorState::Failed,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'failure> {
+        GroupIndicator::glyph_only(
+            "Menu lookup",
+            Phosphor::Warning(Weight::Regular).into(),
+            IndicatorState::Failed,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("failed".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -501,9 +498,7 @@ impl GlobalMenuGroup {
             GlobalMenuInteraction::ToggleUse,
         )];
         if let Some(lookup_failure) = self.lookup_failure() {
-            rows.push(GroupIndicator::sample(
-                MenuLookupFailureIndicator { lookup_failure }.reading_row(),
-            ));
+            rows.push(MenuLookupFailureIndicator { lookup_failure }.indicator());
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,

@@ -51,7 +51,7 @@ impl<'a> GroupSummary<'a> {
         match self {
             GroupSummary::Glyph { glyph, state } => state_glyph_view(*glyph, *state, config, 1.0),
             GroupSummary::Row { glyph, row } => {
-                state_glyph_view(*glyph, row.display_state(), config, 1.0)
+                state_glyph_view(*glyph, row.shown_state(), config, 1.0)
             }
         }
     }

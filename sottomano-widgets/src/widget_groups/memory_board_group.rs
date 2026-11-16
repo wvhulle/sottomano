@@ -35,9 +35,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::{
         group_summary::GroupSummary,
@@ -207,7 +206,9 @@ impl MemoryBoardGroup {
                             MachineInfo::default()
                         },
                     };
-                    GroupIndicator::sample(slot_indicator.clone().reading_row(locale))
+                    slot_indicator
+                        .clone()
+                        .indicator(locale)
                         .with_hover_card(Box::new(move |_| {
                             self.hardware.hover_card_with(slot_indicator.hover_card())
                         }))
@@ -225,7 +226,9 @@ impl MemoryBoardGroup {
                         bus_address: module.bus_address.clone(),
                         temperature: module.temperature,
                     };
-                    GroupIndicator::sample(temperature_indicator.clone().reading_row())
+                    temperature_indicator
+                        .clone()
+                        .indicator()
                         .with_hover_card(Box::new(move |_| {
                             self.module_temperatures
                                 .hover_card_with(temperature_indicator.hover_card())
@@ -271,7 +274,7 @@ impl MemoryBoardGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_item(placeholder.reading_row(MEMORY_USAGE_GLYPH.into())),
+                self.memory_usage_item(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Database(Weight::Regular).into(),
@@ -293,7 +296,7 @@ impl MemoryBoardGroup {
         match &self.memory_growth {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let growth_row = memory_growth_indicator(held_snapshot, locale);
-                if growth_row.panel_visibility == PanelVisibility::Shown {
+                if growth_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.memory_growth_item(growth_row));
                 }
             }
@@ -302,13 +305,13 @@ impl MemoryBoardGroup {
                     memory_growth_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if growth_row.panel_visibility == PanelVisibility::Shown {
+                if growth_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.memory_growth_item(growth_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.memory_growth_item(placeholder.reading_row(MEMORY_GROWTH_GLYPH.into())),
+                    self.memory_growth_item(placeholder.indicator(MEMORY_GROWTH_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -324,7 +327,7 @@ impl MemoryBoardGroup {
         match &self.stall_pressure {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let pressure_row = memory_stall_indicator(held_snapshot, locale);
-                if pressure_row.panel_visibility == PanelVisibility::Shown {
+                if pressure_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.stall_pressure_item(pressure_row));
                 }
             }
@@ -333,13 +336,13 @@ impl MemoryBoardGroup {
                     memory_stall_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if pressure_row.panel_visibility == PanelVisibility::Shown {
+                if pressure_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.stall_pressure_item(pressure_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.stall_pressure_item(placeholder.reading_row(STALL_PRESSURE_GLYPH.into())),
+                    self.stall_pressure_item(placeholder.indicator(STALL_PRESSURE_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -355,7 +358,7 @@ impl MemoryBoardGroup {
         match &self.swap_activity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let swap_row = swap_activity_indicator(held_snapshot, locale);
-                if swap_row.panel_visibility == PanelVisibility::Shown {
+                if swap_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.swap_activity_item(swap_row));
                 }
             }
@@ -364,21 +367,21 @@ impl MemoryBoardGroup {
                     swap_activity_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if swap_row.panel_visibility == PanelVisibility::Shown {
+                if swap_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.swap_activity_item(swap_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.swap_activity_item(placeholder.reading_row(SWAP_ACTIVITY_GLYPH.into())),
+                    self.swap_activity_item(placeholder.indicator(SWAP_ACTIVITY_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn memory_usage_item<'a>(&'a self, usage_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(usage_row)
+    fn memory_usage_item<'a>(&'a self, usage_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        usage_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.memory.sections_described_by(memory_hover_card);
                 sections.extend(
@@ -394,8 +397,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
     }
 
-    fn memory_growth_item<'a>(&'a self, growth_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(growth_row)
+    fn memory_growth_item<'a>(&'a self, growth_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        growth_row
             .with_hover_card(Box::new(move |_| {
                 self.memory_growth
                     .sections_described_by(memory_growth_hover_card)
@@ -403,8 +406,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
     }
 
-    fn stall_pressure_item<'a>(&'a self, pressure_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(pressure_row)
+    fn stall_pressure_item<'a>(&'a self, pressure_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        pressure_row
             .with_hover_card(Box::new(move |_| {
                 self.stall_pressure
                     .sections_described_by(memory_stall_hover_card)
@@ -412,8 +415,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
     }
 
-    fn swap_activity_item<'a>(&'a self, swap_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(swap_row)
+    fn swap_activity_item<'a>(&'a self, swap_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        swap_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .swap_activity

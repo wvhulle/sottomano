@@ -7,8 +7,8 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_state::IndicatorState,
-        reading_row::PanelVisibility,
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_state::IndicatorState,
     },
     widget_groups::{
         group_summary::GroupSummary,
@@ -90,7 +90,7 @@ impl JournalScopeGroup {
         match &self.kernel {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let kernel_row = kernel_log_indicator(held_snapshot);
-                if kernel_row.panel_visibility == PanelVisibility::Shown {
+                if kernel_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.kernel_log_item(config, kernel_row));
                 }
             }
@@ -99,13 +99,13 @@ impl JournalScopeGroup {
                     kernel_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if kernel_row.panel_visibility == PanelVisibility::Shown {
+                if kernel_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.kernel_log_item(config, kernel_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.kernel_log_item(config, placeholder.reading_row(KERNEL_LOG_GLYPH.into())),
+                    self.kernel_log_item(config, placeholder.indicator(KERNEL_LOG_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -120,7 +120,7 @@ impl JournalScopeGroup {
         match &self.service_errors {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let service_errors_row = service_errors_indicator(held_snapshot);
-                if service_errors_row.panel_visibility == PanelVisibility::Shown {
+                if service_errors_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.service_errors_item(service_errors_row).on_press(
                         TerminalCommand::JOURNAL_PRESS_HINT,
                         JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -133,7 +133,7 @@ impl JournalScopeGroup {
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let service_errors_row = service_errors_indicator(held_snapshot);
-                if service_errors_row.panel_visibility == PanelVisibility::Shown {
+                if service_errors_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.service_errors_item(service_errors_row).on_press(
                         TerminalCommand::JOURNAL_PRESS_HINT,
                         JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -145,7 +145,7 @@ impl JournalScopeGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.service_errors_item(placeholder.reading_row(SERVICE_ERRORS_GLYPH.into())),
+                    self.service_errors_item(placeholder.indicator(SERVICE_ERRORS_GLYPH.into())),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -161,7 +161,7 @@ impl JournalScopeGroup {
         match &self.coredumps {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let coredump_row = coredump_log_indicator(held_snapshot);
-                if coredump_row.panel_visibility == PanelVisibility::Shown {
+                if coredump_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.coredump_log_item(config, coredump_row));
                 }
             }
@@ -170,7 +170,7 @@ impl JournalScopeGroup {
                     coredump_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if coredump_row.panel_visibility == PanelVisibility::Shown {
+                if coredump_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.coredump_log_item(config, coredump_row));
                 }
             }
@@ -178,7 +178,7 @@ impl JournalScopeGroup {
                 rows.push(
                     self.coredump_log_item(
                         config,
-                        placeholder.reading_row(COREDUMP_LOG_GLYPH.into()),
+                        placeholder.indicator(COREDUMP_LOG_GLYPH.into()),
                     ),
                 );
             }
@@ -195,7 +195,7 @@ impl JournalScopeGroup {
         match &self.oom_kills {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let oom_kill_row = oom_kill_log_indicator(held_snapshot);
-                if oom_kill_row.panel_visibility == PanelVisibility::Shown {
+                if oom_kill_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.oom_kill_log_item(config, oom_kill_row));
                 }
             }
@@ -204,7 +204,7 @@ impl JournalScopeGroup {
                     oom_kill_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if oom_kill_row.panel_visibility == PanelVisibility::Shown {
+                if oom_kill_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.oom_kill_log_item(config, oom_kill_row));
                 }
             }
@@ -212,7 +212,7 @@ impl JournalScopeGroup {
                 rows.push(
                     self.oom_kill_log_item(
                         config,
-                        placeholder.reading_row(OOM_KILL_LOG_GLYPH.into()),
+                        placeholder.indicator(OOM_KILL_LOG_GLYPH.into()),
                     ),
                 );
             }

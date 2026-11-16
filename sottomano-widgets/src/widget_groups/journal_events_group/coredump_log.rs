@@ -4,10 +4,9 @@ use sottomano_toml_config::Config;
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -49,9 +48,9 @@ impl JournalScopeGroup {
     pub(super) fn coredump_log_item<'a>(
         &'a self,
         config: &Config,
-        coredump_row: ReadingRow<'a>,
+        coredump_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(coredump_row)
+        coredump_row
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -79,21 +78,19 @@ pub(super) fn coredump_log_panel_visibility(entries: &[CoredumpEntry]) -> PanelV
     shown_while_alerting(entries.iter().map(|entry| entry.severity))
 }
 
-pub(super) fn coredump_log_indicator(entries: &[CoredumpEntry]) -> ReadingRow<'_> {
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Counted(entries.len()),
-        },
-        panel_visibility: coredump_log_panel_visibility(entries),
-        ..ReadingRow::glyph_only(
-            "Coredumps",
-            COREDUMP_LOG_GLYPH.into(),
-            coredump_log_state(entries),
-            Box::new(move |_| coredump_log_hover_card(entries)),
-        )
-    }
+pub(super) fn coredump_log_indicator(entries: &[CoredumpEntry]) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        "Coredumps",
+        COREDUMP_LOG_GLYPH.into(),
+        coredump_log_state(entries),
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Counted(entries.len()),
+    })
+    .with_panel_visibility(coredump_log_panel_visibility(entries))
+    .with_hover_card(Box::new(move |_| coredump_log_hover_card(entries)))
 }
 
 pub(super) fn coredump_log_hover_card(entries: &[CoredumpEntry]) -> Vec<Section> {

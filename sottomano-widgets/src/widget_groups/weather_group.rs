@@ -37,9 +37,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
@@ -232,16 +231,20 @@ impl WeatherGroup {
         sections
     }
 
-    fn rain_item<'a>(&'a self, config: &'a Config, rain_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(rain_row)
+    fn rain_item<'a>(
+        &'a self,
+        config: &'a Config,
+        rain_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        rain_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.rain_hover_card(config, card_clock)
             }))
             .refreshed_by(refresh_online(WeatherSource::Rain))
     }
 
-    fn temperature_item<'a>(&'a self, temperature_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(temperature_row)
+    fn temperature_item<'a>(&'a self, temperature_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        temperature_row
             .with_hover_card(Box::new(move |_| {
                 self.temperature
                     .sections_described_by(temperature_hover_card)
@@ -249,16 +252,16 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Temperature))
     }
 
-    fn wind_item<'a>(&'a self, wind_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(wind_row)
+    fn wind_item<'a>(&'a self, wind_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        wind_row
             .with_hover_card(Box::new(move |_| {
                 self.wind.sections_described_by(wind_hover_card)
             }))
             .refreshed_by(refresh_online(WeatherSource::Wind))
     }
 
-    fn location_item<'a>(&'a self, location_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(location_row)
+    fn location_item<'a>(&'a self, location_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        location_row
             .with_hover_card(Box::new(move |_| {
                 self.location.sections_described_by(location_hover_card)
             }))
@@ -282,7 +285,7 @@ impl WeatherGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Umbrella(Weight::Regular).into(),
-                self.temperature_item(placeholder.reading_row(WEATHER_GLYPH.into())),
+                self.temperature_item(placeholder.indicator(WEATHER_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Umbrella(Weight::Regular).into(),
@@ -300,37 +303,37 @@ impl WeatherGroup {
         let group_summary = self.temperature_summary(clock);
         let mut rows = Vec::new();
         if let Some(forecast) = self.rain_forecast(config) {
-            rows.push(self.rain_item(config, forecast.reading_row(clock, locale)));
+            rows.push(self.rain_item(config, forecast.indicator(clock, locale)));
         } else if let Some(rain_placeholder) = self.rain.failure() {
-            rows.push(self.rain_item(config, rain_placeholder.reading_row(RAIN_FALLBACK_GLYPH)));
+            rows.push(self.rain_item(config, rain_placeholder.indicator(RAIN_FALLBACK_GLYPH)));
         } else if let Some(model_placeholder) = self.precipitation_model.failure() {
             rows.push(self.rain_item(
                 config,
-                model_placeholder.reading_row(PRECIPITATION_MODEL_FALLBACK_GLYPH),
+                model_placeholder.indicator(PRECIPITATION_MODEL_FALLBACK_GLYPH),
             ));
         }
         match &self.wind {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let wind_row = wind_indicator(held_snapshot);
-                if wind_row.panel_visibility == PanelVisibility::Shown {
+                if wind_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.wind_item(wind_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let wind_row = troubled_snapshot
                     .shown_over(wind_indicator(&troubled_snapshot.held_snapshot), clock);
-                if wind_row.panel_visibility == PanelVisibility::Shown {
+                if wind_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.wind_item(wind_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wind_item(placeholder.reading_row(WIND_FALLBACK_GLYPH)));
+                rows.push(self.wind_item(placeholder.indicator(WIND_FALLBACK_GLYPH)));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(pollen) = self.pollen.get() {
             rows.extend(pollen.airborne().map(|concentration| {
-                GroupIndicator::sample(allergen_indicator(concentration))
+                allergen_indicator(concentration)
                     .with_hover_card(Box::new(move |_| {
                         self.pollen
                             .hover_card_with(allergen_hover_card(concentration))
@@ -340,7 +343,8 @@ impl WeatherGroup {
         }
         if let Some(pollen_placeholder) = self.pollen.failure() {
             rows.push(
-                GroupIndicator::sample(pollen_placeholder.reading_row(POLLEN_FALLBACK_GLYPH))
+                pollen_placeholder
+                    .indicator(POLLEN_FALLBACK_GLYPH)
                     .with_hover_card(Box::new(move |_| {
                         self.pollen.sections_described_by(|_pollen| Vec::new())
                     }))
@@ -350,19 +354,19 @@ impl WeatherGroup {
         match &self.location {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let location_row = location_indicator(held_snapshot);
-                if location_row.panel_visibility == PanelVisibility::Shown {
+                if location_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.location_item(location_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let location_row = troubled_snapshot
                     .shown_over(location_indicator(&troubled_snapshot.held_snapshot), clock);
-                if location_row.panel_visibility == PanelVisibility::Shown {
+                if location_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.location_item(location_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.location_item(placeholder.reading_row(LOCATION_FALLBACK_GLYPH)));
+                rows.push(self.location_item(placeholder.indicator(LOCATION_FALLBACK_GLYPH)));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }

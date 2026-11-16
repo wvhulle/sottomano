@@ -9,8 +9,8 @@ use sottomano_toml_config::severity::Severity;
 use super::core_grid_sections::cpu_ranges;
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -119,7 +119,7 @@ impl<'a> ClockLimitCauses<'a> {
         )]
     }
 
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let spreads = self.spreads();
         let label = match spreads.first() {
             Some(most_severe) => ReadoutLabel::Labeled(match spreads.len() - 1 {
@@ -128,20 +128,18 @@ impl<'a> ClockLimitCauses<'a> {
             }),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            panel_visibility: self.panel_visibility(),
-            ..ReadingRow::glyph_only(
-                "CPU clock limits",
-                Phosphor::Gauge(Weight::Regular).into(),
-                self.severity().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "CPU clock limits",
+            Phosphor::Gauge(Weight::Regular).into(),
+            self.severity().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_panel_visibility(self.panel_visibility())
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 }
 
@@ -152,7 +150,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::group_indicators::reading_row::PanelVisibility;
+    use crate::group_indicators::group_indicator::PanelVisibility;
 
     fn clock_with(causes: [Vec<FrequencyLimitCause>; 4]) -> CpuClock {
         CpuClock {

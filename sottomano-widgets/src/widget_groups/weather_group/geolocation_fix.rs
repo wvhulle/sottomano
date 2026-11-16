@@ -4,9 +4,9 @@ use uom::si::length::kilometer;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -62,7 +62,7 @@ impl MapService {
 pub(crate) const LOCATION_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MapPin(Weight::Regular));
 
-pub fn location_indicator(location: &Location) -> ReadingRow<'_> {
+pub fn location_indicator(location: &Location) -> GroupIndicator<'_> {
     let glyph = match location.geo.origin {
         FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
         FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
@@ -72,19 +72,13 @@ pub fn location_indicator(location: &Location) -> ReadingRow<'_> {
         Some(place) if !place.name.is_empty() => ReadoutLabel::Labeled(place.name.clone()),
         Some(_) | None => ReadoutLabel::Unlabeled,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(Location::NAME, glyph, IndicatorState::Idle)
+        .with_readout(IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            Location::NAME,
-            glyph,
-            IndicatorState::Idle,
-            Box::new(move |_| location_hover_card(location)),
-        )
-    }
+        })
+        .with_hover_card(Box::new(move |_| location_hover_card(location)))
 }
 
 pub fn location_hover_card(location: &Location) -> Vec<Section> {

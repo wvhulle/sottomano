@@ -16,7 +16,6 @@ use crate::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
         indicator_state::{IndicatorState, IndicatorStateTint},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
     widget_groups::media_group::karaoke_lyric_line::{
@@ -37,7 +36,7 @@ const LINES_AFTER_CURRENT: usize = 3;
 pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
 
-pub(super) fn track_lyrics_indicator(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
+pub(super) fn track_lyrics_indicator(track_lyrics: &TrackLyrics) -> GroupIndicator<'_> {
     let (icon, state) = match track_lyrics {
         TrackLyrics::Synced(_) => (
             Phosphor::MicrophoneStage(Weight::Regular).into(),
@@ -47,12 +46,9 @@ pub(super) fn track_lyrics_indicator(track_lyrics: &TrackLyrics) -> ReadingRow<'
             (TRACK_LYRICS_FALLBACK_GLYPH, IndicatorState::Off)
         }
     };
-    ReadingRow::glyph_only(
-        TrackLyrics::NAME,
-        icon,
-        state,
-        Box::new(move |_| vec![lyrics_section(track_lyrics, Duration::ZERO)]),
-    )
+    GroupIndicator::glyph_only(TrackLyrics::NAME, icon, state).with_hover_card(Box::new(
+        move |_| vec![lyrics_section(track_lyrics, Duration::ZERO)],
+    ))
 }
 
 fn sung_text(timed_line: &TimedLyricLine) -> &str {

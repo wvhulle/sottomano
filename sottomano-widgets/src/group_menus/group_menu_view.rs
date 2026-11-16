@@ -460,10 +460,9 @@ mod tests {
         clock::Clock,
         desktop_index::DesktopIndex,
         group_indicators::{
-            group_indicator::{GroupIndicator, IndicatorValue},
+            group_indicator::{GroupIndicator, IndicatorValue, named_test_indicator},
             indicator_drawing::IndicatorIcon,
             indicator_state::IndicatorState,
-            reading_row::named_test_row,
         },
         group_menus::{
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
@@ -598,7 +597,7 @@ mod tests {
             GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
-            [GroupIndicator::sample(named_test_row("Smoke item"))],
+            [named_test_indicator("Smoke item")],
         );
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, group_menus, [group])
             .bench_surfaces(&bench, orientation);
@@ -642,10 +641,7 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let summarised_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::summarising(
-                IconGlyph::default(),
-                GroupIndicator::sample(named_test_row("Summary row")),
-            ),
+            GroupSummary::summarising(IconGlyph::default(), named_test_indicator("Summary row")),
             &expansion,
             ClockInteraction::Expansion,
             Vec::<GroupIndicator<'_>>::new(),
@@ -848,11 +844,9 @@ mod tests {
             &expansion,
             ClockInteraction::Expansion,
             [match row_press {
-                PointedRowPress::PerformsAction => {
-                    GroupIndicator::sample(named_test_row("Smoke item"))
-                        .on_press("act", CompositorStylingMessage::ToggleXray)
-                }
-                PointedRowPress::ReadOnly => GroupIndicator::sample(named_test_row("Smoke item")),
+                PointedRowPress::PerformsAction => named_test_indicator("Smoke item")
+                    .on_press("act", CompositorStylingMessage::ToggleXray),
+                PointedRowPress::ReadOnly => named_test_indicator("Smoke item"),
             }],
         );
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [group])
@@ -906,7 +900,7 @@ mod tests {
                 GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
                 &expansion,
                 ClockInteraction::Expansion,
-                [GroupIndicator::sample(named_test_row("Smoke item"))],
+                [named_test_indicator("Smoke item")],
             )
         });
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, groups)

@@ -288,13 +288,11 @@ impl ScopedLlamaServers {
                 && let Some(server) = samples.server.get()
             {
                 rows.push(
-                    GroupIndicator::sample(
-                        ServedModel {
-                            resident: server.resident_model(),
-                            server: server_label,
-                        }
-                        .reading_row(),
-                    )
+                    ServedModel {
+                        resident: server.resident_model(),
+                        server: server_label,
+                    }
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         samples.model_hover_card(model_sections())
                     }))
@@ -309,13 +307,11 @@ impl ScopedLlamaServers {
                 let server_busy = server.busy_slots().next().is_some();
                 if server_busy && let Some(rate) = server.generation_rate {
                     rows.push(
-                        GroupIndicator::sample(
-                            GenerationRate {
-                                rate,
-                                server: server_label,
-                            }
-                            .reading_row(),
-                        )
+                        GenerationRate {
+                            rate,
+                            server: server_label,
+                        }
+                        .indicator()
                         .with_hover_card(Box::new(move |_| {
                             samples.generation_rate_hover_card(rate)
                         })),
@@ -323,13 +319,11 @@ impl ScopedLlamaServers {
                 }
                 if !server.slots.is_empty() {
                     rows.push(
-                        GroupIndicator::sample(
-                            SlotOccupancy {
-                                slots: &server.slots,
-                                server: server_label,
-                            }
-                            .reading_row(),
-                        )
+                        SlotOccupancy {
+                            slots: &server.slots,
+                            server: server_label,
+                        }
+                        .indicator()
                         .with_hover_card(Box::new(move |_| {
                             samples.slot_occupancy_hover_card(server)
                         })),
@@ -338,9 +332,9 @@ impl ScopedLlamaServers {
                 if server_busy
                     && let Some(fill) = ContextFill::fullest_busy_slot(&server.slots, server_label)
                 {
-                    rows.push(GroupIndicator::sample(fill.reading_row()).with_hover_card(
-                        Box::new(move |_| samples.context_fill_hover_card(&fill)),
-                    ));
+                    rows.push(fill.indicator().with_hover_card(Box::new(move |_| {
+                        samples.context_fill_hover_card(&fill)
+                    })));
                 }
             }
             if let Some(switch_indicator) =

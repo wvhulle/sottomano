@@ -4,9 +4,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
@@ -64,23 +64,21 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
 }
 
 impl<'a> ContextFill<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Unlabeled,
-                gauge: ReadoutGauge::Gauged {
-                    fill: self.fullest,
-                    live: self.fullest,
-                },
-                badge: ReadoutBadge::Unbadged,
+    pub fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            format!("{} context fill", self.server),
+            Phosphor::Scroll(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged {
+                fill: self.fullest,
+                live: self.fullest,
             },
-            ..ReadingRow::glyph_only(
-                format!("{} context fill", self.server),
-                Phosphor::Scroll(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

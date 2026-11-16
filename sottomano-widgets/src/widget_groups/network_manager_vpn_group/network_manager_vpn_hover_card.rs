@@ -4,7 +4,7 @@ use sottomano_desktop_sources::network_connectivity::network_manager_vpn_connect
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-pub fn vpn_connection_indicator(connection: &VpnConnection) -> ReadingRow<'_> {
+pub fn vpn_connection_indicator(connection: &VpnConnection) -> GroupIndicator<'_> {
     let state = match &connection.activity {
         VpnActivity::Inactive => IndicatorState::Off,
         VpnActivity::Active(tunnel) => match tunnel.vpn_state {
@@ -25,12 +25,12 @@ pub fn vpn_connection_indicator(connection: &VpnConnection) -> ReadingRow<'_> {
             | VpnState::AwaitingAddress => IndicatorState::Pending,
         },
     };
-    ReadingRow::glyph_only(
+    GroupIndicator::glyph_only(
         connection.name.clone(),
         Phosphor::LockKey(Weight::Regular).into(),
         state,
-        Box::new(move |_| vpn_connection_hover_card(connection)),
     )
+    .with_hover_card(Box::new(move |_| vpn_connection_hover_card(connection)))
 }
 
 pub fn vpn_connection_hover_card(connection: &VpnConnection) -> Vec<Section> {

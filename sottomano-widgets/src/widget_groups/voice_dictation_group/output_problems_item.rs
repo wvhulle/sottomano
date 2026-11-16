@@ -5,9 +5,9 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -20,7 +20,7 @@ use crate::{
 pub(crate) const NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Keyboard(Weight::Regular));
 
-pub fn notulist_output_problems_indicator(output: &NotulistOutputProblems) -> ReadingRow<'_> {
+pub fn notulist_output_problems_indicator(output: &NotulistOutputProblems) -> GroupIndicator<'_> {
     let state = if output.problems.iter().any(OutputProblem::blocks_typing) {
         IndicatorState::Failed
     } else {
@@ -35,20 +35,20 @@ pub fn notulist_output_problems_indicator(output: &NotulistOutputProblems) -> Re
         0 | 1 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Ungauged,
-            badge,
-        },
-        panel_visibility,
-        ..ReadingRow::glyph_only(
-            NotulistOutputProblems::NAME,
-            Phosphor::Keyboard(Weight::Regular).into(),
-            state,
-            Box::new(move |_| notulist_output_problems_hover_card(output)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        NotulistOutputProblems::NAME,
+        Phosphor::Keyboard(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Ungauged,
+        badge,
+    })
+    .with_panel_visibility(panel_visibility)
+    .with_hover_card(Box::new(move |_| {
+        notulist_output_problems_hover_card(output)
+    }))
 }
 
 pub fn notulist_output_problems_hover_card(output: &NotulistOutputProblems) -> Vec<Section> {
@@ -80,7 +80,7 @@ mod tests {
     use notulist_client::{InputMethodError, VirtualKeyboardError};
 
     use super::*;
-    use crate::group_indicators::reading_row::PanelVisibility;
+    use crate::group_indicators::group_indicator::PanelVisibility;
 
     #[test]
     fn no_problems_stay_off_the_panel() {
@@ -88,7 +88,7 @@ mod tests {
             problems: Vec::new(),
         };
         assert_eq!(
-            notulist_output_problems_indicator(&quiet).panel_visibility,
+            notulist_output_problems_indicator(&quiet).panel_visibility(),
             PanelVisibility::Hidden
         );
     }
@@ -110,7 +110,13 @@ mod tests {
         let blocked_row = notulist_output_problems_indicator(&blocked);
         assert_eq!(discarded_row.shown_state(), IndicatorState::Warning);
         assert_eq!(blocked_row.shown_state(), IndicatorState::Failed);
-        assert_eq!(blocked_row.readout.badge, ReadoutBadge::Counted(2));
+        assert_eq!(
+            blocked_row
+                .shown_readout()
+                .expect("a readout indicator")
+                .badge,
+            ReadoutBadge::Counted(2)
+        );
     }
 
     #[test]

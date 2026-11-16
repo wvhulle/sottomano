@@ -27,9 +27,8 @@ use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
@@ -344,7 +343,7 @@ impl DarkModeGroup {
         match self.mode_toggle.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let mode_row = dark_mode_indicator(held_snapshot);
-                if mode_row.panel_visibility == PanelVisibility::Shown {
+                if mode_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.mode_toggle_item(mode_row).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
@@ -356,7 +355,7 @@ impl DarkModeGroup {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let mode_row =
                     troubled_snapshot.shown_over(dark_mode_indicator(held_snapshot), clock);
-                if mode_row.panel_visibility == PanelVisibility::Shown {
+                if mode_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.mode_toggle_item(mode_row).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
@@ -365,13 +364,14 @@ impl DarkModeGroup {
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.mode_toggle_item(placeholder.reading_row(DARK_MODE_GLYPH.into())));
+                rows.push(self.mode_toggle_item(placeholder.indicator(DARK_MODE_GLYPH.into())));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if self.mode_toggle.snapshot().is_some() {
             rows.push(
-                GroupIndicator::sample(self.auto_switch_toggle.reading_row(clock, locale))
+                self.auto_switch_toggle
+                    .indicator(clock, locale)
                     .on_switch_press(
                         self.auto_switch_toggle.saved_schedule.auto_switch_arming,
                         self.auto_switch_toggle.press_does(),
@@ -394,8 +394,8 @@ impl DarkModeGroup {
         )
     }
 
-    fn mode_toggle_item<'a>(&'a self, mode_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(mode_row)
+    fn mode_toggle_item<'a>(&'a self, mode_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        mode_row
             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }

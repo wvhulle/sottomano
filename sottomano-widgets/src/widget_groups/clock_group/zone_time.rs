@@ -10,9 +10,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
@@ -66,22 +66,20 @@ impl ZoneTime {
 }
 
 impl ZoneTime {
-    pub(super) fn reading_row(&self, clock: Clock, locale: Locale) -> ReadingRow<'_> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(
-                    LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale),
-                ),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                city_name(self.zone()),
-                Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+    pub(super) fn indicator(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(
+            city_name(self.zone()),
+            Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(
+                LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale),
+            ),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     pub(super) fn hover_card(self, clock: Clock) -> Vec<Section> {

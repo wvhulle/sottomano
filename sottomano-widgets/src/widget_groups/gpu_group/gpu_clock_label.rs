@@ -8,9 +8,9 @@ use uom::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -30,20 +30,18 @@ pub struct GpuClockLabel {
 }
 
 impl GpuClockLabel {
-    pub fn reading_row(self) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(megahertz_text(self.current)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "GPU clock",
-                Phosphor::WaveSine(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            "GPU clock",
+            Phosphor::WaveSine(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(megahertz_text(self.current)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(self) -> Vec<Section> {

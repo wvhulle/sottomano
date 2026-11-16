@@ -26,12 +26,12 @@ use uom::si::{f64::Ratio, ratio};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{
             IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, ReadoutBadge,
             ReadoutGauge, ReadoutLabel, indicator_drawing, labeled_indicator,
         },
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::{
         MouseGesture, PressAction,
@@ -361,7 +361,7 @@ impl SliderControl {
         ))
     }
 
-    fn readout_hover_card(&self) -> Vec<Section> {
+    pub(crate) fn readout_hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Value",
             dictionary_table([LabeledValue::new(
@@ -435,27 +435,36 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'_> {
-        ReadingRow {
-            face: IndicatorFace {
-                name: self.name(),
-                icon: IndicatorIcon::IconGlyph {
-                    glyph: self.effective_icon(),
-                    state: self.shown_state(),
-                },
-                ordinal: IdentityOrdinal::Unnumbered,
+    pub fn indicator(&self, locale: Locale) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(self.name(), self.effective_icon(), self.shown_state())
+            .with_readout(self.indicator_readout(locale))
+            .with_alerts(self.indicator_alerts(locale))
+            .with_hover_card(Box::new(|_| self.readout_hover_card()))
+    }
+
+    pub(crate) fn indicator_face(&self) -> IndicatorFace {
+        IndicatorFace {
+            name: self.name(),
+            icon: IndicatorIcon::IconGlyph {
+                glyph: self.effective_icon(),
+                state: self.shown_state(),
             },
-            readout: IndicatorReadout {
-                label: self.shown_label(locale),
-                gauge: self.shown_gauge(),
-                badge: ReadoutBadge::Unbadged,
-            },
-            alerts: IndicatorAlerts {
-                level: self.level_notice(locale),
-                ..IndicatorAlerts::default()
-            },
-            panel_visibility: PanelVisibility::Shown,
-            card: Box::new(|_| self.readout_hover_card()),
+            ordinal: IdentityOrdinal::Unnumbered,
+        }
+    }
+
+    pub(crate) fn indicator_readout(&self, locale: Locale) -> IndicatorReadout {
+        IndicatorReadout {
+            label: self.shown_label(locale),
+            gauge: self.shown_gauge(),
+            badge: ReadoutBadge::Unbadged,
+        }
+    }
+
+    pub(crate) fn indicator_alerts(&self, locale: Locale) -> IndicatorAlerts {
+        IndicatorAlerts {
+            level: self.level_notice(locale),
+            ..IndicatorAlerts::default()
         }
     }
 

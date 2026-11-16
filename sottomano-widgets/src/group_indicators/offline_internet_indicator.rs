@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SnapshotFreshness, SourceDelivery},
@@ -52,7 +52,11 @@ impl<S: SnapshotSource> TroubledSnapshot<S> {
     }
 
     #[must_use]
-    pub fn shown_over<'r>(&self, described_row: ReadingRow<'r>, clock: Clock) -> ReadingRow<'r> {
+    pub fn shown_over<'r>(
+        &self,
+        described_row: GroupIndicator<'r>,
+        clock: Clock,
+    ) -> GroupIndicator<'r> {
         let held_state = described_row.shown_state();
         described_row.in_state(self.shown_state_over(held_state, clock))
     }
@@ -85,27 +89,19 @@ impl<S: SnapshotSource> SnapshotPlaceholder<S> {
     }
 
     #[must_use]
-    pub fn awaiting_row<'r>(fallback_icon: IconGlyph) -> ReadingRow<'r>
+    pub fn awaiting_row<'r>(fallback_icon: IconGlyph) -> GroupIndicator<'r>
     where
         S: 'r,
     {
         let awaiting_placeholder = Self::caused_by(PlaceholderCause::AwaitingFirstSnapshot);
-        ReadingRow::glyph_only(
-            S::NAME,
-            fallback_icon,
-            IndicatorState::Pending,
-            Box::new(move |_| vec![awaiting_placeholder.source_state()]),
-        )
+        GroupIndicator::glyph_only(S::NAME, fallback_icon, IndicatorState::Pending)
+            .with_hover_card(Box::new(move |_| vec![awaiting_placeholder.source_state()]))
     }
 
     #[must_use]
-    pub fn reading_row(&self, fallback_icon: IconGlyph) -> ReadingRow<'_> {
-        ReadingRow::glyph_only(
-            S::NAME,
-            fallback_icon,
-            self.shown_state(),
-            Box::new(move |_| vec![self.source_state()]),
-        )
+    pub fn indicator(&self, fallback_icon: IconGlyph) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(S::NAME, fallback_icon, self.shown_state())
+            .with_hover_card(Box::new(move |_| vec![self.source_state()]))
     }
 
     #[must_use]

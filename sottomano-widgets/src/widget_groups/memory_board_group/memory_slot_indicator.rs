@@ -8,9 +8,9 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -98,22 +98,20 @@ impl From<&MemorySlotModule> for Section {
 }
 
 impl MemorySlotIndicator {
-    pub fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(
-                    Quantity::size(self.slot_module.module.size).localized_text(locale),
-                ),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.slot_module.locator.clone(),
-                Phosphor::Memory(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            self.slot_module.locator.clone(),
+            Phosphor::Memory(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(
+                Quantity::size(self.slot_module.module.size).localized_text(locale),
+            ),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

@@ -4,9 +4,9 @@ use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -52,25 +52,23 @@ pub struct ServedModel<'a> {
 }
 
 impl<'a> ServedModel<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.resident {
             Some(resident) if !resident.id.is_empty() => ReadoutLabel::Labeled(resident.id.clone()),
             Some(_) | None => ReadoutLabel::Unlabeled,
         };
         let state = self.resident.map_or(IndicatorState::Off, llama_model_state);
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("{} loaded model", self.server),
-                Phosphor::Brain(Weight::Regular).into(),
-                state,
-                Box::new(move |_clock| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            format!("{} loaded model", self.server),
+            Phosphor::Brain(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_clock| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

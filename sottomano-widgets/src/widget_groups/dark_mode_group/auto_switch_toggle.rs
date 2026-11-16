@@ -7,9 +7,9 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::{
@@ -58,7 +58,7 @@ impl AutoSwitchToggle {
         }
     }
 
-    pub fn reading_row(&self, clock: Clock, locale: Locale) -> ReadingRow<'_> {
+    pub fn indicator(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
         let now = clock.utc();
         let label = match self.status_at(now) {
             ScheduleStatus::Following { upcoming, .. } => {
@@ -68,19 +68,19 @@ impl AutoSwitchToggle {
             | ScheduleStatus::AwaitingLocationFix
             | ScheduleStatus::NoSunEvents => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Dark mode auto-switch",
-                Phosphor::Clock(Weight::Regular).into(),
-                IndicatorState::from(self.saved_schedule.auto_switch_arming),
-                Box::new(move |card_clock| self.schedule_hover_card(card_clock)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Dark mode auto-switch",
+            Phosphor::Clock(Weight::Regular).into(),
+            IndicatorState::from(self.saved_schedule.auto_switch_arming),
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| {
+            self.schedule_hover_card(card_clock)
+        }))
     }
 
     pub fn schedule_hover_card(&self, clock: Clock) -> Vec<Section> {

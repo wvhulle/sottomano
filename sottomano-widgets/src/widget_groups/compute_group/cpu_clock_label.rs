@@ -13,9 +13,9 @@ use super::{
 };
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -29,24 +29,22 @@ fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
-pub(super) fn cpu_clock_indicator(cpu_clock: &CpuClock) -> ReadingRow<'_> {
+pub(super) fn cpu_clock_indicator(cpu_clock: &CpuClock) -> GroupIndicator<'_> {
     let label = match cpu_clock.average() {
         Some(average) => ReadoutLabel::Labeled(frequency_text(average)),
         None => ReadoutLabel::Unlabeled,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            CpuClock::NAME,
-            Phosphor::WaveSine(Weight::Regular).into(),
-            IndicatorState::Idle,
-            Box::new(move |_| cpu_clock_hover_card(cpu_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        CpuClock::NAME,
+        Phosphor::WaveSine(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_hover_card(Box::new(move |_| cpu_clock_hover_card(cpu_clock)))
 }
 
 pub(super) fn cpu_clock_hover_card(cpu_clock: &CpuClock) -> Vec<Section> {

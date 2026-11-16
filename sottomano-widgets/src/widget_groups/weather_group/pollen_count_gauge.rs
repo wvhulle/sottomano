@@ -3,9 +3,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -59,7 +59,7 @@ impl ConcentrationThresholds {
     }
 }
 
-pub fn allergen_indicator(concentration: &AllergenConcentration) -> ReadingRow<'_> {
+pub fn allergen_indicator(concentration: &AllergenConcentration) -> GroupIndicator<'_> {
     let weight = Weight::Regular;
     let glyph: IconGlyph = match concentration.allergen {
         Allergen::Alder => Phosphor::Leaf(weight),
@@ -79,19 +79,13 @@ pub fn allergen_indicator(concentration: &AllergenConcentration) -> ReadingRow<'
         IndicatorState::Idle
     };
     let fill = allergen_gauge_fill(concentration);
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(concentration.allergen.name(), glyph, state)
+        .with_readout(IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged { fill, live: fill },
             badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            concentration.allergen.name(),
-            glyph,
-            state,
-            Box::new(move |_| allergen_hover_card(concentration)),
-        )
-    }
+        })
+        .with_hover_card(Box::new(move |_| allergen_hover_card(concentration)))
 }
 
 fn allergen_gauge_fill(concentration: &AllergenConcentration) -> Ratio {

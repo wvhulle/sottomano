@@ -2,9 +2,9 @@ use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::Cp
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::Section,
     widgets::{
@@ -22,7 +22,7 @@ pub(super) fn cpu_model_panel_visibility(model: &CpuModel) -> PanelVisibility {
     }
 }
 
-pub(super) fn cpu_model_indicator(model: &CpuModel) -> ReadingRow<'_> {
+pub(super) fn cpu_model_indicator(model: &CpuModel) -> GroupIndicator<'_> {
     let glyph = model
         .identity
         .vendor
@@ -37,20 +37,14 @@ pub(super) fn cpu_model_indicator(model: &CpuModel) -> ReadingRow<'_> {
         }
         Some(_) | None => ReadoutLabel::Unlabeled,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only("CPU model", glyph, IndicatorState::Idle)
+        .with_readout(IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
-        },
-        panel_visibility: cpu_model_panel_visibility(model),
-        ..ReadingRow::glyph_only(
-            "CPU model",
-            glyph,
-            IndicatorState::Idle,
-            Box::new(move |_| cpu_model_hover_card(model)),
-        )
-    }
+        })
+        .with_panel_visibility(cpu_model_panel_visibility(model))
+        .with_hover_card(Box::new(move |_| cpu_model_hover_card(model)))
 }
 
 pub(super) fn cpu_model_hover_card(model: &CpuModel) -> Vec<Section> {

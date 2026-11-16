@@ -7,8 +7,8 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     widgets::{
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-pub fn auto_brightness_indicator(brightness: &AutoBrightness) -> ReadingRow<'_> {
+pub fn auto_brightness_indicator(brightness: &AutoBrightness) -> GroupIndicator<'_> {
     let (glyph, state): (IconGlyph, _) = match brightness.calibration {
         BrightnessCalibration::FromWebcam => {
             (Phosphor::Eye(Weight::Regular).into(), IndicatorState::On)
@@ -27,7 +27,8 @@ pub fn auto_brightness_indicator(brightness: &AutoBrightness) -> ReadingRow<'_> 
             IndicatorState::Off,
         ),
     };
-    ReadingRow::glyph_only(AutoBrightness::NAME, glyph, state, Box::new(|_| Vec::new()))
+    GroupIndicator::glyph_only(AutoBrightness::NAME, glyph, state)
+        .with_hover_card(Box::new(|_| Vec::new()))
 }
 
 impl ToggleableSource for AutoBrightness {

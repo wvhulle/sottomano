@@ -13,9 +13,9 @@ use uom::si::{
 
 use crate::{
     group_indicators::{
-        indicator_drawing::{IndicatorReadout, ReadoutGauge},
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutGauge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -85,29 +85,23 @@ pub(super) fn throughput_hover_card(throughput: &Throughput) -> Vec<Section> {
     )]
 }
 
-pub(super) fn throughput_indicator(throughput: &Throughput) -> ReadingRow<'_> {
+pub(super) fn throughput_indicator(throughput: &Throughput) -> GroupIndicator<'_> {
     let (name, glyph) = match throughput.direction {
         NetworkTrafficDirection::Upload => ("Upload", Phosphor::UploadSimple(Weight::Regular)),
         NetworkTrafficDirection::Download => {
             ("Download", Phosphor::DownloadSimple(Weight::Regular))
         }
     };
-    let base = ReadingRow::glyph_only(
+    let base = GroupIndicator::glyph_only(
         name,
         glyph.with_weight(Weight::Regular).into(),
         throughput_state(throughput),
-        Box::new(move |_| throughput_hover_card(throughput)),
-    );
-    ReadingRow {
-        readout: IndicatorReadout {
-            gauge: ReadoutGauge::Gauged {
-                fill: Ratio::new::<ratio>(f64::from(throughput.peak_fraction())),
-                live: Ratio::new::<ratio>(f64::from(throughput.current_fraction())),
-            },
-            ..base.readout
-        },
-        ..base
-    }
+    )
+    .with_hover_card(Box::new(move |_| throughput_hover_card(throughput)));
+    base.with_gauge(ReadoutGauge::Gauged {
+        fill: Ratio::new::<ratio>(f64::from(throughput.peak_fraction())),
+        live: Ratio::new::<ratio>(f64::from(throughput.current_fraction())),
+    })
 }
 
 pub(super) fn interface_throughput_hover_card(throughput: &InterfaceThroughput) -> Vec<Section> {
@@ -120,14 +114,16 @@ pub(super) fn interface_throughput_hover_card(throughput: &InterfaceThroughput) 
     )]
 }
 
-pub(super) fn interface_throughput_indicator(throughput: &InterfaceThroughput) -> ReadingRow<'_> {
-    ReadingRow {
-        panel_visibility: PanelVisibility::Hidden,
-        ..ReadingRow::glyph_only(
-            InterfaceThroughput::NAME,
-            Phosphor::ArrowsDownUp(Weight::Regular).into(),
-            IndicatorState::Idle,
-            Box::new(move |_| interface_throughput_hover_card(throughput)),
-        )
-    }
+pub(super) fn interface_throughput_indicator(
+    throughput: &InterfaceThroughput,
+) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        InterfaceThroughput::NAME,
+        Phosphor::ArrowsDownUp(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .with_panel_visibility(PanelVisibility::Hidden)
+    .with_hover_card(Box::new(move |_| {
+        interface_throughput_hover_card(throughput)
+    }))
 }

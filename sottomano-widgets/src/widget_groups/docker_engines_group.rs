@@ -21,7 +21,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
@@ -51,20 +50,18 @@ struct UnreadableEngineRow<'a> {
 }
 
 impl<'a> UnreadableEngineRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.engine.owner.to_string(),
-                Phosphor::Package(Weight::Regular).into(),
-                IndicatorState::Failed,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.engine.owner.to_string(),
+            Phosphor::Package(Weight::Regular).into(),
+            IndicatorState::Failed,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -90,20 +87,18 @@ struct ListedContainerRow<'a> {
 }
 
 impl<'a> ListedContainerRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.listed.run_state.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                engine_container_name(&self.listed.container_name, &self.engine.owner),
-                Phosphor::Package(Weight::Regular).into(),
-                self.listed.run_state.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            engine_container_name(&self.listed.container_name, &self.engine.owner),
+            Phosphor::Package(Weight::Regular).into(),
+            self.listed.run_state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.listed.run_state.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -362,7 +357,7 @@ impl DockerEnginesGroup {
                     container_id: Cow::Owned(listed.id.clone()),
                 };
                 with_container_switch(
-                    GroupIndicator::sample(ListedContainerRow { engine, listed }.reading_row()),
+                    ListedContainerRow { engine, listed }.indicator(),
                     listed.run_state,
                     target,
                     |request| {
@@ -398,13 +393,13 @@ impl DockerEnginesGroup {
                     engine_readout,
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
-                failure_rows.push(GroupIndicator::sample(
+                failure_rows.push(
                     UnreadableEngineRow {
                         engine,
                         read_failure,
                     }
-                    .reading_row(),
-                ));
+                    .indicator(),
+                );
             } else {
                 running_rows.extend(self.listed_rows(engine));
             }

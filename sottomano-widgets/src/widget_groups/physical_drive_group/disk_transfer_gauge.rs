@@ -10,9 +10,9 @@ use uom::si::{
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutGauge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -49,7 +49,7 @@ fn transfer_fill(transfer: &DiskTransfer) -> Ratio {
     Ratio::new::<ratio>((position / scale_width).clamp(0.0, 1.0))
 }
 
-pub(crate) fn disk_transfer_indicator(transfer: &DiskTransfer) -> ReadingRow<'_> {
+pub(crate) fn disk_transfer_indicator(transfer: &DiskTransfer) -> GroupIndicator<'_> {
     let name = match transfer.direction {
         DiskTransferDirection::Read => "Disk reads",
         DiskTransferDirection::Write => "Disk writes",
@@ -60,26 +60,19 @@ pub(crate) fn disk_transfer_indicator(transfer: &DiskTransfer) -> ReadingRow<'_>
         IndicatorState::Idle
     };
     let fill = transfer_fill(transfer);
-    let mut row = ReadingRow::glyph_only(
-        name,
-        transfer_icon(transfer),
-        state,
-        Box::new(move |_| disk_transfer_hover_card(transfer)),
-    );
-    row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
-    row
+    GroupIndicator::glyph_only(name, transfer_icon(transfer), state)
+        .with_gauge(ReadoutGauge::Gauged { fill, live: fill })
+        .with_hover_card(Box::new(move |_| disk_transfer_hover_card(transfer)))
 }
 
-pub(crate) fn disk_activity_indicator(activity: &DiskActivity) -> ReadingRow<'_> {
-    ReadingRow {
-        panel_visibility: PanelVisibility::Hidden,
-        ..ReadingRow::glyph_only(
-            DiskActivity::NAME,
-            transfer_icon(&activity.read),
-            IndicatorState::Idle,
-            Box::new(move |_| disk_transfer_hover_card(&activity.read)),
-        )
-    }
+pub(crate) fn disk_activity_indicator(activity: &DiskActivity) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        DiskActivity::NAME,
+        transfer_icon(&activity.read),
+        IndicatorState::Idle,
+    )
+    .with_panel_visibility(PanelVisibility::Hidden)
+    .with_hover_card(Box::new(move |_| disk_transfer_hover_card(&activity.read)))
 }
 
 pub(crate) fn disk_transfer_hover_card(transfer: &DiskTransfer) -> Vec<Section> {

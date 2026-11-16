@@ -19,13 +19,12 @@ use crate::{
     group_indicators::{
         aligned_quantity::{AlignedQuantity, IndicatorAlignment},
         indicator_drawing::{
-            IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, face_icon,
-            indicator_drawing, readout_view,
+            IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, ReadoutBadge,
+            ReadoutGauge, ReadoutLabel, face_icon, indicator_drawing, readout_view,
         },
         indicator_gestures::{IndicatorGesture, IndicatorGestures},
         indicator_state::IndicatorState,
         item_toggle_switch::item_toggle_switch,
-        reading_row::{DescribeCard, ReadingRow},
         slider_control::{ControlMessage, SliderControl, SliderShownIndicator},
         toggle_control::{IconToggle, SwitchPosition},
     },
@@ -42,12 +41,20 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         ongoing_toast::{
-            IndicatorAlerts, OngoingToast, OngoingToastActionButton, RowNotice,
-            quota_pace_alert_severity,
+            IndicatorAlerts, LevelNotice, OngoingToast, OngoingToastActionButton, RowNotice,
+            StateToast, quota_pace_alert_severity,
         },
         phosphor::{Phosphor, Weight},
     },
 };
+
+pub type DescribeCard<'a> = Box<dyn Fn(Clock) -> Vec<Section> + 'a>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelVisibility {
+    Shown,
+    Hidden,
+}
 
 type DrawItem<'a> = Box<dyn Fn(f32) -> Element<'a, GroupEvent> + 'a>;
 type DrawControl<'a> = Box<dyn Fn(f32, Clock, IndicatorPlacement) -> Element<'a, GroupEvent> + 'a>;
@@ -128,10 +135,16 @@ pub(crate) enum IndicatorPinning {
 }
 
 #[cfg(test)]
-pub(crate) fn indicator_toast_severity(row: &ReadingRow<'_>) -> Option<Severity> {
+pub(crate) fn indicator_toast_severity(indicator: &GroupIndicator<'_>) -> Option<Severity> {
     use crate::widgets::ongoing_toast::state_alert_severity;
 
-    state_alert_severity(row.shown_state(), &row.alerts.state_toast)
+    state_alert_severity(indicator.shown_state(), &indicator.alerts.state_toast)
+}
+
+#[cfg(test)]
+pub(crate) fn named_test_indicator<'indicator>(name: &'static str) -> GroupIndicator<'indicator> {
+    GroupIndicator::glyph_only(name, IconGlyph::default(), IndicatorState::Idle)
+        .with_hover_card(Box::new(|_| Vec::new()))
 }
 
 pub struct GroupIndicator<'a> {
@@ -150,6 +163,7 @@ pub struct GroupIndicator<'a> {
     ongoing_toasts: Vec<OngoingToast<WidgetGroupInteraction>>,
     alignment: IndicatorAlignment,
     card_opening_trigger: NestedMenuOpenTrigger,
+    panel_visibility: PanelVisibility,
 }
 
 impl<'a> GroupIndicator<'a> {
@@ -176,6 +190,7 @@ impl<'a> GroupIndicator<'a> {
             ongoing_toasts: Vec::new(),
             alignment: IndicatorAlignment::Unaligned,
             card_opening_trigger: NestedMenuOpenTrigger::Hover,
+            panel_visibility: PanelVisibility::Shown,
         }
     }
 
@@ -187,21 +202,148 @@ impl<'a> GroupIndicator<'a> {
         }
     }
 
-    pub fn sample(row: ReadingRow<'a>) -> Self {
-        let ReadingRow {
-            face,
-            readout,
-            alerts,
-            card,
-            ..
-        } = row;
+    #[must_use]
+    pub fn glyph_only(
+        name: impl Into<Cow<'static, str>>,
+        glyph: IconGlyph,
+        state: IndicatorState,
+    ) -> Self {
         Self::assembled_row(
-            face,
-            RowValueControl::IndicatorReadout(readout),
+            IndicatorFace {
+                name: name.into(),
+                icon: IndicatorIcon::IconGlyph { glyph, state },
+                ordinal: IdentityOrdinal::Unnumbered,
+            },
+            RowValueControl::IndicatorReadout(IndicatorReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            }),
             IndicatorPinning::Pinnable,
-            card,
-            alerts,
+            Box::new(|_| Vec::new()),
+            IndicatorAlerts::default(),
         )
+    }
+
+    #[must_use]
+    pub fn with_face(self, face: IndicatorFace) -> Self {
+        Self { face, ..self }
+    }
+
+    #[must_use]
+    pub fn with_readout(self, readout: IndicatorReadout) -> Self {
+        Self {
+            value: RowValueControl::IndicatorReadout(readout),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn with_label(self, label: ReadoutLabel) -> Self {
+        self.with_readout_part(|readout| IndicatorReadout { label, ..readout })
+    }
+
+    #[must_use]
+    pub fn with_gauge(self, gauge: ReadoutGauge) -> Self {
+        self.with_readout_part(|readout| IndicatorReadout { gauge, ..readout })
+    }
+
+    #[must_use]
+    pub fn with_badge(self, badge: ReadoutBadge) -> Self {
+        self.with_readout_part(|readout| IndicatorReadout { badge, ..readout })
+    }
+
+    fn with_readout_part(self, change: impl FnOnce(IndicatorReadout) -> IndicatorReadout) -> Self {
+        let value = match self.value {
+            RowValueControl::IndicatorReadout(readout) => {
+                RowValueControl::IndicatorReadout(change(readout))
+            }
+            unchanged_value @ (RowValueControl::Slider { .. } | RowValueControl::Drawn(_)) => {
+                unchanged_value
+            }
+        };
+        Self { value, ..self }
+    }
+
+    #[must_use]
+    pub fn with_ordinal(self, ordinal: IdentityOrdinal) -> Self {
+        Self {
+            face: IndicatorFace {
+                ordinal,
+                ..self.face
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn with_state_toast(self, state_toast: StateToast) -> Self {
+        Self {
+            alerts: IndicatorAlerts {
+                state_toast,
+                ..self.alerts
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn with_alerts(self, alerts: IndicatorAlerts) -> Self {
+        Self { alerts, ..self }
+    }
+
+    #[must_use]
+    pub fn with_panel_visibility(self, panel_visibility: PanelVisibility) -> Self {
+        Self {
+            panel_visibility,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn panel_visibility(&self) -> PanelVisibility {
+        self.panel_visibility
+    }
+
+    #[must_use]
+    pub fn in_state(self, state: IndicatorState) -> Self {
+        let icon = match self.face.icon {
+            IndicatorIcon::IconGlyph { glyph, .. } => IndicatorIcon::IconGlyph { glyph, state },
+            unchanged_icon @ (IndicatorIcon::Image(_) | IndicatorIcon::Absent) => unchanged_icon,
+        };
+        let level = match self.alerts.level {
+            LevelNotice::Announced { level, glyph } => LevelNotice::Announced {
+                level,
+                glyph: glyph.with_weight(state.weight()),
+            },
+            LevelNotice::Unannounced => LevelNotice::Unannounced,
+        };
+        Self {
+            face: IndicatorFace { icon, ..self.face },
+            alerts: IndicatorAlerts {
+                level,
+                ..self.alerts
+            },
+            ..self
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn face(&self) -> &IndicatorFace {
+        &self.face
+    }
+
+    #[cfg(test)]
+    pub(crate) fn alerts(&self) -> &IndicatorAlerts {
+        &self.alerts
+    }
+
+    #[cfg(test)]
+    pub(crate) fn shown_readout(&self) -> Option<&IndicatorReadout> {
+        match &self.value {
+            RowValueControl::IndicatorReadout(readout) => Some(readout),
+            RowValueControl::Slider { .. } | RowValueControl::Drawn(_) => None,
+        }
     }
 
     pub fn slider<Interaction: Into<WidgetGroupInteraction>>(
@@ -209,13 +351,11 @@ impl<'a> GroupIndicator<'a> {
         config: &'a Config,
         on_control: impl Fn(ControlMessage) -> Interaction + 'a,
     ) -> Self {
-        let ReadingRow {
-            face,
-            readout,
-            alerts,
-            card,
-            ..
-        } = slider.reading_row(config.calendar.locale);
+        let locale = config.calendar.locale;
+        let face = slider.indicator_face();
+        let readout = slider.indicator_readout(locale);
+        let alerts = slider.indicator_alerts(locale);
+        let card: DescribeCard<'a> = Box::new(|_| slider.readout_hover_card());
         let shown_indicator = SliderShownIndicator {
             face: face.clone(),
             readout: readout.clone(),
@@ -286,7 +426,9 @@ impl<'a> GroupIndicator<'a> {
     pub fn toggle(toggle: IconToggle, message: impl Into<WidgetGroupInteraction>) -> Self {
         let switch_position = toggle.switch_position;
         let press_does = toggle.press_does();
-        Self::sample(toggle.reading_row()).on_switch_press(switch_position, press_does, message)
+        toggle
+            .indicator()
+            .on_switch_press(switch_position, press_does, message)
     }
 
     #[must_use]
@@ -454,7 +596,15 @@ impl<'a> GroupIndicator<'a> {
         Self { card, ..self }
     }
 
-    pub(crate) fn display_state(&self) -> IndicatorState {
+    #[must_use]
+    pub fn wrap_hover_card(self, wrap: impl FnOnce(DescribeCard<'a>) -> DescribeCard<'a>) -> Self {
+        Self {
+            card: wrap(self.card),
+            ..self
+        }
+    }
+
+    pub fn shown_state(&self) -> IndicatorState {
         self.face.icon.display_state()
     }
 
@@ -682,7 +832,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_indicators::{reading_row::named_test_row, toggle_control::SwitchPresses},
+        group_indicators::{group_indicator::named_test_indicator, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
         hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage},
         widget_groups::{
@@ -692,7 +842,7 @@ mod tests {
         widgets::phosphor::{Phosphor, Weight},
     };
 
-    fn composed_row() -> GroupIndicator<'static> {
+    fn composed_row<'indicator>() -> GroupIndicator<'indicator> {
         GroupIndicator::composed(
             "Composed row",
             IndicatorIcon::Absent,
@@ -755,7 +905,7 @@ mod tests {
 
     #[test]
     fn a_composed_item_shares_the_pin_of_the_indicator_it_replaces_under_the_same_name() {
-        let sample: GroupIndicator<'static> = GroupIndicator::sample(named_test_row("Lyrics"));
+        let sample: GroupIndicator<'static> = named_test_indicator("Lyrics");
         let composed: GroupIndicator<'static> = GroupIndicator::composed_pinnable(
             "Lyrics",
             IndicatorIcon::Absent,
@@ -821,8 +971,7 @@ mod tests {
     fn indicators_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
         let config = Config::default();
         let slider = offset_slider();
-        let sample: GroupIndicator<'static> =
-            GroupIndicator::sample(named_test_row("Named reading"));
+        let sample: GroupIndicator<'static> = named_test_indicator("Named reading");
         assert_eq!(sample.pinning(), IndicatorPinning::Pinnable);
         assert_eq!(
             GroupIndicator::slider(&slider, &config, CompositorStylingMessage::CornerRadius)

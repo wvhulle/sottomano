@@ -2,9 +2,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
@@ -24,7 +24,7 @@ pub struct UsbCableIndicator {
 }
 
 impl UsbCableIndicator {
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let (label, state) = match self.role {
             UsbCableRole::InputAndCharging => (ReadoutLabel::Unlabeled, IndicatorState::Idle),
             UsbCableRole::ChargingOnly => (
@@ -32,19 +32,13 @@ impl UsbCableIndicator {
                 IndicatorState::Warning,
             ),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("USB cable", Phosphor::Usb(Weight::Regular).into(), state)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "USB cable",
-                Phosphor::Usb(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

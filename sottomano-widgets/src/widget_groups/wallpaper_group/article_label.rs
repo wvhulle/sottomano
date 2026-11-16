@@ -2,9 +2,9 @@ use sottomano_desktop_sources::wallpaper_place_article::WikipediaArticle;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -21,23 +21,21 @@ pub struct Article {
 }
 
 impl Article {
-    pub(super) fn reading_row(&self) -> ReadingRow<'_> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: match Some(&self.title) {
-                    Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
-                    Some(_) | None => ReadoutLabel::Unlabeled,
-                },
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
+    pub(super) fn indicator(&self) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only(
+            "Wallpaper article",
+            SimpleIcon::Wikipedia.into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: match Some(&self.title) {
+                Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
+                Some(_) | None => ReadoutLabel::Unlabeled,
             },
-            ..ReadingRow::glyph_only(
-                "Wallpaper article",
-                SimpleIcon::Wikipedia.into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

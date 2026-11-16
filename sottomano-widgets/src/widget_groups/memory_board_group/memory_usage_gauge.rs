@@ -11,8 +11,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -37,7 +37,7 @@ pub fn memory_processes_sections(memory_processes: &MemoryProcesses) -> Vec<Sect
     )]
 }
 
-pub fn memory_indicator(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_indicator(memory: &Memory, locale: Locale) -> GroupIndicator<'_> {
     let state = match memory.percent() {
         used if used > FULL_CRITICAL_PERCENT => Severity::Critical,
         used if used > FULL_WARNING_PERCENT => Severity::Warning,
@@ -57,28 +57,26 @@ pub fn memory_indicator(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
             Quantity::size(ByteSize::b(available_bytes)).localized_text(locale),
         ),
     ]);
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Gauged { fill, live: fill },
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        Memory::NAME,
+        Phosphor::Memory(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Gauged { fill, live: fill },
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        state_toast: StateToast::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "RAM almost full",
+            body: ToastBody::Text(toast_body),
+            progress: ToastProgress::Measured(fill),
         },
-        alerts: IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Critical,
-                summary_text: "RAM almost full",
-                body: ToastBody::Text(toast_body),
-                progress: ToastProgress::Measured(fill),
-            },
-            ..IndicatorAlerts::default()
-        },
-        ..ReadingRow::glyph_only(
-            Memory::NAME,
-            Phosphor::Memory(Weight::Regular).into(),
-            state,
-            Box::new(move |_| memory_hover_card(memory)),
-        )
-    }
+        ..IndicatorAlerts::default()
+    })
+    .with_hover_card(Box::new(move |_| memory_hover_card(memory)))
 }
 
 pub fn memory_hover_card(memory: &Memory) -> Vec<Section> {
@@ -141,7 +139,7 @@ mod tests {
         let StateToast::NotifyFromSeverity {
             body: ToastBody::Text(toast_body),
             ..
-        } = toast_row.alerts.state_toast
+        } = toast_row.alerts().state_toast.clone()
         else {
             panic!("a nearly full RAM has a toast with a body");
         };

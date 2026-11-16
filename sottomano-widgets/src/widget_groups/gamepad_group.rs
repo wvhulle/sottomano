@@ -55,7 +55,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -112,20 +111,18 @@ struct ControllerDiscoveryFailureIndicator<'failure> {
 }
 
 impl<'failure> ControllerDiscoveryFailureIndicator<'failure> {
-    fn reading_row(self) -> ReadingRow<'failure> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled("failed".to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Controller discovery",
-                Phosphor::GameController(Weight::Regular).into(),
-                IndicatorState::Failed,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'failure> {
+        GroupIndicator::glyph_only(
+            "Controller discovery",
+            Phosphor::GameController(Weight::Regular).into(),
+            IndicatorState::Failed,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("failed".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -619,12 +616,10 @@ impl GamepadGroup {
     }
 
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_>> {
-        let failure_row = self.controller_discovery_failure_indicator()?.reading_row();
-        let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Joystick(Weight::Regular).into(),
-            GroupIndicator::sample(failure_row),
-        );
+        let failure_row = self.controller_discovery_failure_indicator()?.indicator();
+        let group_title = WidgetGroupTitle::Named(failure_row.indicator_name());
+        let group_summary =
+            GroupSummary::summarising(Phosphor::Joystick(Weight::Regular).into(), failure_row);
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
             group_title,
@@ -649,7 +644,7 @@ impl GamepadGroup {
         };
         let group_summary = GroupSummary::summarising(
             Phosphor::Joystick(Weight::Regular).into(),
-            GroupIndicator::sample(self.face_indicator(gamepad, link, bindings).reading_row()),
+            self.face_indicator(gamepad, link, bindings).indicator(),
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let mut rows = vec![
@@ -660,16 +655,13 @@ impl GamepadGroup {
             .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
         ];
         if !shown_in_bluetooth_group {
-            rows.push(GroupIndicator::sample(
-                self.link_indicator(slot, link).reading_row(),
-            ));
+            rows.push(self.link_indicator(slot, link).indicator());
             if gamepad.power != GamepadPower::NoBattery {
-                rows.push(GroupIndicator::sample(battery_indicator.reading_row()));
+                rows.push(battery_indicator.indicator());
             }
         }
         if let Some(cable_role) = usb_cable_role(link.transport) {
-            let cable_item =
-                GroupIndicator::sample(UsbCableIndicator { role: cable_role }.reading_row());
+            let cable_item = UsbCableIndicator { role: cable_role }.indicator();
             rows.push(match cable_role {
                 UsbCableRole::ChargingOnly => cable_item.on_press(
                     "disconnect Bluetooth so the cable can take over",

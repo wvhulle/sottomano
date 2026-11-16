@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -27,7 +27,10 @@ use crate::{
 pub(crate) const CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Buildings(Weight::Regular));
 
-pub fn claude_enterprise_indicator(spend: &ClaudeEnterpriseSpend, clock: Clock) -> ReadingRow<'_> {
+pub fn claude_enterprise_indicator(
+    spend: &ClaudeEnterpriseSpend,
+    clock: Clock,
+) -> GroupIndicator<'_> {
     let quota_windows = spend.quotas(clock.utc());
     let state = Quota::worst_severity(&quota_windows)
         .unwrap_or_else(|| level_from_used(spend.used_share))
@@ -44,24 +47,22 @@ pub fn claude_enterprise_indicator(spend: &ClaudeEnterpriseSpend, clock: Clock) 
     } else {
         PanelVisibility::Hidden
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(format!("{} month", spend_text(&spend.used))),
-            gauge,
-            badge: ReadoutBadge::Unbadged,
-        },
-        alerts: IndicatorAlerts {
-            quota_windows,
-            ..IndicatorAlerts::default()
-        },
-        panel_visibility,
-        ..ReadingRow::glyph_only(
-            ClaudeEnterpriseSpend::NAME,
-            Phosphor::Buildings(Weight::Regular).into(),
-            state,
-            Box::new(move |_| claude_enterprise_hover_card(spend)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        ClaudeEnterpriseSpend::NAME,
+        Phosphor::Buildings(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(format!("{} month", spend_text(&spend.used))),
+        gauge,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows,
+        ..IndicatorAlerts::default()
+    })
+    .with_panel_visibility(panel_visibility)
+    .with_hover_card(Box::new(move |_| claude_enterprise_hover_card(spend)))
 }
 
 pub fn claude_enterprise_hover_card(spend: &ClaudeEnterpriseSpend) -> Vec<Section> {

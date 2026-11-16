@@ -6,9 +6,9 @@ use uom::{
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -39,25 +39,23 @@ fn cpu_power_panel_visibility(power: &CpuPower) -> PanelVisibility {
     }
 }
 
-pub(super) fn cpu_power_indicator(power: &CpuPower) -> ReadingRow<'_> {
+pub(super) fn cpu_power_indicator(power: &CpuPower) -> GroupIndicator<'_> {
     let label = match package_draw(power) {
         Some(draw) => ReadoutLabel::Labeled(watt_text(draw)),
         None => ReadoutLabel::Unlabeled,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        panel_visibility: cpu_power_panel_visibility(power),
-        ..ReadingRow::glyph_only(
-            "CPU power draw",
-            Phosphor::Lightning(Weight::Regular).into(),
-            IndicatorState::Idle,
-            Box::new(move |_| cpu_power_hover_card(power)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        "CPU power draw",
+        Phosphor::Lightning(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_panel_visibility(cpu_power_panel_visibility(power))
+    .with_hover_card(Box::new(move |_| cpu_power_hover_card(power)))
 }
 
 pub(super) fn cpu_power_hover_card(power: &CpuPower) -> Vec<Section> {

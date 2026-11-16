@@ -4,9 +4,9 @@ use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -23,7 +23,7 @@ pub struct KernelFace<'a> {
 }
 
 impl<'a> KernelFace<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let glyph = DistributionIds(&self.system.distribution_ids)
             .vendor_logo()
             .map_or_else(
@@ -36,19 +36,13 @@ impl<'a> KernelFace<'a> {
         } else {
             ReadoutLabel::Labeled(label_text)
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Kernel", glyph, IndicatorState::Idle)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Kernel",
-                glyph,
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

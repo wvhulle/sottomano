@@ -120,7 +120,7 @@ impl NetworkManagerVpnGroup {
 
     fn vpn_connection_item<'a>(&'a self, vpn_connection: &'a VpnConnection) -> GroupIndicator<'a> {
         let vpn_switch = vpn_connection.switch();
-        GroupIndicator::sample(vpn_connection_indicator(vpn_connection))
+        vpn_connection_indicator(vpn_connection)
             .on_switch_press(
                 match vpn_switch {
                     NmConnectionSwitch::Connect(_) => SwitchPosition::Off,

@@ -11,9 +11,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::process_usage_cells::{approximate_memory_text, cpu_share_quantity},
@@ -94,20 +94,18 @@ pub(super) struct CiRunnerFailureRow<'a> {
 }
 
 impl<'a> CiRunnerFailureRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.watched.status_text()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.watched.runner_label.to_owned(),
-                self.watched.kind.runner_icon(),
-                IndicatorState::Failed,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.watched.runner_label.to_owned(),
+            self.watched.kind.runner_icon(),
+            IndicatorState::Failed,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.watched.status_text()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
@@ -170,20 +168,18 @@ pub(super) struct CiTaskRow<'a> {
 }
 
 impl<'a> CiTaskRow<'a> {
-    pub(super) fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(duration_text(elapsed_of(self.task, clock), locale)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                task_row_name(self.task),
-                self.kind.runner_icon(),
-                IndicatorState::Live,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            task_row_name(self.task),
+            self.kind.runner_icon(),
+            IndicatorState::Live,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(duration_text(elapsed_of(self.task, clock), locale)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

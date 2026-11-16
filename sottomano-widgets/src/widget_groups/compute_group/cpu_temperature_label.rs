@@ -23,9 +23,9 @@ use super::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
@@ -103,30 +103,28 @@ pub(super) fn temperature_indicator(
     temperature: &Temperature,
     clock: Clock,
     locale: Locale,
-) -> ReadingRow<'_> {
+) -> GroupIndicator<'_> {
     let state = temperature_state(temperature, clock);
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(celsius_text(temperature.hottest())),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        Temperature::NAME,
+        Phosphor::ThermometerSimple(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(celsius_text(temperature.hottest())),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        state_toast: StateToast::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "CPU overheating",
+            body: ToastBody::Text(temperature_toast_text(temperature, clock, locale)),
+            progress: ToastProgress::Unmeasured,
         },
-        alerts: IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Critical,
-                summary_text: "CPU overheating",
-                body: ToastBody::Text(temperature_toast_text(temperature, clock, locale)),
-                progress: ToastProgress::Unmeasured,
-            },
-            ..IndicatorAlerts::default()
-        },
-        ..ReadingRow::glyph_only(
-            Temperature::NAME,
-            Phosphor::ThermometerSimple(Weight::Regular).into(),
-            state,
-            Box::new(move |_| temperature_hover_card(temperature)),
-        )
-    }
+        ..IndicatorAlerts::default()
+    })
+    .with_hover_card(Box::new(move |_| temperature_hover_card(temperature)))
 }
 
 pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> {

@@ -14,9 +14,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -46,7 +46,7 @@ impl VirtualBoxListedRow<'_> {
 
 impl<'a> VirtualBoxListedRow<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let name = match &self {
             VirtualBoxListedRow::Running(listing) => {
                 format!("{} pid {}", listing.machine_name, listing.pid)
@@ -55,19 +55,17 @@ impl<'a> VirtualBoxListedRow<'a> {
                 format!("{} {}", machine.machine_name, machine.machine_uuid)
             }
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.run_state().label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
-                self.run_state().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            name,
+            IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
+            self.run_state().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.run_state().label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]
@@ -95,24 +93,22 @@ pub struct VirtualBoxMachineRow<'a> {
 
 impl<'a> VirtualBoxMachineRow<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let name = format!(
             "{} pid {}",
             self.machine.listing.machine_name, self.machine.listing.pid
         );
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
-                IndicatorState::On,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            name,
+            IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
+            IndicatorState::On,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     #[must_use]
@@ -180,7 +176,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                sample: VirtualBoxListedRow::Running(listing).reading_row(),
+                indicator: VirtualBoxListedRow::Running(listing).indicator(),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
@@ -191,7 +187,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .details
             .iter()
             .map(|machine| FamilyRow {
-                sample: VirtualBoxMachineRow { machine }.reading_row(),
+                indicator: VirtualBoxMachineRow { machine }.indicator(),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
             .collect()
@@ -202,7 +198,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .stopped_machines
             .iter()
             .map(|machine| FamilyRow {
-                sample: VirtualBoxListedRow::Stopped(machine).reading_row(),
+                indicator: VirtualBoxListedRow::Stopped(machine).indicator(),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })
             .collect()

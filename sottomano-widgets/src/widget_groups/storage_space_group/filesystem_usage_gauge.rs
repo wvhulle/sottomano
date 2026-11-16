@@ -7,9 +7,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -40,22 +40,21 @@ fn free_space_severity(usage: &FilesystemUsage) -> Severity {
     }
 }
 
-pub(crate) fn filesystem_usage_indicator(usage: &FilesystemUsage) -> ReadingRow<'_> {
+pub(crate) fn filesystem_usage_indicator(usage: &FilesystemUsage) -> GroupIndicator<'_> {
     let fill = percent_fill(usage.used_pct());
-    let mut row = ReadingRow::glyph_only(
+    GroupIndicator::glyph_only(
         FilesystemUsage::NAME,
         Phosphor::Folders(Weight::Regular).into(),
         free_space_severity(usage).into(),
-        Box::new(move |_| filesystem_usage_hover_card(usage)),
-    );
-    row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
-    row.alerts.state_toast = StateToast::NotifyFromSeverity {
+    )
+    .with_gauge(ReadoutGauge::Gauged { fill, live: fill })
+    .with_state_toast(StateToast::NotifyFromSeverity {
         minimum_severity: Severity::Critical,
         summary_text: "Disk almost full",
         body: ToastBody::Bodiless,
         progress: ToastProgress::Measured(fill),
-    };
-    row
+    })
+    .with_hover_card(Box::new(move |_| filesystem_usage_hover_card(usage)))
 }
 
 pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage) -> Vec<Section> {
@@ -72,20 +71,18 @@ pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage) -> Vec<Sectio
 pub(super) struct SnapshotDeletionRow;
 
 impl SnapshotDeletionRow {
-    pub(super) fn reading_row() -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled("in progress".to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Snapshot deletion",
-                Phosphor::Trash(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(|_| Self::hover_card()),
-            )
-        }
+    pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            "Snapshot deletion",
+            Phosphor::Trash(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled("in progress".to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Self::hover_card()))
     }
 
     pub(super) fn hover_card() -> Vec<Section> {

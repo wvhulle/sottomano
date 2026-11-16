@@ -15,8 +15,8 @@ use uom::si::{
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, dictionary_table},
     widgets::{
@@ -65,32 +65,30 @@ pub fn swapped_processes_sections(swapped_processes: &SwappedProcesses) -> Vec<S
     )]
 }
 
-pub fn swap_activity_indicator(activity: &SwapActivity, locale: Locale) -> ReadingRow<'_> {
+pub fn swap_activity_indicator(activity: &SwapActivity, locale: Locale) -> GroupIndicator<'_> {
     let state = match swap_share(activity) {
         Some(share) if share.get::<ratio>() > SWAP_WARNING_SHARE => Severity::Warning,
         _ => Severity::Normal,
     }
     .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: paging_label(activity, locale),
-            gauge: match swap_share(activity) {
-                Some(fill) => ReadoutGauge::Gauged { fill, live: fill },
-                None => ReadoutGauge::Ungauged,
-            },
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        SwapActivity::NAME,
+        Phosphor::ArrowsClockwise(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: paging_label(activity, locale),
+        gauge: match swap_share(activity) {
+            Some(fill) => ReadoutGauge::Gauged { fill, live: fill },
+            None => ReadoutGauge::Ungauged,
         },
-        panel_visibility: match activity.swap {
-            Swap::NotConfigured => PanelVisibility::Hidden,
-            Swap::Configured { .. } => PanelVisibility::Shown,
-        },
-        ..ReadingRow::glyph_only(
-            SwapActivity::NAME,
-            Phosphor::ArrowsClockwise(Weight::Regular).into(),
-            state,
-            Box::new(move |_| swap_activity_hover_card(activity)),
-        )
-    }
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_panel_visibility(match activity.swap {
+        Swap::NotConfigured => PanelVisibility::Hidden,
+        Swap::Configured { .. } => PanelVisibility::Shown,
+    })
+    .with_hover_card(Box::new(move |_| swap_activity_hover_card(activity)))
 }
 
 fn paging_label(activity: &SwapActivity, locale: Locale) -> ReadoutLabel {
@@ -157,7 +155,7 @@ mod tests {
             paged_out_per_second: ByteSize::b(0),
         };
         assert_eq!(
-            swap_activity_indicator(&without_swap, Locale::default()).panel_visibility,
+            swap_activity_indicator(&without_swap, Locale::default()).panel_visibility(),
             PanelVisibility::Hidden
         );
     }

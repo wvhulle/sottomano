@@ -21,7 +21,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -102,22 +101,18 @@ pub(crate) struct RunningContainerRow<'a> {
 }
 
 impl<'a> RunningContainerRow<'a> {
-    pub(crate) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(approximate_memory_text(
-                    self.container.resident_memory,
-                )),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                engine_container_name(&self.container.container_name, self.owner),
-                Phosphor::Package(Weight::Regular).into(),
-                ContainerRunState::Running.into(),
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+    pub(crate) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            engine_container_name(&self.container.container_name, self.owner),
+            Phosphor::Package(Weight::Regular).into(),
+            ContainerRunState::Running.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(approximate_memory_text(self.container.resident_memory)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     pub(crate) fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -148,20 +143,18 @@ pub(crate) struct StoppedContainerRow<'a> {
 }
 
 impl<'a> StoppedContainerRow<'a> {
-    pub(crate) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(ContainerRunState::Stopped.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                engine_container_name(&self.container.container_name, self.owner),
-                Phosphor::Package(Weight::Regular).into(),
-                ContainerRunState::Stopped.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(crate) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            engine_container_name(&self.container.container_name, self.owner),
+            Phosphor::Package(Weight::Regular).into(),
+            ContainerRunState::Stopped.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(ContainerRunState::Stopped.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(crate) fn hover_card(&self) -> Vec<Section> {
@@ -183,13 +176,13 @@ pub(crate) struct HiddenContainersRow {
 }
 
 impl HiddenContainersRow {
-    pub(crate) fn reading_row(self) -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub(crate) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             format!("{} more", self.hidden_count),
             Phosphor::DotsThree(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -228,7 +221,7 @@ impl<'a> EngineContainers<'a> {
             .iter()
             .map(|container| {
                 with_container_switch(
-                    GroupIndicator::sample(RunningContainerRow { container, owner }.reading_row()),
+                    RunningContainerRow { container, owner }.indicator(),
                     ContainerRunState::Running,
                     self.container_address(&container.id),
                     switched,
@@ -247,7 +240,7 @@ impl<'a> EngineContainers<'a> {
             .iter()
             .map(|container| {
                 with_container_switch(
-                    GroupIndicator::sample(StoppedContainerRow { container, owner }.reading_row()),
+                    StoppedContainerRow { container, owner }.indicator(),
                     ContainerRunState::Stopped,
                     self.container_address(&container.id),
                     switched,
@@ -290,9 +283,7 @@ pub(crate) fn rows_ending_in_hidden_count(
         return rows;
     }
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
-    rows.push(GroupIndicator::sample(
-        HiddenContainersRow { hidden_count }.reading_row(),
-    ));
+    rows.push(HiddenContainersRow { hidden_count }.indicator());
     rows
 }
 
@@ -304,7 +295,7 @@ mod tests {
     #[test]
     fn the_hidden_row_counts_what_it_replaces() {
         let hidden = HiddenContainersRow { hidden_count: 4 };
-        let hidden_row = hidden.reading_row();
-        assert_eq!(hidden_row.face.name, "4 more");
+        let hidden_row = hidden.indicator();
+        assert_eq!(hidden_row.face().name, "4 more");
     }
 }

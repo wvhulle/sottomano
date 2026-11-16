@@ -13,8 +13,8 @@ use uom::si::ratio::percent;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -29,7 +29,7 @@ use crate::{
 pub fn claude_usage_windows_indicator(
     windows: &ClaudeUsageWindows,
     clock: Clock,
-) -> ReadingRow<'_> {
+) -> GroupIndicator<'_> {
     let quota_windows = windows.quotas(clock.utc());
     let fullest_used = windows.fullest_window_used();
     let state = Quota::worst_severity(&quota_windows)
@@ -40,27 +40,27 @@ pub fn claude_usage_windows_indicator(
     } else {
         PanelVisibility::Hidden
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Gauged {
-                fill: fullest_used,
-                live: fullest_used,
-            },
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        ClaudeUsageWindows::NAME,
+        Phosphor::Gauge(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Gauged {
+            fill: fullest_used,
+            live: fullest_used,
         },
-        alerts: IndicatorAlerts {
-            quota_windows,
-            ..IndicatorAlerts::default()
-        },
-        panel_visibility,
-        ..ReadingRow::glyph_only(
-            ClaudeUsageWindows::NAME,
-            Phosphor::Gauge(Weight::Regular).into(),
-            state,
-            Box::new(move |card_clock| claude_usage_windows_hover_card(windows, card_clock)),
-        )
-    }
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows,
+        ..IndicatorAlerts::default()
+    })
+    .with_panel_visibility(panel_visibility)
+    .with_hover_card(Box::new(move |card_clock| {
+        claude_usage_windows_hover_card(windows, card_clock)
+    }))
 }
 
 pub fn claude_usage_windows_hover_card(windows: &ClaudeUsageWindows, clock: Clock) -> Vec<Section> {

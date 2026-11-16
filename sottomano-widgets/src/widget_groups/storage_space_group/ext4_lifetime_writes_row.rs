@@ -3,9 +3,9 @@ use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::Ext4Counters;
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -20,23 +20,21 @@ pub(super) struct Ext4LifetimeWritesRow {
 }
 
 impl Ext4LifetimeWritesRow {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(
-                    Quantity::size(self.counters.lifetime_written).localized_text(locale),
-                ),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            panel_visibility: PanelVisibility::Hidden,
-            ..ReadingRow::glyph_only(
-                "Writes",
-                Phosphor::PencilSimple(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            "Writes",
+            Phosphor::PencilSimple(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(
+                Quantity::size(self.counters.lifetime_written).localized_text(locale),
+            ),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_panel_visibility(PanelVisibility::Hidden)
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

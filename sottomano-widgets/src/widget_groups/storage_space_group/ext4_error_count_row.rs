@@ -4,8 +4,8 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,7 +22,7 @@ pub(super) struct Ext4ErrorCountRow {
 }
 
 impl Ext4ErrorCountRow {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+    pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let state = match self.recorded_errors {
             RecordedErrors::Clean => Severity::Normal,
             RecordedErrors::Recorded { .. } => Severity::Warning,
@@ -38,19 +38,17 @@ impl Ext4ErrorCountRow {
             RecordedErrors::Clean => "none".to_owned(),
             RecordedErrors::Recorded { count, .. } => Quantity::count(count).localized_text(locale),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label),
-                gauge: ReadoutGauge::Ungauged,
-                badge,
-            },
-            ..ReadingRow::glyph_only(
-                "Recorded errors",
-                Phosphor::WarningCircle(Weight::Regular).into(),
-                state.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Recorded errors",
+            Phosphor::WarningCircle(Weight::Regular).into(),
+            state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

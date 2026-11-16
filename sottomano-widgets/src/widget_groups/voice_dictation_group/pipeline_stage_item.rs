@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -40,7 +40,7 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
 pub(crate) const NOTULIST_PIPELINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Pulse(Weight::Regular));
 
-pub fn notulist_pipeline_indicator(pipeline: &NotulistPipeline) -> ReadingRow<'_> {
+pub fn notulist_pipeline_indicator(pipeline: &NotulistPipeline) -> GroupIndicator<'_> {
     let state = match pipeline.activity.stage {
         PipelineStage::Idle => IndicatorState::Idle,
         PipelineStage::Capturing => IndicatorState::Live,
@@ -51,12 +51,12 @@ pub fn notulist_pipeline_indicator(pipeline: &NotulistPipeline) -> ReadingRow<'_
         | PipelineStage::Reconciling
         | PipelineStage::CleaningText => IndicatorState::Pending,
     };
-    ReadingRow::glyph_only(
+    GroupIndicator::glyph_only(
         NotulistPipeline::NAME,
         stage_icon(pipeline.activity.stage).into(),
         state,
-        Box::new(move |_| notulist_pipeline_hover_card(pipeline)),
     )
+    .with_hover_card(Box::new(move |_| notulist_pipeline_hover_card(pipeline)))
 }
 
 pub fn notulist_pipeline_hover_card(pipeline: &NotulistPipeline) -> Vec<Section> {

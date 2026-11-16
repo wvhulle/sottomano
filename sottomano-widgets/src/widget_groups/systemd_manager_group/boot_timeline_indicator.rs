@@ -10,9 +10,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutLabel},
+        group_indicator::GroupIndicator,
+        indicator_drawing::{ReadoutBadge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -129,7 +129,10 @@ pub(super) fn boot_timeline_hover_card(timeline: &BootTimeline) -> Vec<Section> 
         .collect::<Vec<_>>()
 }
 
-pub(super) fn boot_timeline_indicator(timeline: &BootTimeline, locale: Locale) -> ReadingRow<'_> {
+pub(super) fn boot_timeline_indicator(
+    timeline: &BootTimeline,
+    locale: Locale,
+) -> GroupIndicator<'_> {
     let label = match &timeline.startup_comparison {
         Some(comparison) => {
             Quantity::signed_share(comparison.os_startup.change).localized_text(locale)
@@ -139,7 +142,7 @@ pub(super) fn boot_timeline_indicator(timeline: &BootTimeline, locale: Locale) -
             locale,
         ),
     };
-    let base = ReadingRow::glyph_only(
+    let base = GroupIndicator::glyph_only(
         BootTimeline::NAME,
         Phosphor::RocketLaunch(Weight::Regular).into(),
         timeline
@@ -148,15 +151,9 @@ pub(super) fn boot_timeline_indicator(timeline: &BootTimeline, locale: Locale) -
             .map(|comparison| comparison.os_startup.severity)
             .unwrap_or_default()
             .into(),
-        Box::new(move |_| boot_timeline_hover_card(timeline)),
-    );
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            ..base.readout
-        },
-        ..base
-    }
+    )
+    .with_hover_card(Box::new(move |_| boot_timeline_hover_card(timeline)));
+    base.with_label(ReadoutLabel::Labeled(label))
 }
 
 pub struct StartupUnits<'a> {
@@ -240,23 +237,17 @@ impl<'a> StartupUnits<'a> {
         sections.into_iter().collect::<Vec<_>>()
     }
 
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let badge = match self.slow_unit_count() {
             0 => ReadoutBadge::Unbadged,
             count => ReadoutBadge::Counted(count),
         };
-        let base = ReadingRow::glyph_only(
+        let base = GroupIndicator::glyph_only(
             "Startup units",
             Phosphor::Stack(Weight::Regular).into(),
             self.state(),
-            Box::new(move |_| self.hover_card()),
-        );
-        ReadingRow {
-            readout: IndicatorReadout {
-                badge,
-                ..base.readout
-            },
-            ..base
-        }
+        )
+        .with_hover_card(Box::new(move |_| self.hover_card()));
+        base.with_badge(badge)
     }
 }

@@ -11,8 +11,8 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -169,7 +169,7 @@ impl DailyTotalsGauge {
 }
 
 impl DailyTotalsGauge {
-    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'_> {
+    pub fn indicator(&self, locale: Locale) -> GroupIndicator<'_> {
         let coarse = |length| duration_text(length, locale);
         let spent = coarse(self.screen_spent);
         let label = match &self.screen_budget {
@@ -185,23 +185,21 @@ impl DailyTotalsGauge {
         };
         let quotas = self.quotas();
         let state = Quota::worst_severity(&quotas).unwrap_or_default().into();
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label),
-                gauge,
-                badge: ReadoutBadge::Unbadged,
-            },
-            alerts: IndicatorAlerts {
-                quota_windows: quotas,
-                ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "Daily focus budget",
-                Phosphor::HourglassMedium(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Daily focus budget",
+            Phosphor::HourglassMedium(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_alerts(IndicatorAlerts {
+            quota_windows: quotas,
+            ..IndicatorAlerts::default()
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

@@ -13,9 +13,9 @@ use sottomano_desktop_sources::network_connectivity::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
@@ -50,20 +50,18 @@ impl<'a> OwnNodeRow<'a> {
 }
 
 impl<'a> OwnNodeRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.own_tags_text()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "This machine",
-                Phosphor::IdentificationBadge(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            "This machine",
+            Phosphor::IdentificationBadge(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.own_tags_text()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(self) -> Vec<Section> {
@@ -86,26 +84,26 @@ impl<'a> OwnNodeRow<'a> {
 pub(super) struct InboundAccessRow;
 
 impl InboundAccessRow {
-    pub(super) fn reading_row() -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             "Reachable from",
             Phosphor::ArrowsInSimple(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
         )
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 
 pub(super) struct PolicyFileRow;
 
 impl PolicyFileRow {
-    pub(super) fn reading_row() -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             "Policy file",
             Phosphor::Scroll(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
         )
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 

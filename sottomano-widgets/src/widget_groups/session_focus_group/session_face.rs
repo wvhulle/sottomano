@@ -8,8 +8,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::session_focus_group::WarningSnooze,
@@ -168,7 +168,7 @@ impl SessionFace<'_> {
 }
 
 impl<'a> SessionFace<'a> {
-    pub fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
+    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
         let label = self
             .run_length(clock.utc())
             .map(|run_length| TimeDelta::minutes(run_length.num_minutes()))
@@ -178,31 +178,29 @@ impl<'a> SessionFace<'a> {
             Some(summary) => ToastBody::Text(summary),
             None => ToastBody::Bodiless,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: match label {
-                    Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
-                    Some(_) | None => ReadoutLabel::Unlabeled,
-                },
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
+        GroupIndicator::glyph_only(
+            "Current focus",
+            Phosphor::UserFocus(Weight::Regular).into(),
+            self.severity(clock.utc()).into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: match label {
+                Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
+                Some(_) | None => ReadoutLabel::Unlabeled,
             },
-            alerts: IndicatorAlerts {
-                state_toast: StateToast::NotifyFromSeverity {
-                    minimum_severity: Severity::Warning,
-                    summary_text: "Long focus session",
-                    body,
-                    progress: ToastProgress::Unmeasured,
-                },
-                ..IndicatorAlerts::default()
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_alerts(IndicatorAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Warning,
+                summary_text: "Long focus session",
+                body,
+                progress: ToastProgress::Unmeasured,
             },
-            ..ReadingRow::glyph_only(
-                "Current focus",
-                Phosphor::UserFocus(Weight::Regular).into(),
-                self.severity(clock.utc()).into(),
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+            ..IndicatorAlerts::default()
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {

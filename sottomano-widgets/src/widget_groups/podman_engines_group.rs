@@ -17,10 +17,8 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutLabel},
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
@@ -65,21 +63,15 @@ impl<'a> UnreadableEngineRow<'a> {
         ]
     }
 
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned());
-        let base = ReadingRow::glyph_only(
+        let base = GroupIndicator::glyph_only(
             self.engine.owner.to_string(),
             Phosphor::Cube(Weight::Regular).into(),
             IndicatorState::Failed,
-            Box::new(move |_| self.hover_card()),
-        );
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                ..base.readout
-            },
-            ..base
-        }
+        )
+        .with_hover_card(Box::new(move |_| self.hover_card()));
+        base.with_label(label)
     }
 }
 
@@ -249,13 +241,13 @@ impl PodmanEnginesGroup {
                 running_rows.extend(Self::running_container_rows(engine, listing, sample));
                 stopped_rows.extend(Self::stopped_container_rows(engine, listing, sample));
             } else if let Some(read_failure) = sample.fetch_failure() {
-                failure_rows.push(GroupIndicator::sample(
+                failure_rows.push(
                     UnreadableEngineRow {
                         engine,
                         read_failure,
                     }
-                    .reading_row(),
-                ));
+                    .indicator(),
+                );
             }
         }
         running_rows.extend(stopped_rows);

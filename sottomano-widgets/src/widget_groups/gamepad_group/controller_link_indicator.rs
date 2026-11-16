@@ -10,9 +10,9 @@ use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
@@ -139,7 +139,7 @@ impl ControllerLinkIndicator<'_> {
 }
 
 impl<'a> ControllerLinkIndicator<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let (glyph, state) = if self.link_stability() == LinkStability::Unstable {
             (
                 Phosphor::LinkBreak(Weight::Regular),
@@ -162,19 +162,13 @@ impl<'a> ControllerLinkIndicator<'a> {
                 })
             }
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Controller lag", glyph.into(), state)
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Controller lag",
-                glyph.into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

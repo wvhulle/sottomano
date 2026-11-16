@@ -241,7 +241,7 @@ impl CiRunsGroup {
         failure_row: CiRunnerFailureRow<'a>,
         failure_reference: CiRunnerReference,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(failure_row.reading_row()).with_hover_card(Box::new(move |_| {
+        failure_row.indicator().with_hover_card(Box::new(move |_| {
             self.runner_hover_card(&failure_reference, |watched_runner| {
                 CiRunnerFailureRow::failing_runner(watched_runner)
                     .map(|failing_row| failing_row.hover_card())
@@ -257,13 +257,11 @@ impl CiRunsGroup {
         clock: Clock,
         locale: Locale,
     ) -> GroupIndicator<'a> {
-        let task_item = GroupIndicator::sample(
-            CiTaskRow {
-                kind: runner_kind,
-                task,
-            }
-            .reading_row(clock, locale),
-        )
+        let task_item = CiTaskRow {
+            kind: runner_kind,
+            task,
+        }
+        .indicator(clock, locale)
         .with_hover_card(Box::new(move |_| {
             self.runner_hover_card(&task_reference, |watched_runner| {
                 Some(

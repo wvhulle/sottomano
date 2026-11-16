@@ -752,10 +752,7 @@ mod tests {
     use super::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage};
     use crate::{
         clock::Clock,
-        group_indicators::{
-            group_indicator::GroupIndicator, indicator_state::IndicatorState,
-            reading_row::ReadingRow,
-        },
+        group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, IndicatorKey, MouseGesture, PressAction},
         widget_groups::{
@@ -766,13 +763,9 @@ mod tests {
         widgets::icon_glyph::IconGlyph,
     };
 
-    fn shown_state_row(shown_state: IndicatorState) -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
-            "Shown state reading",
-            IconGlyph::default(),
-            shown_state,
-            Box::new(|_| Vec::new()),
-        )
+    fn shown_state_row<'indicator>(shown_state: IndicatorState) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only("Shown state reading", IconGlyph::default(), shown_state)
+            .with_hover_card(Box::new(|_| Vec::new()))
     }
 
     fn group_showing(
@@ -784,7 +777,7 @@ mod tests {
             GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             expansion,
             ClockInteraction::Expansion,
-            [GroupIndicator::sample(shown_state_row(shown_state))],
+            [shown_state_row(shown_state)],
         )
     }
 
@@ -824,12 +817,10 @@ mod tests {
                 GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
                 &expansion,
                 ClockInteraction::Expansion,
-                [
-                    GroupIndicator::sample(shown_state_row(IndicatorState::Idle)).on_press(
-                        description,
-                        ClockInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
-                    ),
-                ],
+                [shown_state_row(IndicatorState::Idle).on_press(
+                    description,
+                    ClockInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
+                )],
             )
         };
         let indicator_key = IndicatorKey {

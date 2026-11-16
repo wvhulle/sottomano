@@ -4,10 +4,9 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -32,9 +31,9 @@ impl JournalScopeGroup {
     pub(super) fn kernel_log_item<'a>(
         &'a self,
         config: &Config,
-        kernel_row: ReadingRow<'a>,
+        kernel_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(kernel_row)
+        kernel_row
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -84,7 +83,7 @@ pub(super) fn kernel_log_panel_visibility(occurrences: &[KernelOccurrence]) -> P
     shown_while_alerting(occurrences.iter().map(|occurrence| occurrence.severity))
 }
 
-pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> ReadingRow<'_> {
+pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> GroupIndicator<'_> {
     let warning_count = occurrences
         .iter()
         .filter(|occurrence| occurrence.severity >= Severity::Warning)
@@ -93,20 +92,18 @@ pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> ReadingR
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Ungauged,
-            badge,
-        },
-        panel_visibility: kernel_log_panel_visibility(occurrences),
-        ..ReadingRow::glyph_only(
-            "Kernel log",
-            KERNEL_LOG_GLYPH.into(),
-            kernel_log_state(occurrences),
-            Box::new(move |_| kernel_log_hover_card(occurrences)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        "Kernel log",
+        KERNEL_LOG_GLYPH.into(),
+        kernel_log_state(occurrences),
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Ungauged,
+        badge,
+    })
+    .with_panel_visibility(kernel_log_panel_visibility(occurrences))
+    .with_hover_card(Box::new(move |_| kernel_log_hover_card(occurrences)))
 }
 
 pub(super) fn kernel_log_hover_card(occurrences: &[KernelOccurrence]) -> Vec<Section> {

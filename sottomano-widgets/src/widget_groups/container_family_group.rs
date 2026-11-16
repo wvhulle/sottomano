@@ -11,7 +11,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_state::IndicatorState, reading_row::ReadingRow,
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -33,7 +33,7 @@ pub enum RowPower<PowerRequest> {
 }
 
 pub struct FamilyRow<'a, Family: ContainerFamily> {
-    pub sample: ReadingRow<'a>,
+    pub indicator: GroupIndicator<'a>,
     pub power: RowPower<Family::PowerRequest>,
 }
 
@@ -235,12 +235,10 @@ fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
     source: &'a SubscribedSnapshot<Source>,
     row: FamilyRow<'a, Family>,
 ) -> FamilyRow<'a, Family> {
-    let row_card = row.sample.card;
     FamilyRow {
-        sample: ReadingRow {
-            card: Box::new(move |clock| source.hover_card_with(row_card(clock))),
-            ..row.sample
-        },
+        indicator: row.indicator.wrap_hover_card(|row_card| {
+            Box::new(move |clock| source.hover_card_with(row_card(clock)))
+        }),
         ..row
     }
 }
@@ -249,7 +247,7 @@ fn switchable_item<Family: ContainerFamily>(row: FamilyRow<'_, Family>) -> Group
 where
     ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
 {
-    let item = GroupIndicator::sample(row.sample);
+    let item = row.indicator;
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,

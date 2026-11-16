@@ -8,8 +8,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -30,31 +30,31 @@ pub(crate) const CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH: IconGlyph =
 pub fn claude_ccusage_periods_indicator(
     periods: &ClaudeCcusagePeriods,
     clock: Clock,
-) -> ReadingRow<'_> {
+) -> GroupIndicator<'_> {
     let quota_windows = periods.quotas(clock.utc());
     let state = Quota::worst_severity(&quota_windows)
         .unwrap_or_else(|| level_from_cost(&periods.recent.today.usage.cost))
         .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(format!(
-                "{} today",
-                spend_text(&periods.recent.today.usage.cost)
-            )),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        alerts: IndicatorAlerts {
-            quota_windows,
-            ..IndicatorAlerts::default()
-        },
-        ..ReadingRow::glyph_only(
-            ClaudeCcusagePeriods::NAME,
-            Phosphor::CalendarDots(Weight::Regular).into(),
-            state,
-            Box::new(move |card_clock| claude_ccusage_periods_hover_card(periods, card_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        ClaudeCcusagePeriods::NAME,
+        Phosphor::CalendarDots(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(format!(
+            "{} today",
+            spend_text(&periods.recent.today.usage.cost)
+        )),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows,
+        ..IndicatorAlerts::default()
+    })
+    .with_hover_card(Box::new(move |card_clock| {
+        claude_ccusage_periods_hover_card(periods, card_clock)
+    }))
 }
 
 pub fn claude_ccusage_periods_hover_card(

@@ -7,10 +7,9 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutBadge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widget_groups::{
@@ -20,9 +19,7 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{
-            IndicatorAlerts, OngoingToastActionButton, StateToast, ToastBody, ToastProgress,
-        },
+        ongoing_toast::{OngoingToastActionButton, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
@@ -40,7 +37,7 @@ impl PendingUpgradesGroup {
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupIndicator::sample(firmware_upgrades_indicator(upgrades))
+        firmware_upgrades_indicator(upgrades)
             .on_press("run fwupdmgr update in a terminal", install.clone())
             .ongoing_toast_action_buttons([OngoingToastActionButton {
                 button_label: "Install".to_owned(),
@@ -92,34 +89,25 @@ pub(super) fn firmware_upgrades_hover_card(upgrades: &[FirmwareUpgrade]) -> Vec<
     )]
 }
 
-pub(super) fn firmware_upgrades_indicator(upgrades: &[FirmwareUpgrade]) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn firmware_upgrades_indicator(upgrades: &[FirmwareUpgrade]) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         LABEL,
         Phosphor::Circuitry(Weight::Regular).into(),
         firmware_upgrades_state(upgrades),
-        Box::new(move |_| firmware_upgrades_hover_card(upgrades)),
-    );
+    )
+    .with_hover_card(Box::new(move |_| firmware_upgrades_hover_card(upgrades)));
     let badge = match firmware_upgrades_badge(upgrades) {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            badge,
-            ..base.readout
-        },
-        alerts: IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Warning,
-                summary_text: "Firmware upgrade available",
-                body: ToastBody::Bodiless,
-                progress: ToastProgress::Unmeasured,
-            },
-            ..base.alerts
-        },
-        panel_visibility: firmware_upgrades_panel_visibility(upgrades),
-        ..base
-    }
+    base.with_badge(badge)
+        .with_state_toast(StateToast::NotifyFromSeverity {
+            minimum_severity: Severity::Warning,
+            summary_text: "Firmware upgrade available",
+            body: ToastBody::Bodiless,
+            progress: ToastProgress::Unmeasured,
+        })
+        .with_panel_visibility(firmware_upgrades_panel_visibility(upgrades))
 }
 
 impl From<&FirmwareUpgrade> for TableRecord<6> {

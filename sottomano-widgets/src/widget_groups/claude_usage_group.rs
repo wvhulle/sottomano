@@ -40,9 +40,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
@@ -305,8 +304,8 @@ impl ClaudeUsageGroup {
         )
     }
 
-    fn enterprise_spend_item<'a>(&'a self, spend_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(spend_row)
+    fn enterprise_spend_item<'a>(&'a self, spend_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        spend_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .enterprise_spend
@@ -326,8 +325,8 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_periods_item<'a>(&'a self, periods_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(periods_row)
+    fn ccusage_periods_item<'a>(&'a self, periods_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        periods_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_periods.sections_described_by(|snapshot| {
                     claude_ccusage_periods_hover_card(snapshot, card_clock)
@@ -338,8 +337,8 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_block_item<'a>(&'a self, block_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(block_row)
+    fn ccusage_block_item<'a>(&'a self, block_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        block_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_block.sections_described_by(|snapshot| {
                     claude_ccusage_block_hover_card(snapshot, card_clock)
@@ -350,8 +349,8 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn usage_windows_item<'a>(&'a self, windows_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(windows_row)
+    fn usage_windows_item<'a>(&'a self, windows_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        windows_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.usage_windows.sections_described_by(|snapshot| {
                     claude_usage_windows_hover_card(snapshot, card_clock)
@@ -397,7 +396,7 @@ impl ClaudeUsageGroup {
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::Claude.into(),
                 self.usage_windows_item(
-                    placeholder.reading_row(Phosphor::Gauge(Weight::Regular).into()),
+                    placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
                 ),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
@@ -413,7 +412,7 @@ impl ClaudeUsageGroup {
         match &self.enterprise_spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let spend_row = claude_enterprise_indicator(held_snapshot, clock);
-                if spend_row.panel_visibility == PanelVisibility::Shown {
+                if spend_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.enterprise_spend_item(spend_row));
                 }
             }
@@ -422,13 +421,13 @@ impl ClaudeUsageGroup {
                     claude_enterprise_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if spend_row.panel_visibility == PanelVisibility::Shown {
+                if spend_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.enterprise_spend_item(spend_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.enterprise_spend_item(
-                    placeholder.reading_row(CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH),
+                    placeholder.indicator(CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -439,7 +438,7 @@ impl ClaudeUsageGroup {
         match &self.ccusage_periods {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let periods_row = claude_ccusage_periods_indicator(held_snapshot, clock);
-                if periods_row.panel_visibility == PanelVisibility::Shown {
+                if periods_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.ccusage_periods_item(periods_row));
                 }
             }
@@ -448,13 +447,13 @@ impl ClaudeUsageGroup {
                     claude_ccusage_periods_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if periods_row.panel_visibility == PanelVisibility::Shown {
+                if periods_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.ccusage_periods_item(periods_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.ccusage_periods_item(
-                    placeholder.reading_row(CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH),
+                    placeholder.indicator(CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -465,7 +464,7 @@ impl ClaudeUsageGroup {
         match &self.ccusage_block {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let block_row = claude_ccusage_block_indicator(held_snapshot);
-                if block_row.panel_visibility == PanelVisibility::Shown {
+                if block_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.ccusage_block_item(block_row));
                 }
             }
@@ -474,13 +473,13 @@ impl ClaudeUsageGroup {
                     claude_ccusage_block_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if block_row.panel_visibility == PanelVisibility::Shown {
+                if block_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.ccusage_block_item(block_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.ccusage_block_item(
-                    placeholder.reading_row(CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH),
+                    placeholder.indicator(CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -490,7 +489,8 @@ impl ClaudeUsageGroup {
     fn push_model_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
-                GroupIndicator::sample(ranking.most_used_model_row())
+                ranking
+                    .most_used_model_row()
                     .with_hover_card(Box::new(move |_| {
                         self.ccusage_models.hover_card_with(ranking.hover_card())
                     }))
@@ -504,7 +504,8 @@ impl ClaudeUsageGroup {
     fn push_billed_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(billed_ranking) = self.billed_model_ranking() {
             rows.push(
-                GroupIndicator::sample(billed_ranking.most_used_spend_row())
+                billed_ranking
+                    .most_used_spend_row()
                     .with_hover_card(Box::new(move |_| {
                         self.ccusage_models
                             .hover_card_with(billed_ranking.top_model_share())

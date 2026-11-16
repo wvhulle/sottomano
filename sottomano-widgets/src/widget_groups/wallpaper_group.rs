@@ -16,7 +16,7 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::indicator_state::IndicatorState,
     widget_groups::{
         group_summary::GroupSummary,
         widget_group_content::{
@@ -90,20 +90,18 @@ impl WallpaperGroup {
         let group_summary = match &self.lookup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Mountains(Weight::Regular).into(),
-                GroupIndicator::sample(held_snapshot.reading_row()),
+                held_snapshot.indicator(),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Mountains(Weight::Regular).into(),
-                    GroupIndicator::sample(
-                        troubled_snapshot
-                            .shown_over(troubled_snapshot.held_snapshot.reading_row(), clock),
-                    ),
+                    troubled_snapshot
+                        .shown_over(troubled_snapshot.held_snapshot.indicator(), clock),
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Mountains(Weight::Regular).into(),
-                GroupIndicator::sample(placeholder.reading_row(WALLPAPER_GLYPH.into())),
+                placeholder.indicator(WALLPAPER_GLYPH.into()),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Mountains(Weight::Regular).into(),
@@ -117,24 +115,18 @@ impl WallpaperGroup {
         let mut rows = Vec::new();
         if let Some(lookup) = self.lookup.get() {
             if let Some(place) = &lookup.place {
-                rows.push(
-                    GroupIndicator::sample(place.reading_row()).with_hover_card(Box::new(
-                        move |_| self.lookup.hover_card_with(place.hover_card()),
-                    )),
-                );
+                rows.push(place.indicator().with_hover_card(Box::new(move |_| {
+                    self.lookup.hover_card_with(place.hover_card())
+                })));
             }
             if let Some(article) = &lookup.article {
-                rows.push(
-                    GroupIndicator::sample(article.reading_row()).with_hover_card(Box::new(
-                        move |_| self.lookup.hover_card_with(article.hover_card()),
-                    )),
-                );
+                rows.push(article.indicator().with_hover_card(Box::new(move |_| {
+                    self.lookup.hover_card_with(article.hover_card())
+                })));
             }
-            rows.push(
-                GroupIndicator::sample(lookup.photo.reading_row()).with_hover_card(Box::new(
-                    move |_| self.lookup.hover_card_with(lookup.photo.hover_card()),
-                )),
-            );
+            rows.push(lookup.photo.indicator().with_hover_card(Box::new(move |_| {
+                self.lookup.hover_card_with(lookup.photo.hover_card())
+            })));
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,

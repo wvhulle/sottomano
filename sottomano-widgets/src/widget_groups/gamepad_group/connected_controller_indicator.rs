@@ -21,9 +21,9 @@ use super::{
 };
 use crate::{
     group_indicators::{
-        indicator_drawing::{IdentityOrdinal, IndicatorFace, IndicatorReadout, ReadoutLabel},
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IdentityOrdinal, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{
         Section, SectionWidget, dictionary_table,
@@ -278,7 +278,7 @@ impl ConnectedControllerIndicator<'_> {
 }
 
 impl<'a> ConnectedControllerIndicator<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let state = match self.custody {
             ControllerCustody::Compositor => IndicatorState::On,
             ControllerCustody::HandedOver => IndicatorState::Off,
@@ -291,23 +291,14 @@ impl<'a> ConnectedControllerIndicator<'a> {
             Some(ordinal) => IdentityOrdinal::Numbered(ordinal),
             None => IdentityOrdinal::Unnumbered,
         };
-        let row = ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "Game controller",
             Phosphor::GameController(Weight::Regular).into(),
             state,
-            Box::new(move |_| self.hover_card()),
-        );
-        ReadingRow {
-            face: IndicatorFace {
-                ordinal,
-                ..row.face
-            },
-            readout: IndicatorReadout {
-                label,
-                ..row.readout
-            },
-            ..row
-        }
+        )
+        .with_ordinal(ordinal)
+        .with_label(label)
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

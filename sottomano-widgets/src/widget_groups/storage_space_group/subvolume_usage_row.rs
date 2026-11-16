@@ -9,9 +9,9 @@ use uom::si::f64::Ratio;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -38,22 +38,20 @@ impl SubvolumeUsageRow<'_> {
 }
 
 impl<'a> SubvolumeUsageRow<'a> {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(
-                    Quantity::size(self.subvolume.used).localized_text(locale),
-                ),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.subvolume.path.display().to_string(),
-                Phosphor::FolderSimple(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.subvolume.path.display().to_string(),
+            Phosphor::FolderSimple(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(
+                Quantity::size(self.subvolume.used).localized_text(locale),
+            ),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
@@ -133,7 +131,10 @@ mod tests {
             pool_total: ByteSize::gib(4),
         };
         assert_eq!(
-            row.reading_row(Locale::en_US).readout.gauge,
+            row.indicator(Locale::en_US)
+                .shown_readout()
+                .expect("a readout indicator")
+                .gauge,
             ReadoutGauge::Ungauged
         );
     }

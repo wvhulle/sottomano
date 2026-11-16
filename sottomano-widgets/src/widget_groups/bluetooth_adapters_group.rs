@@ -198,16 +198,17 @@ impl BluetoothAdaptersGroup {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::BluetoothConnected(Weight::Regular).into(),
-            GroupIndicator::sample(self.adapter_indicator(adapter).reading_row()).with_hover_card(
-                Box::new(move |_| {
+            self.adapter_indicator(adapter)
+                .indicator()
+                .with_hover_card(Box::new(move |_| {
                     self.bluetooth
                         .hover_card_with(self.adapter_indicator(adapter).hover_card())
-                }),
-            ),
+                })),
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
-        let power_item = GroupIndicator::sample(power_switch.reading_row())
+        let power_item = power_switch
+            .indicator()
             .on_switch_press(
                 &adapter.power,
                 power_press_does,
@@ -225,8 +226,10 @@ impl BluetoothAdaptersGroup {
                     .map_or(InputReports::NotStreamed, |timing| {
                         InputReports::Streamed(MeasuredReportTiming::Measured(timing))
                     });
-                let sample = self.device_indicator(device, siblings, input_reports, clock);
-                GroupIndicator::sample(sample.reading_row())
+                let connected_device =
+                    self.device_indicator(device, siblings, input_reports, clock);
+                connected_device
+                    .indicator()
                     .on_press(
                         ConnectedDeviceIndicator::PRESS_DOES,
                         BluetoothInteraction::Disconnect(device.object_path.clone()),

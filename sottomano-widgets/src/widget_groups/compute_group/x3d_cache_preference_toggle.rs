@@ -11,9 +11,9 @@ use sottomano_desktop_sources::{
 use super::core_grid_sections::topology_facts;
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
@@ -23,7 +23,9 @@ use crate::{
     },
 };
 
-pub(crate) fn x3d_cache_preference_indicator(preference: &X3dCachePreference) -> ReadingRow<'_> {
+pub(crate) fn x3d_cache_preference_indicator(
+    preference: &X3dCachePreference,
+) -> GroupIndicator<'_> {
     let glyph = match preference {
         X3dCachePreference::Cache => Phosphor::Warehouse(Weight::Regular).into(),
         X3dCachePreference::Frequency => Phosphor::Speedometer(Weight::Regular).into(),
@@ -32,19 +34,13 @@ pub(crate) fn x3d_cache_preference_indicator(preference: &X3dCachePreference) ->
         X3dCachePreference::Cache => "cache first",
         X3dCachePreference::Frequency => "clock first",
     };
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(X3dCachePreference::NAME, glyph, IndicatorState::Idle)
+        .with_readout(IndicatorReadout {
             label: ReadoutLabel::Labeled(label.to_owned()),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            X3dCachePreference::NAME,
-            glyph,
-            IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
-        )
-    }
+        })
+        .with_hover_card(Box::new(|_| Vec::new()))
 }
 
 const fn favoured_role(preference: X3dCachePreference) -> CoreRole {

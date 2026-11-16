@@ -7,8 +7,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -110,20 +110,18 @@ impl ContextSwitchRate<'_> {
 }
 
 impl<'a> ContextSwitchRate<'a> {
-    pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(format!("{}/h", self.per_hour(clock.utc()))),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Context switches",
-                Phosphor::Shuffle(Weight::Regular).into(),
-                self.severity(clock.utc()).into(),
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+    pub fn indicator(self, clock: Clock) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            "Context switches",
+            Phosphor::Shuffle(Weight::Regular).into(),
+            self.severity(clock.utc()).into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(format!("{}/h", self.per_hour(clock.utc()))),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {

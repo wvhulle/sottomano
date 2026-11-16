@@ -11,10 +11,9 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutBadge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -84,7 +83,7 @@ pub(super) fn slow_jobs_item<'a>(
             action_buttons: Vec::new(),
         }
     });
-    GroupIndicator::sample(slow_jobs_indicator(jobs))
+    slow_jobs_indicator(jobs)
         .on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             open_log(jobs.follow_log_args()),
@@ -123,23 +122,17 @@ pub(super) fn slow_jobs_hover_card(jobs: &SlowJobs) -> Vec<Section> {
     )]
 }
 
-pub(super) fn slow_jobs_indicator(jobs: &SlowJobs) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn slow_jobs_indicator(jobs: &SlowJobs) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         slow_jobs_name(jobs),
         Phosphor::HourglassMedium(Weight::Regular).into(),
         IndicatorState::Warning,
-        Box::new(move |_| slow_jobs_hover_card(jobs)),
-    );
+    )
+    .with_hover_card(Box::new(move |_| slow_jobs_hover_card(jobs)));
     let badge = match jobs.jobs.len() {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            badge,
-            ..base.readout
-        },
-        panel_visibility: slow_jobs_panel_visibility(jobs),
-        ..base
-    }
+    base.with_badge(badge)
+        .with_panel_visibility(slow_jobs_panel_visibility(jobs))
 }

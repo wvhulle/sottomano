@@ -21,7 +21,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -80,7 +79,7 @@ struct WaydroidContainerRow<'a> {
 }
 
 impl<'a> WaydroidContainerRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
                 memory_in_use: Some(memory_in_use),
@@ -92,19 +91,17 @@ impl<'a> WaydroidContainerRow<'a> {
                 self.shown.container().label().to_owned()
             }
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Container",
-                Phosphor::Package(Weight::Regular).into(),
-                self.shown.container().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Container",
+            Phosphor::Package(Weight::Regular).into(),
+            self.shown.container().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -131,7 +128,7 @@ struct WaydroidSessionRow<'a> {
 }
 
 impl<'a> WaydroidSessionRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
             WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
@@ -140,19 +137,17 @@ impl<'a> WaydroidSessionRow<'a> {
             WaydroidState::Session { .. } => IndicatorState::On,
             WaydroidState::ContainerOnly | WaydroidState::Absent => IndicatorState::Off,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Session",
-                Phosphor::DeviceMobile(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Session",
+            Phosphor::DeviceMobile(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -333,7 +328,8 @@ impl WaydroidContainerGroup {
     }
 
     fn container_row<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupIndicator<'a> {
-        let row = GroupIndicator::sample(WaydroidContainerRow { shown }.reading_row())
+        let row = WaydroidContainerRow { shown }
+            .indicator()
             .with_hover_card(Box::new(move |_| {
                 self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
             }));
@@ -356,12 +352,10 @@ impl WaydroidContainerGroup {
         if shown.container() == ContainerRunState::Stopped {
             return vec![container_row];
         }
-        let session_row = GroupIndicator::sample(
-            WaydroidSessionRow {
-                state: shown.state(),
-            }
-            .reading_row(),
-        )
+        let session_row = WaydroidSessionRow {
+            state: shown.state(),
+        }
+        .indicator()
         .with_hover_card(Box::new(move |_| {
             self.stamped_card(
                 shown,

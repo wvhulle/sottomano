@@ -5,8 +5,8 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,7 +22,7 @@ const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 pub(crate) const NOTULIST_ENGINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Brain(Weight::Regular));
 
-pub fn notulist_engine_indicator(speech: &NotulistEngine) -> ReadingRow<'_> {
+pub fn notulist_engine_indicator(speech: &NotulistEngine) -> GroupIndicator<'_> {
     let glyph: IconGlyph = match &speech.engine {
         EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
             SimpleIcon::HuggingFace.into()
@@ -41,15 +41,9 @@ pub fn notulist_engine_indicator(speech: &NotulistEngine) -> ReadingRow<'_> {
     } else {
         PanelVisibility::Shown
     };
-    ReadingRow {
-        panel_visibility,
-        ..ReadingRow::glyph_only(
-            NotulistEngine::NAME,
-            glyph,
-            state,
-            Box::new(move |_| notulist_engine_hover_card(speech)),
-        )
-    }
+    GroupIndicator::glyph_only(NotulistEngine::NAME, glyph, state)
+        .with_panel_visibility(panel_visibility)
+        .with_hover_card(Box::new(move |_| notulist_engine_hover_card(speech)))
 }
 
 pub fn notulist_engine_hover_card(speech: &NotulistEngine) -> Vec<Section> {
@@ -189,7 +183,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_indicators::{indicator_drawing::IndicatorIcon, reading_row::PanelVisibility},
+        group_indicators::{group_indicator::PanelVisibility, indicator_drawing::IndicatorIcon},
         widgets::value_cells::ValueCell,
     };
 
@@ -236,7 +230,7 @@ mod tests {
             engine: EngineState::SpeechModelReady(engine),
         };
         assert_eq!(
-            notulist_engine_indicator(&ready).face.icon,
+            notulist_engine_indicator(&ready).face().icon,
             IndicatorIcon::IconGlyph {
                 glyph: SimpleIcon::HuggingFace.into(),
                 state: IndicatorState::On,
@@ -256,8 +250,8 @@ mod tests {
         };
         let loading_row = notulist_engine_indicator(&loading);
         let unavailable_row = notulist_engine_indicator(&unavailable);
-        assert_eq!(loading_row.panel_visibility, PanelVisibility::Hidden);
-        assert_eq!(unavailable_row.panel_visibility, PanelVisibility::Shown);
+        assert_eq!(loading_row.panel_visibility(), PanelVisibility::Hidden);
+        assert_eq!(unavailable_row.panel_visibility(), PanelVisibility::Shown);
         assert_eq!(unavailable_row.shown_state(), IndicatorState::Failed);
     }
 

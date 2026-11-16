@@ -6,9 +6,9 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -26,31 +26,29 @@ pub struct GpuTemperatureLabel {
 }
 
 impl GpuTemperatureLabel {
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let label = celsius_text(self.current);
         let state = self.display_state();
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label.clone()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
+        GroupIndicator::glyph_only(
+            "GPU temperature",
+            Phosphor::ThermometerSimple(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label.clone()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_alerts(IndicatorAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "GPU overheating",
+                body: ToastBody::Text(label),
+                progress: ToastProgress::Unmeasured,
             },
-            alerts: IndicatorAlerts {
-                state_toast: StateToast::NotifyFromSeverity {
-                    minimum_severity: Severity::Critical,
-                    summary_text: "GPU overheating",
-                    body: ToastBody::Text(label),
-                    progress: ToastProgress::Unmeasured,
-                },
-                ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "GPU temperature",
-                Phosphor::ThermometerSimple(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            ..IndicatorAlerts::default()
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn display_state(&self) -> IndicatorState {

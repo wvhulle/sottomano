@@ -22,7 +22,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -104,7 +103,7 @@ struct IncusInstanceRow<'a> {
 }
 
 impl<'a> IncusInstanceRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let label = if self.instance.listing.run_state == ContainerRunState::Stopped {
             Some(self.instance.listing.status_text.to_lowercase())
         } else {
@@ -114,23 +113,21 @@ impl<'a> IncusInstanceRow<'a> {
                 .cloned()
                 .or_else(|| self.instance.memory_in_use.map(approximate_memory_text))
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: label.map_or(ReadoutLabel::Unlabeled, ReadoutLabel::Labeled),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                daemon_instance_name(
-                    self.instance_daemon,
-                    &self.instance.listing.project_name,
-                    &self.instance.listing.instance_name,
-                ),
-                instance_icon(self.instance.listing.kind),
-                self.instance.listing.run_state.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            daemon_instance_name(
+                self.instance_daemon,
+                &self.instance.listing.project_name,
+                &self.instance.listing.instance_name,
+            ),
+            instance_icon(self.instance.listing.kind),
+            self.instance.listing.run_state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: label.map_or(ReadoutLabel::Unlabeled, ReadoutLabel::Labeled),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -166,24 +163,22 @@ struct IncusInstanceListingRow<'a> {
 }
 
 impl<'a> IncusInstanceListingRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.listing.status_text.to_lowercase()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                daemon_instance_name(
-                    self.instance_daemon,
-                    &self.listing.project_name,
-                    &self.listing.instance_name,
-                ),
-                instance_icon(self.listing.kind),
-                self.listing.run_state.into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            daemon_instance_name(
+                self.instance_daemon,
+                &self.listing.project_name,
+                &self.listing.instance_name,
+            ),
+            instance_icon(self.listing.kind),
+            self.listing.run_state.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.listing.status_text.to_lowercase()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -205,20 +200,18 @@ struct UnreadableDaemonRow<'a> {
 }
 
 impl<'a> UnreadableDaemonRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.instance_daemon.product_name(),
-                Phosphor::Package(Weight::Regular).into(),
-                IndicatorState::Failed,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.instance_daemon.product_name(),
+            Phosphor::Package(Weight::Regular).into(),
+            IndicatorState::Failed,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -394,13 +387,11 @@ impl IncusInstancesGroup {
                 .details
                 .iter()
                 .map(|instance| {
-                    let row = GroupIndicator::sample(
-                        IncusInstanceRow {
-                            instance_daemon,
-                            instance,
-                        }
-                        .reading_row(),
-                    );
+                    let row = IncusInstanceRow {
+                        instance_daemon,
+                        instance,
+                    }
+                    .indicator();
                     instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
                         Box::new(move |_| {
                             detail_indicator.hover_card_with(
@@ -419,13 +410,13 @@ impl IncusInstancesGroup {
             return Vec::new();
         };
         if let Some(read_failure) = listing_indicator.fetch_failure() {
-            return vec![GroupIndicator::sample(
+            return vec![
                 UnreadableDaemonRow {
                     instance_daemon,
                     read_failure,
                 }
-                .reading_row(),
-            )];
+                .indicator(),
+            ];
         }
         listing_indicator
             .get()
@@ -433,13 +424,11 @@ impl IncusInstancesGroup {
             .unwrap_or_default()
             .iter()
             .map(|listing| {
-                let row = GroupIndicator::sample(
-                    IncusInstanceListingRow {
-                        instance_daemon,
-                        listing,
-                    }
-                    .reading_row(),
-                );
+                let row = IncusInstanceListingRow {
+                    instance_daemon,
+                    listing,
+                }
+                .indicator();
                 instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
                     move |_| {
                         listing_indicator.hover_card_with(

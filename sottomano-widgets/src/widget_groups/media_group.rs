@@ -30,10 +30,9 @@ use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
     group_indicators::{
-        group_indicator::{GroupIndicator, IndicatorValue},
+        group_indicator::{DescribeCard, GroupIndicator, IndicatorValue, PanelVisibility},
         indicator_drawing::IndicatorIcon,
         indicator_state::IndicatorState,
-        reading_row::{DescribeCard, PanelVisibility},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -574,8 +573,8 @@ fn player_group<'a>(
             match lyrics_snapshot {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                     let lyrics_row = track_lyrics_indicator(held_snapshot);
-                    if lyrics_row.panel_visibility == PanelVisibility::Shown {
-                        rows.push(GroupIndicator::sample(lyrics_row).with_hover_card(cards.lyrics));
+                    if lyrics_row.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_row.with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
@@ -583,16 +582,15 @@ fn player_group<'a>(
                         track_lyrics_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     );
-                    if lyrics_row.panel_visibility == PanelVisibility::Shown {
-                        rows.push(GroupIndicator::sample(lyrics_row).with_hover_card(cards.lyrics));
+                    if lyrics_row.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_row.with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
                     rows.push(
-                        GroupIndicator::sample(
-                            placeholder.reading_row(TRACK_LYRICS_FALLBACK_GLYPH),
-                        )
-                        .with_hover_card(cards.lyrics),
+                        placeholder
+                            .indicator(TRACK_LYRICS_FALLBACK_GLYPH)
+                            .with_hover_card(cards.lyrics),
                     );
                 }
                 SubscribedSnapshot::AwaitingFirstSnapshot

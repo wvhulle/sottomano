@@ -6,7 +6,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -143,10 +142,8 @@ impl NotificationGroup {
         quiet_schedule: &'a QuietScheduleGroup,
     ) -> WidgetGroupContent<'a> {
         let quiet_phase = status.quiet_phase;
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Tray(Weight::Regular).into(),
-            GroupIndicator::sample(status.reading_row()),
-        );
+        let group_summary =
+            GroupSummary::summarising(Phosphor::Tray(Weight::Regular).into(), status.indicator());
         let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
@@ -154,20 +151,18 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupIndicator::sample(do_not_disturb_indicator(DoNotDisturbStatus {
-                    quiet_phase,
-                }))
-                .on_switch_press(
-                    quiet_phase,
-                    match quiet_phase {
-                        QuietPhase::Active => "end do not disturb now",
-                        QuietPhase::Inactive => "start do not disturb now",
-                    },
-                    NotificationGroupMessage::ToggleDoNotDisturb,
-                )
-                .with_hover_card(Box::new(move |clock| {
-                    quiet_schedule.do_not_disturb_hover_card(clock)
-                })),
+                do_not_disturb_indicator(DoNotDisturbStatus { quiet_phase })
+                    .on_switch_press(
+                        quiet_phase,
+                        match quiet_phase {
+                            QuietPhase::Active => "end do not disturb now",
+                            QuietPhase::Inactive => "start do not disturb now",
+                        },
+                        NotificationGroupMessage::ToggleDoNotDisturb,
+                    )
+                    .with_hover_card(Box::new(move |clock| {
+                        quiet_schedule.do_not_disturb_hover_card(clock)
+                    })),
                 GroupIndicator::toggle(
                     sound_toggle(self.alert_sound),
                     NotificationGroupMessage::ToggleSound,
@@ -185,7 +180,7 @@ pub struct NotificationStatus {
 }
 
 impl NotificationStatus {
-    fn reading_row(self) -> ReadingRow<'static> {
+    fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = match self.quiet_phase {
             QuietPhase::Active => Phosphor::ChatCircleSlash(Weight::Regular).into(),
             QuietPhase::Inactive => Phosphor::ChatCircle(Weight::Regular).into(),
@@ -199,19 +194,13 @@ impl NotificationStatus {
             0 => ReadoutBadge::Unbadged,
             count => ReadoutBadge::Counted(count),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Pending notifications", glyph, state)
+            .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge: ReadoutGauge::Ungauged,
                 badge,
-            },
-            ..ReadingRow::glyph_only(
-                "Pending notifications",
-                glyph,
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(self) -> Vec<Section> {
@@ -234,13 +223,13 @@ struct DoNotDisturbStatus {
     quiet_phase: QuietPhase,
 }
 
-fn do_not_disturb_indicator(status: DoNotDisturbStatus) -> ReadingRow<'static> {
-    ReadingRow::glyph_only(
+fn do_not_disturb_indicator<'indicator>(status: DoNotDisturbStatus) -> GroupIndicator<'indicator> {
+    GroupIndicator::glyph_only(
         "Do not disturb",
         Phosphor::Prohibit(Weight::Regular).into(),
         IndicatorState::from(status.quiet_phase),
-        Box::new(|_| Vec::new()),
     )
+    .with_hover_card(Box::new(|_| Vec::new()))
 }
 
 #[cfg(test)]

@@ -5,9 +5,9 @@ use uom::si::{f64::Power, power::watt};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTable, dictionary_table},
     widgets::{
@@ -86,7 +86,7 @@ pub fn charger_supply_sections(charger_supply: &ChargerSupply) -> Vec<Section> {
 }
 
 impl PowerDraw {
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = if self.power_source() == PowerSource::Battery {
             Phosphor::Plugs(Weight::Regular).into()
         } else {
@@ -102,19 +102,13 @@ impl PowerDraw {
             IndicatorState::Idle
         };
         let fill = self.power / Power::new::<watt>(POWER_GAUGE_MAX_W);
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Power draw", glyph, state)
+            .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge: ReadoutGauge::Gauged { fill, live: fill },
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Power draw",
-                glyph,
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

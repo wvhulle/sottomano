@@ -3,7 +3,7 @@ use std::time::Duration;
 use notulist_client::DictationEngine;
 
 use crate::{
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
@@ -45,13 +45,13 @@ impl RuntimeConfiguration<'_> {
 }
 
 impl<'a> RuntimeConfiguration<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow::glyph_only(
+    pub fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
             "Runtime configuration",
             Phosphor::SlidersHorizontal(Weight::Regular).into(),
             IndicatorState::On,
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

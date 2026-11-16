@@ -8,8 +8,8 @@ use sottomano_desktop_sources::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     widgets::{
@@ -18,17 +18,13 @@ use crate::{
     },
 };
 
-pub fn dark_mode_indicator(mode: &DarkMode) -> ReadingRow<'_> {
+pub fn dark_mode_indicator(mode: &DarkMode) -> GroupIndicator<'_> {
     let glyph: IconGlyph = match mode.color_mode {
         ColorMode::Dark => Phosphor::Moon(Weight::Regular).into(),
         ColorMode::Light => Phosphor::Sun(Weight::Regular).into(),
     };
-    ReadingRow::glyph_only(
-        DarkMode::NAME,
-        glyph,
-        IndicatorState::Idle,
-        Box::new(|_| Vec::new()),
-    )
+    GroupIndicator::glyph_only(DarkMode::NAME, glyph, IndicatorState::Idle)
+        .with_hover_card(Box::new(|_| Vec::new()))
 }
 
 impl ToggleableSource for DarkMode {

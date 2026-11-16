@@ -1,10 +1,7 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    group_indicators::{
-        indicator_drawing::{IndicatorReadout, ReadoutBadge},
-        reading_row::ReadingRow,
-    },
+    group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutBadge},
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
     widgets::phosphor::Weight,
@@ -25,7 +22,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::indicator_state::IndicatorState,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -102,7 +99,8 @@ impl PendingUpgradesGroup {
         }
         if let Some(placeholder) = self.firmware.failure() {
             rows.push(
-                GroupIndicator::sample(placeholder.reading_row(FIRMWARE_UPGRADES_GLYPH.into()))
+                placeholder
+                    .indicator(FIRMWARE_UPGRADES_GLYPH.into())
                     .with_hover_card(Box::new(move |_| {
                         self.firmware.sections_described_by(|snapshot| {
                             firmware_upgrades_hover_card(snapshot)
@@ -112,7 +110,7 @@ impl PendingUpgradesGroup {
         }
         let group_summary = GroupSummary::summarising(
             Phosphor::ArrowFatLinesUp(Weight::Regular).into(),
-            GroupIndicator::sample(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
+            self.indicator(clock).with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
             })),
         );
@@ -168,25 +166,19 @@ impl PendingUpgradesGroup {
         )]
     }
 
-    fn reading_row(&self, clock: Clock) -> ReadingRow<'_> {
-        let base = ReadingRow::glyph_only(
+    fn indicator(&self, clock: Clock) -> GroupIndicator<'_> {
+        let base = GroupIndicator::glyph_only(
             "Available upgrades",
             Phosphor::ArrowCircleUp(Weight::Regular).into(),
             self.state(clock),
-            Box::new(move |_| self.hover_card()),
-        );
+        )
+        .with_hover_card(Box::new(move |_| self.hover_card()));
         let total: usize = self.category_badges().into_iter().flatten().sum();
         let badge = if total > 0 {
             ReadoutBadge::Counted(total)
         } else {
             ReadoutBadge::Unbadged
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                badge,
-                ..base.readout
-            },
-            ..base
-        }
+        base.with_badge(badge)
     }
 }

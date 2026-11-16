@@ -104,21 +104,13 @@ pub(super) enum FilesystemPropertyRow<'a> {
 impl<'a> FilesystemPropertyRow<'a> {
     pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'a> {
         match self {
-            FilesystemPropertyRow::Mount(row) => GroupIndicator::sample(row.reading_row()),
-            FilesystemPropertyRow::Volume(row) => GroupIndicator::sample(row.reading_row()),
-            FilesystemPropertyRow::Inodes(row) => GroupIndicator::sample(row.reading_row(locale)),
-            FilesystemPropertyRow::MetadataRoom(row) => {
-                GroupIndicator::sample(row.reading_row(locale))
-            }
-            FilesystemPropertyRow::Compression(row) => {
-                GroupIndicator::sample(row.reading_row(locale))
-            }
-            FilesystemPropertyRow::Ext4Errors(row) => {
-                GroupIndicator::sample(row.reading_row(locale))
-            }
-            FilesystemPropertyRow::Ext4Writes(row) => {
-                GroupIndicator::sample(row.reading_row(locale))
-            }
+            FilesystemPropertyRow::Mount(row) => row.indicator(),
+            FilesystemPropertyRow::Volume(row) => row.indicator(),
+            FilesystemPropertyRow::Inodes(row) => row.indicator(locale),
+            FilesystemPropertyRow::MetadataRoom(row) => row.indicator(locale),
+            FilesystemPropertyRow::Compression(row) => row.indicator(locale),
+            FilesystemPropertyRow::Ext4Errors(row) => row.indicator(locale),
+            FilesystemPropertyRow::Ext4Writes(row) => row.indicator(locale),
         }
     }
 

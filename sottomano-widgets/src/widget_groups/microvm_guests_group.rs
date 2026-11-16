@@ -23,7 +23,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -60,25 +59,23 @@ struct MicrovmUnitRow<'a> {
 }
 
 impl<'a> MicrovmUnitRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let state = match self.activity {
             UnitActivity::Running => IndicatorState::On,
             UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
             UnitActivity::Stopped => IndicatorState::Off,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(activity_text(self.activity).to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.unit.instance_name.clone(),
-                Phosphor::Lightning(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            self.unit.instance_name.clone(),
+            Phosphor::Lightning(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(activity_text(self.activity).to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     fn hover_card(&self) -> Vec<Section> {
@@ -97,20 +94,18 @@ struct MicrovmGuestListingRow<'a> {
 }
 
 impl<'a> MicrovmGuestListingRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.listing.machine_name.clone(),
-                Phosphor::Lightning(Weight::Regular).into(),
-                ContainerRunState::Running.into(),
-                Box::new(|_| Self::hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.listing.machine_name.clone(),
+            Phosphor::Lightning(Weight::Regular).into(),
+            ContainerRunState::Running.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| Self::hover_card()))
     }
 
     fn hover_card() -> Vec<Section> {
@@ -160,20 +155,18 @@ impl MicrovmGuestRow<'_> {
 }
 
 impl<'a> MicrovmGuestRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.machine.listing.machine_name.clone(),
-                Phosphor::Lightning(Weight::Regular).into(),
-                IndicatorState::On,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.machine.listing.machine_name.clone(),
+            Phosphor::Lightning(Weight::Regular).into(),
+            IndicatorState::On,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -389,18 +382,17 @@ impl MicrovmGuestsGroup {
 
     fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupIndicator<'a> {
         let row = match self.running_guest_of(unit) {
-            Some(machine) => GroupIndicator::sample(MicrovmGuestRow { machine }.reading_row())
+            Some(machine) => MicrovmGuestRow { machine }
+                .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.detail
                         .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
                 })),
-            None => GroupIndicator::sample(
-                MicrovmUnitRow {
-                    unit,
-                    activity: self.unit_activity(unit),
-                }
-                .reading_row(),
-            )
+            None => MicrovmUnitRow {
+                unit,
+                activity: self.unit_activity(unit),
+            }
+            .indicator()
             .with_hover_card(Box::new(move |_| {
                 let activity = self.unit_activity(unit);
                 self.units
@@ -428,7 +420,8 @@ impl MicrovmGuestsGroup {
                 .iter()
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
-                    let row = GroupIndicator::sample(MicrovmGuestRow { machine }.reading_row())
+                    let row = MicrovmGuestRow { machine }
+                        .indicator()
                         .with_hover_card(Box::new(move |clock| {
                             self.detail
                                 .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
@@ -458,7 +451,8 @@ impl MicrovmGuestsGroup {
                             .any(|unit| unit.instance_name == listing.machine_name)
                     })
                     .map(|listing| {
-                        GroupIndicator::sample(MicrovmGuestListingRow { listing }.reading_row())
+                        MicrovmGuestListingRow { listing }
+                            .indicator()
                             .with_hover_card(Box::new(move |_| {
                                 self.listings
                                     .hover_card_with(MicrovmGuestListingRow::hover_card())

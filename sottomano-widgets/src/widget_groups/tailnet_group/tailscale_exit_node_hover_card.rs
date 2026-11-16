@@ -8,9 +8,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -38,7 +38,7 @@ pub(super) struct ExitNodeChoiceRow<'a> {
 }
 
 impl<'a> ExitNodeChoiceRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let label = match self
             .exit_node_choices
             .control_for_option(self.exit_node_option)
@@ -47,19 +47,17 @@ impl<'a> ExitNodeChoiceRow<'a> {
             ExitNodeControl::BlockedByOffering => ReadoutLabel::Labeled("blocked".to_owned()),
             ExitNodeControl::Offline => ReadoutLabel::Labeled("offline".to_owned()),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("Exit via {}", self.exit_node_option.name),
-                Phosphor::SignOut(Weight::Regular).into(),
-                IndicatorState::from(SwitchPosition::from(self.exit_node_option.node_use)),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            format!("Exit via {}", self.exit_node_option.name),
+            Phosphor::SignOut(Weight::Regular).into(),
+            IndicatorState::from(SwitchPosition::from(self.exit_node_option.node_use)),
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
@@ -104,13 +102,13 @@ pub(super) struct ExitNodeLanAccessRow<'a> {
 }
 
 impl<'a> ExitNodeLanAccessRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow::glyph_only(
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
             "LAN while exiting",
             Phosphor::HouseLine(Weight::Regular).into(),
             IndicatorState::from(SwitchPosition::from(self.exit_node_choices.lan_access)),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

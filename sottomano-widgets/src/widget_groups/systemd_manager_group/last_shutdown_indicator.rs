@@ -8,10 +8,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_indicators::{
-        indicator_drawing::{IndicatorReadout, ReadoutLabel},
-        reading_row::ReadingRow,
-    },
+    group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel},
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -59,8 +56,11 @@ pub(super) fn last_shutdown_hover_card(shutdown: &LastShutdown) -> Vec<Section> 
     )]
 }
 
-pub(super) fn last_shutdown_indicator(shutdown: &LastShutdown, locale: Locale) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn last_shutdown_indicator(
+    shutdown: &LastShutdown,
+    locale: Locale,
+) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         LastShutdown::NAME,
         Phosphor::Power(Weight::Regular).into(),
         shutdown
@@ -70,13 +70,10 @@ pub(super) fn last_shutdown_indicator(shutdown: &LastShutdown, locale: Locale) -
             .max()
             .unwrap_or_default()
             .into(),
-        Box::new(move |_| last_shutdown_hover_card(shutdown)),
-    );
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(duration_text(shutdown.duration, locale)),
-            ..base.readout
-        },
-        ..base
-    }
+    )
+    .with_hover_card(Box::new(move |_| last_shutdown_hover_card(shutdown)));
+    base.with_label(ReadoutLabel::Labeled(duration_text(
+        shutdown.duration,
+        locale,
+    )))
 }

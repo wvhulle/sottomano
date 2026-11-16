@@ -5,8 +5,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -49,34 +49,32 @@ impl InodeUsageRow {
 }
 
 impl InodeUsageRow {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+    pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let label = format!(
             "{} free",
             Quantity::compact_count(self.inodes.free).localized_text(locale)
         );
         let fill = percent_fill(self.used_percent());
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(label.clone()),
-                gauge: ReadoutGauge::Gauged { fill, live: fill },
-                badge: ReadoutBadge::Unbadged,
+        GroupIndicator::glyph_only(
+            "Inodes",
+            Phosphor::Files(Weight::Regular).into(),
+            self.severity().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(label.clone()),
+            gauge: ReadoutGauge::Gauged { fill, live: fill },
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_alerts(IndicatorAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "Running out of inodes",
+                body: ToastBody::Text(label),
+                progress: ToastProgress::Measured(fill),
             },
-            alerts: IndicatorAlerts {
-                state_toast: StateToast::NotifyFromSeverity {
-                    minimum_severity: Severity::Critical,
-                    summary_text: "Running out of inodes",
-                    body: ToastBody::Text(label),
-                    progress: ToastProgress::Measured(fill),
-                },
-                ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "Inodes",
-                Phosphor::Files(Weight::Regular).into(),
-                self.severity().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            ..IndicatorAlerts::default()
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

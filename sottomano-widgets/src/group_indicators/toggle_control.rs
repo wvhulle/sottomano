@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::Section,
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -111,13 +111,13 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             self.name,
             self.icon.with_weight(Weight::Regular).into(),
             IndicatorState::from(self.switch_position),
-            Box::new(|_| Vec::new()),
         )
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 
@@ -212,7 +212,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_indicators::reading_row::PanelVisibility,
+        group_indicators::group_indicator::PanelVisibility,
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
         widget_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_indicator,
     };

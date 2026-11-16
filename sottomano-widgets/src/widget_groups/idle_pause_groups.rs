@@ -400,7 +400,8 @@ impl IdlePauseGroups {
             }));
         let mut rows = vec![timeout_slider];
         rows.extend(self.blockers_of(pause).map(move |blocker| {
-            GroupIndicator::sample(blocker.reading_row())
+            blocker
+                .indicator()
                 .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
         }));
         if let Some(obstacles) = self.sleep_obstacles.get() {
@@ -408,7 +409,8 @@ impl IdlePauseGroups {
                 && let Some(state) = obstacles.sleep_state_that_runs()
             {
                 rows.push(
-                    GroupIndicator::sample(NextSleepStateRow { state }.reading_row())
+                    NextSleepStateRow { state }
+                        .indicator()
                         .with_hover_card(Box::new(move |card_clock| {
                             self.pause_sections(IdleAction::Sleep, card_clock)
                         })),
@@ -418,12 +420,11 @@ impl IdlePauseGroups {
                 && let Some(shutdown) = obstacles.scheduled_shutdown.as_ref()
             {
                 rows.push(
-                    GroupIndicator::sample(
-                        ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
-                    )
-                    .with_hover_card(Box::new(move |card_clock| {
-                        self.pause_sections(IdleAction::PowerOff, card_clock)
-                    })),
+                    ScheduledShutdownRow { shutdown }
+                        .indicator(clock, locale)
+                        .with_hover_card(Box::new(move |card_clock| {
+                            self.pause_sections(IdleAction::PowerOff, card_clock)
+                        })),
                 );
             }
         }

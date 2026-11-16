@@ -6,9 +6,9 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -93,24 +93,22 @@ impl FocusRunIndicator<'_> {
 }
 
 impl<'a> FocusRunIndicator<'a> {
-    pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
+    pub fn indicator(self, clock: Clock) -> GroupIndicator<'a> {
         let label = match self.accounting.dominant_run(clock.utc()) {
             Some(run) => ReadoutLabel::Labeled(run.unit.label().into_owned()),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Focus run",
-                Phosphor::Target(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Focus run",
+            Phosphor::Target(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {

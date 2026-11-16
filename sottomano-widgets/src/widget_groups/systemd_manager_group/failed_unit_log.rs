@@ -18,10 +18,9 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutBadge,
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -120,7 +119,7 @@ pub(super) fn failed_units_item<'a>(
             .collect(),
         }
     });
-    GroupIndicator::sample(failed_units_indicator(failed))
+    failed_units_indicator(failed)
         .on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             open_log(failed.follow_log_args()),
@@ -207,27 +206,21 @@ pub(super) fn failed_units_hover_card(failed: &FailedUnits) -> Vec<Section> {
     )]
 }
 
-pub(super) fn failed_units_indicator(failed: &FailedUnits) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn failed_units_indicator(failed: &FailedUnits) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         failed_units_name(failed),
         unit_scope_icon(failed.scope)
             .with_weight(Weight::Regular)
             .into(),
         failed_units_state(),
-        Box::new(move |_| failed_units_hover_card(failed)),
-    );
+    )
+    .with_hover_card(Box::new(move |_| failed_units_hover_card(failed)));
     let badge = match failed.units.len() {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            badge,
-            ..base.readout
-        },
-        panel_visibility: failed_units_panel_visibility(failed),
-        ..base
-    }
+    base.with_badge(badge)
+        .with_panel_visibility(failed_units_panel_visibility(failed))
 }
 
 fn failed_unit_table(units: &[FailedUnitInfo]) -> SectionTable {

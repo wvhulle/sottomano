@@ -20,7 +20,6 @@ use self::port_link_indicator::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -267,13 +266,11 @@ impl EthernetPortsGroup {
         let expansion = self.expansions.get(&port_state.name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::ShareNetwork(Weight::Regular).into(),
-            GroupIndicator::sample(
-                PortLinkIndicator {
-                    port_state,
-                    marking: self.port_marking(port_state),
-                }
-                .reading_row(),
-            )
+            PortLinkIndicator {
+                port_state,
+                marking: self.port_marking(port_state),
+            }
+            .indicator()
             .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)))
             .fetching_on_hover(
                 EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
@@ -282,7 +279,8 @@ impl EthernetPortsGroup {
         );
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
-        let connection_item = GroupIndicator::sample(connection_switch.reading_row())
+        let connection_item = connection_switch
+            .indicator()
             .on_switch_press(
                 port_state.link_state,
                 connection_press_does,
@@ -297,14 +295,15 @@ impl EthernetPortsGroup {
                 [AddressFamily::Ipv4, AddressFamily::Ipv6]
                     .into_iter()
                     .map(|family| {
-                        GroupIndicator::sample(InterfaceAddressIndicator { family }.reading_row())
+                        InterfaceAddressIndicator { family }
+                            .indicator()
                             .with_hover_card(Box::new(move |_| {
                                 self.interface_address_hover_card(port_state, family)
                             }))
                     }),
             );
             rows.push(
-                GroupIndicator::sample(InterfaceDnsIndicator::reading_row())
+                InterfaceDnsIndicator::indicator()
                     .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state))),
             );
         }

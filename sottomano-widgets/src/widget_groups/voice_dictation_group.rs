@@ -47,9 +47,8 @@ use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -314,11 +313,11 @@ impl VoiceDictationGroup {
 
     fn dictation_item<'a>(
         &'a self,
-        dictation_row: ReadingRow<'a>,
+        dictation_row: GroupIndicator<'a>,
         switch_position: SwitchPosition,
         press_text: &'static str,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(dictation_row)
+        dictation_row
             .on_switch_press(
                 switch_position,
                 press_text,
@@ -331,8 +330,11 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
     }
 
-    fn interface_mismatch_item<'a>(&'a self, mismatch_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(mismatch_row)
+    fn interface_mismatch_item<'a>(
+        &'a self,
+        mismatch_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        mismatch_row
             .with_hover_card(Box::new(move |_| {
                 self.interface_mismatch
                     .sections_described_by(notulist_interface_mismatch_hover_card)
@@ -342,8 +344,8 @@ impl VoiceDictationGroup {
             ))
     }
 
-    fn pipeline_item<'a>(&'a self, pipeline_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(pipeline_row)
+    fn pipeline_item<'a>(&'a self, pipeline_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        pipeline_row
             .with_hover_card(Box::new(move |_| {
                 self.pipeline
                     .sections_described_by(notulist_pipeline_hover_card)
@@ -351,8 +353,8 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
     }
 
-    fn engine_item<'a>(&'a self, engine_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        let engine_item = GroupIndicator::sample(engine_row)
+    fn engine_item<'a>(&'a self, engine_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        let engine_item = engine_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .engine
@@ -373,8 +375,8 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn output_problems_item<'a>(&'a self, problems_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(problems_row)
+    fn output_problems_item<'a>(&'a self, problems_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        problems_row
             .with_hover_card(Box::new(move |_| {
                 self.output_problems
                     .sections_described_by(notulist_output_problems_hover_card)
@@ -407,7 +409,7 @@ impl VoiceDictationGroup {
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::ChatTeardropText(Weight::Regular).into(),
                 self.dictation_item(
-                    placeholder.reading_row(DICTATION_GLYPH.into()),
+                    placeholder.indicator(DICTATION_GLYPH.into()),
                     SwitchPosition::Off,
                     "start dictating at the cursor",
                 ),
@@ -449,7 +451,7 @@ impl VoiceDictationGroup {
         match &self.interface_mismatch {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let mismatch_row = notulist_interface_mismatch_indicator(held_snapshot);
-                if mismatch_row.panel_visibility == PanelVisibility::Shown {
+                if mismatch_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.interface_mismatch_item(mismatch_row));
                 }
             }
@@ -458,13 +460,13 @@ impl VoiceDictationGroup {
                     notulist_interface_mismatch_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if mismatch_row.panel_visibility == PanelVisibility::Shown {
+                if mismatch_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.interface_mismatch_item(mismatch_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.interface_mismatch_item(
-                    placeholder.reading_row(NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH),
+                    placeholder.indicator(NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
@@ -483,7 +485,7 @@ impl VoiceDictationGroup {
             match &self.pipeline {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                     let pipeline_row = notulist_pipeline_indicator(held_snapshot);
-                    if pipeline_row.panel_visibility == PanelVisibility::Shown {
+                    if pipeline_row.panel_visibility() == PanelVisibility::Shown {
                         rows.push(self.pipeline_item(pipeline_row));
                     }
                 }
@@ -492,15 +494,13 @@ impl VoiceDictationGroup {
                         notulist_pipeline_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     );
-                    if pipeline_row.panel_visibility == PanelVisibility::Shown {
+                    if pipeline_row.panel_visibility() == PanelVisibility::Shown {
                         rows.push(self.pipeline_item(pipeline_row));
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
                     rows.push(
-                        self.pipeline_item(
-                            placeholder.reading_row(NOTULIST_PIPELINE_FALLBACK_GLYPH),
-                        ),
+                        self.pipeline_item(placeholder.indicator(NOTULIST_PIPELINE_FALLBACK_GLYPH)),
                     );
                 }
                 SubscribedSnapshot::AwaitingFirstSnapshot
@@ -532,7 +532,7 @@ impl VoiceDictationGroup {
         match &self.engine {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let engine_row = notulist_engine_indicator(held_snapshot);
-                if engine_row.panel_visibility == PanelVisibility::Shown {
+                if engine_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.engine_item(engine_row));
                 }
             }
@@ -541,14 +541,12 @@ impl VoiceDictationGroup {
                     notulist_engine_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if engine_row.panel_visibility == PanelVisibility::Shown {
+                if engine_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.engine_item(engine_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.engine_item(placeholder.reading_row(NOTULIST_ENGINE_FALLBACK_GLYPH)),
-                );
+                rows.push(self.engine_item(placeholder.indicator(NOTULIST_ENGINE_FALLBACK_GLYPH)));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -557,7 +555,8 @@ impl VoiceDictationGroup {
     fn push_loaded_engine_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(loaded) = self.loaded_engine() {
             rows.push(
-                GroupIndicator::sample(RuntimeConfiguration(loaded).reading_row())
+                RuntimeConfiguration(loaded)
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.engine
                             .hover_card_with(RuntimeConfiguration(loaded).hover_card())
@@ -565,7 +564,8 @@ impl VoiceDictationGroup {
                     .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
             );
             rows.push(
-                GroupIndicator::sample(InferenceHardware(loaded).reading_row())
+                InferenceHardware(loaded)
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.engine
                             .hover_card_with(InferenceHardware(loaded).hover_card())
@@ -579,7 +579,7 @@ impl VoiceDictationGroup {
         match &self.output_problems {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let problems_row = notulist_output_problems_indicator(held_snapshot);
-                if problems_row.panel_visibility == PanelVisibility::Shown {
+                if problems_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.output_problems_item(problems_row));
                 }
             }
@@ -588,13 +588,13 @@ impl VoiceDictationGroup {
                     notulist_output_problems_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if problems_row.panel_visibility == PanelVisibility::Shown {
+                if problems_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.output_problems_item(problems_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.output_problems_item(
-                    placeholder.reading_row(NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH),
+                    placeholder.indicator(NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}

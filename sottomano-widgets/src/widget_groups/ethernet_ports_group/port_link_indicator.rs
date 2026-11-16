@@ -6,8 +6,8 @@ use sottomano_desktop_sources::network_connectivity::{
 
 use crate::{
     group_indicators::{
-        indicator_drawing::IdentityOrdinal, indicator_state::IndicatorState,
-        reading_row::ReadingRow,
+        group_indicator::GroupIndicator, indicator_drawing::IdentityOrdinal,
+        indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::link_stats_section,
@@ -41,7 +41,7 @@ fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
 
 impl<'a> PortLinkIndicator<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let icon = match self.port_state.attachment {
             InterfaceAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
             InterfaceAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
@@ -50,14 +50,13 @@ impl<'a> PortLinkIndicator<'a> {
             PortMarking::UniqueAttachment => IdentityOrdinal::Unnumbered,
             PortMarking::SharedAttachment { ordinal } => IdentityOrdinal::Numbered(ordinal),
         };
-        let mut row = ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "Link",
             icon,
             IndicatorState::from(self.port_state.link_state),
-            Box::new(move |_| self.hover_card()),
-        );
-        row.face.ordinal = ordinal;
-        row
+        )
+        .with_ordinal(ordinal)
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]
@@ -89,18 +88,18 @@ impl PortConnectionSwitch<'_> {
 
 impl<'a> PortConnectionSwitch<'a> {
     #[must_use]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let icon = if self.port_state.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
         };
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "Connection",
             icon,
             IndicatorState::from(self.port_state.link_state),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]

@@ -5,11 +5,11 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::PanelVisibility,
         indicator_state::IndicatorState,
         offline_internet_indicator::{
             PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
         },
-        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{
         Section,
@@ -293,7 +293,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+        group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
         widgets::icon_glyph::IconGlyph,
     };
 
@@ -320,13 +320,9 @@ mod tests {
         }
     }
 
-    fn counted_row(_snapshot: &CountedSnapshot) -> ReadingRow<'_> {
-        ReadingRow::glyph_only(
-            "Counted",
-            IconGlyph::default(),
-            IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
-        )
+    fn counted_row(_snapshot: &CountedSnapshot) -> GroupIndicator<'_> {
+        GroupIndicator::glyph_only("Counted", IconGlyph::default(), IndicatorState::Idle)
+            .with_hover_card(Box::new(|_| Vec::new()))
     }
 
     fn shown_state_at(

@@ -7,9 +7,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -129,44 +129,40 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     #[must_use]
-    pub fn most_used_model_row(self) -> ReadingRow<'a> {
+    pub fn most_used_model_row(self) -> GroupIndicator<'a> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend.model.clone()),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Most used model",
-                Phosphor::Sparkle(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Most used model",
+            Phosphor::Sparkle(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     #[must_use]
-    pub fn most_used_spend_row(self) -> ReadingRow<'a> {
+    pub fn most_used_spend_row(self) -> GroupIndicator<'a> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend_text(&spend.cost)),
             None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Most used model spend",
-                Phosphor::Coins(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.top_model_share()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Most used model spend",
+            Phosphor::Coins(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.top_model_share()))
     }
 }

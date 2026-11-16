@@ -16,9 +16,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::caldav_group::upcoming_events_indicator::{
@@ -106,7 +106,7 @@ fn progress_cell(task: &OpenTask) -> ValueCell {
     }
 }
 
-pub(crate) fn open_tasks_indicator(open_tasks: &OpenTaskList, clock: Clock) -> ReadingRow<'_> {
+pub(crate) fn open_tasks_indicator(open_tasks: &OpenTaskList, clock: Clock) -> GroupIndicator<'_> {
     let overdue_count = open_tasks.overdue_task_count(clock.local());
     let (label, state) = if overdue_count > 0 {
         (
@@ -116,24 +116,24 @@ pub(crate) fn open_tasks_indicator(open_tasks: &OpenTaskList, clock: Clock) -> R
     } else {
         (ReadoutLabel::Unlabeled, IndicatorState::Idle)
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        panel_visibility: if open_tasks.tasks.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        },
-        ..ReadingRow::glyph_only(
-            OpenTaskList::NAME,
-            Phosphor::ListChecks(Weight::Regular).into(),
-            state,
-            Box::new(move |card_clock| open_tasks_hover_card(open_tasks, card_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        OpenTaskList::NAME,
+        Phosphor::ListChecks(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_panel_visibility(if open_tasks.tasks.is_empty() {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
+    })
+    .with_hover_card(Box::new(move |card_clock| {
+        open_tasks_hover_card(open_tasks, card_clock)
+    }))
 }
 
 pub(crate) fn open_tasks_hover_card(open_tasks: &OpenTaskList, clock: Clock) -> Vec<Section> {

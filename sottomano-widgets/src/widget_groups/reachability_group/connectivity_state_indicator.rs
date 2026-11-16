@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_indicators::reading_row::ReadingRow,
+    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -35,16 +35,16 @@ fn uplink_connectivity_hover_card(uplink: UplinkConnectivity) -> Vec<Section> {
     )]
 }
 
-pub(super) fn uplink_connectivity_indicator(uplink: &UplinkConnectivity) -> ReadingRow<'_> {
+pub(super) fn uplink_connectivity_indicator(uplink: &UplinkConnectivity) -> GroupIndicator<'_> {
     let glyph = match uplink.connectivity {
         Connectivity::Full => Phosphor::CloudCheck(Weight::Regular),
         Connectivity::Portal | Connectivity::Limited => Phosphor::Cloud(Weight::Regular),
         Connectivity::Offline => Phosphor::CloudSlash(Weight::Regular),
     };
-    ReadingRow::glyph_only(
+    GroupIndicator::glyph_only(
         UplinkConnectivity::NAME,
         glyph.into(),
         severity(uplink.connectivity).into(),
-        Box::new(move |_| uplink_connectivity_hover_card(*uplink)),
     )
+    .with_hover_card(Box::new(move |_| uplink_connectivity_hover_card(*uplink)))
 }

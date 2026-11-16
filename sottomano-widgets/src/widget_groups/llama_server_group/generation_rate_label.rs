@@ -2,9 +2,9 @@ use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -20,20 +20,18 @@ pub struct GenerationRate<'a> {
 }
 
 impl<'a> GenerationRate<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(format!("{:.0} tok/s", self.rate.get::<hertz>())),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("{} generation rate", self.server),
-                Phosphor::Lightning(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            format!("{} generation rate", self.server),
+            Phosphor::Lightning(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(format!("{:.0} tok/s", self.rate.get::<hertz>())),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

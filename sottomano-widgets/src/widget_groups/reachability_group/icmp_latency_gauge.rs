@@ -6,10 +6,7 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    group_indicators::{
-        indicator_drawing::{IndicatorReadout, ReadoutGauge},
-        reading_row::ReadingRow,
-    },
+    group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutGauge},
     hover_cards::hover_card_body::{Section, SectionTitle},
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
     widgets::phosphor::{Phosphor, Weight},
@@ -35,13 +32,13 @@ pub(super) fn internet_latency_hover_card(latency: &InternetLatency) -> Vec<Sect
     )]
 }
 
-pub(super) fn internet_latency_indicator(latency: &InternetLatency) -> ReadingRow<'_> {
-    let base = ReadingRow::glyph_only(
+pub(super) fn internet_latency_indicator(latency: &InternetLatency) -> GroupIndicator<'_> {
+    let base = GroupIndicator::glyph_only(
         InternetLatency::NAME,
         Phosphor::Timer(Weight::Regular).into(),
         probe_window_severity(&latency.window).into(),
-        Box::new(move |_| internet_latency_hover_card(latency)),
-    );
+    )
+    .with_hover_card(Box::new(move |_| internet_latency_hover_card(latency)));
     let gauge = match latency.window.median_round_trip() {
         Some(round_trip) => {
             let fill = Ratio::new::<ratio>(fraction_of_scale(round_trip));
@@ -49,13 +46,7 @@ pub(super) fn internet_latency_indicator(latency: &InternetLatency) -> ReadingRo
         }
         None => ReadoutGauge::Ungauged,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            gauge,
-            ..base.readout
-        },
-        ..base
-    }
+    base.with_gauge(gauge)
 }
 
 #[cfg(test)]

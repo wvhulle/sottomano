@@ -2,10 +2,9 @@ use chrono::Locale;
 
 use crate::{
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
         offline_internet_indicator::SnapshotPlaceholder,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::caldav_group::{
         open_tasks_indicator::{open_tasks_hover_card, open_tasks_indicator},
@@ -159,7 +158,7 @@ impl CaldavGroup {
         match &self.upcoming_events {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let events_row = upcoming_events_indicator(held_snapshot, clock, locale);
-                if events_row.panel_visibility == PanelVisibility::Shown {
+                if events_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.upcoming_events_item(events_row));
                 }
             }
@@ -168,13 +167,13 @@ impl CaldavGroup {
                     upcoming_events_indicator(&troubled_snapshot.held_snapshot, clock, locale),
                     clock,
                 );
-                if events_row.panel_visibility == PanelVisibility::Shown {
+                if events_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.upcoming_events_item(events_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(self.upcoming_events_item(
-                    placeholder.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH),
+                    placeholder.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot => {
@@ -191,7 +190,7 @@ impl CaldavGroup {
         match &self.open_tasks {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let tasks_row = open_tasks_indicator(held_snapshot, clock);
-                if tasks_row.panel_visibility == PanelVisibility::Shown {
+                if tasks_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.open_tasks_item(tasks_row));
                 }
             }
@@ -200,12 +199,12 @@ impl CaldavGroup {
                     open_tasks_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if tasks_row.panel_visibility == PanelVisibility::Shown {
+                if tasks_row.panel_visibility() == PanelVisibility::Shown {
                     rows.push(self.open_tasks_item(tasks_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.open_tasks_item(placeholder.reading_row(OPEN_TASKS_GLYPH.into())));
+                rows.push(self.open_tasks_item(placeholder.indicator(OPEN_TASKS_GLYPH.into())));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -218,15 +217,15 @@ impl CaldavGroup {
         )
     }
 
-    fn upcoming_events_item<'a>(&'a self, events_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(events_row).with_hover_card(Box::new(move |card_clock| {
+    fn upcoming_events_item<'a>(&'a self, events_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        events_row.with_hover_card(Box::new(move |card_clock| {
             self.upcoming_events
                 .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
         }))
     }
 
-    fn open_tasks_item<'a>(&'a self, tasks_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(tasks_row).with_hover_card(Box::new(move |card_clock| {
+    fn open_tasks_item<'a>(&'a self, tasks_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        tasks_row.with_hover_card(Box::new(move |card_clock| {
             self.open_tasks
                 .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))
         }))

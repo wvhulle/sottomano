@@ -10,8 +10,8 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -43,34 +43,32 @@ fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (Strin
     )
 }
 
-pub fn memory_growth_indicator(growth: &MemoryGrowth, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_growth_indicator(growth: &MemoryGrowth, locale: Locale) -> GroupIndicator<'_> {
     let label = growth.used_per_minute.map_or_else(
         || "steady".to_owned(),
         |growth_per_minute| growth_rate_text(growth_per_minute, locale),
     );
     let toast_body = growth_toast_body(growth, locale);
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
+    GroupIndicator::glyph_only(
+        MemoryGrowth::NAME,
+        Phosphor::TrendUp(Weight::Regular).into(),
+        growth.filling_severity.into(),
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(label),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        state_toast: StateToast::NotifyFromSeverity {
+            minimum_severity: Severity::Warning,
+            summary_text: "RAM filling fast",
+            body: toast_body.map_or(ToastBody::Bodiless, ToastBody::Text),
+            progress: ToastProgress::Unmeasured,
         },
-        alerts: IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Warning,
-                summary_text: "RAM filling fast",
-                body: toast_body.map_or(ToastBody::Bodiless, ToastBody::Text),
-                progress: ToastProgress::Unmeasured,
-            },
-            ..IndicatorAlerts::default()
-        },
-        ..ReadingRow::glyph_only(
-            MemoryGrowth::NAME,
-            Phosphor::TrendUp(Weight::Regular).into(),
-            growth.filling_severity.into(),
-            Box::new(move |_| memory_growth_hover_card(growth)),
-        )
-    }
+        ..IndicatorAlerts::default()
+    })
+    .with_hover_card(Box::new(move |_| memory_growth_hover_card(growth)))
 }
 
 fn growth_toast_body(growth: &MemoryGrowth, locale: Locale) -> Option<String> {
@@ -156,7 +154,10 @@ mod tests {
         let steady_row = memory_growth_indicator(&steady, Locale::en_US);
         assert_eq!(steady_row.shown_state(), IndicatorState::Idle);
         assert_eq!(
-            steady_row.readout.label,
+            steady_row
+                .shown_readout()
+                .expect("a readout indicator")
+                .label,
             ReadoutLabel::Labeled("steady".to_owned())
         );
     }

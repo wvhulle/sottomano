@@ -2,9 +2,9 @@ use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -15,14 +15,14 @@ use crate::{
 
 pub(crate) const WIND_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::StrongWind);
 
-pub fn wind_indicator(wind: &Wind) -> ReadingRow<'_> {
+pub fn wind_indicator(wind: &Wind) -> GroupIndicator<'_> {
     let state = match wind.beaufort() {
         0..=6 => IndicatorState::Idle,
         7..=8 => IndicatorState::Warning,
         _ => IndicatorState::Critical,
     };
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(Wind::NAME, WeatherIcon::StrongWind.into(), state)
+        .with_readout(IndicatorReadout {
             label: ReadoutLabel::Labeled(format!(
                 "{} Bft {}",
                 wind.beaufort(),
@@ -30,14 +30,8 @@ pub fn wind_indicator(wind: &Wind) -> ReadingRow<'_> {
             )),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            Wind::NAME,
-            WeatherIcon::StrongWind.into(),
-            state,
-            Box::new(move |_| wind_hover_card(wind)),
-        )
-    }
+        })
+        .with_hover_card(Box::new(move |_| wind_hover_card(wind)))
 }
 
 pub fn wind_hover_card(wind: &Wind) -> Vec<Section> {
@@ -71,7 +65,10 @@ mod tests {
             direction: Angle::new::<degree>(225.0),
         };
         assert_eq!(
-            wind_indicator(&wind).readout.label,
+            wind_indicator(&wind)
+                .shown_readout()
+                .expect("a readout indicator")
+                .label,
             ReadoutLabel::Labeled("3 Bft SW".to_owned())
         );
     }

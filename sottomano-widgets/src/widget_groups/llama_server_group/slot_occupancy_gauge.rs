@@ -3,9 +3,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -26,7 +26,7 @@ impl<'a> SlotOccupancy<'a> {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let busy = self.busy();
         let fill = Ratio::new::<ratio>(busy as f64 / self.slots.len() as f64);
         let state = if busy > 0 {
@@ -34,19 +34,17 @@ impl<'a> SlotOccupancy<'a> {
         } else {
             IndicatorState::Idle
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(format!("{}/{}", busy, self.slots.len())),
-                gauge: ReadoutGauge::Gauged { fill, live: fill },
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                format!("{} busy slots", self.server),
-                Phosphor::Stack(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            format!("{} busy slots", self.server),
+            Phosphor::Stack(Weight::Regular).into(),
+            state,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(format!("{}/{}", busy, self.slots.len())),
+            gauge: ReadoutGauge::Gauged { fill, live: fill },
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

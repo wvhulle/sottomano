@@ -17,9 +17,9 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::weather_group::{
@@ -404,28 +404,22 @@ impl RainForecast<'_> {
 }
 
 impl<'a> RainForecast<'a> {
-    pub fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
+    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
         let label = match self.label_text(clock, locale) {
             Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
             Some(_) | None => ReadoutLabel::Unlabeled,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Rain", self.glyph(), self.display_state(clock))
+            .with_readout(IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            alerts: IndicatorAlerts {
+            })
+            .with_alerts(IndicatorAlerts {
                 state_toast: self.state_toast(clock, locale),
                 ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "Rain",
-                self.glyph(),
-                self.display_state(clock),
-                Box::new(move |card_clock| self.hover_card(card_clock)),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 
     fn glyph(&self) -> IconGlyph {
@@ -661,7 +655,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_indicators::{group_indicator::GroupIndicator, reading_row::PanelVisibility},
+        group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
         widget_groups::{
             weather_group::{WeatherInteraction, rain_forecast_ranking::RADAR_FRAME_LENGTH},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
@@ -712,8 +706,8 @@ mod tests {
                 sources: RainSources::Radar(&rain),
                 alerts: &DEFAULT_RAIN_ALERTS,
             }
-            .reading_row(clock, Locale::default())
-            .panel_visibility,
+            .indicator(clock, Locale::default())
+            .panel_visibility(),
             PanelVisibility::Shown
         );
         assert_eq!(forecast.display_state(clock), IndicatorState::Off);
@@ -824,13 +818,11 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let rain_item: GroupIndicator<'_> = GroupIndicator::sample(
-            RainForecast {
-                sources: RainSources::Radar(&rain),
-                alerts: &DEFAULT_RAIN_ALERTS,
-            }
-            .reading_row(clock, Locale::default()),
-        );
+        let rain_item: GroupIndicator<'_> = RainForecast {
+            sources: RainSources::Radar(&rain),
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+        .indicator(clock, Locale::default());
         let toast = rain_item
             .toast_requests(
                 &WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),

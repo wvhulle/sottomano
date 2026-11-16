@@ -16,8 +16,8 @@ use super::{
 };
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
@@ -119,23 +119,21 @@ impl PerCoreSample for CoreLoadSample {
     }
 }
 
-pub(super) fn cpu_usage_indicator(usage: &CpuUsage) -> ReadingRow<'_> {
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Unlabeled,
-            gauge: ReadoutGauge::Gauged {
-                fill: usage.busy,
-                live: usage.busy,
-            },
-            badge: ReadoutBadge::Unbadged,
+pub(super) fn cpu_usage_indicator(usage: &CpuUsage) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        CpuUsage::NAME,
+        Phosphor::Cpu(Weight::Regular).into(),
+        busy_level(usage.busy).into(),
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Unlabeled,
+        gauge: ReadoutGauge::Gauged {
+            fill: usage.busy,
+            live: usage.busy,
         },
-        ..ReadingRow::glyph_only(
-            CpuUsage::NAME,
-            Phosphor::Cpu(Weight::Regular).into(),
-            busy_level(usage.busy).into(),
-            Box::new(move |_| cpu_usage_hover_card(usage)),
-        )
-    }
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_hover_card(Box::new(move |_| cpu_usage_hover_card(usage)))
 }
 
 pub(super) fn cpu_usage_hover_card(usage: &CpuUsage) -> Vec<Section> {

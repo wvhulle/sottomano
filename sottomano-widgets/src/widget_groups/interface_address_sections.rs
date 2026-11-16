@@ -8,7 +8,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::InformationRate;
 
 use crate::{
-    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
@@ -48,30 +48,26 @@ pub struct InterfaceAddressIndicator {
 }
 
 impl InterfaceAddressIndicator {
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = match self.family {
             AddressFamily::Ipv4 => Phosphor::NumberCircleFour(Weight::Regular).into(),
             AddressFamily::Ipv6 => Phosphor::NumberCircleSix(Weight::Regular).into(),
         };
-        ReadingRow::glyph_only(
-            self.family.title(),
-            glyph,
-            IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
-        )
+        GroupIndicator::glyph_only(self.family.title(), glyph, IndicatorState::Idle)
+            .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 
 pub struct InterfaceDnsIndicator;
 
 impl InterfaceDnsIndicator {
-    pub fn reading_row() -> ReadingRow<'static> {
-        ReadingRow::glyph_only(
+    pub fn indicator<'indicator>() -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
             "DNS",
             Phosphor::AddressBook(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(|_| Vec::new()),
         )
+        .with_hover_card(Box::new(|_| Vec::new()))
     }
 }
 

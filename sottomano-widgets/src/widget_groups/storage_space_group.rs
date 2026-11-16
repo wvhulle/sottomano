@@ -36,9 +36,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -68,16 +67,16 @@ pub enum StorageSource {
 
 pub(crate) fn block_filesystem_discovery_indicator(
     discovery: &BlockFilesystemDiscovery,
-) -> ReadingRow<'_> {
-    ReadingRow {
-        panel_visibility: PanelVisibility::Hidden,
-        ..ReadingRow::glyph_only(
-            BlockFilesystemDiscovery::NAME,
-            Phosphor::Folders(Weight::Regular).into(),
-            IndicatorState::Idle,
-            Box::new(move |_| block_filesystem_discovery_hover_card(discovery)),
-        )
-    }
+) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        BlockFilesystemDiscovery::NAME,
+        Phosphor::Folders(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .with_panel_visibility(PanelVisibility::Hidden)
+    .with_hover_card(Box::new(move |_| {
+        block_filesystem_discovery_hover_card(discovery)
+    }))
 }
 
 pub(crate) fn block_filesystem_discovery_hover_card(
@@ -292,13 +291,11 @@ impl StorageSpaceGroup {
             .into_iter()
             .flat_map(move |(usage, subvolume_usage)| {
                 subvolume_usage.subvolumes.iter().map(move |subvolume| {
-                    GroupIndicator::sample(
-                        SubvolumeUsageRow {
-                            subvolume,
-                            pool_total: usage.total,
-                        }
-                        .reading_row(locale),
-                    )
+                    SubvolumeUsageRow {
+                        subvolume,
+                        pool_total: usage.total,
+                    }
+                    .indicator(locale)
                     .with_hover_card(Box::new(move |_| {
                         filesystem.subvolume_usage.hover_card_with(
                             SubvolumeUsageRow {
@@ -342,7 +339,7 @@ impl StorageSpaceGroup {
                 Phosphor::Archive(Weight::Regular).into(),
                 Self::filesystem_usage_item(
                     filesystem,
-                    placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into()),
+                    placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into()),
                 ),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
@@ -360,7 +357,7 @@ impl StorageSpaceGroup {
         if let Some(failure) = filesystem.subvolume_usage.failure() {
             rows.push(Self::subvolume_failure_item(
                 filesystem,
-                failure.reading_row(SUBVOLUME_USAGE_GLYPH.into()),
+                failure.indicator(SUBVOLUME_USAGE_GLYPH.into()),
             ));
         }
         if let Some(usage) = filesystem.usage.get()
@@ -388,9 +385,9 @@ impl StorageSpaceGroup {
 
     fn filesystem_usage_item<'a>(
         filesystem: &'a MountedFilesystem,
-        usage_row: ReadingRow<'a>,
+        usage_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(usage_row)
+        usage_row
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
@@ -403,9 +400,9 @@ impl StorageSpaceGroup {
 
     fn subvolume_failure_item<'a>(
         filesystem: &'a MountedFilesystem,
-        failure_row: ReadingRow<'a>,
+        failure_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(failure_row)
+        failure_row
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .subvolume_usage
@@ -417,7 +414,7 @@ impl StorageSpaceGroup {
     }
 
     fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupIndicator<'_> {
-        GroupIndicator::sample(SnapshotDeletionRow::reading_row())
+        SnapshotDeletionRow::indicator()
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
@@ -428,8 +425,8 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn discovery_item<'a>(&'a self, discovery_row: ReadingRow<'a>) -> GroupIndicator<'a> {
-        GroupIndicator::sample(discovery_row)
+    fn discovery_item<'a>(&'a self, discovery_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        discovery_row
             .with_hover_card(Box::new(move |_| {
                 self.discovery
                     .sections_described_by(block_filesystem_discovery_hover_card)
@@ -462,7 +459,7 @@ impl StorageSpaceGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_item(placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into())),
+                self.discovery_item(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),

@@ -5,8 +5,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -44,23 +44,21 @@ impl BcachefsMemberRow<'_> {
 }
 
 impl<'a> BcachefsMemberRow<'a> {
-    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(format!(
-                    "{} free",
-                    Quantity::size(self.device.free).localized_text(locale)
-                )),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.device.partition.clone(),
-                Phosphor::HardDrives(Weight::Regular).into(),
-                self.writable_severity().into(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.device.partition.clone(),
+            Phosphor::HardDrives(Weight::Regular).into(),
+            self.writable_severity().into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(format!(
+                "{} free",
+                Quantity::size(self.device.free).localized_text(locale)
+            )),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

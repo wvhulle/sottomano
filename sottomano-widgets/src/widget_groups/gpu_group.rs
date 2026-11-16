@@ -28,7 +28,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
         offline_internet_indicator::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -360,7 +359,7 @@ impl GpuGroup {
                         bus,
                         device,
                         snapshot,
-                        placeholder.reading_row(GPU_LOAD_GLYPH.into()),
+                        placeholder.indicator(GPU_LOAD_GLYPH.into()),
                     ),
                 ),
                 SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
@@ -374,7 +373,8 @@ impl GpuGroup {
             },
             GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
                 Phosphor::CubeTransparent(Weight::Regular).into(),
-                GroupIndicator::sample(handle_failure.reading_row(GPU_LOAD_GLYPH.into()))
+                handle_failure
+                    .indicator(GPU_LOAD_GLYPH.into())
                     .with_hover_card(Box::new(move |_| {
                         [handle_failure.source_state()]
                             .into_iter()
@@ -396,9 +396,9 @@ impl GpuGroup {
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
-        load_row: ReadingRow<'a>,
+        load_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        GroupIndicator::sample(load_row)
+        load_row
             .with_hover_card(Box::new(move |_| {
                 snapshot
                     .sections_described_by(gpu_load_hover_card)
@@ -421,7 +421,8 @@ impl GpuGroup {
         let mut rows = Vec::new();
         if let Some(clock_label) = device.clock_label() {
             rows.push(
-                GroupIndicator::sample(clock_label.reading_row())
+                clock_label
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         let mut sections = snapshot.hover_card_with(clock_label.hover_card());
                         sections.extend(self.hovered_sections(bus, |group| {
@@ -439,7 +440,7 @@ impl GpuGroup {
         if let Some(memory) = device.memory() {
             let card_memory = memory.clone();
             rows.push(
-                GroupIndicator::sample(gpu_memory_indicator(memory))
+                gpu_memory_indicator(memory)
                     .with_hover_card(Box::new(move |_| {
                         let mut sections =
                             snapshot.hover_card_with(gpu_memory_sections(&card_memory));
@@ -459,7 +460,8 @@ impl GpuGroup {
         }
         if let Some(temperature_label) = device.temperature_label() {
             rows.push(
-                GroupIndicator::sample(temperature_label.reading_row())
+                temperature_label
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         snapshot.hover_card_with(temperature_label.hover_card())
                     }))
@@ -468,7 +470,7 @@ impl GpuGroup {
         }
         if let Some(power_label) = device.power_label() {
             rows.push(
-                GroupIndicator::sample(gpu_power_indicator(power_label))
+                gpu_power_indicator(power_label)
                     .with_hover_card(Box::new(move |_| {
                         snapshot.hover_card_with(gpu_power_hover_card(&power_label))
                     }))

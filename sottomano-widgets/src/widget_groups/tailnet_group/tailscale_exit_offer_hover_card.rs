@@ -5,9 +5,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -31,24 +31,22 @@ pub(super) struct ExitOfferRow<'a> {
 }
 
 impl<'a> ExitOfferRow<'a> {
-    pub(super) fn reading_row(self) -> ReadingRow<'a> {
+    pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.tailnet.offer_control() {
             ExitOfferControl::Switchable(_) => ReadoutLabel::Unlabeled,
             ExitOfferControl::BlockedByExitNodeInUse => ReadoutLabel::Labeled("blocked".to_owned()),
         };
-        ReadingRow {
-            readout: IndicatorReadout {
-                label,
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Offer as exit node",
-                Phosphor::Broadcast(Weight::Regular).into(),
-                IndicatorState::from(self.tailnet.exit_offer),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+        GroupIndicator::glyph_only(
+            "Offer as exit node",
+            Phosphor::Broadcast(Weight::Regular).into(),
+            IndicatorState::from(self.tailnet.exit_offer),
+        )
+        .with_readout(IndicatorReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {

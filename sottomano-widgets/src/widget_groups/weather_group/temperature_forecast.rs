@@ -10,9 +10,9 @@ use uom::{
 
 use crate::{
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
@@ -28,25 +28,19 @@ use crate::{
 pub(crate) const TEMPERATURE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::WeatherIcon(WeatherIcon::Thermometer);
 
-pub fn temperature_indicator(temperature: &Temperature) -> ReadingRow<'_> {
+pub fn temperature_indicator(temperature: &Temperature) -> GroupIndicator<'_> {
     let glyph = temperature
         .condition
         .map_or(TEMPERATURE_FALLBACK_GLYPH, |condition| {
             WeatherIcon::Sky(condition, temperature.daylight).into()
         });
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(Temperature::NAME, glyph, IndicatorState::Idle)
+        .with_readout(IndicatorReadout {
             label: ReadoutLabel::Labeled(celsius_text(temperature.temp)),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            Temperature::NAME,
-            glyph,
-            IndicatorState::Idle,
-            Box::new(move |_| temperature_hover_card(temperature)),
-        )
-    }
+        })
+        .with_hover_card(Box::new(move |_| temperature_hover_card(temperature)))
 }
 
 pub fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> {

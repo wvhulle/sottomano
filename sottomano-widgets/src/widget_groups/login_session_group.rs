@@ -203,13 +203,11 @@ impl LoginSessionGroup {
 
     fn identity_items<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupIndicator<'a>; 6] {
         [
-            GroupIndicator::sample(
-                SeatFace {
-                    seat: &identity.seat,
-                    virtual_terminal: identity.virtual_terminal,
-                }
-                .reading_row(),
-            )
+            SeatFace {
+                seat: &identity.seat,
+                virtual_terminal: identity.virtual_terminal,
+            }
+            .indicator()
             .with_hover_card(Box::new(move |_| {
                 self.identity.hover_card_with(
                     SeatFace {
@@ -220,7 +218,8 @@ impl LoginSessionGroup {
                 )
             }))
             .refreshed_by(identity_refresh()),
-            GroupIndicator::sample(LoginFace { identity }.reading_row())
+            LoginFace { identity }
+                .indicator()
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -233,13 +232,14 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupIndicator::sample(AccountFace { identity }.reading_row())
+            AccountFace { identity }
+                .indicator()
                 .with_hover_card(Box::new(move |_| {
                     self.identity
                         .hover_card_with(AccountFace { identity }.hover_card())
                 }))
                 .refreshed_by(identity_refresh()),
-            GroupIndicator::sample(ServiceManagerFace::reading_row())
+            ServiceManagerFace::indicator()
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -257,7 +257,8 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupIndicator::sample(CompositorFace { identity }.reading_row())
+            CompositorFace { identity }
+                .indicator()
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -273,7 +274,7 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupIndicator::sample(DesktopServicesFace::reading_row())
+            DesktopServicesFace::indicator()
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -297,7 +298,8 @@ impl LoginSessionGroup {
         let mut rows = Vec::new();
         if let Some(system) = self.system.get() {
             rows.push(
-                GroupIndicator::sample(KernelFace { system }.reading_row())
+                KernelFace { system }
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.system
                             .hover_card_with(KernelFace { system }.hover_card())

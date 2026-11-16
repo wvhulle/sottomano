@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -31,7 +31,7 @@ pub(crate) fn spend_panel_visibility(spend: &OpenRouterSpend) -> PanelVisibility
     }
 }
 
-pub(crate) fn spend_indicator(spend: &OpenRouterSpend, clock: Clock) -> ReadingRow<'_> {
+pub(crate) fn spend_indicator(spend: &OpenRouterSpend, clock: Clock) -> GroupIndicator<'_> {
     let today = spend.today.models.total();
     let label = if today.is_positive() {
         ReadoutLabel::Labeled(format!("{} today", spend_text(&today)))
@@ -44,24 +44,24 @@ pub(crate) fn spend_indicator(spend: &OpenRouterSpend, clock: Clock) -> ReadingR
             monthly.max(spend.daily_severity())
         })
         .into();
-    ReadingRow {
-        readout: IndicatorReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        alerts: IndicatorAlerts {
-            quota_windows: quotas,
-            ..IndicatorAlerts::default()
-        },
-        panel_visibility: spend_panel_visibility(spend),
-        ..ReadingRow::glyph_only(
-            OpenRouterSpend::NAME,
-            Phosphor::Coins(Weight::Regular).into(),
-            state,
-            Box::new(move |card_clock| spend_hover_card(spend, card_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        OpenRouterSpend::NAME,
+        Phosphor::Coins(Weight::Regular).into(),
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label,
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_alerts(IndicatorAlerts {
+        quota_windows: quotas,
+        ..IndicatorAlerts::default()
+    })
+    .with_panel_visibility(spend_panel_visibility(spend))
+    .with_hover_card(Box::new(move |card_clock| {
+        spend_hover_card(spend, card_clock)
+    }))
 }
 
 pub(crate) fn spend_hover_card(spend: &OpenRouterSpend, clock: Clock) -> Vec<Section> {

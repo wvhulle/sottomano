@@ -9,9 +9,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
@@ -37,22 +37,23 @@ impl SnapshotSource for LocalTime {
 }
 
 impl LocalTime {
-    pub(super) fn reading_row(clock: Clock, locale: Locale) -> ReadingRow<'static> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(
-                    LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale),
-                ),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                Self::NAME,
-                Phosphor::Clock(Weight::Regular).into(),
-                IndicatorState::Idle,
-                Box::new(Self::hover_card),
-            )
-        }
+    pub(super) fn indicator<'indicator>(
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupIndicator<'indicator> {
+        GroupIndicator::glyph_only(
+            Self::NAME,
+            Phosphor::Clock(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(
+                LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale),
+            ),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(Self::hover_card))
     }
 
     pub(super) fn hover_card(clock: Clock) -> Vec<Section> {

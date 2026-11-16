@@ -15,7 +15,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -121,20 +120,18 @@ impl<'a> LimitedCgroupRow<'a> {
         )]
     }
 
-    fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(self.usage_text()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                self.cgroup.unit_name.clone(),
-                Phosphor::Gauge(Weight::Regular).into(),
-                self.state(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+    fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
+            self.cgroup.unit_name.clone(),
+            Phosphor::Gauge(Weight::Regular).into(),
+            self.state(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(self.usage_text()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 }
 
@@ -224,7 +221,8 @@ impl CgroupMemoryLimitsGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
-            GroupIndicator::sample(self.cgroup_row(cgroup).reading_row())
+            self.cgroup_row(cgroup)
+                .indicator()
                 .with_hover_card(Box::new(move |_| {
                     self.listing
                         .hover_card_with(self.cgroup_row(cgroup).hover_card())

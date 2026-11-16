@@ -6,7 +6,6 @@ pub mod indicator_gestures;
 pub mod indicator_state;
 pub mod item_toggle_switch;
 pub mod offline_internet_indicator;
-pub mod reading_row;
 pub mod slider_control;
 pub mod toggle_control;
 pub mod unit_switch;

@@ -22,7 +22,6 @@ use self::adapter_signal_indicator::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -254,13 +253,11 @@ impl WifiAdaptersGroup {
         let expansion = self.expansions.get(&adapter.device)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::Broadcast(Weight::Regular).into(),
-            GroupIndicator::sample(
-                AdapterSignalIndicator {
-                    adapter,
-                    radio_power,
-                }
-                .reading_row(),
-            )
+            AdapterSignalIndicator {
+                adapter,
+                radio_power,
+            }
+            .indicator()
             .with_hover_card(Box::new(move |_| {
                 self.adapter_signal_hover_card(adapter, radio_power)
             }))
@@ -274,7 +271,8 @@ impl WifiAdaptersGroup {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
             rows.push(
-                GroupIndicator::sample(connection_switch.reading_row())
+                connection_switch
+                    .indicator()
                     .on_switch_press(
                         adapter.link_state,
                         connection_press_does,
@@ -287,20 +285,22 @@ impl WifiAdaptersGroup {
         }
         if adapter.link_state == LinkPhase::Up {
             rows.extend([AddressFamily::Ipv4, AddressFamily::Ipv6].map(|family| {
-                GroupIndicator::sample(InterfaceAddressIndicator { family }.reading_row())
+                InterfaceAddressIndicator { family }
+                    .indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.adapter_address_hover_card(adapter, family)
                     }))
             }));
             rows.push(
-                GroupIndicator::sample(InterfaceDnsIndicator::reading_row())
+                InterfaceDnsIndicator::indicator()
                     .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter))),
             );
         }
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
         rows.push(
-            GroupIndicator::sample(radios_switch.reading_row())
+            radios_switch
+                .indicator()
                 .on_switch_press(
                     radio_power,
                     radios_press_does,

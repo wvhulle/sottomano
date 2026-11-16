@@ -15,9 +15,9 @@ use uom::si::{
 use crate::{
     group_indicators::{
         gauge::percent_text,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widget_groups::power_group::{
@@ -244,15 +244,15 @@ impl BatteryTime {
         }
     }
 
-    pub fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let label = self.label_text(locale);
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Battery time", self.glyph(), self.display_state())
+            .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Labeled(label.clone()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
-            },
-            alerts: IndicatorAlerts {
+            })
+            .with_alerts(IndicatorAlerts {
                 state_toast: StateToast::NotifyFromSeverity {
                     minimum_severity: Severity::Warning,
                     summary_text: "Battery running out",
@@ -260,14 +260,8 @@ impl BatteryTime {
                     progress: ToastProgress::Unmeasured,
                 },
                 ..IndicatorAlerts::default()
-            },
-            ..ReadingRow::glyph_only(
-                "Battery time",
-                self.glyph(),
-                self.display_state(),
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(self) -> Vec<Section> {

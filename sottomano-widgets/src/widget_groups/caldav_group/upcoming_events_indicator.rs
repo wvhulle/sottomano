@@ -16,9 +16,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
@@ -147,7 +147,7 @@ pub(crate) fn upcoming_events_indicator(
     upcoming_events: &UpcomingEventList,
     clock: Clock,
     locale: Locale,
-) -> ReadingRow<'_> {
+) -> GroupIndicator<'_> {
     let now = clock.local();
     let label = match upcoming_events.next_event(now) {
         Some(event) => {
@@ -167,19 +167,19 @@ pub(crate) fn upcoming_events_indicator(
     } else {
         IndicatorState::Warning
     };
-    ReadingRow {
-        readout: IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            UpcomingEventList::NAME,
-            UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-            state,
-            Box::new(move |card_clock| upcoming_events_hover_card(upcoming_events, card_clock)),
-        )
-    }
+    GroupIndicator::glyph_only(
+        UpcomingEventList::NAME,
+        UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+        state,
+    )
+    .with_readout(IndicatorReadout {
+        label: ReadoutLabel::Labeled(label),
+        gauge: ReadoutGauge::Ungauged,
+        badge: ReadoutBadge::Unbadged,
+    })
+    .with_hover_card(Box::new(move |card_clock| {
+        upcoming_events_hover_card(upcoming_events, card_clock)
+    }))
 }
 
 pub(crate) fn upcoming_events_hover_card(
@@ -297,8 +297,14 @@ mod tests {
     #[test]
     fn a_pending_indicator_draws_no_label_until_its_data_arrives() {
         let pending_events = event_placeholder(PlaceholderCause::AwaitingFirstSnapshot);
-        let pending_row = pending_events.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
-        assert_eq!(pending_row.readout.label, ReadoutLabel::Unlabeled);
+        let pending_row = pending_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        assert_eq!(
+            pending_row
+                .shown_readout()
+                .expect("a readout indicator")
+                .label,
+            ReadoutLabel::Unlabeled
+        );
         assert_eq!(pending_row.shown_state(), IndicatorState::Pending);
         let card_titles: Vec<String> = pending_row
             .hover_card(Clock::real())
@@ -313,8 +319,14 @@ mod tests {
         let offline_events = event_placeholder(PlaceholderCause::Troubled(
             SnapshotTrouble::Offline(InternetUnreachable::NoConnection),
         ));
-        let offline_row = offline_events.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
-        assert_eq!(offline_row.readout.label, ReadoutLabel::Unlabeled);
+        let offline_row = offline_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        assert_eq!(
+            offline_row
+                .shown_readout()
+                .expect("a readout indicator")
+                .label,
+            ReadoutLabel::Unlabeled
+        );
         assert_eq!(offline_row.shown_state(), IndicatorState::Offline);
     }
 
@@ -323,7 +335,7 @@ mod tests {
         let event_list = event_list_without_events(Vec::new());
         let row = upcoming_events_indicator(&event_list, Clock::real(), Locale::en_US);
         assert_eq!(
-            row.readout.label,
+            row.shown_readout().expect("a readout indicator").label,
             ReadoutLabel::Labeled("No upcoming events".to_owned()),
         );
         assert_eq!(row.shown_state(), IndicatorState::Idle);
@@ -334,7 +346,7 @@ mod tests {
         let event_list = event_list_without_events(vec!["Proton".to_owned()]);
         let row = upcoming_events_indicator(&event_list, Clock::real(), Locale::en_US);
         assert_eq!(
-            row.readout.label,
+            row.shown_readout().expect("a readout indicator").label,
             ReadoutLabel::Labeled("Proton unavailable".to_owned()),
         );
         assert_eq!(row.shown_state(), IndicatorState::Warning);

@@ -13,7 +13,6 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
@@ -31,7 +30,7 @@ pub(super) fn wireguard_tunnel_item<Message: Into<WidgetGroupInteraction>>(
     tunnel: &Tunnel,
     on_switch: fn(NmConnectionSwitch) -> Message,
 ) -> GroupIndicator<'_> {
-    let item = GroupIndicator::sample(tunnel_indicator(tunnel));
+    let item = tunnel_indicator(tunnel);
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,
@@ -244,7 +243,7 @@ fn server_state(tunnel: &Tunnel) -> IndicatorState {
     }
 }
 
-pub(super) fn tunnel_indicator(tunnel: &Tunnel) -> ReadingRow<'_> {
+pub(super) fn tunnel_indicator(tunnel: &Tunnel) -> GroupIndicator<'_> {
     let glyph: IconGlyph = match tunnel.role {
         TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
         TunnelRole::Client
@@ -275,19 +274,13 @@ pub(super) fn tunnel_indicator(tunnel: &Tunnel) -> ReadingRow<'_> {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    ReadingRow {
-        readout: IndicatorReadout {
+    GroupIndicator::glyph_only(tunnel.name.clone(), glyph, state)
+        .with_readout(IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge,
-        },
-        ..ReadingRow::glyph_only(
-            tunnel.name.clone(),
-            glyph,
-            state,
-            Box::new(move |_| tunnel_hover_card(tunnel)),
-        )
-    }
+        })
+        .with_hover_card(Box::new(move |_| tunnel_hover_card(tunnel)))
 }
 
 pub(super) fn tunnel_hover_card(tunnel: &Tunnel) -> Vec<Section> {

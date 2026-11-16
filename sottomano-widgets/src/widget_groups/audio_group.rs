@@ -317,9 +317,7 @@ impl AudioGroup {
             );
         }
         if let Some(failure_placeholder) = self.state.failure() {
-            rows.push(GroupIndicator::sample(
-                failure_placeholder.reading_row(AUDIO_STATE_GLYPH.into()),
-            ));
+            rows.push(failure_placeholder.indicator(AUDIO_STATE_GLYPH.into()));
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Audio,

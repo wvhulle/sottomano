@@ -7,9 +7,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     group_indicators::{
         gauge::percent_fill,
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -46,7 +46,7 @@ pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> Option<&st
 }
 
 impl<'a> ModemSignalIndicator<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let state = match self.modem.link_state() {
             LinkPhase::Switching => IndicatorState::Pending,
             LinkPhase::Up => self
@@ -63,19 +63,13 @@ impl<'a> ModemSignalIndicator<'a> {
             }
             None => ReadoutGauge::Ungauged,
         };
-        ReadingRow {
-            readout: IndicatorReadout {
+        GroupIndicator::glyph_only("Signal", Phosphor::Broadcast(Weight::Regular).into(), state)
+            .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge,
                 badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                "Signal",
-                Phosphor::Broadcast(Weight::Regular).into(),
-                state,
-                Box::new(move |_| self.hover_card()),
-            )
-        }
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
@@ -125,18 +119,18 @@ impl<'a> ModemConnectionSwitch<'a> {
         }
     }
 
-    pub fn reading_row(self) -> ReadingRow<'a> {
+    pub fn indicator(self) -> GroupIndicator<'a> {
         let glyph = if self.modem.link_state() == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
         };
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "Connection",
             glyph,
             IndicatorState::from(self.modem.link_state()),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
@@ -160,13 +154,13 @@ impl<'a> ModemConnectionSwitch<'a> {
 }
 
 impl<'a> ModemDataIndicator<'a> {
-    pub fn reading_row(self) -> ReadingRow<'a> {
-        ReadingRow::glyph_only(
+    pub fn indicator(self) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
             "Mobile data",
             Phosphor::ArrowsDownUp(Weight::Regular).into(),
             IndicatorState::Idle,
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
@@ -197,17 +191,17 @@ impl AllMobileRadiosSwitch {
         }
     }
 
-    pub fn reading_row(self) -> ReadingRow<'static> {
+    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         let glyph = match self.radio_power {
             RadioPower::On => Phosphor::CellSignalFull(Weight::Regular).into(),
             RadioPower::Off => Phosphor::CellSignalSlash(Weight::Regular).into(),
         };
-        ReadingRow::glyph_only(
+        GroupIndicator::glyph_only(
             "All mobile radios",
             glyph,
             IndicatorState::from(SwitchPosition::from(self.radio_power)),
-            Box::new(move |_| self.hover_card()),
         )
+        .with_hover_card(Box::new(move |_| self.hover_card()))
     }
 
     pub fn hover_card(&self) -> Vec<Section> {

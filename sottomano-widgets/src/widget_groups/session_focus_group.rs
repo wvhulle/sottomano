@@ -27,7 +27,6 @@ use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusCo
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
-    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -257,7 +256,8 @@ impl SessionFocusGroup {
         let locale = config.calendar.locale;
         let group_summary = GroupSummary::summarising(
             Phosphor::Crosshair(Weight::Regular).into(),
-            GroupIndicator::sample(self.session_face(config).reading_row(clock, locale))
+            self.session_face(config)
+                .indicator(clock, locale)
                 .ongoing_toast_action_buttons([
                     OngoingToastActionButton {
                         button_label: "Lock screen".to_owned(),
@@ -278,10 +278,10 @@ impl SessionFocusGroup {
                     },
                 ]),
         );
-        let breaks = GroupIndicator::sample(self.break_log(config).reading_row(clock));
-        let focus_run = GroupIndicator::sample(self.focus_run_indicator(config).reading_row(clock));
-        let totals = GroupIndicator::sample(self.daily_totals.reading_row(locale));
-        let switches = GroupIndicator::sample(self.context_switch_rate(config).reading_row(clock));
+        let breaks = self.break_log(config).indicator(clock);
+        let focus_run = self.focus_run_indicator(config).indicator(clock);
+        let totals = self.daily_totals.indicator(locale);
+        let switches = self.context_switch_rate(config).indicator(clock);
         let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,

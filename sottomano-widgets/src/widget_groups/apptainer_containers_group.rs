@@ -12,9 +12,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_indicators::{
+        group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -37,32 +37,30 @@ pub struct ApptainerContainerListingRow<'a> {
 }
 
 impl<'a> ApptainerContainerListingRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let name = format!(
             "{} pid {}",
             self.listing.container_name, self.listing.runtime_pid
         );
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                Phosphor::Flask(Weight::Regular).into(),
-                ContainerRunState::Running.into(),
-                Box::new(|_| {
-                    vec![Section::new(
-                        "Status",
-                        dictionary_table([LabeledValue::new(
-                            "State",
-                            ContainerRunState::Running.label(),
-                        )]),
-                    )]
-                }),
-            )
-        }
+        GroupIndicator::glyph_only(
+            name,
+            Phosphor::Flask(Weight::Regular).into(),
+            ContainerRunState::Running.into(),
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(|_| {
+            vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new(
+                    "State",
+                    ContainerRunState::Running.label(),
+                )]),
+            )]
+        }))
     }
 }
 
@@ -71,25 +69,23 @@ pub struct ApptainerContainerRow<'a> {
 }
 
 impl<'a> ApptainerContainerRow<'a> {
-    fn reading_row(self) -> ReadingRow<'a> {
+    fn indicator(self) -> GroupIndicator<'a> {
         let container = self.container;
         let name = format!(
             "{} pid {}",
             container.listing.container_name, container.listing.runtime_pid
         );
-        ReadingRow {
-            readout: IndicatorReadout {
-                label: ReadoutLabel::Labeled(approximate_memory_text(container.memory_in_use)),
-                gauge: ReadoutGauge::Ungauged,
-                badge: ReadoutBadge::Unbadged,
-            },
-            ..ReadingRow::glyph_only(
-                name,
-                Phosphor::Flask(Weight::Regular).into(),
-                IndicatorState::On,
-                Box::new(move |clock| Self::hover_card(container, clock)),
-            )
-        }
+        GroupIndicator::glyph_only(
+            name,
+            Phosphor::Flask(Weight::Regular).into(),
+            IndicatorState::On,
+        )
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(approximate_memory_text(container.memory_in_use)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |clock| Self::hover_card(container, clock)))
     }
 
     fn hover_card(container: &ApptainerContainer, clock: Clock) -> Vec<Section> {
@@ -152,7 +148,7 @@ impl ContainerFamily for ApptainerFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                sample: ApptainerContainerListingRow { listing }.reading_row(),
+                indicator: ApptainerContainerListingRow { listing }.indicator(),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
@@ -163,7 +159,7 @@ impl ContainerFamily for ApptainerFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                sample: ApptainerContainerRow { container }.reading_row(),
+                indicator: ApptainerContainerRow { container }.indicator(),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()
