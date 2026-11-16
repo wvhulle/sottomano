@@ -25,6 +25,7 @@ pub struct PanelSlotContext<'a> {
     pub clock: Clock,
     pub panel_corner_radius_px: f32,
     pub panel_float_offset_px: f32,
+    pub compositor_window_gaps_px: f32,
     pub panel_frame_style: FrameStyle,
     pub window_row_layout: WindowRowLayout,
     pub window_title_length: WindowTitleLength,

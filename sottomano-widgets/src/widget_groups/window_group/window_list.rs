@@ -172,14 +172,17 @@ fn shown_workspace(
 fn panel_slide_band(slot_context: PanelSlotContext<'_>) -> SlideBand {
     let frame_depth_px = slot_context.config.desktop_panels.height;
     let float_offset_px = slot_context.panel_float_offset_px;
+    let window_gap_px = slot_context.compositor_window_gaps_px;
     match slot_context.edge {
         Position::Top => SlideBand::AlongTopEdge {
             frame_depth_px,
             float_offset_px,
+            window_gap_px,
         },
         Position::Bottom => SlideBand::AlongBottomEdge {
             frame_depth_px,
             float_offset_px,
+            window_gap_px,
         },
         Position::Left => SlideBand::OwnBounds,
     }
@@ -1228,6 +1231,7 @@ mod tests {
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
             panel_float_offset_px: 0.0,
+            compositor_window_gaps_px: 0.0,
             panel_frame_style: ShellLayer::Panels.default_appearance().frame,
             window_row_layout: WindowRowLayout::default(),
             window_title_length: WindowTitleLength::default(),

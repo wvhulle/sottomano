@@ -121,6 +121,7 @@ fn undragged_slot_context(
         clock,
         panel_corner_radius_px: panel_appearance.frame.corner_radius_px,
         panel_float_offset_px: 0.0,
+        compositor_window_gaps_px: 0.0,
         panel_frame_style: panel_appearance.frame,
         window_row_layout,
         window_title_length: WindowTitleLength::default(),

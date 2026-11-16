@@ -102,6 +102,7 @@ mod tests {
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
             panel_float_offset_px: 0.0,
+            compositor_window_gaps_px: 0.0,
             panel_frame_style: ShellLayer::Panels.default_appearance().frame,
             window_row_layout: WindowRowLayout::default(),
             window_title_length: WindowTitleLength::default(),

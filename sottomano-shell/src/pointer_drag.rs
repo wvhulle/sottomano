@@ -60,6 +60,11 @@ impl DesktopShell {
             clock: self.clock,
             panel_corner_radius_px: panel_appearance.frame.corner_radius_px,
             panel_float_offset_px: self.widget_groups.panel_settings_group.float_offset_px(),
+            compositor_window_gaps_px: self
+                .widget_groups
+                .compositor_styling_group
+                .app_window_layout()
+                .gaps_px,
             panel_frame_style: panel_appearance.frame,
             window_row_layout: self.widget_groups.panel_settings_group.window_row_layout(),
             window_title_length: self
