@@ -79,7 +79,7 @@ enum KeyboardGrab {
 pub struct HoverCardHost {
     transition: HoverCardTransition,
     deferred_switch: DeferredSwitch,
-    hide_schedule: HideSchedule,
+    pub hide_schedule: HideSchedule,
     pointer_over_hover_card: bool,
     keyboard_grab: KeyboardGrab,
     laid_out_anchors: LaidOutAnchors,
@@ -115,11 +115,6 @@ impl HoverCardHost {
             | HoverCardMessage::ConfirmShownWidgetDropped
             | HoverCardMessage::SwitchIntentElapsed => None,
         }
-    }
-
-    #[must_use]
-    pub fn hide_schedule(&self) -> HideSchedule {
-        self.hide_schedule
     }
 
     pub fn defer_switch(
@@ -652,7 +647,7 @@ mod tests {
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
         assert_eq!(host.shown_retention(), CardRetention::UntilDismissed);
-        assert_eq!(host.hide_schedule(), HideSchedule::Unscheduled);
+        assert_eq!(host.hide_schedule, HideSchedule::Unscheduled);
     }
 
     #[test]

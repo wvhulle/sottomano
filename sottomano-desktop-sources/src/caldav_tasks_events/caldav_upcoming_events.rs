@@ -128,8 +128,8 @@ impl UpcomingEventPoller {
         let mut previous_subscriptions = mem::take(&mut self.fetched_subscriptions);
         let http_client = &self.http_client;
         let refresh_interval =
-            PeriodicPolling::every(self.calendar_home.account().subscription_download_interval)
-                .poll_period();
+            PeriodicPolling::every(self.calendar_home.account.subscription_download_interval)
+                .poll_period;
         let subscription_downloads = subscriptions.iter().map(|subscription| {
             let cached = previous_subscriptions.remove(&subscription.href);
             async move {

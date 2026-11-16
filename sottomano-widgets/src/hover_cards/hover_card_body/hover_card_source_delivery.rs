@@ -42,8 +42,8 @@ impl DeliveryStamp {
         match self.cadence {
             DeliveryCadence::PeriodicPolling(polling)
             | DeliveryCadence::LivePushWithRecheck(polling) => RefreshDeadline::DueAt {
-                refresh_period: polling.poll_period(),
-                deadline: self.delivered_at + polling.poll_period(),
+                refresh_period: polling.poll_period,
+                deadline: self.delivered_at + polling.poll_period,
             },
             DeliveryCadence::LivePush | DeliveryCadence::SingleRead => {
                 RefreshDeadline::NeverRefreshes
@@ -71,14 +71,14 @@ pub enum SectionSource {
 #[derive(Debug, Clone)]
 pub struct HoverCard {
     sections: Vec<Section>,
-    header: CardHeader,
+    pub header: CardHeader,
 }
 
 impl HoverCard {
     pub fn new(sections: impl IntoIterator<Item = Section>, header: CardHeader) -> Option<Self> {
         let shown_sections: Vec<Section> = sections
             .into_iter()
-            .filter(|section| !section.widget().is_empty())
+            .filter(|section| !section.widget.is_empty())
             .collect();
         if shown_sections.is_empty() {
             return None;
@@ -91,11 +91,6 @@ impl HoverCard {
 
     pub fn sections(&self) -> impl Iterator<Item = &Section> {
         self.sections.iter()
-    }
-
-    #[must_use]
-    pub fn header(&self) -> &CardHeader {
-        &self.header
     }
 }
 
@@ -126,7 +121,7 @@ mod tests {
         assert_eq!(
             hover_card
                 .sections()
-                .map(|section| section.title().text().to_owned())
+                .map(|section| section.title.text().to_owned())
                 .collect::<Vec<_>>(),
             ["Actions"]
         );
@@ -137,7 +132,7 @@ mod tests {
         let section = Section::new("Count", SectionWidget::paragraph("counted"))
             .stamped_by::<CpuBusyProcesses>(SourceDelivery::Loading);
         assert_eq!(
-            section.source(),
+            section.source,
             SectionSource::Snapshot {
                 source_name: CpuBusyProcesses::NAME,
                 delivery: SourceDelivery::Loading,

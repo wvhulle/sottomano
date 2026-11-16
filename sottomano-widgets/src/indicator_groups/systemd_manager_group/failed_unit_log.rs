@@ -275,7 +275,7 @@ mod tests {
     }
 
     fn table_keys(table: &SectionTable) -> Vec<ValueCell> {
-        table.records().map(|record| record.key().clone()).collect()
+        table.records().map(|record| record.key.clone()).collect()
     }
 
     #[test]

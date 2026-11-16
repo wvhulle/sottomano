@@ -132,9 +132,9 @@ impl From<String> for SectionTitle {
 
 #[derive(Debug, Clone)]
 pub struct Section {
-    title: SectionTitle,
-    widget: SectionWidget,
-    source: SectionSource,
+    pub title: SectionTitle,
+    pub widget: SectionWidget,
+    pub source: SectionSource,
 }
 
 impl Section {
@@ -187,24 +187,9 @@ impl Section {
         Self::new(title, widget).stamped_by::<S>(delivery)
     }
 
-    #[must_use]
-    pub fn source(&self) -> SectionSource {
-        self.source
-    }
-
     #[deprecated(note = "every section needs a title")]
     pub fn untitled(widget: impl Into<SectionWidget>) -> Self {
         Self::new("", widget)
-    }
-
-    #[must_use]
-    pub fn title(&self) -> &SectionTitle {
-        &self.title
-    }
-
-    #[must_use]
-    pub fn widget(&self) -> &SectionWidget {
-        &self.widget
     }
 }
 

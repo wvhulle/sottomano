@@ -26,7 +26,7 @@ enum ProbedWindowFocus {
 }
 
 pub struct FocusTracker {
-    ledger: FocusLedger,
+    pub ledger: FocusLedger,
     last_probed_window_focus: ProbedWindowFocus,
 }
 
@@ -43,11 +43,6 @@ impl FocusTracker {
             ledger: FocusLedger::started_at(now),
             last_probed_window_focus: ProbedWindowFocus::NoWindowFocused,
         }
-    }
-
-    #[must_use]
-    pub fn ledger(&self) -> &FocusLedger {
-        &self.ledger
     }
 
     pub async fn load(now: DateTime<Utc>) -> TrackerMessage {

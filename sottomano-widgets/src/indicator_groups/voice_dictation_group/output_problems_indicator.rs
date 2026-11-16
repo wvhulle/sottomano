@@ -88,7 +88,7 @@ mod tests {
             problems: Vec::new(),
         };
         assert_eq!(
-            notulist_output_problems_indicator(&quiet).panel_visibility(),
+            notulist_output_problems_indicator(&quiet).panel_visibility,
             PanelVisibility::Hidden
         );
     }
@@ -129,7 +129,7 @@ mod tests {
         ];
         let titles: Vec<String> = problems
             .iter()
-            .map(|problem| output_problem_section(problem).title().text().to_owned())
+            .map(|problem| output_problem_section(problem).title.text().to_owned())
             .collect();
         assert_eq!(
             titles,

@@ -158,7 +158,7 @@ impl GamepadMachine {
         self.sticks
             .iter()
             .filter(|(slot, _)| self.settings.gate.slot_access(**slot) == SlotAccess::Allowed)
-            .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position()))
+            .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position))
             .filter(|position| position.x != 0.0 || position.y != 0.0)
     }
 

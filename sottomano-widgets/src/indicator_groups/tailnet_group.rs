@@ -454,7 +454,7 @@ impl TailnetGroup {
                 |held_snapshot| tailscale_indicator(held_snapshot, clock),
                 TAILNET_MEMBERSHIP_GLYPH.into(),
             );
-            if membership_indicator.panel_visibility() == PanelVisibility::Shown {
+            if membership_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(match self.tailscale.get() {
                     Some(held_snapshot) => {
                         self.membership_switch_indicator(membership_indicator, held_snapshot)
@@ -555,7 +555,10 @@ mod tests {
     fn the_offer_indicator_is_inert_while_an_exit_node_is_in_use() {
         let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
         assert!(matches!(
-            TailnetGroup::exit_offer_indicator(&tailnet).gestures().left,
+            TailnetGroup::exit_offer_indicator(&tailnet)
+                .gestures
+                .clone()
+                .left,
             IndicatorGesture::Inert
         ));
     }
@@ -595,7 +598,10 @@ mod tests {
     fn an_approved_offer_can_be_stopped() {
         let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
         assert!(matches!(
-            TailnetGroup::exit_offer_indicator(&tailnet).gestures().left,
+            TailnetGroup::exit_offer_indicator(&tailnet)
+                .gestures
+                .clone()
+                .left,
             IndicatorGesture::Performs {
                 message: IndicatorGroupInteraction::Tailnet(TailnetInteraction::SwitchExitOffer(
                     ExitOfferSwitch::StopOffering
@@ -629,7 +635,8 @@ mod tests {
                 &reachable_exit_node(ExitNodeReachability::Online),
                 &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )
-            .gestures()
+            .gestures
+            .clone()
             .left,
             IndicatorGesture::Inert
         ));
@@ -642,7 +649,8 @@ mod tests {
                 &reachable_exit_node(ExitNodeReachability::Online),
                 &exit_node_choices_while(ExitNodeOffer::Approved)
             )
-            .gestures()
+            .gestures
+            .clone()
             .left,
             IndicatorGesture::Inert
         ));
@@ -655,7 +663,8 @@ mod tests {
                 &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
                 &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )
-            .gestures()
+            .gestures
+            .clone()
             .left,
             IndicatorGesture::Inert
         ));

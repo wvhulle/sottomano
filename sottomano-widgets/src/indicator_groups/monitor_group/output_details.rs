@@ -143,7 +143,7 @@ mod tests {
         assert!(
             hardware_entries
                 .iter()
-                .all(|entry| entry.key() != &ValueCell::from("Model"))
+                .all(|entry| entry.key != ValueCell::from("Model"))
         );
     }
 

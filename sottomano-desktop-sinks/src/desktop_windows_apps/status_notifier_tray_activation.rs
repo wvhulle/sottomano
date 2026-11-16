@@ -26,14 +26,14 @@ pub async fn activate_tray_item_with_token(
 
 async fn send_tray_command(tray_host: &TrayHost, command: TrayCommand) -> Result<(), TrayError> {
     tray_host
-        .tray_client()
+        .tray_client
         .activate(activation_request(command))
         .await
 }
 
 async fn provide_activation_token(tray_host: &TrayHost, address: &str, activation_token: String) {
     match tray_host
-        .session_bus()
+        .session_bus
         .call_method(
             Some(address),
             STATUS_NOTIFIER_ITEM_PATH,

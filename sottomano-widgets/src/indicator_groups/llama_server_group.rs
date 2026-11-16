@@ -151,7 +151,7 @@ impl LlamaServerGroup {
     }
 
     fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {
-        if matches!(self.gguf_card.fetch_stage(), SnapshotFetchStage::Idle) {
+        if matches!(self.gguf_card.hover_fetch, SnapshotFetchStage::Idle) {
             return Task::none();
         }
         let Some(repository) = self

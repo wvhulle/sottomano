@@ -155,7 +155,7 @@ mod tests {
             paged_out_per_second: ByteSize::b(0),
         };
         assert_eq!(
-            swap_activity_indicator(&without_swap, Locale::default()).panel_visibility(),
+            swap_activity_indicator(&without_swap, Locale::default()).panel_visibility,
             PanelVisibility::Hidden
         );
     }
@@ -180,9 +180,9 @@ mod tests {
                 .collect(),
         };
         let table = swapped_process_table(&swapped);
-        assert_eq!(table.rows().len(), 11);
+        assert_eq!(table.rows.len(), 11);
         assert_eq!(
-            table.rows().last(),
+            table.rows.last(),
             Some(&KeyedTableRow::OmittedRecordCount(
                 NonZeroUsize::new(2).unwrap()
             ))

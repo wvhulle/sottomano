@@ -84,7 +84,7 @@ pub enum OverlaySettingsMessage {
 
 pub struct OverlaySettingsGroup {
     expansion: IndicatorGroupExpansion,
-    toast_arrangement: ToastArrangement,
+    pub toast_arrangement: ToastArrangement,
     pub layer: LayerAppearanceControls,
 }
 
@@ -108,11 +108,6 @@ impl OverlaySettingsGroup {
             LayerAppearanceControls::load(ShellLayer::Overlays)
                 .map(OverlaySettingsMessage::Appearance),
         ])
-    }
-
-    #[must_use]
-    pub fn toast_arrangement(&self) -> ToastArrangement {
-        self.toast_arrangement
     }
 
     pub fn collapse(&mut self) {
@@ -182,7 +177,7 @@ mod tests {
             ToastArrangement::ScreenCorner,
         ));
         assert_eq!(
-            overlay_settings_group.toast_arrangement(),
+            overlay_settings_group.toast_arrangement,
             ToastArrangement::ScreenCorner
         );
     }

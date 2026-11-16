@@ -106,7 +106,7 @@ impl DesktopShell {
                     self.desktop_entries.get(),
                     &self.config,
                     self.indicator_groups.notification_settings(),
-                    self.indicator_groups.quiet_schedule_group.quiet_phase(),
+                    self.indicator_groups.quiet_schedule_group.phase,
                     self.clock,
                 ),
                 &|output| toast_surfaces.get(output).copied(),

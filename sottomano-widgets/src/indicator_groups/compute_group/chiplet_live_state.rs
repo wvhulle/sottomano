@@ -30,7 +30,7 @@ impl ChipletLiveState<'_> {
         };
         let ranks: Vec<u32> = clock
             .topology
-            .core_groups()
+            .core_groups
             .iter()
             .filter_map(|other| highest_preference_rank(clock, other))
             .collect();
@@ -48,7 +48,7 @@ impl ChipletLiveState<'_> {
     pub fn temperature_text(&self, group: &CoreGroup) -> Option<String> {
         let samples = &self.temperature?.samples;
         let temperatures: Vec<String> = group
-            .chiplets()
+            .chiplets
             .iter()
             .filter_map(|chiplet| {
                 let label = format!("Tccd{}", chiplet.position + 1);

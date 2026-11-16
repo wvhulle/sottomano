@@ -104,7 +104,7 @@ impl WeatherGroup {
         buses: Option<&DesktopBuses>,
         demand: GroupSourceDemand,
     ) -> Subscription<WeatherMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
         let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
             return location;
@@ -313,7 +313,7 @@ impl WeatherGroup {
                 |held_snapshot| wind_indicator(held_snapshot),
                 WIND_FALLBACK_GLYPH,
             );
-            if wind_row.panel_visibility() == PanelVisibility::Shown {
+            if wind_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_wind_indicator(wind_row));
             }
         }
@@ -342,7 +342,7 @@ impl WeatherGroup {
                 |held_snapshot| location_indicator(held_snapshot),
                 LOCATION_FALLBACK_GLYPH,
             );
-            if location_row.panel_visibility() == PanelVisibility::Shown {
+            if location_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_location_indicator(location_row));
             }
         }

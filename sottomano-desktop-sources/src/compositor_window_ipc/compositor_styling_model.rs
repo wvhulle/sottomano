@@ -83,11 +83,6 @@ impl HeatedWindow {
             border_color,
         })
     }
-
-    #[must_use]
-    pub fn border_color(&self) -> &str {
-        &self.border_color
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

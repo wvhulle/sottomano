@@ -151,22 +151,22 @@ pub(crate) fn named_test_indicator<'indicator>(name: &'static str) -> GroupIndic
 }
 
 pub struct GroupIndicator<'a> {
-    face: IndicatorFace,
+    pub(crate) face: IndicatorFace,
     value: RowValueControl<'a>,
-    pinning: IndicatorPinning,
+    pub(crate) pinning: IndicatorPinning,
     card: DescribeCard<'a>,
-    alerts: IndicatorAlerts,
-    gestures: IndicatorGestures,
+    pub(crate) alerts: IndicatorAlerts,
+    pub(crate) gestures: IndicatorGestures,
     control_actions: Vec<PressAction>,
     button_actions: Vec<PressAction>,
-    hover_fetch: HoverFetch,
-    refresh: IndicatorRefresh,
+    pub hover_fetch: HoverFetch,
+    pub refresh: IndicatorRefresh,
     power_control: IndicatorPowerControl,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<IndicatorGroupInteraction>>,
     ongoing_toasts: Vec<OngoingToast<IndicatorGroupInteraction>>,
-    alignment: IndicatorAlignment,
+    pub(crate) alignment: IndicatorAlignment,
     card_opening_trigger: NestedMenuOpenTrigger,
-    panel_visibility: PanelVisibility,
+    pub panel_visibility: PanelVisibility,
 }
 
 impl<'a> GroupIndicator<'a> {
@@ -347,11 +347,6 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn panel_visibility(&self) -> PanelVisibility {
-        self.panel_visibility
-    }
-
-    #[must_use]
     pub fn in_state(self, state: IndicatorState) -> Self {
         let icon = match self.face.icon {
             IndicatorIcon::IconGlyph { glyph, .. } => IndicatorIcon::IconGlyph { glyph, state },
@@ -372,16 +367,6 @@ impl<'a> GroupIndicator<'a> {
             },
             ..self
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn face(&self) -> &IndicatorFace {
-        &self.face
-    }
-
-    #[cfg(test)]
-    pub(crate) fn alerts(&self) -> &IndicatorAlerts {
-        &self.alerts
     }
 
     #[cfg(test)]
@@ -565,16 +550,6 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn hover_fetch(&self) -> &HoverFetch {
-        &self.hover_fetch
-    }
-
-    #[must_use]
-    pub fn refresh(&self) -> &IndicatorRefresh {
-        &self.refresh
-    }
-
-    #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
         let gesture_action = |gesture, indicator_gesture: &IndicatorGesture| {
             indicator_gesture
@@ -598,10 +573,6 @@ impl<'a> GroupIndicator<'a> {
             alignment: IndicatorAlignment::Aligned(quantity),
             ..self
         }
-    }
-
-    pub(crate) fn alignment(&self) -> IndicatorAlignment {
-        self.alignment
     }
 
     #[must_use]
@@ -731,10 +702,6 @@ impl<'a> GroupIndicator<'a> {
         self.placed_view(config, 1.0, clock, IndicatorPlacement::Table, identity)
     }
 
-    pub(crate) fn gestures(&self) -> IndicatorGestures {
-        self.gestures.clone()
-    }
-
     pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
         face_icon(config, &self.face, 1.0).unwrap_or_else(|| Space::new().into())
     }
@@ -798,11 +765,6 @@ impl<'a> GroupIndicator<'a> {
             } => RowScroll::AdjustsValue(Rc::clone(adjust_by_scroll)),
             RowValueControl::IndicatorReadout(_) | RowValueControl::Drawn(_) => RowScroll::Inert,
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pinning(&self) -> IndicatorPinning {
-        self.pinning
     }
 
     pub(crate) fn menu_pin(&self, group: &IndicatorGroupIdentity) -> Option<GroupMenuPin> {
@@ -912,7 +874,7 @@ mod tests {
 
     #[test]
     fn indicators_without_a_press_have_inert_gestures() {
-        let gestures = composed_row().gestures();
+        let gestures = composed_row().gestures.clone();
         assert!(matches!(gestures.left, IndicatorGesture::Inert));
         assert!(matches!(gestures.right, IndicatorGesture::Inert));
     }
@@ -930,7 +892,7 @@ mod tests {
             ]
         );
         assert!(matches!(
-            indicator.gestures().right,
+            indicator.gestures.clone().right,
             IndicatorGesture::Performs { .. }
         ));
     }
@@ -959,7 +921,7 @@ mod tests {
             IndicatorValue::Nothing,
             Box::new(|_| Vec::new()),
         );
-        assert_eq!(composed.pinning(), IndicatorPinning::Pinnable);
+        assert_eq!(composed.pinning, IndicatorPinning::Pinnable);
         assert_eq!(sample.indicator_name(), composed.indicator_name());
     }
 
@@ -1019,13 +981,13 @@ mod tests {
         let config = Config::default();
         let slider = offset_slider();
         let sample: GroupIndicator<'static> = named_test_indicator("Named reading");
-        assert_eq!(sample.pinning(), IndicatorPinning::Pinnable);
+        assert_eq!(sample.pinning, IndicatorPinning::Pinnable);
         assert_eq!(
             GroupIndicator::slider(&slider, &config, CompositorStylingMessage::CornerRadius)
-                .pinning(),
+                .pinning,
             IndicatorPinning::Pinnable
         );
-        assert_eq!(composed_row().pinning(), IndicatorPinning::Unpinnable);
+        assert_eq!(composed_row().pinning, IndicatorPinning::Unpinnable);
     }
 
     #[test]
@@ -1035,7 +997,7 @@ mod tests {
         assert_eq!(
             GroupIndicator::slider(&slider, &config, CompositorStylingMessage::CornerRadius)
                 .indicator_name(),
-            slider.name()
+            slider.name.clone()
         );
     }
 

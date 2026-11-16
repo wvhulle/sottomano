@@ -396,7 +396,7 @@ mod tests {
         let group_titles: Vec<String> = ethernet_group
             .group_contents()
             .iter()
-            .map(|group| group.group_title().to_string())
+            .map(|group| group.group_title.clone().to_string())
             .collect();
         assert_eq!(group_titles, ["Ethernet", "USB Ethernet", "USB Ethernet 2"]);
     }

@@ -88,29 +88,9 @@ impl CoreGroup {
             .iter()
             .flat_map(|core| core.threads.iter().copied())
     }
-
-    #[must_use]
-    pub fn physical_cores(&self) -> &[PhysicalCore] {
-        &self.physical_cores
-    }
-
-    #[must_use]
-    pub fn chiplets(&self) -> &[Chiplet] {
-        &self.chiplets
-    }
-
-    #[must_use]
-    pub fn role(&self) -> CoreRole {
-        self.role
-    }
 }
 
 impl CpuTopology {
-    #[must_use]
-    pub fn core_groups(&self) -> &[CoreGroup] {
-        &self.core_groups
-    }
-
     #[must_use]
     pub fn detect() -> Self {
         let designs = CoreDesign::read_all();
@@ -594,7 +574,7 @@ mod tests {
 
     fn roles(topology: &CpuTopology) -> Vec<(CoreRole, Vec<u32>)> {
         topology
-            .core_groups()
+            .core_groups
             .iter()
             .map(|group| (group.role, group.logical_cpus().collect()))
             .collect()

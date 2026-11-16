@@ -758,7 +758,7 @@ mod tests {
             group
                 .group_contents(&DesktopIndex::default(), &config, "DP-1")
                 .first()
-                .map(|frequent| frequent.group_title().to_string())
+                .map(|frequent| frequent.group_title.clone().to_string())
         };
 
         assert_eq!(

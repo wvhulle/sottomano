@@ -27,7 +27,7 @@ impl Default for LatestAwayReasons {
 impl LatestAwayReasons {
     pub(super) fn note_signal(&mut self, signal: &FocusSignal) {
         match *signal {
-            FocusSignal::Idle(idle) => self.idle = idle.edge(),
+            FocusSignal::Idle(idle) => self.idle = idle.0,
             FocusSignal::Sleep(sleep) => self.sleep = sleep,
             FocusSignal::ScreenPower(screen_power) => self.screen_power = screen_power,
             FocusSignal::WindowFocused(_) | FocusSignal::NoWindowFocused => {}

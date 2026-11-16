@@ -158,7 +158,7 @@ impl CaldavGroup {
                 |held_snapshot| upcoming_events_indicator(held_snapshot, clock, locale),
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
             );
-            if events_indicator.panel_visibility() == PanelVisibility::Shown {
+            if events_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_upcoming_events_indicator(events_indicator));
             }
         }
@@ -167,7 +167,7 @@ impl CaldavGroup {
                 |held_snapshot| open_tasks_indicator(held_snapshot, clock),
                 OPEN_TASKS_GLYPH.into(),
             );
-            if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
+            if tasks_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_open_tasks_indicator(tasks_indicator));
             }
         }

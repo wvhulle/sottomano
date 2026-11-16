@@ -7,4 +7,4 @@ valid:
 invalid:
   - "fn card() -> SectionSource { SectionSource::Snapshot { source_name: \"Wi-Fi\", delivery: SourceDelivery::Loading } }"
   - "fn stamp(at: DateTime<Utc>) -> DeliveryStamp { DeliveryStamp { cadence: DeliveryCadence::Live, delivered_at: at } }"
-  - "fn state() -> SourceDelivery { SourceDelivery::Offline }"
+  - "fn state() -> SourceDelivery { SourceDelivery::Failed }"

@@ -46,7 +46,7 @@ impl DesktopShell {
 
     pub(crate) fn notification_status(&self) -> NotificationStatus {
         NotificationStatus {
-            quiet_phase: self.indicator_groups.quiet_schedule_group.quiet_phase(),
+            quiet_phase: self.indicator_groups.quiet_schedule_group.phase,
             live: self.notifications.live.len(),
             held: self.notifications.held.len(),
         }

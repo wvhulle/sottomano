@@ -234,7 +234,7 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         let start = self.axis.position_of(selected_bounds.position())
             - self.axis.position_of(content.bounds().position());
         let visible_span = self.axis.span_of(layout.bounds().size());
-        let current = state.scroll_motion.target_offset();
+        let current = state.scroll_motion.target_offset;
         let target = SelectedSpan {
             start,
             end: start + self.axis.span_of(selected_bounds.size()),
@@ -262,7 +262,7 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         delta: mouse::ScrollDelta,
         shell: &mut Shell<'_, Message>,
     ) {
-        let current = state.scroll_motion.target_offset();
+        let current = state.scroll_motion.target_offset;
         let next = (current - self.axis.wheel_travel(delta, self.wheel_line_travel_px))
             .clamp(0.0, self.max_offset(layout));
         if (next - current).abs() <= f32::EPSILON {
@@ -332,7 +332,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
             scroll_motion.set_target(*offset);
         }
         scroll_motion.settle_if_instant(max_offset);
-        let drawn_offset = scroll_motion.drawn_offset().clamp(0.0, max_offset);
+        let drawn_offset = scroll_motion.drawn_offset.clamp(0.0, max_offset);
         Node::with_children(
             visible,
             vec![content_node.move_to(Point::ORIGIN - self.axis.along(drawn_offset))],
@@ -359,7 +359,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         };
         let state = tree.state.downcast_ref::<ScrollerState>();
         let hidden_edges = HiddenScrollEdges::clamped_scroll_overflow(
-            state.scroll_motion.drawn_offset(),
+            state.scroll_motion.drawn_offset,
             self.axis.span_of(content_layout(layout).bounds().size()),
             self.axis.span_of(bounds.size()),
         );
@@ -690,11 +690,11 @@ mod tests {
         let same: Element<'_, ()> = scroller_over(Axis::Horizontal).showing(1).into();
         tree.diff(&same);
         let state = tree.state.downcast_ref::<ScrollerState>();
-        assert!((state.scroll_motion.drawn_offset() - 120.0).abs() < f32::EPSILON);
+        assert!((state.scroll_motion.drawn_offset - 120.0).abs() < f32::EPSILON);
         let replaced: Element<'_, ()> = scroller_over(Axis::Horizontal).showing(2).into();
         tree.diff(&replaced);
         let state = tree.state.downcast_ref::<ScrollerState>();
-        assert!(state.scroll_motion.drawn_offset().abs() < f32::EPSILON);
+        assert!(state.scroll_motion.drawn_offset.abs() < f32::EPSILON);
         assert_eq!(state.last_selected_position, None);
         assert!(state.next_selection_jumps);
     }

@@ -17,14 +17,9 @@ pub enum IdleEdge {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InputIdleEdge(IdleEdge);
+pub struct InputIdleEdge(pub IdleEdge);
 
 impl InputIdleEdge {
-    #[must_use]
-    pub fn edge(self) -> IdleEdge {
-        self.0
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     #[must_use]
     pub fn simulated(edge: IdleEdge) -> Self {

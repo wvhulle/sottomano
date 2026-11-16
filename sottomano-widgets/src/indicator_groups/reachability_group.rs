@@ -97,7 +97,7 @@ impl ReachabilityGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<ReachabilityMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
@@ -216,7 +216,7 @@ impl ReachabilityGroup {
                 |held_snapshot| interface_throughput_indicator(held_snapshot),
                 INTERFACE_THROUGHPUT_GLYPH.into(),
             );
-            if interface_indicator.panel_visibility() == PanelVisibility::Shown {
+            if interface_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_interface_throughput_indicator(interface_indicator));
             }
         }
@@ -229,7 +229,7 @@ impl ReachabilityGroup {
                 |held_snapshot| internet_latency_indicator(held_snapshot),
                 INTERNET_LATENCY_GLYPH.into(),
             );
-            if latency_indicator.panel_visibility() == PanelVisibility::Shown {
+            if latency_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_internet_latency_indicator(latency_indicator));
             }
         }

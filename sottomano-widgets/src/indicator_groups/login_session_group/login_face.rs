@@ -133,6 +133,6 @@ pub fn session_info_sections(session_info: &SessionInfo) -> Vec<Section> {
         ),
     ]
     .into_iter()
-    .filter(|section| !section.widget().is_empty())
+    .filter(|section| !section.widget.is_empty())
     .collect()
 }

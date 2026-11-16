@@ -10,7 +10,7 @@ pub type KeyedTableRow = TableRow<ValueCell, Severity>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableRecord<const COLUMNS: usize> {
-    key: ValueCell,
+    pub key: ValueCell,
     cells: [ValueCell; COLUMNS],
     level: Severity,
 }
@@ -27,11 +27,6 @@ impl<const COLUMNS: usize> TableRecord<COLUMNS> {
     #[must_use]
     pub fn level(self, level: Severity) -> Self {
         Self { level, ..self }
-    }
-
-    #[must_use]
-    pub fn key(&self) -> &ValueCell {
-        &self.key
     }
 }
 
@@ -122,7 +117,7 @@ mod tests {
 
     fn row_shapes(table: &GroupedTable<'static, ValueCell, Severity>) -> Vec<&'static str> {
         table
-            .rows()
+            .rows
             .iter()
             .map(|row| match row {
                 KeyedTableRow::Record(_) => "record",
@@ -139,11 +134,11 @@ mod tests {
         let table = column_record_table(moon_columns(), &planets(&["Mars", "Venus"]))
             .without_blank_columns(|cell| matches!(cell, ValueCell::Blank));
         assert_eq!(
-            table.columns(),
-            &TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
+            table.columns,
+            TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
         );
         assert_eq!(
-            table.rows(),
+            table.rows,
             [
                 KeyedTableRow::Record(TableRecord::with_cells("Mars", ["1".into()]).into()),
                 KeyedTableRow::Record(TableRecord::with_cells("Venus", ["1".into()]).into()),
@@ -165,7 +160,7 @@ mod tests {
         ];
         let table = column_record_table(moon_columns(), &solar_system);
         assert_eq!(
-            table.rows(),
+            table.rows,
             [
                 KeyedTableRow::Record(
                     TableRecord::with_cells("Mars", ["2".into(), ValueCell::Blank]).into()
@@ -186,7 +181,7 @@ mod tests {
             .truncated_to(NonZeroUsize::new(2).unwrap());
         assert_eq!(row_shapes(&table), ["record", "record", "omitted"]);
         assert_eq!(
-            table.rows().last(),
+            table.rows.last(),
             Some(&KeyedTableRow::OmittedRecordCount(
                 NonZeroUsize::new(2).unwrap()
             ))
@@ -266,9 +261,9 @@ mod tests {
             [LabeledValue::new("Error", "offline").level(Severity::Critical)],
         );
         let record = table.records().next().unwrap();
-        assert_eq!(record.key(), &ValueCell::from("Error"));
+        assert_eq!(record.key, ValueCell::from("Error"));
         assert_eq!(record.cell(0), Some(&ValueCell::from("offline")));
         assert_eq!(record.cell(1), None);
-        assert_eq!(record.level(), &Severity::Critical);
+        assert_eq!(record.level, Severity::Critical);
     }
 }

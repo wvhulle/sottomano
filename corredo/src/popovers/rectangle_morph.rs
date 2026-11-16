@@ -18,7 +18,7 @@ enum MorphPhase {
 
 pub struct RectangleMorph {
     from: Rectangle,
-    current: Rectangle,
+    pub current: Rectangle,
     phase: MorphPhase,
 }
 
@@ -72,11 +72,6 @@ impl RectangleMorph {
 
     pub fn follow(&mut self, target: Rectangle) -> Rectangle {
         self.current = interpolated_rectangle(self.from, target, self.progress());
-        self.current
-    }
-
-    #[must_use]
-    pub fn current(&self) -> Rectangle {
         self.current
     }
 }

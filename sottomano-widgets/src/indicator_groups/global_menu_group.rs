@@ -175,7 +175,7 @@ fn collect_entries<'menu>(
 }
 
 pub struct GlobalMenuGroup {
-    global_menu_use: GlobalMenuUse,
+    pub global_menu_use: GlobalMenuUse,
     registered_menu_bars: Vec<RegisteredMenuBar>,
     focused_window: FocusedWindowIdentity,
     focused_menu_bar: FocusedMenuBar,
@@ -277,11 +277,6 @@ impl GlobalMenuGroup {
             sqlite_singleton_flag::load(GlobalMenuUse::Disabled),
             GlobalMenuMessage::UseLoaded,
         )
-    }
-
-    #[must_use]
-    pub fn global_menu_use(&self) -> GlobalMenuUse {
-        self.global_menu_use
     }
 
     #[must_use]
@@ -722,7 +717,7 @@ mod tests {
         let mut group =
             enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
         let _ = group.interact(GlobalMenuInteraction::ToggleUse);
-        assert_eq!(group.global_menu_use(), GlobalMenuUse::Disabled);
+        assert_eq!(group.global_menu_use, GlobalMenuUse::Disabled);
         assert!(group.group_contents().is_empty());
         assert!(!group.shows_top_menus());
     }
@@ -730,7 +725,7 @@ mod tests {
     #[test]
     fn group_starts_switched_off() {
         assert_eq!(
-            GlobalMenuGroup::default().global_menu_use(),
+            GlobalMenuGroup::default().global_menu_use,
             GlobalMenuUse::Disabled
         );
     }

@@ -417,7 +417,7 @@ impl ClaudeUsageGroup {
                 |held_snapshot| claude_enterprise_indicator(held_snapshot, clock),
                 CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
             );
-            if spend_row.panel_visibility() == PanelVisibility::Shown {
+            if spend_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.enterprise_spend_indicator(spend_row));
             }
         }
@@ -433,7 +433,7 @@ impl ClaudeUsageGroup {
                 |held_snapshot| claude_ccusage_periods_indicator(held_snapshot, clock),
                 CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
             );
-            if periods_indicator.panel_visibility() == PanelVisibility::Shown {
+            if periods_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.ccusage_periods_indicator(periods_indicator));
             }
         }
@@ -445,7 +445,7 @@ impl ClaudeUsageGroup {
                 |held_snapshot| claude_ccusage_block_indicator(held_snapshot),
                 CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
             );
-            if block_indicator.panel_visibility() == PanelVisibility::Shown {
+            if block_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.ccusage_block_indicator(block_indicator));
             }
         }

@@ -224,7 +224,7 @@ impl CopilotUsageGroup {
                 |held_snapshot| copilot_free_indicator(held_snapshot),
                 COPILOT_FREE_FALLBACK_GLYPH,
             );
-            if free_row.panel_visibility() == PanelVisibility::Shown {
+            if free_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.free_indicator(free_row));
             }
         }
@@ -236,7 +236,7 @@ impl CopilotUsageGroup {
                 |held_snapshot| copilot_ccusage_indicator(held_snapshot, clock),
                 COPILOT_CCUSAGE_FALLBACK_GLYPH,
             );
-            if cli_row.panel_visibility() == PanelVisibility::Shown {
+            if cli_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.cli_indicator(cli_row));
             }
         }

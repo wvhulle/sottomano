@@ -707,7 +707,7 @@ mod tests {
                 alerts: &DEFAULT_RAIN_ALERTS,
             }
             .indicator(clock, Locale::default())
-            .panel_visibility(),
+            .panel_visibility,
             PanelVisibility::Shown
         );
         assert_eq!(forecast.display_state(clock), IndicatorState::Off);

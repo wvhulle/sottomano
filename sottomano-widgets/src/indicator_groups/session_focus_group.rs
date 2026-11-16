@@ -73,7 +73,7 @@ impl SessionFocusGroup {
     #[must_use]
     pub fn started_at(config: &SessionFocusConfig, now: DateTime<Utc>) -> Self {
         let tracker = FocusTracker::started_at(now);
-        let daily_totals = DailyTotalsGauge::new(&tracker.ledger().accounted(config), now);
+        let daily_totals = DailyTotalsGauge::new(&tracker.ledger.accounted(config), now);
         Self {
             tracker,
             snooze: None,
@@ -84,13 +84,13 @@ impl SessionFocusGroup {
 
     pub fn refresh_daily_totals(&mut self, config: &SessionFocusConfig, clock: Clock) {
         let now = clock.utc();
-        if self.daily_totals.computed_at().timestamp() != now.timestamp() {
+        if self.daily_totals.computed_at.timestamp() != now.timestamp() {
             self.recompute_daily_totals(config, now);
         }
     }
 
     fn recompute_daily_totals(&mut self, config: &SessionFocusConfig, now: DateTime<Utc>) {
-        self.daily_totals = DailyTotalsGauge::new(&self.tracker.ledger().accounted(config), now);
+        self.daily_totals = DailyTotalsGauge::new(&self.tracker.ledger.accounted(config), now);
     }
 
     pub fn collapse(&mut self) {
@@ -173,7 +173,7 @@ impl SessionFocusGroup {
         SessionFace {
             accounting: self
                 .tracker
-                .ledger()
+                .ledger
                 .accounted(&config.indicator_groups.session_focus),
             snooze: self.snooze,
         }
@@ -183,7 +183,7 @@ impl SessionFocusGroup {
         BreakLog {
             accounting: self
                 .tracker
-                .ledger()
+                .ledger
                 .accounted(&config.indicator_groups.session_focus),
         }
     }
@@ -192,7 +192,7 @@ impl SessionFocusGroup {
         FocusRunIndicator {
             accounting: self
                 .tracker
-                .ledger()
+                .ledger
                 .accounted(&config.indicator_groups.session_focus),
         }
     }
@@ -201,7 +201,7 @@ impl SessionFocusGroup {
         ContextSwitchRate {
             accounting: self
                 .tracker
-                .ledger()
+                .ledger
                 .accounted(&config.indicator_groups.session_focus),
         }
     }
@@ -215,7 +215,7 @@ impl SessionFocusGroup {
     ) -> Vec<HeatedWindow> {
         let accounting = self
             .tracker
-            .ledger()
+            .ledger
             .accounted(&config.indicator_groups.session_focus);
         let now = clock.utc();
         let mut windows: Vec<_> = compositor.windows.values().collect();
@@ -244,7 +244,7 @@ impl SessionFocusGroup {
         let usage = WindowUsage {
             accounting: self
                 .tracker
-                .ledger()
+                .ledger
                 .accounted(&config.indicator_groups.session_focus),
             window,
         };

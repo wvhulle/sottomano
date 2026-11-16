@@ -226,7 +226,7 @@ impl OpenRouterCreditGroup {
                 |held_snapshot| strict_budget_indicator(held_snapshot),
                 OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
             );
-            if budget_indicator.panel_visibility() == PanelVisibility::Shown {
+            if budget_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_strict_budget_indicator(budget_indicator));
             }
         }
@@ -235,7 +235,7 @@ impl OpenRouterCreditGroup {
                 |held_snapshot| best_models_indicator(held_snapshot),
                 OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
             );
-            if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
+            if rankings_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.model_rankings_indicator(rankings_indicator));
             }
         }

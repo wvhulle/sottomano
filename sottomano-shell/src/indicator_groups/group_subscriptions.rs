@@ -39,7 +39,7 @@ impl ShellIndicatorGroups {
         config: &Config,
         buses: Option<&DesktopBuses>,
     ) -> Subscription<Message> {
-        let working_days = self.quiet_schedule_group.working_days();
+        let working_days = self.quiet_schedule_group.working_days;
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
             self.weather_group

@@ -66,7 +66,7 @@ fn submenu_connector_toggle(presentation: NestedMenuPresentation) -> IconToggle 
 impl GroupMenuState {
     #[must_use]
     pub fn settings_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
-        let presentation = self.presentation();
+        let presentation = self.presentation;
         let accordion_only_indicator =
             (presentation.layout == NestedMenuLayout::Accordion).then(|| {
                 GroupIndicator::toggle(
@@ -81,7 +81,7 @@ impl GroupMenuState {
                 Phosphor::ListDashes(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),
-            self.settings_expansion(),
+            &self.settings_expansion,
             GroupMenuMessage::SettingsExpansion,
             [
                 GroupIndicator::toggle(
@@ -150,6 +150,6 @@ mod tests {
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(stored));
-        assert_eq!(group_menus.presentation(), stored);
+        assert_eq!(group_menus.presentation, stored);
     }
 }

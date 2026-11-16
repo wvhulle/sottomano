@@ -93,9 +93,9 @@ impl ChipletRoles<'_> {
             title,
             dictionary_table(
                 self.topology
-                    .core_groups()
+                    .core_groups
                     .iter()
-                    .find(|group| group.role() == role)
+                    .find(|group| group.role == role)
                     .map(topology_facts)
                     .into_iter()
                     .flatten()

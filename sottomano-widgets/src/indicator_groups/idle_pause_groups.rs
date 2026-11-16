@@ -217,7 +217,7 @@ impl IdlePauseGroups {
                     .timer
                     .set_availability(hibernate_availability);
                 if availability_change == AvailabilityChange::Changed
-                    && self.hibernate.timer.timeout().is_some()
+                    && self.hibernate.timer.timeout.is_some()
                 {
                     self.rearm()
                 } else {
@@ -285,7 +285,7 @@ impl IdlePauseGroups {
                 .get()
                 .map_or(&[], |held| held.inhibitors.as_slice()),
             armed_triggers: &armed_triggers,
-            hibernate_timer: match self.hibernate.timer.timeout() {
+            hibernate_timer: match self.hibernate.timer.timeout {
                 Some(_) => TimerArming::Armed,
                 None => TimerArming::Unarmed,
             },
@@ -295,11 +295,11 @@ impl IdlePauseGroups {
     #[must_use]
     pub fn timeouts(&self) -> Timeouts {
         Timeouts {
-            lock_user: self.lock.timer.timeout(),
-            screen_off: self.screen_off.timer.timeout(),
-            sleep: self.sleep.timer.timeout(),
-            hibernate: self.hibernate.timer.timeout(),
-            power_down: self.power_down.timer.timeout(),
+            lock_user: self.lock.timer.timeout,
+            screen_off: self.screen_off.timer.timeout,
+            sleep: self.sleep.timer.timeout,
+            hibernate: self.hibernate.timer.timeout,
+            power_down: self.power_down.timer.timeout,
         }
     }
 
@@ -400,7 +400,7 @@ impl IdlePauseGroups {
         let locale = config.calendar.locale;
         let first_blocker = self.blockers_of(pause).next();
         let timeout_slider =
-            GroupIndicator::slider(self.pause(pause).timer.slider(), config, move |message| {
+            GroupIndicator::slider(&self.pause(pause).timer.control, config, move |message| {
                 IdlePauseInteraction::Timer(pause, message)
             })
             .with_hover_card(Box::new(move |card_clock| {

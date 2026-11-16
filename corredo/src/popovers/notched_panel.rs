@@ -257,7 +257,7 @@ impl<Message> NotchedPanel<'_, Message> {
     fn drawn_panel(&self, panel_morph: &PanelMorph, node_bounds: Rectangle) -> Rectangle {
         let notch_edge = Vector::new(node_bounds.x, node_bounds.y)
             - self.node_origin_from_notch_edge(node_bounds.width);
-        panel_morph.morph.current() + notch_edge
+        panel_morph.morph.current + notch_edge
     }
 
     fn panel_with_gap(&self, panel: Rectangle) -> Rectangle {

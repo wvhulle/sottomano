@@ -156,7 +156,7 @@ impl ComputeGroup {
         sensor: &SensorConfig,
         demand: GroupSourceDemand,
     ) -> Subscription<ComputeMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch([
             demand.while_headline_shown(
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
@@ -298,7 +298,7 @@ impl ComputeGroup {
         let clock_indicator = self
             .cpu_clock
             .indicator(cpu_clock_indicator, CPU_CLOCK_GLYPH.into());
-        if clock_indicator.panel_visibility() == PanelVisibility::Shown {
+        if clock_indicator.panel_visibility == PanelVisibility::Shown {
             rows.push(self.wired_cpu_clock_indicator(clock_indicator));
         }
         if let Some(held_snapshot) = self.cpu_clock.get() {
@@ -306,7 +306,7 @@ impl ComputeGroup {
                 clock: held_snapshot,
             }
             .indicator();
-            if limits_indicator.panel_visibility() == PanelVisibility::Shown {
+            if limits_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.cpu_clock_limits_indicator(limits_indicator));
             }
         }
@@ -323,7 +323,7 @@ impl ComputeGroup {
                 |held_snapshot| temperature_indicator(held_snapshot, clock, locale),
                 CPU_TEMPERATURE_GLYPH.into(),
             );
-            if temperature_row.panel_visibility() == PanelVisibility::Shown {
+            if temperature_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.cpu_temperature_indicator(temperature_row));
             }
         }
@@ -332,7 +332,7 @@ impl ComputeGroup {
     fn push_cpu_power_draw_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(power) = self.cpu_power_draw.get() {
             let power_indicator = cpu_power_indicator(power);
-            if power_indicator.panel_visibility() == PanelVisibility::Shown {
+            if power_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.cpu_power_draw_indicator(power_indicator));
             }
         }
@@ -341,7 +341,7 @@ impl ComputeGroup {
     fn push_cpu_model_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(hardware) = self.host_hardware.get() {
             let model_indicator = cpu_model_indicator(&hardware.cpu);
-            if model_indicator.panel_visibility() == PanelVisibility::Shown {
+            if model_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(
                     model_indicator.with_hover_card(Box::new(move |_| self.cpu_model_card())),
                 );
@@ -350,7 +350,7 @@ impl ComputeGroup {
     }
 
     fn push_x3d_cache_preference_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
-        let subscribed = self.x3d_cache_preference.subscribed_indicator();
+        let subscribed = &self.x3d_cache_preference.sample;
         if subscribed.awaits_first_delivery() {
             return;
         }
@@ -366,7 +366,7 @@ impl ComputeGroup {
             ),
             None => preference_indicator,
         };
-        if preference_indicator.panel_visibility() == PanelVisibility::Shown {
+        if preference_indicator.panel_visibility == PanelVisibility::Shown {
             rows.push(preference_indicator);
         }
     }

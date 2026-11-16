@@ -224,7 +224,7 @@ pub(crate) fn indicator_entry<'a>(
         indicator.menu_row_value(layout.config, layout.clock),
         indicator_pin.into_iter().collect(),
     );
-    let gestures = indicator.gestures();
+    let gestures = indicator.gestures.clone();
     let press = match gestures.left {
         IndicatorGesture::Performs { message, .. } => {
             RowGesture::Publishes(GroupEvent::Interaction(message))

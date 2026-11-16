@@ -266,7 +266,7 @@ impl IncusInstancesGroup {
     }
 
     pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<IncusInstancesMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch(WATCHED_DAEMONS.into_iter().flat_map(|instance_daemon| {
             [
                 snapshot_subscription::<InstanceDaemonProbe>(instance_daemon)

@@ -53,7 +53,7 @@ pub enum SnapshotFetchStage<S: SnapshotSource> {
 #[derive(Debug)]
 pub struct HoverFetchedSnapshot<S: SnapshotSource> {
     remembered_by_inputs: HashMap<S::StreamInputs, RememberedSnapshot<S>>,
-    hover_fetch: SnapshotFetchStage<S>,
+    pub hover_fetch: SnapshotFetchStage<S>,
 }
 
 impl<S: SnapshotSource> Default for HoverFetchedSnapshot<S> {
@@ -144,11 +144,6 @@ where
 
     pub fn stop(&mut self) {
         self.hover_fetch = SnapshotFetchStage::Idle;
-    }
-
-    #[must_use]
-    pub fn fetch_stage(&self) -> &SnapshotFetchStage<S> {
-        &self.hover_fetch
     }
 
     pub fn receive(&mut self, delivery: SnapshotDelivery<S>, clock: Clock) {
@@ -336,7 +331,8 @@ mod tests {
         let sections = hover.sections_described_by(|_| {
             vec![Section::new("Count", SectionWidget::paragraph("counted"))]
         });
-        let Some(SectionSource::Snapshot { delivery, .. }) = sections.first().map(Section::source)
+        let Some(SectionSource::Snapshot { delivery, .. }) =
+            sections.first().map(|section| section.source)
         else {
             panic!("a hover fetch in progress describes its source");
         };
@@ -354,7 +350,7 @@ mod tests {
         assert_eq!(
             seeded
                 .iter()
-                .map(|section| (section.title().text().to_owned(), section.source()))
+                .map(|section| (section.title.text().to_owned(), section.source))
                 .collect::<Vec<_>>(),
             [(
                 "Loading".to_owned(),

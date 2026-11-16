@@ -294,7 +294,7 @@ mod tests {
         let card_titles: Vec<String> = pending_indicator
             .hover_card(Clock::real())
             .iter()
-            .map(|section| section.title().text().to_owned())
+            .map(|section| section.title.text().to_owned())
             .collect();
         assert_eq!(card_titles, ["Loading".to_owned()]);
     }

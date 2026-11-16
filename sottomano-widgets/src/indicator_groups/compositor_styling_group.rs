@@ -176,7 +176,7 @@ impl CompositorStylingGroup {
         Task::batch([
             SwitchHeatBorders::load(),
             Task::perform(
-                sqlite_compositor_styling::load(self.rules_file.config_home().to_path_buf()),
+                sqlite_compositor_styling::load(self.rules_file.config_home.clone()),
                 CompositorStylingMessage::StylingLoaded,
             ),
         ])

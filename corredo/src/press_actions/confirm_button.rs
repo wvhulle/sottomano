@@ -27,7 +27,7 @@ pub enum ConfirmPolicy {
 
 pub struct ConfirmButton {
     confirm_policy: ConfirmPolicy,
-    stage: ConfirmStage,
+    pub stage: ConfirmStage,
 }
 
 impl ConfirmButton {
@@ -51,11 +51,6 @@ impl ConfirmButton {
 
     pub fn disarm(&mut self) {
         self.stage = ConfirmStage::Idle;
-    }
-
-    #[must_use]
-    pub fn stage(&self) -> ConfirmStage {
-        self.stage
     }
 
     pub fn view<'a, Message: 'a + Clone>(

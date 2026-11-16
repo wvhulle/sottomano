@@ -67,7 +67,7 @@ pub enum SeverityDirection {
 }
 
 pub struct SliderControl {
-    name: Cow<'static, str>,
+    pub name: Cow<'static, str>,
     pub(crate) expanding_slider: ExpandingSlider,
     slider_activity: SliderActivity,
     live: f32,
@@ -328,7 +328,7 @@ impl SliderControl {
 
     #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
-        let open_or_close = match self.expanding_slider.expansion_state() {
+        let open_or_close = match self.expanding_slider.expansion_state {
             ExpansionState::Collapsed => "open the slider",
             ExpansionState::Expanded => "close the slider",
         };
@@ -365,7 +365,7 @@ impl SliderControl {
         vec![Section::new(
             "Value",
             dictionary_table([LabeledValue::new(
-                self.name().into_owned(),
+                self.name.clone().into_owned(),
                 self.readout_cell(),
             )]),
         )]
@@ -378,11 +378,6 @@ impl SliderControl {
             }
             SliderSeverityScale::Unrated => Severity::Normal,
         }
-    }
-
-    #[must_use]
-    pub fn name(&self) -> Cow<'static, str> {
-        self.name.clone()
     }
 
     #[must_use]
@@ -436,7 +431,7 @@ impl SliderControl {
 
     #[must_use]
     pub fn indicator(&self, locale: Locale) -> GroupIndicator<'_> {
-        GroupIndicator::glyph_only(self.name(), self.effective_icon(), self.shown_state())
+        GroupIndicator::glyph_only(self.name.clone(), self.effective_icon(), self.shown_state())
             .with_readout(self.indicator_readout(locale))
             .with_alerts(self.indicator_alerts(locale))
             .with_hover_card(Box::new(|_| self.readout_hover_card()))
@@ -444,7 +439,7 @@ impl SliderControl {
 
     pub(crate) fn indicator_face(&self) -> IndicatorFace {
         IndicatorFace {
-            name: self.name(),
+            name: self.name.clone(),
             icon: IndicatorIcon::IconGlyph {
                 glyph: self.effective_icon(),
                 state: self.shown_state(),
@@ -527,7 +522,7 @@ impl SliderControl {
                 self.expanding_slider
                     .update(SliderMessage::SourceReported(sample));
                 let moved = (self.expanding_slider.shown_value() - shown_before).abs()
-                    >= self.expanding_slider.slider_step_size() / 2.0;
+                    >= self.expanding_slider.slider_step / 2.0;
                 let change_origin = match tracking_before {
                     SourceTracking::FollowingSource if moved => LevelChangeOrigin::OutsidePanel,
                     SourceTracking::FollowingSource | SourceTracking::Diverging => {
@@ -633,8 +628,8 @@ impl SliderControl {
             MeasuredReadout::new(
                 ReadoutLabels {
                     owner: self.name.clone(),
-                    range: self.expanding_slider.range(),
-                    step: self.expanding_slider.slider_step_size(),
+                    range: self.expanding_slider.range.clone(),
+                    step: self.expanding_slider.slider_step,
                     format: self.readout,
                     context: config.calendar.locale,
                 },

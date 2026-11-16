@@ -105,7 +105,7 @@ fn capped_window_title<'a, Message: 'a>(
 pub struct WindowList {
     launcher: LauncherEntries,
     jobs: JobProgress,
-    window_processes: WindowProcesses,
+    pub window_processes: WindowProcesses,
     folding: Folding,
     hovered_window: Option<u64>,
     process_tree: HoverFetchedSnapshot<Process>,
@@ -286,11 +286,6 @@ impl WindowList {
                 clock,
             ),
         ])
-    }
-
-    #[must_use]
-    pub fn window_processes(&self) -> &WindowProcesses {
-        &self.window_processes
     }
 
     #[must_use]

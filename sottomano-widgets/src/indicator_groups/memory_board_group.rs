@@ -286,7 +286,7 @@ impl MemoryBoardGroup {
                 |held_snapshot| memory_growth_indicator(held_snapshot, locale),
                 MEMORY_GROWTH_GLYPH.into(),
             );
-            if growth_indicator.panel_visibility() == PanelVisibility::Shown {
+            if growth_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_memory_growth_indicator(growth_indicator));
             }
         }
@@ -302,7 +302,7 @@ impl MemoryBoardGroup {
                 |held_snapshot| memory_stall_indicator(held_snapshot, locale),
                 STALL_PRESSURE_GLYPH.into(),
             );
-            if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
+            if pressure_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.stall_pressure_indicator(pressure_indicator));
             }
         }
@@ -318,7 +318,7 @@ impl MemoryBoardGroup {
                 |held_snapshot| swap_activity_indicator(held_snapshot, locale),
                 SWAP_ACTIVITY_GLYPH.into(),
             );
-            if swap_indicator.panel_visibility() == PanelVisibility::Shown {
+            if swap_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_swap_activity_indicator(swap_indicator));
             }
         }

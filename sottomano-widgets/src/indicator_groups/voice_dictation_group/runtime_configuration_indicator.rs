@@ -75,7 +75,7 @@ mod tests {
         };
         let keys: Vec<ValueCell> = RuntimeConfiguration(&engine)
             .configuration_rows()
-            .map(|row| row.key().clone())
+            .map(|row| row.key.clone())
             .collect();
         assert_eq!(
             keys,

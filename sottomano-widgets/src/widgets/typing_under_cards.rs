@@ -74,7 +74,7 @@ fn fading_animation(is_fading: bool, fade_duration: Duration) -> Animation<bool>
 }
 
 fn input_edge_signals(idle_delay: &Duration) -> impl Stream<Item = TypingSignal> + Send + use<> {
-    input_idle_edges(*idle_delay).map(|edge| TypingSignal::InputEdge(edge.edge()))
+    input_idle_edges(*idle_delay).map(|edge| TypingSignal::InputEdge(edge.0))
 }
 
 #[must_use]
@@ -92,7 +92,7 @@ pub fn viewed_window_bounds(placement: &Placement, window_id: u64) -> Option<Rec
 }
 
 fn focused_window_bounds_on(output: &str, placement: &Placement) -> Option<Rectangle> {
-    let window_id = placement.focused_window()?;
+    let window_id = placement.focused_window?;
     let workspace_id = placement.workspace_of_window(window_id)?;
     (placement.output_of_workspace(workspace_id)? == output)
         .then(|| viewed_window_bounds(placement, window_id))

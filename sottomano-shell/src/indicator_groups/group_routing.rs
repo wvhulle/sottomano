@@ -33,7 +33,7 @@ impl ShellIndicatorGroups {
                 .on_buses(request, config, buses, clock)
                 .map(Message::Power),
             IndicatorGroupBusRequest::ClaudeUsage(request) => {
-                let working_days = self.quiet_schedule_group.working_days();
+                let working_days = self.quiet_schedule_group.working_days;
                 self.claude_usage_group
                     .on_buses(request, config, working_days, buses, clock)
                     .map(Message::ClaudeUsage)
@@ -222,7 +222,7 @@ impl ShellIndicatorGroups {
                 .interact(interaction, config)
                 .map(Message::ClaudeUsage),
             IndicatorGroupInteraction::CopilotUsage(interaction) => {
-                let working_days = self.quiet_schedule_group.working_days();
+                let working_days = self.quiet_schedule_group.working_days;
                 self.copilot_usage_group
                     .interact(interaction, config, working_days)
                     .map(Message::CopilotUsage)

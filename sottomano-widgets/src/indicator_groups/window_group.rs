@@ -158,7 +158,7 @@ impl WindowGroup {
 
     #[must_use]
     pub fn window_processes(&self) -> &WindowProcesses {
-        self.window_list.window_processes()
+        &self.window_list.window_processes
     }
 
     pub fn observe_active_workspaces(

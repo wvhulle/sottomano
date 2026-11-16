@@ -925,7 +925,7 @@ impl ShowcasedGroup {
             .group_contents(config, clock)
             .iter()
             .find_map(|group| group.hovered_indicator(target))
-            .map(|hovered_row| hovered_row.hover_fetch().clone());
+            .map(|hovered_row| hovered_row.hover_fetch.clone());
         let Some(HoverFetch::Fetch {
             start: started_fetch,
             ..

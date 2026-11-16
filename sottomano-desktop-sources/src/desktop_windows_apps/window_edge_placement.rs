@@ -16,7 +16,7 @@ pub struct WindowEdge {
 #[derive(Default)]
 pub struct Placement {
     workspace_by_window: HashMap<u64, u64>,
-    focused_window: Option<u64>,
+    pub focused_window: Option<u64>,
     focused_output: Option<String>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
@@ -143,11 +143,6 @@ impl Placement {
             horizontal: HEdge::Center,
             output: None,
         })
-    }
-
-    #[must_use]
-    pub fn focused_window(&self) -> Option<u64> {
-        self.focused_window
     }
 
     #[must_use]

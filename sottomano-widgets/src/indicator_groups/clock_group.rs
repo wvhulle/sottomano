@@ -94,7 +94,7 @@ impl ClockGroup {
         config: &Config,
         demand: GroupSourceDemand,
     ) -> Subscription<ClockMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
             demand.while_indicators_shown(
                 snapshot_subscription::<ZoneTime>(*zone)
@@ -154,7 +154,7 @@ impl ClockGroup {
                 |_| LocalDate::indicator(clock, locale),
                 LOCAL_DATE_GLYPH.into(),
             );
-            if date_indicator.panel_visibility() == PanelVisibility::Shown {
+            if date_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.local_date_indicator(date_indicator));
             }
         }
@@ -164,7 +164,7 @@ impl ClockGroup {
                     |held_snapshot| held_snapshot.indicator(clock, locale),
                     ZONE_TIME_GLYPH.into(),
                 );
-                if zone_indicator.panel_visibility() == PanelVisibility::Shown {
+                if zone_indicator.panel_visibility == PanelVisibility::Shown {
                     rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
                 }
             }

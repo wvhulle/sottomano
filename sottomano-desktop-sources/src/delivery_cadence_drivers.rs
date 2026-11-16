@@ -246,7 +246,7 @@ const SHORTEST_POLL_PERIOD: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PeriodicPolling {
-    poll_period: Duration,
+    pub poll_period: Duration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -273,11 +273,6 @@ impl PeriodicPolling {
         } else {
             Self { poll_period }
         }
-    }
-
-    #[must_use]
-    pub fn poll_period(self) -> Duration {
-        self.poll_period
     }
 
     pub(crate) fn poll_ticks(self) -> impl Stream<Item = Self> + Send {
@@ -524,11 +519,11 @@ mod tests {
     #[test]
     fn a_zero_poll_period_is_raised_to_the_shortest_period() {
         assert_eq!(
-            PeriodicPolling::every(Duration::ZERO).poll_period(),
+            PeriodicPolling::every(Duration::ZERO).poll_period,
             SHORTEST_POLL_PERIOD
         );
         assert_eq!(
-            PeriodicPolling::every(Duration::from_secs(5)).poll_period(),
+            PeriodicPolling::every(Duration::from_secs(5)).poll_period,
             Duration::from_secs(5)
         );
     }
@@ -642,7 +637,7 @@ mod tests {
         );
         let started_waiting = TokioClockInstant::now();
         deliveries.next().await.unwrap();
-        assert_eq!(started_waiting.elapsed(), recheck.poll_period());
+        assert_eq!(started_waiting.elapsed(), recheck.poll_period);
     }
 
     #[test]

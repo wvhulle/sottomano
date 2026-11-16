@@ -70,7 +70,7 @@ pub enum Action {
 
 pub struct NotificationGroup {
     expansion: IndicatorGroupExpansion,
-    alert_sound: AlertSound,
+    pub alert_sound: AlertSound,
 }
 
 impl Default for NotificationGroup {
@@ -103,11 +103,6 @@ impl NotificationGroup {
             sqlite_singleton_flag::load(AlertSound::Audible),
             NotificationGroupMessage::SoundLoaded,
         )
-    }
-
-    #[must_use]
-    pub fn alert_sound(&self) -> AlertSound {
-        self.alert_sound
     }
 
     pub fn collapse(&mut self) {
@@ -244,7 +239,7 @@ mod tests {
         let mut notification_group = NotificationGroup::default();
         let _ =
             notification_group.update(NotificationGroupMessage::SoundLoaded(AlertSound::Silent));
-        assert_eq!(notification_group.alert_sound(), AlertSound::Silent);
+        assert_eq!(notification_group.alert_sound, AlertSound::Silent);
     }
 
     #[test]

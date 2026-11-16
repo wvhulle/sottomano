@@ -92,7 +92,7 @@ struct RulesTarget {
 
 #[derive(Debug, Clone)]
 pub struct CompositorRulesFile {
-    config_home: PathBuf,
+    pub config_home: PathBuf,
     target: Option<RulesTarget>,
     readiness: StylingReadiness,
     written: Option<String>,
@@ -143,11 +143,6 @@ impl CompositorRulesFile {
             write_slot: WriteSlot::Idle,
             switch_heat: SwitchHeat::default(),
         }
-    }
-
-    #[must_use]
-    pub fn config_home(&self) -> &Path {
-        &self.config_home
     }
 
     #[must_use]

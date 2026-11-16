@@ -113,7 +113,7 @@ impl ChipletClockTable<'_> {
     pub fn clock_table(&self) -> SectionTable {
         let mut rows: Vec<PhysicalCoreClock> = self
             .group
-            .physical_cores()
+            .physical_cores
             .iter()
             .filter_map(|core| {
                 PhysicalCoreClock::fastest_thread_clock(core, self.clock, self.loads)

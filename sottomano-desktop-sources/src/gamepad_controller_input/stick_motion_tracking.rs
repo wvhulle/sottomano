@@ -44,16 +44,11 @@ struct HeldFlick {
 
 #[derive(Debug, Clone, Default)]
 pub struct FlickTracker {
-    position: StickPosition,
+    pub position: StickPosition,
     held: Option<HeldFlick>,
 }
 
 impl FlickTracker {
-    #[must_use]
-    pub fn position(&self) -> StickPosition {
-        self.position
-    }
-
     pub fn move_x(&mut self, x: f32, now: Instant) -> Option<StickDirection> {
         self.move_to(StickPosition { x, ..self.position }, now)
     }

@@ -149,7 +149,7 @@ mod tests {
     use crate::widgets::value_cells::ValueCell;
 
     fn keys(rows: &[LabeledValue]) -> Vec<ValueCell> {
-        rows.iter().map(|row| row.key().clone()).collect()
+        rows.iter().map(|row| row.key.clone()).collect()
     }
 
     #[test]

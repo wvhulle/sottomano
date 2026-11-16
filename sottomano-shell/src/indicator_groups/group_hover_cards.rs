@@ -27,8 +27,8 @@ pub struct HoveredRowRequests {
 impl From<&GroupIndicator<'_>> for HoveredRowRequests {
     fn from(hovered_row: &GroupIndicator<'_>) -> Self {
         Self {
-            hover_fetch: hovered_row.hover_fetch().clone(),
-            refresh: hovered_row.refresh().clone(),
+            hover_fetch: hovered_row.hover_fetch.clone(),
+            refresh: hovered_row.refresh.clone(),
         }
     }
 }
@@ -125,7 +125,7 @@ impl DesktopShell {
             HoverTarget::WorkspaceFolding => Section::press_actions(
                 self.indicator_groups
                     .sidebar_settings_group
-                    .empty_workspace_folding()
+                    .empty_workspace_folding
                     .press_actions(),
             )
             .into_iter()

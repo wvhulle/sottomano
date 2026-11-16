@@ -153,7 +153,7 @@ impl DockerEnginesGroup {
     }
 
     pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<DockerEnginesMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch(self.engines.iter().flat_map(|engine| {
             let socket_path = engine.socket_path.clone();
             [

@@ -106,12 +106,12 @@ struct ArmedEdge {
 
 pub struct QuietScheduleGroup {
     schedule_adherence: QuietScheduleAdherence,
-    working_days: WeekdaySet,
+    pub working_days: WeekdaySet,
     start_slider: SliderControl,
     end_slider: SliderControl,
     screen_off_slider: SliderControl,
     manual: Option<ManualOverride>,
-    phase: QuietPhase,
+    pub phase: QuietPhase,
     armed_edge: Option<ArmedEdge>,
     expansion: IndicatorGroupExpansion,
 }
@@ -161,16 +161,6 @@ impl QuietScheduleGroup {
     pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<QuietScheduleMessage> {
         Subscription::run_with(buses.clone(), logind_manager::resumes)
             .map(|()| QuietScheduleMessage::EdgeDue)
-    }
-
-    #[must_use]
-    pub fn quiet_phase(&self) -> QuietPhase {
-        self.phase
-    }
-
-    #[must_use]
-    pub fn working_days(&self) -> WeekdaySet {
-        self.working_days
     }
 
     #[must_use]
@@ -466,7 +456,7 @@ impl QuietScheduleGroup {
     }
 
     fn working_days_hover_card(&self, locale: Locale) -> Vec<Section> {
-        let working_days = self.working_days();
+        let working_days = self.working_days;
         vec![Section::new(
             "Schedule",
             dictionary_table(WeekdaySet::ALL.iter(Weekday::Mon).map(|day| {
@@ -511,7 +501,7 @@ impl QuietScheduleGroup {
                     IndicatorValue::drawn(move |reveal| {
                         WeekdayPicker::new(
                             config,
-                            self.working_days(),
+                            self.working_days,
                             reveal,
                             WeekdayPickerMessages {
                                 on_toggle: |day| {
@@ -524,7 +514,7 @@ impl QuietScheduleGroup {
                     Box::new(move |_| self.working_days_hover_card(config.calendar.locale)),
                 )
                 .with_button_actions(weekday_press_actions(
-                    self.working_days(),
+                    self.working_days,
                     WORKING_DAY_PRESSES,
                     config.calendar.locale,
                 )),

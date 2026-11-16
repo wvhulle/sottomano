@@ -114,8 +114,8 @@ pub enum SidebarSettingsMessage {
 
 pub struct SidebarSettingsGroup {
     expansion: IndicatorGroupExpansion,
-    workspaces_placement: WorkspacesPlacement,
-    empty_workspace_folding: EmptyWorkspaceFolding,
+    pub workspaces_placement: WorkspacesPlacement,
+    pub empty_workspace_folding: EmptyWorkspaceFolding,
     reveal_fold_timer: Option<task::Handle>,
     pub layer: LayerAppearanceControls,
 }
@@ -146,16 +146,6 @@ impl SidebarSettingsGroup {
             LayerAppearanceControls::load(ShellLayer::Sidebar)
                 .map(SidebarSettingsMessage::Appearance),
         ])
-    }
-
-    #[must_use]
-    pub fn workspaces_placement(&self) -> WorkspacesPlacement {
-        self.workspaces_placement
-    }
-
-    #[must_use]
-    pub fn empty_workspace_folding(&self) -> &EmptyWorkspaceFolding {
-        &self.empty_workspace_folding
     }
 
     pub fn observe_workspace_switch(
@@ -212,7 +202,7 @@ impl SidebarSettingsGroup {
                 self.reveal_fold_timer = None;
                 logged_failure_task(
                     "singleton flag: save".to_owned(),
-                    sqlite_singleton_flag::save(self.empty_workspace_folding.mode()),
+                    sqlite_singleton_flag::save(self.empty_workspace_folding.mode),
                 )
             }
             SidebarSettingsMessage::FoldTemporaryReveal => {
@@ -244,7 +234,7 @@ impl SidebarSettingsGroup {
                 SidebarSettingsMessage::ToggleWorkspacesPlacement,
             ),
             GroupIndicator::toggle(
-                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
+                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode),
                 SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
             ),
         ];
@@ -280,7 +270,7 @@ mod tests {
             WorkspacesPlacement::BottomPanel,
         ));
         assert_eq!(
-            sidebar_settings_group.workspaces_placement(),
+            sidebar_settings_group.workspaces_placement,
             WorkspacesPlacement::BottomPanel
         );
     }
@@ -290,7 +280,7 @@ mod tests {
         let mut sidebar_settings_group = SidebarSettingsGroup::default();
         let _ = sidebar_settings_group.update(SidebarSettingsMessage::ToggleEmptyWorkspaces);
         assert_eq!(
-            sidebar_settings_group.empty_workspace_folding().mode(),
+            sidebar_settings_group.empty_workspace_folding.mode,
             EmptyWorkspaces::Folded
         );
     }
@@ -302,7 +292,7 @@ mod tests {
             EmptyWorkspaces::Shown,
         ));
         assert_eq!(
-            sidebar_settings_group.empty_workspace_folding().mode(),
+            sidebar_settings_group.empty_workspace_folding.mode,
             EmptyWorkspaces::Shown
         );
     }

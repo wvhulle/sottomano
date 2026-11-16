@@ -344,12 +344,12 @@ impl DarkModeGroup {
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
         let mut rows = Vec::new();
-        let subscribed = self.mode_toggle.subscribed_indicator();
+        let subscribed = &self.mode_toggle.sample;
         if !subscribed.awaits_first_delivery() {
             let mode_indicator = self.mode_toggle_indicator(
                 subscribed.indicator(dark_mode_indicator, DARK_MODE_GLYPH.into()),
             );
-            if mode_indicator.panel_visibility() == PanelVisibility::Shown {
+            if mode_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(match subscribed.get() {
                     Some(held_snapshot) => mode_indicator.on_switch_press(
                         held_snapshot.switch_position(),

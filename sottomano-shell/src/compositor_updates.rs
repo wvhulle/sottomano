@@ -122,7 +122,7 @@ impl DesktopShell {
     }
 
     pub(crate) fn refresh_app_launcher(&mut self) -> Task<Message> {
-        let Some(entries) = self.desktop_entries.arc() else {
+        let Some(entries) = self.desktop_entries.entries.clone() else {
             return Task::none();
         };
         let snapshot = &self.window_snapshot;

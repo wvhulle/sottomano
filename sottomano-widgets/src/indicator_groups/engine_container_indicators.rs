@@ -296,6 +296,6 @@ mod tests {
     fn the_hidden_indicator_counts_what_it_replaces() {
         let hidden = HiddenContainersIndicator { hidden_count: 4 };
         let hidden_indicator = hidden.indicator();
-        assert_eq!(hidden_indicator.face().name, "4 more");
+        assert_eq!(hidden_indicator.face.name, "4 more");
     }
 }

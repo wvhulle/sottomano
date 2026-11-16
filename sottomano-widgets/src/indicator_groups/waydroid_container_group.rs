@@ -232,7 +232,7 @@ impl WaydroidContainerGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<WaydroidContainerMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch([
             snapshot_subscription::<WaydroidProbe>(()).map(WaydroidContainerMessage::Probe),
             demand

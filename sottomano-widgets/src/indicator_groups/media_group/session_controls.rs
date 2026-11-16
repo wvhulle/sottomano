@@ -60,7 +60,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         let quit_action = self.media.capabilities.quit.then(|| {
             PressAction::new(
                 MouseGesture::LeftClick,
-                match self.quit_button.stage() {
+                match self.quit_button.stage {
                     ConfirmStage::Armed => "Quit: confirm quitting the player",
                     ConfirmStage::Idle => "Quit: quit the player",
                 },

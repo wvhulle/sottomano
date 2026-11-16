@@ -84,13 +84,9 @@ impl<'a> KaraokeLine<'a> {
         }
     }
 
-    fn shown_text(&self) -> &str {
-        self.text
-    }
-
     fn measured_line(&self) -> MeasuredLine {
         MeasuredLine {
-            text: self.shown_text().to_owned(),
+            text: self.text.to_owned(),
             font: self.font,
             size: self.size,
         }
@@ -104,8 +100,7 @@ impl<'a> KaraokeLine<'a> {
 
     fn sweep_motion(&self, state: &State) -> MotionState {
         let sweep = (self.sweep_at)(self.frame(state));
-        let unfinished =
-            sweep.segment_end < self.shown_text().len() || sweep.segment_fraction < 1.0;
+        let unfinished = sweep.segment_end < self.text.len() || sweep.segment_fraction < 1.0;
         match self.motion {
             SweepMotion::Advancing if unfinished => MotionState::Moving,
             _ => MotionState::Settled,
@@ -116,7 +111,7 @@ impl<'a> KaraokeLine<'a> {
         if text_offset == 0 && text_direction(paragraph) == TextDirection::RightToLeft {
             return paragraph.min_bounds().width;
         }
-        let grapheme_index = self.shown_text()[..text_offset].graphemes(true).count();
+        let grapheme_index = self.text[..text_offset].graphemes(true).count();
         paragraph
             .grapheme_position(0, grapheme_index)
             .map_or(0.0, |grapheme_point| grapheme_point.x)

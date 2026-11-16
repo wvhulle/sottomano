@@ -49,8 +49,8 @@ fn profile_face(profile: Profile) -> Phosphor {
 const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
-    control: SliderControl,
-    status: SubscribedSnapshot<ProfileStatus>,
+    pub control: SliderControl,
+    pub status: SubscribedSnapshot<ProfileStatus>,
     conditions: Option<Conditions>,
     battery: Option<Battery>,
     profile_models: Option<HashMap<Profile, RegressionState>>,
@@ -317,14 +317,6 @@ impl PowerProfileControl {
             ),
             headed_table(ESTIMATE_HEADINGS, lives),
         )
-    }
-
-    pub fn slider_control(&self) -> &SliderControl {
-        &self.control
-    }
-
-    pub fn profile_status(&self) -> &SubscribedSnapshot<ProfileStatus> {
-        &self.status
     }
 }
 

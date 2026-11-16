@@ -406,7 +406,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         PopupFrame {
             surface_rows: state.connector.translated(origin).surface_rows(
-                state.morph.current() + origin,
+                state.morph.current + origin,
                 Radius::from(self.corner_radius_px),
             ),
             motion: self.frame_motion(state),
@@ -416,7 +416,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
     fn pointer_placement(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> PointerPlacement {
         let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let over_popup = (state.morph.current() + origin).contains(point)
+        let over_popup = (state.morph.current + origin).contains(point)
             || self
                 .renderings
                 .iter()
@@ -595,7 +595,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
         let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let bounds = layout.bounds();
         let origin = Vector::new(bounds.x, bounds.y);
-        let box_bounds = state.morph.current() + origin;
+        let box_bounds = state.morph.current + origin;
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
@@ -650,7 +650,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
             layout.bounds(),
             &mut PopupRegions {
                 surface_rows: frame.surface_rows,
-                popup_bounds: state.morph.current() + origin,
+                popup_bounds: state.morph.current + origin,
                 bounds: layout.bounds(),
                 takes_input: frame.motion == MotionState::Settled,
                 captures_outside_presses: state.morph.motion_state() == MotionState::Settled

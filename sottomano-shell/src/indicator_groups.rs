@@ -318,8 +318,8 @@ impl ShellIndicatorGroups {
     #[must_use]
     pub fn notification_settings(&self) -> NotificationSettings {
         NotificationSettings {
-            alert_sound: self.notification_group.alert_sound(),
-            toast_arrangement: self.overlay_settings_group.toast_arrangement(),
+            alert_sound: self.notification_group.alert_sound,
+            toast_arrangement: self.overlay_settings_group.toast_arrangement,
         }
     }
 
@@ -351,13 +351,13 @@ impl ShellIndicatorGroups {
             entries,
             config,
             self.notification_settings(),
-            self.quiet_schedule_group.quiet_phase(),
+            self.quiet_schedule_group.phase,
             clock,
         )
     }
 
     pub fn collapse_when_auto_collapsing(&mut self) {
-        if self.panel_settings_group.group_collapsing() == GroupCollapsing::StayExpanded {
+        if self.panel_settings_group.group_collapsing == GroupCollapsing::StayExpanded {
             return;
         }
         self.panel_settings_group.collapse();

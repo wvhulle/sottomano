@@ -232,11 +232,10 @@ impl PowerGroup {
             SubscribedSnapshot::Available { .. } => self
                 .battery
                 .indicator(battery_indicator, BATTERY_CHARGE_GLYPH.into()),
-            SubscribedSnapshot::Unavailable { .. } => match self.power_profile.profile_status() {
-                SubscribedSnapshot::Available { .. } => self
-                    .power_profile
-                    .slider_control()
-                    .indicator(config.calendar.locale),
+            SubscribedSnapshot::Unavailable { .. } => match &self.power_profile.status {
+                SubscribedSnapshot::Available { .. } => {
+                    self.power_profile.control.indicator(config.calendar.locale)
+                }
                 SubscribedSnapshot::Unavailable { cause } => {
                     cause.indicator(Phosphor::Plug(Weight::Regular).into())
                 }
@@ -244,7 +243,7 @@ impl PowerGroup {
         }
         .with_headline_glyph(Phosphor::Plug(Weight::Regular).into());
         let mut lead_indicators = Vec::new();
-        if self.power_profile.profile_status().get().is_some() {
+        if self.power_profile.status.get().is_some() {
             lead_indicators.push(self.power_profile_indicator(config));
         }
         let mut rows = Vec::new();
@@ -253,7 +252,7 @@ impl PowerGroup {
                 |held_snapshot| battery_indicator(held_snapshot),
                 BATTERY_CHARGE_GLYPH.into(),
             );
-            if charge_indicator.panel_visibility() == PanelVisibility::Shown {
+            if charge_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.battery_charge_indicator(charge_indicator));
             }
         }
@@ -280,13 +279,9 @@ impl PowerGroup {
     }
 
     fn power_profile_indicator<'a>(&'a self, config: &'a Config) -> GroupIndicator<'a> {
-        GroupIndicator::slider(
-            self.power_profile.slider_control(),
-            config,
-            |control_message| {
-                PowerInteraction::PowerProfile(PowerProfileInteraction::Control(control_message))
-            },
-        )
+        GroupIndicator::slider(&self.power_profile.control, config, |control_message| {
+            PowerInteraction::PowerProfile(PowerProfileInteraction::Control(control_message))
+        })
         .with_hover_card(Box::new(move |_| {
             let mut sections = self.power_profile.hover_card();
             sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));

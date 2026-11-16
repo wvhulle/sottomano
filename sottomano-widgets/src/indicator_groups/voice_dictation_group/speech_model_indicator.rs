@@ -188,7 +188,7 @@ mod tests {
     };
 
     fn keys(rows: impl IntoIterator<Item = LabeledValue>) -> Vec<ValueCell> {
-        rows.into_iter().map(|row| row.key().clone()).collect()
+        rows.into_iter().map(|row| row.key.clone()).collect()
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
             engine: EngineState::SpeechModelReady(engine),
         };
         assert_eq!(
-            notulist_engine_indicator(&ready).face().icon,
+            notulist_engine_indicator(&ready).face.icon,
             IndicatorIcon::IconGlyph {
                 glyph: SimpleIcon::HuggingFace.into(),
                 state: IndicatorState::On,
@@ -250,12 +250,9 @@ mod tests {
         };
         let loading_indicator = notulist_engine_indicator(&loading);
         let unavailable_indicator = notulist_engine_indicator(&unavailable);
+        assert_eq!(loading_indicator.panel_visibility, PanelVisibility::Hidden);
         assert_eq!(
-            loading_indicator.panel_visibility(),
-            PanelVisibility::Hidden
-        );
-        assert_eq!(
-            unavailable_indicator.panel_visibility(),
+            unavailable_indicator.panel_visibility,
             PanelVisibility::Shown
         );
         assert_eq!(unavailable_indicator.shown_state(), IndicatorState::Failed);

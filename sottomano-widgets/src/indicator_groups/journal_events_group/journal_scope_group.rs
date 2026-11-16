@@ -85,7 +85,7 @@ impl JournalScopeGroup {
                 |held_snapshot| kernel_log_indicator(held_snapshot),
                 KERNEL_LOG_GLYPH.into(),
             );
-            if kernel_indicator.panel_visibility() == PanelVisibility::Shown {
+            if kernel_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_kernel_log_indicator(config, kernel_indicator));
             }
         }
@@ -101,7 +101,7 @@ impl JournalScopeGroup {
                 self.service_errors
                     .indicator(service_errors_indicator, SERVICE_ERRORS_GLYPH.into()),
             );
-            if service_errors_row.panel_visibility() == PanelVisibility::Shown {
+            if service_errors_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(match self.service_errors.get() {
                     Some(held_snapshot) => service_errors_row.on_press(
                         TerminalCommand::JOURNAL_PRESS_HINT,
@@ -126,7 +126,7 @@ impl JournalScopeGroup {
                 |held_snapshot| coredump_log_indicator(held_snapshot),
                 COREDUMP_LOG_GLYPH.into(),
             );
-            if coredump_indicator.panel_visibility() == PanelVisibility::Shown {
+            if coredump_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_coredump_log_indicator(config, coredump_indicator));
             }
         }
@@ -142,7 +142,7 @@ impl JournalScopeGroup {
                 |held_snapshot| oom_kill_log_indicator(held_snapshot),
                 OOM_KILL_LOG_GLYPH.into(),
             );
-            if oom_kill_indicator.panel_visibility() == PanelVisibility::Shown {
+            if oom_kill_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.wired_oom_kill_log_indicator(config, oom_kill_indicator));
             }
         }

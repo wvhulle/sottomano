@@ -179,7 +179,7 @@ mod tests {
             panic!("test lyrics are synced");
         };
         synced_lyrics_table(track_lyrics, timed_lines, played)
-            .rows()
+            .rows
             .iter()
             .map(|table_row| match table_row {
                 KeyedTableRow::GroupSeparator => "separator",

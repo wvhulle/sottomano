@@ -92,10 +92,7 @@ impl DesktopShell {
                     .view(
                         config,
                         position,
-                        self.indicator_groups
-                            .group_menus
-                            .presentation()
-                            .open_trigger,
+                        self.indicator_groups.group_menus.presentation.open_trigger,
                         handle_indicator,
                         self.clock,
                     )
@@ -131,7 +128,7 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(ShellInteraction::DismissPressed);
-        let group_framing = self.indicator_groups.panel_settings_group.group_framing();
+        let group_framing = self.indicator_groups.panel_settings_group.group_framing;
         let band = container(centered)
             .width(Length::Fill)
             .height(Length::Fixed(self.config.desktop_panels.height));
@@ -169,7 +166,7 @@ impl DesktopShell {
             .panel_settings_group
             .layer
             .appearance();
-        let group_framing = self.indicator_groups.panel_settings_group.group_framing();
+        let group_framing = self.indicator_groups.panel_settings_group.group_framing;
         let frame_style = panels.frame;
         let outlined_sides = outlined_sides_inward_of(position)
             .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
@@ -207,16 +204,17 @@ impl DesktopShell {
         match self
             .indicator_groups
             .sidebar_settings_group
-            .workspaces_placement()
+            .workspaces_placement
         {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 &self.window_snapshot,
                 output,
                 self.configured_workspaces.as_ref(),
-                self.indicator_groups
+                &self
+                    .indicator_groups
                     .sidebar_settings_group
-                    .empty_workspace_folding(),
+                    .empty_workspace_folding,
                 self.panel_slot_context(position),
             )
             .map(|workspaces| workspaces.map(ShellInteraction::from)),

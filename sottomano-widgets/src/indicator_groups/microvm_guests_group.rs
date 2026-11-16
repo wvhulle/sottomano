@@ -213,7 +213,7 @@ impl MicrovmGuestsGroup {
         demand: GroupSourceDemand,
         buses: &DesktopBuses,
     ) -> Subscription<MicrovmGuestsMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         let unit_switch_subscriptions = Subscription::batch(self.unit_switches.iter().map(
             |(instance_name, unit_switch)| {
                 unit_switch

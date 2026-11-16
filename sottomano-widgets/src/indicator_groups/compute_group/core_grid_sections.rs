@@ -37,10 +37,10 @@ impl<Sample: PerCoreSample> CoreGridSection<'_, Sample> {
     ) -> Section {
         Section::new(
             section_title,
-            core_grid_widget(self.topology.core_groups().iter().filter_map(|group| {
+            core_grid_widget(self.topology.core_groups.iter().filter_map(|group| {
                 let members = self.members(group);
                 let cores: Vec<PhysicalCoreCells> = group
-                    .physical_cores()
+                    .physical_cores
                     .iter()
                     .map(|core| PhysicalCoreCells {
                         threads: core
@@ -71,7 +71,7 @@ impl<Sample: PerCoreSample> CoreGridSection<'_, Sample> {
 
 pub fn topology_facts(group: &CoreGroup) -> Vec<LabeledValue> {
     let shared_caches: Vec<String> = group
-        .chiplets()
+        .chiplets
         .iter()
         .map(|chiplet| format!("{} MiB", chiplet.shared_cache.get::<mebibyte>()))
         .collect();

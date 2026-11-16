@@ -22,8 +22,8 @@ pub enum TimerChange {
 }
 
 pub struct IdleTimer {
-    timeout: Option<Duration>,
-    control: SliderControl,
+    pub timeout: Option<Duration>,
+    pub control: SliderControl,
     action: IdleAction,
     availability: ActionAvailability,
 }
@@ -44,11 +44,6 @@ impl IdleTimer {
             action,
             availability: ActionAvailability::Available,
         }
-    }
-
-    #[must_use]
-    pub fn timeout(&self) -> Option<Duration> {
-        self.timeout
     }
 
     #[must_use]
@@ -165,11 +160,6 @@ impl IdleTimer {
         )]
         .into_iter()
         .collect()
-    }
-
-    #[must_use]
-    pub fn slider(&self) -> &SliderControl {
-        &self.control
     }
 }
 

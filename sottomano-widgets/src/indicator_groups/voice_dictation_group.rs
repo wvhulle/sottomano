@@ -439,7 +439,7 @@ impl VoiceDictationGroup {
                 |held_snapshot| notulist_interface_mismatch_indicator(held_snapshot),
                 NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
             );
-            if mismatch_indicator.panel_visibility() == PanelVisibility::Shown {
+            if mismatch_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.interface_mismatch_indicator(mismatch_indicator));
             }
         }
@@ -460,7 +460,7 @@ impl VoiceDictationGroup {
                 |held_snapshot| notulist_pipeline_indicator(held_snapshot),
                 NOTULIST_PIPELINE_FALLBACK_GLYPH,
             );
-            if pipeline_row.panel_visibility() == PanelVisibility::Shown {
+            if pipeline_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.pipeline_indicator(pipeline_row));
             }
         }
@@ -491,7 +491,7 @@ impl VoiceDictationGroup {
                 |held_snapshot| notulist_engine_indicator(held_snapshot),
                 NOTULIST_ENGINE_FALLBACK_GLYPH,
             );
-            if engine_row.panel_visibility() == PanelVisibility::Shown {
+            if engine_row.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.engine_indicator(engine_row));
             }
         }
@@ -526,7 +526,7 @@ impl VoiceDictationGroup {
                 |held_snapshot| notulist_output_problems_indicator(held_snapshot),
                 NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
             );
-            if problems_indicator.panel_visibility() == PanelVisibility::Shown {
+            if problems_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(self.output_problems_indicator(problems_indicator));
             }
         }

@@ -88,7 +88,7 @@ impl DesktopShell {
     }
 
     pub(crate) fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
-        let path = self.config_file.path();
+        let path = &self.config_file.path;
         tracing::warn!("invalid configuration {}: {error}", path.display());
         self.notifications
             .show_config_error(

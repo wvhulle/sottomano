@@ -42,8 +42,8 @@ pub(super) struct ScrollFrame {
 pub(super) struct ScrollMotion {
     pacing: ScrollPacing,
     travel: Animation<f32>,
-    target_offset: f32,
-    drawn_offset: f32,
+    pub(super) target_offset: f32,
+    pub(super) drawn_offset: f32,
     hover_held_offset: Option<f32>,
 }
 
@@ -56,14 +56,6 @@ impl ScrollMotion {
             drawn_offset: offset,
             hover_held_offset: None,
         }
-    }
-
-    pub(super) fn target_offset(&self) -> f32 {
-        self.target_offset
-    }
-
-    pub(super) fn drawn_offset(&self) -> f32 {
-        self.drawn_offset
     }
 
     pub(super) fn set_target(&mut self, offset: f32) {
@@ -155,11 +147,11 @@ mod tests {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
-        assert!(close_to(motion.drawn_offset(), 0.0));
+        assert!(close_to(motion.drawn_offset, 0.0));
         let _midway = motion.advance(frame_at(start + TRAVEL_DURATION / 2));
-        assert!(motion.drawn_offset() > 0.0 && motion.drawn_offset() < 100.0);
+        assert!(motion.drawn_offset > 0.0 && motion.drawn_offset < 100.0);
         let _arrived = motion.advance(frame_at(start + TRAVEL_DURATION));
-        assert!(close_to(motion.drawn_offset(), 100.0));
+        assert!(close_to(motion.drawn_offset, 100.0));
     }
 
     #[test]
@@ -178,7 +170,7 @@ mod tests {
             let mut motion = ScrollMotion::resting_at(0.0, pacing);
             motion.set_target(70.0);
             assert_eq!(motion.advance(frame_at(now)), OffsetChange::Moved);
-            assert!(close_to(motion.drawn_offset(), 70.0));
+            assert!(close_to(motion.drawn_offset, 70.0));
             assert_eq!(motion.travel_state(now), MotionState::Settled);
         }
     }
@@ -187,7 +179,7 @@ mod tests {
     fn a_jump_applies_at_once() {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.jump_to(70.0);
-        assert!(close_to(motion.drawn_offset(), 70.0));
+        assert!(close_to(motion.drawn_offset, 70.0));
         assert_eq!(
             motion.advance(frame_at(Instant::now())),
             OffsetChange::Unchanged
@@ -201,7 +193,7 @@ mod tests {
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
         let _midway = motion.advance(frame_at(start + TRAVEL_DURATION / 2));
-        assert!(close_to(motion.hover_drift(), -motion.drawn_offset()));
+        assert!(close_to(motion.hover_drift(), -motion.drawn_offset));
         let _arrived = motion.advance(frame_at(start + TRAVEL_DURATION));
         assert!(close_to(motion.hover_drift(), 0.0));
     }
@@ -216,7 +208,7 @@ mod tests {
         let _midway = motion.advance(frame_at(midway));
         motion.set_target(200.0);
         let _retargeted = motion.advance(frame_at(midway));
-        assert!(close_to(motion.hover_drift(), -motion.drawn_offset()));
+        assert!(close_to(motion.hover_drift(), -motion.drawn_offset));
     }
 
     #[test]
@@ -257,8 +249,8 @@ mod tests {
             ..frame_at(start + TRAVEL_DURATION / 2)
         };
         let _shrunk = motion.advance(shrunk);
-        assert!(close_to(motion.target_offset(), 100.0));
-        assert!(motion.drawn_offset() <= 100.0);
+        assert!(close_to(motion.target_offset, 100.0));
+        assert!(motion.drawn_offset <= 100.0);
         assert!(close_to(motion.hover_drift(), 0.0));
     }
 
@@ -267,6 +259,6 @@ mod tests {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(60.0);
         motion.apply_pacing(ScrollPacing::Instant);
-        assert!(close_to(motion.drawn_offset(), 60.0));
+        assert!(close_to(motion.drawn_offset, 60.0));
     }
 }

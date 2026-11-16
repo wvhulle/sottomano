@@ -208,7 +208,7 @@ pub(super) struct PolledCalendarHome {
 }
 
 pub(super) struct CalendarHomePoller<Entry> {
-    account: CaldavAccount,
+    pub(super) account: CaldavAccount,
     connection: HomeConnection,
     fetched_calendars: HashMap<String, FetchedCalendar<Entry>>,
 }
@@ -220,10 +220,6 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
             connection: HomeConnection::Disconnected,
             fetched_calendars: HashMap::new(),
         }
-    }
-
-    pub(super) fn account(&self) -> &CaldavAccount {
-        &self.account
     }
 
     pub(super) fn fetched_entries(&self) -> impl Iterator<Item = &Entry> {

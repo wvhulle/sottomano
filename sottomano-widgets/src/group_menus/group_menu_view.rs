@@ -194,7 +194,7 @@ impl<'a> GroupMenuView<'a> {
             families: self
                 .groups
                 .iter()
-                .map(|group| group.group_identity().family)
+                .map(|group| group.group_identity.family)
                 .collect(),
         }
     }
@@ -234,7 +234,7 @@ impl<'a> GroupMenuView<'a> {
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
             .view(config.theme.font.icon_size_px, text_color);
         let handle = hoverable(
-            self.group_menus.presentation().open_trigger,
+            self.group_menus.presentation.open_trigger,
             glyph,
             HoverTarget::GroupMenu(self.messenger.topic),
             GroupEvent::from,
@@ -258,7 +258,7 @@ impl<'a> GroupMenuView<'a> {
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
         once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
-            let group_entry = GroupMenuPin::Group(member.group_identity().clone());
+            let group_entry = GroupMenuPin::Group(member.group_identity.clone());
             if let PanelPinOrigin::Pinned(_) =
                 group_menus.panel_pin(topic, group_entry, AlertPromotion::Unpromoted)
             {
@@ -292,7 +292,7 @@ impl<'a> GroupMenuView<'a> {
         } = groups
             .into_iter()
             .filter(|member| {
-                let group_entry = GroupMenuPin::Group(member.group_identity().clone());
+                let group_entry = GroupMenuPin::Group(member.group_identity.clone());
                 group_menus.panel_pin(messenger.topic, group_entry, AlertPromotion::Unpromoted)
                     == PanelPinOrigin::Unpinned
             })
@@ -307,7 +307,7 @@ impl<'a> GroupMenuView<'a> {
             });
         let table = quantity_table(table_columns, config);
         let topic = messenger.topic;
-        let presentation = group_menus.presentation();
+        let presentation = group_menus.presentation;
         let row_context = GroupMenuRowContext {
             config,
             direction: orientation.direction,

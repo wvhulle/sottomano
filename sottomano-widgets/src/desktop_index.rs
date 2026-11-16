@@ -19,7 +19,7 @@ pub struct ResolvedIcons {
 
 #[derive(Default)]
 pub struct DesktopIndex {
-    entries: Option<Arc<DesktopEntries>>,
+    pub entries: Option<Arc<DesktopEntries>>,
     app_icons: HashMap<String, IconHandle>,
     theme_icons: HashMap<String, IconHandle>,
     resolve: Option<Handle>,
@@ -37,11 +37,6 @@ impl DesktopIndex {
     #[must_use]
     pub fn get(&self) -> Option<&DesktopEntries> {
         self.entries.as_deref()
-    }
-
-    #[must_use]
-    pub fn arc(&self) -> Option<Arc<DesktopEntries>> {
-        self.entries.clone()
     }
 
     pub fn set(&mut self, entries: Arc<DesktopEntries>) {

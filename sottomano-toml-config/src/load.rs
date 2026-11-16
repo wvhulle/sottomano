@@ -163,7 +163,7 @@ impl fmt::Display for LoadError {
 
 #[derive(Debug, Clone, Hash)]
 pub struct ConfigFile {
-    pub(super) path: PathBuf,
+    pub path: PathBuf,
 }
 
 impl ConfigFile {
@@ -172,11 +172,6 @@ impl ConfigFile {
         Self {
             path: config_home.join("sottomano.toml"),
         }
-    }
-
-    #[must_use]
-    pub fn path(&self) -> &Path {
-        &self.path
     }
 
     pub fn load(&self) -> Result<Config, LoadError> {
@@ -316,7 +311,7 @@ mod tests {
         for (table_name, toml) in removed_tables {
             let file = file_containing("old-keys", toml);
             let error = file.load().unwrap_err();
-            fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+            fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
             assert!(matches!(error, LoadError::Invalid { .. }));
             assert!(error.to_string().contains(table_name));
         }
@@ -326,7 +321,7 @@ mod tests {
     fn spacing_in_em_resolves_against_the_text_size() {
         let file = file_containing("em", "[theme.spacing]\nsurface_inset = \"0.5em\"\n");
         let read = file.read().unwrap();
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
         let spacing = read.theme.spacing.resolve(14.0);
         assert!((spacing.surface_inset - 7.0).abs() < f32::EPSILON);
     }
@@ -335,7 +330,7 @@ mod tests {
     fn a_bare_number_is_rejected_as_spacing() {
         let file = file_containing("bare", "[desktop_panels]\nheight = 24\n");
         let read = file.read();
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
         assert!(matches!(read, Err(LoadError::Invalid { .. })));
     }
 
@@ -343,7 +338,7 @@ mod tests {
     fn the_base_text_size_cannot_be_relative() {
         let file = file_containing("base", "[theme.font]\ntext_size = \"1em\"\n");
         let read = file.read().unwrap();
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
         assert!(matches!(
             read.theme.font.text_size_px(),
             Err(FontError::RelativeTextSize(Spacing::Em(_)))
@@ -357,7 +352,7 @@ mod tests {
         let emptied = zones("other_time_zones = []");
         let unknown = zones("other_time_zones = [\"Mars/Olympus\"]");
         let file = file_containing("zone", "");
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
         assert_eq!(configured.unwrap().calendar.other_time_zones, [Asia::Tokyo]);
         assert!(emptied.unwrap().calendar.other_time_zones.is_empty());
         assert!(matches!(unknown, Err(LoadError::Invalid { .. })));
@@ -367,7 +362,7 @@ mod tests {
     fn an_unknown_locale_is_rejected_with_its_name() {
         let file = file_containing("locale", "[calendar]\nlocale = \"xx_nowhere\"\n");
         let error = file.load().unwrap_err();
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        fs::remove_dir_all(file.path.parent().unwrap()).unwrap();
         assert!(matches!(error, LoadError::UnknownLocale(ref name) if name == "xx_nowhere"));
     }
 

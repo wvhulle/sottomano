@@ -14,7 +14,7 @@ use crate::{
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,
         logind_manager::{InhibitorRow, ManagerProxy},
-        wayland_idle_notify::{IdleEdge, input_idle_edges},
+        wayland_idle_notify::{IdleEdge, InputIdleEdge, input_idle_edges},
     },
     non_empty_text::non_empty,
     system_protocol_clients::{
@@ -242,7 +242,7 @@ async fn obstacle_changes(
     )
     .await?;
     let idle_onsets = input_idle_edges(idle_onset_after)
-        .filter(|edge| ready(edge.edge() == IdleEdge::Idled))
+        .filter(|InputIdleEdge(edge)| ready(*edge == IdleEdge::Idled))
         .map(|_| Ok(()));
     let readers = prepare_readers(buses).await?;
     Ok(stream::select(logind_changes, idle_onsets)

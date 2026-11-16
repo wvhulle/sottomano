@@ -33,7 +33,7 @@ impl DesktopShell {
         let dragging_sidebar_workspace = self
             .indicator_groups
             .sidebar_settings_group
-            .workspaces_placement()
+            .workspaces_placement
             == WorkspacesPlacement::Sidebar
             && matches!(
                 self.pointer_drag,
@@ -76,14 +76,11 @@ impl DesktopShell {
                 .app_window_layout()
                 .gaps_px,
             panel_frame_style: panel_appearance.frame,
-            window_row_layout: self
-                .indicator_groups
-                .panel_settings_group
-                .window_row_layout(),
+            window_row_layout: self.indicator_groups.panel_settings_group.window_row_layout,
             window_title_length: self
                 .indicator_groups
                 .panel_settings_group
-                .window_title_length(),
+                .window_title_length,
         }
     }
 
@@ -168,9 +165,10 @@ impl DesktopShell {
                         shown_workspaces(
                             snapshot,
                             &surface.output,
-                            self.indicator_groups
+                            &self
+                                .indicator_groups
                                 .sidebar_settings_group
-                                .empty_workspace_folding(),
+                                .empty_workspace_folding,
                         )
                         .get(to)
                         .copied()

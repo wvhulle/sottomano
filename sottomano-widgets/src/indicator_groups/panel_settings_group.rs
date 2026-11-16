@@ -193,10 +193,10 @@ pub enum PanelSettingsMessage {
 
 pub struct PanelSettingsGroup {
     expansion: IndicatorGroupExpansion,
-    group_framing: PanelGroupFraming,
-    group_collapsing: GroupCollapsing,
-    window_row_layout: WindowRowLayout,
-    window_title_length: WindowTitleLength,
+    pub group_framing: PanelGroupFraming,
+    pub group_collapsing: GroupCollapsing,
+    pub window_row_layout: WindowRowLayout,
+    pub window_title_length: WindowTitleLength,
     float_offset: SliderControl,
     pub layer: LayerAppearanceControls,
 }
@@ -241,26 +241,6 @@ impl PanelSettingsGroup {
             ),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
         ])
-    }
-
-    #[must_use]
-    pub fn group_framing(&self) -> PanelGroupFraming {
-        self.group_framing
-    }
-
-    #[must_use]
-    pub fn group_collapsing(&self) -> GroupCollapsing {
-        self.group_collapsing
-    }
-
-    #[must_use]
-    pub fn window_row_layout(&self) -> WindowRowLayout {
-        self.window_row_layout
-    }
-
-    #[must_use]
-    pub fn window_title_length(&self) -> WindowTitleLength {
-        self.window_title_length
     }
 
     #[must_use]
@@ -468,14 +448,14 @@ mod tests {
     fn windows_are_grouped_by_location_until_a_stored_layout_says_otherwise() {
         let mut panel_settings_group = PanelSettingsGroup::default();
         assert_eq!(
-            panel_settings_group.window_row_layout(),
+            panel_settings_group.window_row_layout,
             WindowRowLayout::GroupedByLocation
         );
         let _ = panel_settings_group.update(PanelSettingsMessage::WindowRowLayoutLoaded(
             WindowRowLayout::Flat,
         ));
         assert_eq!(
-            panel_settings_group.window_row_layout(),
+            panel_settings_group.window_row_layout,
             WindowRowLayout::Flat
         );
     }
@@ -490,11 +470,11 @@ mod tests {
         let mut panel_settings_group = PanelSettingsGroup::default();
         let _ = panel_settings_group.update(PanelSettingsMessage::LayoutLoaded(loaded));
         assert_eq!(
-            panel_settings_group.group_framing(),
+            panel_settings_group.group_framing,
             PanelGroupFraming::Disconnected
         );
         assert_eq!(
-            panel_settings_group.group_collapsing(),
+            panel_settings_group.group_collapsing,
             GroupCollapsing::StayExpanded
         );
         assert!((panel_settings_group.float_offset_px() - 6.0).abs() < f32::EPSILON);

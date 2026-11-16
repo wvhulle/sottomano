@@ -552,7 +552,7 @@ fn player_group<'a>(
         .fraction(media.status, clock.instant)
         .filter(|_| {
             !(seek_availability == SeekAvailability::Seekable
-                && session.expansion.state() == ExpansionState::Expanded)
+                && session.expansion.state == ExpansionState::Expanded)
         });
     let headline_indicator =
         player_headline_indicator(media, gauge_fraction).with_hover_card(cards.headline);
@@ -576,7 +576,7 @@ fn player_group<'a>(
                 |held_snapshot| track_lyrics_indicator(held_snapshot),
                 TRACK_LYRICS_FALLBACK_GLYPH,
             );
-            if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+            if lyrics_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
             }
         }
@@ -733,7 +733,7 @@ mod tests {
             "org.mpris.MediaPlayer2.spotify",
         ]
         .iter()
-        .map(|bus| group.sessions[*bus].expansion.state())
+        .map(|bus| group.sessions[*bus].expansion.state)
         .collect();
         assert_eq!(
             expansion_states,
@@ -865,7 +865,7 @@ mod tests {
     fn a_spotify_handle_shows_the_spotify_glyph() {
         let spotify = titled_player("Spotify", Status::Playing);
         assert!(matches!(
-            player_headline_indicator(&spotify, None).face().icon,
+            player_headline_indicator(&spotify, None).face.icon,
             IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
         ));
     }
@@ -874,7 +874,7 @@ mod tests {
     fn an_unbranded_player_handle_shows_music_notes() {
         let unbranded = titled_player("Unbranded test player", Status::Playing);
         assert!(matches!(
-            player_headline_indicator(&unbranded, None).face().icon,
+            player_headline_indicator(&unbranded, None).face.icon,
             IndicatorIcon::IconGlyph { glyph, .. }
                 if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
         ));

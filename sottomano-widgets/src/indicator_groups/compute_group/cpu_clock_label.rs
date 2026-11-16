@@ -74,7 +74,7 @@ impl ChipletLiveState<'_> {
     pub fn clock_sections(&self, clock: &CpuClock, loads: Option<&CpuCoreLoads>) -> Vec<Section> {
         clock
             .topology
-            .core_groups()
+            .core_groups
             .iter()
             .enumerate()
             .map(|(position, group)| {

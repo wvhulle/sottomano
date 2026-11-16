@@ -82,12 +82,12 @@ pub struct ExpandingSliderParts<'a, Message> {
 
 #[derive(Debug)]
 pub struct ExpandingSlider {
-    expansion_state: ExpansionState,
+    pub expansion_state: ExpansionState,
     scroll_accumulated: f32,
     synced_value: SyncedValue,
-    range: RangeInclusive<f32>,
+    pub range: RangeInclusive<f32>,
     scroll_step: f32,
-    slider_step: f32,
+    pub slider_step: f32,
     scroll_writes: ScrollWrites,
     secondary_press: SecondaryPress,
 }
@@ -162,24 +162,9 @@ impl ExpandingSlider {
     }
 
     #[must_use]
-    pub fn range(&self) -> RangeInclusive<f32> {
-        self.range.clone()
-    }
-
-    #[must_use]
-    pub fn slider_step_size(&self) -> f32 {
-        self.slider_step
-    }
-
-    #[must_use]
     pub fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
         ((self.shown_value() - self.range.start()) / span).clamp(0.0, 1.0)
-    }
-
-    #[must_use]
-    pub fn expansion_state(&self) -> ExpansionState {
-        self.expansion_state
     }
 
     pub fn close(&mut self) {

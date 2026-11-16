@@ -277,12 +277,12 @@ impl MonitorGroup {
                 ))
             })
             .collect();
-        let subscribed = self.clight.subscribed_indicator();
+        let subscribed = &self.clight.sample;
         if !subscribed.awaits_first_delivery() {
             let brightness_indicator = self.wired_auto_brightness_indicator(
                 subscribed.indicator(auto_brightness_indicator, AUTO_BRIGHTNESS_GLYPH.into()),
             );
-            if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
+            if brightness_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(match subscribed.get() {
                     Some(held_snapshot) => brightness_indicator.on_switch_press(
                         held_snapshot.switch_position(),

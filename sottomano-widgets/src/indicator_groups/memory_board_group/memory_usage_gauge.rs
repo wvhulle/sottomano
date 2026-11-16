@@ -139,7 +139,7 @@ mod tests {
         let StateToast::NotifyFromSeverity {
             body: ToastBody::Text(toast_body),
             ..
-        } = toast_indicator.alerts().state_toast.clone()
+        } = toast_indicator.alerts.state_toast.clone()
         else {
             panic!("a nearly full RAM has a toast with a body");
         };

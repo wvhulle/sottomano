@@ -110,7 +110,7 @@ impl<'a> HoverCardContent<'a> {
             .hover_card
             .sections()
             .map(|section| {
-                let source = section.source();
+                let source = section.source;
                 let source_row = match source {
                     SectionSource::Snapshot {
                         source_name,
@@ -147,7 +147,7 @@ impl<'a> HoverCardContent<'a> {
         let CardHeader::Pinned {
             group_title,
             pin: panel_pin,
-        } = self.hover_card.header()
+        } = &self.hover_card.header
         else {
             return None;
         };
@@ -337,16 +337,16 @@ impl<'a> HoverCardContent<'a> {
         let locale = self.config.calendar.locale;
         match delivery_stamp.cadence {
             DeliveryCadence::PeriodicPolling(polling) => self.refreshable_dial(
-                duration_text(polling.poll_period(), locale),
-                polling.poll_period(),
+                duration_text(polling.poll_period, locale),
+                polling.poll_period,
                 delivery_stamp.delivered_at,
             ),
             DeliveryCadence::LivePushWithRecheck(polling) => self.refreshable_dial(
                 format!(
                     "live, recheck {}",
-                    duration_text(polling.poll_period(), locale)
+                    duration_text(polling.poll_period, locale)
                 ),
-                polling.poll_period(),
+                polling.poll_period,
                 delivery_stamp.delivered_at,
             ),
             DeliveryCadence::LivePush => labelled(
@@ -414,14 +414,14 @@ impl<'a> HoverCardContent<'a> {
         section: &Section,
         source_row: Option<Element<'static, PopupMessage>>,
     ) -> Element<'static, PopupMessage> {
-        let delivered = match section.source() {
+        let delivered = match section.source {
             SectionSource::Snapshot { delivery, .. } => self.in_delivery_state(delivery),
             SectionSource::Local => *self,
         };
-        let section_view = section.widget().draw(&delivered);
+        let section_view = section.widget.draw(&delivered);
         self.inset(
             Column::with_children(
-                self.title_rows(section.title())
+                self.title_rows(&section.title)
                     .into_iter()
                     .chain(source_row)
                     .chain(once(section_view)),
@@ -503,15 +503,13 @@ impl<'a> HoverCardContent<'a> {
         let cell_view = self.value_cell_view();
         let heading_font = self.config.theme.font.clone();
         GroupedTableStyle {
-            key_cell: Rc::new(move |record| {
-                key_view.key(record.key().clone(), secondary_text_color)
-            }),
+            key_cell: Rc::new(move |record| key_view.key(record.key.clone(), secondary_text_color)),
             value_cell: Rc::new(move |record, position| {
-                let state = IndicatorState::from(*record.level());
+                let state = IndicatorState::from(record.level);
                 cell_view.value(
                     record.cell(position).cloned().unwrap_or(ValueCell::Blank),
                     move |theme| state.color(theme),
-                    record.key(),
+                    &record.key,
                 )
             }),
             omitted_count: Rc::new(move |omitted_count| {

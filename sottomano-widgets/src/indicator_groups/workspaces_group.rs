@@ -77,7 +77,7 @@ pub enum RevealFoldTimer {
 
 #[derive(Debug, Clone, Default)]
 pub struct EmptyWorkspaceFolding {
-    mode: EmptyWorkspaces,
+    pub mode: EmptyWorkspaces,
     temporarily_revealed: bool,
     active_workspace_by_output: HashMap<String, u64>,
 }
@@ -99,11 +99,6 @@ impl EmptyWorkspaceFolding {
             mode,
             ..Self::default()
         }
-    }
-
-    #[must_use]
-    pub fn mode(&self) -> EmptyWorkspaces {
-        self.mode
     }
 
     pub fn toggle_mode(&mut self) {
@@ -496,7 +491,7 @@ mod tests {
         let mut folding = EmptyWorkspaceFolding::default();
         folding.toggle_temporary_reveal();
         assert!(folding.temporarily_revealed);
-        assert_eq!(folding.mode(), EmptyWorkspaces::Folded);
+        assert_eq!(folding.mode, EmptyWorkspaces::Folded);
         assert_eq!(
             folding.apply_switch(WorkspaceSwitch::Jump),
             RevealFoldTimer::Stop
@@ -529,7 +524,7 @@ mod tests {
         let mut folding = EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown);
         folding.toggle_temporary_reveal();
         assert!(!folding.temporarily_revealed);
-        assert_eq!(folding.mode(), EmptyWorkspaces::Shown);
+        assert_eq!(folding.mode, EmptyWorkspaces::Shown);
     }
 
     #[test]

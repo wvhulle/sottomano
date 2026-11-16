@@ -130,7 +130,7 @@ pub trait ToggleableSource: SnapshotSource {
 }
 
 pub struct ToggleControl<S: ToggleableSource> {
-    sample: SubscribedSnapshot<S>,
+    pub sample: SubscribedSnapshot<S>,
 }
 
 impl<S: ToggleableSource> Default for ToggleControl<S> {
@@ -196,10 +196,6 @@ impl<S: ToggleableSource> ToggleControl<S> {
     pub fn snapshot(&self) -> Option<&S> {
         self.sample.get()
     }
-
-    pub fn subscribed_indicator(&self) -> &SubscribedSnapshot<S> {
-        &self.sample
-    }
 }
 
 #[cfg(test)]
@@ -248,7 +244,7 @@ mod tests {
         let shown_sections: Vec<(String, SectionSource)> = control
             .hover_card()
             .iter()
-            .map(|section| (section.title().text().to_owned(), section.source()))
+            .map(|section| (section.title.text().to_owned(), section.source))
             .collect();
         assert_eq!(
             shown_sections,

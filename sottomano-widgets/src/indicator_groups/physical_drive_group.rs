@@ -120,7 +120,7 @@ impl PhysicalDriveGroup {
         let disk_expansion = self
             .disks
             .values()
-            .map(|samples| samples.expansion.state())
+            .map(|samples| samples.expansion.state)
             .find(|expansion_state| *expansion_state == ExpansionState::Expanded)
             .unwrap_or(ExpansionState::Collapsed);
         let demand = demand.expanded_when(disk_expansion);
@@ -393,7 +393,7 @@ impl PhysicalDriveGroup {
                 |held_snapshot| drive_health_indicator(held_snapshot),
                 DRIVE_HEALTH_GLYPH.into(),
             );
-            if health_indicator.panel_visibility() == PanelVisibility::Shown {
+            if health_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(Self::wired_drive_health_indicator(
                     disk,
                     samples,
@@ -413,7 +413,7 @@ impl PhysicalDriveGroup {
                 |held_snapshot| disk_activity_indicator(held_snapshot),
                 DISK_ACTIVITY_GLYPH.into(),
             );
-            if activity_indicator.panel_visibility() == PanelVisibility::Shown {
+            if activity_indicator.panel_visibility == PanelVisibility::Shown {
                 rows.push(Self::wired_disk_activity_indicator(
                     disk,
                     samples,

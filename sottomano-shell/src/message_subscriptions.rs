@@ -71,9 +71,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     Subscription::batch([
         outputs(state.wayland.as_ref()),
         Subscription::run_with(state.config_file.clone(), |config_file| {
-            changes(vec![WatchTarget::WrittenFile(
-                config_file.path().to_path_buf(),
-            )])
+            changes(vec![WatchTarget::WrittenFile(config_file.path.clone())])
         })
         .map(Message::ConfigFileChanged),
         state

@@ -25,7 +25,7 @@ use crate::{
 };
 
 pub struct DailyTotalsGauge {
-    computed_at: DateTime<Utc>,
+    pub computed_at: DateTime<Utc>,
     screen_spent: TimeDelta,
     screen_budget: Option<BudgetStatus>,
     units: Vec<UnitSpendRecord>,
@@ -47,11 +47,6 @@ impl DailyTotalsGauge {
                 })
                 .collect(),
         }
-    }
-
-    #[must_use]
-    pub fn computed_at(&self) -> DateTime<Utc> {
-        self.computed_at
     }
 
     fn worst(&self) -> Option<Quota> {

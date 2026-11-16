@@ -19,9 +19,9 @@ const DEFAULT_ROW_SPACING_PX: f32 = 4.0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordCells<CellValue, RowLevel = ()> {
-    key: CellValue,
+    pub key: CellValue,
     cells: Vec<CellValue>,
-    level: RowLevel,
+    pub level: RowLevel,
 }
 
 impl<CellValue, RowLevel> RecordCells<CellValue, RowLevel> {
@@ -38,18 +38,8 @@ impl<CellValue, RowLevel> RecordCells<CellValue, RowLevel> {
     }
 
     #[must_use]
-    pub fn key(&self) -> &CellValue {
-        &self.key
-    }
-
-    #[must_use]
     pub fn cell(&self, position: usize) -> Option<&CellValue> {
         self.cells.get(position)
-    }
-
-    #[must_use]
-    pub fn level(&self) -> &RowLevel {
-        &self.level
     }
 }
 
@@ -146,8 +136,8 @@ impl<CellValue, RowLevel> TableRow<CellValue, RowLevel> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupedTable<'label, CellValue, RowLevel = ()> {
-    columns: TableColumns<'label>,
-    rows: Vec<TableRow<CellValue, RowLevel>>,
+    pub columns: TableColumns<'label>,
+    pub rows: Vec<TableRow<CellValue, RowLevel>>,
 }
 
 fn retain_filled_columns<Column>(columns: &mut Vec<Column>, filled_columns: &[bool]) {
@@ -260,16 +250,6 @@ impl<'label, CellValue, RowLevel> GroupedTable<'label, CellValue, RowLevel> {
     }
 
     #[must_use]
-    pub fn rows(&self) -> &[TableRow<CellValue, RowLevel>] {
-        &self.rows
-    }
-
-    #[must_use]
-    pub fn columns(&self) -> &TableColumns<'label> {
-        &self.columns
-    }
-
-    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.records().next().is_none()
     }
@@ -298,7 +278,7 @@ impl<RowLevel: 'static, Message: 'static> From<TextFace>
 {
     fn from(face: TextFace) -> Self {
         Self {
-            key_cell: Rc::new(move |record| face.text(record.key().clone()).into()),
+            key_cell: Rc::new(move |record| face.text(record.key.clone()).into()),
             value_cell: Rc::new(move |record, position| {
                 face.text(record.cell(position).cloned().unwrap_or_default())
                     .into()
@@ -458,8 +438,8 @@ mod tests {
         let table = GroupedTable::new(moon_columns(), [planet("Mars", "2")])
             .without_blank_columns(String::is_empty);
         assert_eq!(
-            table.columns(),
-            &TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
+            table.columns,
+            TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
         );
         assert_eq!(
             table.records().next().and_then(|record| record.cell(1)),
@@ -480,7 +460,7 @@ mod tests {
         .truncated_to(NonZeroUsize::MIN);
         assert_eq!(table.records().count(), 1);
         assert!(matches!(
-            table.rows().last(),
+            table.rows.last(),
             Some(TableRow::OmittedRecordCount(omitted)) if omitted.get() == 2
         ));
     }
@@ -496,8 +476,8 @@ mod tests {
             ],
         );
         assert_eq!(table.records().count(), 2);
-        assert!(matches!(table.rows()[1], TableRow::GroupSeparator));
-        assert_eq!(table.rows().len(), 3);
+        assert!(matches!(table.rows[1], TableRow::GroupSeparator));
+        assert_eq!(table.rows.len(), 3);
     }
 
     #[test]

@@ -38,11 +38,6 @@ impl SnapshotSource for ZoneTime {
 }
 
 impl ZoneTime {
-    #[must_use]
-    pub fn zone(self) -> Tz {
-        self.0
-    }
-
     fn there(self, clock: Clock) -> DateTime<Tz> {
         clock.utc().with_timezone(&self.0)
     }
@@ -68,7 +63,7 @@ impl ZoneTime {
 impl ZoneTime {
     pub(super) fn indicator(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
         GroupIndicator::glyph_only(
-            city_name(self.zone()),
+            city_name(self.0),
             Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
             IndicatorState::Idle,
         )
@@ -87,7 +82,7 @@ impl ZoneTime {
         vec![Section::new(
             "Time zone",
             dictionary_table([
-                LabeledValue::new("Zone", self.zone().name().to_owned()),
+                LabeledValue::new("Zone", self.0.name().to_owned()),
                 LabeledValue::new("Abbreviation", there.format("%Z").to_string()),
                 LabeledValue::new("UTC offset", there.format("%:z").to_string()),
                 LabeledValue::new("Day", self.day_relative_to_local(clock).to_owned()),

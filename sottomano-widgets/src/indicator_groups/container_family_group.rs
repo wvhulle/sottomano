@@ -118,7 +118,7 @@ where
         &self,
         demand: GroupSourceDemand,
     ) -> Subscription<ContainerFamilyMessage<Family>> {
-        let demand = demand.expanded_when(self.expansion.state());
+        let demand = demand.expanded_when(self.expansion.state);
         Subscription::batch([
             snapshot_subscription::<Family::Probe>(()).map(ContainerFamilyMessage::Probe),
             demand

@@ -258,8 +258,8 @@ enum GroupRevealIntent {
 pub struct GroupMenuState {
     reveal_intent: GroupRevealIntent,
     pub layer: LayerAppearanceControls,
-    settings_expansion: IndicatorGroupExpansion,
-    presentation: NestedMenuPresentation,
+    pub(crate) settings_expansion: IndicatorGroupExpansion,
+    pub presentation: NestedMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
     recently_open_menus: Vec<RecentlyOpenMenu>,
@@ -394,20 +394,10 @@ impl GroupMenuState {
         GroupSourceDemand::showing(surface)
     }
 
-    #[must_use]
-    pub(crate) const fn settings_expansion(&self) -> &IndicatorGroupExpansion {
-        &self.settings_expansion
-    }
-
     pub fn collapse_settings(&mut self) {
         if self.settings_expansion.collapse() == ExpansionChange::JustCollapsed {
             self.layer.close();
         }
-    }
-
-    #[must_use]
-    pub const fn presentation(&self) -> NestedMenuPresentation {
-        self.presentation
     }
 
     #[must_use]

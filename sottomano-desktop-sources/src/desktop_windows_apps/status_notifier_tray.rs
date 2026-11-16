@@ -123,20 +123,11 @@ pub enum TrayUpdate {
 
 #[derive(Debug, Clone)]
 pub struct TrayHost {
-    tray_client: Arc<Client>,
-    session_bus: zbus::Connection,
+    pub tray_client: Arc<Client>,
+    pub session_bus: zbus::Connection,
 }
 
-impl TrayHost {
-    #[must_use]
-    pub fn tray_client(&self) -> &Client {
-        &self.tray_client
-    }
-
-    pub fn session_bus(&self) -> &zbus::Connection {
-        &self.session_bus
-    }
-}
+impl TrayHost {}
 
 const TRAY_PIXMAP_SIDE_LIMIT: u32 = 128;
 

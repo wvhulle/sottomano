@@ -77,7 +77,7 @@ pub enum ExpansionChange {
 
 #[derive(Default)]
 pub struct IndicatorGroupExpansion {
-    state: ExpansionState,
+    pub state: ExpansionState,
     cursor_pointing: PointerPresence,
 }
 
@@ -104,7 +104,7 @@ impl<Key: Ord> KeyedExpansions<Key> {
     pub fn combined_state(&self) -> ExpansionState {
         self.expansions
             .values()
-            .map(IndicatorGroupExpansion::state)
+            .map(|expansion| expansion.state)
             .find(|expansion_state| *expansion_state == ExpansionState::Expanded)
             .unwrap_or(ExpansionState::Collapsed)
     }
@@ -170,11 +170,6 @@ impl IndicatorGroupExpansion {
     pub fn collapse(&mut self) -> ExpansionChange {
         self.update(IndicatorGroupExpansionMessage::Collapse)
     }
-
-    #[must_use]
-    pub fn state(&self) -> ExpansionState {
-        self.state
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -230,8 +225,8 @@ pub struct CardTitleClash {
 }
 
 pub struct IndicatorGroupContent<'a> {
-    group_identity: IndicatorGroupIdentity,
-    group_title: IndicatorGroupTitle,
+    pub(crate) group_identity: IndicatorGroupIdentity,
+    pub(crate) group_title: IndicatorGroupTitle,
     expansion: &'a IndicatorGroupExpansion,
     on_expansion: Rc<dyn Fn(IndicatorGroupExpansionMessage) -> IndicatorGroupInteraction + 'a>,
     headline_indicator: GroupIndicator<'a>,
@@ -289,11 +284,11 @@ impl<'a> IndicatorGroupContent<'a> {
                     .hover_card(clock)
                     .into_iter()
                     .map(|section| {
-                        let source_name = match section.source() {
+                        let source_name = match section.source {
                             SectionSource::Snapshot { source_name, .. } => source_name.to_owned(),
                             SectionSource::Local => String::new(),
                         };
-                        (section.title().text().to_owned(), source_name)
+                        (section.title.text().to_owned(), source_name)
                     })
                     .filter(|(section_title, source_name)| {
                         section_title.is_empty()
@@ -372,7 +367,7 @@ impl<'a> IndicatorGroupContent<'a> {
         keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
     ) -> Self {
         self.indicators
-            .retain(|indicator| keeps_alignment(indicator.alignment()));
+            .retain(|indicator| keeps_alignment(indicator.alignment));
         self
     }
 
@@ -477,18 +472,9 @@ impl<'a> IndicatorGroupContent<'a> {
         Some(RowHoverCard { sections, header })
     }
 
-    pub(crate) fn group_identity(&self) -> &IndicatorGroupIdentity {
-        &self.group_identity
-    }
-
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.rows().next().is_none()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn group_title(&self) -> IndicatorGroupTitle {
-        self.group_title.clone()
     }
 
     pub(crate) fn panel_indicator_views(
@@ -540,11 +526,11 @@ impl<'a> IndicatorGroupContent<'a> {
         } = self;
         let (item_rows, aligned_indicators): (Vec<_>, Vec<_>) = indicators
             .into_iter()
-            .partition(|indicator| indicator.alignment() == IndicatorAlignment::Unaligned);
+            .partition(|indicator| indicator.alignment == IndicatorAlignment::Unaligned);
         let aligned = aligned_indicators
             .iter()
             .fold(BTreeMap::new(), |mut aligned, indicator| {
-                if let IndicatorAlignment::Aligned(quantity) = indicator.alignment() {
+                if let IndicatorAlignment::Aligned(quantity) = indicator.alignment {
                     aligned.insert(quantity, indicator.table_cell_view(config, clock));
                 }
                 aligned

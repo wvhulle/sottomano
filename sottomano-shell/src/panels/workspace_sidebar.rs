@@ -33,7 +33,7 @@ impl DesktopShell {
         let framed_workspaces = (self
             .indicator_groups
             .sidebar_settings_group
-            .workspaces_placement()
+            .workspaces_placement
             == WorkspacesPlacement::Sidebar)
             .then_some(&self.window_snapshot)
             .and_then(|snapshot| {
@@ -41,9 +41,10 @@ impl DesktopShell {
                     snapshot,
                     output,
                     self.configured_workspaces.as_ref(),
-                    self.indicator_groups
+                    &self
+                        .indicator_groups
                         .sidebar_settings_group
-                        .empty_workspace_folding(),
+                        .empty_workspace_folding,
                     frame_style.drawn_corners(outlined_sides),
                     self.panel_slot_context(Position::Left),
                 )
