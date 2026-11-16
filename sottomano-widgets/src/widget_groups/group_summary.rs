@@ -1,7 +1,7 @@
 use corredo::{orientation::Axis, transitions::reveal};
 use iced::{
     Alignment, Element, Padding,
-    widget::{Row, Space, container},
+    widget::{Row, container},
 };
 use sottomano_toml_config::Config;
 
@@ -9,7 +9,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, reading_display_state::ReadingDisplayState,
-        source_reading::GroupItemIcon,
+        source_reading::state_glyph_view,
     },
     widget_groups::widget_group_content::GroupEvent,
     widgets::icon_glyph::IconGlyph,
@@ -47,23 +47,13 @@ impl<'a> GroupSummary<'a> {
         }
     }
 
-    fn glyph_icon(&self) -> GroupItemIcon {
-        match self {
-            GroupSummary::Glyph { glyph, state } => GroupItemIcon::IconGlyph {
-                glyph: *glyph,
-                state: *state,
-            },
-            GroupSummary::Row { glyph, row } => GroupItemIcon::IconGlyph {
-                glyph: *glyph,
-                state: row.display_state(),
-            },
-        }
-    }
-
     pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
-        self.glyph_icon()
-            .view(config, 1.0)
-            .unwrap_or_else(|| Space::new().into())
+        match self {
+            GroupSummary::Glyph { glyph, state } => state_glyph_view(*glyph, *state, config, 1.0),
+            GroupSummary::Row { glyph, row } => {
+                state_glyph_view(*glyph, row.display_state(), config, 1.0)
+            }
+        }
     }
 
     pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {

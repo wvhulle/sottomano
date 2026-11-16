@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display, Formatter},
     mem,
     sync::{
-        LazyLock, Mutex, PoisonError,
+        LazyLock, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -133,7 +133,11 @@ impl WorkMeasurement {
 }
 
 fn with_tally(record: impl FnOnce(&mut LoadTally)) {
-    record(&mut LOAD_TALLY.lock().unwrap_or_else(PoisonError::into_inner));
+    record(
+        &mut LOAD_TALLY
+            .lock()
+            .expect("no thread panicked while recording load"),
+    );
 }
 
 pub fn record_update(kind: WorkKind, measured: MeasuredWork) {
@@ -156,7 +160,11 @@ pub fn record_source_poll(source_name: &'static str, measured: MeasuredWork, out
 
 #[must_use]
 pub fn take_load_tally() -> LoadTally {
-    mem::take(&mut LOAD_TALLY.lock().unwrap_or_else(PoisonError::into_inner))
+    mem::take(
+        &mut LOAD_TALLY
+            .lock()
+            .expect("no thread panicked while recording load"),
+    )
 }
 
 #[cfg(test)]

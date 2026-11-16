@@ -21,6 +21,7 @@ mod widget_groups;
 use std::{
     env::{self, VarError},
     error::Error,
+    io,
     sync::Arc,
 };
 
@@ -74,7 +75,7 @@ where
         )))
 }
 
-fn install_tracing_subscriber() {
+fn install_tracing_subscriber() -> io::Result<()> {
     let (chrome_layer, trace_flush_guard) = env::var_os(TRACE_FILE_VARIABLE)
         .map(|trace_file_path| {
             ChromeLayerBuilder::new()
@@ -91,7 +92,7 @@ fn install_tracing_subscriber() {
         .init();
     process_load_report::spawn_load_reports(move || {
         trace_flush_guard.iter().for_each(FlushGuard::flush);
-    });
+    })
 }
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
@@ -100,7 +101,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         return setup_command.print(&sottomano_toml_config::config_home());
     }
 
-    install_tracing_subscriber();
+    install_tracing_subscriber()?;
 
     let config_home = sottomano_toml_config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);

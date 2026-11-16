@@ -32,6 +32,7 @@ wayland-client = "0.31.15"
 tracing.workspace = true
 strum.workspace = true
 rustix = { version = "1.1.5", features = ["param"] }
+signal-hook = "0.3.18"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing-chrome = "0.7.2"
 reqwest.workspace = true

@@ -21,6 +21,20 @@ use crate::{
     },
 };
 
+pub(crate) fn state_glyph_view<'a, Message: 'a>(
+    glyph: IconGlyph,
+    state: ReadingDisplayState,
+    config: &Config,
+    opacity: f32,
+) -> Element<'a, Message> {
+    let tint = ReadingStateTint { state, opacity };
+    glyph
+        .with_weight(state.weight())
+        .view(config.theme.font.icon_size_px, move |theme| {
+            tint.color(theme)
+        })
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupItemIcon {
     IconGlyph {
@@ -48,15 +62,7 @@ impl GroupItemIcon {
         let side = config.theme.font.icon_size_px;
         match self {
             GroupItemIcon::IconGlyph { glyph, state } => {
-                let tint = ReadingStateTint {
-                    state: *state,
-                    opacity,
-                };
-                Some(
-                    glyph
-                        .with_weight(state.weight())
-                        .view(side, move |theme| tint.color(theme)),
-                )
+                Some(state_glyph_view(*glyph, *state, config, opacity))
             }
             GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
             GroupItemIcon::Absent => None,

@@ -416,11 +416,10 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     fn handle_actions(&self) -> Vec<PressAction> {
-        let face_actions = self
-            .summary
-            .summarised_row()
-            .map(GroupItem::press_actions)
-            .unwrap_or_default();
+        let face_actions = match &self.summary {
+            GroupSummary::Row { row, .. } => row.press_actions(),
+            GroupSummary::Glyph { .. } => Vec::new(),
+        };
         let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
             .into_iter()
             .chain(
@@ -437,10 +436,11 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     fn face_card(&self, clock: Clock) -> Vec<Section> {
-        self.summary
-            .summarised_row()
-            .map(|summarised_row| summarised_row.hover_card(clock))
-            .unwrap_or_default()
+        let summary_sections = match &self.summary {
+            GroupSummary::Row { row, .. } => row.hover_card(clock),
+            GroupSummary::Glyph { .. } => Vec::new(),
+        };
+        summary_sections
             .into_iter()
             .chain(Section::press_actions(self.handle_actions()))
             .collect()

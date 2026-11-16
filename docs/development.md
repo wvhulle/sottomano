@@ -51,18 +51,20 @@ it can rewind the shell to an earlier message.
 
 ## Measuring CPU, memory and wakeups
 
-The shell reports its own load once a minute in the log, at debug level:
+The shell reports its own load in the log, at debug level, when it receives
+`SIGUSR1`, and once more when it stops on `SIGTERM` or `SIGINT`:
 
 ```sh
 RUST_LOG=sottomano_shell=debug cargo r
+kill -USR1 $(pgrep -x sottomano)
 ```
 
-Set `SOTTOMANO_LOAD_REPORT_SECONDS` to report more often while measuring, for
-example `SOTTOMANO_LOAD_REPORT_SECONDS=10`. Each report has two events:
+Each report covers the time since the previous report, or since the shell
+started, and has two events:
 
 - `process memory`: resident, anonymous, file-backed, swapped and peak memory
   in KiB, and the thread count, read from `/proc/self/status`.
-- `process load`, covering the interval since the previous report:
+- `process load`, with `window_seconds` for the time it covers:
   - `process_cpu_percent`: CPU time of all threads as a percentage of one core.
   - `busiest_threads`: CPU per thread name, read from `/proc/self/task`, so
     tokio workers, blocking threads and the UI thread show up separately.
