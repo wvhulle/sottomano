@@ -136,39 +136,45 @@ impl ClockGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, ClockInteraction> {
-        let summarised_row = GroupItem::reading(self.time.main_row(
+        let group_summary = match self.time.reading_row(
             Phosphor::Clock(Weight::Regular).into(),
             |_| LocalTime::reading_row(clock, locale),
             clock,
-        ))
-        .with_hover_card(Box::new(|card_clock| {
-            self.time
-                .sections_described_by(|_| LocalTime::hover_card(card_clock))
-        }))
-        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime));
-        let group_summary =
-            GroupSummary::showing(Phosphor::Clock(Weight::Regular).into(), &summarised_row);
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                Phosphor::Clock(Weight::Regular).into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(|card_clock| {
+                        self.time
+                            .sections_described_by(|_| LocalTime::hover_card(card_clock))
+                    }))
+                    .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Clock(Weight::Regular).into(),
+                self.time.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
             group_summary,
             &self.expansion,
             ClockInteraction::Expansion,
-            [
-                Some(summarised_row),
-                self.date
-                    .group_item(
-                        IconGlyph::default(),
-                        |_| LocalDate::reading_row(clock, locale),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(|card_clock| {
-                            self.date
-                                .sections_described_by(|_| LocalDate::hover_card(card_clock))
-                        }))
-                        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
-                    }),
-            ]
+            [self
+                .date
+                .group_item(
+                    IconGlyph::default(),
+                    |_| LocalDate::reading_row(clock, locale),
+                    clock,
+                )
+                .map(|item| {
+                    item.with_hover_card(Box::new(|card_clock| {
+                        self.date
+                            .sections_described_by(|_| LocalDate::hover_card(card_clock))
+                    }))
+                    .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
+                })]
             .into_iter()
             .chain(self.zone_times.iter().map(|(zone, zone_time)| {
                 zone_time

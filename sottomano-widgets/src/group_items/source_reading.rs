@@ -40,7 +40,11 @@ impl GroupItemIcon {
         }
     }
 
-    fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
+    pub(crate) fn view<'a, Message: 'a>(
+        &self,
+        config: &Config,
+        opacity: f32,
+    ) -> Option<Element<'a, Message>> {
         let side = config.theme.font.icon_size_px;
         match self {
             GroupItemIcon::IconGlyph { glyph, state } => {

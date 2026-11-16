@@ -352,21 +352,29 @@ impl StorageSpaceGroup {
                     )))
                 });
         let owned_mount_point = primary_mount_point.to_path_buf();
-        let usage_item = GroupItem::reading(filesystem.usage.main_row(
+        let group_summary = match filesystem.usage.reading_row(
             Phosphor::Folders(Weight::Regular).into(),
             filesystem_usage_reading_row,
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            filesystem
-                .usage
-                .sections_described_by(filesystem_usage_hover_card)
-        }))
-        .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
-            primary_mount_point.to_path_buf(),
-        )));
-        let group_summary =
-            GroupSummary::showing(Phosphor::Folders(Weight::Regular).into(), &usage_item);
+        ) {
+            Some(usage_item) => GroupSummary::summarising(
+                Phosphor::Folders(Weight::Regular).into(),
+                GroupItem::reading(usage_item)
+                    .with_hover_card(Box::new(move |_| {
+                        filesystem
+                            .usage
+                            .sections_described_by(filesystem_usage_hover_card)
+                    }))
+                    .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                        primary_mount_point.to_path_buf(),
+                    ))),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Folders(Weight::Regular).into(),
+                filesystem.usage.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::StorageSpace,
@@ -379,9 +387,7 @@ impl StorageSpaceGroup {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
-            [usage_item]
-                .into_iter()
-                .chain(Self::property_items(filesystem, locale))
+            Self::property_items(filesystem, locale)
                 .chain(Self::subvolume_items(filesystem, locale))
                 .chain(subvolume_failure_item)
                 .chain(snapshot_deletion_item),
@@ -401,22 +407,31 @@ impl StorageSpaceGroup {
                 .map(|filesystem| Self::mount_group(filesystem, clock, locale))
                 .collect();
         }
-        let discovery_item = GroupItem::reading(self.discovery.main_row(
+        let group_summary = match self.discovery.reading_row(
             Phosphor::Folders(Weight::Regular).into(),
             block_filesystem_discovery_reading_row,
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            self.discovery
-                .sections_described_by(block_filesystem_discovery_hover_card)
-        }))
-        .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery));
+        ) {
+            Some(discovery_item) => GroupSummary::summarising(
+                Phosphor::Folders(Weight::Regular).into(),
+                GroupItem::reading(discovery_item)
+                    .with_hover_card(Box::new(move |_| {
+                        self.discovery
+                            .sections_described_by(block_filesystem_discovery_hover_card)
+                    }))
+                    .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Folders(Weight::Regular).into(),
+                self.discovery.unshown_state(),
+            ),
+        };
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
-            GroupSummary::showing(Phosphor::Folders(Weight::Regular).into(), &discovery_item),
+            group_summary,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            [discovery_item],
+            [],
         )]
     }
 }

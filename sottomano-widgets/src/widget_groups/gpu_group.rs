@@ -4,7 +4,7 @@ mod gpu_memory_gauge;
 mod gpu_power_label;
 mod gpu_temperature_label;
 
-use std::{collections::BTreeMap, iter::once};
+use std::collections::BTreeMap;
 
 use gpu_clock_label::GpuClockLabel;
 use gpu_load_gauge::{gpu_load_hover_card, gpu_load_reading_row};
@@ -319,39 +319,47 @@ impl GpuGroup {
         }
     }
 
-    fn load_item<'a>(
+    fn device_summary<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         clock: Clock,
-    ) -> GroupItem<'a, GpuInteraction> {
+    ) -> GroupSummary<'a, GpuInteraction> {
         let model_sections = move || {
             self.discovery
                 .sections_described_by(|_| vec![Section::from(&device.model)])
         };
-        let load_item =
-            match &device.access {
-                GpuDeviceAccess::Readable { snapshot, .. } => GroupItem::reading(
-                    snapshot.main_row(GPU_SUMMARY_GLYPH.into(), gpu_load_reading_row, clock),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    snapshot
-                        .sections_described_by(gpu_load_hover_card)
-                        .into_iter()
-                        .chain(model_sections())
-                        .collect()
-                })),
-                GpuDeviceAccess::Unreadable { handle_failure } => {
-                    GroupItem::reading(handle_failure.reading_row(GPU_SUMMARY_GLYPH.into()))
-                        .with_hover_card(Box::new(move |_| {
-                            [handle_failure.source_state()]
-                                .into_iter()
-                                .chain(model_sections())
-                                .collect()
-                        }))
+        let refresh = || GpuInteraction::Refresh(bus.clone());
+        match &device.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => {
+                match snapshot.reading_row(GPU_SUMMARY_GLYPH.into(), gpu_load_reading_row, clock) {
+                    Some(load_row) => GroupSummary::summarising(
+                        GPU_SUMMARY_GLYPH.into(),
+                        GroupItem::reading(load_row)
+                            .with_hover_card(Box::new(move |_| {
+                                snapshot
+                                    .sections_described_by(gpu_load_hover_card)
+                                    .into_iter()
+                                    .chain(model_sections())
+                                    .collect()
+                            }))
+                            .refreshed_by(refresh()),
+                    ),
+                    None => GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), snapshot.unshown_state()),
                 }
-            };
-        load_item.refreshed_by(GpuInteraction::Refresh(bus.clone()))
+            }
+            GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
+                GPU_SUMMARY_GLYPH.into(),
+                GroupItem::reading(handle_failure.reading_row(GPU_SUMMARY_GLYPH.into()))
+                    .with_hover_card(Box::new(move |_| {
+                        [handle_failure.source_state()]
+                            .into_iter()
+                            .chain(model_sections())
+                            .collect()
+                    }))
+                    .refreshed_by(refresh()),
+            ),
+        }
     }
 
     fn device_items<'a>(
@@ -438,14 +446,13 @@ impl GpuGroup {
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
-                let load_item = self.load_item(bus, device, clock);
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,
-                    GroupSummary::showing(GPU_SUMMARY_GLYPH.into(), &load_item),
+                    self.device_summary(bus, device, clock),
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    once(load_item).chain(self.device_items(bus, device).into_iter().flatten()),
+                    self.device_items(bus, device).into_iter().flatten(),
                 )
             })
     }

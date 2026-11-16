@@ -21,7 +21,10 @@ use uom::si::{f64::Power, power::watt};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::slider_control::{Action, ControlMessage, SliderControl},
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        slider_control::{Action, ControlMessage, SliderControl},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widget_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
@@ -322,6 +325,10 @@ impl PowerProfileControl {
 
     pub fn slider(&self) -> Option<&SliderControl> {
         self.status.get().map(|_| &self.control)
+    }
+
+    pub fn unshown_state(&self) -> ReadingDisplayState {
+        self.status.unshown_state()
     }
 }
 

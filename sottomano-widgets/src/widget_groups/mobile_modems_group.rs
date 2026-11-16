@@ -153,11 +153,15 @@ impl MobileModemsGroup {
     ) -> Option<WidgetGroupContent<'a, MobileModemsInteraction>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
-        let signal_item = GroupItem::reading(ModemSignalReading { modem }.reading_row())
-            .with_hover_card(Box::new(move |_| {
-                self.mobile_modems
-                    .hover_card_with(ModemSignalReading { modem }.hover_card())
-            }));
+        let group_summary = GroupSummary::summarising(
+            Phosphor::CellSignalFull(Weight::Regular).into(),
+            GroupItem::reading(ModemSignalReading { modem }.reading_row()).with_hover_card(
+                Box::new(move |_| {
+                    self.mobile_modems
+                        .hover_card_with(ModemSignalReading { modem }.hover_card())
+                }),
+            ),
+        );
         let connection_item = (modem.radio_power() == RadioPower::On).then(|| {
             let connection_switch = ModemConnectionSwitch { modem };
             let connection_press_does = connection_switch.press_does();
@@ -204,10 +208,6 @@ impl MobileModemsGroup {
                 self.all_radios_hover_card(any_radio_power)
             }));
         let expanded_modem_path = modem_path();
-        let group_summary = GroupSummary::showing(
-            Phosphor::CellSignalFull(Weight::Regular).into(),
-            &signal_item,
-        );
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
@@ -217,9 +217,8 @@ impl MobileModemsGroup {
                 modem_path: expanded_modem_path.clone(),
                 expansion,
             },
-            [signal_item]
+            connection_item
                 .into_iter()
-                .chain(connection_item)
                 .chain(address_items)
                 .chain(data_item)
                 .chain([radios_item]),

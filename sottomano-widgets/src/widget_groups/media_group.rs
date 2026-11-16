@@ -567,15 +567,17 @@ fn player_group<'a>(
         .then(|| seek_position_item(config, clock, media, session));
     let transport = transport_controls_item(config, media);
     let session_buttons = session_buttons_item(config, media, session);
-    let player_row = player_item(config, media, gauge_fraction).with_hover_card(cards.player);
+    let group_summary = GroupSummary::summarising(
+        Phosphor::Radio(Weight::Regular).into(),
+        player_item(config, media, gauge_fraction).with_hover_card(cards.player),
+    );
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),
         group_title,
-        GroupSummary::showing(Phosphor::Radio(Weight::Regular).into(), &player_row),
+        group_summary,
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
         [
-            Some(player_row),
             Some(
                 track_item(
                     config,

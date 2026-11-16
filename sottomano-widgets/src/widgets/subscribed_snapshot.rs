@@ -310,27 +310,13 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
             .map(GroupItem::reading)
     }
 
-    pub fn main_row<'s>(
-        &'s self,
-        glyph: IconGlyph,
-        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        clock: Clock,
-    ) -> ReadingRow<'s> {
+    pub fn unshown_state(&self) -> ReadingDisplayState {
         match self {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => describe(held_snapshot),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                troubled_snapshot.shown_over(describe(&troubled_snapshot.held_snapshot), clock)
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => placeholder.reading_row(glyph),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                SnapshotPlaceholder::<S>::awaiting_row(glyph)
-            }
-            SubscribedSnapshot::SourceUnavailable => ReadingRow::glyph_only(
-                S::NAME,
-                glyph,
-                ReadingDisplayState::Off,
-                Box::new(|_| Vec::new()),
-            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
+            SubscribedSnapshot::SourceUnavailable => ReadingDisplayState::Off,
+            SubscribedSnapshot::NoSnapshot { placeholder } => placeholder.shown_state(),
+            SubscribedSnapshot::SnapshotHeld { .. }
+            | SubscribedSnapshot::SnapshotTroubled { .. } => ReadingDisplayState::Idle,
         }
     }
 

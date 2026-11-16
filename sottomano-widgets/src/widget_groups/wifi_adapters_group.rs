@@ -252,16 +252,23 @@ impl WifiAdaptersGroup {
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, WifiAdaptersInteraction>> {
         let expansion = self.expansions.get(&adapter.device)?;
-        let signal_item = GroupItem::reading(
-            AdapterSignalReading {
-                adapter,
-                radio_power,
-            }
-            .reading_row(),
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.adapter_signal_hover_card(adapter, radio_power)
-        }));
+        let group_summary = GroupSummary::summarising(
+            Phosphor::WifiHigh(Weight::Regular).into(),
+            GroupItem::reading(
+                AdapterSignalReading {
+                    adapter,
+                    radio_power,
+                }
+                .reading_row(),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.adapter_signal_hover_card(adapter, radio_power)
+            }))
+            .fetching_on_hover(
+                WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
+                WifiAdaptersInteraction::StopHoverFetches,
+            ),
+        );
         let connection_item = (radio_power == RadioPower::On).then(|| {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
@@ -301,14 +308,7 @@ impl WifiAdaptersGroup {
                     .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
             }));
         let adapter_device = adapter.device.clone();
-        let group_summary =
-            GroupSummary::showing(Phosphor::WifiHigh(Weight::Regular).into(), &signal_item)
-                .adjusting_instrument(|summary_item| {
-                    summary_item.fetching_on_hover(
-                        WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
-                        WifiAdaptersInteraction::StopHoverFetches,
-                    )
-                });
+        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
@@ -318,9 +318,8 @@ impl WifiAdaptersGroup {
                 adapter_device: adapter_device.clone(),
                 expansion,
             },
-            [signal_item]
+            connection_item
                 .into_iter()
-                .chain(connection_item)
                 .chain(address_items)
                 .chain(dns_item)
                 .chain([radios_item])

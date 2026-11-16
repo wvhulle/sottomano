@@ -1,87 +1,76 @@
 use corredo::{orientation::Axis, transitions::reveal};
 use iced::{
     Alignment, Element, Padding,
-    widget::{Row, container},
+    widget::{Row, Space, container},
 };
 use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
-        slider_control::ShownReading,
-        source_reading::{GroupItemIcon, reading_value},
+        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+        source_reading::GroupItemIcon,
     },
     widget_groups::widget_group_content::GroupEvent,
     widgets::icon_glyph::IconGlyph,
 };
 
-enum SummaryValue {
-    Hidden,
-    Shown(ShownReading),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SummaryVisibility {
-    GlyphOnly,
-    WithReading,
-}
-
-pub struct GroupSummary<'a, M> {
-    instrument: Box<GroupItem<'a, M>>,
-    value: SummaryValue,
+pub enum GroupSummary<'a, M> {
+    Glyph {
+        glyph: IconGlyph,
+        state: ReadingDisplayState,
+    },
+    Row {
+        glyph: IconGlyph,
+        row: Box<GroupItem<'a, M>>,
+    },
 }
 
 impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
     #[must_use]
     pub fn glyph(glyph: IconGlyph, state: ReadingDisplayState) -> Self {
-        Self {
-            instrument: Box::new(GroupItem::composed(
-                "",
-                GroupItemIcon::IconGlyph { glyph, state },
-                GroupItemValue::Nothing,
-                Box::new(|_| Vec::new()),
-            )),
-            value: SummaryValue::Hidden,
-        }
+        GroupSummary::Glyph { glyph, state }
     }
 
     #[must_use]
-    pub fn showing(glyph: IconGlyph, row: &GroupItem<'a, M>) -> Self {
-        let instrument = Self::glyph(glyph, row.display_state())
-            .instrument
-            .sharing_details_of(row);
-        let value = match row.shown_reading() {
-            Some(shown_reading) => SummaryValue::Shown(shown_reading),
-            None => SummaryValue::Hidden,
-        };
-        Self {
-            instrument: Box::new(instrument),
-            value,
+    pub fn summarising(glyph: IconGlyph, row: GroupItem<'a, M>) -> Self {
+        GroupSummary::Row {
+            glyph,
+            row: Box::new(row),
         }
     }
 
-    #[must_use]
-    pub fn adjusting_instrument(
-        self,
-        adjust: impl FnOnce(GroupItem<'a, M>) -> GroupItem<'a, M>,
-    ) -> Self {
-        Self {
-            instrument: Box::new(adjust(*self.instrument)),
-            ..self
+    pub(crate) fn summarised_row(&self) -> Option<&GroupItem<'a, M>> {
+        match self {
+            GroupSummary::Glyph { .. } => None,
+            GroupSummary::Row { row, .. } => Some(row),
         }
     }
 
-    pub(crate) fn shown_value(&self) -> SummaryVisibility {
-        match self.value {
-            SummaryValue::Hidden => SummaryVisibility::GlyphOnly,
-            SummaryValue::Shown(_) => SummaryVisibility::WithReading,
+    fn glyph_icon(&self) -> GroupItemIcon {
+        match self {
+            GroupSummary::Glyph { glyph, state } => GroupItemIcon::IconGlyph {
+                glyph: *glyph,
+                state: *state,
+            },
+            GroupSummary::Row { glyph, row } => GroupItemIcon::IconGlyph {
+                glyph: *glyph,
+                state: row.display_state(),
+            },
         }
     }
 
-    pub(crate) fn instrument_item(&self) -> &GroupItem<'a, M> {
-        &self.instrument
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
+        self.glyph_icon()
+            .view(config, 1.0)
+            .unwrap_or_else(|| Space::new().into())
+    }
+
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
+        match self {
+            GroupSummary::Glyph { .. } => Row::new().into(),
+            GroupSummary::Row { row, .. } => row.menu_value(config, clock),
+        }
     }
 
     pub(crate) fn handle_view(
@@ -90,51 +79,29 @@ impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
         reveal_fraction: f32,
         clock: Clock,
     ) -> Element<'a, GroupEvent<M>> {
-        Row::with_children([
-            self.instrument.unhovered_view(config, 1.0, clock),
-            self.collapsing_value(config, reveal_fraction),
-        ])
-        .align_y(Alignment::Center)
-        .into()
-    }
-
-    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
-        self.instrument.menu_icon(config)
-    }
-
-    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
-        match self.value {
-            SummaryValue::Hidden => self.instrument.menu_value(config, clock),
-            SummaryValue::Shown(_) => self.collapsing_value(config, 0.0),
-        }
-    }
-
-    fn collapsing_value(
-        &self,
-        config: &Config,
-        reveal_fraction: f32,
-    ) -> Element<'a, GroupEvent<M>> {
         let hidden = 1.0 - reveal_fraction;
-        let SummaryValue::Shown(shown_reading) = &self.value else {
-            return Row::new().into();
+        let collapsing_value: Element<'a, GroupEvent<M>> = match self {
+            GroupSummary::Row { row, .. } if hidden > 0.0 => reveal(
+                container(row.menu_value(config, clock))
+                    .padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
+                hidden,
+                Axis::Horizontal,
+            )
+            .into(),
+            GroupSummary::Row { .. } | GroupSummary::Glyph { .. } => Row::new().into(),
         };
-        let Some(value) = reading_value(config, &shown_reading.face, &shown_reading.readout, 1.0)
-            .filter(|_| hidden > 0.0)
-        else {
-            return Row::new().into();
-        };
-        reveal(
-            container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
-            hidden,
-            Axis::Horizontal,
-        )
-        .into()
+        Row::with_children([self.menu_icon(config), collapsing_value])
+            .align_y(Alignment::Center)
+            .into()
     }
 
     pub(crate) fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupSummary<'a, Outer> {
-        GroupSummary {
-            instrument: Box::new(self.instrument.map(lift)),
-            value: self.value,
+        match self {
+            GroupSummary::Glyph { glyph, state } => GroupSummary::Glyph { glyph, state },
+            GroupSummary::Row { glyph, row } => GroupSummary::Row {
+                glyph,
+                row: Box::new(row.map(lift)),
+            },
         }
     }
 }

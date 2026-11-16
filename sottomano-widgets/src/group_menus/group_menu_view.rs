@@ -440,8 +440,10 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                 emphasis,
             );
             let items = entry
-                .items
+                .summary
+                .summarised_row()
                 .into_iter()
+                .chain(&entry.items)
                 .map(|item| {
                     let beside =
                         match item.row_emphasis(&entry.group_identity, inspected_instrument) {
@@ -454,7 +456,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                                 BesideRow::Nothing
                             }
                         };
-                    item_entry(row_context, &entry.group_identity, &item, beside)
+                    item_entry(row_context, &entry.group_identity, item, beside)
                 })
                 .collect();
             NestedMenuGroup {
@@ -681,6 +683,34 @@ mod tests {
             |_| SmokeMessage,
             [empty_group],
         );
+        assert_eq!(menu.open_group_menu().families.len(), 1);
+    }
+
+    #[test]
+    fn a_group_whose_only_row_is_its_summary_lists_that_row() {
+        let group_menus = opened_menu_state(every_presentation()[0]);
+        let expansion = WidgetGroupExpansion::default();
+        let summarised_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            GroupSummary::summarising(
+                IconGlyph::default(),
+                GroupItem::reading(named_test_row("Summary row")),
+            ),
+            &expansion,
+            |_| SmokeMessage,
+            Vec::<GroupItem<'_, SmokeMessage>>::new(),
+        );
+        let summary_row_key = InstrumentKey {
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+            name: "Summary row".into(),
+        };
+        let menu = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |_| SmokeMessage,
+            [summarised_group],
+        );
+        assert!(menu.instrument(&summary_row_key).is_some());
         assert_eq!(menu.open_group_menu().families.len(), 1);
     }
 

@@ -621,17 +621,17 @@ impl GamepadGroup {
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
         let failure_row = self.controller_discovery_failure_reading()?.reading_row();
         let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
-        let failure_item = GroupItem::reading(failure_row);
+        let group_summary = GroupSummary::summarising(
+            Phosphor::GameController(Weight::Regular).into(),
+            GroupItem::reading(failure_row),
+        );
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
             group_title,
-            GroupSummary::showing(
-                Phosphor::GameController(Weight::Regular).into(),
-                &failure_item,
-            ),
+            group_summary,
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
-            [failure_item],
+            [],
         ))
     }
 
@@ -647,7 +647,10 @@ impl GamepadGroup {
         let battery_reading = ControllerBatteryReading {
             power: gamepad.power,
         };
-        let face = GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row());
+        let group_summary = GroupSummary::summarising(
+            Phosphor::GameController(Weight::Regular).into(),
+            GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row()),
+        );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let connection = (!shown_in_bluetooth_group)
             .then(|| GroupItem::reading(self.link_reading(slot, link).reading_row()));
@@ -668,8 +671,7 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => item,
             }
         });
-        let group_summary =
-            GroupSummary::showing(Phosphor::GameController(Weight::Regular).into(), &face);
+        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::Gamepad,
@@ -679,15 +681,9 @@ impl GamepadGroup {
             group_summary,
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
-            [
-                Some(face),
-                Some(compositor_driving),
-                connection,
-                battery,
-                usb_cable,
-            ]
-            .into_iter()
-            .flatten(),
+            [Some(compositor_driving), connection, battery, usb_cable]
+                .into_iter()
+                .flatten(),
         ))
     }
 

@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    iter::once,
     rc::Rc,
 };
 
@@ -45,7 +44,7 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        group_summary::{GroupSummary, SummaryVisibility},
+        group_summary::GroupSummary,
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -277,8 +276,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     #[must_use]
     pub fn card_title_clashes(&self, clock: Clock) -> Vec<CardTitleClash> {
         let group_title = self.group_title.to_string();
-        self.items
-            .iter()
+        self.rows()
             .flat_map(|item| {
                 let item_name = item.item_in_group_name().into_owned();
                 let group_title = group_title.clone();
@@ -310,8 +308,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn clashing_item_names(&self) -> Vec<String> {
         let group_title = self.group_title.to_string();
         let mut seen_names = BTreeSet::new();
-        self.items
-            .iter()
+        self.rows()
             .filter(|item| item.menu_pin(&self.group_identity).is_some())
             .map(|item| item.item_in_group_name().into_owned())
             .filter(|item_name| *item_name == group_title || !seen_names.insert(item_name.clone()))
@@ -323,8 +320,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         menu: GroupMenuTopic,
         promotion_severity: Severity,
     ) -> Vec<PanelRaise> {
-        self.items
-            .iter()
+        self.rows()
             .filter(|item| item.alert_promotion(promotion_severity) == AlertPromotion::Promoted)
             .filter_map(|item| item.menu_pin(&self.group_identity))
             .map(|entry| PanelRaise { menu, entry })
@@ -385,17 +381,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
-        self.summarised_items()
+        self.rows()
             .map(|item| item.toast_requests(&self.group_identity, expand.clone(), locale, clock))
             .collect()
     }
 
-    fn summarised_items(&self) -> impl Iterator<Item = &GroupItem<'a, M>> {
-        once(self.summary.instrument_item()).chain(&self.items)
+    fn rows(&self) -> impl Iterator<Item = &GroupItem<'a, M>> {
+        self.summary.summarised_row().into_iter().chain(&self.items)
     }
 
     pub(crate) fn highest_alert_severity(&self) -> Severity {
-        self.summarised_items()
+        self.rows()
             .filter_map(GroupItem::shown_alert_severity)
             .max()
             .unwrap_or_default()
@@ -406,15 +402,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         if instrument_key.group != self.group_identity {
             return None;
         }
-        self.items
-            .iter()
+        self.rows()
             .find(|item| item.item_in_group_name() == instrument_key.name)
     }
 
     #[must_use]
     pub fn instrument_keys(&self) -> Vec<InstrumentKey> {
-        self.items
-            .iter()
+        self.rows()
             .map(|item| item.instrument_key(&self.group_identity))
             .collect()
     }
@@ -423,7 +417,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
         match target.summarised_group() {
             Some(group_identity) if *group_identity == self.group_identity => {
-                Some(self.summary.instrument_item())
+                self.summary.summarised_row()
             }
             Some(_) => None,
             None => target
@@ -433,7 +427,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     fn handle_actions(&self) -> Vec<PressAction> {
-        let face_actions = self.summary.instrument_item().press_actions();
+        let face_actions = self
+            .summary
+            .summarised_row()
+            .map(GroupItem::press_actions)
+            .unwrap_or_default();
         let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
             .into_iter()
             .chain(
@@ -451,8 +449,9 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 
     fn face_card(&self, clock: Clock) -> Vec<Section> {
         self.summary
-            .instrument_item()
-            .hover_card(clock)
+            .summarised_row()
+            .map(|summarised_row| summarised_row.hover_card(clock))
+            .unwrap_or_default()
             .into_iter()
             .chain(Section::press_actions(self.handle_actions()))
             .collect()
@@ -490,7 +489,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.rows().next().is_none()
     }
 
     #[cfg(test)]
@@ -509,23 +508,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     where
         M: From<GroupEvent<M>>,
     {
-        let WidgetGroupContent {
-            group_identity,
-            items,
-            ..
-        } = self;
         let promotion_severity = config.group_menus.alert_promotion_severity;
-        items
-            .into_iter()
+        self.rows()
             .filter_map(|item| {
                 let ItemPin::Pinned(panel_pin) =
-                    group_menus.item_pin(menu, &group_identity, &item, promotion_severity)
+                    group_menus.item_pin(menu, &self.group_identity, item, promotion_severity)
                 else {
                     return None;
                 };
                 Some(
                     fixed_view(
-                        &item,
+                        item,
                         HoverTarget::PinnedOnPanel(Box::new(panel_pin)),
                         item.shown_alert_severity().unwrap_or_default(),
                         MenuHandleIndicator::default(),
@@ -571,7 +564,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 aligned,
             });
         }
-        if !item_rows.is_empty() || summary.shown_value() == SummaryVisibility::WithReading {
+        if !item_rows.is_empty() || summary.summarised_row().is_some() {
             sections.group_rows.push(GroupMenuGroupRow {
                 group_identity,
                 group_title,
@@ -603,9 +596,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         panel_position: Position,
         clock: Clock,
     ) -> Option<Element<'a, GroupEvent<M>>> {
-        if self.items.is_empty() && self.summary.shown_value() == SummaryVisibility::GlyphOnly {
-            return None;
-        }
+        self.rows().next()?;
         let highest_alert_severity = self.highest_alert_severity();
         let WidgetGroupContent {
             group_identity,
@@ -657,7 +648,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     revealed_content(
                         config,
                         reveal,
-                        items_row(config, &group_identity, &items, reveal, clock),
+                        items_row(
+                            config,
+                            &group_identity,
+                            summary.summarised_row().into_iter().chain(&items),
+                            reveal,
+                            clock,
+                        ),
                     )
                 }))
                 .align_y(Alignment::Center);
@@ -735,14 +732,14 @@ pub(crate) fn edge_indicator<'a, Message: 'a>(
     }
 }
 
-fn items_row<'a, M: Clone + 'a>(
+fn items_row<'r, 'a: 'r, M: Clone + 'a>(
     config: &Config,
     group_identity: &WidgetGroupIdentity,
-    items: &[GroupItem<'a, M>],
+    rows: impl IntoIterator<Item = &'r GroupItem<'a, M>>,
     reveal: f32,
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
-    Row::with_children(items.iter().map(|item| {
+    Row::with_children(rows.into_iter().map(|item| {
         item.view(
             config,
             reveal,

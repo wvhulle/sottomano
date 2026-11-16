@@ -22,7 +22,7 @@ use crate::{
         item_toggle_switch::item_toggle_switch,
         reading_display_state::ReadingDisplayState,
         reading_row::{DescribeCard, ReadingRow},
-        slider_control::{ControlMessage, ShownReading, SliderControl},
+        slider_control::{ControlMessage, SliderControl, SliderShownReading},
         source_reading::{
             GroupItemIcon, IdentityOrdinal, RowFace, RowReadout, face_icon, reading_value,
             source_reading,
@@ -52,7 +52,6 @@ type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
 
 type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
-type SharedCard<'a> = Rc<dyn Fn(Clock) -> Vec<Section> + 'a>;
 
 pub(crate) enum RowScroll<'a, M> {
     Inert,
@@ -186,7 +185,7 @@ pub struct GroupItem<'a, M> {
     face: RowFace,
     value: RowValueControl<'a, M>,
     pinning: ItemPinning,
-    card: SharedCard<'a>,
+    card: DescribeCard<'a>,
     alerts: ReadingAlerts,
     gestures: GroupItemGestures<M>,
     control_actions: Vec<PressAction>,
@@ -212,7 +211,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             face,
             value,
             pinning,
-            card: Rc::from(card),
+            card,
             alerts,
             gestures: GroupItemGestures::inert(),
             control_actions: Vec::new(),
@@ -264,7 +263,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             card,
             ..
         } = slider.reading_row(config.calendar.locale);
-        let shown_reading = ShownReading {
+        let shown_reading = SliderShownReading {
             face: face.clone(),
             readout: readout.clone(),
         };
@@ -469,39 +468,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     #[must_use]
     pub fn with_hover_card(self, card: DescribeCard<'a>) -> Self {
-        Self {
-            card: Rc::from(card),
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn sharing_details_of(self, row: &Self) -> Self
-    where
-        M: Clone,
-    {
-        Self {
-            card: Rc::clone(&row.card),
-            hover_fetch: row.hover_fetch.clone(),
-            refresh: row.refresh.clone(),
-            ..self
-        }
+        Self { card, ..self }
     }
 
     pub(crate) fn display_state(&self) -> ReadingDisplayState {
         self.face.icon.display_state()
-    }
-
-    pub(crate) fn shown_reading(&self) -> Option<ShownReading> {
-        match &self.value {
-            RowValueControl::RowReadout(readout) | RowValueControl::Slider { readout, .. } => {
-                Some(ShownReading {
-                    face: self.face.clone(),
-                    readout: readout.clone(),
-                })
-            }
-            RowValueControl::Drawn(_) => None,
-        }
     }
 
     #[must_use]
@@ -609,18 +580,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             ItemPlacement::Panel,
             move |content| hoverable(opening, content, hover_target, GroupEvent::HoverCard),
         )
-    }
-
-    pub(crate) fn unhovered_view(
-        &self,
-        config: &Config,
-        reveal: f32,
-        clock: Clock,
-    ) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
-        self.placed_view(config, reveal, clock, ItemPlacement::Panel, identity)
     }
 
     pub(crate) fn table_cell_view(

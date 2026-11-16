@@ -369,26 +369,34 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
-        let summarised_row = GroupItem::reading(self.usage_windows.main_row(
+        let group_summary = match self.usage_windows.reading_row(
             SimpleIcon::Claude.into(),
             |snapshot| claude_usage_windows_reading_row(snapshot, clock),
             clock,
-        ))
-        .with_hover_card(Box::new(move |card_clock| {
-            self.usage_windows.sections_described_by(|snapshot| {
-                claude_usage_windows_hover_card(snapshot, card_clock)
-            })
-        }))
-        .refreshed_by(ClaudeUsageInteraction::OnBuses(
-            ClaudeUsageBusRequest::RefreshUsageWindows,
-        ));
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                SimpleIcon::Claude.into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |card_clock| {
+                        self.usage_windows.sections_described_by(|snapshot| {
+                            claude_usage_windows_hover_card(snapshot, card_clock)
+                        })
+                    }))
+                    .refreshed_by(ClaudeUsageInteraction::OnBuses(
+                        ClaudeUsageBusRequest::RefreshUsageWindows,
+                    )),
+            ),
+            None => GroupSummary::glyph(
+                SimpleIcon::Claude.into(),
+                self.usage_windows.unshown_state(),
+            ),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
-            GroupSummary::showing(SimpleIcon::Claude.into(), &summarised_row),
+            group_summary,
             &self.expansion,
             ClaudeUsageInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.enterprise_spend_item(clock),
                 self.ccusage_periods_item(clock),
                 self.ccusage_block_item(clock),

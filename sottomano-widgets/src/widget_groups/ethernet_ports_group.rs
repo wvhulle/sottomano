@@ -265,14 +265,21 @@ impl EthernetPortsGroup {
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, EthernetPortsInteraction>> {
         let expansion = self.expansions.get(&port_state.name)?;
-        let link_item = GroupItem::reading(
-            PortLinkReading {
-                port_state,
-                marking: self.port_marking(port_state),
-            }
-            .reading_row(),
-        )
-        .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)));
+        let group_summary = GroupSummary::summarising(
+            Phosphor::Network(Weight::Regular).into(),
+            GroupItem::reading(
+                PortLinkReading {
+                    port_state,
+                    marking: self.port_marking(port_state),
+                }
+                .reading_row(),
+            )
+            .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)))
+            .fetching_on_hover(
+                EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
+                EthernetPortsInteraction::StopHoverFetches,
+            ),
+        );
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
         let connection_item = GroupItem::reading(connection_switch.reading_row())
@@ -298,16 +305,7 @@ impl EthernetPortsGroup {
                 .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
         });
         let port_name = port_state.name.clone();
-        let group_summary =
-            GroupSummary::showing(Phosphor::Network(Weight::Regular).into(), &link_item)
-                .adjusting_instrument(|summary_item| {
-                    summary_item.fetching_on_hover(
-                        EthernetPortsInteraction::OnBuses(
-                            EthernetPortsBusRequest::StartDetailsFetch,
-                        ),
-                        EthernetPortsInteraction::StopHoverFetches,
-                    )
-                });
+        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
@@ -317,7 +315,7 @@ impl EthernetPortsGroup {
                 port_name: port_name.clone(),
                 expansion,
             },
-            [link_item, connection_item]
+            [connection_item]
                 .into_iter()
                 .chain(address_items)
                 .chain(dns_item)

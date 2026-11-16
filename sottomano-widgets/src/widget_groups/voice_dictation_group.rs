@@ -376,24 +376,33 @@ impl VoiceDictationGroup {
         let engine = self.loaded_engine();
         let runtime_glyph =
             engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
-        let dictation_item = GroupItem::reading(self.dictation.main_row(
+        let group_summary = match self.dictation.reading_row(
             Phosphor::UserSound(Weight::Regular).into(),
             notulist_dictation_reading_row,
             clock,
-        ))
-        .on_switch_press(
-            dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
-            dictation.map_or("start dictating at the cursor", press_does),
-            VoiceDictationInteraction::ToggleRecording,
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.dictation
-                .sections_described_by(notulist_dictation_hover_card)
-        }))
-        .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation));
+        ) {
+            Some(dictation_item) => GroupSummary::summarising(
+                Phosphor::UserSound(Weight::Regular).into(),
+                GroupItem::reading(dictation_item)
+                    .on_switch_press(
+                        dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
+                        dictation.map_or("start dictating at the cursor", press_does),
+                        VoiceDictationInteraction::ToggleRecording,
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.dictation
+                            .sections_described_by(notulist_dictation_hover_card)
+                    }))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::UserSound(Weight::Regular).into(),
+                self.dictation.unshown_state(),
+            ),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VoiceDictation,
-            GroupSummary::showing(Phosphor::UserSound(Weight::Regular).into(), &dictation_item),
+            group_summary,
             &self.expansion,
             VoiceDictationInteraction::Expansion,
             [
@@ -412,7 +421,6 @@ impl VoiceDictationGroup {
                             VoiceDictationSource::InterfaceMismatch,
                         ))
                     }),
-                Some(dictation_item),
                 self.pipeline
                     .group_item(
                         NOTULIST_PIPELINE_FALLBACK_GLYPH,

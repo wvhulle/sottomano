@@ -259,36 +259,40 @@ impl SessionFocusGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, SessionFocusMessage> {
         let locale = config.calendar.locale;
-        let session = GroupItem::reading(self.session_face(config).reading_row(clock, locale))
-            .ongoing_toast_action_buttons([
-                OngoingToastActionButton {
-                    button_label: "Lock screen".to_owned(),
-                    tint: ActionTint::Proceed,
-                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
-                },
-                OngoingToastActionButton {
-                    button_label: "Screen off".to_owned(),
-                    tint: ActionTint::Proceed,
-                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::ScreenOff),
-                },
-                OngoingToastActionButton {
-                    button_label: "Snooze".to_owned(),
-                    tint: ActionTint::Hold,
-                    on_button_pressed: SessionFocusMessage::WarningSnoozed,
-                },
-            ]);
+        let group_summary = GroupSummary::summarising(
+            Phosphor::UserFocus(Weight::Regular).into(),
+            GroupItem::reading(self.session_face(config).reading_row(clock, locale))
+                .ongoing_toast_action_buttons([
+                    OngoingToastActionButton {
+                        button_label: "Lock screen".to_owned(),
+                        tint: ActionTint::Proceed,
+                        on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
+                    },
+                    OngoingToastActionButton {
+                        button_label: "Screen off".to_owned(),
+                        tint: ActionTint::Proceed,
+                        on_button_pressed: SessionFocusMessage::BreakStarted(
+                            SessionAction::ScreenOff,
+                        ),
+                    },
+                    OngoingToastActionButton {
+                        button_label: "Snooze".to_owned(),
+                        tint: ActionTint::Hold,
+                        on_button_pressed: SessionFocusMessage::WarningSnoozed,
+                    },
+                ]),
+        );
         let breaks = GroupItem::reading(self.break_log(config).reading_row(clock));
         let focus_run = GroupItem::reading(self.focus_run_reading(config).reading_row(clock));
         let totals = GroupItem::reading(self.daily_totals.reading_row(locale));
         let switches = GroupItem::reading(self.context_switch_rate(config).reading_row(clock));
-        let group_summary =
-            GroupSummary::showing(Phosphor::UserFocus(Weight::Regular).into(), &session);
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,
             group_summary,
             &self.expansion,
             SessionFocusMessage::Expansion,
-            [session, breaks, focus_run, totals, switches],
+            [breaks, focus_run, totals, switches],
         )
     }
 }

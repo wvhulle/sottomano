@@ -252,26 +252,33 @@ impl ComputeGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, ComputeInteraction> {
-        let summarised_row = GroupItem::reading(self.cpu_load.main_row(
+        let group_summary = match self.cpu_load.reading_row(
             Phosphor::Cpu(Weight::Regular).into(),
             |snapshot| cpu_usage_reading_row(snapshot),
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| self.cpu_load_card()))
-        .fetching_on_hover(
-            ComputeInteraction::StartCpuLoadFetches,
-            ComputeInteraction::StopHoverFetches,
-        )
-        .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad));
-        let group_summary =
-            GroupSummary::showing(Phosphor::Cpu(Weight::Regular).into(), &summarised_row);
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                Phosphor::Cpu(Weight::Regular).into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |_| self.cpu_load_card()))
+                    .fetching_on_hover(
+                        ComputeInteraction::StartCpuLoadFetches,
+                        ComputeInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Cpu(Weight::Regular).into(),
+                self.cpu_load.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
             group_summary,
             &self.expansion,
             ComputeInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.cpu_clock
                     .group_item(
                         IconGlyph::default(),

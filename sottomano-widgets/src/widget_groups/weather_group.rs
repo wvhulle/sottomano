@@ -273,25 +273,32 @@ impl WeatherGroup {
                     .refreshed_by(refresh_online(WeatherSource::Pollen))
             })
         });
-        let summarised_row = GroupItem::reading(self.temperature.main_row(
+        let group_summary = match self.temperature.reading_row(
             Phosphor::CloudSun(Weight::Regular).into(),
             |snapshot| temperature_reading_row(snapshot),
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            self.temperature
-                .sections_described_by(temperature_hover_card)
-        }))
-        .refreshed_by(refresh_online(WeatherSource::Temperature));
-        let group_summary =
-            GroupSummary::showing(Phosphor::CloudSun(Weight::Regular).into(), &summarised_row);
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                Phosphor::CloudSun(Weight::Regular).into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |_| {
+                        self.temperature
+                            .sections_described_by(temperature_hover_card)
+                    }))
+                    .refreshed_by(refresh_online(WeatherSource::Temperature)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::CloudSun(Weight::Regular).into(),
+                self.temperature.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             group_summary,
             &self.expansion,
             WeatherInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.rain_item(config, clock),
                 self.wind
                     .group_item(

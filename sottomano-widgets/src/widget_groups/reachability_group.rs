@@ -195,20 +195,26 @@ impl ReachabilityGroup {
         let throughput = self.throughput.get();
         let refresh_throughput =
             || ReachabilityInteraction::OnBuses(ReachabilityBusRequest::Refresh);
-        let connectivity_item = GroupItem::reading(self.connectivity.main_row(
+        let group_summary = match self.connectivity.reading_row(
             Phosphor::CloudCheck(Weight::Regular).into(),
             uplink_connectivity_reading_row,
             clock,
-        ));
+        ) {
+            Some(connectivity_item) => GroupSummary::summarising(
+                Phosphor::CloudCheck(Weight::Regular).into(),
+                GroupItem::reading(connectivity_item),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::CloudCheck(Weight::Regular).into(),
+                self.connectivity.unshown_state(),
+            ),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
-            GroupSummary::showing(
-                Phosphor::CloudCheck(Weight::Regular).into(),
-                &connectivity_item,
-            ),
+            group_summary,
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            [connectivity_item].into_iter().chain(
+            [].into_iter().chain(
                 self.throughput
                     .group_item(
                         IconGlyph::default(),

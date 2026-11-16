@@ -88,20 +88,27 @@ impl WallpaperGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let lookup = self.lookup.get();
-        let summarised_row = GroupItem::reading(self.lookup.main_row(
+        let group_summary = match self.lookup.reading_row(
             Phosphor::Image(Weight::Regular).into(),
             |snapshot| snapshot.reading_row(),
             clock,
-        ));
-        let group_summary =
-            GroupSummary::showing(Phosphor::Image(Weight::Regular).into(), &summarised_row);
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                Phosphor::Image(Weight::Regular).into(),
+                GroupItem::reading(summarised_row),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Image(Weight::Regular).into(),
+                self.lookup.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
             group_summary,
             &self.expansion,
             identity,
             [
-                Some(summarised_row),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| {

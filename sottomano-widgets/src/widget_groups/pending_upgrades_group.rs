@@ -95,13 +95,11 @@ impl PendingUpgradesGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
-        let summarised_row =
+        let group_summary = GroupSummary::summarising(
+            Phosphor::ArrowCircleUp(Weight::Regular).into(),
             GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
-            }));
-        let group_summary = GroupSummary::showing(
-            Phosphor::ArrowCircleUp(Weight::Regular).into(),
-            &summarised_row,
+            })),
         );
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
@@ -109,7 +107,6 @@ impl PendingUpgradesGroup {
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.firmware_upgrade_item(config),
                 self.firmware.failure().map(|failure| {
                     GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(

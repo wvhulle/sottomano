@@ -236,33 +236,40 @@ impl MemoryBoardGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
-        let summarised_row = GroupItem::reading(self.memory.main_row(
+        let group_summary = match self.memory.reading_row(
             Phosphor::Memory(Weight::Regular).into(),
             |snapshot| memory_reading_row(snapshot, locale),
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            let mut sections = self.memory.sections_described_by(memory_hover_card);
-            sections.extend(
-                self.memory_processes
-                    .sections_described_by(memory_processes_sections),
-            );
-            sections
-        }))
-        .fetching_on_hover(
-            MemoryBoardInteraction::StartMemoryProcessesFetch,
-            MemoryBoardInteraction::StopHoverFetches,
-        )
-        .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory));
-        let group_summary =
-            GroupSummary::showing(Phosphor::Memory(Weight::Regular).into(), &summarised_row);
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                Phosphor::Memory(Weight::Regular).into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections = self.memory.sections_described_by(memory_hover_card);
+                        sections.extend(
+                            self.memory_processes
+                                .sections_described_by(memory_processes_sections),
+                        );
+                        sections
+                    }))
+                    .fetching_on_hover(
+                        MemoryBoardInteraction::StartMemoryProcessesFetch,
+                        MemoryBoardInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory)),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Memory(Weight::Regular).into(),
+                self.memory.unshown_state(),
+            ),
+        };
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             group_summary,
             &self.expansion,
             MemoryBoardInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.memory_growth
                     .group_item(
                         IconGlyph::default(),

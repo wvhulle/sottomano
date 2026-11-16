@@ -230,27 +230,58 @@ impl PowerGroup {
                         PowerProfileInteraction::SwitchToProfile(profile),
                     ),
                 });
-        let summarised_row = GroupItem::reading(self.battery.main_row(
-            Phosphor::Lightning(Weight::Regular).into(),
-            battery_reading_row,
-            clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            let mut sections = self.battery.sections_described_by(battery_hover_card);
-            sections.extend(
-                self.battery
-                    .sections_described_by(|battery| vec![Section::from(battery)]),
-            );
-            sections
-        }))
-        .refreshed_by(battery_refresh());
+        let group_summary = match self.power_profile.slider() {
+            Some(slider) => GroupSummary::summarising(
+                Phosphor::Lightning(Weight::Regular).into(),
+                GroupItem::slider(slider, config, |control_message| {
+                    PowerInteraction::PowerProfile(PowerProfileInteraction::Control(
+                        control_message,
+                    ))
+                })
+                .with_hover_card(Box::new(move |_| {
+                    let mut sections = self.power_profile.hover_card();
+                    sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
+                    sections
+                }))
+                .fetching_on_hover(
+                    PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
+                    PowerInteraction::StopHoverFetches,
+                )
+                .refreshed_by(PowerInteraction::OnBuses(
+                    PowerBusRequest::Refresh(PowerRefreshedSource::Profile),
+                )),
+            ),
+            None => GroupSummary::glyph(
+                Phosphor::Lightning(Weight::Regular).into(),
+                self.power_profile.unshown_state(),
+            ),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Power,
-            GroupSummary::showing(Phosphor::Lightning(Weight::Regular).into(), &summarised_row),
+            group_summary,
             &self.expansion,
             PowerInteraction::Expansion,
             [
-                Some(summarised_row),
+                self.battery
+                    .group_item(
+                        Phosphor::BatteryFull(Weight::Regular).into(),
+                        battery_reading_row,
+                        clock,
+                    )
+                    .map(|battery_item| {
+                        battery_item
+                            .with_hover_card(Box::new(move |_| {
+                                let mut sections =
+                                    self.battery.sections_described_by(battery_hover_card);
+                                sections.extend(
+                                    self.battery.sections_described_by(|battery| {
+                                        vec![Section::from(battery)]
+                                    }),
+                                );
+                                sections
+                            }))
+                            .refreshed_by(battery_refresh())
+                    }),
                 self.draw().map(|draw| {
                     GroupItem::reading(draw.reading_row())
                         .with_hover_card(Box::new(move |_| {
@@ -278,25 +309,6 @@ impl PowerGroup {
                             self.battery.hover_card_with(time.hover_card())
                         }))
                         .refreshed_by(battery_refresh())
-                }),
-                self.power_profile.slider().map(|slider| {
-                    GroupItem::slider(slider, config, |control_message| {
-                        PowerInteraction::PowerProfile(PowerProfileInteraction::Control(
-                            control_message,
-                        ))
-                    })
-                    .with_hover_card(Box::new(move |_| {
-                        let mut sections = self.power_profile.hover_card();
-                        sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
-                        sections
-                    }))
-                    .fetching_on_hover(
-                        PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
-                        PowerInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(PowerInteraction::OnBuses(PowerBusRequest::Refresh(
-                        PowerRefreshedSource::Profile,
-                    )))
                 }),
             ]
             .into_iter()

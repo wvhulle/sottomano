@@ -183,23 +183,31 @@ impl CopilotUsageGroup {
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
         let refresh_account =
             |source| CopilotUsageInteraction::OnBuses(CopilotUsageBusRequest::Refresh(source));
-        let summarised_row = GroupItem::reading(self.metered.main_row(
+        let group_summary = match self.metered.reading_row(
             SimpleIcon::GitHubCopilot.into(),
             |snapshot| copilot_metered_reading_row(snapshot, clock),
             clock,
-        ))
-        .with_hover_card(Box::new(move |_| {
-            self.metered
-                .sections_described_by(copilot_metered_hover_card)
-        }))
-        .refreshed_by(refresh_account(CopilotAccountSource::Metered));
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                SimpleIcon::GitHubCopilot.into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |_| {
+                        self.metered
+                            .sections_described_by(copilot_metered_hover_card)
+                    }))
+                    .refreshed_by(refresh_account(CopilotAccountSource::Metered)),
+            ),
+            None => GroupSummary::glyph(
+                SimpleIcon::GitHubCopilot.into(),
+                self.metered.unshown_state(),
+            ),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
-            GroupSummary::showing(SimpleIcon::GitHubCopilot.into(), &summarised_row),
+            group_summary,
             &self.expansion,
             CopilotUsageInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.free
                     .group_item(
                         COPILOT_FREE_FALLBACK_GLYPH,

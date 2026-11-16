@@ -143,16 +143,17 @@ impl NotificationGroup {
         quiet_schedule: &'a QuietScheduleGroup,
     ) -> WidgetGroupContent<'a, NotificationGroupMessage> {
         let quiet_phase = status.quiet_phase;
-        let summarised_row = GroupItem::reading(status.reading_row());
-        let group_summary =
-            GroupSummary::showing(Phosphor::Bell(Weight::Regular).into(), &summarised_row);
+        let group_summary = GroupSummary::summarising(
+            Phosphor::Bell(Weight::Regular).into(),
+            GroupItem::reading(status.reading_row()),
+        );
+        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
             group_summary,
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                summarised_row,
                 GroupItem::reading(do_not_disturb_reading_row(DoNotDisturbStatus {
                     quiet_phase,
                 }))

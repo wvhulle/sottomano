@@ -196,11 +196,15 @@ impl BluetoothAdaptersGroup {
         clock: Clock,
     ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
-        let summary_item = GroupItem::reading(self.adapter_reading(adapter).reading_row())
-            .with_hover_card(Box::new(move |_| {
-                self.bluetooth
-                    .hover_card_with(self.adapter_reading(adapter).hover_card())
-            }));
+        let group_summary = GroupSummary::summarising(
+            Phosphor::Bluetooth(Weight::Regular).into(),
+            GroupItem::reading(self.adapter_reading(adapter).reading_row()).with_hover_card(
+                Box::new(move |_| {
+                    self.bluetooth
+                        .hover_card_with(self.adapter_reading(adapter).hover_card())
+                }),
+            ),
+        );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
         let power_item = GroupItem::reading(power_switch.reading_row())
@@ -236,8 +240,7 @@ impl BluetoothAdaptersGroup {
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
-        let group_summary =
-            GroupSummary::showing(Phosphor::Bluetooth(Weight::Regular).into(), &summary_item);
+        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::BluetoothAdapters,
@@ -250,7 +253,7 @@ impl BluetoothAdaptersGroup {
                 controller_name: controller_name.clone(),
                 expansion,
             },
-            [summary_item, power_item].into_iter().chain(device_items),
+            [power_item].into_iter().chain(device_items),
         ))
     }
 

@@ -210,23 +210,29 @@ impl OpenRouterCreditGroup {
         let refresh_source = |source| {
             OpenRouterCreditInteraction::OnBuses(OpenRouterCreditBusRequest::Refresh(source))
         };
-        let summarised_row = GroupItem::reading(self.spend.main_row(
+        let group_summary = match self.spend.reading_row(
             SimpleIcon::OpenRouter.into(),
             |snapshot| spend_reading_row(snapshot, clock),
             clock,
-        ))
-        .with_hover_card(Box::new(move |card_clock| {
-            self.spend
-                .sections_described_by(|snapshot| spend_hover_card(snapshot, card_clock))
-        }))
-        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend));
+        ) {
+            Some(summarised_row) => GroupSummary::summarising(
+                SimpleIcon::OpenRouter.into(),
+                GroupItem::reading(summarised_row)
+                    .with_hover_card(Box::new(move |card_clock| {
+                        self.spend.sections_described_by(|snapshot| {
+                            spend_hover_card(snapshot, card_clock)
+                        })
+                    }))
+                    .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
+            ),
+            None => GroupSummary::glyph(SimpleIcon::OpenRouter.into(), self.spend.unshown_state()),
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
-            GroupSummary::showing(SimpleIcon::OpenRouter.into(), &summarised_row),
+            group_summary,
             &self.expansion,
             OpenRouterCreditInteraction::Expansion,
             [
-                Some(summarised_row),
                 self.strict_budget
                     .group_item(
                         OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
