@@ -175,13 +175,12 @@ impl Section {
         let title = match delivery {
             SourceDelivery::Delivered(_) | SourceDelivery::Loading => "Loading",
             SourceDelivery::Failed => "Unavailable",
-            SourceDelivery::Offline => "Offline",
         };
         let widget = match delivery {
             SourceDelivery::Loading => {
                 SectionWidget::drawn(|card: &HoverCardContent<'_>| card.loading_placeholder())
             }
-            SourceDelivery::Delivered(_) | SourceDelivery::Failed | SourceDelivery::Offline => {
+            SourceDelivery::Delivered(_) | SourceDelivery::Failed => {
                 SectionWidget::paragraph(detail)
             }
         };

@@ -330,9 +330,6 @@ impl SnapshotSource for LlamaServer {
                             delivery_cadence,
                         },
                         SnapshotDelivery::SourceUnavailable => SnapshotDelivery::SourceUnavailable,
-                        SnapshotDelivery::InternetUnreachable(reason) => {
-                            SnapshotDelivery::InternetUnreachable(reason)
-                        }
                         SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
                     })
             },

@@ -449,29 +449,19 @@ impl TailnetGroup {
 
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
         let mut rows = Vec::new();
-        match &self.tailscale {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let membership_row = tailscale_indicator(held_snapshot, clock);
-                if membership_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.membership_switch_indicator(membership_row, held_snapshot));
-                }
+        if !self.tailscale.awaits_first_delivery() {
+            let membership_indicator = self.tailscale.indicator(
+                |held_snapshot| tailscale_indicator(held_snapshot, clock),
+                TAILNET_MEMBERSHIP_GLYPH.into(),
+            );
+            if membership_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(match self.tailscale.get() {
+                    Some(held_snapshot) => {
+                        self.membership_switch_indicator(membership_indicator, held_snapshot)
+                    }
+                    None => self.membership_indicator(membership_indicator),
+                });
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let held_snapshot = &troubled_snapshot.held_snapshot;
-                let membership_row =
-                    troubled_snapshot.shown_over(tailscale_indicator(held_snapshot, clock), clock);
-                if membership_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.membership_switch_indicator(membership_row, held_snapshot));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.membership_indicator(
-                        placeholder.indicator(TAILNET_MEMBERSHIP_GLYPH.into()),
-                    ),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(own_node_indicator) = self
             .tailscale

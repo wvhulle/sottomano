@@ -5,16 +5,15 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use crate::{
     clock::Clock,
     group_indicators::{
-        group_indicator::PanelVisibility,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        offline_internet_indicator::{
-            PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
-        },
+        snapshot_absence::{AbsenceCause, Staleness},
     },
     hover_cards::hover_card_body::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
+    widgets::icon_glyph::IconGlyph,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {
@@ -23,50 +22,84 @@ pub enum CommandOutcome<S: SnapshotSource> {
     Reread { reread_fetch: Result<S, S::Error> },
 }
 
-#[derive(Default)]
 pub enum SubscribedSnapshot<S: SnapshotSource> {
-    #[default]
-    AwaitingFirstSnapshot,
-    SourceUnavailable,
-    SnapshotHeld {
-        held_snapshot: S,
-        delivery_timing: DeliveryStamp,
+    Available {
+        snapshot: S,
+        delivered_at: DeliveryStamp,
+        staleness: Staleness<S>,
     },
-    SnapshotTroubled {
-        troubled_snapshot: TroubledSnapshot<S>,
+    Unavailable {
+        cause: AbsenceCause<S>,
     },
-    NoSnapshot {
-        placeholder: SnapshotPlaceholder<S>,
-    },
+}
+
+impl<S: SnapshotSource> Default for SubscribedSnapshot<S> {
+    fn default() -> Self {
+        SubscribedSnapshot::Unavailable {
+            cause: AbsenceCause::Awaiting,
+        }
+    }
 }
 
 impl<S: SnapshotSource> SubscribedSnapshot<S> {
     pub fn get(&self) -> Option<&S> {
         match self {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
-            | SubscribedSnapshot::SnapshotTroubled {
-                troubled_snapshot: TroubledSnapshot { held_snapshot, .. },
-            } => Some(held_snapshot),
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::NoSnapshot { .. } => None,
+            SubscribedSnapshot::Available { snapshot, .. } => Some(snapshot),
+            SubscribedSnapshot::Unavailable { .. } => None,
         }
     }
 
-    fn delivery_timing(&self) -> Option<DeliveryStamp> {
-        match self {
-            SubscribedSnapshot::SnapshotHeld {
-                delivery_timing, ..
+    #[must_use]
+    pub fn awaits_first_delivery(&self) -> bool {
+        matches!(
+            self,
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting
             }
-            | SubscribedSnapshot::SnapshotTroubled {
-                troubled_snapshot:
-                    TroubledSnapshot {
-                        delivery_timing, ..
-                    },
-            } => Some(*delivery_timing),
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::NoSnapshot { .. } => None,
+        )
+    }
+
+    pub fn failure(&self) -> Option<&AbsenceCause<S>> {
+        match self {
+            SubscribedSnapshot::Unavailable {
+                cause: cause @ AbsenceCause::FetchFailed(_),
+            } => Some(cause),
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting,
+            }
+            | SubscribedSnapshot::Available { .. } => None,
+        }
+    }
+
+    pub fn fetch_failure(&self) -> Option<&S::Error> {
+        match self {
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(fetch_failure),
+            } => Some(fetch_failure),
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting,
+            }
+            | SubscribedSnapshot::Available { .. } => None,
+        }
+    }
+
+    pub fn indicator<'a>(
+        &'a self,
+        describe: impl FnOnce(&'a S) -> GroupIndicator<'a>,
+        absent_glyph: IconGlyph,
+    ) -> GroupIndicator<'a> {
+        match self {
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness: Staleness::Current,
+                ..
+            } => describe(snapshot),
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness: Staleness::StaleAfterFailure(_),
+                ..
+            } => describe(snapshot).in_state(IndicatorState::Failed),
+            SubscribedSnapshot::Unavailable { cause } => cause.indicator(absent_glyph),
         }
     }
 
@@ -85,131 +118,95 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
 
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
-            SnapshotDelivery::SourceUnavailable => SubscribedSnapshot::SourceUnavailable,
-            SnapshotDelivery::InternetUnreachable(offline_reason) => {
-                self.troubled(SnapshotTrouble::Offline(offline_reason), None)
-            }
+            SnapshotDelivery::SourceUnavailable => SubscribedSnapshot::default(),
             SnapshotDelivery::SnapshotUnchanged => self.redelivered(clock),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
                 delivery_cadence,
             } => {
-                let delivery_timing = DeliveryStamp::delivered(delivery_cadence, clock);
+                let delivered_at = DeliveryStamp::delivered(delivery_cadence, clock);
                 match snapshot_fetch {
-                    Ok(held_snapshot) => SubscribedSnapshot::SnapshotHeld {
-                        held_snapshot,
-                        delivery_timing,
+                    Ok(snapshot) => SubscribedSnapshot::Available {
+                        snapshot,
+                        delivered_at,
+                        staleness: Staleness::Current,
                     },
                     Err(fetch_error) => {
                         tracing::warn!(source = S::NAME, error = %fetch_error, "snapshot fetch failed");
-                        self.troubled(
-                            SnapshotTrouble::FetchFailed(fetch_error),
-                            Some(delivery_timing),
-                        )
+                        self.failed(fetch_error, delivered_at)
                     }
                 }
             }
         }
     }
 
-    fn troubled(
-        self,
-        trouble: SnapshotTrouble<S::Error>,
-        fresh_timing: Option<DeliveryStamp>,
-    ) -> Self {
-        let held = match self {
-            SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing,
-            }
-            | SubscribedSnapshot::SnapshotTroubled {
-                troubled_snapshot:
-                    TroubledSnapshot {
-                        held_snapshot,
-                        delivery_timing,
-                        ..
-                    },
-            } => Some((held_snapshot, delivery_timing)),
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::NoSnapshot { .. } => None,
-        };
-        let Some((held_snapshot, held_timing)) = held else {
-            return SubscribedSnapshot::NoSnapshot {
-                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::Troubled(trouble)),
-            };
-        };
-        SubscribedSnapshot::SnapshotTroubled {
-            troubled_snapshot: TroubledSnapshot {
-                held_snapshot,
-                trouble,
-                delivery_timing: fresh_timing.unwrap_or(held_timing),
+    fn failed(self, fetch_error: S::Error, delivered_at: DeliveryStamp) -> Self {
+        match self {
+            SubscribedSnapshot::Available { snapshot, .. } => SubscribedSnapshot::Available {
+                snapshot,
+                delivered_at,
+                staleness: Staleness::StaleAfterFailure(fetch_error),
+            },
+            SubscribedSnapshot::Unavailable { .. } => SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(fetch_error),
             },
         }
     }
 
     fn with_command_fetch(self, command_fetch: Result<S, S::Error>) -> Self {
-        let Some(delivery_timing) = self.delivery_timing() else {
+        let SubscribedSnapshot::Available { delivered_at, .. } = self else {
             return self;
         };
         match command_fetch {
-            Ok(held_snapshot) => SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing,
+            Ok(snapshot) => SubscribedSnapshot::Available {
+                snapshot,
+                delivered_at,
+                staleness: Staleness::Current,
             },
-            Err(refusal) => SubscribedSnapshot::NoSnapshot {
-                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::Troubled(
-                    SnapshotTrouble::FetchFailed(refusal),
-                )),
+            Err(refusal) => SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(refusal),
             },
         }
     }
 
     fn redelivered(self, clock: Clock) -> Self {
         match self {
-            SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing,
-            } => SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing: delivery_timing.redelivered(clock),
+            SubscribedSnapshot::Available {
+                snapshot,
+                delivered_at,
+                staleness,
+            } => SubscribedSnapshot::Available {
+                snapshot,
+                delivered_at: delivered_at.redelivered(clock),
+                staleness,
             },
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                SubscribedSnapshot::SnapshotTroubled {
-                    troubled_snapshot: TroubledSnapshot {
-                        delivery_timing: troubled_snapshot.delivery_timing.redelivered(clock),
-                        ..troubled_snapshot
-                    },
-                }
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::NoSnapshot { .. } => self,
+            SubscribedSnapshot::Unavailable { .. } => self,
         }
     }
 
     pub fn sections_described_by(&self, describe: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
         match self {
-            SubscribedSnapshot::SourceUnavailable => Vec::new(),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                vec![Section::source_state::<S>(SourceDelivery::Loading, "")]
-            }
-            SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing,
-            } => describe(held_snapshot)
+            SubscribedSnapshot::Available {
+                snapshot,
+                delivered_at,
+                staleness: Staleness::Current,
+            } => describe(snapshot)
                 .into_iter()
-                .map(|section| section.stamped_by::<S>(SourceDelivery::Delivered(*delivery_timing)))
+                .map(|section| section.stamped_by::<S>(SourceDelivery::Delivered(*delivered_at)))
                 .collect(),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let delivery = troubled_snapshot.source_delivery();
-                describe(&troubled_snapshot.held_snapshot)
-                    .into_iter()
-                    .map(|section| section.stamped_by::<S>(delivery))
-                    .chain([troubled_snapshot.trouble_section()])
-                    .collect()
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => vec![placeholder.source_state()],
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness: Staleness::StaleAfterFailure(fetch_failure),
+                ..
+            } => describe(snapshot)
+                .into_iter()
+                .map(|section| section.stamped_by::<S>(SourceDelivery::Failed))
+                .chain([Section::source_state::<S>(
+                    SourceDelivery::Failed,
+                    fetch_failure.to_string(),
+                )])
+                .collect(),
+            SubscribedSnapshot::Unavailable { cause } => vec![cause.source_state()],
         }
     }
 
@@ -217,63 +214,32 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         self.sections_described_by(|_| sections)
     }
 
-    pub fn fetch_failure(&self) -> Option<&S::Error> {
-        match self {
-            SubscribedSnapshot::NoSnapshot {
-                placeholder:
-                    SnapshotPlaceholder {
-                        placeholder_cause:
-                            PlaceholderCause::Troubled(SnapshotTrouble::FetchFailed(fetch_failure)),
-                    },
-            } => Some(fetch_failure),
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotTroubled { .. }
-            | SubscribedSnapshot::NoSnapshot { .. } => None,
-        }
-    }
-}
-
-impl<S: SnapshotSource> SubscribedSnapshot<S> {
-    pub fn failure(&self) -> Option<&SnapshotPlaceholder<S>> {
-        match self {
-            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder),
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotTroubled { .. } => None,
-        }
-    }
-
     pub fn visible_indicator(
         &self,
         panel_visibility: impl FnOnce(&S) -> PanelVisibility,
     ) -> Option<&S> {
         self.get()
-            .filter(|held_snapshot| panel_visibility(held_snapshot) == PanelVisibility::Shown)
+            .filter(|snapshot| panel_visibility(snapshot) == PanelVisibility::Shown)
     }
 
     pub fn shown_state(
         &self,
         held_state: impl FnOnce(&S) -> IndicatorState,
         panel_visibility: impl FnOnce(&S) -> PanelVisibility,
-        clock: Clock,
     ) -> Option<IndicatorState> {
         match self {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                (panel_visibility(held_snapshot) == PanelVisibility::Shown)
-                    .then(|| held_state(held_snapshot))
-            }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let held_snapshot = &troubled_snapshot.held_snapshot;
-                (panel_visibility(held_snapshot) == PanelVisibility::Shown)
-                    .then(|| troubled_snapshot.shown_state_over(held_state(held_snapshot), clock))
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder.shown_state()),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
-                None
-            }
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness,
+                ..
+            } => (panel_visibility(snapshot) == PanelVisibility::Shown).then(|| match staleness {
+                Staleness::Current => held_state(snapshot),
+                Staleness::StaleAfterFailure(_) => IndicatorState::Failed,
+            }),
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting,
+            } => None,
+            SubscribedSnapshot::Unavailable { cause } => Some(cause.shown_state()),
         }
     }
 }
@@ -286,10 +252,7 @@ mod tests {
     };
 
     use iced::futures::{Stream, stream};
-    use sottomano_desktop_sources::{
-        delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-        network_connectivity::internet_connectivity_gate::InternetUnreachable,
-    };
+    use sottomano_desktop_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
     use crate::{
@@ -325,15 +288,18 @@ mod tests {
             .with_hover_card(Box::new(|_| Vec::new()))
     }
 
-    fn shown_state_at(
-        latest: &SubscribedSnapshot<CountedSnapshot>,
-        clock: Clock,
-    ) -> Option<IndicatorState> {
+    fn shown_state(latest: &SubscribedSnapshot<CountedSnapshot>) -> Option<IndicatorState> {
         latest.shown_state(
             |snapshot| counted_row(snapshot).shown_state(),
             |_| PanelVisibility::Shown,
-            clock,
         )
+    }
+
+    fn delivered_at(latest: &SubscribedSnapshot<CountedSnapshot>) -> Option<DeliveryStamp> {
+        match latest {
+            SubscribedSnapshot::Available { delivered_at, .. } => Some(*delivered_at),
+            SubscribedSnapshot::Unavailable { .. } => None,
+        }
     }
 
     struct TestTimeline {
@@ -368,8 +334,8 @@ mod tests {
     #[test]
     fn a_fresh_latest_snapshot_awaits_its_first_delivery() {
         let latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        assert!(matches!(latest, SubscribedSnapshot::AwaitingFirstSnapshot));
-        assert!(latest.delivery_timing().is_none());
+        assert!(latest.awaits_first_delivery());
+        assert!(delivered_at(&latest).is_none());
     }
 
     #[test]
@@ -379,7 +345,7 @@ mod tests {
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
         latest.receive(SnapshotDelivery::SnapshotUnchanged, timeline.at(13));
         assert_eq!(
-            latest.delivery_timing(),
+            delivered_at(&latest),
             Some(DeliveryStamp {
                 cadence: DeliveryCadence::PeriodicPolling(PeriodicPolling::every(
                     Duration::from_secs(3)
@@ -396,10 +362,7 @@ mod tests {
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
-        assert_eq!(
-            shown_state_at(&latest, timeline.at(13)),
-            Some(IndicatorState::Failed)
-        );
+        assert_eq!(shown_state(&latest), Some(IndicatorState::Failed));
     }
 
     #[test]
@@ -420,7 +383,7 @@ mod tests {
         latest.apply_command(CommandOutcome::Applied {
             expected_snapshot: CountedSnapshot(5),
         });
-        assert!(matches!(latest, SubscribedSnapshot::AwaitingFirstSnapshot));
+        assert!(latest.awaits_first_delivery());
     }
 
     #[test]
@@ -436,37 +399,12 @@ mod tests {
     }
 
     #[test]
-    fn going_offline_keeps_the_held_snapshot_normal_until_its_poll_period_expires() {
+    fn a_vanished_source_drops_its_snapshot_and_awaits_again() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
-        latest.receive(
-            SnapshotDelivery::InternetUnreachable(InternetUnreachable::NoConnection),
-            timeline.at(11),
-        );
-        assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
-        assert_eq!(
-            shown_state_at(&latest, timeline.at(12)),
-            Some(IndicatorState::Idle)
-        );
-        assert_eq!(
-            shown_state_at(&latest, timeline.at(13)),
-            Some(IndicatorState::Offline)
-        );
-        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(16));
-        assert!(matches!(latest, SubscribedSnapshot::SnapshotHeld { .. }));
-    }
-
-    #[test]
-    fn going_offline_before_any_snapshot_shows_a_placeholder() {
-        let timeline = TestTimeline::starting_now();
-        let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        latest.receive(
-            SnapshotDelivery::InternetUnreachable(InternetUnreachable::WirelessRadioOff),
-            timeline.at(10),
-        );
-        assert!(latest.get().is_none());
-        assert!(shown_state_at(&latest, timeline.at(10)).is_some());
-        assert!(!latest.hover_card_with(Vec::new()).is_empty());
+        latest.receive(SnapshotDelivery::SourceUnavailable, timeline.at(11));
+        assert!(latest.awaits_first_delivery());
+        assert_eq!(shown_state(&latest), None);
     }
 }

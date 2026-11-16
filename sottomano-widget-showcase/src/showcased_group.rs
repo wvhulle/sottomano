@@ -475,12 +475,12 @@ impl ShowcasedGroup {
         let locale = config.calendar.locale;
         let sole_group = match self {
             ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
-            ShowcasedGroup::MemoryBoard(group) => group.group_content(clock, locale),
+            ShowcasedGroup::MemoryBoard(group) => group.group_content(locale),
             ShowcasedGroup::Weather(group) => group.group_content(config, clock),
             ShowcasedGroup::ClaudeUsage(group) => group.group_content(clock),
-            ShowcasedGroup::Wallpaper(group) => group.group_content(clock),
+            ShowcasedGroup::Wallpaper(group) => group.group_content(),
             ShowcasedGroup::Audio(group) => group.group_content(config),
-            ShowcasedGroup::VoiceDictation(group) => group.group_content(clock),
+            ShowcasedGroup::VoiceDictation(group) => group.group_content(),
             ShowcasedGroup::Caldav(group) => {
                 group.group_content(&config.indicator_groups.caldav, clock, locale)
             }

@@ -36,10 +36,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -273,51 +270,23 @@ impl WeatherGroup {
             .refreshed_by(WeatherInteraction::RefreshLocation)
     }
 
-    fn temperature_headline(&self, clock: Clock) -> GroupIndicator<'_> {
-        match &self.temperature {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                .wired_temperature_indicator(temperature_indicator(held_snapshot))
-                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .wired_temperature_indicator(troubled_snapshot.shown_over(
-                    temperature_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
-                ))
-                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .wired_temperature_indicator(placeholder.indicator(WEATHER_GLYPH.into()))
-                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::Weather.title(),
-                Phosphor::Umbrella(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::Weather.title(),
-                Phosphor::Umbrella(Weight::Regular).into(),
-                IndicatorState::Off,
-            ),
-        }
+    fn temperature_headline(&self) -> GroupIndicator<'_> {
+        self.wired_temperature_indicator(self.temperature.indicator(
+            |held_snapshot| temperature_indicator(held_snapshot),
+            WEATHER_GLYPH.into(),
+        ))
+        .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into())
     }
 
-    fn list_temperature<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
-        match &self.temperature {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+    fn list_temperature<'a>(&'a self, indicators: &mut Vec<GroupIndicator<'a>>) {
+        if !self.temperature.awaits_first_delivery() {
+            indicators.insert(
                 0,
-                self.wired_temperature_indicator(temperature_indicator(held_snapshot)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
-                0,
-                self.wired_temperature_indicator(troubled_snapshot.shown_over(
-                    temperature_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
+                self.wired_temperature_indicator(self.temperature.indicator(
+                    |held_snapshot| temperature_indicator(held_snapshot),
+                    WEATHER_GLYPH.into(),
                 )),
-            ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
-                0,
-                self.wired_temperature_indicator(placeholder.indicator(WEATHER_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+            );
         }
     }
 
@@ -327,7 +296,7 @@ impl WeatherGroup {
         clock: Clock,
     ) -> IndicatorGroupContent<'a> {
         let locale = config.calendar.locale;
-        let headline_indicator = self.temperature_headline(clock);
+        let headline_indicator = self.temperature_headline();
         let mut rows = Vec::new();
         if let Some(forecast) = self.rain_forecast(config) {
             rows.push(self.rain_indicator(config, forecast.indicator(clock, locale)));
@@ -339,24 +308,14 @@ impl WeatherGroup {
                 model_placeholder.indicator(PRECIPITATION_MODEL_FALLBACK_GLYPH),
             ));
         }
-        match &self.wind {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let wind_row = wind_indicator(held_snapshot);
-                if wind_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_wind_indicator(wind_row));
-                }
+        if !self.wind.awaits_first_delivery() {
+            let wind_row = self.wind.indicator(
+                |held_snapshot| wind_indicator(held_snapshot),
+                WIND_FALLBACK_GLYPH,
+            );
+            if wind_row.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_wind_indicator(wind_row));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let wind_row = troubled_snapshot
-                    .shown_over(wind_indicator(&troubled_snapshot.held_snapshot), clock);
-                if wind_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_wind_indicator(wind_row));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_wind_indicator(placeholder.indicator(WIND_FALLBACK_GLYPH)));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(pollen) = self.pollen.get() {
             rows.extend(pollen.airborne().map(|concentration| {
@@ -378,28 +337,16 @@ impl WeatherGroup {
                     .refreshed_by(refresh_online(WeatherSource::Pollen)),
             );
         }
-        match &self.location {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let location_row = location_indicator(held_snapshot);
-                if location_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_location_indicator(location_row));
-                }
+        if !self.location.awaits_first_delivery() {
+            let location_row = self.location.indicator(
+                |held_snapshot| location_indicator(held_snapshot),
+                LOCATION_FALLBACK_GLYPH,
+            );
+            if location_row.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_location_indicator(location_row));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let location_row = troubled_snapshot
-                    .shown_over(location_indicator(&troubled_snapshot.held_snapshot), clock);
-                if location_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_location_indicator(location_row));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.wired_location_indicator(placeholder.indicator(LOCATION_FALLBACK_GLYPH)),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
-        self.list_temperature(clock, &mut rows);
+        self.list_temperature(&mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Weather,
             headline_indicator,

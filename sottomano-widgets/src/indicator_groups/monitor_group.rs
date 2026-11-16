@@ -260,7 +260,6 @@ impl MonitorGroup {
         &'a self,
         config: &'a Config,
         outputs: &'a HashMap<String, OutputInfo>,
-        clock: Clock,
     ) -> IndicatorGroupContent<'a> {
         let mut rows: Vec<_> = self
             .sliders
@@ -278,41 +277,21 @@ impl MonitorGroup {
                 ))
             })
             .collect();
-        match self.clight.subscribed_indicator() {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let brightness_indicator = auto_brightness_indicator(held_snapshot);
-                if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(
-                        self.wired_auto_brightness_indicator(brightness_indicator)
-                            .on_switch_press(
-                                held_snapshot.switch_position(),
-                                held_snapshot.press_action_text(),
-                                MonitorInteraction::AutoBrightnessPressed,
-                            ),
-                    );
-                }
+        let subscribed = self.clight.subscribed_indicator();
+        if !subscribed.awaits_first_delivery() {
+            let brightness_indicator = self.wired_auto_brightness_indicator(
+                subscribed.indicator(auto_brightness_indicator, AUTO_BRIGHTNESS_GLYPH.into()),
+            );
+            if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(match subscribed.get() {
+                    Some(held_snapshot) => brightness_indicator.on_switch_press(
+                        held_snapshot.switch_position(),
+                        held_snapshot.press_action_text(),
+                        MonitorInteraction::AutoBrightnessPressed,
+                    ),
+                    None => brightness_indicator,
+                });
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let held_snapshot = &troubled_snapshot.held_snapshot;
-                let brightness_indicator =
-                    troubled_snapshot.shown_over(auto_brightness_indicator(held_snapshot), clock);
-                if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(
-                        self.wired_auto_brightness_indicator(brightness_indicator)
-                            .on_switch_press(
-                                held_snapshot.switch_position(),
-                                held_snapshot.press_action_text(),
-                                MonitorInteraction::AutoBrightnessPressed,
-                            ),
-                    );
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_auto_brightness_indicator(
-                    placeholder.indicator(AUTO_BRIGHTNESS_GLYPH.into()),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Monitor,

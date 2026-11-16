@@ -90,11 +90,7 @@ impl PendingUpgradesGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
         let mut rows = Vec::new();
         if let Some(upgrades) = self
             .firmware
@@ -114,7 +110,7 @@ impl PendingUpgradesGroup {
             );
         }
         let build_pending_upgrades_indicator = || {
-            self.indicator(clock).with_hover_card(Box::new(move |_| {
+            self.indicator().with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
             }))
         };
@@ -136,18 +132,17 @@ impl PendingUpgradesGroup {
             .map(|upgrades| firmware_upgrades_badge(upgrades))]
     }
 
-    fn category_states(&self, clock: Clock) -> [Option<IndicatorState>; 1] {
+    fn category_states(&self) -> [Option<IndicatorState>; 1] {
         [self.firmware.shown_state(
             |snapshot| firmware_upgrades_state(snapshot),
             |snapshot| firmware_upgrades_panel_visibility(snapshot),
-            clock,
         )]
     }
 }
 
 impl PendingUpgradesGroup {
-    fn state(&self, clock: Clock) -> IndicatorState {
-        self.category_states(clock)
+    fn state(&self) -> IndicatorState {
+        self.category_states()
             .into_iter()
             .flatten()
             .map(IndicatorState::severity)
@@ -172,11 +167,11 @@ impl PendingUpgradesGroup {
         )]
     }
 
-    fn indicator(&self, clock: Clock) -> GroupIndicator<'_> {
+    fn indicator(&self) -> GroupIndicator<'_> {
         let base = GroupIndicator::glyph_only(
             "Available upgrades",
             Phosphor::ArrowCircleUp(Weight::Regular).into(),
-            self.state(clock),
+            self.state(),
         )
         .with_hover_card(Box::new(move |_| self.hover_card()));
         let total: usize = self.category_badges().into_iter().flatten().sum();

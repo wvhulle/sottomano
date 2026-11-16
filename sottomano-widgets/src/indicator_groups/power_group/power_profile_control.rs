@@ -154,8 +154,7 @@ impl PowerProfileControl {
                         tracing::debug!("power conditions: {error}");
                         None
                     }
-                    SnapshotDelivery::SourceUnavailable
-                    | SnapshotDelivery::InternetUnreachable(_) => None,
+                    SnapshotDelivery::SourceUnavailable => None,
                     SnapshotDelivery::SnapshotUnchanged => self.conditions,
                 };
             }

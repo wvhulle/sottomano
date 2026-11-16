@@ -5,7 +5,7 @@ pub mod indicator_drawing;
 pub mod indicator_gestures;
 pub mod indicator_state;
 pub mod indicator_toggle_switch;
-pub mod offline_internet_indicator;
 pub mod slider_control;
+pub mod snapshot_absence;
 pub mod toggle_control;
 pub mod unit_switch;

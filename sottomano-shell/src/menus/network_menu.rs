@@ -26,9 +26,7 @@ impl DesktopShell {
                     ),
             )
             .chain([
-                self.indicator_groups
-                    .reachability_group
-                    .group_content(self.clock),
+                self.indicator_groups.reachability_group.group_content(),
                 self.indicator_groups
                     .tailnet_group
                     .group_content(self.clock),

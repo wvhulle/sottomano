@@ -63,7 +63,7 @@ impl Default for JournalEventsGroup {
             },
             user_journal: JournalScopeGroup {
                 unit_scope: SystemdUnitScope::UserSession,
-                kernel: SubscribedSnapshot::SourceUnavailable,
+                kernel: SubscribedSnapshot::default(),
                 service_errors: SubscribedSnapshot::default(),
                 coredumps: SubscribedSnapshot::default(),
                 oom_kills: SubscribedSnapshot::default(),
@@ -98,9 +98,6 @@ where
 {
     match delivery {
         SnapshotDelivery::SourceUnavailable => SnapshotDelivery::SourceUnavailable,
-        SnapshotDelivery::InternetUnreachable(unreachable) => {
-            SnapshotDelivery::InternetUnreachable(unreachable.clone())
-        }
         SnapshotDelivery::SnapshotDelivered {
             snapshot_fetch,
             delivery_cadence,
@@ -230,21 +227,13 @@ impl JournalEventsGroup {
     }
 
     #[must_use]
-    pub fn system_journal_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
-        self.system_journal.group_content(config, clock)
+    pub fn system_journal_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+        self.system_journal.group_content(config)
     }
 
     #[must_use]
-    pub fn user_journal_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
-        self.user_journal.group_content(config, clock)
+    pub fn user_journal_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+        self.user_journal.group_content(config)
     }
 }
 

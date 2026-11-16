@@ -15,7 +15,6 @@ use crate::widgets::phosphor::Weight;
 pub enum IndicatorState {
     Failed,
     Off,
-    Offline,
     #[default]
     Idle,
     Pending,
@@ -31,7 +30,7 @@ impl IndicatorState {
         match self {
             IndicatorState::Failed => Weight::Thin,
             IndicatorState::Off => Weight::Light,
-            IndicatorState::Offline | IndicatorState::Pending => Weight::Duotone,
+            IndicatorState::Pending => Weight::Duotone,
             IndicatorState::Idle => Weight::Regular,
             IndicatorState::Warning => Weight::Bold,
             IndicatorState::On | IndicatorState::Live | IndicatorState::Critical => Weight::Fill,
@@ -45,9 +44,7 @@ impl IndicatorState {
             IndicatorState::Off => secondary_text_color(theme),
             IndicatorState::Idle | IndicatorState::On => text_color(theme),
             IndicatorState::Live => primary_color(theme),
-            IndicatorState::Offline | IndicatorState::Pending | IndicatorState::Warning => {
-                warning_color(theme)
-            }
+            IndicatorState::Pending | IndicatorState::Warning => warning_color(theme),
         }
     }
 
@@ -58,9 +55,7 @@ impl IndicatorState {
             IndicatorState::Off => text::secondary,
             IndicatorState::Idle | IndicatorState::On => text::base,
             IndicatorState::Live => text::primary,
-            IndicatorState::Offline | IndicatorState::Pending | IndicatorState::Warning => {
-                text::warning
-            }
+            IndicatorState::Pending | IndicatorState::Warning => text::warning,
         }
     }
 
@@ -70,7 +65,6 @@ impl IndicatorState {
             IndicatorState::Failed | IndicatorState::Critical => Severity::Critical,
             IndicatorState::Warning => Severity::Warning,
             IndicatorState::Off
-            | IndicatorState::Offline
             | IndicatorState::Idle
             | IndicatorState::Pending
             | IndicatorState::On
@@ -177,7 +171,6 @@ mod tests {
         assert_eq!(IndicatorState::Failed.color(&theme), danger_color(&theme));
         assert_eq!(IndicatorState::Critical.color(&theme), danger_color(&theme));
         assert_eq!(IndicatorState::Warning.color(&theme), warning_color(&theme));
-        assert_eq!(IndicatorState::Offline.color(&theme), warning_color(&theme));
         assert_eq!(
             IndicatorState::Off.color(&theme),
             secondary_text_color(&theme)
@@ -191,7 +184,6 @@ mod tests {
         [
             IndicatorState::Failed,
             IndicatorState::Off,
-            IndicatorState::Offline,
             IndicatorState::Idle,
             IndicatorState::Live,
             IndicatorState::Warning,
@@ -222,10 +214,6 @@ mod tests {
                 .iter()
                 .enumerate()
                 .all(|(index, weight)| !weights[index + 1..].contains(weight))
-        );
-        assert_eq!(
-            IndicatorState::Offline.weight(),
-            IndicatorState::Pending.weight()
         );
         assert_eq!(
             IndicatorState::Critical.weight(),

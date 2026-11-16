@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
+use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
 use zbus::Connection;
 
@@ -166,9 +166,11 @@ where
     access_states
         .distinct_until_changed()
         .switch_map(move |access| {
-            stream::once(ready(access.map(|()| start().map(Ok))))
-                .try_flatten()
-                .map(|delivery| delivery.unwrap_or_else(SnapshotDelivery::InternetUnreachable))
+            let started = match access {
+                Ok(()) => Some(start()),
+                Err(_offline_reason) => None,
+            };
+            stream::iter(started).flatten()
         })
 }
 
@@ -231,7 +233,6 @@ mod tests {
     #[derive(Debug, PartialEq)]
     enum GatedOutcome {
         Started(u32),
-        Unreachable(InternetUnreachable),
     }
 
     async fn gated_outcomes(
@@ -256,9 +257,6 @@ mod tests {
                     snapshot_fetch: Ok(sample),
                     ..
                 } => Some(GatedOutcome::Started(sample.start_number)),
-                SnapshotDelivery::InternetUnreachable(reason) => {
-                    Some(GatedOutcome::Unreachable(reason))
-                }
                 _ => None,
             })
         })
@@ -271,10 +269,10 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn offline_delivers_the_reason_without_starting_the_source() {
+    async fn offline_delivers_nothing_and_does_not_start_the_source() {
         assert_eq!(
             gated_outcomes(vec![unreachable_without_connection()]).await,
-            [GatedOutcome::Unreachable(InternetUnreachable::NoConnection)]
+            []
         );
     }
 
@@ -282,11 +280,7 @@ mod tests {
     async fn reconnecting_restarts_an_ended_source() {
         assert_eq!(
             gated_outcomes(vec![Ok(()), unreachable_without_connection(), Ok(()),]).await,
-            [
-                GatedOutcome::Started(1),
-                GatedOutcome::Unreachable(InternetUnreachable::NoConnection),
-                GatedOutcome::Started(2),
-            ]
+            [GatedOutcome::Started(1), GatedOutcome::Started(2)]
         );
     }
 

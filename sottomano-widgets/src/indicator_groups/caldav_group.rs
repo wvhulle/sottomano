@@ -4,7 +4,6 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        offline_internet_indicator::SnapshotPlaceholder,
     },
     indicator_groups::caldav_group::{
         open_tasks_indicator::{open_tasks_hover_card, open_tasks_indicator},
@@ -154,60 +153,23 @@ impl CaldavGroup {
         locale: Locale,
     ) -> IndicatorGroupContent<'_> {
         let mut rows = Vec::new();
-        match &self.upcoming_events {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let events_indicator = upcoming_events_indicator(held_snapshot, clock, locale);
-                if events_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_upcoming_events_indicator(events_indicator));
-                }
+        if !self.upcoming_events.awaits_first_delivery() || self.account(config).is_some() {
+            let events_indicator = self.upcoming_events.indicator(
+                |held_snapshot| upcoming_events_indicator(held_snapshot, clock, locale),
+                UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+            );
+            if events_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_upcoming_events_indicator(events_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let events_indicator = troubled_snapshot.shown_over(
-                    upcoming_events_indicator(&troubled_snapshot.held_snapshot, clock, locale),
-                    clock,
-                );
-                if events_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_upcoming_events_indicator(events_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_upcoming_events_indicator(
-                    placeholder.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                if self.account(config).is_some() {
-                    rows.push(self.wired_upcoming_events_indicator(SnapshotPlaceholder::<
-                        UpcomingEventList,
-                    >::awaiting_indicator(
-                        UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                    )));
-                }
-            }
-            SubscribedSnapshot::SourceUnavailable => {}
         }
-        match &self.open_tasks {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let tasks_indicator = open_tasks_indicator(held_snapshot, clock);
-                if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_open_tasks_indicator(tasks_indicator));
-                }
+        if !self.open_tasks.awaits_first_delivery() {
+            let tasks_indicator = self.open_tasks.indicator(
+                |held_snapshot| open_tasks_indicator(held_snapshot, clock),
+                OPEN_TASKS_GLYPH.into(),
+            );
+            if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_open_tasks_indicator(tasks_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let tasks_indicator = troubled_snapshot.shown_over(
-                    open_tasks_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                );
-                if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_open_tasks_indicator(tasks_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.wired_open_tasks_indicator(placeholder.indicator(OPEN_TASKS_GLYPH.into())),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Caldav,

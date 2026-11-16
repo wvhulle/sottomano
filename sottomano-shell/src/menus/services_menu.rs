@@ -28,13 +28,13 @@ impl DesktopShell {
                     .group_content(config, self.clock),
                 self.indicator_groups
                     .journal_events_group
-                    .system_journal_content(config, self.clock),
+                    .system_journal_content(config),
                 self.indicator_groups
                     .journal_events_group
-                    .user_journal_content(config, self.clock),
+                    .user_journal_content(config),
                 self.indicator_groups
                     .pending_upgrades_group
-                    .group_content(config, self.clock),
+                    .group_content(config),
             ],
         )
     }

@@ -5,10 +5,7 @@ use iced::{
     futures::{StreamExt, stream},
     task::Handle,
 };
-use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource,
-    network_connectivity::internet_connectivity_gate::InternetUnreachable,
-};
+use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
@@ -37,7 +34,6 @@ pub enum HoverFetchProgress<S: SnapshotSource> {
     ServingRemembered,
     AwaitingFirstDelivery,
     SourceUnavailable,
-    InternetUnreachable(InternetUnreachable),
     Delivered {
         snapshot_fetch: Result<S, S::Error>,
         delivery_timing: DeliveryStamp,
@@ -86,9 +82,6 @@ impl<S: SnapshotSource> HoverFetchProgress<S> {
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
             SnapshotDelivery::SourceUnavailable => HoverFetchProgress::SourceUnavailable,
-            SnapshotDelivery::InternetUnreachable(offline_reason) => {
-                HoverFetchProgress::InternetUnreachable(offline_reason)
-            }
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
                 delivery_cadence,
@@ -186,7 +179,6 @@ where
             }
             HoverFetchProgress::ServingRemembered
             | HoverFetchProgress::AwaitingFirstDelivery
-            | HoverFetchProgress::InternetUnreachable(_)
             | HoverFetchProgress::Delivered {
                 snapshot_fetch: Err(_),
                 ..
@@ -211,12 +203,11 @@ where
                 snapshot_fetch: Ok(delivered_snapshot),
                 ..
             } => Some(delivered_snapshot),
-            HoverFetchProgress::ServingRemembered
-            | HoverFetchProgress::AwaitingFirstDelivery
-            | HoverFetchProgress::InternetUnreachable(_) => self
-                .remembered_by_inputs
-                .get(inputs)
-                .map(|remembered| &remembered.remembered_snapshot),
+            HoverFetchProgress::ServingRemembered | HoverFetchProgress::AwaitingFirstDelivery => {
+                self.remembered_by_inputs
+                    .get(inputs)
+                    .map(|remembered| &remembered.remembered_snapshot)
+            }
             HoverFetchProgress::SourceUnavailable
             | HoverFetchProgress::Delivered {
                 snapshot_fetch: Err(_),
@@ -254,9 +245,6 @@ where
             },
             HoverFetchProgress::AwaitingFirstDelivery => {
                 remembered_or_state(SourceDelivery::Loading, String::new())
-            }
-            HoverFetchProgress::InternetUnreachable(offline_reason) => {
-                remembered_or_state(SourceDelivery::Offline, offline_reason.to_string())
             }
             HoverFetchProgress::Delivered {
                 snapshot_fetch: Ok(delivered_snapshot),

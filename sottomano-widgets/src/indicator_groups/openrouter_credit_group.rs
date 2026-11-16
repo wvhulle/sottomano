@@ -28,10 +28,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -206,99 +203,41 @@ impl OpenRouterCreditGroup {
     }
 
     fn list_spend<'a>(&'a self, clock: Clock, lead_indicators: &mut Vec<GroupIndicator<'a>>) {
-        match &self.spend {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => lead_indicators
-                .push(self.wired_spend_indicator(spend_indicator(held_snapshot, clock))),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                lead_indicators.push(self.wired_spend_indicator(troubled_snapshot.shown_over(
-                    spend_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                )));
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                lead_indicators.push(self.wired_spend_indicator(
-                    placeholder.indicator(Phosphor::Coins(Weight::Regular).into()),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        if !self.spend.awaits_first_delivery() {
+            lead_indicators.push(self.wired_spend_indicator(self.spend.indicator(
+                |held_snapshot| spend_indicator(held_snapshot, clock),
+                Phosphor::Coins(Weight::Regular).into(),
+            )));
         }
     }
 
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
-        let headline_indicator = match &self.spend {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                .wired_spend_indicator(spend_indicator(held_snapshot, clock))
-                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .wired_spend_indicator(troubled_snapshot.shown_over(
-                    spend_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                ))
-                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .wired_spend_indicator(
-                    placeholder.indicator(Phosphor::Coins(Weight::Regular).into()),
-                )
-                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::OpenRouterCredit.title(),
-                SimpleIcon::OpenRouter.into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::OpenRouterCredit.title(),
-                SimpleIcon::OpenRouter.into(),
-                IndicatorState::Off,
-            ),
-        };
+        let headline_indicator = self
+            .wired_spend_indicator(self.spend.indicator(
+                |held_snapshot| spend_indicator(held_snapshot, clock),
+                Phosphor::Coins(Weight::Regular).into(),
+            ))
+            .with_headline_glyph(SimpleIcon::OpenRouter.into());
         let mut lead_indicators = Vec::new();
         self.list_spend(clock, &mut lead_indicators);
         let mut rows = Vec::new();
-        match &self.strict_budget {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let budget_indicator = strict_budget_indicator(held_snapshot);
-                if budget_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_strict_budget_indicator(budget_indicator));
-                }
+        if !self.strict_budget.awaits_first_delivery() {
+            let budget_indicator = self.strict_budget.indicator(
+                |held_snapshot| strict_budget_indicator(held_snapshot),
+                OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
+            );
+            if budget_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_strict_budget_indicator(budget_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let budget_indicator = troubled_snapshot.shown_over(
-                    strict_budget_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
-                );
-                if budget_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_strict_budget_indicator(budget_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_strict_budget_indicator(
-                    placeholder.indicator(OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
-        match &self.model_rankings {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let rankings_indicator = best_models_indicator(held_snapshot);
-                if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.model_rankings_indicator(rankings_indicator));
-                }
+        if !self.model_rankings.awaits_first_delivery() {
+            let rankings_indicator = self.model_rankings.indicator(
+                |held_snapshot| best_models_indicator(held_snapshot),
+                OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
+            );
+            if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.model_rankings_indicator(rankings_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let rankings_indicator = troubled_snapshot.shown_over(
-                    best_models_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
-                );
-                if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.model_rankings_indicator(rankings_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.model_rankings_indicator(
-                    placeholder.indicator(OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(ranking) = self.model_ranking() {
             rows.push(

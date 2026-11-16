@@ -27,10 +27,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     hover_cards::hover_card_body::Section,
     indicator_groups::{
         indicator_group_content::{
@@ -219,11 +216,7 @@ impl PowerGroup {
         ])
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
         let locale = config.calendar.locale;
         let switch_to_saving_profiles =
             self.power_profile
@@ -236,72 +229,33 @@ impl PowerGroup {
                     ),
                 });
         let headline_indicator = match &self.battery {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                battery_indicator(held_snapshot)
-                    .with_headline_glyph(Phosphor::Plug(Weight::Regular).into())
-            }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => troubled_snapshot
-                .shown_over(battery_indicator(&troubled_snapshot.held_snapshot), clock)
-                .with_headline_glyph(Phosphor::Plug(Weight::Regular).into()),
-            SubscribedSnapshot::NoSnapshot { .. }
-            | SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable => match self.power_profile.profile_status() {
-                SubscribedSnapshot::SnapshotHeld { .. }
-                | SubscribedSnapshot::SnapshotTroubled { .. } => self
+            SubscribedSnapshot::Available { .. } => self
+                .battery
+                .indicator(battery_indicator, BATTERY_CHARGE_GLYPH.into()),
+            SubscribedSnapshot::Unavailable { .. } => match self.power_profile.profile_status() {
+                SubscribedSnapshot::Available { .. } => self
                     .power_profile
                     .slider_control()
-                    .indicator(config.calendar.locale)
-                    .with_headline_glyph(Phosphor::Plug(Weight::Regular).into()),
-                SubscribedSnapshot::NoSnapshot { placeholder } => GroupIndicator::glyph_only(
-                    IndicatorGroupFamily::Power.title(),
-                    Phosphor::Plug(Weight::Regular).into(),
-                    placeholder.shown_state(),
-                ),
-                SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                    IndicatorGroupFamily::Power.title(),
-                    Phosphor::Plug(Weight::Regular).into(),
-                    IndicatorState::Pending,
-                ),
-                SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                    IndicatorGroupFamily::Power.title(),
-                    Phosphor::Plug(Weight::Regular).into(),
-                    IndicatorState::Off,
-                ),
+                    .indicator(config.calendar.locale),
+                SubscribedSnapshot::Unavailable { cause } => {
+                    cause.indicator(Phosphor::Plug(Weight::Regular).into())
+                }
             },
-        };
+        }
+        .with_headline_glyph(Phosphor::Plug(Weight::Regular).into());
         let mut lead_indicators = Vec::new();
-        match self.power_profile.profile_status() {
-            SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotTroubled { .. } => {
-                lead_indicators.push(self.power_profile_indicator(config));
-            }
-            SubscribedSnapshot::NoSnapshot { .. }
-            | SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable => {}
+        if self.power_profile.profile_status().get().is_some() {
+            lead_indicators.push(self.power_profile_indicator(config));
         }
         let mut rows = Vec::new();
-        match &self.battery {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let charge_indicator = battery_indicator(held_snapshot);
-                if charge_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.battery_charge_indicator(charge_indicator));
-                }
+        if !self.battery.awaits_first_delivery() {
+            let charge_indicator = self.battery.indicator(
+                |held_snapshot| battery_indicator(held_snapshot),
+                BATTERY_CHARGE_GLYPH.into(),
+            );
+            if charge_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.battery_charge_indicator(charge_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let charge_indicator = troubled_snapshot
-                    .shown_over(battery_indicator(&troubled_snapshot.held_snapshot), clock);
-                if charge_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.battery_charge_indicator(charge_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.battery_charge_indicator(
-                        placeholder.indicator(BATTERY_CHARGE_GLYPH.into()),
-                    ),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(draw) = self.draw() {
             rows.push(self.power_draw_indicator(draw));

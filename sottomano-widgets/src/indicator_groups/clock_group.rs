@@ -15,10 +15,7 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
         indicator_group_content::{
@@ -138,92 +135,38 @@ impl ClockGroup {
     }
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> IndicatorGroupContent<'_> {
-        let headline_indicator = match &self.time {
-            SubscribedSnapshot::SnapshotHeld { .. } => self
-                .local_time_indicator(LocalTime::indicator(clock, locale))
-                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .local_time_indicator(
-                    troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
-                )
-                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into()))
-                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::Clock.title(),
-                Phosphor::Watch(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::Clock.title(),
-                Phosphor::Watch(Weight::Regular).into(),
-                IndicatorState::Off,
-            ),
-        };
+        let headline_indicator = self
+            .local_time_indicator(self.time.indicator(
+                |_| LocalTime::indicator(clock, locale),
+                LOCAL_TIME_GLYPH.into(),
+            ))
+            .with_headline_glyph(Phosphor::Watch(Weight::Regular).into());
         let mut lead_indicators = Vec::new();
-        match &self.time {
-            SubscribedSnapshot::SnapshotHeld { .. } => {
-                lead_indicators
-                    .push(self.local_time_indicator(LocalTime::indicator(clock, locale)));
-            }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                lead_indicators.push(self.local_time_indicator(
-                    troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
-                ));
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => lead_indicators
-                .push(self.local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into()))),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        if !self.time.awaits_first_delivery() {
+            lead_indicators.push(self.local_time_indicator(self.time.indicator(
+                |_| LocalTime::indicator(clock, locale),
+                LOCAL_TIME_GLYPH.into(),
+            )));
         }
         let mut rows = Vec::new();
-        match &self.date {
-            SubscribedSnapshot::SnapshotHeld { .. } => {
-                let date_indicator = LocalDate::indicator(clock, locale);
-                if date_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.local_date_indicator(date_indicator));
-                }
+        if !self.date.awaits_first_delivery() {
+            let date_indicator = self.date.indicator(
+                |_| LocalDate::indicator(clock, locale),
+                LOCAL_DATE_GLYPH.into(),
+            );
+            if date_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.local_date_indicator(date_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let date_indicator =
-                    troubled_snapshot.shown_over(LocalDate::indicator(clock, locale), clock);
-                if date_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.local_date_indicator(date_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.local_date_indicator(placeholder.indicator(LOCAL_DATE_GLYPH.into())),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         for (zone, zone_time) in &self.zone_times {
-            match zone_time {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let zone_indicator = held_snapshot.indicator(clock, locale);
-                    if zone_indicator.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
-                    }
+            if !zone_time.awaits_first_delivery() {
+                let zone_indicator = zone_time.indicator(
+                    |held_snapshot| held_snapshot.indicator(clock, locale),
+                    ZONE_TIME_GLYPH.into(),
+                );
+                if zone_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
                 }
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let zone_indicator = troubled_snapshot.shown_over(
-                        troubled_snapshot.held_snapshot.indicator(clock, locale),
-                        clock,
-                    );
-                    if zone_indicator.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
-                    }
-                }
-                SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(Self::zone_time_indicator(
-                        *zone,
-                        zone_time,
-                        placeholder.indicator(ZONE_TIME_GLYPH.into()),
-                    ));
-                }
-                SubscribedSnapshot::AwaitingFirstSnapshot
-                | SubscribedSnapshot::SourceUnavailable => {}
             }
         }
         IndicatorGroupContent::expandable(

@@ -10,20 +10,16 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Display,
             [
-                self.indicator_groups.monitor_group.group_content(
-                    config,
-                    &self.outputs,
-                    self.clock,
-                ),
+                self.indicator_groups
+                    .monitor_group
+                    .group_content(config, &self.outputs),
                 self.indicator_groups
                     .dark_mode_group
                     .group_content(config, self.clock),
                 self.indicator_groups
                     .color_temperature_group
                     .group_content(config),
-                self.indicator_groups
-                    .wallpaper_group
-                    .group_content(self.clock),
+                self.indicator_groups.wallpaper_group.group_content(),
             ],
         )
     }

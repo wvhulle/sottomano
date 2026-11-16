@@ -571,32 +571,13 @@ fn player_group<'a>(
                 current_lyric_line(config, media, timed_line, clock.instant)
                     .with_hover_card(cards.lyrics),
             );
-        } else {
-            match lyrics_snapshot {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let lyrics_indicator = track_lyrics_indicator(held_snapshot);
-                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
-                    }
-                }
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let lyrics_indicator = troubled_snapshot.shown_over(
-                        track_lyrics_indicator(&troubled_snapshot.held_snapshot),
-                        clock,
-                    );
-                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
-                    }
-                }
-                SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(
-                        placeholder
-                            .indicator(TRACK_LYRICS_FALLBACK_GLYPH)
-                            .with_hover_card(cards.lyrics),
-                    );
-                }
-                SubscribedSnapshot::AwaitingFirstSnapshot
-                | SubscribedSnapshot::SourceUnavailable => {}
+        } else if !lyrics_snapshot.awaits_first_delivery() {
+            let lyrics_indicator = lyrics_snapshot.indicator(
+                |held_snapshot| track_lyrics_indicator(held_snapshot),
+                TRACK_LYRICS_FALLBACK_GLYPH,
+            );
+            if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
             }
         }
     }

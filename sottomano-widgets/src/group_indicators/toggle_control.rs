@@ -226,7 +226,6 @@ mod tests {
 
     #[test]
     fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
-        let clock = Clock::real();
         let mut control = ToggleControl::<X3dCachePreference>::default();
         control.sample.receive(
             SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
@@ -243,7 +242,6 @@ mod tests {
             control.sample.shown_state(
                 |snapshot| x3d_cache_preference_indicator(snapshot).shown_state(),
                 |_| PanelVisibility::Shown,
-                clock,
             ),
             Some(IndicatorState::Failed)
         );

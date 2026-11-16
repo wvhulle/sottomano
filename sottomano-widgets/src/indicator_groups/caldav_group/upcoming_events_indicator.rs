@@ -241,20 +241,15 @@ pub(crate) fn upcoming_events_hover_card(
 #[cfg(test)]
 mod tests {
     use chrono::Locale;
-    use sottomano_desktop_sources::{
-        SnapshotSource,
-        caldav_tasks_events::{
-            caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
-        },
-        network_connectivity::internet_connectivity_gate::InternetUnreachable,
+    use sottomano_desktop_sources::caldav_tasks_events::{
+        caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
     };
 
     use crate::{
         clock::Clock,
         group_indicators::{
-            indicator_drawing::ReadoutLabel,
-            indicator_state::IndicatorState,
-            offline_internet_indicator::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
+            indicator_drawing::ReadoutLabel, indicator_state::IndicatorState,
+            snapshot_absence::AbsenceCause,
         },
         indicator_groups::caldav_group::upcoming_events_indicator::{
             UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_indicator,
@@ -275,28 +270,18 @@ mod tests {
     fn events_awaiting_their_first_snapshot_show_a_pending_indicator() {
         let pending_events = SubscribedSnapshot::<UpcomingEventList>::default();
         assert!(!pending_events.hover_card_with(Vec::new()).is_empty());
-        assert!(matches!(
-            pending_events,
-            SubscribedSnapshot::AwaitingFirstSnapshot
-        ));
+        assert!(pending_events.awaits_first_delivery());
         assert_eq!(
-            SnapshotPlaceholder::<UpcomingEventList>::awaiting_indicator(
-                UPCOMING_EVENT_LIST_FALLBACK_GLYPH
-            )
-            .shown_state(),
+            AbsenceCause::<UpcomingEventList>::Awaiting
+                .indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH)
+                .shown_state(),
             IndicatorState::Pending
         );
     }
 
-    fn event_placeholder(
-        placeholder_cause: PlaceholderCause<<UpcomingEventList as SnapshotSource>::Error>,
-    ) -> SnapshotPlaceholder<UpcomingEventList> {
-        SnapshotPlaceholder { placeholder_cause }
-    }
-
     #[test]
     fn a_pending_indicator_draws_no_label_until_its_data_arrives() {
-        let pending_events = event_placeholder(PlaceholderCause::AwaitingFirstSnapshot);
+        let pending_events = AbsenceCause::<UpcomingEventList>::Awaiting;
         let pending_indicator = pending_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
         assert_eq!(
             pending_indicator
@@ -312,22 +297,6 @@ mod tests {
             .map(|section| section.title().text().to_owned())
             .collect();
         assert_eq!(card_titles, ["Loading".to_owned()]);
-    }
-
-    #[test]
-    fn an_offline_placeholder_is_not_reported_as_pending() {
-        let offline_events = event_placeholder(PlaceholderCause::Troubled(
-            SnapshotTrouble::Offline(InternetUnreachable::NoConnection),
-        ));
-        let offline_indicator = offline_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
-        assert_eq!(
-            offline_indicator
-                .shown_readout()
-                .expect("a readout indicator")
-                .label,
-            ReadoutLabel::Unlabeled
-        );
-        assert_eq!(offline_indicator.shown_state(), IndicatorState::Offline);
     }
 
     #[test]

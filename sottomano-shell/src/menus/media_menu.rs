@@ -20,9 +20,7 @@ impl DesktopShell {
         let groups = media_groups
             .chain([
                 self.indicator_groups.audio_group.group_content(config),
-                self.indicator_groups
-                    .voice_dictation_group
-                    .group_content(self.clock),
+                self.indicator_groups.voice_dictation_group.group_content(),
             ])
             .chain(gamepad_groups);
         self.group_menu(GroupMenuTopic::Media, groups)

@@ -239,71 +239,35 @@ impl SystemdManagerGroup {
             );
         }
         for slow_jobs in [&self.slow_system_jobs, &self.slow_user_jobs] {
-            match slow_jobs {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                        rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
-                    }
+            if let Some(held_snapshot) = slow_jobs.get() {
+                if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                    rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
                 }
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let held_snapshot = &troubled_snapshot.held_snapshot;
-                    if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                        rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
-                    }
-                }
-                SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(placeholder.indicator(SLOW_JOBS_GLYPH.into()));
-                }
-                SubscribedSnapshot::AwaitingFirstSnapshot
-                | SubscribedSnapshot::SourceUnavailable => {}
+            } else if let Some(failure) = slow_jobs.failure() {
+                rows.push(failure.indicator(SLOW_JOBS_GLYPH.into()));
             }
         }
         for (failed_units, failed_units_glyph) in [
             (&self.failed_system, FAILED_SYSTEM_UNITS_GLYPH),
             (&self.failed_user, FAILED_USER_UNITS_GLYPH),
         ] {
-            match failed_units {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                        rows.push(failed_units_entry(
-                            failed_units,
-                            held_snapshot,
-                            config,
-                            clock,
-                        ));
-                    }
+            if let Some(held_snapshot) = failed_units.get() {
+                if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                    rows.push(failed_units_entry(
+                        failed_units,
+                        held_snapshot,
+                        config,
+                        clock,
+                    ));
                 }
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let held_snapshot = &troubled_snapshot.held_snapshot;
-                    if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                        rows.push(failed_units_entry(
-                            failed_units,
-                            held_snapshot,
-                            config,
-                            clock,
-                        ));
-                    }
-                }
-                SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(placeholder.indicator(failed_units_glyph.into()));
-                }
-                SubscribedSnapshot::AwaitingFirstSnapshot
-                | SubscribedSnapshot::SourceUnavailable => {}
+            } else if let Some(failure) = failed_units.failure() {
+                rows.push(failure.indicator(failed_units_glyph.into()));
             }
         }
-        match &self.last_shutdown {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                rows.push(self.wired_last_shutdown_indicator(held_snapshot, config));
-            }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                rows.push(
-                    self.wired_last_shutdown_indicator(&troubled_snapshot.held_snapshot, config),
-                );
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(placeholder.indicator(LAST_SHUTDOWN_GLYPH.into()));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        if let Some(held_snapshot) = self.last_shutdown.get() {
+            rows.push(self.wired_last_shutdown_indicator(held_snapshot, config));
+        } else if let Some(failure) = self.last_shutdown.failure() {
+            rows.push(failure.indicator(LAST_SHUTDOWN_GLYPH.into()));
         }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::SystemdManager,

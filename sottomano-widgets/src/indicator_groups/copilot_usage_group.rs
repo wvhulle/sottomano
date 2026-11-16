@@ -29,10 +29,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -188,7 +185,7 @@ impl CopilotUsageGroup {
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
         let headline_indicator = self.metered_headline(clock);
         let mut rows = Vec::new();
-        self.push_free_indicators(&mut rows, clock);
+        self.push_free_indicators(&mut rows);
         self.push_cli_indicators(&mut rows, clock);
         self.push_model_ranking_indicators(&mut rows);
         self.list_metered(clock, &mut rows);
@@ -202,102 +199,46 @@ impl CopilotUsageGroup {
     }
 
     fn metered_headline(&self, clock: Clock) -> GroupIndicator<'_> {
-        match &self.metered {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                .metered_indicator(copilot_metered_indicator(held_snapshot, clock))
-                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .metered_indicator(troubled_snapshot.shown_over(
-                    copilot_metered_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                ))
-                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .metered_indicator(placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()))
-                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::CopilotUsage.title(),
-                SimpleIcon::GitHubCopilot.into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::CopilotUsage.title(),
-                SimpleIcon::GitHubCopilot.into(),
-                IndicatorState::Off,
-            ),
-        }
+        self.metered_indicator(self.metered.indicator(
+            |held_snapshot| copilot_metered_indicator(held_snapshot, clock),
+            Phosphor::Gauge(Weight::Regular).into(),
+        ))
+        .with_headline_glyph(SimpleIcon::GitHubCopilot.into())
     }
 
     fn list_metered<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
-        match &self.metered {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+        if !self.metered.awaits_first_delivery() {
+            indicators.insert(
                 0,
-                self.metered_indicator(copilot_metered_indicator(held_snapshot, clock)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
-                0,
-                self.metered_indicator(troubled_snapshot.shown_over(
-                    copilot_metered_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
+                self.metered_indicator(self.metered.indicator(
+                    |held_snapshot| copilot_metered_indicator(held_snapshot, clock),
+                    Phosphor::Gauge(Weight::Regular).into(),
                 )),
-            ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
-                0,
-                self.metered_indicator(
-                    placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
-                ),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+            );
         }
     }
 
-    fn push_free_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
-        match &self.free {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let free_row = copilot_free_indicator(held_snapshot);
-                if free_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.free_indicator(free_row));
-                }
+    fn push_free_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+        if !self.free.awaits_first_delivery() {
+            let free_row = self.free.indicator(
+                |held_snapshot| copilot_free_indicator(held_snapshot),
+                COPILOT_FREE_FALLBACK_GLYPH,
+            );
+            if free_row.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.free_indicator(free_row));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let free_row = troubled_snapshot.shown_over(
-                    copilot_free_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
-                );
-                if free_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.free_indicator(free_row));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.free_indicator(placeholder.indicator(COPILOT_FREE_FALLBACK_GLYPH)));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
     fn push_cli_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
-        match &self.cli {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let cli_row = copilot_ccusage_indicator(held_snapshot, clock);
-                if cli_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cli_indicator(cli_row));
-                }
+        if !self.cli.awaits_first_delivery() {
+            let cli_row = self.cli.indicator(
+                |held_snapshot| copilot_ccusage_indicator(held_snapshot, clock),
+                COPILOT_CCUSAGE_FALLBACK_GLYPH,
+            );
+            if cli_row.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.cli_indicator(cli_row));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let cli_row = troubled_snapshot.shown_over(
-                    copilot_ccusage_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                );
-                if cli_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cli_indicator(cli_row));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.cli_indicator(placeholder.indicator(COPILOT_CCUSAGE_FALLBACK_GLYPH)),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

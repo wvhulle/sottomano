@@ -42,7 +42,7 @@ use crate::{
     },
     widgets::{
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
+        subscribed_snapshot::CommandOutcome,
         weather_icons::WeatherIcon,
     },
 };
@@ -344,35 +344,21 @@ impl DarkModeGroup {
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
         let mut rows = Vec::new();
-        match self.mode_toggle.subscribed_indicator() {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let mode_indicator = dark_mode_indicator(held_snapshot);
-                if mode_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.mode_toggle_indicator(mode_indicator).on_switch_press(
+        let subscribed = self.mode_toggle.subscribed_indicator();
+        if !subscribed.awaits_first_delivery() {
+            let mode_indicator = self.mode_toggle_indicator(
+                subscribed.indicator(dark_mode_indicator, DARK_MODE_GLYPH.into()),
+            );
+            if mode_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(match subscribed.get() {
+                    Some(held_snapshot) => mode_indicator.on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
                         DarkModeInteraction::ModeTogglePressed,
-                    ));
-                }
+                    ),
+                    None => mode_indicator,
+                });
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let held_snapshot = &troubled_snapshot.held_snapshot;
-                let mode_indicator =
-                    troubled_snapshot.shown_over(dark_mode_indicator(held_snapshot), clock);
-                if mode_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.mode_toggle_indicator(mode_indicator).on_switch_press(
-                        held_snapshot.switch_position(),
-                        held_snapshot.press_action_text(),
-                        DarkModeInteraction::ModeTogglePressed,
-                    ));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.mode_toggle_indicator(placeholder.indicator(DARK_MODE_GLYPH.into())),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if self.mode_toggle.snapshot().is_some() {
             rows.push(

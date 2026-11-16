@@ -24,11 +24,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_state::IndicatorState,
-        offline_internet_indicator::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
-    },
+    group_indicators::{group_indicator::GroupIndicator, snapshot_absence::AbsenceCause},
     hover_cards::hover_card_body::Section,
     indicator_groups::{
         gpu_group::{
@@ -68,7 +64,7 @@ enum GpuDeviceAccess {
         snapshot: SubscribedSnapshot<GpuSnapshot>,
     },
     Unreadable {
-        handle_failure: SnapshotPlaceholder<GpuSnapshot>,
+        handle_failure: AbsenceCause<GpuSnapshot>,
     },
 }
 
@@ -248,11 +244,7 @@ impl GpuGroup {
                                 snapshot: SubscribedSnapshot::default(),
                             },
                             Err(failure) => GpuDeviceAccess::Unreadable {
-                                handle_failure: SnapshotPlaceholder::caused_by(
-                                    PlaceholderCause::Troubled(SnapshotTrouble::FetchFailed(
-                                        failure.clone(),
-                                    )),
-                                ),
+                                handle_failure: AbsenceCause::FetchFailed(failure.clone()),
                             },
                         };
                         let device = GpuDevice {
@@ -325,49 +317,19 @@ impl GpuGroup {
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
-        group_title: &IndicatorGroupTitle,
-        clock: Clock,
     ) -> GroupIndicator<'a> {
         match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                    .wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        gpu_load_indicator(held_snapshot),
-                    )
-                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                    .wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        troubled_snapshot.shown_over(
-                            gpu_load_indicator(&troubled_snapshot.held_snapshot),
-                            clock,
-                        ),
-                    )
-                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
-                SubscribedSnapshot::NoSnapshot { placeholder } => self
-                    .wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        placeholder.indicator(GPU_LOAD_GLYPH.into()),
-                    )
-                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
-                SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                    group_title.to_string(),
-                    Phosphor::CubeTransparent(Weight::Regular).into(),
-                    IndicatorState::Pending,
-                ),
-                SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                    group_title.to_string(),
-                    Phosphor::CubeTransparent(Weight::Regular).into(),
-                    IndicatorState::Off,
-                ),
-            },
+            GpuDeviceAccess::Readable { snapshot, .. } => self
+                .wired_gpu_load_indicator(
+                    bus,
+                    device,
+                    snapshot,
+                    snapshot.indicator(
+                        |held_snapshot| gpu_load_indicator(held_snapshot),
+                        GPU_LOAD_GLYPH.into(),
+                    ),
+                )
+                .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
             GpuDeviceAccess::Unreadable { handle_failure } => handle_failure
                 .indicator(GPU_LOAD_GLYPH.into())
                 .with_hover_card(Box::new(move |_| {
@@ -385,44 +347,25 @@ impl GpuGroup {
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
-        clock: Clock,
         indicators: &mut Vec<GroupIndicator<'a>>,
     ) {
         match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
-                    0,
-                    self.wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        gpu_load_indicator(held_snapshot),
-                    ),
-                ),
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
-                    0,
-                    self.wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        troubled_snapshot.shown_over(
-                            gpu_load_indicator(&troubled_snapshot.held_snapshot),
-                            clock,
+            GpuDeviceAccess::Readable { snapshot, .. } => {
+                if !snapshot.awaits_first_delivery() {
+                    indicators.insert(
+                        0,
+                        self.wired_gpu_load_indicator(
+                            bus,
+                            device,
+                            snapshot,
+                            snapshot.indicator(
+                                |held_snapshot| gpu_load_indicator(held_snapshot),
+                                GPU_LOAD_GLYPH.into(),
+                            ),
                         ),
-                    ),
-                ),
-                SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
-                    0,
-                    self.wired_gpu_load_indicator(
-                        bus,
-                        device,
-                        snapshot,
-                        placeholder.indicator(GPU_LOAD_GLYPH.into()),
-                    ),
-                ),
-                SubscribedSnapshot::AwaitingFirstSnapshot
-                | SubscribedSnapshot::SourceUnavailable => {}
-            },
+                    );
+                }
+            }
             GpuDeviceAccess::Unreadable { handle_failure } => indicators.insert(
                 0,
                 handle_failure
@@ -532,7 +475,7 @@ impl GpuGroup {
         rows
     }
 
-    pub fn group_contents(&self, clock: Clock) -> impl Iterator<Item = IndicatorGroupContent<'_>> {
+    pub fn group_contents(&self) -> impl Iterator<Item = IndicatorGroupContent<'_>> {
         self.devices
             .iter()
             .zip(IndicatorGroupTitle::numbered_namesakes(
@@ -543,9 +486,9 @@ impl GpuGroup {
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
-                let headline_indicator = self.device_headline(bus, device, &group_title, clock);
+                let headline_indicator = self.device_headline(bus, device);
                 let mut lead_indicators = Vec::new();
-                self.list_device(bus, device, clock, &mut lead_indicators);
+                self.list_device(bus, device, &mut lead_indicators);
                 IndicatorGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,

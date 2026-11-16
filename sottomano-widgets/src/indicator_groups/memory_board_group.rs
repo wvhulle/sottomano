@@ -36,10 +36,7 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -241,15 +238,15 @@ impl MemoryBoardGroup {
             })
     }
 
-    pub fn group_content(&self, clock: Clock, locale: Locale) -> IndicatorGroupContent<'_> {
-        let headline_indicator = self.memory_usage_headline(clock, locale);
+    pub fn group_content(&self, locale: Locale) -> IndicatorGroupContent<'_> {
+        let headline_indicator = self.memory_usage_headline(locale);
         let mut rows = Vec::new();
-        self.push_memory_growth_indicators(&mut rows, clock, locale);
-        self.push_stall_pressure_indicators(&mut rows, clock, locale);
-        self.push_swap_activity_indicators(&mut rows, clock, locale);
+        self.push_memory_growth_indicators(&mut rows, locale);
+        self.push_stall_pressure_indicators(&mut rows, locale);
+        self.push_swap_activity_indicators(&mut rows, locale);
         rows.extend(self.slot_indicators(locale));
         rows.extend(self.temperature_indicators());
-        self.list_memory_usage(clock, locale, &mut rows);
+        self.list_memory_usage(locale, &mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::MemoryBoard,
             headline_indicator,
@@ -259,151 +256,71 @@ impl MemoryBoardGroup {
         )
     }
 
-    fn memory_usage_headline(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
-        match &self.memory {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                .memory_usage_indicator(memory_indicator(held_snapshot, locale))
-                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .memory_usage_indicator(troubled_snapshot.shown_over(
-                    memory_indicator(&troubled_snapshot.held_snapshot, locale),
-                    clock,
-                ))
-                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into()))
-                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::MemoryBoard.title(),
-                Phosphor::Database(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::MemoryBoard.title(),
-                Phosphor::Database(Weight::Regular).into(),
-                IndicatorState::Off,
-            ),
-        }
+    fn memory_usage_headline(&self, locale: Locale) -> GroupIndicator<'_> {
+        self.memory_usage_indicator(self.memory.indicator(
+            |held_snapshot| memory_indicator(held_snapshot, locale),
+            MEMORY_USAGE_GLYPH.into(),
+        ))
+        .with_headline_glyph(Phosphor::Database(Weight::Regular).into())
     }
 
-    fn list_memory_usage<'a>(
-        &'a self,
-        clock: Clock,
-        locale: Locale,
-        indicators: &mut Vec<GroupIndicator<'a>>,
-    ) {
-        match &self.memory {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+    fn list_memory_usage<'a>(&'a self, locale: Locale, indicators: &mut Vec<GroupIndicator<'a>>) {
+        if !self.memory.awaits_first_delivery() {
+            indicators.insert(
                 0,
-                self.memory_usage_indicator(memory_indicator(held_snapshot, locale)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
-                0,
-                self.memory_usage_indicator(troubled_snapshot.shown_over(
-                    memory_indicator(&troubled_snapshot.held_snapshot, locale),
-                    clock,
+                self.memory_usage_indicator(self.memory.indicator(
+                    |held_snapshot| memory_indicator(held_snapshot, locale),
+                    MEMORY_USAGE_GLYPH.into(),
                 )),
-            ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
-                0,
-                self.memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+            );
         }
     }
 
     fn push_memory_growth_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
-        clock: Clock,
         locale: Locale,
     ) {
-        match &self.memory_growth {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let growth_indicator = memory_growth_indicator(held_snapshot, locale);
-                if growth_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_memory_growth_indicator(growth_indicator));
-                }
+        if !self.memory_growth.awaits_first_delivery() {
+            let growth_indicator = self.memory_growth.indicator(
+                |held_snapshot| memory_growth_indicator(held_snapshot, locale),
+                MEMORY_GROWTH_GLYPH.into(),
+            );
+            if growth_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_memory_growth_indicator(growth_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let growth_indicator = troubled_snapshot.shown_over(
-                    memory_growth_indicator(&troubled_snapshot.held_snapshot, locale),
-                    clock,
-                );
-                if growth_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_memory_growth_indicator(growth_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_memory_growth_indicator(
-                    placeholder.indicator(MEMORY_GROWTH_GLYPH.into()),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
     fn push_stall_pressure_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
-        clock: Clock,
         locale: Locale,
     ) {
-        match &self.stall_pressure {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let pressure_indicator = memory_stall_indicator(held_snapshot, locale);
-                if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.stall_pressure_indicator(pressure_indicator));
-                }
+        if !self.stall_pressure.awaits_first_delivery() {
+            let pressure_indicator = self.stall_pressure.indicator(
+                |held_snapshot| memory_stall_indicator(held_snapshot, locale),
+                STALL_PRESSURE_GLYPH.into(),
+            );
+            if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.stall_pressure_indicator(pressure_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let pressure_indicator = troubled_snapshot.shown_over(
-                    memory_stall_indicator(&troubled_snapshot.held_snapshot, locale),
-                    clock,
-                );
-                if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.stall_pressure_indicator(pressure_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.stall_pressure_indicator(
-                        placeholder.indicator(STALL_PRESSURE_GLYPH.into()),
-                    ),
-                );
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
     fn push_swap_activity_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
-        clock: Clock,
         locale: Locale,
     ) {
-        match &self.swap_activity {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let swap_indicator = swap_activity_indicator(held_snapshot, locale);
-                if swap_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_swap_activity_indicator(swap_indicator));
-                }
+        if !self.swap_activity.awaits_first_delivery() {
+            let swap_indicator = self.swap_activity.indicator(
+                |held_snapshot| swap_activity_indicator(held_snapshot, locale),
+                SWAP_ACTIVITY_GLYPH.into(),
+            );
+            if swap_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.wired_swap_activity_indicator(swap_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let swap_indicator = troubled_snapshot.shown_over(
-                    swap_activity_indicator(&troubled_snapshot.held_snapshot, locale),
-                    clock,
-                );
-                if swap_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.wired_swap_activity_indicator(swap_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.wired_swap_activity_indicator(
-                    placeholder.indicator(SWAP_ACTIVITY_GLYPH.into()),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

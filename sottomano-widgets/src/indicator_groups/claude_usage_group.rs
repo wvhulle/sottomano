@@ -39,10 +39,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
         indicator_group_content::{
@@ -377,7 +374,7 @@ impl ClaudeUsageGroup {
         let mut rows = Vec::new();
         self.push_enterprise_spend_indicators(&mut rows, clock);
         self.push_ccusage_periods_indicators(&mut rows, clock);
-        self.push_ccusage_block_indicators(&mut rows, clock);
+        self.push_ccusage_block_indicators(&mut rows);
         self.push_model_ranking_indicators(&mut rows);
         self.push_billed_ranking_indicators(&mut rows);
         self.list_usage_windows(clock, &mut rows);
@@ -391,54 +388,22 @@ impl ClaudeUsageGroup {
     }
 
     fn usage_windows_headline(&self, clock: Clock) -> GroupIndicator<'_> {
-        match &self.usage_windows {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
-                .usage_windows_indicator(claude_usage_windows_indicator(held_snapshot, clock))
-                .with_headline_glyph(SimpleIcon::Claude.into()),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
-                .usage_windows_indicator(troubled_snapshot.shown_over(
-                    claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                ))
-                .with_headline_glyph(SimpleIcon::Claude.into()),
-            SubscribedSnapshot::NoSnapshot { placeholder } => self
-                .usage_windows_indicator(
-                    placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
-                )
-                .with_headline_glyph(SimpleIcon::Claude.into()),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::ClaudeUsage.title(),
-                SimpleIcon::Claude.into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
-                IndicatorGroupFamily::ClaudeUsage.title(),
-                SimpleIcon::Claude.into(),
-                IndicatorState::Off,
-            ),
-        }
+        self.usage_windows_indicator(self.usage_windows.indicator(
+            |held_snapshot| claude_usage_windows_indicator(held_snapshot, clock),
+            Phosphor::Gauge(Weight::Regular).into(),
+        ))
+        .with_headline_glyph(SimpleIcon::Claude.into())
     }
 
     fn list_usage_windows<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
-        match &self.usage_windows {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+        if !self.usage_windows.awaits_first_delivery() {
+            indicators.insert(
                 0,
-                self.usage_windows_indicator(claude_usage_windows_indicator(held_snapshot, clock)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
-                0,
-                self.usage_windows_indicator(troubled_snapshot.shown_over(
-                    claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
+                self.usage_windows_indicator(self.usage_windows.indicator(
+                    |held_snapshot| claude_usage_windows_indicator(held_snapshot, clock),
+                    Phosphor::Gauge(Weight::Regular).into(),
                 )),
-            ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
-                0,
-                self.usage_windows_indicator(
-                    placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
-                ),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+            );
         }
     }
 
@@ -447,28 +412,14 @@ impl ClaudeUsageGroup {
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
     ) {
-        match &self.enterprise_spend {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let spend_row = claude_enterprise_indicator(held_snapshot, clock);
-                if spend_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.enterprise_spend_indicator(spend_row));
-                }
+        if !self.enterprise_spend.awaits_first_delivery() {
+            let spend_row = self.enterprise_spend.indicator(
+                |held_snapshot| claude_enterprise_indicator(held_snapshot, clock),
+                CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
+            );
+            if spend_row.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.enterprise_spend_indicator(spend_row));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let spend_row = troubled_snapshot.shown_over(
-                    claude_enterprise_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                );
-                if spend_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.enterprise_spend_indicator(spend_row));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.enterprise_spend_indicator(
-                    placeholder.indicator(CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
@@ -477,58 +428,26 @@ impl ClaudeUsageGroup {
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
     ) {
-        match &self.ccusage_periods {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let periods_indicator = claude_ccusage_periods_indicator(held_snapshot, clock);
-                if periods_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_periods_indicator(periods_indicator));
-                }
+        if !self.ccusage_periods.awaits_first_delivery() {
+            let periods_indicator = self.ccusage_periods.indicator(
+                |held_snapshot| claude_ccusage_periods_indicator(held_snapshot, clock),
+                CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
+            );
+            if periods_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.ccusage_periods_indicator(periods_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let periods_indicator = troubled_snapshot.shown_over(
-                    claude_ccusage_periods_indicator(&troubled_snapshot.held_snapshot, clock),
-                    clock,
-                );
-                if periods_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_periods_indicator(periods_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.ccusage_periods_indicator(
-                    placeholder.indicator(CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_ccusage_block_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
-        clock: Clock,
-    ) {
-        match &self.ccusage_block {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let block_indicator = claude_ccusage_block_indicator(held_snapshot);
-                if block_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_block_indicator(block_indicator));
-                }
+    fn push_ccusage_block_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+        if !self.ccusage_block.awaits_first_delivery() {
+            let block_indicator = self.ccusage_block.indicator(
+                |held_snapshot| claude_ccusage_block_indicator(held_snapshot),
+                CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
+            );
+            if block_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.ccusage_block_indicator(block_indicator));
             }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let block_indicator = troubled_snapshot.shown_over(
-                    claude_ccusage_block_indicator(&troubled_snapshot.held_snapshot),
-                    clock,
-                );
-                if block_indicator.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_block_indicator(block_indicator));
-                }
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.ccusage_block_indicator(
-                    placeholder.indicator(CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH),
-                ));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

@@ -20,12 +20,6 @@ pub enum RefreshDeadline {
     NeverRefreshes,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SnapshotFreshness {
-    Fresh,
-    PastPollPeriod,
-}
-
 impl DeliveryStamp {
     #[must_use]
     pub fn delivered(cadence: DeliveryCadence, clock: Clock) -> Self {
@@ -56,18 +50,6 @@ impl DeliveryStamp {
             }
         }
     }
-
-    #[must_use]
-    pub fn freshness_at(self, clock: Clock) -> SnapshotFreshness {
-        match self.refresh_deadline() {
-            RefreshDeadline::DueAt { deadline, .. } if clock.instant >= deadline => {
-                SnapshotFreshness::PastPollPeriod
-            }
-            RefreshDeadline::DueAt { .. } | RefreshDeadline::NeverRefreshes => {
-                SnapshotFreshness::Fresh
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +57,6 @@ pub enum SourceDelivery {
     Delivered(DeliveryStamp),
     Loading,
     Failed,
-    Offline,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -88,9 +88,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn in_delivery_state(self, delivery: SourceDelivery) -> Self {
         let presence = match delivery {
-            SourceDelivery::Delivered(_) | SourceDelivery::Failed | SourceDelivery::Offline => {
-                TextPresence::Shown
-            }
+            SourceDelivery::Delivered(_) | SourceDelivery::Failed => TextPresence::Shown,
             SourceDelivery::Loading => TextPresence::Placeholder,
         };
         Self { presence, ..self }
@@ -264,11 +262,6 @@ impl<'a> HoverCardContent<'a> {
                     }),
                 Phosphor::Warning(Weight::Regular),
                 danger_color,
-            ),
-            SourceDelivery::Offline => labelled(
-                self.small_dim_text("offline".to_owned()),
-                Phosphor::WifiSlash(Weight::Regular),
-                secondary_text_color,
             ),
         }
     }
