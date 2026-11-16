@@ -129,7 +129,11 @@ impl ShellIndicatorGroups {
                 .subscription(buses, source_demand(IndicatorGroupFamily::GlobalMenu))
                 .map(Message::GlobalMenu),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
-            IdlePauseGroups::subscription(buses).map(Message::IdleTimeouts),
+            IdlePauseGroups::subscription(
+                buses,
+                config.indicator_groups.session_focus.idle_detection_delay,
+            )
+            .map(Message::IdleTimeouts),
             SystemdManagerGroup::subscription(&config.indicator_groups.systemd_manager, buses)
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),

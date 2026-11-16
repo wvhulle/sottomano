@@ -18,7 +18,7 @@ use sottomano_desktop_sources::{
         screensaver_bus_idle_inhibitors::ScreenSaverInhibitors,
         wayland_idle_notify::IdleEdge,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -136,10 +136,16 @@ impl IdlePauseGroups {
         Task::perform(sqlite_idle_timeouts::load(), IdlePauseMessage::Loaded)
     }
 
-    pub fn subscription(buses: &DesktopBuses) -> Subscription<IdlePauseMessage> {
+    pub fn subscription(
+        buses: &DesktopBuses,
+        idle_onset_after: Duration,
+    ) -> Subscription<IdlePauseMessage> {
         Subscription::batch([
-            snapshot_subscription::<SleepObstacles>(buses.clone())
-                .map(|delivery| IdlePauseMessage::SleepObstaclesFetched(Box::new(delivery))),
+            snapshot_subscription::<SleepObstacles>(OnBus {
+                buses: buses.clone(),
+                inputs: idle_onset_after,
+            })
+            .map(|delivery| IdlePauseMessage::SleepObstaclesFetched(Box::new(delivery))),
             snapshot_subscription::<ScreenSaverInhibitors>(buses.clone())
                 .map(|delivery| IdlePauseMessage::IdleInhibitorsFetched(Box::new(delivery))),
         ])

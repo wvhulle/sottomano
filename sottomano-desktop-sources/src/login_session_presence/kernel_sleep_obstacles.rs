@@ -1,28 +1,32 @@
 use std::{fs, io, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, future::ready, stream};
 use tokio::{process::Command, task::spawn_blocking};
 use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     compositor_window_ipc::compositor_connection::compositor_window_pids,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     desktop_windows_apps::process_tree_inspection::launch,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,
         logind_manager::{InhibitorRow, ManagerProxy},
+        wayland_idle_notify::{IdleEdge, input_idle_edges},
     },
     non_empty_text::non_empty,
     system_protocol_clients::{
-        dbus_desktop_buses::{BusReadError, DesktopBuses},
+        dbus_change_signals::{change_triggers, properties_changed_rule, signal_rule},
+        dbus_desktop_buses::{BusReadError, DesktopBuses, OnBus},
         shell_command_output::shown_process_text,
     },
 };
 
-const OBSTACLE_POLL_PERIOD: Duration = Duration::from_secs(30);
+const LOGIND_SERVICE: &str = "org.freedesktop.login1";
+const LOGIND_MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
+const PREPARE_FOR_SLEEP_MEMBER: &str = "PrepareForSleep";
 const HIBERNATION_MODES_PATH: &str = "/sys/power/disk";
 const RESUME_DEVICE_PATH: &str = "/sys/power/resume";
 const KERNEL_COMMAND_LINE_PATH: &str = "/proc/cmdline";
@@ -206,15 +210,43 @@ struct ObstacleReaders {
 
 impl SnapshotSource for SleepObstacles {
     type Error = BusReadError;
-    type StreamInputs = DesktopBuses;
+    type StreamInputs = OnBus<Duration>;
 
     const NAME: &'static str = "Sleep obstacles";
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(OBSTACLE_POLL_PERIOD)
-            .poll_deliveries_after_setup(prepare_readers(buses), read_obstacles)
+    fn delivery_stream(
+        watch: OnBus<Duration>,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(watch, obstacle_changes)
             .map(SnapshotDelivery::unavailable_when_absent)
     }
+}
+
+async fn obstacle_changes(
+    watch: OnBus<Duration>,
+) -> Result<impl Stream<Item = Result<SleepObstacles, BusReadError>> + Send, BusReadError> {
+    let OnBus {
+        buses,
+        inputs: idle_onset_after,
+    } = watch;
+    let logind_changes = change_triggers(
+        &buses.system,
+        [
+            properties_changed_rule(LOGIND_SERVICE, LOGIND_MANAGER_INTERFACE)?,
+            signal_rule(
+                LOGIND_SERVICE,
+                LOGIND_MANAGER_INTERFACE,
+                PREPARE_FOR_SLEEP_MEMBER,
+            )?,
+        ],
+    )
+    .await?;
+    let idle_onsets = input_idle_edges(idle_onset_after)
+        .filter(|edge| ready(edge.edge() == IdleEdge::Idled))
+        .map(|_| Ok(()));
+    let readers = prepare_readers(buses).await?;
+    Ok(stream::select(logind_changes, idle_onsets)
+        .triggered_rereads(move || read_obstacles(readers.clone())))
 }
 
 async fn prepare_readers(buses: DesktopBuses) -> Result<ObstacleReaders, BusReadError> {
