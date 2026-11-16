@@ -25,13 +25,16 @@ use self::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
+    group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        input_report_sections::MeasuredReportTiming, subscribed_snapshot::SubscribedSnapshot,
+        input_report_sections::MeasuredReportTiming,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -219,9 +222,7 @@ impl BluetoothAdaptersGroup {
                         InputReports::Streamed(MeasuredReportTiming::Measured(timing))
                     });
                 let reading = self.device_reading(device, siblings, input_reports, clock);
-                let device_row = reading.reading_row();
-                let reading_state = device_row.shown_state();
-                let device_item = GroupItem::reading(device_row)
+                GroupItem::reading(reading.reading_row())
                     .on_press(
                         ConnectedDeviceReading::PRESS_DOES,
                         BluetoothInteraction::Disconnect(device.object_path.clone()),
@@ -231,20 +232,19 @@ impl BluetoothAdaptersGroup {
                             self.device_reading(device, siblings, input_reports, card_clock)
                                 .hover_card(),
                         )
-                    }));
-                match reading_state {
-                    ReadingDisplayState::Critical => device_item.previewed_on_handle(),
-                    _ => device_item,
-                }
+                    }))
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
+        let group_summary =
+            GroupSummary::showing(Phosphor::Bluetooth(Weight::Regular).into(), &summary_item);
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::BluetoothAdapters,
                 adapter.controller_name.clone(),
             ),
             adapter_group_title(self.adapter_naming(adapter)),
+            group_summary,
             expansion,
             move |expansion| BluetoothInteraction::Expansion {
                 controller_name: controller_name.clone(),

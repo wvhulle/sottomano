@@ -387,7 +387,7 @@ impl GroupMenuState {
         let surface = if menu_open || item_on_panel {
             GroupSurface::AllRows
         } else if group_on_panel {
-            GroupSurface::WidgetGroupFace
+            GroupSurface::SummaryOnly
         } else {
             GroupSurface::Hidden
         };

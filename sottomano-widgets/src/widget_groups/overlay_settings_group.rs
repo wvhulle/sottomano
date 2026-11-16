@@ -9,10 +9,10 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
+        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -154,6 +154,10 @@ impl OverlaySettingsGroup {
     ) -> WidgetGroupContent<'a, OverlaySettingsMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OverlaySettings,
+            GroupSummary::glyph(
+                Phosphor::Stack(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(
@@ -163,10 +167,6 @@ impl OverlaySettingsGroup {
             .into_iter()
             .chain(self.layer.items(config, OverlaySettingsMessage::Appearance)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Stack(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

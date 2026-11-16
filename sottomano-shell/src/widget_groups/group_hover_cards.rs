@@ -128,7 +128,7 @@ impl DesktopShell {
             .collect(),
             HoverTarget::Instrument(_)
             | HoverTarget::PinnedOnPanel(_)
-            | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupSummary(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu => Vec::new(),
         }

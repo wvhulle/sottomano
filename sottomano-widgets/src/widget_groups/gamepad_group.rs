@@ -61,9 +61,8 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
-        gamepad_group::{
-            controller_battery_reading::BatteryLevel, controller_link_reading::WifiBand,
-        },
+        gamepad_group::controller_link_reading::WifiBand,
+        group_summary::GroupSummary,
         widget_group_content::{
             KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -621,12 +620,18 @@ impl GamepadGroup {
 
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
         let failure_row = self.controller_discovery_failure_reading()?.reading_row();
+        let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
+        let failure_item = GroupItem::reading(failure_row);
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
-            WidgetGroupTitle::Named(failure_row.face.name.clone()),
+            group_title,
+            GroupSummary::showing(
+                Phosphor::GameController(Weight::Regular).into(),
+                &failure_item,
+            ),
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
-            [GroupItem::reading(failure_row)],
+            [failure_item],
         ))
     }
 
@@ -646,16 +651,8 @@ impl GamepadGroup {
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let connection = (!shown_in_bluetooth_group)
             .then(|| GroupItem::reading(self.link_reading(slot, link).reading_row()));
-        let battery =
-            (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
-                let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
-                let battery_item = GroupItem::reading(battery_reading.reading_row());
-                if battery_running_low {
-                    battery_item.previewed_on_handle()
-                } else {
-                    battery_item
-                }
-            });
+        let battery = (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery)
+            .then(|| GroupItem::reading(battery_reading.reading_row()));
         let compositor_driving = GroupItem::toggle(
             compositor_driving_toggle(self.controller_custody(slot)),
             GamepadInteraction::ToggleCompositorDriving { slot },
@@ -671,12 +668,15 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => item,
             }
         });
+        let group_summary =
+            GroupSummary::showing(Phosphor::GameController(Weight::Regular).into(), &face);
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::Gamepad,
                 controller_custody_key(link).to_owned(),
             ),
             group_title,
+            group_summary,
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
             [

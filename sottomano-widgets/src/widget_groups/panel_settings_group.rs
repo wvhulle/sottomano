@@ -12,10 +12,10 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
+        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
         window_group::{WindowRowLayout, WindowTitleLength},
@@ -384,6 +384,10 @@ impl PanelSettingsGroup {
     ) -> WidgetGroupContent<'a, PanelSettingsMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PanelSettings,
+            GroupSummary::glyph(
+                Phosphor::Rows(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [
@@ -412,10 +416,6 @@ impl PanelSettingsGroup {
             .into_iter()
             .chain(self.layer.items(config, PanelSettingsMessage::Appearance)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Rows(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

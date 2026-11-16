@@ -33,13 +33,14 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         quiet_schedule_group::{
             quiet_window::{QuietPhase, QuietScheduleAdherence, QuietWindow},
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_press_actions},
         },
         widget_group_content::{
             ExpansionChange, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -493,6 +494,7 @@ impl QuietScheduleGroup {
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::QuietSchedule,
+            GroupSummary::glyph(self.face_icon().into(), ReadingDisplayState::Idle),
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [
@@ -528,10 +530,6 @@ impl QuietScheduleGroup {
                 )),
             ],
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: self.face_icon().into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 
     fn face_icon(&self) -> Phosphor {

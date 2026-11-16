@@ -10,9 +10,7 @@ use crate::widget_groups::{
             precipitation_model_hover_card, precipitation_model_reading_row, rain_hover_card,
             rain_reading_row,
         },
-        temperature_forecast::{
-            TEMPERATURE_FALLBACK_GLYPH, temperature_hover_card, temperature_reading_row,
-        },
+        temperature_forecast::{temperature_hover_card, temperature_reading_row},
         wind_speed::{WIND_FALLBACK_GLYPH, wind_hover_card, wind_reading_row},
     },
     widget_group_identity::WidgetGroupFamily,
@@ -43,12 +41,16 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
-    widgets::subscribed_snapshot::SubscribedSnapshot,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -271,24 +273,25 @@ impl WeatherGroup {
                     .refreshed_by(refresh_online(WeatherSource::Pollen))
             })
         });
+        let summarised_row = GroupItem::reading(self.temperature.main_row(
+            Phosphor::CloudSun(Weight::Regular).into(),
+            |snapshot| temperature_reading_row(snapshot),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            self.temperature
+                .sections_described_by(temperature_hover_card)
+        }))
+        .refreshed_by(refresh_online(WeatherSource::Temperature));
+        let group_summary =
+            GroupSummary::showing(Phosphor::CloudSun(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
+            group_summary,
             &self.expansion,
             WeatherInteraction::Expansion,
             [
-                self.temperature
-                    .group_item(
-                        TEMPERATURE_FALLBACK_GLYPH,
-                        |snapshot| temperature_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.temperature
-                                .sections_described_by(temperature_hover_card)
-                        }))
-                        .refreshed_by(refresh_online(WeatherSource::Temperature))
-                    }),
+                Some(summarised_row),
                 self.rain_item(config, clock),
                 self.wind
                     .group_item(

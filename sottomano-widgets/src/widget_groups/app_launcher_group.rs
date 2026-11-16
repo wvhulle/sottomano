@@ -21,11 +21,11 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         terminal_command::TerminalCommand,
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -530,14 +530,14 @@ impl AppLauncherGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, FREQUENT_GROUP_NAME),
             WidgetGroupTitle::fixed(scope.group_title()),
+            GroupSummary::glyph(
+                IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
+                ReadingDisplayState::Idle,
+            ),
             &self.frequent_expansion,
             AppLauncherMessage::FrequentExpansion,
             frequent_rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
-            state: ReadingDisplayState::Idle,
-        })
     }
 
     fn category_group<'a>(
@@ -555,20 +555,24 @@ impl AppLauncherGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, category.stored_name()),
             WidgetGroupTitle::fixed(category.title()),
+            GroupSummary::glyph(
+                IconGlyph::from(category_glyph(category)),
+                ReadingDisplayState::Idle,
+            ),
             &group.expansion,
             move |expansion| AppLauncherMessage::CategoryExpansion(category, expansion),
             category_rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: IconGlyph::from(category_glyph(category)),
-            state: ReadingDisplayState::Idle,
-        })
     }
 
     fn options_group(&self) -> WidgetGroupContent<'_, AppLauncherMessage> {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, OPTIONS_GROUP_NAME),
             WidgetGroupTitle::fixed("Launcher options"),
+            GroupSummary::glyph(
+                IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
+                ReadingDisplayState::Idle,
+            ),
             &self.options_expansion,
             AppLauncherMessage::OptionsExpansion,
             [
@@ -582,10 +586,6 @@ impl AppLauncherGroup {
                 ),
             ],
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
-            state: ReadingDisplayState::Idle,
-        })
     }
 
     #[must_use]

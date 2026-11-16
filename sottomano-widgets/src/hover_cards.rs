@@ -36,7 +36,7 @@ pub struct InstrumentKey {
 pub enum HoverTarget {
     Instrument(InstrumentKey),
     PinnedOnPanel(Box<PanelPin>),
-    GroupFace(Box<WidgetGroupIdentity>),
+    GroupSummary(Box<WidgetGroupIdentity>),
     GroupMenu(GroupMenuTopic),
     SessionMenu,
     Window(WindowTarget),
@@ -60,7 +60,7 @@ impl HoverTarget {
                 GroupMenuPin::Item(instrument_key) => Some(instrument_key),
                 GroupMenuPin::Group(_) => None,
             },
-            HoverTarget::GroupFace(_)
+            HoverTarget::GroupSummary(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
@@ -71,9 +71,9 @@ impl HoverTarget {
     }
 
     #[must_use]
-    pub fn faced_group(&self) -> Option<&WidgetGroupIdentity> {
+    pub fn summarised_group(&self) -> Option<&WidgetGroupIdentity> {
         match self {
-            HoverTarget::GroupFace(group_identity) => Some(group_identity),
+            HoverTarget::GroupSummary(group_identity) => Some(group_identity),
             HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
                 GroupMenuPin::Group(group_identity) => Some(group_identity),
                 GroupMenuPin::Item(_) => None,

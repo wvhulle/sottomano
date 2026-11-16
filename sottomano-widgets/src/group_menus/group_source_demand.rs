@@ -4,7 +4,7 @@ use iced::Subscription;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GroupSurface {
     Hidden,
-    WidgetGroupFace,
+    SummaryOnly,
     AllRows,
 }
 
@@ -17,7 +17,7 @@ impl GroupSourceDemand {
     #[must_use]
     pub const fn on_panel() -> Self {
         Self {
-            surface: GroupSurface::WidgetGroupFace,
+            surface: GroupSurface::SummaryOnly,
         }
     }
 
@@ -27,17 +27,16 @@ impl GroupSourceDemand {
 
     #[must_use]
     pub fn expanded_when(mut self, expansion_state: ExpansionState) -> Self {
-        if expansion_state == ExpansionState::Expanded
-            && self.surface == GroupSurface::WidgetGroupFace
+        if expansion_state == ExpansionState::Expanded && self.surface == GroupSurface::SummaryOnly
         {
             self.surface = GroupSurface::AllRows;
         }
         self
     }
 
-    pub fn while_face_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+    pub fn while_summary_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         match self.surface {
-            GroupSurface::WidgetGroupFace | GroupSurface::AllRows => subscription,
+            GroupSurface::SummaryOnly | GroupSurface::AllRows => subscription,
             GroupSurface::Hidden => Subscription::none(),
         }
     }
@@ -45,12 +44,12 @@ impl GroupSourceDemand {
     pub fn while_rows_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         match self.surface {
             GroupSurface::AllRows => subscription,
-            GroupSurface::WidgetGroupFace | GroupSurface::Hidden => Subscription::none(),
+            GroupSurface::SummaryOnly | GroupSurface::Hidden => Subscription::none(),
         }
     }
 
     pub fn while_any_reading_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
-        self.while_face_shown(subscription)
+        self.while_summary_shown(subscription)
     }
 }
 

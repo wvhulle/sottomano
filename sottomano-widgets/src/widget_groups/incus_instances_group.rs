@@ -29,9 +29,10 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         engine_container_rows::engine_failure_label,
+        group_summary::GroupSummary,
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -281,7 +282,7 @@ impl IncusInstancesGroup {
                     .map(|(instance_daemon, delivery)| {
                         IncusInstancesMessage::Probe(instance_daemon, delivery)
                     }),
-                demand.while_face_shown(
+                demand.while_summary_shown(
                     snapshot_subscription::<FamilyListings<DaemonInstanceListing>>(instance_daemon)
                         .with(instance_daemon)
                         .map(|(instance_daemon, delivery)| {
@@ -369,20 +370,20 @@ impl IncusInstancesGroup {
             .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
+            GroupSummary::glyph(
+                Phosphor::Package(Weight::Regular).into(),
+                if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
+                    self.probe_availability(instance_daemon) == Some(Availability::Available)
+                }) {
+                    ReadingDisplayState::On
+                } else {
+                    ReadingDisplayState::Off
+                },
+            ),
             &self.expansion,
             IncusInstancesInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Package(Weight::Regular).into(),
-            state: if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
-                self.probe_availability(instance_daemon) == Some(Availability::Available)
-            }) {
-                ReadingDisplayState::On
-            } else {
-                ReadingDisplayState::Off
-            },
-        })
     }
 
     fn daemon_rows(

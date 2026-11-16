@@ -30,9 +30,10 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -233,12 +234,14 @@ impl MicrovmGuestsGroup {
         ));
         Subscription::batch([
             demand
-                .while_face_shown(snapshot_subscription::<MicrovmUnits>(buses.clone()))
+                .while_summary_shown(snapshot_subscription::<MicrovmUnits>(buses.clone()))
                 .map(MicrovmGuestsMessage::Units),
             demand.while_rows_shown(unit_switch_subscriptions),
             snapshot_subscription::<MicrovmProbe>(()).map(MicrovmGuestsMessage::Probe),
             demand
-                .while_face_shown(snapshot_subscription::<FamilyListings<MicrovmGuestListing>>(()))
+                .while_summary_shown(
+                    snapshot_subscription::<FamilyListings<MicrovmGuestListing>>(()),
+                )
                 .map(MicrovmGuestsMessage::Listings),
             demand
                 .while_rows_shown(snapshot_subscription::<FamilyDetails<MicrovmGuest>>(()))
@@ -366,14 +369,14 @@ impl MicrovmGuestsGroup {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
+            GroupSummary::glyph(
+                Phosphor::Lightning(Weight::Regular).into(),
+                self.shown_state(),
+            ),
             &self.expansion,
             MicrovmGuestsInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Lightning(Weight::Regular).into(),
-            state: self.shown_state(),
-        })
     }
 
     fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {

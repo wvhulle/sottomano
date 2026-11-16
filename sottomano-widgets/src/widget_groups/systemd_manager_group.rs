@@ -37,9 +37,10 @@ use crate::{
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
     hover_cards::InstrumentKey,
     widget_groups::{
+        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupIdentity,
     },
@@ -238,15 +239,16 @@ impl SystemdManagerGroup {
         let boot = self.boot.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SystemdManager,
+            GroupSummary::glyph(Phosphor::Speedometer(Weight::Regular).into(), self.state()),
             &self.expansion,
             SystemdManagerInteraction::Expansion,
             [
                 boot.map(|boot| {
-                    GroupItem::reading(boot_timeline_reading_row(boot, locale))
-                        .previewed_on_handle()
-                        .with_hover_card(Box::new(move |_| {
+                    GroupItem::reading(boot_timeline_reading_row(boot, locale)).with_hover_card(
+                        Box::new(move |_| {
                             self.boot.sections_described_by(boot_timeline_hover_card)
-                        }))
+                        }),
+                    )
                 }),
                 boot.map(|timeline| {
                     GroupItem::reading(StartupUnits { timeline }.reading_row()).with_hover_card(
@@ -287,10 +289,6 @@ impl SystemdManagerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Speedometer(Weight::Regular).into(),
-            state: self.state(),
-        })
     }
 
     fn current_health_states(&self) -> [Option<ReadingDisplayState>; 4] {

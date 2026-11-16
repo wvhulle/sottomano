@@ -32,9 +32,9 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         compositor_styling_group::switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
+        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -398,6 +398,10 @@ impl CompositorStylingGroup {
         ];
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CompositorStyling,
+            GroupSummary::glyph(
+                compositor_face(self.rules_file.compositor()),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             CompositorStylingMessage::Expansion,
             styling_items
@@ -407,10 +411,6 @@ impl CompositorStylingGroup {
                 })
                 .map(|(_, styling_item)| self.with_unwritable_rules_warning(styling_item)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: compositor_face(self.rules_file.compositor()),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

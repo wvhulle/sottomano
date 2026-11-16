@@ -20,8 +20,9 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
         item_toggle_switch::item_toggle_switch,
+        reading_display_state::ReadingDisplayState,
         reading_row::{DescribeCard, ReadingRow},
-        slider_control::{ControlMessage, SliderControl, SliderShownReading},
+        slider_control::{ControlMessage, ShownReading, SliderControl},
         source_reading::{
             GroupItemIcon, IdentityOrdinal, RowFace, RowReadout, face_icon, reading_value,
             source_reading,
@@ -51,6 +52,7 @@ type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
 
 type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
+type SharedCard<'a> = Rc<dyn Fn(Clock) -> Vec<Section> + 'a>;
 
 pub(crate) enum RowScroll<'a, M> {
     Inert,
@@ -75,12 +77,6 @@ enum ItemPowerControl {
     Switch(SwitchPosition),
     InertSwitch(SwitchPosition),
     StopGlyph,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ItemHandlePreview {
-    Shown,
-    Absent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,11 +174,6 @@ impl<'a, M: 'a> RowValueControl<'a, M> {
     }
 }
 
-pub(crate) struct HandlePreview<'p> {
-    pub face: &'p RowFace,
-    pub readout: &'p RowReadout,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ItemPinning {
     Pinnable,
@@ -200,7 +191,7 @@ pub struct GroupItem<'a, M> {
     face: RowFace,
     value: RowValueControl<'a, M>,
     pinning: ItemPinning,
-    card: DescribeCard<'a>,
+    card: SharedCard<'a>,
     alerts: ReadingAlerts,
     gestures: GroupItemGestures<M>,
     control_actions: Vec<PressAction>,
@@ -208,7 +199,6 @@ pub struct GroupItem<'a, M> {
     hover_fetch: HoverFetch<M>,
     refresh: ReadingRefresh<M>,
     power_control: ItemPowerControl,
-    handle_preview: ItemHandlePreview,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
     alignment: ItemAlignment,
@@ -227,7 +217,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             face,
             value,
             pinning,
-            card,
+            card: Rc::from(card),
             alerts,
             gestures: GroupItemGestures::inert(),
             control_actions: Vec::new(),
@@ -235,7 +225,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             hover_fetch: HoverFetch::NothingToFetch,
             refresh: ReadingRefresh::Unrefreshable,
             power_control: ItemPowerControl::Absent,
-            handle_preview: ItemHandlePreview::Absent,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: ItemAlignment::Unaligned,
@@ -280,7 +269,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             card,
             ..
         } = slider.reading_row(config.calendar.locale);
-        let shown_reading = SliderShownReading {
+        let shown_reading = ShownReading {
             face: face.clone(),
             readout: readout.clone(),
         };
@@ -448,14 +437,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn previewed_on_handle(self) -> Self {
-        Self {
-            handle_preview: ItemHandlePreview::Shown,
-            ..self
-        }
-    }
-
-    #[must_use]
     pub fn aligned_as(self, quantity: AlignedQuantity) -> Self {
         Self {
             alignment: ItemAlignment::Aligned(quantity),
@@ -493,7 +474,39 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     #[must_use]
     pub fn with_hover_card(self, card: DescribeCard<'a>) -> Self {
-        Self { card, ..self }
+        Self {
+            card: Rc::from(card),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn sharing_details_of(self, row: &Self) -> Self
+    where
+        M: Clone,
+    {
+        Self {
+            card: Rc::clone(&row.card),
+            hover_fetch: row.hover_fetch.clone(),
+            refresh: row.refresh.clone(),
+            ..self
+        }
+    }
+
+    pub(crate) fn display_state(&self) -> ReadingDisplayState {
+        self.face.icon.display_state()
+    }
+
+    pub(crate) fn shown_reading(&self) -> Option<ShownReading> {
+        match &self.value {
+            RowValueControl::RowReadout(readout) | RowValueControl::Slider { readout, .. } => {
+                Some(ShownReading {
+                    face: self.face.clone(),
+                    readout: readout.clone(),
+                })
+            }
+            RowValueControl::Drawn(_) => None,
+        }
     }
 
     #[must_use]
@@ -517,7 +530,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             hover_fetch: self.hover_fetch.map(lift),
             refresh: self.refresh.map(lift),
             power_control: self.power_control,
-            handle_preview: self.handle_preview,
             card_opening_trigger: self.card_opening_trigger,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
@@ -531,22 +543,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .collect(),
             alignment: self.alignment,
         }
-    }
-
-    pub(crate) fn handle_preview(&self) -> Option<HandlePreview<'_>> {
-        if self.handle_preview == ItemHandlePreview::Absent {
-            return None;
-        }
-        let readout = match &self.value {
-            RowValueControl::RowReadout(readout) | RowValueControl::Slider { readout, .. } => {
-                readout
-            }
-            RowValueControl::Drawn(_) => return None,
-        };
-        Some(HandlePreview {
-            face: &self.face,
-            readout,
-        })
     }
 
     pub(crate) fn toast_requests(

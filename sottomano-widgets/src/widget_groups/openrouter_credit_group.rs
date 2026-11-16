@@ -1,18 +1,11 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
-    widget_groups::openrouter_credit_group::{
-        best_models_within_cap::{
-            OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card,
-            best_models_reading_row,
-        },
-        openrouter_soft_budget::{
-            OPEN_ROUTER_SPEND_FALLBACK_GLYPH, spend_hover_card, spend_panel_visibility,
-            spend_reading_row,
-        },
-        strict_budget_remaining::{
-            OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card,
-            strict_budget_reading_row,
-        },
+use crate::widget_groups::openrouter_credit_group::{
+    best_models_within_cap::{
+        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card, best_models_reading_row,
+    },
+    openrouter_soft_budget::{spend_hover_card, spend_panel_visibility, spend_reading_row},
+    strict_budget_remaining::{
+        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card,
+        strict_budget_reading_row,
     },
 };
 mod best_models_within_cap;
@@ -38,8 +31,9 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -216,26 +210,23 @@ impl OpenRouterCreditGroup {
         let refresh_source = |source| {
             OpenRouterCreditInteraction::OnBuses(OpenRouterCreditBusRequest::Refresh(source))
         };
+        let summarised_row = GroupItem::reading(self.spend.main_row(
+            SimpleIcon::OpenRouter.into(),
+            |snapshot| spend_reading_row(snapshot, clock),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |card_clock| {
+            self.spend
+                .sections_described_by(|snapshot| spend_hover_card(snapshot, card_clock))
+        }))
+        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
+            GroupSummary::showing(SimpleIcon::OpenRouter.into(), &summarised_row),
             &self.expansion,
             OpenRouterCreditInteraction::Expansion,
             [
-                self.spend
-                    .group_item(
-                        OPEN_ROUTER_SPEND_FALLBACK_GLYPH,
-                        |snapshot| spend_reading_row(snapshot, clock),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |card_clock| {
-                            self.spend.sections_described_by(|snapshot| {
-                                spend_hover_card(snapshot, card_clock)
-                            })
-                        }))
-                        .previewed_on_handle()
-                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend))
-                    }),
+                Some(summarised_row),
                 self.strict_budget
                     .group_item(
                         OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
@@ -280,10 +271,6 @@ impl OpenRouterCreditGroup {
                 ]
             })),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: SimpleIcon::OpenRouter.into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

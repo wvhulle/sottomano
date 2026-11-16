@@ -25,6 +25,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         login_session_group::{
             account_face::AccountFace,
             compositor_face::{CompositorFace, graphical_session_sections},
@@ -35,7 +36,7 @@ use crate::{
             service_manager_face::{ServiceManagerFace, user_service_manager_sections},
         },
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -313,14 +314,14 @@ impl LoginSessionGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
+            GroupSummary::glyph(
+                Phosphor::StackSimple(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             LoginSessionInteraction::Expansion,
             kernel.into_iter().chain(items),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::StackSimple(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

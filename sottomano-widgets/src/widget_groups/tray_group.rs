@@ -39,9 +39,9 @@ use crate::{
     },
     layer_surfaces::ActivationTokenOutcome,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -291,14 +291,14 @@ impl TrayGroup {
             .collect();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tray,
+            GroupSummary::glyph(
+                Phosphor::DotsThreeVertical(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             TrayMessage::Expansion,
             group_items,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

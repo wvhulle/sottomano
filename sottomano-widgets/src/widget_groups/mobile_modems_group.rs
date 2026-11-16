@@ -23,11 +23,16 @@ use crate::{
     group_items::group_item::GroupItem,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+        value_cells::LabeledValue,
+    },
 };
 
 #[derive(Debug)]
@@ -199,9 +204,14 @@ impl MobileModemsGroup {
                 self.all_radios_hover_card(any_radio_power)
             }));
         let expanded_modem_path = modem_path();
+        let group_summary = GroupSummary::showing(
+            Phosphor::CellSignalFull(Weight::Regular).into(),
+            &signal_item,
+        );
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
+            group_summary,
             expansion,
             move |expansion| MobileModemsInteraction::Expansion {
                 modem_path: expanded_modem_path.clone(),

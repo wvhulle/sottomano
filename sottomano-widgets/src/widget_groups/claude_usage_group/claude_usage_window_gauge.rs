@@ -18,7 +18,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
@@ -26,9 +25,6 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
-
-pub(crate) const CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH: IconGlyph =
-    IconGlyph::Phosphor(Phosphor::Gauge(Weight::Regular));
 
 pub fn claude_usage_windows_reading_row(
     windows: &ClaudeUsageWindows,

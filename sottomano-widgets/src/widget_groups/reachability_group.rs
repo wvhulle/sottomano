@@ -2,10 +2,8 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, source_reading::GroupItemIcon},
     hover_cards::hover_card_body::dictionary_table,
-    widget_groups::widget_group_identity::WidgetGroupFamily,
-    widgets::icon_glyph::IconGlyph,
+    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::icon_glyph::IconGlyph,
 };
 
 mod connectivity_state_reading;
@@ -40,12 +38,13 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         reachability_group::{
             metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
             sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
         },
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
     widgets::{
@@ -99,7 +98,7 @@ impl ReachabilityGroup {
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
-            demand.while_face_shown(
+            demand.while_summary_shown(
                 snapshot_subscription::<UplinkConnectivity>(buses.clone())
                     .map(ReachabilityMessage::Connectivity),
             ),
@@ -192,81 +191,71 @@ impl ReachabilityGroup {
         )
     }
 
-    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
-        let connectivity_row = self.connectivity.reading_row(
-            IconGlyph::default(),
-            |snapshot| uplink_connectivity_reading_row(snapshot),
-            clock,
-        );
-        match connectivity_row.map(|row| row.face.icon) {
-            Some(GroupItemIcon::IconGlyph { glyph, state }) => {
-                WidgetGroupFace::Glyph { glyph, state }
-            }
-            Some(GroupItemIcon::Image(_) | GroupItemIcon::Absent) | None => {
-                WidgetGroupFace::Glyph {
-                    glyph: Phosphor::CloudCheck(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
-                }
-            }
-        }
-    }
-
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ReachabilityInteraction> {
         let throughput = self.throughput.get();
         let refresh_throughput =
             || ReachabilityInteraction::OnBuses(ReachabilityBusRequest::Refresh);
+        let connectivity_item = GroupItem::reading(self.connectivity.main_row(
+            Phosphor::CloudCheck(Weight::Regular).into(),
+            uplink_connectivity_reading_row,
+            clock,
+        ));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
+            GroupSummary::showing(
+                Phosphor::CloudCheck(Weight::Regular).into(),
+                &connectivity_item,
+            ),
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            self.throughput
-                .group_item(
-                    IconGlyph::default(),
-                    |snapshot| interface_throughput_reading_row(snapshot),
-                    clock,
-                )
-                .map(|throughput_item| {
-                    throughput_item
-                        .with_hover_card(Box::new(move |_| {
-                            self.throughput
-                                .sections_described_by(interface_throughput_hover_card)
-                        }))
-                        .refreshed_by(refresh_throughput())
-                })
-                .into_iter()
-                .chain(throughput.into_iter().flat_map(move |readings| {
-                    [
-                        GroupItem::reading(throughput_reading_row(&readings.down))
-                            .previewed_on_handle()
+            [connectivity_item].into_iter().chain(
+                self.throughput
+                    .group_item(
+                        IconGlyph::default(),
+                        |snapshot| interface_throughput_reading_row(snapshot),
+                        clock,
+                    )
+                    .map(|throughput_item| {
+                        throughput_item
                             .with_hover_card(Box::new(move |_| {
-                                self.direction_hover_card(&readings.down)
+                                self.throughput
+                                    .sections_described_by(interface_throughput_hover_card)
                             }))
-                            .refreshed_by(refresh_throughput()),
-                        GroupItem::reading(throughput_reading_row(&readings.up))
-                            .with_hover_card(Box::new(move |_| {
-                                self.direction_hover_card(&readings.up)
-                            }))
-                            .refreshed_by(refresh_throughput()),
-                    ]
-                }))
-                .chain(
-                    self.latency
-                        .group_item(
-                            IconGlyph::default(),
-                            |snapshot| internet_latency_reading_row(snapshot),
-                            clock,
-                        )
-                        .map(|latency_item| {
-                            latency_item
+                            .refreshed_by(refresh_throughput())
+                    })
+                    .into_iter()
+                    .chain(throughput.into_iter().flat_map(move |readings| {
+                        [
+                            GroupItem::reading(throughput_reading_row(&readings.down))
                                 .with_hover_card(Box::new(move |_| {
-                                    self.latency
-                                        .sections_described_by(internet_latency_hover_card)
+                                    self.direction_hover_card(&readings.down)
                                 }))
-                                .refreshed_by(refresh_throughput())
-                        }),
-                ),
+                                .refreshed_by(refresh_throughput()),
+                            GroupItem::reading(throughput_reading_row(&readings.up))
+                                .with_hover_card(Box::new(move |_| {
+                                    self.direction_hover_card(&readings.up)
+                                }))
+                                .refreshed_by(refresh_throughput()),
+                        ]
+                    }))
+                    .chain(
+                        self.latency
+                            .group_item(
+                                IconGlyph::default(),
+                                |snapshot| internet_latency_reading_row(snapshot),
+                                clock,
+                            )
+                            .map(|latency_item| {
+                                latency_item
+                                    .with_hover_card(Box::new(move |_| {
+                                        self.latency
+                                            .sections_described_by(internet_latency_hover_card)
+                                    }))
+                                    .refreshed_by(refresh_throughput())
+                            }),
+                    ),
+            ),
         )
-        .face(self.handle_face(clock))
     }
 }
 

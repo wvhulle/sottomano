@@ -37,6 +37,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         memory_board_group::{
             memory_usage_gauge::memory_processes_sections,
             swap_activity_gauge::swapped_processes_sections,
@@ -47,7 +48,9 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -233,36 +236,33 @@ impl MemoryBoardGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
+        let summarised_row = GroupItem::reading(self.memory.main_row(
+            Phosphor::Memory(Weight::Regular).into(),
+            |snapshot| memory_reading_row(snapshot, locale),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            let mut sections = self.memory.sections_described_by(memory_hover_card);
+            sections.extend(
+                self.memory_processes
+                    .sections_described_by(memory_processes_sections),
+            );
+            sections
+        }))
+        .fetching_on_hover(
+            MemoryBoardInteraction::StartMemoryProcessesFetch,
+            MemoryBoardInteraction::StopHoverFetches,
+        )
+        .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory));
+        let group_summary =
+            GroupSummary::showing(Phosphor::Memory(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
+            group_summary,
             &self.expansion,
             MemoryBoardInteraction::Expansion,
             [
-                self.memory
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| memory_reading_row(snapshot, locale),
-                        clock,
-                    )
-                    .map(|memory_item| {
-                        memory_item
-                            .with_hover_card(Box::new(move |_| {
-                                let mut sections =
-                                    self.memory.sections_described_by(memory_hover_card);
-                                sections.extend(
-                                    self.memory_processes
-                                        .sections_described_by(memory_processes_sections),
-                                );
-                                sections
-                            }))
-                            .fetching_on_hover(
-                                MemoryBoardInteraction::StartMemoryProcessesFetch,
-                                MemoryBoardInteraction::StopHoverFetches,
-                            )
-                            .refreshed_by(MemoryBoardInteraction::Refresh(
-                                MemoryBoardSource::Memory,
-                            ))
-                    }),
+                Some(summarised_row),
                 self.memory_growth
                     .group_item(
                         IconGlyph::default(),

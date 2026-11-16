@@ -1,24 +1,20 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
-    widget_groups::voice_dictation_group::{
-        dictation_phase_item::{notulist_dictation_hover_card, notulist_dictation_reading_row},
-        interface_mismatch_item::{
-            NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH, notulist_interface_mismatch_hover_card,
-            notulist_interface_mismatch_reading_row,
-        },
-        output_problems_item::{
-            NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH, notulist_output_problems_hover_card,
-            notulist_output_problems_reading_row,
-        },
-        pipeline_stage_item::{
-            NOTULIST_PIPELINE_FALLBACK_GLYPH, notulist_pipeline_hover_card,
-            notulist_pipeline_reading_row,
-        },
-        speech_model_item::{
-            NOTULIST_ENGINE_FALLBACK_GLYPH, notulist_engine_hover_card, notulist_engine_reading_row,
-        },
+use crate::widget_groups::voice_dictation_group::{
+    dictation_phase_item::{notulist_dictation_hover_card, notulist_dictation_reading_row},
+    interface_mismatch_item::{
+        NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH, notulist_interface_mismatch_hover_card,
+        notulist_interface_mismatch_reading_row,
     },
-    widgets::icon_glyph::IconGlyph,
+    output_problems_item::{
+        NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH, notulist_output_problems_hover_card,
+        notulist_output_problems_reading_row,
+    },
+    pipeline_stage_item::{
+        NOTULIST_PIPELINE_FALLBACK_GLYPH, notulist_pipeline_hover_card,
+        notulist_pipeline_reading_row,
+    },
+    speech_model_item::{
+        NOTULIST_ENGINE_FALLBACK_GLYPH, notulist_engine_hover_card, notulist_engine_reading_row,
+    },
 };
 mod dictation_phase_item;
 mod inference_hardware_item;
@@ -58,6 +54,7 @@ use crate::{
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         voice_dictation_group::{
             dictation_phase_item::press_does,
             inference_hardware_item::InferenceHardware,
@@ -65,7 +62,7 @@ use crate::{
             speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
         },
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -379,8 +376,24 @@ impl VoiceDictationGroup {
         let engine = self.loaded_engine();
         let runtime_glyph =
             engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
+        let dictation_item = GroupItem::reading(self.dictation.main_row(
+            Phosphor::UserSound(Weight::Regular).into(),
+            notulist_dictation_reading_row,
+            clock,
+        ))
+        .on_switch_press(
+            dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
+            dictation.map_or("start dictating at the cursor", press_does),
+            VoiceDictationInteraction::ToggleRecording,
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.dictation
+                .sections_described_by(notulist_dictation_hover_card)
+        }))
+        .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VoiceDictation,
+            GroupSummary::showing(Phosphor::UserSound(Weight::Regular).into(), &dictation_item),
             &self.expansion,
             VoiceDictationInteraction::Expansion,
             [
@@ -399,25 +412,7 @@ impl VoiceDictationGroup {
                             VoiceDictationSource::InterfaceMismatch,
                         ))
                     }),
-                self.dictation
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| notulist_dictation_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.on_switch_press(
-                            dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
-                            dictation.map_or("start dictating at the cursor", press_does),
-                            VoiceDictationInteraction::ToggleRecording,
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            self.dictation
-                                .sections_described_by(notulist_dictation_hover_card)
-                        }))
-                        .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
-                        .previewed_on_handle()
-                    }),
+                Some(dictation_item),
                 self.pipeline
                     .group_item(
                         NOTULIST_PIPELINE_FALLBACK_GLYPH,
@@ -456,25 +451,5 @@ impl VoiceDictationGroup {
             .flatten()
             .chain(self.engine_items(clock).into_iter().flatten()),
         )
-        .face(self.handle_face(clock))
-    }
-
-    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
-        let glyph = Phosphor::UserSound(Weight::Regular).into();
-        let dictation_row = self.dictation.reading_row(
-            IconGlyph::default(),
-            |snapshot| notulist_dictation_reading_row(snapshot),
-            clock,
-        );
-        match dictation_row {
-            Some(row) => WidgetGroupFace::Glyph {
-                glyph,
-                state: row.shown_state(),
-            },
-            None => WidgetGroupFace::Glyph {
-                glyph,
-                state: ReadingDisplayState::Idle,
-            },
-        }
     }
 }

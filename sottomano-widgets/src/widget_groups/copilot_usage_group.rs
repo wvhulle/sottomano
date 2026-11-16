@@ -1,17 +1,12 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
-    widget_groups::copilot_usage_group::{
-        copilot_cli_monthly_spend::{
-            COPILOT_CCUSAGE_FALLBACK_GLYPH, copilot_ccusage_hover_card,
-            copilot_ccusage_panel_visibility, copilot_ccusage_reading_row,
-        },
-        copilot_free_quota_count::{
-            COPILOT_FREE_FALLBACK_GLYPH, copilot_free_hover_card, copilot_free_reading_row,
-        },
-        copilot_quota_gauge::{
-            COPILOT_METERED_FALLBACK_GLYPH, copilot_metered_hover_card, copilot_metered_reading_row,
-        },
+use crate::widget_groups::copilot_usage_group::{
+    copilot_cli_monthly_spend::{
+        COPILOT_CCUSAGE_FALLBACK_GLYPH, copilot_ccusage_hover_card,
+        copilot_ccusage_panel_visibility, copilot_ccusage_reading_row,
     },
+    copilot_free_quota_count::{
+        COPILOT_FREE_FALLBACK_GLYPH, copilot_free_hover_card, copilot_free_reading_row,
+    },
+    copilot_quota_gauge::{copilot_metered_hover_card, copilot_metered_reading_row},
 };
 mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
@@ -36,8 +31,9 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -187,25 +183,23 @@ impl CopilotUsageGroup {
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
         let refresh_account =
             |source| CopilotUsageInteraction::OnBuses(CopilotUsageBusRequest::Refresh(source));
+        let summarised_row = GroupItem::reading(self.metered.main_row(
+            SimpleIcon::GitHubCopilot.into(),
+            |snapshot| copilot_metered_reading_row(snapshot, clock),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            self.metered
+                .sections_described_by(copilot_metered_hover_card)
+        }))
+        .refreshed_by(refresh_account(CopilotAccountSource::Metered));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
+            GroupSummary::showing(SimpleIcon::GitHubCopilot.into(), &summarised_row),
             &self.expansion,
             CopilotUsageInteraction::Expansion,
             [
-                self.metered
-                    .group_item(
-                        COPILOT_METERED_FALLBACK_GLYPH,
-                        |snapshot| copilot_metered_reading_row(snapshot, clock),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.metered
-                                .sections_described_by(copilot_metered_hover_card)
-                        }))
-                        .previewed_on_handle()
-                        .refreshed_by(refresh_account(CopilotAccountSource::Metered))
-                    }),
+                Some(summarised_row),
                 self.free
                     .group_item(
                         COPILOT_FREE_FALLBACK_GLYPH,
@@ -248,10 +242,6 @@ impl CopilotUsageGroup {
                 ]
             })),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: SimpleIcon::GitHubCopilot.into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

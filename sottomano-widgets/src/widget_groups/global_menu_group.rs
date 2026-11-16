@@ -39,10 +39,10 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
+        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::{
             WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance, WidgetGroupTitle,
@@ -499,6 +499,13 @@ impl GlobalMenuGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
+            GroupSummary::glyph(
+                Phosphor::AppWindow(Weight::Regular).into(),
+                match self.lookup_failure() {
+                    Some(_) => ReadingDisplayState::Failed,
+                    None => ReadingDisplayState::Idle,
+                },
+            ),
             &self.switch_expansion,
             GlobalMenuInteraction::SwitchExpansion,
             [GroupItem::toggle(
@@ -508,13 +515,6 @@ impl GlobalMenuGroup {
             .into_iter()
             .chain(lookup_failure_row),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::AppWindow(Weight::Regular).into(),
-            state: match self.lookup_failure() {
-                Some(_) => ReadingDisplayState::Failed,
-                None => ReadingDisplayState::Idle,
-            },
-        })
     }
 
     fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_, GlobalMenuInteraction> {
@@ -565,27 +565,25 @@ impl GlobalMenuGroup {
                     .map(|entry| self.entry_item(entry))
                     .collect();
                 let expansion_label = top_menu_label.clone();
-                Some(
-                    WidgetGroupContent::expandable_instance(
-                        WidgetGroupIdentity {
-                            family: WidgetGroupFamily::GlobalMenu,
-                            instance: WidgetGroupInstance::Durable(
-                                format!("{app_id}/{top_menu_label}").into(),
-                            ),
-                        },
-                        WidgetGroupTitle::Named(top_menu_label.clone().into()),
-                        expansion,
-                        move |expansion_message| GlobalMenuInteraction::Expansion {
-                            top_menu_label: expansion_label.clone(),
-                            expansion_message,
-                        },
-                        entry_items,
-                    )
-                    .face(WidgetGroupFace::Glyph {
-                        glyph: top_menu_glyph(&top_menu_label).into(),
-                        state: ReadingDisplayState::Idle,
-                    }),
-                )
+                Some(WidgetGroupContent::expandable_instance(
+                    WidgetGroupIdentity {
+                        family: WidgetGroupFamily::GlobalMenu,
+                        instance: WidgetGroupInstance::Durable(
+                            format!("{app_id}/{top_menu_label}").into(),
+                        ),
+                    },
+                    WidgetGroupTitle::Named(top_menu_label.clone().into()),
+                    GroupSummary::glyph(
+                        top_menu_glyph(&top_menu_label).into(),
+                        ReadingDisplayState::Idle,
+                    ),
+                    expansion,
+                    move |expansion_message| GlobalMenuInteraction::Expansion {
+                        top_menu_label: expansion_label.clone(),
+                        expansion_message,
+                    },
+                    entry_items,
+                ))
             })
             .collect()
     }

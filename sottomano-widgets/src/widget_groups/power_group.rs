@@ -1,6 +1,3 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
-};
 mod battery_charge_gauge;
 mod battery_time_reading;
 mod cpu_tuning_sections;
@@ -33,13 +30,13 @@ use crate::{
     group_items::group_item::GroupItem,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         power_group::{
             cpu_tuning_sections::cpu_tuning_sections,
             power_draw_gauge::{PowerSource, charger_supply_sections},
         },
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -233,26 +230,27 @@ impl PowerGroup {
                         PowerProfileInteraction::SwitchToProfile(profile),
                     ),
                 });
+        let summarised_row = GroupItem::reading(self.battery.main_row(
+            Phosphor::Lightning(Weight::Regular).into(),
+            battery_reading_row,
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            let mut sections = self.battery.sections_described_by(battery_hover_card);
+            sections.extend(
+                self.battery
+                    .sections_described_by(|battery| vec![Section::from(battery)]),
+            );
+            sections
+        }))
+        .refreshed_by(battery_refresh());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Power,
+            GroupSummary::showing(Phosphor::Lightning(Weight::Regular).into(), &summarised_row),
             &self.expansion,
             PowerInteraction::Expansion,
             [
-                self.battery
-                    .group_item(IconGlyph::default(), battery_reading_row, clock)
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            let mut sections =
-                                self.battery.sections_described_by(battery_hover_card);
-                            sections.extend(
-                                self.battery
-                                    .sections_described_by(|battery| vec![Section::from(battery)]),
-                            );
-                            sections
-                        }))
-                        .refreshed_by(battery_refresh())
-                        .previewed_on_handle()
-                    }),
+                Some(summarised_row),
                 self.draw().map(|draw| {
                     GroupItem::reading(draw.reading_row())
                         .with_hover_card(Box::new(move |_| {
@@ -304,10 +302,6 @@ impl PowerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Lightning(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

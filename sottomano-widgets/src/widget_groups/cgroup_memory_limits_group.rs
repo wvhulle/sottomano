@@ -19,9 +19,10 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -245,14 +246,11 @@ impl CgroupMemoryLimitsGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CgroupMemoryLimits,
+            GroupSummary::glyph(Phosphor::Gauge(Weight::Regular).into(), self.state()),
             &self.expansion,
             CgroupMemoryLimitsInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Gauge(Weight::Regular).into(),
-            state: self.state(),
-        })
     }
 }
 

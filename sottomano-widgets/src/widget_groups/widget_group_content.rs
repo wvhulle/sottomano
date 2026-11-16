@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    iter::once,
     rc::Rc,
 };
 
@@ -25,10 +26,9 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
         aligned_quantity::ItemAlignment,
-        group_item::{GroupItem, GroupItemValue, MenuParts, RowHoverCard, RowScroll},
+        group_item::{GroupItem, MenuParts, RowHoverCard, RowScroll},
         group_item_gestures::GroupItemGestures,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::{GroupItemIcon, reading_value},
     },
     group_menus::{
         group_menu_state::{
@@ -46,11 +46,12 @@ use crate::{
         hover_card_body::{Section, hover_card_source_delivery::SectionSource},
         hoverable,
     },
-    widget_groups::widget_group_identity::{
-        WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
+    widget_groups::{
+        group_summary::{GroupSummary, SummaryVisibility},
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        announced_level::LevelReading, icon_glyph::IconGlyph, ongoing_toast::OngoingToast,
+        announced_level::LevelReading, ongoing_toast::OngoingToast,
         shared_metrics::ACCENT_STROKE_PX,
     },
 };
@@ -190,60 +191,6 @@ impl<M> GroupEvent<M> {
     }
 }
 
-pub enum WidgetGroupFace {
-    Glyph {
-        glyph: IconGlyph,
-        state: ReadingDisplayState,
-    },
-    FirstItem,
-}
-
-impl WidgetGroupFace {
-    fn glyph_face_item<'a, M: Clone + 'a>(
-        glyph: IconGlyph,
-        state: ReadingDisplayState,
-        group_title: &WidgetGroupTitle,
-    ) -> GroupItem<'a, M> {
-        GroupItem::composed(
-            group_title.to_string(),
-            GroupItemIcon::IconGlyph { glyph, state },
-            GroupItemValue::Nothing,
-            Box::new(|_| Vec::new()),
-        )
-    }
-
-    fn into_face_item<'a, M: Clone + 'a>(
-        self,
-        group_title: &WidgetGroupTitle,
-        items: &mut Vec<GroupItem<'a, M>>,
-    ) -> GroupItem<'a, M> {
-        match self {
-            WidgetGroupFace::Glyph { glyph, state } => {
-                Self::glyph_face_item(glyph, state, group_title)
-            }
-            WidgetGroupFace::FirstItem => items.remove(0),
-        }
-    }
-
-    fn into_menu_parts<'a, M: Clone + 'a>(
-        self,
-        group_title: &WidgetGroupTitle,
-        config: &'a Config,
-        items: &[GroupItem<'a, M>],
-        clock: Clock,
-    ) -> MenuParts<'a, M> {
-        match self {
-            WidgetGroupFace::Glyph { glyph, state } => MenuParts {
-                icon: Self::glyph_face_item(glyph, state, group_title)
-                    .menu_parts(config, clock)
-                    .icon,
-                value: collapsing_previewed_value(config, items, 0.0),
-            },
-            WidgetGroupFace::FirstItem => items[0].menu_parts(config, clock),
-        }
-    }
-}
-
 pub struct GroupToastRequests<M> {
     pub ongoing_toasts: Vec<OngoingToast<M>>,
     pub levels: Vec<LevelReading<M>>,
@@ -307,7 +254,7 @@ pub struct WidgetGroupContent<'a, M> {
     group_title: WidgetGroupTitle,
     expansion: &'a WidgetGroupExpansion,
     on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
-    face: WidgetGroupFace,
+    summary: GroupSummary<'a, M>,
     scroll_does: Option<&'static str>,
     items: Vec<GroupItem<'a, M>>,
     panel_pin: PanelPinOrigin,
@@ -316,6 +263,7 @@ pub struct WidgetGroupContent<'a, M> {
 impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn expandable(
         family: WidgetGroupFamily,
+        summary: GroupSummary<'a, M>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
@@ -323,6 +271,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         Self::expandable_instance(
             WidgetGroupIdentity::sole(family),
             WidgetGroupTitle::fixed(family.title()),
+            summary,
             expansion,
             on_expansion,
             items,
@@ -332,6 +281,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn expandable_instance(
         group_identity: WidgetGroupIdentity,
         group_title: WidgetGroupTitle,
+        summary: GroupSummary<'a, M>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
@@ -341,7 +291,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             group_title,
             expansion,
             on_expansion: Rc::new(on_expansion),
-            face: WidgetGroupFace::FirstItem,
+            summary,
             scroll_does: None,
             items: items.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
@@ -418,11 +368,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn face(self, face: WidgetGroupFace) -> Self {
-        Self { face, ..self }
-    }
-
-    #[must_use]
     pub fn forwards_scroll(self, scroll_does: Option<&'static str>) -> Self {
         Self {
             scroll_does,
@@ -454,7 +399,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 let on_expansion = self.on_expansion;
                 Rc::new(move |message| lift(on_expansion(message)))
             },
-            face: self.face,
+            summary: self.summary.map(lift),
             scroll_does: self.scroll_does,
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
             panel_pin: self.panel_pin,
@@ -464,15 +409,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
-        self.items
-            .iter()
+        self.summarised_items()
             .map(|item| item.toast_requests(&self.group_identity, expand.clone(), locale, clock))
             .collect()
     }
 
+    fn summarised_items(&self) -> impl Iterator<Item = &GroupItem<'a, M>> {
+        once(self.summary.instrument_item()).chain(&self.items)
+    }
+
     pub(crate) fn highest_alert_severity(&self) -> Severity {
-        self.items
-            .iter()
+        self.summarised_items()
             .filter_map(GroupItem::shown_alert_severity)
             .max()
             .unwrap_or_default()
@@ -496,20 +443,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .collect()
     }
 
-    fn face_row(&self) -> Option<&GroupItem<'a, M>> {
-        self.items
-            .iter()
-            .find(|item| item.handle_preview().is_some())
-            .or_else(|| match self.face {
-                WidgetGroupFace::FirstItem => self.items.first(),
-                WidgetGroupFace::Glyph { .. } => None,
-            })
-    }
-
     #[must_use]
     pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
-        match target.faced_group() {
-            Some(group_identity) if *group_identity == self.group_identity => self.face_row(),
+        match target.summarised_group() {
+            Some(group_identity) if *group_identity == self.group_identity => {
+                Some(self.summary.instrument_item())
+            }
             Some(_) => None,
             None => target
                 .instrument_key()
@@ -518,14 +457,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     fn handle_actions(&self) -> Vec<PressAction> {
-        let face_actions = match self.face {
-            WidgetGroupFace::FirstItem => self
-                .items
-                .first()
-                .map(GroupItem::press_actions)
-                .unwrap_or_default(),
-            WidgetGroupFace::Glyph { .. } => Vec::new(),
-        };
+        let face_actions = self.summary.instrument_item().press_actions();
         let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
             .into_iter()
             .chain(
@@ -542,9 +474,9 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     fn face_card(&self, clock: Clock) -> Vec<Section> {
-        self.face_row()
-            .map(|face_row| face_row.hover_card(clock))
-            .unwrap_or_default()
+        self.summary
+            .instrument_item()
+            .hover_card(clock)
             .into_iter()
             .chain(Section::press_actions(self.handle_actions()))
             .collect()
@@ -552,7 +484,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 
     #[must_use]
     pub fn hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
-        let sections = match target.faced_group() {
+        let sections = match target.summarised_group() {
             Some(group_identity) if *group_identity == self.group_identity => self.face_card(clock),
             Some(_) => return None,
             None => self
@@ -565,7 +497,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 pin: panel_pin.clone(),
             },
             HoverTarget::Instrument(_)
-            | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupSummary(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
@@ -583,13 +515,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
-    }
-
-    pub(crate) fn has_face(&self) -> bool {
-        match self.face {
-            WidgetGroupFace::Glyph { .. } => true,
-            WidgetGroupFace::FirstItem => !self.items.is_empty(),
-        }
     }
 
     #[cfg(test)]
@@ -649,11 +574,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
-            face,
+            summary,
             items,
             ..
         } = self;
-        let face = face.into_menu_parts(&group_title, config, &items, clock);
+        let summary_visibility = summary.shown_value();
+        let face = summary.menu_parts(config, clock);
         let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
             if let ItemAlignment::Aligned(quantity) = item.alignment() {
                 aligned.insert(quantity, item.table_cell_view(config, clock));
@@ -683,7 +609,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 aligned,
             });
         }
-        if !item_rows.is_empty() {
+        if !item_rows.is_empty() || summary_visibility == SummaryVisibility::WithReading {
             sections.group_rows.push(GroupMenuGroupRow {
                 group_identity,
                 group_title,
@@ -715,27 +641,25 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         panel_position: Position,
         clock: Clock,
     ) -> Option<Element<'a, GroupEvent<M>>> {
-        if self.items.is_empty() {
+        if self.items.is_empty() && self.summary.shown_value() == SummaryVisibility::GlyphOnly {
             return None;
         }
         let highest_alert_severity = self.highest_alert_severity();
         let WidgetGroupContent {
             group_identity,
-            group_title,
+            group_title: _,
             expansion,
             on_expansion,
-            face,
+            summary,
             scroll_does,
-            mut items,
+            items,
             panel_pin,
             ..
         } = self;
         let handle_target = match panel_pin {
             PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
-            PanelPinOrigin::Unpinned => HoverTarget::GroupFace(Box::new(group_identity.clone())),
+            PanelPinOrigin::Unpinned => HoverTarget::GroupSummary(Box::new(group_identity.clone())),
         };
-        let face = face.into_face_item(&group_title, &mut items);
-        let draw_face = move || face.unhovered_view(config, 1.0, clock);
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
         let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
         let on_enter = expansion_event(WidgetGroupExpansionMessage::CursorEntered);
@@ -743,17 +667,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let handle_indicator = expansion.handle_indicator();
         let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
-            let handle: Element<'a, GroupEvent<M>> = button(
-                Row::with_children([
-                    draw_face(),
-                    collapsing_previewed_value(config, &items, reveal),
-                ])
-                .align_y(Alignment::Center),
-            )
-            .padding(0)
-            .style(flat_button(text_color))
-            .on_press(toggle.clone())
-            .into();
+            let handle: Element<'a, GroupEvent<M>> =
+                button(summary.handle_view(config, reveal, clock))
+                    .padding(0)
+                    .style(flat_button(text_color))
+                    .on_press(toggle.clone())
+                    .into();
             let handle = hoverable(
                 NestedMenuOpenTrigger::Hover,
                 handle,
@@ -874,28 +793,6 @@ fn items_row<'a, M: Clone + 'a>(
     .into()
 }
 
-fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
-    config: &Config,
-    items: &[GroupItem<'a, M>],
-    reveal_fraction: f32,
-) -> Element<'a, Message> {
-    let hidden = 1.0 - reveal_fraction;
-    let Some(value) = items
-        .iter()
-        .find_map(GroupItem::handle_preview)
-        .filter(|_| hidden > 0.0)
-        .and_then(|preview| reading_value(config, preview.face, preview.readout, 1.0))
-    else {
-        return Row::new().into();
-    };
-    reveal(
-        container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
-        hidden,
-        Axis::Horizontal,
-    )
-    .into()
-}
-
 fn revealed_content<'a, Message: 'a>(
     config: &Config,
     reveal_fraction: f32,
@@ -923,7 +820,10 @@ mod tests {
         },
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, InstrumentKey, MouseGesture, PressAction},
-        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        widget_groups::{
+            group_summary::GroupSummary,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        },
         widgets::icon_glyph::IconGlyph,
     };
 
@@ -942,6 +842,7 @@ mod tests {
     ) -> WidgetGroupContent<'_, ()> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             expansion,
             |_| (),
             [GroupItem::reading(shown_state_row(shown_state))],
@@ -981,6 +882,7 @@ mod tests {
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
                 WidgetGroupFamily::NetworkManagerVpns,
+                GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
                 &expansion,
                 |_| (),
                 [

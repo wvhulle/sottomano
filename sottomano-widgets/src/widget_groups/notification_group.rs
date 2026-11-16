@@ -11,6 +11,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         quiet_schedule_group::{QuietScheduleGroup, quiet_window::QuietPhase},
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -142,12 +143,16 @@ impl NotificationGroup {
         quiet_schedule: &'a QuietScheduleGroup,
     ) -> WidgetGroupContent<'a, NotificationGroupMessage> {
         let quiet_phase = status.quiet_phase;
+        let summarised_row = GroupItem::reading(status.reading_row());
+        let group_summary =
+            GroupSummary::showing(Phosphor::Bell(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
+            group_summary,
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::reading(status.reading_row()),
+                summarised_row,
                 GroupItem::reading(do_not_disturb_reading_row(DoNotDisturbStatus {
                     quiet_phase,
                 }))

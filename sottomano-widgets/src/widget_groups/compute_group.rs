@@ -48,13 +48,16 @@ use crate::{
     hover_cards::hover_card_body::Section,
     widget_groups::{
         compute_group::cpu_load_gauge::cpu_busy_processes_sections,
+        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -153,7 +156,7 @@ impl ComputeGroup {
     ) -> Subscription<ComputeMessage> {
         let demand = demand.expanded_when(self.expansion.state());
         Subscription::batch([
-            demand.while_face_shown(
+            demand.while_summary_shown(
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
             ),
             demand.while_rows_shown(
@@ -249,26 +252,26 @@ impl ComputeGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, ComputeInteraction> {
+        let summarised_row = GroupItem::reading(self.cpu_load.main_row(
+            Phosphor::Cpu(Weight::Regular).into(),
+            |snapshot| cpu_usage_reading_row(snapshot),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| self.cpu_load_card()))
+        .fetching_on_hover(
+            ComputeInteraction::StartCpuLoadFetches,
+            ComputeInteraction::StopHoverFetches,
+        )
+        .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad));
+        let group_summary =
+            GroupSummary::showing(Phosphor::Cpu(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
+            group_summary,
             &self.expansion,
             ComputeInteraction::Expansion,
             [
-                self.cpu_load
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| cpu_usage_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|row_item| {
-                        row_item
-                            .with_hover_card(Box::new(move |_| self.cpu_load_card()))
-                            .fetching_on_hover(
-                                ComputeInteraction::StartCpuLoadFetches,
-                                ComputeInteraction::StopHoverFetches,
-                            )
-                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
-                    }),
+                Some(summarised_row),
                 self.cpu_clock
                     .group_item(
                         IconGlyph::default(),

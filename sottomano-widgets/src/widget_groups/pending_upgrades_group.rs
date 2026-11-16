@@ -28,6 +28,7 @@ use crate::{
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -94,17 +95,21 @@ impl PendingUpgradesGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
-        let has_categories = self.category_states(clock).iter().any(Option::is_some);
+        let summarised_row =
+            GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
+                self.firmware.hover_card_with(self.hover_card())
+            }));
+        let group_summary = GroupSummary::showing(
+            Phosphor::ArrowCircleUp(Weight::Regular).into(),
+            &summarised_row,
+        );
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
+            group_summary,
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
             [
-                has_categories.then(|| {
-                    GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(
-                        move |_| self.firmware.hover_card_with(self.hover_card()),
-                    ))
-                }),
+                Some(summarised_row),
                 self.firmware_upgrade_item(config),
                 self.firmware.failure().map(|failure| {
                     GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(

@@ -25,7 +25,7 @@ use crate::{
     hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -44,9 +44,12 @@ const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {
     },
 };
 use crate::{
-    widget_groups::llama_server_group::{
-        gguf_model_card_sections::gguf_model_card_sections,
-        loaded_model_label::llama_model_props_sections,
+    widget_groups::{
+        group_summary::GroupSummary,
+        llama_server_group::{
+            gguf_model_card_sections::gguf_model_card_sections,
+            loaded_model_label::llama_model_props_sections,
+        },
     },
     widgets::huggingface_hub_sections::hugging_face_model_card_sections,
 };
@@ -244,6 +247,10 @@ impl LlamaServerGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
+            GroupSummary::glyph(
+                Phosphor::Robot(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
@@ -252,9 +259,5 @@ impl LlamaServerGroup {
                     self.model_sections()
                 })),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Robot(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }

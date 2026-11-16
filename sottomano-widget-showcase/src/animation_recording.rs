@@ -284,7 +284,7 @@ impl<'session> DemoRecorder<'session> {
                 entry: GroupMenuPin::Group(group.clone()),
                 duration: PanelPinDuration::Permanent,
             })),
-            _ => HoverTarget::GroupFace(Box::new(group.clone())),
+            _ => HoverTarget::GroupSummary(Box::new(group.clone())),
         }
     }
 

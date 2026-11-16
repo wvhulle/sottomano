@@ -28,8 +28,9 @@ use crate::{
     group_items::group_item::GroupItem,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -260,14 +261,14 @@ impl CiRunsGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::sole(WidgetGroupFamily::CiRuns),
             WidgetGroupTitle::Named(ci_runs_title(total_runs).into()),
+            GroupSummary::glyph(
+                Phosphor::FlowArrow(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             CiRunsInteraction::Expansion,
             runner_rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::FlowArrow(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

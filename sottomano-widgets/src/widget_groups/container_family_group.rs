@@ -16,8 +16,9 @@ use crate::{
     },
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -118,7 +119,7 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         Subscription::batch([
             snapshot_subscription::<Family::Probe>(()).map(ContainerFamilyMessage::Probe),
             demand
-                .while_face_shown(snapshot_subscription::<Family::Listings>(()))
+                .while_summary_shown(snapshot_subscription::<Family::Listings>(()))
                 .map(ContainerFamilyMessage::Listings),
             demand
                 .while_rows_shown(snapshot_subscription::<Family::Detail>(()))
@@ -206,17 +207,17 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
     pub fn group_content(&self) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
         WidgetGroupContent::expandable(
             Family::FAMILY,
+            GroupSummary::glyph(
+                Family::group_glyph(),
+                match self.probe.get() {
+                    Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
+                    Some(_) | None => ReadingDisplayState::Off,
+                },
+            ),
             &self.expansion,
             ContainerFamilyInteraction::Expansion,
             self.group_rows(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Family::group_glyph(),
-            state: match self.probe.get() {
-                Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
-                Some(_) | None => ReadingDisplayState::Off,
-            },
-        })
     }
 }
 

@@ -21,8 +21,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -323,14 +324,14 @@ impl NspawnContainersGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NspawnContainers,
+            GroupSummary::glyph(
+                Phosphor::ShippingContainer(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             NspawnContainersInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::ShippingContainer(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

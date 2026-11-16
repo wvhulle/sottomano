@@ -26,6 +26,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -35,7 +36,9 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -298,9 +301,18 @@ impl WifiAdaptersGroup {
                     .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
             }));
         let adapter_device = adapter.device.clone();
+        let group_summary =
+            GroupSummary::showing(Phosphor::WifiHigh(Weight::Regular).into(), &signal_item)
+                .adjusting_instrument(|summary_item| {
+                    summary_item.fetching_on_hover(
+                        WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
+                        WifiAdaptersInteraction::StopHoverFetches,
+                    )
+                });
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
+            group_summary,
             expansion,
             move |expansion| WifiAdaptersInteraction::Expansion {
                 adapter_device: adapter_device.clone(),

@@ -31,7 +31,8 @@ use crate::{
             RunningContainerRow, StoppedContainerRow, container_switch_task, engine_container_name,
             engine_failure_label, rows_ending_in_hidden_count, with_container_switch,
         },
-        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
+        group_summary::GroupSummary,
+        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -163,7 +164,7 @@ impl DockerEnginesGroup {
                         DockerEnginesMessage::Probe(socket_path, delivery)
                     }),
                 demand
-                    .while_face_shown(
+                    .while_summary_shown(
                         snapshot_subscription::<DockerEngineListing>(socket_path.clone())
                             .with(socket_path.clone()),
                     )
@@ -320,14 +321,14 @@ impl DockerEnginesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
+            GroupSummary::glyph(
+                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                self.shown_state(),
+            ),
             &self.expansion,
             EngineContainerInteraction::Expansion,
             self.container_rows(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: IconGlyph::SimpleIcon(SimpleIcon::Docker),
-            state: self.shown_state(),
-        })
     }
 
     fn listed_rows<'a>(

@@ -16,14 +16,19 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::subscribed_snapshot::SubscribedSnapshot,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+    },
 };
 
 pub const TICK: Duration = Duration::from_secs(1);
@@ -131,24 +136,25 @@ impl ClockGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, ClockInteraction> {
+        let summarised_row = GroupItem::reading(self.time.main_row(
+            Phosphor::Clock(Weight::Regular).into(),
+            |_| LocalTime::reading_row(clock, locale),
+            clock,
+        ))
+        .with_hover_card(Box::new(|card_clock| {
+            self.time
+                .sections_described_by(|_| LocalTime::hover_card(card_clock))
+        }))
+        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime));
+        let group_summary =
+            GroupSummary::showing(Phosphor::Clock(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
+            group_summary,
             &self.expansion,
             ClockInteraction::Expansion,
             [
-                self.time
-                    .group_item(
-                        IconGlyph::default(),
-                        |_| LocalTime::reading_row(clock, locale),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(|card_clock| {
-                            self.time
-                                .sections_described_by(|_| LocalTime::hover_card(card_clock))
-                        }))
-                        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
-                    }),
+                Some(summarised_row),
                 self.date
                     .group_item(
                         IconGlyph::default(),

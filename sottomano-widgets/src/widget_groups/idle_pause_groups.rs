@@ -33,10 +33,10 @@ use crate::{
     group_items::{group_item::GroupItem, slider_control::ControlMessage},
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         idle_pause_groups::pause_blocker_rows::TimerArming,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -398,21 +398,10 @@ impl IdlePauseGroups {
             .with_hover_card(Box::new(move |card_clock| {
                 self.pause_sections(pause, card_clock)
             }));
-        let timeout_slider = match first_blocker {
-            Some(_) => timeout_slider,
-            None => timeout_slider.previewed_on_handle(),
-        };
-        let blocker_rows = self
-            .blockers_of(pause)
-            .enumerate()
-            .map(move |(position, blocker)| {
-                let blocker_item = GroupItem::reading(blocker.reading_row())
-                    .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)));
-                match position {
-                    0 => blocker_item.previewed_on_handle(),
-                    _ => blocker_item,
-                }
-            });
+        let blocker_rows = self.blockers_of(pause).map(move |blocker| {
+            GroupItem::reading(blocker.reading_row())
+                .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
+        });
         let next_sleep_state = self
             .sleep_obstacles
             .get()
@@ -434,20 +423,14 @@ impl IdlePauseGroups {
                         self.pause_sections(IdleAction::PowerOff, card_clock)
                     }))
             });
-        let glyph = pause_glyph(pause).into();
-        let face = match first_blocker {
-            Some(blocker) => WidgetGroupFace::Glyph {
-                glyph,
-                state: blocker.display_state(),
-            },
-            None => WidgetGroupFace::Glyph {
-                glyph,
-                state: ReadingDisplayState::Idle,
-            },
+        let summary_state = match first_blocker {
+            Some(blocker) => blocker.display_state(),
+            None => ReadingDisplayState::Idle,
         };
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::IdleTimeouts, pause_stored_name(pause)),
             WidgetGroupTitle::fixed(pause_title(pause)),
+            GroupSummary::glyph(pause_glyph(pause).into(), summary_state),
             &self.pause(pause).expansion,
             move |message| IdlePauseInteraction::Expansion(pause, message),
             once(timeout_slider)
@@ -455,6 +438,5 @@ impl IdlePauseGroups {
                 .chain(next_sleep_state)
                 .chain(scheduled_shutdown),
         )
-        .face(face)
     }
 }

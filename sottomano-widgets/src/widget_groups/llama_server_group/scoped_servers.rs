@@ -290,7 +290,8 @@ impl ScopedLlamaServers {
             [
                 running.map(|server| {
                     let resident = server.resident_model();
-                    let model_item = GroupItem::reading(
+
+                    GroupItem::reading(
                         ServedModel {
                             resident,
                             server: server_label,
@@ -306,11 +307,7 @@ impl ScopedLlamaServers {
                             unit: unit.clone(),
                         }),
                         LlamaServerInteraction::StopHoverFetches,
-                    );
-                    match resident {
-                        Some(_) => model_item.previewed_on_handle(),
-                        None => model_item,
-                    }
+                    )
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(

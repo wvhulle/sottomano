@@ -13,10 +13,10 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
+        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
         workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
@@ -244,6 +244,10 @@ impl SidebarSettingsGroup {
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SidebarSettings,
+            GroupSummary::glyph(
+                Phosphor::SidebarSimple(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             SidebarSettingsMessage::Expansion,
             [
@@ -264,10 +268,6 @@ impl SidebarSettingsGroup {
                     .flatten(),
             ),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::SidebarSimple(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

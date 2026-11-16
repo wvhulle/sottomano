@@ -1,22 +1,18 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
-    widget_groups::claude_usage_group::{
-        claude_code_billing_block::{
-            CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH, claude_ccusage_block_hover_card,
-            claude_ccusage_block_reading_row,
-        },
-        claude_code_period_spend::{
-            CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH, claude_ccusage_periods_hover_card,
-            claude_ccusage_periods_reading_row,
-        },
-        claude_enterprise_credit_spend::{
-            CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH, claude_enterprise_hover_card,
-            claude_enterprise_reading_row,
-        },
-        claude_usage_window_gauge::{
-            CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH, claude_usage_windows_hover_card,
-            claude_usage_windows_reading_row,
-        },
+use crate::widget_groups::claude_usage_group::{
+    claude_code_billing_block::{
+        CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH, claude_ccusage_block_hover_card,
+        claude_ccusage_block_reading_row,
+    },
+    claude_code_period_spend::{
+        CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH, claude_ccusage_periods_hover_card,
+        claude_ccusage_periods_reading_row,
+    },
+    claude_enterprise_credit_spend::{
+        CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH, claude_enterprise_hover_card,
+        claude_enterprise_reading_row,
+    },
+    claude_usage_window_gauge::{
+        claude_usage_windows_hover_card, claude_usage_windows_reading_row,
     },
 };
 mod claude_code_billing_block;
@@ -48,8 +44,9 @@ use crate::{
     group_items::group_item::GroupItem,
     widget_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -372,28 +369,26 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
+        let summarised_row = GroupItem::reading(self.usage_windows.main_row(
+            SimpleIcon::Claude.into(),
+            |snapshot| claude_usage_windows_reading_row(snapshot, clock),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |card_clock| {
+            self.usage_windows.sections_described_by(|snapshot| {
+                claude_usage_windows_hover_card(snapshot, card_clock)
+            })
+        }))
+        .refreshed_by(ClaudeUsageInteraction::OnBuses(
+            ClaudeUsageBusRequest::RefreshUsageWindows,
+        ));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
+            GroupSummary::showing(SimpleIcon::Claude.into(), &summarised_row),
             &self.expansion,
             ClaudeUsageInteraction::Expansion,
             [
-                self.usage_windows
-                    .group_item(
-                        CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
-                        |snapshot| claude_usage_windows_reading_row(snapshot, clock),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |card_clock| {
-                            self.usage_windows.sections_described_by(|snapshot| {
-                                claude_usage_windows_hover_card(snapshot, card_clock)
-                            })
-                        }))
-                        .refreshed_by(ClaudeUsageInteraction::OnBuses(
-                            ClaudeUsageBusRequest::RefreshUsageWindows,
-                        ))
-                        .previewed_on_handle()
-                    }),
+                Some(summarised_row),
                 self.enterprise_spend_item(clock),
                 self.ccusage_periods_item(clock),
                 self.ccusage_block_item(clock),
@@ -420,10 +415,6 @@ impl ClaudeUsageGroup {
                     ))
             })),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: SimpleIcon::Claude.into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

@@ -172,10 +172,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         Self {
             group_menus,
             messenger: GroupMenuMessenger { topic, on_message },
-            groups: groups
-                .into_iter()
-                .filter(WidgetGroupContent::has_face)
-                .collect(),
+            groups: groups.into_iter().collect(),
         }
     }
 
@@ -501,7 +498,8 @@ mod tests {
             hover_card_body::Section,
         },
         widget_groups::{
-            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
+            group_summary::GroupSummary,
+            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::{
@@ -633,6 +631,7 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
             |_| SmokeMessage,
             [GroupItem::reading(named_test_row("Smoke item"))],
@@ -664,19 +663,16 @@ mod tests {
     }
 
     #[test]
-    fn a_glyph_faced_group_without_items_stays_in_the_menu() {
+    fn a_glyph_summarised_group_without_items_stays_in_the_menu() {
         let group_menus = opened_menu_state(every_presentation()[0]);
         let expansion = WidgetGroupExpansion::default();
         let empty_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
             |_| SmokeMessage,
             Vec::<GroupItem<'_, SmokeMessage>>::new(),
-        )
-        .face(WidgetGroupFace::Glyph {
-            glyph: IconGlyph::default(),
-            state: ReadingDisplayState::Idle,
-        });
+        );
         let menu = GroupMenuView::new(
             GroupMenuTopic::Hardware,
             &group_menus,
@@ -684,25 +680,6 @@ mod tests {
             [empty_group],
         );
         assert_eq!(menu.open_group_menu().families.len(), 1);
-    }
-
-    #[test]
-    fn a_group_faced_by_its_first_item_is_left_out_without_items() {
-        let group_menus = opened_menu_state(every_presentation()[0]);
-        let expansion = WidgetGroupExpansion::default();
-        let empty_group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
-            &expansion,
-            |_| SmokeMessage,
-            Vec::<GroupItem<'_, SmokeMessage>>::new(),
-        );
-        let menu = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |_| SmokeMessage,
-            [empty_group],
-        );
-        assert!(menu.open_group_menu().families.is_empty());
     }
 
     #[test]
@@ -741,6 +718,7 @@ mod tests {
         });
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
             |_| SmokeMessage,
             long_list,
@@ -881,6 +859,7 @@ mod tests {
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
             |_| RowPointerMessage::Unrelated,
             [match row_press {
@@ -944,6 +923,7 @@ mod tests {
         let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
             WidgetGroupContent::expandable(
                 family,
+                GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
                 &expansion,
                 |_| RowPointerMessage::Unrelated,
                 [GroupItem::reading(named_test_row("Smoke item"))],
@@ -1093,6 +1073,7 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
+            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
             |_| SmokeMessage,
             [GroupItem::composed_pinnable(

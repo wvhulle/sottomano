@@ -30,6 +30,7 @@ use crate::{
     group_items::group_item::GroupItem,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         session_focus_group::{
             break_log::BreakLog,
             context_switch_rate::ContextSwitchRate,
@@ -44,7 +45,10 @@ use crate::{
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::ongoing_toast::OngoingToastActionButton,
+    widgets::{
+        ongoing_toast::OngoingToastActionButton,
+        phosphor::{Phosphor, Weight},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -277,8 +281,11 @@ impl SessionFocusGroup {
         let focus_run = GroupItem::reading(self.focus_run_reading(config).reading_row(clock));
         let totals = GroupItem::reading(self.daily_totals.reading_row(locale));
         let switches = GroupItem::reading(self.context_switch_rate(config).reading_row(clock));
+        let group_summary =
+            GroupSummary::showing(Phosphor::UserFocus(Weight::Regular).into(), &session);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,
+            group_summary,
             &self.expansion,
             SessionFocusMessage::Expansion,
             [session, breaks, focus_run, totals, switches],

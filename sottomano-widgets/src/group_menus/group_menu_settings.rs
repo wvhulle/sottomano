@@ -9,7 +9,7 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     widget_groups::{
-        widget_group_content::{WidgetGroupContent, WidgetGroupFace},
+        group_summary::GroupSummary, widget_group_content::WidgetGroupContent,
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::phosphor::{Phosphor, Weight},
@@ -78,6 +78,10 @@ impl GroupMenuState {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GroupMenuSettings,
+            GroupSummary::glyph(
+                Phosphor::ListDashes(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             self.settings_expansion(),
             GroupMenuMessage::SettingsExpansion,
             [
@@ -100,10 +104,6 @@ impl GroupMenuState {
             .chain(accordion_only_item)
             .chain(self.layer.items(config, GroupMenuMessage::Appearance)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::ListDashes(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

@@ -4,7 +4,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         network_manager_proxies::NmConnectionSwitch,
-        wireguard_tunnels::{Tunnel, TunnelAddress, TunnelRouting, Wireguard},
+        wireguard_tunnels::{Tunnel, TunnelAddress, Wireguard},
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
@@ -16,8 +16,9 @@ use crate::{
     group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
         wireguard_tunnels_group::wireguard_tunnel_hover_card::{
@@ -69,7 +70,7 @@ impl WireguardTunnelsGroup {
         buses: &DesktopBuses,
         demand: &GroupSourceDemand,
     ) -> Subscription<WireguardTunnelsMessage> {
-        demand.while_face_shown(
+        demand.while_summary_shown(
             snapshot_subscription::<Wireguard>(buses.clone())
                 .map(WireguardTunnelsMessage::Wireguard),
         )
@@ -143,51 +144,35 @@ impl WireguardTunnelsGroup {
             .flat_map(|wireguard| &wireguard.tunnels)
     }
 
-    fn previewed_tunnel_interface(&self) -> Option<&str> {
-        self.listed_tunnels()
-            .find(|tunnel| tunnel.traffic_routing() == TunnelRouting::DefaultRoute)
-            .map(|tunnel| tunnel.interface.as_str())
-    }
-
     pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
-        let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
+            GroupSummary::glyph(SimpleIcon::WireGuard.into(), ReadingDisplayState::Idle),
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
             self.listed_tunnels().map(move |tunnel| {
-                let tunnel_item =
-                    wireguard_tunnel_item(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
-                        .with_hover_card(Box::new(move |_| {
-                            let mut sections =
-                                self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
-                            sections.extend(
-                                self.tunnel_address
-                                    .sections_described_by(tunnel_address_sections),
-                            );
-                            sections
-                        }))
-                        .fetching_on_hover(
-                            WireguardTunnelsInteraction::OnBuses(
-                                WireguardTunnelsBusRequest::StartTunnelAddressFetch(
-                                    tunnel.interface.clone(),
-                                ),
+                wireguard_tunnel_item(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections =
+                            self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+                        sections.extend(
+                            self.tunnel_address
+                                .sections_described_by(tunnel_address_sections),
+                        );
+                        sections
+                    }))
+                    .fetching_on_hover(
+                        WireguardTunnelsInteraction::OnBuses(
+                            WireguardTunnelsBusRequest::StartTunnelAddressFetch(
+                                tunnel.interface.clone(),
                             ),
-                            WireguardTunnelsInteraction::StopHoverFetches,
-                        )
-                        .refreshed_by(WireguardTunnelsInteraction::OnBuses(
-                            WireguardTunnelsBusRequest::Refresh,
-                        ));
-                if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
-                    tunnel_item.previewed_on_handle()
-                } else {
-                    tunnel_item
-                }
+                        ),
+                        WireguardTunnelsInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(WireguardTunnelsInteraction::OnBuses(
+                        WireguardTunnelsBusRequest::Refresh,
+                    ))
             }),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: SimpleIcon::WireGuard.into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }

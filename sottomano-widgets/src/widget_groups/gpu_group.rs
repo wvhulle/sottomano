@@ -1,11 +1,10 @@
-use crate::widget_groups::gpu_group::gpu_load_gauge::GPU_SNAPSHOT_FALLBACK_GLYPH;
 mod gpu_clock_label;
 mod gpu_load_gauge;
 mod gpu_memory_gauge;
 mod gpu_power_label;
 mod gpu_temperature_label;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, iter::once};
 
 use gpu_clock_label::GpuClockLabel;
 use gpu_load_gauge::{gpu_load_hover_card, gpu_load_reading_row};
@@ -35,13 +34,16 @@ use crate::{
             gpu_clock_label::gpu_clocks_sections,
             gpu_memory_gauge::{gpu_memory_sections, gpu_processes_sections},
         },
+        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -118,6 +120,8 @@ impl GpuDevice {
 fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
     WidgetGroupIdentity::durable(WidgetGroupFamily::Gpu, bus.0.clone())
 }
+
+const GPU_SUMMARY_GLYPH: Phosphor = Phosphor::GraphicsCard(Weight::Regular);
 
 #[derive(Default)]
 pub struct GpuGroup {
@@ -315,47 +319,52 @@ impl GpuGroup {
         }
     }
 
-    fn device_items<'a>(
+    fn load_item<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         clock: Clock,
-    ) -> [Option<GroupItem<'a, GpuInteraction>>; 5] {
-        let refresh = || GpuInteraction::Refresh(bus.clone());
+    ) -> GroupItem<'a, GpuInteraction> {
         let model_sections = move || {
             self.discovery
                 .sections_described_by(|_| vec![Section::from(&device.model)])
         };
-        let readable_snapshot = match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => Some(snapshot),
-            GpuDeviceAccess::Unreadable { .. } => None,
-        };
-        [
+        let load_item =
             match &device.access {
-                GpuDeviceAccess::Readable { snapshot, .. } => snapshot
-                    .group_item(GPU_SNAPSHOT_FALLBACK_GLYPH, gpu_load_reading_row, clock)
-                    .map(|load_item| {
-                        load_item
-                            .with_hover_card(Box::new(move |_| {
-                                snapshot
-                                    .sections_described_by(gpu_load_hover_card)
-                                    .into_iter()
-                                    .chain(model_sections())
-                                    .collect()
-                            }))
-                            .refreshed_by(refresh())
-                    }),
-                GpuDeviceAccess::Unreadable { handle_failure } => Some(
-                    GroupItem::reading(handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH))
+                GpuDeviceAccess::Readable { snapshot, .. } => GroupItem::reading(
+                    snapshot.main_row(GPU_SUMMARY_GLYPH.into(), gpu_load_reading_row, clock),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    snapshot
+                        .sections_described_by(gpu_load_hover_card)
+                        .into_iter()
+                        .chain(model_sections())
+                        .collect()
+                })),
+                GpuDeviceAccess::Unreadable { handle_failure } => {
+                    GroupItem::reading(handle_failure.reading_row(GPU_SUMMARY_GLYPH.into()))
                         .with_hover_card(Box::new(move |_| {
                             [handle_failure.source_state()]
                                 .into_iter()
                                 .chain(model_sections())
                                 .collect()
                         }))
-                        .refreshed_by(refresh()),
-                ),
-            },
+                }
+            };
+        load_item.refreshed_by(GpuInteraction::Refresh(bus.clone()))
+    }
+
+    fn device_items<'a>(
+        &'a self,
+        bus: &'a PciBusId,
+        device: &'a GpuDevice,
+    ) -> [Option<GroupItem<'a, GpuInteraction>>; 4] {
+        let refresh = || GpuInteraction::Refresh(bus.clone());
+        let readable_snapshot = match &device.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => Some(snapshot),
+            GpuDeviceAccess::Unreadable { .. } => None,
+        };
+        [
             readable_snapshot
                 .zip(device.clock_label())
                 .map(|(snapshot, label)| {
@@ -429,12 +438,14 @@ impl GpuGroup {
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
+                let load_item = self.load_item(bus, device, clock);
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,
+                    GroupSummary::showing(GPU_SUMMARY_GLYPH.into(), &load_item),
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    self.device_items(bus, device, clock).into_iter().flatten(),
+                    once(load_item).chain(self.device_items(bus, device).into_iter().flatten()),
                 )
             })
     }

@@ -35,9 +35,9 @@ use crate::{
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -268,7 +268,6 @@ impl MonitorGroup {
             GroupItem::slider(slider, config, move |control_message| {
                 MonitorInteraction::Backlight(message_serial.clone(), control_message)
             })
-            .previewed_on_handle()
             .with_hover_card(Box::new(move |_| {
                 self.backlight_hover_card(backlight_serial, slider, outputs)
             }))
@@ -278,6 +277,10 @@ impl MonitorGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
+            GroupSummary::glyph(
+                Phosphor::Lightbulb(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             MonitorInteraction::Expansion,
             backlight_items.chain(
@@ -290,7 +293,6 @@ impl MonitorGroup {
                     )
                     .map(|clight_item| {
                         clight_item
-                            .previewed_on_handle()
                             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
                             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
                                 MonitorSource::AutoBrightness,
@@ -298,10 +300,6 @@ impl MonitorGroup {
                     }),
             ),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Lightbulb(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 }

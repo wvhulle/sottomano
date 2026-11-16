@@ -49,7 +49,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SliderShownReading {
+pub struct ShownReading {
     pub face: RowFace,
     pub readout: RowReadout,
 }
@@ -563,10 +563,10 @@ impl SliderControl {
     pub fn view<'a>(
         &'a self,
         config: &'a Config,
-        shown_reading: SliderShownReading,
+        shown_reading: ShownReading,
         reveal: f32,
     ) -> Element<'a, ControlMessage> {
-        let SliderShownReading { face, readout } = shown_reading;
+        let ShownReading { face, readout } = shown_reading;
         self.expanding_slider.view(
             ExpandingSliderParts {
                 collapsed: Box::new(move || match self.label_format {

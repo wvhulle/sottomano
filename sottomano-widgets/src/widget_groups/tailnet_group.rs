@@ -34,6 +34,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         tailnet_group::{
             tailscale_access_hover_card::{
                 InboundAccessRow, OwnNodeRow, PolicyFileRow, tailscale_inbound_access_sections,
@@ -44,7 +45,7 @@ use crate::{
             tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_reading_row},
         },
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -166,10 +167,10 @@ impl TailnetGroup {
 
     pub fn subscription(&self, demand: &GroupSourceDemand) -> Subscription<TailnetMessage> {
         Subscription::batch([
-            demand.while_face_shown(
+            demand.while_summary_shown(
                 snapshot_subscription::<Tailscale>(()).map(TailnetMessage::Tailscale),
             ),
-            demand.while_face_shown(
+            demand.while_summary_shown(
                 snapshot_subscription::<TailscaleExitNodes>(())
                     .map(TailnetMessage::ExitNodesDelivered),
             ),
@@ -370,10 +371,6 @@ impl TailnetGroup {
             }
             .reading_row(),
         );
-        let exit_node_item = match exit_node_option.node_use {
-            ExitNodeUse::InUse => exit_node_item.previewed_on_handle(),
-            ExitNodeUse::Unused => exit_node_item,
-        };
         match exit_node_choices.control_for_option(exit_node_option) {
             ExitNodeControl::Switchable(exit_routing_switch) => exit_node_item.on_switch_press(
                 exit_node_option.node_use,
@@ -456,6 +453,7 @@ impl TailnetGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
+            GroupSummary::glyph(SimpleIcon::Tailscale.into(), ReadingDisplayState::Idle),
             &self.expansion,
             TailnetInteraction::Expansion,
             self.membership_item(clock)
@@ -479,10 +477,6 @@ impl TailnetGroup {
                 }))
                 .map(|tailnet_item| tailnet_item.refreshed_by(TailnetInteraction::Refresh)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: SimpleIcon::Tailscale.into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

@@ -28,7 +28,8 @@ use crate::{
             EngineContainerInteraction, EngineContainers, RunningContainerRow, StoppedContainerRow,
             container_switch_task, engine_failure_label, rows_ending_in_hidden_count,
         },
-        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
+        group_summary::GroupSummary,
+        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -254,14 +255,14 @@ impl PodmanEnginesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
+            GroupSummary::glyph(
+                Phosphor::Cube(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             EngineContainerInteraction::Expansion,
             self.container_rows(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Cube(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

@@ -30,8 +30,9 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -161,6 +162,7 @@ impl CaldavGroup {
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
+            GroupSummary::glyph(self.account_handle_glyph(), ReadingDisplayState::Idle),
             &self.expansion,
             identity,
             [
@@ -170,7 +172,6 @@ impl CaldavGroup {
                             upcoming_events_hover_card(snapshot, card_clock)
                         })
                     }))
-                    .previewed_on_handle()
                 }),
                 self.open_tasks
                     .group_item(
@@ -189,9 +190,5 @@ impl CaldavGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: self.account_handle_glyph(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }

@@ -33,6 +33,7 @@ use crate::{
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
+        group_summary::GroupSummary,
         storage_space_group::{
             block_filesystem_discovery_hover_card, block_filesystem_discovery_reading_row,
         },
@@ -41,7 +42,10 @@ use crate::{
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
-    widgets::subscribed_snapshot::SubscribedSnapshot,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,7 +117,7 @@ impl PhysicalDriveGroup {
         let demand = demand.expanded_when(disk_expansion);
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
-                demand.while_face_shown(
+                demand.while_summary_shown(
                     snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
                         .with(disk.clone())
                         .map(|(disk, reading)| DriveMessage::DiskSpace(disk, Box::new(reading))),
@@ -312,27 +316,20 @@ impl PhysicalDriveGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'a, DriveInteraction> {
-        let space_item = match readings.space.get() {
-            Some(occupancy) => Some(GroupItem::reading(disk_space_reading_row(
-                occupancy,
-                self.disk_marking(disk),
-            ))),
-            None => readings.space.group_item(
-                IconGlyph::default(),
-                |snapshot| disk_space_reading_row(snapshot, DiskMarking::OnlyDisk),
-                clock,
-            ),
-        }
-        .map(|space_item| {
-            space_item
-                .with_hover_card(Box::new(move |_| {
-                    readings.space.sections_described_by(disk_space_hover_card)
-                }))
-                .refreshed_by(DriveInteraction::Refresh(DriveSource::Space(
-                    disk.name.clone(),
-                )))
-        });
-        let items = space_item
+        let space_item = GroupItem::reading(readings.space.main_row(
+            Phosphor::HardDrives(Weight::Regular).into(),
+            |occupancy| disk_space_reading_row(occupancy, self.disk_marking(disk)),
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            readings.space.sections_described_by(disk_space_hover_card)
+        }))
+        .refreshed_by(DriveInteraction::Refresh(DriveSource::Space(
+            disk.name.clone(),
+        )));
+        let group_summary =
+            GroupSummary::showing(Phosphor::HardDrives(Weight::Regular).into(), &space_item);
+        let items = [space_item]
             .into_iter()
             .chain(Self::member_items(disk, readings, locale))
             .chain(
@@ -377,6 +374,7 @@ impl PhysicalDriveGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
+            group_summary,
             &readings.expansion,
             move |expansion| DriveInteraction::DiskExpansion {
                 disk: disk.clone(),
@@ -392,24 +390,25 @@ impl PhysicalDriveGroup {
         clock: Clock,
         locale: Locale,
     ) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
+        let discovery_item = GroupItem::reading(self.discovery.main_row(
+            Phosphor::HardDrives(Weight::Regular).into(),
+            block_filesystem_discovery_reading_row,
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            self.discovery
+                .sections_described_by(block_filesystem_discovery_hover_card)
+        }))
+        .refreshed_by(DriveInteraction::Refresh(DriveSource::MountDiscovery));
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,
+            GroupSummary::showing(
+                Phosphor::HardDrives(Weight::Regular).into(),
+                &discovery_item,
+            ),
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            self.discovery
-                .group_item(
-                    IconGlyph::default(),
-                    |snapshot| block_filesystem_discovery_reading_row(snapshot),
-                    clock,
-                )
-                .map(|discovery_item| {
-                    discovery_item
-                        .with_hover_card(Box::new(move |_| {
-                            self.discovery
-                                .sections_described_by(block_filesystem_discovery_hover_card)
-                        }))
-                        .refreshed_by(DriveInteraction::Refresh(DriveSource::MountDiscovery))
-                }),
+            [discovery_item],
         );
         [discovery_group]
             .into_iter()

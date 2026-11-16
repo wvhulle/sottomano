@@ -1,4 +1,3 @@
-use crate::widgets::icon_glyph::IconGlyph;
 mod article_label;
 mod photo_credit;
 mod place_label;
@@ -19,12 +18,16 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::subscribed_snapshot::SubscribedSnapshot,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
+    },
 };
 
 pub struct WallpaperGroup {
@@ -85,16 +88,20 @@ impl WallpaperGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let lookup = self.lookup.get();
+        let summarised_row = GroupItem::reading(self.lookup.main_row(
+            Phosphor::Image(Weight::Regular).into(),
+            |snapshot| snapshot.reading_row(),
+            clock,
+        ));
+        let group_summary =
+            GroupSummary::showing(Phosphor::Image(Weight::Regular).into(), &summarised_row);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
+            group_summary,
             &self.expansion,
             identity,
             [
-                self.lookup.group_item(
-                    IconGlyph::default(),
-                    |snapshot| snapshot.reading_row(),
-                    clock,
-                ),
+                Some(summarised_row),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| {

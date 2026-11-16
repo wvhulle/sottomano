@@ -75,6 +75,7 @@ use self::{
     track_hover_card::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
+use crate::widget_groups::group_summary::GroupSummary;
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
 const LYRICS_TICK: Duration = Duration::from_millis(250);
@@ -566,13 +567,15 @@ fn player_group<'a>(
         .then(|| seek_position_item(config, clock, media, session));
     let transport = transport_controls_item(config, media);
     let session_buttons = session_buttons_item(config, media, session);
+    let player_row = player_item(config, media, gauge_fraction).with_hover_card(cards.player);
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),
         group_title,
+        GroupSummary::showing(Phosphor::Radio(Weight::Regular).into(), &player_row),
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
         [
-            Some(player_item(config, media, gauge_fraction).with_hover_card(cards.player)),
+            Some(player_row),
             Some(
                 track_item(
                     config,

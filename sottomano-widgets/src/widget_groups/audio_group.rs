@@ -29,9 +29,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -289,6 +289,10 @@ impl AudioGroup {
         let source = self.state.get().and_then(|state| state.source.as_ref());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Audio,
+            GroupSummary::glyph(
+                Phosphor::Waveform(Weight::Regular).into(),
+                self.sink_control.shown_state(),
+            ),
             &self.expansion,
             AudioMessage::Expansion,
             [
@@ -298,7 +302,6 @@ impl AudioGroup {
                         config,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
-                    .previewed_on_handle()
                     .with_hover_card(Box::new(move |_| {
                         self.channel_level_sections(ControlKind::Sink, reading, &self.sink_control)
                     }))
@@ -324,10 +327,6 @@ impl AudioGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::Waveform(Weight::Regular).into(),
-            state: self.sink_control.shown_state(),
-        })
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }
 

@@ -34,9 +34,10 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -400,14 +401,14 @@ impl VirtualMachinesGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
+            GroupSummary::glyph(
+                Phosphor::DesktopTower(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
             rows.chain(inactive_rows),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::DesktopTower(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }
 

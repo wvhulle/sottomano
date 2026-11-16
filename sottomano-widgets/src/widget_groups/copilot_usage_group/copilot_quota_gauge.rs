@@ -14,7 +14,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::ReadingAlerts,
@@ -23,9 +22,6 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
-
-pub(crate) const COPILOT_METERED_FALLBACK_GLYPH: IconGlyph =
-    IconGlyph::Phosphor(Phosphor::Gauge(Weight::Regular));
 
 pub fn copilot_metered_reading_row(metered: &CopilotMetered, clock: Clock) -> ReadingRow<'_> {
     let state = Quota::worst_severity(&metered.quotas(clock.utc()))

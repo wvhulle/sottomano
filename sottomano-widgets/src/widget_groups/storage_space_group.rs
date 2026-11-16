@@ -42,6 +42,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -351,35 +352,34 @@ impl StorageSpaceGroup {
                     )))
                 });
         let owned_mount_point = primary_mount_point.to_path_buf();
+        let usage_item = GroupItem::reading(filesystem.usage.main_row(
+            Phosphor::Folders(Weight::Regular).into(),
+            filesystem_usage_reading_row,
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            filesystem
+                .usage
+                .sections_described_by(filesystem_usage_hover_card)
+        }))
+        .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+            primary_mount_point.to_path_buf(),
+        )));
+        let group_summary =
+            GroupSummary::showing(Phosphor::Folders(Weight::Regular).into(), &usage_item);
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::StorageSpace,
                 primary_mount_point.display().to_string(),
             ),
             mount_group_title(primary_mount_point),
+            group_summary,
             &filesystem.expansion,
             move |expansion| StorageInteraction::MountExpansion {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
-            filesystem
-                .usage
-                .group_item(
-                    IconGlyph::default(),
-                    |snapshot| filesystem_usage_reading_row(snapshot),
-                    clock,
-                )
-                .map(|usage_item| {
-                    usage_item
-                        .with_hover_card(Box::new(move |_| {
-                            filesystem
-                                .usage
-                                .sections_described_by(filesystem_usage_hover_card)
-                        }))
-                        .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
-                            primary_mount_point.to_path_buf(),
-                        )))
-                })
+            [usage_item]
                 .into_iter()
                 .chain(Self::property_items(filesystem, locale))
                 .chain(Self::subvolume_items(filesystem, locale))
@@ -401,24 +401,22 @@ impl StorageSpaceGroup {
                 .map(|filesystem| Self::mount_group(filesystem, clock, locale))
                 .collect();
         }
+        let discovery_item = GroupItem::reading(self.discovery.main_row(
+            Phosphor::Folders(Weight::Regular).into(),
+            block_filesystem_discovery_reading_row,
+            clock,
+        ))
+        .with_hover_card(Box::new(move |_| {
+            self.discovery
+                .sections_described_by(block_filesystem_discovery_hover_card)
+        }))
+        .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery));
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
+            GroupSummary::showing(Phosphor::Folders(Weight::Regular).into(), &discovery_item),
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            self.discovery
-                .group_item(
-                    IconGlyph::default(),
-                    |snapshot| block_filesystem_discovery_reading_row(snapshot),
-                    clock,
-                )
-                .map(|discovery_item| {
-                    discovery_item
-                        .with_hover_card(Box::new(move |_| {
-                            self.discovery
-                                .sections_described_by(block_filesystem_discovery_hover_card)
-                        }))
-                        .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery))
-                }),
+            [discovery_item],
         )]
     }
 }

@@ -36,9 +36,9 @@ use crate::{
     },
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
+        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -347,6 +347,10 @@ impl DarkModeGroup {
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DarkMode,
+            GroupSummary::glyph(
+                Phosphor::MoonStars(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             DarkModeInteraction::Expansion,
             [
@@ -359,7 +363,6 @@ impl DarkModeGroup {
                     )
                     .map(|mode_item| {
                         mode_item
-                            .previewed_on_handle()
                             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
                             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
                     }),
@@ -378,9 +381,5 @@ impl DarkModeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::MoonStars(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }

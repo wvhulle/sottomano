@@ -8,6 +8,7 @@ use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
     widget_groups::{
+        group_summary::GroupSummary,
         journal_events_group::{
             JournalEventsInteraction,
             coredump_log::{coredump_log_panel_visibility, coredump_log_state},
@@ -15,7 +16,7 @@ use crate::{
             oom_kill_log::{oom_kill_log_panel_visibility, oom_kill_log_state},
             service_error_log::{service_errors_panel_visibility, service_errors_state},
         },
-        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
+        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -50,6 +51,7 @@ impl JournalScopeGroup {
         let unit_scope = self.unit_scope;
         WidgetGroupContent::expandable(
             self.family(),
+            GroupSummary::glyph(self.icon(), self.state(clock)),
             &self.expansion,
             move |expansion_message| {
                 JournalEventsInteraction::Expansion(unit_scope, expansion_message)
@@ -63,10 +65,6 @@ impl JournalScopeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: self.icon(),
-            state: self.state(clock),
-        })
     }
 
     fn journal_kind_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 4] {

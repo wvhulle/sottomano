@@ -24,6 +24,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
+        group_summary::GroupSummary,
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -33,7 +34,9 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -295,9 +298,20 @@ impl EthernetPortsGroup {
                 .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
         });
         let port_name = port_state.name.clone();
+        let group_summary =
+            GroupSummary::showing(Phosphor::Network(Weight::Regular).into(), &link_item)
+                .adjusting_instrument(|summary_item| {
+                    summary_item.fetching_on_hover(
+                        EthernetPortsInteraction::OnBuses(
+                            EthernetPortsBusRequest::StartDetailsFetch,
+                        ),
+                        EthernetPortsInteraction::StopHoverFetches,
+                    )
+                });
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
+            group_summary,
             expansion,
             move |expansion| EthernetPortsInteraction::Expansion {
                 port_name: port_name.clone(),

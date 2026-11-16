@@ -15,7 +15,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
@@ -23,9 +22,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-pub(crate) const OPEN_ROUTER_SPEND_FALLBACK_GLYPH: IconGlyph =
-    IconGlyph::Phosphor(Phosphor::Coins(Weight::Regular));
 
 pub(crate) fn spend_panel_visibility(spend: &OpenRouterSpend) -> PanelVisibility {
     if spend.month.models.total().is_positive() {

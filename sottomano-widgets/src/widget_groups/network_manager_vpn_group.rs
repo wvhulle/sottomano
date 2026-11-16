@@ -3,7 +3,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        network_manager_proxies::{LinkPhase, NmConnectionSwitch},
+        network_manager_proxies::NmConnectionSwitch,
         network_manager_vpn_connections::{NetworkManagerVpns, VpnConnection},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -19,7 +19,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -31,6 +31,8 @@ use crate::{
 
 mod network_manager_vpn_hover_card;
 use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_reading_row};
+
+use crate::widget_groups::group_summary::GroupSummary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkManagerVpnBusRequest {
@@ -65,7 +67,7 @@ impl NetworkManagerVpnGroup {
         buses: &DesktopBuses,
         demand: &GroupSourceDemand,
     ) -> Subscription<NetworkManagerVpnMessage> {
-        demand.while_face_shown(
+        demand.while_summary_shown(
             snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                 .map(NetworkManagerVpnMessage::NetworkManagerVpns),
         )
@@ -143,27 +145,17 @@ impl NetworkManagerVpnGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
-        let previewed_connection_name = self
-            .vpn_connections()
-            .iter()
-            .find(|vpn_connection| vpn_connection.link_phase() == LinkPhase::Up)
-            .map(|vpn_connection| vpn_connection.name.as_str());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,
+            GroupSummary::glyph(
+                Phosphor::ShieldCheck(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,
-            self.vpn_connections().iter().map(move |vpn_connection| {
-                let vpn_item = self.vpn_connection_item(vpn_connection);
-                if previewed_connection_name == Some(vpn_connection.name.as_str()) {
-                    vpn_item.previewed_on_handle()
-                } else {
-                    vpn_item
-                }
-            }),
+            self.vpn_connections()
+                .iter()
+                .map(move |vpn_connection| self.vpn_connection_item(vpn_connection)),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::ShieldCheck(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
     }
 }

@@ -26,9 +26,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
+        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -239,12 +239,15 @@ impl ColorTemperatureGroup {
         let gamma_available = self.gamma.get().is_some();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
+            GroupSummary::glyph(
+                Phosphor::ThermometerHot(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+            ),
             &self.expansion,
             ColorTemperatureInteraction::Expansion,
             [
                 gamma_available.then(|| {
                     GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
-                        .previewed_on_handle()
                         .with_hover_card(Box::new(move |_| {
                             self.gamma.hover_card_with(vec![Section::new(
                                 "Setting",
@@ -291,10 +294,6 @@ impl ColorTemperatureGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Glyph {
-            glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        })
         .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }
 }
