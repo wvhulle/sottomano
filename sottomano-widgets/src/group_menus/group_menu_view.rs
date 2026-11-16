@@ -40,7 +40,9 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        widget_group_content::{EdgeIndicator, GroupEvent, GroupToastRequests, WidgetGroupContent},
+        widget_group_content::{
+            GroupEvent, GroupToastRequests, WidgetGroupContent, edge_indicator,
+        },
         widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
@@ -260,7 +262,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             HoverTarget::GroupMenu(self.messenger.topic),
             GroupEvent::HoverCard,
         );
-        let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
+        let indicator = edge_indicator(
+            highest_alert_severity,
+            handle_indicator,
+            handle_indicator.settled_reveal(),
+        );
         PanelSlot::new(handle, indicator)
             .view(panel_position)
             .map(M::from)

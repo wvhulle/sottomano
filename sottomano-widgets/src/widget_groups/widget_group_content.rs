@@ -740,10 +740,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
         let on_enter = expansion_event(WidgetGroupExpansionMessage::CursorEntered);
         let on_exit = expansion_event(WidgetGroupExpansionMessage::CursorExited);
-        let edge_indicator = EdgeIndicator {
-            highest_alert_severity,
-            handle: expansion.handle_indicator(),
-        };
+        let handle_indicator = expansion.handle_indicator();
         let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
@@ -783,7 +780,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     )
                 }))
                 .align_y(Alignment::Center);
-            PanelSlot::new(inner.into(), edge_indicator.view(reveal)).view(panel_position)
+            PanelSlot::new(
+                inner.into(),
+                edge_indicator(highest_alert_severity, handle_indicator, reveal),
+            )
+            .view(panel_position)
         });
         Some(Element::from(
             mouse_area(animated).on_enter(on_enter).on_exit(on_exit),
@@ -803,71 +804,52 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     let row = Row::with_children([item.view(config, 1.0, clock, hover_target)])
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
-    let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
+    let indicator = edge_indicator(
+        highest_alert_severity,
+        handle_indicator,
+        handle_indicator.settled_reveal(),
+    );
     PanelSlot::new(row.into(), indicator).view(panel_position)
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct EdgeIndicator {
-    pub highest_alert_severity: Severity,
-    pub handle: MenuHandleIndicator,
-}
-
-impl EdgeIndicator {
-    pub(crate) fn menu_handle_view<'a, M: 'a>(
-        highest_alert_severity: Severity,
-        handle_indicator: MenuHandleIndicator,
-    ) -> Element<'a, M> {
-        let reveal = match handle_indicator.menu_expansion {
-            ExpansionState::Expanded => 1.0,
-            ExpansionState::Collapsed => 0.0,
-        };
-        Self {
-            highest_alert_severity,
-            handle: handle_indicator,
+pub(crate) fn edge_indicator<'a, Message: 'a>(
+    highest_alert_severity: Severity,
+    handle: MenuHandleIndicator,
+    reveal: f32,
+) -> Element<'a, Message> {
+    let thickness = ACCENT_STROKE_PX;
+    let base = match handle.pointing {
+        PointerPresence::PointedAt => 0.5,
+        PointerPresence::NotPointedAt => 0.2,
+    };
+    let revealing_opacity = base + (1.0 - base) * reveal;
+    match highest_alert_severity {
+        Severity::Low | Severity::Normal if handle.menu_expansion == ExpansionState::Expanded => {
+            activity_line(
+                Axis::Horizontal,
+                primary_color,
+                revealing_opacity,
+                thickness,
+            )
         }
-        .view(reveal)
-    }
-
-    pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
-        let thickness = ACCENT_STROKE_PX;
-        let base = match self.handle.pointing {
-            PointerPresence::PointedAt => 0.5,
-            PointerPresence::NotPointedAt => 0.2,
-        };
-        let revealing_opacity = base + (1.0 - base) * reveal;
-        match self.highest_alert_severity {
-            Severity::Low | Severity::Normal
-                if self.handle.menu_expansion == ExpansionState::Expanded =>
-            {
-                activity_line(
-                    Axis::Horizontal,
-                    primary_color,
-                    revealing_opacity,
-                    thickness,
-                )
-            }
-            Severity::Low | Severity::Normal
-                if self.handle.pointing == PointerPresence::PointedAt =>
-            {
-                activity_line(Axis::Horizontal, secondary_text_color, 1.0, thickness)
-            }
-            Severity::Low | Severity::Normal => Space::new()
-                .width(Length::Fill)
-                .height(Length::Fixed(thickness))
-                .into(),
-            severity @ (Severity::Warning | Severity::Critical) => {
-                let tint = ReadingStateTint {
-                    state: ReadingDisplayState::from(severity),
-                    opacity: revealing_opacity,
-                };
-                activity_line(
-                    Axis::Horizontal,
-                    move |theme| tint.color(theme),
-                    1.0,
-                    thickness,
-                )
-            }
+        Severity::Low | Severity::Normal if handle.pointing == PointerPresence::PointedAt => {
+            activity_line(Axis::Horizontal, secondary_text_color, 1.0, thickness)
+        }
+        Severity::Low | Severity::Normal => Space::new()
+            .width(Length::Fill)
+            .height(Length::Fixed(thickness))
+            .into(),
+        severity @ (Severity::Warning | Severity::Critical) => {
+            let tint = ReadingStateTint {
+                state: ReadingDisplayState::from(severity),
+                opacity: revealing_opacity,
+            };
+            activity_line(
+                Axis::Horizontal,
+                move |theme| tint.color(theme),
+                1.0,
+                thickness,
+            )
         }
     }
 }

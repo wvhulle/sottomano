@@ -157,6 +157,16 @@ pub struct MenuHandleIndicator {
     pub menu_expansion: ExpansionState,
 }
 
+impl MenuHandleIndicator {
+    #[must_use]
+    pub fn settled_reveal(self) -> f32 {
+        match self.menu_expansion {
+            ExpansionState::Expanded => 1.0,
+            ExpansionState::Collapsed => 0.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PointerPresence {
     PointedAt,
