@@ -146,6 +146,12 @@ pub trait Manager {
     fn get_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
     fn load_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
     #[zbus(signal)]
+    fn unit_new(&self, id: String, unit: OwnedObjectPath) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn unit_removed(&self, id: String, unit: OwnedObjectPath) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn reloading(&self, active: bool) -> zbus::Result<()>;
+    #[zbus(signal)]
     fn job_removed(
         &self,
         id: u32,

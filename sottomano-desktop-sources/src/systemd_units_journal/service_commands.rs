@@ -1,20 +1,27 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, future::ready, path::PathBuf, time::Duration};
 
-use futures::{Stream, StreamExt, future::join_all};
+use futures::{Stream, StreamExt, future::join_all, stream};
 use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, ServiceProxy, SystemdUnitScope, manager_signal};
+use super::{ManagerProxy, ServiceProxy, SystemdUnitScope};
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::{
-        dbus_change_signals::change_triggers, dbus_desktop_buses::OnBus,
-        protocol_peer_reconnects::subscribed,
-    },
+    delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule},
+    system_protocol_clients::{dbus_desktop_buses::OnBus, protocol_peer_reconnects::subscribed},
 };
 
 const SERVICE_SUFFIX: &str = ".service";
+
+const SERVICE_REREAD_GAP: Duration = Duration::from_secs(2);
+
+fn service_change(unit_id: zbus::Result<String>) -> Option<zbus::Result<()>> {
+    match unit_id {
+        Ok(unit_id) if unit_id.ends_with(SERVICE_SUFFIX) => Some(Ok(())),
+        Ok(_) => None,
+        Err(signal_failure) => Some(Err(signal_failure)),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ServiceAccount {
@@ -126,24 +133,33 @@ async fn watch_service_commands(
         .build()
         .await?;
     manager.ensure_subscribed().await?;
-    let signals = change_triggers(
-        &connection,
-        [
-            manager_signal("UnitNew")?,
-            manager_signal("UnitRemoved")?,
-            manager_signal("Reloading")?,
-        ],
-    )
-    .await?;
-    Ok(signals
-        .triggered_rereads(move || {
-            let manager = manager.clone();
-            async move {
-                all_service_commands(&manager)
-                    .await
-                    .map(|services| services.into_values().collect())
-            }
-        })
+    let added_services = manager
+        .receive_unit_new()
+        .await?
+        .filter_map(|added| ready(service_change(added.args().map(|args| args.id))));
+    let removed_services = manager
+        .receive_unit_removed()
+        .await?
+        .filter_map(|removed| ready(service_change(removed.args().map(|args| args.id))));
+    let reloads = manager.receive_reloading().await?.map(|_| Ok(()));
+    let service_triggers = stream::select_all([
+        added_services.boxed(),
+        removed_services.boxed(),
+        reloads.boxed(),
+    ]);
+    Ok(service_triggers
+        .paced_rereads(
+            SERVICE_REREAD_GAP,
+            move || {
+                let manager = manager.clone();
+                async move {
+                    all_service_commands(&manager)
+                        .await
+                        .map(|services| services.into_values().collect())
+                }
+            },
+            |_| RereadSchedule::WaitForTrigger,
+        )
         .distinct_until_changed())
 }
 
