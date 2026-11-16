@@ -27,6 +27,8 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -325,111 +327,153 @@ impl GpuGroup {
         device: &'a GpuDevice,
         clock: Clock,
     ) -> GroupSummary<'a, GpuInteraction> {
-        let model_sections = move || {
-            self.discovery
-                .sections_described_by(|_| vec![Section::from(&device.model)])
-        };
-        let refresh = || GpuInteraction::Refresh(bus.clone());
         match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => {
-                match snapshot.reading_row(GPU_SUMMARY_GLYPH.into(), gpu_load_reading_row, clock) {
-                    Some(load_row) => GroupSummary::summarising(
+            GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    GroupSummary::summarising(
                         GPU_SUMMARY_GLYPH.into(),
-                        GroupItem::reading(load_row)
-                            .with_hover_card(Box::new(move |_| {
-                                snapshot
-                                    .sections_described_by(gpu_load_hover_card)
-                                    .into_iter()
-                                    .chain(model_sections())
-                                    .collect()
-                            }))
-                            .refreshed_by(refresh()),
-                    ),
-                    None => GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), snapshot.unshown_state()),
+                        self.gpu_load_item(
+                            bus,
+                            device,
+                            snapshot,
+                            gpu_load_reading_row(held_snapshot),
+                        ),
+                    )
                 }
-            }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    GroupSummary::summarising(
+                        GPU_SUMMARY_GLYPH.into(),
+                        self.gpu_load_item(
+                            bus,
+                            device,
+                            snapshot,
+                            troubled_snapshot.shown_over(
+                                gpu_load_reading_row(&troubled_snapshot.held_snapshot),
+                                clock,
+                            ),
+                        ),
+                    )
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                    GPU_SUMMARY_GLYPH.into(),
+                    self.gpu_load_item(
+                        bus,
+                        device,
+                        snapshot,
+                        placeholder.reading_row(GPU_SUMMARY_GLYPH.into()),
+                    ),
+                ),
+                SubscribedSnapshot::AwaitingFirstSnapshot => {
+                    GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), ReadingDisplayState::Pending)
+                }
+                SubscribedSnapshot::SourceUnavailable => {
+                    GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), ReadingDisplayState::Off)
+                }
+            },
             GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
                 GPU_SUMMARY_GLYPH.into(),
                 GroupItem::reading(handle_failure.reading_row(GPU_SUMMARY_GLYPH.into()))
                     .with_hover_card(Box::new(move |_| {
                         [handle_failure.source_state()]
                             .into_iter()
-                            .chain(model_sections())
+                            .chain(self.model_sections(device))
                             .collect()
                     }))
-                    .refreshed_by(refresh()),
+                    .refreshed_by(GpuInteraction::Refresh(bus.clone())),
             ),
         }
+    }
+
+    fn model_sections(&self, device: &GpuDevice) -> Vec<Section> {
+        self.discovery
+            .sections_described_by(|_| vec![Section::from(&device.model)])
+    }
+
+    fn gpu_load_item<'a>(
+        &'a self,
+        bus: &'a PciBusId,
+        device: &'a GpuDevice,
+        snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
+        load_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, GpuInteraction> {
+        GroupItem::reading(load_row)
+            .with_hover_card(Box::new(move |_| {
+                snapshot
+                    .sections_described_by(gpu_load_hover_card)
+                    .into_iter()
+                    .chain(self.model_sections(device))
+                    .collect()
+            }))
+            .refreshed_by(GpuInteraction::Refresh(bus.clone()))
     }
 
     fn device_items<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
-    ) -> [Option<GroupItem<'a, GpuInteraction>>; 4] {
-        let refresh = || GpuInteraction::Refresh(bus.clone());
-        let readable_snapshot = match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => Some(snapshot),
-            GpuDeviceAccess::Unreadable { .. } => None,
+    ) -> Vec<GroupItem<'a, GpuInteraction>> {
+        let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
+            return Vec::new();
         };
-        [
-            readable_snapshot
-                .zip(device.clock_label())
-                .map(|(snapshot, label)| {
-                    GroupItem::reading(label.reading_row())
-                        .with_hover_card(Box::new(move |_| {
-                            let mut sections = snapshot.hover_card_with(label.hover_card());
-                            sections.extend(self.hovered_sections(bus, |group| {
-                                group.clocks.sections_described_by(gpu_clocks_sections)
-                            }));
-                            sections
-                        }))
-                        .fetching_on_hover(
-                            GpuInteraction::StartClocksFetch(bus.clone()),
-                            GpuInteraction::StopHoverFetches,
-                        )
-                        .refreshed_by(refresh())
-                }),
-            readable_snapshot
-                .zip(device.memory())
-                .map(|(snapshot, memory)| {
-                    let card_memory = memory.clone();
-                    GroupItem::reading(gpu_memory_reading_row(memory))
-                        .with_hover_card(Box::new(move |_| {
-                            let mut sections =
-                                snapshot.hover_card_with(gpu_memory_sections(&card_memory));
-                            sections.extend(self.hovered_sections(bus, |group| {
-                                group
-                                    .processes
-                                    .sections_described_by(gpu_processes_sections)
-                            }));
-                            sections
-                        }))
-                        .fetching_on_hover(
-                            GpuInteraction::StartProcessesFetch(bus.clone()),
-                            GpuInteraction::StopHoverFetches,
-                        )
-                        .refreshed_by(refresh())
-                }),
-            readable_snapshot
-                .zip(device.temperature_label())
-                .map(|(snapshot, label)| {
-                    GroupItem::reading(label.reading_row())
-                        .with_hover_card(Box::new(move |_| {
-                            snapshot.hover_card_with(label.hover_card())
-                        }))
-                        .refreshed_by(refresh())
-                }),
-            readable_snapshot
-                .zip(device.power_label())
-                .map(|(snapshot, label)| {
-                    GroupItem::reading(gpu_power_reading_row(label))
-                        .with_hover_card(Box::new(move |_| {
-                            snapshot.hover_card_with(gpu_power_hover_card(&label))
-                        }))
-                        .refreshed_by(refresh())
-                }),
-        ]
+        let refresh = || GpuInteraction::Refresh(bus.clone());
+        let mut rows = Vec::new();
+        if let Some(clock_label) = device.clock_label() {
+            rows.push(
+                GroupItem::reading(clock_label.reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections = snapshot.hover_card_with(clock_label.hover_card());
+                        sections.extend(self.hovered_sections(bus, |group| {
+                            group.clocks.sections_described_by(gpu_clocks_sections)
+                        }));
+                        sections
+                    }))
+                    .fetching_on_hover(
+                        GpuInteraction::StartClocksFetch(bus.clone()),
+                        GpuInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(refresh()),
+            );
+        }
+        if let Some(memory) = device.memory() {
+            let card_memory = memory.clone();
+            rows.push(
+                GroupItem::reading(gpu_memory_reading_row(memory))
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections =
+                            snapshot.hover_card_with(gpu_memory_sections(&card_memory));
+                        sections.extend(self.hovered_sections(bus, |group| {
+                            group
+                                .processes
+                                .sections_described_by(gpu_processes_sections)
+                        }));
+                        sections
+                    }))
+                    .fetching_on_hover(
+                        GpuInteraction::StartProcessesFetch(bus.clone()),
+                        GpuInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(refresh()),
+            );
+        }
+        if let Some(temperature_label) = device.temperature_label() {
+            rows.push(
+                GroupItem::reading(temperature_label.reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        snapshot.hover_card_with(temperature_label.hover_card())
+                    }))
+                    .refreshed_by(refresh()),
+            );
+        }
+        if let Some(power_label) = device.power_label() {
+            rows.push(
+                GroupItem::reading(gpu_power_reading_row(power_label))
+                    .with_hover_card(Box::new(move |_| {
+                        snapshot.hover_card_with(gpu_power_hover_card(&power_label))
+                    }))
+                    .refreshed_by(refresh()),
+            );
+        }
+        rows
     }
 
     pub fn group_contents(
@@ -452,7 +496,7 @@ impl GpuGroup {
                     self.device_summary(bus, device, clock),
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    self.device_items(bus, device).into_iter().flatten(),
+                    self.device_items(bus, device),
                 )
             })
     }

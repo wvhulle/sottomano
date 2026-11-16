@@ -3,7 +3,7 @@ use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Me
 
 use crate::{
     hover_cards::hover_card_body::dictionary_table,
-    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::icon_glyph::IconGlyph,
+    widget_groups::widget_group_identity::WidgetGroupFamily,
 };
 
 mod connectivity_state_reading;
@@ -34,7 +34,11 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -54,6 +58,10 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
+
+const CONNECTIVITY_GLYPH: Phosphor = Phosphor::CloudCheck(Weight::Regular);
+const INTERFACE_THROUGHPUT_GLYPH: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
+const INTERNET_LATENCY_GLYPH: Phosphor = Phosphor::Timer(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReachabilityBusRequest {
@@ -192,76 +200,132 @@ impl ReachabilityGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ReachabilityInteraction> {
-        let throughput = self.throughput.get();
-        let refresh_throughput =
-            || ReachabilityInteraction::OnBuses(ReachabilityBusRequest::Refresh);
-        let group_summary = match self.connectivity.reading_row(
-            Phosphor::CloudCheck(Weight::Regular).into(),
-            uplink_connectivity_reading_row,
-            clock,
-        ) {
-            Some(connectivity_item) => GroupSummary::summarising(
-                Phosphor::CloudCheck(Weight::Regular).into(),
-                GroupItem::reading(connectivity_item),
+        let group_summary = match &self.connectivity {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                CONNECTIVITY_GLYPH.into(),
+                GroupItem::reading(uplink_connectivity_reading_row(held_snapshot)),
             ),
-            None => GroupSummary::glyph(
-                Phosphor::CloudCheck(Weight::Regular).into(),
-                self.connectivity.unshown_state(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    CONNECTIVITY_GLYPH.into(),
+                    GroupItem::reading(troubled_snapshot.shown_over(
+                        uplink_connectivity_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                CONNECTIVITY_GLYPH.into(),
+                GroupItem::reading(placeholder.reading_row(CONNECTIVITY_GLYPH.into())),
             ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(CONNECTIVITY_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(CONNECTIVITY_GLYPH.into(), ReadingDisplayState::Off)
+            }
         };
+        let mut rows = Vec::new();
+        match &self.throughput {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let interface_row = interface_throughput_reading_row(held_snapshot);
+                if interface_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.interface_throughput_item(interface_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let interface_row = troubled_snapshot.shown_over(
+                    interface_throughput_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if interface_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.interface_throughput_item(interface_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.interface_throughput_item(
+                    placeholder.reading_row(INTERFACE_THROUGHPUT_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if let Some(readings) = self.throughput.get() {
+            rows.push(self.direction_throughput_item(&readings.down));
+            rows.push(self.direction_throughput_item(&readings.up));
+        }
+        match &self.latency {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let latency_row = internet_latency_reading_row(held_snapshot);
+                if latency_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.internet_latency_item(latency_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let latency_row = troubled_snapshot.shown_over(
+                    internet_latency_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if latency_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.internet_latency_item(latency_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.internet_latency_item(
+                        placeholder.reading_row(INTERNET_LATENCY_GLYPH.into()),
+                    ),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
             group_summary,
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            [].into_iter().chain(
-                self.throughput
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| interface_throughput_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|throughput_item| {
-                        throughput_item
-                            .with_hover_card(Box::new(move |_| {
-                                self.throughput
-                                    .sections_described_by(interface_throughput_hover_card)
-                            }))
-                            .refreshed_by(refresh_throughput())
-                    })
-                    .into_iter()
-                    .chain(throughput.into_iter().flat_map(move |readings| {
-                        [
-                            GroupItem::reading(throughput_reading_row(&readings.down))
-                                .with_hover_card(Box::new(move |_| {
-                                    self.direction_hover_card(&readings.down)
-                                }))
-                                .refreshed_by(refresh_throughput()),
-                            GroupItem::reading(throughput_reading_row(&readings.up))
-                                .with_hover_card(Box::new(move |_| {
-                                    self.direction_hover_card(&readings.up)
-                                }))
-                                .refreshed_by(refresh_throughput()),
-                        ]
-                    }))
-                    .chain(
-                        self.latency
-                            .group_item(
-                                IconGlyph::default(),
-                                |snapshot| internet_latency_reading_row(snapshot),
-                                clock,
-                            )
-                            .map(|latency_item| {
-                                latency_item
-                                    .with_hover_card(Box::new(move |_| {
-                                        self.latency
-                                            .sections_described_by(internet_latency_hover_card)
-                                    }))
-                                    .refreshed_by(refresh_throughput())
-                            }),
-                    ),
-            ),
+            rows,
         )
+    }
+
+    fn interface_throughput_item<'a>(
+        &'a self,
+        interface_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ReachabilityInteraction> {
+        GroupItem::reading(interface_row)
+            .with_hover_card(Box::new(move |_| {
+                self.throughput
+                    .sections_described_by(interface_throughput_hover_card)
+            }))
+            .refreshed_by(ReachabilityInteraction::OnBuses(
+                ReachabilityBusRequest::Refresh,
+            ))
+    }
+
+    fn direction_throughput_item<'a>(
+        &'a self,
+        direction_throughput: &'a Throughput,
+    ) -> GroupItem<'a, ReachabilityInteraction> {
+        GroupItem::reading(throughput_reading_row(direction_throughput))
+            .with_hover_card(Box::new(move |_| {
+                self.direction_hover_card(direction_throughput)
+            }))
+            .refreshed_by(ReachabilityInteraction::OnBuses(
+                ReachabilityBusRequest::Refresh,
+            ))
+    }
+
+    fn internet_latency_item<'a>(
+        &'a self,
+        latency_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ReachabilityInteraction> {
+        GroupItem::reading(latency_row)
+            .with_hover_card(Box::new(move |_| {
+                self.latency
+                    .sections_described_by(internet_latency_hover_card)
+            }))
+            .refreshed_by(ReachabilityInteraction::OnBuses(
+                ReachabilityBusRequest::Refresh,
+            ))
     }
 }
 

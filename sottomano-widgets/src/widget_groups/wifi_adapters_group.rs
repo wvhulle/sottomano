@@ -269,46 +269,49 @@ impl WifiAdaptersGroup {
                 WifiAdaptersInteraction::StopHoverFetches,
             ),
         );
-        let connection_item = (radio_power == RadioPower::On).then(|| {
+        let mut rows = Vec::new();
+        if radio_power == RadioPower::On {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
-            GroupItem::reading(connection_switch.reading_row())
-                .on_switch_press(
-                    adapter.link_state,
-                    connection_press_does,
-                    WifiAdaptersInteraction::ToggleAdapter(adapter.device.clone()),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.adapter_connection_hover_card(adapter)
-                }))
-        });
-        let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
-            .into_iter()
-            .filter(|_| adapter.link_state == LinkPhase::Up)
-            .map(|family| {
+            rows.push(
+                GroupItem::reading(connection_switch.reading_row())
+                    .on_switch_press(
+                        adapter.link_state,
+                        connection_press_does,
+                        WifiAdaptersInteraction::ToggleAdapter(adapter.device.clone()),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.adapter_connection_hover_card(adapter)
+                    })),
+            );
+        }
+        if adapter.link_state == LinkPhase::Up {
+            rows.extend([AddressFamily::Ipv4, AddressFamily::Ipv6].map(|family| {
                 GroupItem::reading(InterfaceAddressReading { family }.reading_row())
                     .with_hover_card(Box::new(move |_| {
                         self.adapter_address_hover_card(adapter, family)
                     }))
-            });
-        let dns_item = (adapter.link_state == LinkPhase::Up).then(|| {
-            GroupItem::reading(InterfaceDnsReading::reading_row())
-                .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter)))
-        });
+            }));
+            rows.push(
+                GroupItem::reading(InterfaceDnsReading::reading_row())
+                    .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter))),
+            );
+        }
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
-        let radios_item = GroupItem::reading(radios_switch.reading_row())
-            .on_switch_press(
-                radio_power,
-                radios_press_does,
-                WifiAdaptersInteraction::ToggleAllRadios,
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.wifi
-                    .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
-            }));
+        rows.push(
+            GroupItem::reading(radios_switch.reading_row())
+                .on_switch_press(
+                    radio_power,
+                    radios_press_does,
+                    WifiAdaptersInteraction::ToggleAllRadios,
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.wifi
+                        .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
+                })),
+        );
         let adapter_device = adapter.device.clone();
-        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
@@ -318,17 +321,12 @@ impl WifiAdaptersGroup {
                 adapter_device: adapter_device.clone(),
                 expansion,
             },
-            connection_item
-                .into_iter()
-                .chain(address_items)
-                .chain(dns_item)
-                .chain([radios_item])
-                .map(|adapter_item| {
-                    adapter_item.fetching_on_hover(
-                        WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
-                        WifiAdaptersInteraction::StopHoverFetches,
-                    )
-                }),
+            rows.into_iter().map(|adapter_item| {
+                adapter_item.fetching_on_hover(
+                    WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
+                    WifiAdaptersInteraction::StopHoverFetches,
+                )
+            }),
         ))
     }
 

@@ -13,7 +13,6 @@ use sottomano_toml_config::Config;
 
 use super::MediaInteraction;
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::{GroupItem, GroupItemValue},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
@@ -39,7 +38,7 @@ const LINES_AFTER_CURRENT: usize = 3;
 pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
 
-fn track_lyrics_reading_row(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
+pub(super) fn track_lyrics_reading_row(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
     let (icon, state) = match track_lyrics {
         TrackLyrics::Synced(_) => (
             Phosphor::MicrophoneStage(Weight::Regular).into(),
@@ -124,7 +123,7 @@ fn synced_lyrics_table(
     )
 }
 
-fn singing_line<'a>(
+pub(super) fn singing_line<'a>(
     lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
     media: &Media,
     sampled_at: Instant,
@@ -133,24 +132,7 @@ fn singing_line<'a>(
     lyrics_snapshot.get()?.current_line(played)
 }
 
-pub(super) fn lyrics_item<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
-    sampled_at: Instant,
-    clock: Clock,
-) -> Option<GroupItem<'a, MediaInteraction>> {
-    let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
-        return lyrics_snapshot.group_item(
-            TRACK_LYRICS_FALLBACK_GLYPH,
-            track_lyrics_reading_row,
-            clock,
-        );
-    };
-    Some(current_lyric_line(config, media, timed_line, sampled_at))
-}
-
-fn current_lyric_line<'a>(
+pub(super) fn current_lyric_line<'a>(
     config: &'a Config,
     media: &'a Media,
     timed_line: &'a TimedLyricLine,

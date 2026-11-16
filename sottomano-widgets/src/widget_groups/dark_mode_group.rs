@@ -1,6 +1,3 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
-};
 mod auto_switch_toggle;
 mod offset_slider;
 mod sqlite_dark_mode_schedule;
@@ -31,8 +28,10 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl},
-        toggle_control::{ToggleControl, ToggleMessage},
+        toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
@@ -44,7 +43,7 @@ use crate::{
     },
     widgets::{
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::CommandOutcome,
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         weather_icons::WeatherIcon,
     },
 };
@@ -52,6 +51,7 @@ use crate::{
 const OFFSET_MINUTES: RangeInclusive<f32> = -120.0..=120.0;
 const OFFSET_STEP_MINUTES: f32 = 5.0;
 const SWITCH_TIMER_MARGIN: Duration = Duration::from_secs(1);
+const DARK_MODE_GLYPH: Phosphor = Phosphor::Moon(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DarkModeSource {
@@ -336,7 +336,6 @@ impl DarkModeGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, DarkModeInteraction> {
         let locale = config.calendar.locale;
-        let mode_known = self.mode_toggle.snapshot().is_some();
         let offset_slider = |edge| {
             GroupItem::slider(
                 self.offset_slider_for(edge),
@@ -345,6 +344,48 @@ impl DarkModeGroup {
             )
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
+        let mut rows = Vec::new();
+        match self.mode_toggle.subscribed_reading() {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let mode_row = dark_mode_reading_row(held_snapshot);
+                if mode_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.mode_toggle_item(mode_row).on_switch_press(
+                        held_snapshot.switch_position(),
+                        held_snapshot.press_action_text(),
+                        DarkModeInteraction::ModeTogglePressed,
+                    ));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                let mode_row =
+                    troubled_snapshot.shown_over(dark_mode_reading_row(held_snapshot), clock);
+                if mode_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.mode_toggle_item(mode_row).on_switch_press(
+                        held_snapshot.switch_position(),
+                        held_snapshot.press_action_text(),
+                        DarkModeInteraction::ModeTogglePressed,
+                    ));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.mode_toggle_item(placeholder.reading_row(DARK_MODE_GLYPH.into())));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if self.mode_toggle.snapshot().is_some() {
+            rows.push(
+                GroupItem::reading(self.auto_switch_toggle.reading_row(clock, locale))
+                    .on_switch_press(
+                        self.auto_switch_toggle.saved_schedule.auto_switch_arming,
+                        self.auto_switch_toggle.press_does(),
+                        DarkModeInteraction::ToggleAutoSwitch,
+                    )
+                    .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location)),
+            );
+            rows.push(offset_slider(ColorMode::Light));
+            rows.push(offset_slider(ColorMode::Dark));
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DarkMode,
             GroupSummary::glyph(
@@ -353,33 +394,16 @@ impl DarkModeGroup {
             ),
             &self.expansion,
             DarkModeInteraction::Expansion,
-            [
-                self.mode_toggle
-                    .group_item(
-                        IconGlyph::default(),
-                        dark_mode_reading_row,
-                        DarkModeInteraction::ModeTogglePressed,
-                        clock,
-                    )
-                    .map(|mode_item| {
-                        mode_item
-                            .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
-                            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
-                    }),
-                mode_known.then(|| {
-                    GroupItem::reading(self.auto_switch_toggle.reading_row(clock, locale))
-                        .on_switch_press(
-                            self.auto_switch_toggle.saved_schedule.auto_switch_arming,
-                            self.auto_switch_toggle.press_does(),
-                            DarkModeInteraction::ToggleAutoSwitch,
-                        )
-                        .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
-                }),
-                mode_known.then(|| offset_slider(ColorMode::Light)),
-                mode_known.then(|| offset_slider(ColorMode::Dark)),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
+    }
+
+    fn mode_toggle_item<'a>(
+        &'a self,
+        mode_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, DarkModeInteraction> {
+        GroupItem::reading(mode_row)
+            .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
+            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }
 }

@@ -32,7 +32,7 @@ use crate::{
     group_items::{
         group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
-        reading_row::DescribeCard,
+        reading_row::{DescribeCard, PanelVisibility},
         source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -70,7 +70,10 @@ mod transport_controls;
 use self::{
     seek_bar::SeekBar,
     session_controls::{SessionControls, SessionMessages},
-    synced_lyrics_view::{lyrics_item, lyrics_section},
+    synced_lyrics_view::{
+        TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
+        track_lyrics_reading_row,
+    },
     track_face::{player_item, track_item},
     track_hover_card::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
@@ -467,21 +470,17 @@ fn session_buttons_item<'a>(
     config: &'a Config,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> Option<GroupItem<'a, MediaInteraction>> {
+) -> GroupItem<'a, MediaInteraction> {
     let bus = media.bus.as_str();
-    let offers_session_buttons =
-        (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit;
-    offers_session_buttons.then(|| {
-        GroupItem::composed(
-            "Session",
-            GroupItemIcon::Absent,
-            GroupItemValue::drawn(move |reveal| {
-                lifted_to_player(bus, session_controls(config, media, session, reveal).into())
-            }),
-            Box::new(|_| Vec::new()),
-        )
-        .with_button_actions(session_controls(config, media, session, 1.0).press_actions())
-    })
+    GroupItem::composed(
+        "Session",
+        GroupItemIcon::Absent,
+        GroupItemValue::drawn(move |reveal| {
+            lifted_to_player(bus, session_controls(config, media, session, reveal).into())
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions(session_controls(config, media, session, 1.0).press_actions())
 }
 
 struct PlayerCards<'a> {
@@ -563,39 +562,66 @@ fn player_group<'a>(
             !(seek_availability == SeekAvailability::Seekable
                 && session.expansion.state() == ExpansionState::Expanded)
         });
-    let seek = (seek_availability == SeekAvailability::Seekable)
-        .then(|| seek_position_item(config, clock, media, session));
-    let transport = transport_controls_item(config, media);
-    let session_buttons = session_buttons_item(config, media, session);
     let group_summary = GroupSummary::summarising(
         Phosphor::Radio(Weight::Regular).into(),
         player_item(config, media, gauge_fraction).with_hover_card(cards.player),
     );
+    let mut rows = vec![
+        track_item(
+            config,
+            media,
+            session.cover_art.as_ref().map(|art| &art.handle),
+        )
+        .with_hover_card(cards.track),
+    ];
+    if let Some(lyrics_snapshot) = lyrics_snapshot {
+        if let Some(timed_line) = singing_line(lyrics_snapshot, media, clock.instant) {
+            rows.push(
+                current_lyric_line(config, media, timed_line, clock.instant)
+                    .with_hover_card(cards.lyrics),
+            );
+        } else {
+            match lyrics_snapshot {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    let lyrics_row = track_lyrics_reading_row(held_snapshot);
+                    if lyrics_row.panel_visibility == PanelVisibility::Shown {
+                        rows.push(GroupItem::reading(lyrics_row).with_hover_card(cards.lyrics));
+                    }
+                }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    let lyrics_row = troubled_snapshot.shown_over(
+                        track_lyrics_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    );
+                    if lyrics_row.panel_visibility == PanelVisibility::Shown {
+                        rows.push(GroupItem::reading(lyrics_row).with_hover_card(cards.lyrics));
+                    }
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => {
+                    rows.push(
+                        GroupItem::reading(placeholder.reading_row(TRACK_LYRICS_FALLBACK_GLYPH))
+                            .with_hover_card(cards.lyrics),
+                    );
+                }
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
+            }
+        }
+    }
+    if seek_availability == SeekAvailability::Seekable {
+        rows.push(seek_position_item(config, clock, media, session));
+    }
+    rows.push(transport_controls_item(config, media));
+    if (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit {
+        rows.push(session_buttons_item(config, media, session));
+    }
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),
         group_title,
         group_summary,
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
-        [
-            Some(
-                track_item(
-                    config,
-                    media,
-                    session.cover_art.as_ref().map(|art| &art.handle),
-                )
-                .with_hover_card(cards.track),
-            ),
-            lyrics_snapshot.and_then(|lyrics_snapshot| {
-                lyrics_item(config, media, lyrics_snapshot, clock.instant, clock)
-                    .map(|lyrics_row| lyrics_row.with_hover_card(cards.lyrics))
-            }),
-            seek,
-            Some(transport),
-            session_buttons,
-        ]
-        .into_iter()
-        .flatten(),
+        rows,
     )
     .forwards_scroll(
         (seek_availability == SeekAvailability::Seekable).then_some("seek in the track"),

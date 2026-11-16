@@ -7,8 +7,7 @@ use crate::widget_groups::{
         pollen_count_gauge::{POLLEN_FALLBACK_GLYPH, allergen_hover_card, allergen_reading_row},
         rain_intensity::{
             PRECIPITATION_MODEL_FALLBACK_GLYPH, RAIN_FALLBACK_GLYPH,
-            precipitation_model_hover_card, precipitation_model_reading_row, rain_hover_card,
-            rain_reading_row,
+            precipitation_model_hover_card, rain_hover_card,
         },
         temperature_forecast::{temperature_hover_card, temperature_reading_row},
         wind_speed::{WIND_FALLBACK_GLYPH, wind_hover_card, wind_reading_row},
@@ -37,7 +36,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -52,6 +55,8 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const WEATHER_GLYPH: Phosphor = Phosphor::CloudSun(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WeatherSource {
@@ -230,32 +235,72 @@ impl WeatherGroup {
     fn rain_item<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
-    ) -> Option<GroupItem<'a, WeatherInteraction>> {
-        let locale = config.calendar.locale;
-        let rain_item = match self.rain_forecast(config) {
-            Some(forecast) => Some(GroupItem::reading(forecast.reading_row(clock, locale))),
-            None => self
-                .rain
-                .group_item(
-                    RAIN_FALLBACK_GLYPH,
-                    |snapshot| rain_reading_row(snapshot, clock, locale),
-                    clock,
-                )
-                .or_else(|| {
-                    self.precipitation_model.group_item(
-                        PRECIPITATION_MODEL_FALLBACK_GLYPH,
-                        |snapshot| precipitation_model_reading_row(snapshot, clock, locale),
-                        clock,
-                    )
-                }),
-        };
-        rain_item.map(|item| {
-            item.with_hover_card(Box::new(move |card_clock| {
+        rain_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, WeatherInteraction> {
+        GroupItem::reading(rain_row)
+            .with_hover_card(Box::new(move |card_clock| {
                 self.rain_hover_card(config, card_clock)
             }))
             .refreshed_by(refresh_online(WeatherSource::Rain))
-        })
+    }
+
+    fn temperature_item<'a>(
+        &'a self,
+        temperature_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, WeatherInteraction> {
+        GroupItem::reading(temperature_row)
+            .with_hover_card(Box::new(move |_| {
+                self.temperature
+                    .sections_described_by(temperature_hover_card)
+            }))
+            .refreshed_by(refresh_online(WeatherSource::Temperature))
+    }
+
+    fn wind_item<'a>(&'a self, wind_row: ReadingRow<'a>) -> GroupItem<'a, WeatherInteraction> {
+        GroupItem::reading(wind_row)
+            .with_hover_card(Box::new(move |_| {
+                self.wind.sections_described_by(wind_hover_card)
+            }))
+            .refreshed_by(refresh_online(WeatherSource::Wind))
+    }
+
+    fn location_item<'a>(
+        &'a self,
+        location_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, WeatherInteraction> {
+        GroupItem::reading(location_row)
+            .with_hover_card(Box::new(move |_| {
+                self.location.sections_described_by(location_hover_card)
+            }))
+            .refreshed_by(WeatherInteraction::RefreshLocation)
+    }
+
+    fn temperature_summary(&self, clock: Clock) -> GroupSummary<'_, WeatherInteraction> {
+        match &self.temperature {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                WEATHER_GLYPH.into(),
+                self.temperature_item(temperature_reading_row(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    WEATHER_GLYPH.into(),
+                    self.temperature_item(troubled_snapshot.shown_over(
+                        temperature_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                WEATHER_GLYPH.into(),
+                self.temperature_item(placeholder.reading_row(WEATHER_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(WEATHER_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(WEATHER_GLYPH.into(), ReadingDisplayState::Off)
+            }
+        }
     }
 
     pub fn group_content<'a>(
@@ -263,84 +308,84 @@ impl WeatherGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, WeatherInteraction> {
-        let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
-            pollen.airborne().map(|concentration| {
+        let locale = config.calendar.locale;
+        let group_summary = self.temperature_summary(clock);
+        let mut rows = Vec::new();
+        if let Some(forecast) = self.rain_forecast(config) {
+            rows.push(self.rain_item(config, forecast.reading_row(clock, locale)));
+        } else if let Some(rain_placeholder) = self.rain.failure() {
+            rows.push(self.rain_item(config, rain_placeholder.reading_row(RAIN_FALLBACK_GLYPH)));
+        } else if let Some(model_placeholder) = self.precipitation_model.failure() {
+            rows.push(self.rain_item(
+                config,
+                model_placeholder.reading_row(PRECIPITATION_MODEL_FALLBACK_GLYPH),
+            ));
+        }
+        match &self.wind {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let wind_row = wind_reading_row(held_snapshot);
+                if wind_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.wind_item(wind_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let wind_row = troubled_snapshot
+                    .shown_over(wind_reading_row(&troubled_snapshot.held_snapshot), clock);
+                if wind_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.wind_item(wind_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.wind_item(placeholder.reading_row(WIND_FALLBACK_GLYPH)));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if let Some(pollen) = self.pollen.get() {
+            rows.extend(pollen.airborne().map(|concentration| {
                 GroupItem::reading(allergen_reading_row(concentration))
                     .with_hover_card(Box::new(move |_| {
                         self.pollen
                             .hover_card_with(allergen_hover_card(concentration))
                     }))
                     .refreshed_by(refresh_online(WeatherSource::Pollen))
-            })
-        });
-        let group_summary = match self.temperature.reading_row(
-            Phosphor::CloudSun(Weight::Regular).into(),
-            |snapshot| temperature_reading_row(snapshot),
-            clock,
-        ) {
-            Some(summarised_row) => GroupSummary::summarising(
-                Phosphor::CloudSun(Weight::Regular).into(),
-                GroupItem::reading(summarised_row)
+            }));
+        }
+        if let Some(pollen_placeholder) = self.pollen.failure() {
+            rows.push(
+                GroupItem::reading(pollen_placeholder.reading_row(POLLEN_FALLBACK_GLYPH))
                     .with_hover_card(Box::new(move |_| {
-                        self.temperature
-                            .sections_described_by(temperature_hover_card)
+                        self.pollen.sections_described_by(|_pollen| Vec::new())
                     }))
-                    .refreshed_by(refresh_online(WeatherSource::Temperature)),
-            ),
-            None => GroupSummary::glyph(
-                Phosphor::CloudSun(Weight::Regular).into(),
-                self.temperature.unshown_state(),
-            ),
-        };
-        let group_summary = group_summary;
+                    .refreshed_by(refresh_online(WeatherSource::Pollen)),
+            );
+        }
+        match &self.location {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let location_row = location_reading_row(held_snapshot);
+                if location_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.location_item(location_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let location_row = troubled_snapshot.shown_over(
+                    location_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if location_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.location_item(location_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.location_item(placeholder.reading_row(LOCATION_FALLBACK_GLYPH)));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             group_summary,
             &self.expansion,
             WeatherInteraction::Expansion,
-            [
-                self.rain_item(config, clock),
-                self.wind
-                    .group_item(
-                        WIND_FALLBACK_GLYPH,
-                        |snapshot| wind_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.wind.sections_described_by(wind_hover_card)
-                        }))
-                        .refreshed_by(refresh_online(WeatherSource::Wind))
-                    }),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(airborne_items)
-            .chain(
-                [
-                    self.pollen.failure().map(|widget| {
-                        GroupItem::reading(widget.reading_row(POLLEN_FALLBACK_GLYPH))
-                            .with_hover_card(Box::new(move |_| {
-                                self.pollen.sections_described_by(|_pollen| Vec::new())
-                            }))
-                            .refreshed_by(refresh_online(WeatherSource::Pollen))
-                    }),
-                    self.location
-                        .group_item(
-                            LOCATION_FALLBACK_GLYPH,
-                            |snapshot| location_reading_row(snapshot),
-                            clock,
-                        )
-                        .map(|item| {
-                            item.with_hover_card(Box::new(move |_| {
-                                self.location.sections_described_by(location_hover_card)
-                            }))
-                            .refreshed_by(WeatherInteraction::RefreshLocation)
-                        }),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
+            rows,
         )
     }
 }

@@ -291,19 +291,23 @@ impl EthernetPortsGroup {
             .with_hover_card(Box::new(move |_| {
                 self.port_connection_hover_card(port_state)
             }));
-        let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
-            .into_iter()
-            .filter(|_| port_state.link_state == LinkPhase::Up)
-            .map(|family| {
-                GroupItem::reading(InterfaceAddressReading { family }.reading_row())
-                    .with_hover_card(Box::new(move |_| {
-                        self.interface_address_hover_card(port_state, family)
-                    }))
-            });
-        let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
-            GroupItem::reading(InterfaceDnsReading::reading_row())
-                .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
-        });
+        let mut rows = vec![connection_item];
+        if port_state.link_state == LinkPhase::Up {
+            rows.extend(
+                [AddressFamily::Ipv4, AddressFamily::Ipv6]
+                    .into_iter()
+                    .map(|family| {
+                        GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                            .with_hover_card(Box::new(move |_| {
+                                self.interface_address_hover_card(port_state, family)
+                            }))
+                    }),
+            );
+            rows.push(
+                GroupItem::reading(InterfaceDnsReading::reading_row())
+                    .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state))),
+            );
+        }
         let port_name = port_state.name.clone();
         let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
@@ -315,18 +319,12 @@ impl EthernetPortsGroup {
                 port_name: port_name.clone(),
                 expansion,
             },
-            [connection_item]
-                .into_iter()
-                .chain(address_items)
-                .chain(dns_item)
-                .map(|port_item| {
-                    port_item.fetching_on_hover(
-                        EthernetPortsInteraction::OnBuses(
-                            EthernetPortsBusRequest::StartDetailsFetch,
-                        ),
-                        EthernetPortsInteraction::StopHoverFetches,
-                    )
-                }),
+            rows.into_iter().map(|port_item| {
+                port_item.fetching_on_hover(
+                    EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
+                    EthernetPortsInteraction::StopHoverFetches,
+                )
+            }),
         ))
     }
 

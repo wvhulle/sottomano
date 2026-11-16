@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::widgets::icon_glyph::IconGlyph;
 mod bcachefs_member_row;
 mod disk_space_gauge;
 mod disk_transfer_gauge;
@@ -30,7 +29,11 @@ use sottomano_toml_config::{Config, widget_groups::temperature_sensors::SensorCo
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
         group_summary::GroupSummary,
@@ -47,6 +50,10 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const HARD_DRIVES_GLYPH: Phosphor = Phosphor::HardDrives(Weight::Regular);
+const DRIVE_HEALTH_GLYPH: Phosphor = Phosphor::Thermometer(Weight::Regular);
+const DISK_ACTIVITY_GLYPH: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DriveSource {
@@ -316,67 +323,11 @@ impl PhysicalDriveGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'a, DriveInteraction> {
-        let group_summary = match readings.space.reading_row(
-            Phosphor::HardDrives(Weight::Regular).into(),
-            |occupancy| disk_space_reading_row(occupancy, self.disk_marking(disk)),
-            clock,
-        ) {
-            Some(space_item) => GroupSummary::summarising(
-                Phosphor::HardDrives(Weight::Regular).into(),
-                GroupItem::reading(space_item)
-                    .with_hover_card(Box::new(move |_| {
-                        readings.space.sections_described_by(disk_space_hover_card)
-                    }))
-                    .refreshed_by(DriveInteraction::Refresh(DriveSource::Space(
-                        disk.name.clone(),
-                    ))),
-            ),
-            None => GroupSummary::glyph(
-                Phosphor::HardDrives(Weight::Regular).into(),
-                readings.space.unshown_state(),
-            ),
-        };
-        let group_summary = group_summary;
-        let items = Self::member_items(disk, readings, locale)
-            .chain(
-                readings
-                    .drive_health
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| drive_health_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|health_item| {
-                        health_item
-                            .with_hover_card(Box::new(move |_| {
-                                readings
-                                    .drive_health
-                                    .sections_described_by(drive_health_hover_card)
-                            }))
-                            .refreshed_by(DriveInteraction::Refresh(DriveSource::Health(
-                                disk.name.clone(),
-                            )))
-                    }),
-            )
-            .chain(
-                readings
-                    .activity
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| disk_activity_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|activity_item| {
-                        activity_item
-                            .with_hover_card(Box::new(move |_| {
-                                readings.activity.sections_described_by(|snapshot| {
-                                    disk_transfer_hover_card(&snapshot.read)
-                                })
-                            }))
-                            .refreshed_by(refresh_activity(disk))
-                    }),
-            )
-            .chain(Self::transfer_items(disk, readings));
+        let group_summary = self.disk_space_summary(disk, readings, clock);
+        let mut rows: Vec<_> = Self::member_items(disk, readings, locale).collect();
+        Self::push_drive_health_rows(&mut rows, clock, disk, readings);
+        Self::push_disk_activity_rows(&mut rows, clock, disk, readings);
+        rows.extend(Self::transfer_items(disk, readings));
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
@@ -386,8 +337,178 @@ impl PhysicalDriveGroup {
                 disk: disk.clone(),
                 expansion,
             },
-            items,
+            rows,
         )
+    }
+
+    fn disk_space_summary<'a>(
+        &self,
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+        clock: Clock,
+    ) -> GroupSummary<'a, DriveInteraction> {
+        match &readings.space {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                HARD_DRIVES_GLYPH.into(),
+                Self::disk_space_item(
+                    disk,
+                    readings,
+                    disk_space_reading_row(held_snapshot, self.disk_marking(disk)),
+                ),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    HARD_DRIVES_GLYPH.into(),
+                    Self::disk_space_item(
+                        disk,
+                        readings,
+                        troubled_snapshot.shown_over(
+                            disk_space_reading_row(
+                                &troubled_snapshot.held_snapshot,
+                                self.disk_marking(disk),
+                            ),
+                            clock,
+                        ),
+                    ),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                HARD_DRIVES_GLYPH.into(),
+                Self::disk_space_item(
+                    disk,
+                    readings,
+                    placeholder.reading_row(HARD_DRIVES_GLYPH.into()),
+                ),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Off)
+            }
+        }
+    }
+
+    fn push_drive_health_rows<'a>(
+        rows: &mut Vec<GroupItem<'a, DriveInteraction>>,
+        clock: Clock,
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+    ) {
+        match &readings.drive_health {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let health_row = drive_health_reading_row(held_snapshot);
+                if health_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(Self::drive_health_item(disk, readings, health_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let health_row = troubled_snapshot.shown_over(
+                    drive_health_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if health_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(Self::drive_health_item(disk, readings, health_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(Self::drive_health_item(
+                    disk,
+                    readings,
+                    placeholder.reading_row(DRIVE_HEALTH_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_disk_activity_rows<'a>(
+        rows: &mut Vec<GroupItem<'a, DriveInteraction>>,
+        clock: Clock,
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+    ) {
+        match &readings.activity {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let activity_row = disk_activity_reading_row(held_snapshot);
+                if activity_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(Self::disk_activity_item(disk, readings, activity_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let activity_row = troubled_snapshot.shown_over(
+                    disk_activity_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if activity_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(Self::disk_activity_item(disk, readings, activity_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(Self::disk_activity_item(
+                    disk,
+                    readings,
+                    placeholder.reading_row(DISK_ACTIVITY_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn disk_space_item<'a>(
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+        space_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, DriveInteraction> {
+        GroupItem::reading(space_row)
+            .with_hover_card(Box::new(move |_| {
+                readings.space.sections_described_by(disk_space_hover_card)
+            }))
+            .refreshed_by(DriveInteraction::Refresh(DriveSource::Space(
+                disk.name.clone(),
+            )))
+    }
+
+    fn drive_health_item<'a>(
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+        health_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, DriveInteraction> {
+        GroupItem::reading(health_row)
+            .with_hover_card(Box::new(move |_| {
+                readings
+                    .drive_health
+                    .sections_described_by(drive_health_hover_card)
+            }))
+            .refreshed_by(DriveInteraction::Refresh(DriveSource::Health(
+                disk.name.clone(),
+            )))
+    }
+
+    fn disk_activity_item<'a>(
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+        activity_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, DriveInteraction> {
+        GroupItem::reading(activity_row)
+            .with_hover_card(Box::new(move |_| {
+                readings
+                    .activity
+                    .sections_described_by(|snapshot| disk_transfer_hover_card(&snapshot.read))
+            }))
+            .refreshed_by(refresh_activity(disk))
+    }
+
+    fn mount_discovery_item<'a>(
+        &'a self,
+        discovery_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, DriveInteraction> {
+        GroupItem::reading(discovery_row)
+            .with_hover_card(Box::new(move |_| {
+                self.discovery
+                    .sections_described_by(block_filesystem_discovery_hover_card)
+            }))
+            .refreshed_by(DriveInteraction::Refresh(DriveSource::MountDiscovery))
     }
 
     #[must_use]
@@ -396,24 +517,30 @@ impl PhysicalDriveGroup {
         clock: Clock,
         locale: Locale,
     ) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
-        let group_summary = match self.discovery.reading_row(
-            Phosphor::HardDrives(Weight::Regular).into(),
-            block_filesystem_discovery_reading_row,
-            clock,
-        ) {
-            Some(discovery_item) => GroupSummary::summarising(
-                Phosphor::HardDrives(Weight::Regular).into(),
-                GroupItem::reading(discovery_item)
-                    .with_hover_card(Box::new(move |_| {
-                        self.discovery
-                            .sections_described_by(block_filesystem_discovery_hover_card)
-                    }))
-                    .refreshed_by(DriveInteraction::Refresh(DriveSource::MountDiscovery)),
+        let group_summary = match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                HARD_DRIVES_GLYPH.into(),
+                self.mount_discovery_item(block_filesystem_discovery_reading_row(held_snapshot)),
             ),
-            None => GroupSummary::glyph(
-                Phosphor::HardDrives(Weight::Regular).into(),
-                self.discovery.unshown_state(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    HARD_DRIVES_GLYPH.into(),
+                    self.mount_discovery_item(troubled_snapshot.shown_over(
+                        block_filesystem_discovery_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                HARD_DRIVES_GLYPH.into(),
+                self.mount_discovery_item(placeholder.reading_row(HARD_DRIVES_GLYPH.into())),
             ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Off)
+            }
         };
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,

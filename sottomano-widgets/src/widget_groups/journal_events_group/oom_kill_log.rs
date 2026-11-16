@@ -5,7 +5,6 @@ use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -18,7 +17,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -43,31 +41,26 @@ impl From<&OomKillEntry> for TableRecord<2> {
     }
 }
 
+pub(super) const OOM_KILL_LOG_GLYPH: Phosphor = Phosphor::Memory(Weight::Regular);
+
 impl JournalScopeGroup {
-    pub(super) fn oom_kill_log_item(
-        &self,
+    pub(super) fn oom_kill_log_item<'a>(
+        &'a self,
         config: &Config,
-        clock: Clock,
-    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let kills = self.oom_kills.reading_row(
-            IconGlyph::default(),
-            |snapshot| oom_kill_log_reading_row(snapshot),
-            clock,
-        )?;
-        Some(
-            GroupItem::reading(kills)
-                .on_press(
-                    TerminalCommand::JOURNAL_PRESS_HINT,
-                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                        config,
-                        OomKillEntry::follow_log_args(),
-                    )),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.oom_kills
-                        .sections_described_by(|snapshot| oom_kill_log_hover_card(snapshot))
-                })),
-        )
+        oom_kill_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, JournalEventsInteraction> {
+        GroupItem::reading(oom_kill_row)
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    OomKillEntry::follow_log_args(),
+                )),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.oom_kills
+                    .sections_described_by(|snapshot| oom_kill_log_hover_card(snapshot))
+            }))
     }
 }
 
@@ -94,7 +87,7 @@ pub(super) fn oom_kill_log_reading_row(entries: &[OomKillEntry]) -> ReadingRow<'
         panel_visibility: oom_kill_log_panel_visibility(entries),
         ..ReadingRow::glyph_only(
             "OOM kills",
-            Phosphor::Memory(Weight::Regular).into(),
+            OOM_KILL_LOG_GLYPH.into(),
             oom_kill_log_state(entries),
             Box::new(move |_| oom_kill_log_hover_card(entries)),
         )

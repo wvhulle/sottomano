@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::widgets::icon_glyph::IconGlyph;
 mod growth_trend_label;
 mod memory_slot_reading;
 mod memory_usage_gauge;
@@ -35,7 +34,11 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     widget_groups::{
         group_summary::GroupSummary,
         memory_board_group::{
@@ -53,6 +56,11 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const MEMORY_USAGE_GLYPH: Phosphor = Phosphor::Memory(Weight::Regular);
+const MEMORY_GROWTH_GLYPH: Phosphor = Phosphor::TrendUp(Weight::Regular);
+const STALL_PRESSURE_GLYPH: Phosphor = Phosphor::Gauge(Weight::Regular);
+const SWAP_ACTIVITY_GLYPH: Phosphor = Phosphor::ArrowsClockwise(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryBoardSource {
@@ -236,102 +244,211 @@ impl MemoryBoardGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
-        let group_summary = match self.memory.reading_row(
-            Phosphor::Memory(Weight::Regular).into(),
-            |snapshot| memory_reading_row(snapshot, locale),
-            clock,
-        ) {
-            Some(summarised_row) => GroupSummary::summarising(
-                Phosphor::Memory(Weight::Regular).into(),
-                GroupItem::reading(summarised_row)
-                    .with_hover_card(Box::new(move |_| {
-                        let mut sections = self.memory.sections_described_by(memory_hover_card);
-                        sections.extend(
-                            self.memory_processes
-                                .sections_described_by(memory_processes_sections),
-                        );
-                        sections
-                    }))
-                    .fetching_on_hover(
-                        MemoryBoardInteraction::StartMemoryProcessesFetch,
-                        MemoryBoardInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory)),
-            ),
-            None => GroupSummary::glyph(
-                Phosphor::Memory(Weight::Regular).into(),
-                self.memory.unshown_state(),
-            ),
-        };
-        let group_summary = group_summary;
+        let group_summary = self.memory_usage_summary(clock, locale);
+        let mut rows = Vec::new();
+        self.push_memory_growth_rows(&mut rows, clock, locale);
+        self.push_stall_pressure_rows(&mut rows, clock, locale);
+        self.push_swap_activity_rows(&mut rows, clock, locale);
+        rows.extend(self.slot_items(locale));
+        rows.extend(self.temperature_items());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             group_summary,
             &self.expansion,
             MemoryBoardInteraction::Expansion,
-            [
-                self.memory_growth
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| memory_growth_reading_row(snapshot, locale),
-                        clock,
-                    )
-                    .map(|growth_item| {
-                        growth_item
-                            .with_hover_card(Box::new(move |_| {
-                                self.memory_growth
-                                    .sections_described_by(memory_growth_hover_card)
-                            }))
-                            .refreshed_by(MemoryBoardInteraction::Refresh(
-                                MemoryBoardSource::Growth,
-                            ))
-                    }),
-                self.stall_pressure
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| memory_stall_reading_row(snapshot, locale),
-                        clock,
-                    )
-                    .map(|pressure_item| {
-                        pressure_item
-                            .with_hover_card(Box::new(move |_| {
-                                self.stall_pressure
-                                    .sections_described_by(memory_stall_hover_card)
-                            }))
-                            .refreshed_by(MemoryBoardInteraction::Refresh(
-                                MemoryBoardSource::Pressure,
-                            ))
-                    }),
-                self.swap_activity
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| swap_activity_reading_row(snapshot, locale),
-                        clock,
-                    )
-                    .map(|swap_item| {
-                        swap_item
-                            .with_hover_card(Box::new(move |_| {
-                                let mut sections = self
-                                    .swap_activity
-                                    .sections_described_by(swap_activity_hover_card);
-                                sections.extend(
-                                    self.swapped_processes
-                                        .sections_described_by(swapped_processes_sections),
-                                );
-                                sections
-                            }))
-                            .fetching_on_hover(
-                                MemoryBoardInteraction::StartSwappedProcessesFetch,
-                                MemoryBoardInteraction::StopHoverFetches,
-                            )
-                            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Swap))
-                    }),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(self.slot_items(locale))
-            .chain(self.temperature_items()),
+            rows,
         )
+    }
+
+    fn memory_usage_summary(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupSummary<'_, MemoryBoardInteraction> {
+        match &self.memory {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                MEMORY_USAGE_GLYPH.into(),
+                self.memory_usage_item(memory_reading_row(held_snapshot, locale)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    MEMORY_USAGE_GLYPH.into(),
+                    self.memory_usage_item(troubled_snapshot.shown_over(
+                        memory_reading_row(&troubled_snapshot.held_snapshot, locale),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                MEMORY_USAGE_GLYPH.into(),
+                self.memory_usage_item(placeholder.reading_row(MEMORY_USAGE_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(MEMORY_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(MEMORY_USAGE_GLYPH.into(), ReadingDisplayState::Off)
+            }
+        }
+    }
+
+    fn push_memory_growth_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        clock: Clock,
+        locale: Locale,
+    ) {
+        match &self.memory_growth {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let growth_row = memory_growth_reading_row(held_snapshot, locale);
+                if growth_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.memory_growth_item(growth_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let growth_row = troubled_snapshot.shown_over(
+                    memory_growth_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    clock,
+                );
+                if growth_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.memory_growth_item(growth_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.memory_growth_item(placeholder.reading_row(MEMORY_GROWTH_GLYPH.into())),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_stall_pressure_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        clock: Clock,
+        locale: Locale,
+    ) {
+        match &self.stall_pressure {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let pressure_row = memory_stall_reading_row(held_snapshot, locale);
+                if pressure_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.stall_pressure_item(pressure_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let pressure_row = troubled_snapshot.shown_over(
+                    memory_stall_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    clock,
+                );
+                if pressure_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.stall_pressure_item(pressure_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.stall_pressure_item(placeholder.reading_row(STALL_PRESSURE_GLYPH.into())),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_swap_activity_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        clock: Clock,
+        locale: Locale,
+    ) {
+        match &self.swap_activity {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let swap_row = swap_activity_reading_row(held_snapshot, locale);
+                if swap_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.swap_activity_item(swap_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let swap_row = troubled_snapshot.shown_over(
+                    swap_activity_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    clock,
+                );
+                if swap_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.swap_activity_item(swap_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.swap_activity_item(placeholder.reading_row(SWAP_ACTIVITY_GLYPH.into())),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn memory_usage_item<'a>(
+        &'a self,
+        usage_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, MemoryBoardInteraction> {
+        GroupItem::reading(usage_row)
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self.memory.sections_described_by(memory_hover_card);
+                sections.extend(
+                    self.memory_processes
+                        .sections_described_by(memory_processes_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                MemoryBoardInteraction::StartMemoryProcessesFetch,
+                MemoryBoardInteraction::StopHoverFetches,
+            )
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
+    }
+
+    fn memory_growth_item<'a>(
+        &'a self,
+        growth_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, MemoryBoardInteraction> {
+        GroupItem::reading(growth_row)
+            .with_hover_card(Box::new(move |_| {
+                self.memory_growth
+                    .sections_described_by(memory_growth_hover_card)
+            }))
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
+    }
+
+    fn stall_pressure_item<'a>(
+        &'a self,
+        pressure_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, MemoryBoardInteraction> {
+        GroupItem::reading(pressure_row)
+            .with_hover_card(Box::new(move |_| {
+                self.stall_pressure
+                    .sections_described_by(memory_stall_hover_card)
+            }))
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
+    }
+
+    fn swap_activity_item<'a>(
+        &'a self,
+        swap_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, MemoryBoardInteraction> {
+        GroupItem::reading(swap_row)
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .swap_activity
+                    .sections_described_by(swap_activity_hover_card);
+                sections.extend(
+                    self.swapped_processes
+                        .sections_described_by(swapped_processes_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                MemoryBoardInteraction::StartSwappedProcessesFetch,
+                MemoryBoardInteraction::StopHoverFetches,
+            )
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Swap))
     }
 
     fn refresh(

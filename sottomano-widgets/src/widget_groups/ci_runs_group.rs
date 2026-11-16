@@ -17,7 +17,7 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
-        TaskStopControl, forgejo_runner_tasks::ForgejoRunnerTasks,
+        CiTask, TaskStopControl, forgejo_runner_tasks::ForgejoRunnerTasks,
         woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -217,47 +217,16 @@ impl CiRunsGroup {
             .iter()
             .map(|watched| watched.runner.tasks.len())
             .sum();
-        let runner_rows = watched_runners.into_iter().flat_map(move |watched| {
+        let mut rows = Vec::new();
+        for watched in watched_runners {
             let reference = CiRunnerReference::from(&watched);
-            let failure_reference = reference.clone();
-            let failure_row = CiRunnerFailureRow::failing_runner(watched).map(|row| {
-                GroupItem::reading(row.reading_row()).with_hover_card(Box::new(move |_| {
-                    self.runner_hover_card(&failure_reference, |watched_runner| {
-                        CiRunnerFailureRow::failing_runner(watched_runner)
-                            .map(|failing_row| failing_row.hover_card())
-                    })
-                }))
-            });
-            let run_rows = watched.runner.tasks.iter().map(move |task| {
-                let task_reference = reference.clone();
-                let row = GroupItem::reading(
-                    CiTaskRow {
-                        kind: watched.kind,
-                        task,
-                    }
-                    .reading_row(clock, locale),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.runner_hover_card(&task_reference, |watched_runner| {
-                        Some(
-                            CiTaskRow {
-                                kind: watched_runner.kind,
-                                task,
-                            }
-                            .hover_card(),
-                        )
-                    })
-                }));
-                match &task.stop_control {
-                    TaskStopControl::NoContainerNow => row,
-                    stop_control @ TaskStopControl::StopContainers { .. } => row.on_right_press(
-                        CANCEL_RUN_HINT,
-                        CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
-                    ),
-                }
-            });
-            failure_row.into_iter().chain(run_rows)
-        });
+            if let Some(failure_row) = CiRunnerFailureRow::failing_runner(watched) {
+                rows.push(self.runner_failure_item(failure_row, reference.clone()));
+            }
+            rows.extend(watched.runner.tasks.iter().map(|task| {
+                self.ci_task_item(watched.kind, task, reference.clone(), clock, locale)
+            }));
+        }
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::sole(WidgetGroupFamily::CiRuns),
             WidgetGroupTitle::Named(ci_runs_title(total_runs).into()),
@@ -267,8 +236,56 @@ impl CiRunsGroup {
             ),
             &self.expansion,
             CiRunsInteraction::Expansion,
-            runner_rows,
+            rows,
         )
+    }
+
+    fn runner_failure_item<'a>(
+        &'a self,
+        failure_row: CiRunnerFailureRow<'a>,
+        failure_reference: CiRunnerReference,
+    ) -> GroupItem<'a, CiRunsInteraction> {
+        GroupItem::reading(failure_row.reading_row()).with_hover_card(Box::new(move |_| {
+            self.runner_hover_card(&failure_reference, |watched_runner| {
+                CiRunnerFailureRow::failing_runner(watched_runner)
+                    .map(|failing_row| failing_row.hover_card())
+            })
+        }))
+    }
+
+    fn ci_task_item<'a>(
+        &'a self,
+        runner_kind: CiRunnerKind,
+        task: &'a CiTask,
+        task_reference: CiRunnerReference,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupItem<'a, CiRunsInteraction> {
+        let task_item = GroupItem::reading(
+            CiTaskRow {
+                kind: runner_kind,
+                task,
+            }
+            .reading_row(clock, locale),
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.runner_hover_card(&task_reference, |watched_runner| {
+                Some(
+                    CiTaskRow {
+                        kind: watched_runner.kind,
+                        task,
+                    }
+                    .hover_card(),
+                )
+            })
+        }));
+        match &task.stop_control {
+            TaskStopControl::NoContainerNow => task_item,
+            stop_control @ TaskStopControl::StopContainers { .. } => task_item.on_right_press(
+                CANCEL_RUN_HINT,
+                CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
+            ),
+        }
     }
 }
 

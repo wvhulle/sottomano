@@ -2,7 +2,7 @@ use crate::group_items::reading_display_state::ReadingDisplayState;
 mod pause_blocker_rows;
 mod sqlite_idle_timeouts;
 
-use std::{convert::identity, iter::once, time::Duration};
+use std::{convert::identity, time::Duration};
 
 use iced::{
     Subscription, Task,
@@ -398,31 +398,36 @@ impl IdlePauseGroups {
             .with_hover_card(Box::new(move |card_clock| {
                 self.pause_sections(pause, card_clock)
             }));
-        let blocker_rows = self.blockers_of(pause).map(move |blocker| {
+        let mut rows = vec![timeout_slider];
+        rows.extend(self.blockers_of(pause).map(move |blocker| {
             GroupItem::reading(blocker.reading_row())
                 .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
-        });
-        let next_sleep_state = self
-            .sleep_obstacles
-            .get()
-            .filter(|_| pause == IdleAction::Sleep)
-            .and_then(SleepObstacles::sleep_state_that_runs)
-            .map(|state| {
-                GroupItem::reading(NextSleepStateRow { state }.reading_row()).with_hover_card(
-                    Box::new(move |card_clock| self.pause_sections(IdleAction::Sleep, card_clock)),
-                )
-            });
-        let scheduled_shutdown = self
-            .sleep_obstacles
-            .get()
-            .filter(|_| pause == IdleAction::PowerOff)
-            .and_then(|obstacles| obstacles.scheduled_shutdown.as_ref())
-            .map(|shutdown| {
-                GroupItem::reading(ScheduledShutdownRow { shutdown }.reading_row(clock, locale))
+        }));
+        if let Some(obstacles) = self.sleep_obstacles.get() {
+            if pause == IdleAction::Sleep
+                && let Some(state) = obstacles.sleep_state_that_runs()
+            {
+                rows.push(
+                    GroupItem::reading(NextSleepStateRow { state }.reading_row()).with_hover_card(
+                        Box::new(move |card_clock| {
+                            self.pause_sections(IdleAction::Sleep, card_clock)
+                        }),
+                    ),
+                );
+            }
+            if pause == IdleAction::PowerOff
+                && let Some(shutdown) = obstacles.scheduled_shutdown.as_ref()
+            {
+                rows.push(
+                    GroupItem::reading(
+                        ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
+                    )
                     .with_hover_card(Box::new(move |card_clock| {
                         self.pause_sections(IdleAction::PowerOff, card_clock)
-                    }))
-            });
+                    })),
+                );
+            }
+        }
         let summary_state = match first_blocker {
             Some(blocker) => blocker.display_state(),
             None => ReadingDisplayState::Idle,
@@ -433,10 +438,7 @@ impl IdlePauseGroups {
             GroupSummary::glyph(pause_glyph(pause).into(), summary_state),
             &self.pause(pause).expansion,
             move |message| IdlePauseInteraction::Expansion(pause, message),
-            once(timeout_slider)
-                .chain(blocker_rows)
-                .chain(next_sleep_state)
-                .chain(scheduled_shutdown),
+            rows,
         )
     }
 }

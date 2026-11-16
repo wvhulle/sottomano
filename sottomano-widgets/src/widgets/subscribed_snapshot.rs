@@ -5,18 +5,16 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::GroupItem,
         offline_internet_reading::{
             PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
         },
         reading_display_state::ReadingDisplayState,
-        reading_row::{PanelVisibility, ReadingRow},
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
-    widgets::icon_glyph::IconGlyph,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {
@@ -256,27 +254,6 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
             .filter(|held_snapshot| panel_visibility(held_snapshot) == PanelVisibility::Shown)
     }
 
-    pub fn reading_row<'s>(
-        &'s self,
-        fallback_icon: IconGlyph,
-        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        clock: Clock,
-    ) -> Option<ReadingRow<'s>> {
-        let described_row = match self {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => describe(held_snapshot),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                troubled_snapshot.shown_over(describe(&troubled_snapshot.held_snapshot), clock)
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                return Some(placeholder.reading_row(fallback_icon));
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
-                return None;
-            }
-        };
-        (described_row.panel_visibility == PanelVisibility::Shown).then_some(described_row)
-    }
-
     pub fn shown_state(
         &self,
         held_state: impl FnOnce(&S) -> ReadingDisplayState,
@@ -299,40 +276,6 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
             }
         }
     }
-
-    pub fn group_item<'s, M: 's>(
-        &'s self,
-        fallback_icon: IconGlyph,
-        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        clock: Clock,
-    ) -> Option<GroupItem<'s, M>> {
-        self.reading_row(fallback_icon, describe, clock)
-            .map(GroupItem::reading)
-    }
-
-    pub fn unshown_state(&self) -> ReadingDisplayState {
-        match self {
-            SubscribedSnapshot::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
-            SubscribedSnapshot::SourceUnavailable => ReadingDisplayState::Off,
-            SubscribedSnapshot::NoSnapshot { placeholder } => placeholder.shown_state(),
-            SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotTroubled { .. } => ReadingDisplayState::Idle,
-        }
-    }
-
-    pub fn group_item_while_pending<'s, M: 's>(
-        &'s self,
-        fallback_icon: IconGlyph,
-        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        clock: Clock,
-    ) -> Option<GroupItem<'s, M>> {
-        if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
-            return Some(GroupItem::reading(SnapshotPlaceholder::<S>::awaiting_row(
-                fallback_icon,
-            )));
-        }
-        self.group_item(fallback_icon, describe, clock)
-    }
 }
 
 #[cfg(test)]
@@ -350,7 +293,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
+        group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+        widgets::icon_glyph::IconGlyph,
     };
 
     #[derive(Debug, Clone, PartialEq)]
@@ -389,9 +333,11 @@ mod tests {
         latest: &SubscribedSnapshot<CountedSnapshot>,
         clock: Clock,
     ) -> Option<ReadingDisplayState> {
-        latest
-            .reading_row(IconGlyph::default(), counted_row, clock)
-            .map(|row| row.shown_state())
+        latest.shown_state(
+            |snapshot| counted_row(snapshot).shown_state(),
+            |_| PanelVisibility::Shown,
+            clock,
+        )
     }
 
     struct TestTimeline {

@@ -283,17 +283,14 @@ impl ScopedLlamaServers {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
             let server_label = readings.server_label.as_str();
-            let running = Some(readings)
-                .filter(|readings| readings.switch.activity() == Some(UnitActivity::Running))
-                .and_then(|readings| readings.server.get());
-            let busy = running.filter(|server| server.busy_slots().next().is_some());
-            [
-                running.map(|server| {
-                    let resident = server.resident_model();
-
+            let mut rows = Vec::new();
+            if readings.switch.activity() == Some(UnitActivity::Running)
+                && let Some(server) = readings.server.get()
+            {
+                rows.push(
                     GroupItem::reading(
                         ServedModel {
-                            resident,
+                            resident: server.resident_model(),
                             server: server_label,
                         }
                         .reading_row(),
@@ -307,21 +304,25 @@ impl ScopedLlamaServers {
                             unit: unit.clone(),
                         }),
                         LlamaServerInteraction::StopHoverFetches,
-                    )
-                }),
-                busy.and_then(|server| server.generation_rate).map(|rate| {
-                    GroupItem::reading(
-                        GenerationRate {
-                            rate,
-                            server: server_label,
-                        }
-                        .reading_row(),
-                    )
-                    .with_hover_card(Box::new(move |_| readings.generation_rate_hover_card(rate)))
-                }),
-                running
-                    .filter(|server| !server.slots.is_empty())
-                    .map(|server| {
+                    ),
+                );
+                let server_busy = server.busy_slots().next().is_some();
+                if server_busy && let Some(rate) = server.generation_rate {
+                    rows.push(
+                        GroupItem::reading(
+                            GenerationRate {
+                                rate,
+                                server: server_label,
+                            }
+                            .reading_row(),
+                        )
+                        .with_hover_card(Box::new(move |_| {
+                            readings.generation_rate_hover_card(rate)
+                        })),
+                    );
+                }
+                if !server.slots.is_empty() {
+                    rows.push(
                         GroupItem::reading(
                             SlotOccupancy {
                                 slots: &server.slots,
@@ -331,26 +332,29 @@ impl ScopedLlamaServers {
                         )
                         .with_hover_card(Box::new(move |_| {
                             readings.slot_occupancy_hover_card(server)
-                        }))
-                    }),
-                busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
-                    .map(|fill| {
+                        })),
+                    );
+                }
+                if server_busy
+                    && let Some(fill) = ContextFill::fullest_busy_slot(&server.slots, server_label)
+                {
+                    rows.push(
                         GroupItem::reading(fill.reading_row()).with_hover_card(Box::new(
                             move |_| readings.context_fill_hover_card(&fill),
-                        ))
-                    }),
-                readings
-                    .switch
-                    .group_item(
-                        readings.service_readiness(),
-                        lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
-                    )
-                    .map(|switch_item| {
-                        switch_item.with_hover_card(Box::new(move |_| readings.switch_hover_card()))
-                    }),
-            ]
-            .into_iter()
-            .flatten()
+                        )),
+                    );
+                }
+            }
+            if let Some(switch_reading) =
+                readings.switch.switch_reading(readings.service_readiness())
+            {
+                rows.push(
+                    switch_reading
+                        .switch_item(lift(ScopedServersInteraction::SwitchPressed(unit.clone())))
+                        .with_hover_card(Box::new(move |_| readings.switch_hover_card())),
+                );
+            }
+            rows
         })
     }
 }

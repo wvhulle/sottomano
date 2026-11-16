@@ -49,6 +49,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -74,6 +76,7 @@ use crate::{
     },
 };
 
+const DICTATION_GLYPH: Phosphor = Phosphor::UserSound(Weight::Regular);
 const DICTATION_UNIT: &str = "notulist.service";
 
 const SPEECH_RUNTIME: UnitSwitchFace = UnitSwitchFace {
@@ -310,154 +313,320 @@ impl VoiceDictationGroup {
         sections
     }
 
-    fn engine_items(&self, clock: Clock) -> [Option<GroupItem<'_, VoiceDictationInteraction>>; 4] {
-        let engine = self.loaded_engine();
-        [
-            self.engine
-                .group_item(
-                    NOTULIST_ENGINE_FALLBACK_GLYPH,
-                    |snapshot| notulist_engine_reading_row(snapshot),
-                    clock,
+    fn dictation_item<'a>(
+        &'a self,
+        dictation_row: ReadingRow<'a>,
+        switch_position: SwitchPosition,
+        press_text: &'static str,
+    ) -> GroupItem<'a, VoiceDictationInteraction> {
+        GroupItem::reading(dictation_row)
+            .on_switch_press(
+                switch_position,
+                press_text,
+                VoiceDictationInteraction::ToggleRecording,
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.dictation
+                    .sections_described_by(notulist_dictation_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
+    }
+
+    fn interface_mismatch_item<'a>(
+        &'a self,
+        mismatch_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, VoiceDictationInteraction> {
+        GroupItem::reading(mismatch_row)
+            .with_hover_card(Box::new(move |_| {
+                self.interface_mismatch
+                    .sections_described_by(notulist_interface_mismatch_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(
+                VoiceDictationSource::InterfaceMismatch,
+            ))
+    }
+
+    fn pipeline_item<'a>(
+        &'a self,
+        pipeline_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, VoiceDictationInteraction> {
+        GroupItem::reading(pipeline_row)
+            .with_hover_card(Box::new(move |_| {
+                self.pipeline
+                    .sections_described_by(notulist_pipeline_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
+    }
+
+    fn engine_item<'a>(
+        &'a self,
+        engine_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, VoiceDictationInteraction> {
+        let engine_item = GroupItem::reading(engine_row)
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .engine
+                    .sections_described_by(notulist_engine_hover_card);
+                sections.extend(
+                    self.model_card
+                        .sections_described_by(hugging_face_model_card_sections),
+                );
+                sections
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine));
+        match self.model_repository() {
+            Some(repository) => engine_item.fetching_on_hover(
+                VoiceDictationInteraction::StartModelCardFetch(repository),
+                VoiceDictationInteraction::StopHoverFetches,
+            ),
+            None => engine_item,
+        }
+    }
+
+    fn output_problems_item<'a>(
+        &'a self,
+        problems_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, VoiceDictationInteraction> {
+        GroupItem::reading(problems_row)
+            .with_hover_card(Box::new(move |_| {
+                self.output_problems
+                    .sections_described_by(notulist_output_problems_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::OutputProblems))
+    }
+
+    fn dictation_summary(&self, clock: Clock) -> GroupSummary<'_, VoiceDictationInteraction> {
+        match &self.dictation {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                DICTATION_GLYPH.into(),
+                self.dictation_item(
+                    notulist_dictation_reading_row(held_snapshot),
+                    SwitchPosition::from(held_snapshot),
+                    press_does(held_snapshot),
+                ),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                GroupSummary::summarising(
+                    DICTATION_GLYPH.into(),
+                    self.dictation_item(
+                        troubled_snapshot
+                            .shown_over(notulist_dictation_reading_row(held_snapshot), clock),
+                        SwitchPosition::from(held_snapshot),
+                        press_does(held_snapshot),
+                    ),
                 )
-                .map(|item| {
-                    let engine_item = item
-                        .with_hover_card(Box::new(move |_| {
-                            let mut sections = self
-                                .engine
-                                .sections_described_by(notulist_engine_hover_card);
-                            sections.extend(self.model_card.sections_described_by(|snapshot| {
-                                hugging_face_model_card_sections(snapshot)
-                            }));
-                            sections
-                        }))
-                        .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine));
-                    match self.model_repository() {
-                        Some(repository) => engine_item.fetching_on_hover(
-                            VoiceDictationInteraction::StartModelCardFetch(repository),
-                            VoiceDictationInteraction::StopHoverFetches,
-                        ),
-                        None => engine_item,
-                    }
-                }),
-            engine.map(|loaded| {
-                GroupItem::reading(RuntimeConfiguration(loaded).reading_row())
-                    .with_hover_card(Box::new(move |_| {
-                        self.engine
-                            .hover_card_with(RuntimeConfiguration(loaded).hover_card())
-                    }))
-                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine))
-            }),
-            engine.map(|loaded| {
-                GroupItem::reading(InferenceHardware(loaded).reading_row())
-                    .with_hover_card(Box::new(move |_| {
-                        self.engine
-                            .hover_card_with(InferenceHardware(loaded).hover_card())
-                    }))
-                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine))
-            }),
-            self.output_problems
-                .group_item(
-                    NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
-                    |snapshot| notulist_output_problems_reading_row(snapshot),
-                    clock,
-                )
-                .map(|item| {
-                    item.with_hover_card(Box::new(move |_| {
-                        self.output_problems
-                            .sections_described_by(notulist_output_problems_hover_card)
-                    }))
-                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::OutputProblems))
-                }),
-        ]
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                DICTATION_GLYPH.into(),
+                self.dictation_item(
+                    placeholder.reading_row(DICTATION_GLYPH.into()),
+                    SwitchPosition::Off,
+                    "start dictating at the cursor",
+                ),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(DICTATION_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(DICTATION_GLYPH.into(), ReadingDisplayState::Off)
+            }
+        }
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
-        let dictation = self.dictation.get();
-        let engine = self.loaded_engine();
-        let runtime_glyph =
-            engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
-        let group_summary = match self.dictation.reading_row(
-            Phosphor::UserSound(Weight::Regular).into(),
-            notulist_dictation_reading_row,
-            clock,
-        ) {
-            Some(dictation_item) => GroupSummary::summarising(
-                Phosphor::UserSound(Weight::Regular).into(),
-                GroupItem::reading(dictation_item)
-                    .on_switch_press(
-                        dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
-                        dictation.map_or("start dictating at the cursor", press_does),
-                        VoiceDictationInteraction::ToggleRecording,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.dictation
-                            .sections_described_by(notulist_dictation_hover_card)
-                    }))
-                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation)),
-            ),
-            None => GroupSummary::glyph(
-                Phosphor::UserSound(Weight::Regular).into(),
-                self.dictation.unshown_state(),
-            ),
-        };
+        let group_summary = self.dictation_summary(clock);
+        let mut rows = Vec::new();
+        self.push_interface_mismatch_rows(&mut rows, clock);
+        self.push_pipeline_rows(&mut rows, clock);
+        self.push_runtime_switch_rows(&mut rows);
+        self.push_engine_rows(&mut rows, clock);
+        self.push_loaded_engine_rows(&mut rows);
+        self.push_output_problems_rows(&mut rows, clock);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VoiceDictation,
             group_summary,
             &self.expansion,
             VoiceDictationInteraction::Expansion,
-            [
-                self.interface_mismatch
-                    .group_item(
-                        NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
-                        |snapshot| notulist_interface_mismatch_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.interface_mismatch
-                                .sections_described_by(notulist_interface_mismatch_hover_card)
-                        }))
-                        .refreshed_by(Self::refreshed_from(
-                            VoiceDictationSource::InterfaceMismatch,
-                        ))
-                    }),
-                self.pipeline
-                    .group_item(
-                        NOTULIST_PIPELINE_FALLBACK_GLYPH,
-                        |snapshot| notulist_pipeline_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.pipeline
-                                .sections_described_by(notulist_pipeline_hover_card)
-                        }))
-                        .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
-                    })
-                    .filter(|_| {
-                        self.dictation.get().is_some_and(|dictation| {
-                            matches!(
-                                dictation.phase,
-                                DictationPhase::Listening | DictationPhase::Finishing
-                            )
-                        }) || self.pipeline.failure().is_some()
-                    }),
-                self.runtime
-                    .group_item_with_glyph(
-                        runtime_glyph,
-                        dictation.map_or(ServiceReadiness::NotYetServing, |_| {
-                            ServiceReadiness::Serving
-                        }),
-                        VoiceDictationInteraction::RuntimePressed,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| self.runtime_hover_card()))
-                            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine))
-                    }),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(self.engine_items(clock).into_iter().flatten()),
+            rows,
         )
+    }
+
+    fn push_interface_mismatch_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+        clock: Clock,
+    ) {
+        match &self.interface_mismatch {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let mismatch_row = notulist_interface_mismatch_reading_row(held_snapshot);
+                if mismatch_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.interface_mismatch_item(mismatch_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let mismatch_row = troubled_snapshot.shown_over(
+                    notulist_interface_mismatch_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if mismatch_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.interface_mismatch_item(mismatch_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.interface_mismatch_item(
+                    placeholder.reading_row(NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_pipeline_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+        clock: Clock,
+    ) {
+        let dictation = self.dictation.get();
+        let pipeline_active = dictation.is_some_and(|held_dictation| {
+            matches!(
+                held_dictation.phase,
+                DictationPhase::Listening | DictationPhase::Finishing
+            )
+        });
+        if pipeline_active || self.pipeline.failure().is_some() {
+            match &self.pipeline {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    let pipeline_row = notulist_pipeline_reading_row(held_snapshot);
+                    if pipeline_row.panel_visibility == PanelVisibility::Shown {
+                        rows.push(self.pipeline_item(pipeline_row));
+                    }
+                }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    let pipeline_row = troubled_snapshot.shown_over(
+                        notulist_pipeline_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    );
+                    if pipeline_row.panel_visibility == PanelVisibility::Shown {
+                        rows.push(self.pipeline_item(pipeline_row));
+                    }
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => {
+                    rows.push(
+                        self.pipeline_item(
+                            placeholder.reading_row(NOTULIST_PIPELINE_FALLBACK_GLYPH),
+                        ),
+                    );
+                }
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
+            }
+        }
+    }
+
+    fn push_runtime_switch_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+    ) {
+        let dictation = self.dictation.get();
+        let runtime_glyph = self
+            .loaded_engine()
+            .map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
+        let runtime_readiness = dictation.map_or(ServiceReadiness::NotYetServing, |_| {
+            ServiceReadiness::Serving
+        });
+        if let Some(switch_reading) = self.runtime.switch_reading(runtime_readiness) {
+            rows.push(
+                switch_reading
+                    .with_glyph(runtime_glyph)
+                    .switch_item(VoiceDictationInteraction::RuntimePressed)
+                    .with_hover_card(Box::new(move |_| self.runtime_hover_card()))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
+            );
+        }
+    }
+
+    fn push_engine_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+        clock: Clock,
+    ) {
+        match &self.engine {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let engine_row = notulist_engine_reading_row(held_snapshot);
+                if engine_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.engine_item(engine_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let engine_row = troubled_snapshot.shown_over(
+                    notulist_engine_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if engine_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.engine_item(engine_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.engine_item(placeholder.reading_row(NOTULIST_ENGINE_FALLBACK_GLYPH)),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_loaded_engine_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+    ) {
+        if let Some(loaded) = self.loaded_engine() {
+            rows.push(
+                GroupItem::reading(RuntimeConfiguration(loaded).reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.engine
+                            .hover_card_with(RuntimeConfiguration(loaded).hover_card())
+                    }))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
+            );
+            rows.push(
+                GroupItem::reading(InferenceHardware(loaded).reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.engine
+                            .hover_card_with(InferenceHardware(loaded).hover_card())
+                    }))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
+            );
+        }
+    }
+
+    fn push_output_problems_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
+        clock: Clock,
+    ) {
+        match &self.output_problems {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let problems_row = notulist_output_problems_reading_row(held_snapshot);
+                if problems_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.output_problems_item(problems_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let problems_row = troubled_snapshot.shown_over(
+                    notulist_output_problems_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if problems_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.output_problems_item(problems_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.output_problems_item(
+                    placeholder.reading_row(NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
     }
 }

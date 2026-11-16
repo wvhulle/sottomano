@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::widgets::icon_glyph::IconGlyph;
 mod chiplet_clock_table;
 mod chiplet_live_state;
 mod core_grid_sections;
@@ -41,8 +40,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        reading_row::PanelVisibility,
-        toggle_control::{ToggleControl, ToggleMessage},
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
@@ -69,6 +69,11 @@ pub enum ComputeSource {
     CpuPowerDraw,
     X3dCachePreference,
 }
+
+const CPU_LOAD_GLYPH: Phosphor = Phosphor::Cpu(Weight::Regular);
+const CPU_CLOCK_GLYPH: Phosphor = Phosphor::WaveSine(Weight::Regular);
+const CPU_TEMPERATURE_GLYPH: Phosphor = Phosphor::ThermometerSimple(Weight::Regular);
+const X3D_CACHE_PREFERENCE_GLYPH: Phosphor = Phosphor::Warehouse(Weight::Regular);
 
 #[derive(Default)]
 pub struct ComputeGroup {
@@ -252,134 +257,254 @@ impl ComputeGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, ComputeInteraction> {
-        let group_summary = match self.cpu_load.reading_row(
-            Phosphor::Cpu(Weight::Regular).into(),
-            |snapshot| cpu_usage_reading_row(snapshot),
-            clock,
-        ) {
-            Some(summarised_row) => GroupSummary::summarising(
-                Phosphor::Cpu(Weight::Regular).into(),
-                GroupItem::reading(summarised_row)
-                    .with_hover_card(Box::new(move |_| self.cpu_load_card()))
-                    .fetching_on_hover(
-                        ComputeInteraction::StartCpuLoadFetches,
-                        ComputeInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad)),
-            ),
-            None => GroupSummary::glyph(
-                Phosphor::Cpu(Weight::Regular).into(),
-                self.cpu_load.unshown_state(),
-            ),
-        };
-        let group_summary = group_summary;
+        let group_summary = self.cpu_load_summary(clock);
+        let mut rows = Vec::new();
+        self.push_cpu_clock_rows(&mut rows, clock);
+        self.push_cpu_temperature_rows(&mut rows, clock, locale);
+        self.push_cpu_power_draw_rows(&mut rows);
+        self.push_cpu_model_rows(&mut rows);
+        self.push_x3d_cache_preference_rows(&mut rows, clock);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
             group_summary,
             &self.expansion,
             ComputeInteraction::Expansion,
-            [
-                self.cpu_clock
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| cpu_clock_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|row_item| {
-                        row_item
-                            .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
-                            .fetching_on_hover(
-                                ComputeInteraction::StartCpuClockFetch,
-                                ComputeInteraction::StopHoverFetches,
-                            )
-                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
-                    }),
-                self.cpu_clock
-                    .get()
-                    .map(|clock_reading| {
-                        ClockLimitCauses {
-                            clock: clock_reading,
-                        }
-                        .reading_row()
-                    })
-                    .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-                    .map(|row| {
-                        GroupItem::reading(row)
-                            .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
-                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
-                    }),
-                self.cpu_temperature_item(clock, locale),
-                self.cpu_power_draw_item(),
-                self.cpu_model_item(),
-                self.x3d_cache_preference_item(clock),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
     }
 
-    fn cpu_temperature_item(
-        &self,
+    fn cpu_load_summary(&self, clock: Clock) -> GroupSummary<'_, ComputeInteraction> {
+        match &self.cpu_load {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                CPU_LOAD_GLYPH.into(),
+                self.cpu_load_item(cpu_usage_reading_row(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    CPU_LOAD_GLYPH.into(),
+                    self.cpu_load_item(troubled_snapshot.shown_over(
+                        cpu_usage_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                CPU_LOAD_GLYPH.into(),
+                self.cpu_load_item(placeholder.reading_row(CPU_LOAD_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(CPU_LOAD_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(CPU_LOAD_GLYPH.into(), ReadingDisplayState::Off)
+            }
+        }
+    }
+
+    fn push_cpu_clock_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
+        clock: Clock,
+    ) {
+        match &self.cpu_clock {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let clock_row = cpu_clock_reading_row(held_snapshot);
+                if clock_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_item(clock_row));
+                }
+                let limits_row = ClockLimitCauses {
+                    clock: held_snapshot,
+                }
+                .reading_row();
+                if limits_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_limits_item(limits_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                let clock_row =
+                    troubled_snapshot.shown_over(cpu_clock_reading_row(held_snapshot), clock);
+                if clock_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_item(clock_row));
+                }
+                let limits_row = ClockLimitCauses {
+                    clock: held_snapshot,
+                }
+                .reading_row();
+                if limits_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_limits_item(limits_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.cpu_clock_item(placeholder.reading_row(CPU_CLOCK_GLYPH.into())));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_cpu_temperature_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
         clock: Clock,
         locale: Locale,
-    ) -> Option<GroupItem<'_, ComputeInteraction>> {
-        self.cpu_temperature
-            .group_item(
-                IconGlyph::default(),
-                |snapshot| temperature_reading_row(snapshot, clock, locale),
-                clock,
+    ) {
+        match &self.cpu_temperature {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let temperature_row = temperature_reading_row(held_snapshot, clock, locale);
+                if temperature_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_temperature_item(temperature_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let temperature_row = troubled_snapshot.shown_over(
+                    temperature_reading_row(&troubled_snapshot.held_snapshot, clock, locale),
+                    clock,
+                );
+                if temperature_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.cpu_temperature_item(temperature_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.cpu_temperature_item(
+                        placeholder.reading_row(CPU_TEMPERATURE_GLYPH.into()),
+                    ),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn push_cpu_power_draw_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a, ComputeInteraction>>) {
+        if let Some(power) = self.cpu_power_draw.get() {
+            let power_row = cpu_power_reading_row(power);
+            if power_row.panel_visibility == PanelVisibility::Shown {
+                rows.push(self.cpu_power_draw_item(power_row));
+            }
+        }
+    }
+
+    fn push_cpu_model_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a, ComputeInteraction>>) {
+        if let Some(hardware) = self.host_hardware.get() {
+            let model_row = cpu_model_reading_row(&hardware.cpu);
+            if model_row.panel_visibility == PanelVisibility::Shown {
+                rows.push(
+                    GroupItem::reading(model_row)
+                        .with_hover_card(Box::new(move |_| self.cpu_model_card())),
+                );
+            }
+        }
+    }
+
+    fn push_x3d_cache_preference_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
+        clock: Clock,
+    ) {
+        match self.x3d_cache_preference.subscribed_reading() {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let preference_row = x3d_cache_preference_reading_row(held_snapshot);
+                if preference_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(
+                        self.x3d_cache_preference_item(preference_row)
+                            .on_switch_press(
+                                held_snapshot.switch_position(),
+                                held_snapshot.press_action_text(),
+                                ComputeInteraction::X3dCachePreferencePressed,
+                            ),
+                    );
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                let preference_row = troubled_snapshot
+                    .shown_over(x3d_cache_preference_reading_row(held_snapshot), clock);
+                if preference_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(
+                        self.x3d_cache_preference_item(preference_row)
+                            .on_switch_press(
+                                held_snapshot.switch_position(),
+                                held_snapshot.press_action_text(),
+                                ComputeInteraction::X3dCachePreferencePressed,
+                            ),
+                    );
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.x3d_cache_preference_item(
+                    placeholder.reading_row(X3D_CACHE_PREFERENCE_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    fn cpu_load_item<'a>(&'a self, load_row: ReadingRow<'a>) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(load_row)
+            .with_hover_card(Box::new(move |_| self.cpu_load_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCpuLoadFetches,
+                ComputeInteraction::StopHoverFetches,
             )
-            .map(|row_item| {
-                row_item
-                    .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
-                    .fetching_on_hover(
-                        ComputeInteraction::StartCoreTemperaturesFetch,
-                        ComputeInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
-            })
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
     }
 
-    fn cpu_power_draw_item(&self) -> Option<GroupItem<'_, ComputeInteraction>> {
-        self.cpu_power_draw
-            .get()
-            .map(|power| cpu_power_reading_row(power))
-            .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-            .map(|row| {
-                GroupItem::reading(row)
-                    .with_hover_card(Box::new(move |_| {
-                        self.cpu_power_draw
-                            .sections_described_by(cpu_power_hover_card)
-                    }))
-                    .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
-            })
-    }
-
-    fn cpu_model_item(&self) -> Option<GroupItem<'_, ComputeInteraction>> {
-        self.host_hardware
-            .get()
-            .map(|hardware| cpu_model_reading_row(&hardware.cpu))
-            .filter(|row| row.panel_visibility == PanelVisibility::Shown)
-            .map(|row| {
-                GroupItem::reading(row).with_hover_card(Box::new(move |_| self.cpu_model_card()))
-            })
-    }
-
-    fn x3d_cache_preference_item(&self, clock: Clock) -> Option<GroupItem<'_, ComputeInteraction>> {
-        self.x3d_cache_preference
-            .group_item(
-                IconGlyph::default(),
-                |snapshot| x3d_cache_preference_reading_row(snapshot),
-                ComputeInteraction::X3dCachePreferencePressed,
-                clock,
+    fn cpu_clock_item<'a>(
+        &'a self,
+        clock_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(clock_row)
+            .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCpuClockFetch,
+                ComputeInteraction::StopHoverFetches,
             )
-            .map(|row_item| {
-                row_item
-                    .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
-                    .refreshed_by(ComputeInteraction::Refresh(
-                        ComputeSource::X3dCachePreference,
-                    ))
-            })
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
+    }
+
+    fn cpu_clock_limits_item<'a>(
+        &'a self,
+        limits_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(limits_row)
+            .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
+    }
+
+    fn cpu_temperature_item<'a>(
+        &'a self,
+        temperature_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(temperature_row)
+            .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCoreTemperaturesFetch,
+                ComputeInteraction::StopHoverFetches,
+            )
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
+    }
+
+    fn cpu_power_draw_item<'a>(
+        &'a self,
+        power_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(power_row)
+            .with_hover_card(Box::new(move |_| {
+                self.cpu_power_draw
+                    .sections_described_by(cpu_power_hover_card)
+            }))
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
+    }
+
+    fn x3d_cache_preference_item<'a>(
+        &'a self,
+        preference_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, ComputeInteraction> {
+        GroupItem::reading(preference_row)
+            .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
+            .refreshed_by(ComputeInteraction::Refresh(
+                ComputeSource::X3dCachePreference,
+            ))
     }
 
     fn cpu_load_card(&self) -> Vec<Section> {

@@ -11,13 +11,10 @@ mod running_job_reading;
 
 use boot_timeline_reading::{StartupUnits, boot_timeline_hover_card, boot_timeline_reading_row};
 use failed_unit_log::{
-    failed_units_hover_card, failed_units_item, failed_units_panel_visibility,
-    failed_units_reading_row, failed_units_state,
+    failed_units_hover_card, failed_units_item, failed_units_panel_visibility, failed_units_state,
 };
 use last_shutdown_reading::{last_shutdown_hover_card, last_shutdown_reading_row};
-use running_job_reading::{
-    slow_jobs_hover_card, slow_jobs_item, slow_jobs_panel_visibility, slow_jobs_reading_row,
-};
+use running_job_reading::{slow_jobs_hover_card, slow_jobs_item, slow_jobs_panel_visibility};
 use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -34,7 +31,10 @@ use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManag
 
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
-    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
+    group_items::{
+        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
+    },
     hover_cards::InstrumentKey,
     widget_groups::{
         group_summary::GroupSummary,
@@ -45,12 +45,16 @@ use crate::{
         widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         ongoing_toast::OngoingKey,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const SLOW_JOBS_GLYPH: Phosphor = Phosphor::HourglassMedium(Weight::Regular);
+const FAILED_SYSTEM_UNITS_GLYPH: Phosphor = Phosphor::HardDrives(Weight::Regular);
+const FAILED_USER_UNITS_GLYPH: Phosphor = Phosphor::User(Weight::Regular);
+const LAST_SHUTDOWN_GLYPH: Phosphor = Phosphor::Power(Weight::Regular);
 
 fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
     match scope {
@@ -71,44 +75,24 @@ fn unit_toast_key(row_name: Cow<'static, str>, unit_name: String) -> OngoingKey 
 
 fn slow_jobs_entry<'a>(
     snapshot: &'a SubscribedSnapshot<SlowJobs>,
+    jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,
-) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
-    snapshot
-        .visible_reading(slow_jobs_panel_visibility)
-        .map(|jobs| {
-            slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
-                snapshot.sections_described_by(slow_jobs_hover_card)
-            }))
-        })
-        .or_else(|| {
-            snapshot.group_item(
-                IconGlyph::default(),
-                |slow_jobs| slow_jobs_reading_row(slow_jobs),
-                clock,
-            )
-        })
+) -> GroupItem<'a, SystemdManagerInteraction> {
+    slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
+        snapshot.sections_described_by(slow_jobs_hover_card)
+    }))
 }
 
 fn failed_units_entry<'a>(
     snapshot: &'a SubscribedSnapshot<FailedUnits>,
+    failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
-    snapshot
-        .visible_reading(failed_units_panel_visibility)
-        .map(|failed| {
-            failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
-                snapshot.sections_described_by(failed_units_hover_card)
-            }))
-        })
-        .or_else(|| {
-            snapshot.group_item(
-                IconGlyph::default(),
-                |failed_units| failed_units_reading_row(failed_units),
-                clock,
-            )
-        })
+) -> GroupItem<'a, SystemdManagerInteraction> {
+    failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
+        snapshot.sections_described_by(failed_units_hover_card)
+    }))
 }
 
 #[derive(Default)]
@@ -236,59 +220,122 @@ impl SystemdManagerGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, SystemdManagerInteraction> {
         let locale = config.calendar.locale;
-        let boot = self.boot.get();
+        let mut rows = Vec::new();
+        if let Some(timeline) = self.boot.get() {
+            rows.push(
+                GroupItem::reading(boot_timeline_reading_row(timeline, locale)).with_hover_card(
+                    Box::new(move |_| self.boot.sections_described_by(boot_timeline_hover_card)),
+                ),
+            );
+            rows.push(
+                GroupItem::reading(StartupUnits { timeline }.reading_row()).with_hover_card(
+                    Box::new(move |_| {
+                        self.boot
+                            .hover_card_with(StartupUnits { timeline }.hover_card())
+                    }),
+                ),
+            );
+        }
+        for slow_jobs in [&self.slow_system_jobs, &self.slow_user_jobs] {
+            match slow_jobs {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                        rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
+                    }
+                }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    let held_snapshot = &troubled_snapshot.held_snapshot;
+                    if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                        rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
+                    }
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => {
+                    rows.push(GroupItem::reading(
+                        placeholder.reading_row(SLOW_JOBS_GLYPH.into()),
+                    ));
+                }
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
+            }
+        }
+        for (failed_units, failed_units_glyph) in [
+            (&self.failed_system, FAILED_SYSTEM_UNITS_GLYPH),
+            (&self.failed_user, FAILED_USER_UNITS_GLYPH),
+        ] {
+            match failed_units {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                    if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                        rows.push(failed_units_entry(
+                            failed_units,
+                            held_snapshot,
+                            config,
+                            clock,
+                        ));
+                    }
+                }
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                    let held_snapshot = &troubled_snapshot.held_snapshot;
+                    if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
+                        rows.push(failed_units_entry(
+                            failed_units,
+                            held_snapshot,
+                            config,
+                            clock,
+                        ));
+                    }
+                }
+                SubscribedSnapshot::NoSnapshot { placeholder } => {
+                    rows.push(GroupItem::reading(
+                        placeholder.reading_row(failed_units_glyph.into()),
+                    ));
+                }
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
+            }
+        }
+        match &self.last_shutdown {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                rows.push(self.last_shutdown_item(held_snapshot, config));
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                rows.push(self.last_shutdown_item(&troubled_snapshot.held_snapshot, config));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(GroupItem::reading(
+                    placeholder.reading_row(LAST_SHUTDOWN_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SystemdManager,
             GroupSummary::glyph(Phosphor::Speedometer(Weight::Regular).into(), self.state()),
             &self.expansion,
             SystemdManagerInteraction::Expansion,
-            [
-                boot.map(|boot| {
-                    GroupItem::reading(boot_timeline_reading_row(boot, locale)).with_hover_card(
-                        Box::new(move |_| {
-                            self.boot.sections_described_by(boot_timeline_hover_card)
-                        }),
-                    )
-                }),
-                boot.map(|timeline| {
-                    GroupItem::reading(StartupUnits { timeline }.reading_row()).with_hover_card(
-                        Box::new(move |_| {
-                            self.boot
-                                .hover_card_with(StartupUnits { timeline }.hover_card())
-                        }),
-                    )
-                }),
-                slow_jobs_entry(&self.slow_system_jobs, config, clock),
-                slow_jobs_entry(&self.slow_user_jobs, config, clock),
-                failed_units_entry(&self.failed_system, config, clock),
-                failed_units_entry(&self.failed_user, config, clock),
-                self.last_shutdown
-                    .get()
-                    .map(|last| {
-                        GroupItem::reading(last_shutdown_reading_row(last, locale))
-                            .on_press(
-                                TerminalCommand::JOURNAL_PRESS_HINT,
-                                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                                    config,
-                                    last.follow_log_args(),
-                                )),
-                            )
-                            .with_hover_card(Box::new(move |_| {
-                                self.last_shutdown
-                                    .sections_described_by(last_shutdown_hover_card)
-                            }))
-                    })
-                    .or_else(|| {
-                        self.last_shutdown.group_item(
-                            IconGlyph::default(),
-                            |snapshot| last_shutdown_reading_row(snapshot, locale),
-                            clock,
-                        )
-                    }),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
+    }
+
+    fn last_shutdown_item<'a>(
+        &'a self,
+        last_shutdown: &'a LastShutdown,
+        config: &'a Config,
+    ) -> GroupItem<'a, SystemdManagerInteraction> {
+        GroupItem::reading(last_shutdown_reading_row(
+            last_shutdown,
+            config.calendar.locale,
+        ))
+        .on_press(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                config,
+                last_shutdown.follow_log_args(),
+            )),
+        )
+        .with_hover_card(Box::new(move |_| {
+            self.last_shutdown
+                .sections_described_by(last_shutdown_hover_card)
+        }))
     }
 
     fn current_health_states(&self) -> [Option<ReadingDisplayState>; 4] {

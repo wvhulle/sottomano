@@ -31,30 +31,26 @@ use crate::{
 pub const LABEL: &str = "Firmware upgrades";
 
 impl PendingUpgradesGroup {
-    pub(super) fn firmware_upgrade_item(
-        &self,
+    pub(super) fn firmware_upgrade_item<'a>(
+        &'a self,
+        upgrades: &'a [FirmwareUpgrade],
         config: &Config,
-    ) -> Option<GroupItem<'_, PendingUpgradesInteraction>> {
-        let upgrades = self
-            .firmware
-            .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))?;
+    ) -> GroupItem<'a, PendingUpgradesInteraction> {
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        Some(
-            GroupItem::reading(firmware_upgrades_reading_row(upgrades))
-                .on_press("run fwupdmgr update in a terminal", install.clone())
-                .ongoing_toast_action_buttons([OngoingToastActionButton {
-                    button_label: "Install".to_owned(),
-                    tint: ActionTint::Proceed,
-                    on_button_pressed: install,
-                }])
-                .with_hover_card(Box::new(move |_| {
-                    self.firmware
-                        .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot))
-                })),
-        )
+        GroupItem::reading(firmware_upgrades_reading_row(upgrades))
+            .on_press("run fwupdmgr update in a terminal", install.clone())
+            .ongoing_toast_action_buttons([OngoingToastActionButton {
+                button_label: "Install".to_owned(),
+                tint: ActionTint::Proceed,
+                on_button_pressed: install,
+            }])
+            .with_hover_card(Box::new(move |_| {
+                self.firmware
+                    .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot))
+            }))
     }
 }
 

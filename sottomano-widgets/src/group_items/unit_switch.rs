@@ -68,13 +68,27 @@ impl From<UnitActivity> for SwitchPosition {
 }
 
 #[derive(Clone)]
-struct UnitSwitchReading {
+pub struct UnitSwitchReading {
     toggle: IconToggle,
     shown_glyph: IconGlyph,
     activity: UnitActivity,
 }
 
 impl UnitSwitchReading {
+    #[must_use]
+    pub fn with_glyph(self, shown_glyph: IconGlyph) -> Self {
+        Self {
+            shown_glyph,
+            ..self
+        }
+    }
+
+    pub fn switch_item<'a, M: 'a>(self, pressed: M) -> GroupItem<'a, M> {
+        let switch_position = self.toggle.switch_position;
+        let press_does = self.toggle.press_does();
+        GroupItem::reading(self.reading_row()).on_switch_press(switch_position, press_does, pressed)
+    }
+
     fn shown_state(&self) -> ReadingDisplayState {
         match self.activity {
             UnitActivity::Running => ReadingDisplayState::On,
@@ -211,7 +225,8 @@ impl UnitSwitch {
         })
     }
 
-    fn reading(&self, service_readiness: ServiceReadiness) -> Option<UnitSwitchReading> {
+    #[must_use]
+    pub fn switch_reading(&self, service_readiness: ServiceReadiness) -> Option<UnitSwitchReading> {
         let activity = match (self.activity()?, service_readiness) {
             (UnitActivity::Running, ServiceReadiness::NotYetServing) => UnitActivity::Starting,
             (activity, _) => activity,
@@ -225,23 +240,11 @@ impl UnitSwitch {
 
     #[must_use]
     pub fn hover_card(&self, service_readiness: ServiceReadiness) -> Vec<Section> {
-        let Some(reading) = self.reading(service_readiness) else {
+        let Some(reading) = self.switch_reading(service_readiness) else {
             return Vec::new();
         };
         self.active_state
             .hover_card_with(UnitSwitchReading::status_sections(reading.activity))
-    }
-
-    pub fn group_item<'a, M: 'a>(
-        &self,
-        service_readiness: ServiceReadiness,
-        pressed: M,
-    ) -> Option<GroupItem<'a, M>> {
-        self.group_item_with_glyph(
-            self.face.icon.with_weight(Weight::Regular).into(),
-            service_readiness,
-            pressed,
-        )
     }
 
     #[must_use]
@@ -250,7 +253,7 @@ impl UnitSwitch {
         group_item: GroupItem<'a, M>,
         pressed: M,
     ) -> GroupItem<'a, M> {
-        match self.reading(ServiceReadiness::Serving) {
+        match self.switch_reading(ServiceReadiness::Serving) {
             Some(reading) => group_item.on_switch_press(
                 reading.toggle.switch_position,
                 reading.toggle.press_does(),
@@ -258,24 +261,5 @@ impl UnitSwitch {
             ),
             None => group_item,
         }
-    }
-
-    pub fn group_item_with_glyph<'a, M: 'a>(
-        &self,
-        shown_glyph: IconGlyph,
-        service_readiness: ServiceReadiness,
-        pressed: M,
-    ) -> Option<GroupItem<'a, M>> {
-        let reading = UnitSwitchReading {
-            shown_glyph,
-            ..self.reading(service_readiness)?
-        };
-        let switch_position = reading.toggle.switch_position;
-        let press_does = reading.toggle.press_does();
-        Some(GroupItem::reading(reading.reading_row()).on_switch_press(
-            switch_position,
-            press_does,
-            pressed,
-        ))
     }
 }

@@ -49,7 +49,6 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -57,6 +56,8 @@ use crate::{
 };
 
 const BCACHEFS_FS_TYPE: &str = "bcachefs";
+const FILESYSTEM_USAGE_GLYPH: Phosphor = Phosphor::Folders(Weight::Regular);
+const SUBVOLUME_USAGE_GLYPH: Phosphor = Phosphor::FolderSimple(Weight::Regular);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageSource {
@@ -320,61 +321,56 @@ impl StorageSpaceGroup {
         locale: Locale,
     ) -> WidgetGroupContent<'_, StorageInteraction> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
-        let usage = filesystem.usage.get();
-        let subvolume_failure_item = filesystem.subvolume_usage.failure().map(|failure| {
-            GroupItem::reading(failure.reading_row(IconGlyph::default()))
-                .with_hover_card(Box::new(move |_| {
-                    filesystem
-                        .subvolume_usage
-                        .sections_described_by(subvolume_usage_hover_card)
-                }))
-                .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
-                    primary_mount_point.to_path_buf(),
-                )))
-        });
-        let snapshot_deletion_item =
-            usage
-                .filter(|usage| {
-                    matches!(
-                        &usage.filesystem,
-                        Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
-                    )
-                })
-                .map(|_| {
-                    GroupItem::reading(SnapshotDeletionRow::reading_row())
-                    .with_hover_card(Box::new(move |_| {
-                        filesystem
-                            .usage
-                            .hover_card_with(SnapshotDeletionRow::hover_card())
-                    }))
-                    .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
-                        primary_mount_point.to_path_buf(),
-                    )))
-                });
-        let owned_mount_point = primary_mount_point.to_path_buf();
-        let group_summary = match filesystem.usage.reading_row(
-            Phosphor::Folders(Weight::Regular).into(),
-            filesystem_usage_reading_row,
-            clock,
-        ) {
-            Some(usage_item) => GroupSummary::summarising(
-                Phosphor::Folders(Weight::Regular).into(),
-                GroupItem::reading(usage_item)
-                    .with_hover_card(Box::new(move |_| {
-                        filesystem
-                            .usage
-                            .sections_described_by(filesystem_usage_hover_card)
-                    }))
-                    .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
-                        primary_mount_point.to_path_buf(),
-                    ))),
+        let group_summary = match &filesystem.usage {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                FILESYSTEM_USAGE_GLYPH.into(),
+                Self::filesystem_usage_item(
+                    filesystem,
+                    filesystem_usage_reading_row(held_snapshot),
+                ),
             ),
-            None => GroupSummary::glyph(
-                Phosphor::Folders(Weight::Regular).into(),
-                filesystem.usage.unshown_state(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    FILESYSTEM_USAGE_GLYPH.into(),
+                    Self::filesystem_usage_item(
+                        filesystem,
+                        troubled_snapshot.shown_over(
+                            filesystem_usage_reading_row(&troubled_snapshot.held_snapshot),
+                            clock,
+                        ),
+                    ),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                FILESYSTEM_USAGE_GLYPH.into(),
+                Self::filesystem_usage_item(
+                    filesystem,
+                    placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into()),
+                ),
             ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Off)
+            }
         };
-        let group_summary = group_summary;
+        let mut rows = Vec::new();
+        rows.extend(Self::property_items(filesystem, locale));
+        rows.extend(Self::subvolume_items(filesystem, locale));
+        if let Some(failure) = filesystem.subvolume_usage.failure() {
+            rows.push(Self::subvolume_failure_item(
+                filesystem,
+                failure.reading_row(SUBVOLUME_USAGE_GLYPH.into()),
+            ));
+        }
+        if let Some(usage) = filesystem.usage.get()
+            && let Filesystem::Bcachefs(space) = &usage.filesystem
+            && space.snapshot_deletion == SnapshotDeletion::Running
+        {
+            rows.push(Self::snapshot_deletion_item(filesystem));
+        }
+        let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::StorageSpace,
@@ -387,11 +383,62 @@ impl StorageSpaceGroup {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
-            Self::property_items(filesystem, locale)
-                .chain(Self::subvolume_items(filesystem, locale))
-                .chain(subvolume_failure_item)
-                .chain(snapshot_deletion_item),
+            rows,
         )
+    }
+
+    fn filesystem_usage_item<'a>(
+        filesystem: &'a MountedFilesystem,
+        usage_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, StorageInteraction> {
+        GroupItem::reading(usage_row)
+            .with_hover_card(Box::new(move |_| {
+                filesystem
+                    .usage
+                    .sections_described_by(filesystem_usage_hover_card)
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                filesystem.mount.primary_mount_point().to_path_buf(),
+            )))
+    }
+
+    fn subvolume_failure_item<'a>(
+        filesystem: &'a MountedFilesystem,
+        failure_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, StorageInteraction> {
+        GroupItem::reading(failure_row)
+            .with_hover_card(Box::new(move |_| {
+                filesystem
+                    .subvolume_usage
+                    .sections_described_by(subvolume_usage_hover_card)
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
+                filesystem.mount.primary_mount_point().to_path_buf(),
+            )))
+    }
+
+    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupItem<'_, StorageInteraction> {
+        GroupItem::reading(SnapshotDeletionRow::reading_row())
+            .with_hover_card(Box::new(move |_| {
+                filesystem
+                    .usage
+                    .hover_card_with(SnapshotDeletionRow::hover_card())
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                filesystem.mount.primary_mount_point().to_path_buf(),
+            )))
+    }
+
+    fn discovery_item<'a>(
+        &'a self,
+        discovery_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, StorageInteraction> {
+        GroupItem::reading(discovery_row)
+            .with_hover_card(Box::new(move |_| {
+                self.discovery
+                    .sections_described_by(block_filesystem_discovery_hover_card)
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery))
     }
 
     #[must_use]
@@ -407,24 +454,30 @@ impl StorageSpaceGroup {
                 .map(|filesystem| Self::mount_group(filesystem, clock, locale))
                 .collect();
         }
-        let group_summary = match self.discovery.reading_row(
-            Phosphor::Folders(Weight::Regular).into(),
-            block_filesystem_discovery_reading_row,
-            clock,
-        ) {
-            Some(discovery_item) => GroupSummary::summarising(
-                Phosphor::Folders(Weight::Regular).into(),
-                GroupItem::reading(discovery_item)
-                    .with_hover_card(Box::new(move |_| {
-                        self.discovery
-                            .sections_described_by(block_filesystem_discovery_hover_card)
-                    }))
-                    .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery)),
+        let group_summary = match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+                FILESYSTEM_USAGE_GLYPH.into(),
+                self.discovery_item(block_filesystem_discovery_reading_row(held_snapshot)),
             ),
-            None => GroupSummary::glyph(
-                Phosphor::Folders(Weight::Regular).into(),
-                self.discovery.unshown_state(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    FILESYSTEM_USAGE_GLYPH.into(),
+                    self.discovery_item(troubled_snapshot.shown_over(
+                        block_filesystem_discovery_reading_row(&troubled_snapshot.held_snapshot),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                FILESYSTEM_USAGE_GLYPH.into(),
+                self.discovery_item(placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into())),
             ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Off)
+            }
         };
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,

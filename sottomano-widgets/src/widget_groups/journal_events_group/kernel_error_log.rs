@@ -3,7 +3,6 @@ use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::Ker
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -18,7 +17,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -28,31 +26,26 @@ use crate::{
 
 const HOVER_CARD_ROWS: usize = 15;
 
+pub(super) const KERNEL_LOG_GLYPH: Phosphor = Phosphor::LinuxLogo(Weight::Regular);
+
 impl JournalScopeGroup {
-    pub(super) fn kernel_log_item(
-        &self,
+    pub(super) fn kernel_log_item<'a>(
+        &'a self,
         config: &Config,
-        clock: Clock,
-    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let kernel = self.kernel.reading_row(
-            IconGlyph::default(),
-            |snapshot| kernel_log_reading_row(snapshot),
-            clock,
-        )?;
-        Some(
-            GroupItem::reading(kernel)
-                .on_press(
-                    TerminalCommand::JOURNAL_PRESS_HINT,
-                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                        config,
-                        KernelOccurrence::follow_log_args(),
-                    )),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.kernel
-                        .sections_described_by(|snapshot| kernel_log_hover_card(snapshot))
-                })),
-        )
+        kernel_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, JournalEventsInteraction> {
+        GroupItem::reading(kernel_row)
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    KernelOccurrence::follow_log_args(),
+                )),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.kernel
+                    .sections_described_by(|snapshot| kernel_log_hover_card(snapshot))
+            }))
     }
 }
 
@@ -109,7 +102,7 @@ pub(super) fn kernel_log_reading_row(occurrences: &[KernelOccurrence]) -> Readin
         panel_visibility: kernel_log_panel_visibility(occurrences),
         ..ReadingRow::glyph_only(
             "Kernel log",
-            Phosphor::LinuxLogo(Weight::Regular).into(),
+            KERNEL_LOG_GLYPH.into(),
             kernel_log_state(occurrences),
             Box::new(move |_| kernel_log_hover_card(occurrences)),
         )

@@ -27,7 +27,11 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -47,6 +51,9 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const POWER_PROFILE_GLYPH: Phosphor = Phosphor::Lightning(Weight::Regular);
+const BATTERY_CHARGE_GLYPH: Phosphor = Phosphor::BatteryFull(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerRefreshedSource {
@@ -230,90 +237,121 @@ impl PowerGroup {
                         PowerProfileInteraction::SwitchToProfile(profile),
                     ),
                 });
-        let group_summary = match self.power_profile.slider() {
-            Some(slider) => GroupSummary::summarising(
-                Phosphor::Lightning(Weight::Regular).into(),
-                GroupItem::slider(slider, config, |control_message| {
-                    PowerInteraction::PowerProfile(PowerProfileInteraction::Control(
-                        control_message,
-                    ))
-                })
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self.power_profile.hover_card();
-                    sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
-                    sections
-                }))
-                .fetching_on_hover(
-                    PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
-                    PowerInteraction::StopHoverFetches,
-                )
-                .refreshed_by(PowerInteraction::OnBuses(
-                    PowerBusRequest::Refresh(PowerRefreshedSource::Profile),
-                )),
+        let group_summary = match self.power_profile.profile_status() {
+            SubscribedSnapshot::SnapshotHeld { .. }
+            | SubscribedSnapshot::SnapshotTroubled { .. } => GroupSummary::summarising(
+                POWER_PROFILE_GLYPH.into(),
+                self.power_profile_item(config),
             ),
-            None => GroupSummary::glyph(
-                Phosphor::Lightning(Weight::Regular).into(),
-                self.power_profile.unshown_state(),
-            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), placeholder.shown_state())
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), ReadingDisplayState::Off)
+            }
         };
+        let mut rows = Vec::new();
+        match &self.battery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let charge_row = battery_reading_row(held_snapshot);
+                if charge_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.battery_charge_item(charge_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let charge_row = troubled_snapshot
+                    .shown_over(battery_reading_row(&troubled_snapshot.held_snapshot), clock);
+                if charge_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.battery_charge_item(charge_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.battery_charge_item(placeholder.reading_row(BATTERY_CHARGE_GLYPH.into())),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if let Some(draw) = self.draw() {
+            rows.push(self.power_draw_item(draw));
+        }
+        if let Some(time) = &self.time {
+            rows.push(
+                GroupItem::reading(time.reading_row(locale))
+                    .ongoing_toast_action_buttons(switch_to_saving_profiles)
+                    .with_hover_card(Box::new(move |_| {
+                        self.battery.hover_card_with(time.hover_card())
+                    }))
+                    .refreshed_by(battery_refresh()),
+            );
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Power,
             group_summary,
             &self.expansion,
             PowerInteraction::Expansion,
-            [
-                self.battery
-                    .group_item(
-                        Phosphor::BatteryFull(Weight::Regular).into(),
-                        battery_reading_row,
-                        clock,
-                    )
-                    .map(|battery_item| {
-                        battery_item
-                            .with_hover_card(Box::new(move |_| {
-                                let mut sections =
-                                    self.battery.sections_described_by(battery_hover_card);
-                                sections.extend(
-                                    self.battery.sections_described_by(|battery| {
-                                        vec![Section::from(battery)]
-                                    }),
-                                );
-                                sections
-                            }))
-                            .refreshed_by(battery_refresh())
-                    }),
-                self.draw().map(|draw| {
-                    GroupItem::reading(draw.reading_row())
-                        .with_hover_card(Box::new(move |_| {
-                            self.draw().map_or_else(Vec::new, |current_draw| {
-                                let mut sections =
-                                    self.battery.hover_card_with(current_draw.hover_card());
-                                if current_draw.power_source() != PowerSource::Battery {
-                                    sections.extend(
-                                        self.charger.sections_described_by(charger_supply_sections),
-                                    );
-                                }
-                                sections
-                            })
-                        }))
-                        .fetching_on_hover(
-                            PowerInteraction::StartChargerFetch,
-                            PowerInteraction::StopHoverFetches,
-                        )
-                        .refreshed_by(battery_refresh())
-                }),
-                self.time.as_ref().map(|time| {
-                    GroupItem::reading(time.reading_row(locale))
-                        .ongoing_toast_action_buttons(switch_to_saving_profiles)
-                        .with_hover_card(Box::new(move |_| {
-                            self.battery.hover_card_with(time.hover_card())
-                        }))
-                        .refreshed_by(battery_refresh())
-                }),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
+    }
+
+    fn power_profile_item<'a>(&'a self, config: &'a Config) -> GroupItem<'a, PowerInteraction> {
+        GroupItem::slider(
+            self.power_profile.slider_control(),
+            config,
+            |control_message| {
+                PowerInteraction::PowerProfile(PowerProfileInteraction::Control(control_message))
+            },
+        )
+        .with_hover_card(Box::new(move |_| {
+            let mut sections = self.power_profile.hover_card();
+            sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
+            sections
+        }))
+        .fetching_on_hover(
+            PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
+            PowerInteraction::StopHoverFetches,
+        )
+        .refreshed_by(PowerInteraction::OnBuses(PowerBusRequest::Refresh(
+            PowerRefreshedSource::Profile,
+        )))
+    }
+
+    fn battery_charge_item<'a>(
+        &'a self,
+        charge_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, PowerInteraction> {
+        GroupItem::reading(charge_row)
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self.battery.sections_described_by(battery_hover_card);
+                sections.extend(
+                    self.battery
+                        .sections_described_by(|battery| vec![Section::from(battery)]),
+                );
+                sections
+            }))
+            .refreshed_by(battery_refresh())
+    }
+
+    fn power_draw_item(&self, draw: PowerDraw) -> GroupItem<'_, PowerInteraction> {
+        GroupItem::reading(draw.reading_row())
+            .with_hover_card(Box::new(move |_| {
+                self.draw().map_or_else(Vec::new, |current_draw| {
+                    let mut sections = self.battery.hover_card_with(current_draw.hover_card());
+                    if current_draw.power_source() != PowerSource::Battery {
+                        sections
+                            .extend(self.charger.sections_described_by(charger_supply_sections));
+                    }
+                    sections
+                })
+            }))
+            .fetching_on_hover(
+                PowerInteraction::StartChargerFetch,
+                PowerInteraction::StopHoverFetches,
+            )
+            .refreshed_by(battery_refresh())
     }
 }
 

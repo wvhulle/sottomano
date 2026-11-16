@@ -6,13 +6,10 @@ use std::{
 
 use chrono::{DateTime, Local, Locale, NaiveDate, Timelike, Utc};
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    weather::{
-        buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
-        open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
-        open_meteo_temperature::SkyWetness,
-    },
+use sottomano_desktop_sources::weather::{
+    buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
+    open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
+    open_meteo_temperature::SkyWetness,
 };
 use sottomano_toml_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
@@ -618,26 +615,6 @@ impl RadarRainForecast<'_> {
 
 pub(crate) const RAIN_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::Raindrop);
 
-pub fn rain_reading_row(rain: &Rain, clock: Clock, locale: Locale) -> ReadingRow<'_> {
-    let label = match rain_label_text(rain, clock, locale) {
-        Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-        Some(_) | None => ReadoutLabel::Unlabeled,
-    };
-    ReadingRow {
-        readout: RowReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            Rain::NAME,
-            RadarRainForecast::with_default_alerts(rain).glyph(),
-            rain_display_state(rain),
-            Box::new(move |card_clock| rain_hover_card(rain, card_clock)),
-        )
-    }
-}
-
 fn rain_label_text(rain: &Rain, clock: Clock, locale: Locale) -> Option<String> {
     let remaining = |at: DateTime<Local>| duration_text(at - clock.local(), locale);
     match rain.outlook {
@@ -662,31 +639,6 @@ pub fn rain_hover_card(rain: &Rain, clock: Clock) -> Vec<Section> {
 
 pub(crate) const PRECIPITATION_MODEL_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::WeatherIcon(WeatherIcon::Sprinkle);
-
-pub fn precipitation_model_reading_row(
-    model: &PrecipitationModel,
-    clock: Clock,
-    locale: Locale,
-) -> ReadingRow<'_> {
-    let forecast = RainForecast::modelled_with_default_alerts(model);
-    let label = match forecast.label_text(clock, locale) {
-        Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-        Some(_) | None => ReadoutLabel::Unlabeled,
-    };
-    ReadingRow {
-        readout: RowReadout {
-            label,
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        },
-        ..ReadingRow::glyph_only(
-            PrecipitationModel::NAME,
-            forecast.glyph(),
-            ReadingDisplayState::Idle,
-            Box::new(move |card_clock| precipitation_model_hover_card(model, card_clock)),
-        )
-    }
-}
 
 pub fn precipitation_model_hover_card(model: &PrecipitationModel, clock: Clock) -> Vec<Section> {
     RainForecast::modelled_with_default_alerts(model).hover_card(clock)
@@ -754,7 +706,12 @@ mod tests {
         let rain = radar_frames(clock, &[0.0, 0.0]);
         let forecast = RadarRainForecast::with_default_alerts(&rain);
         assert_eq!(
-            rain_reading_row(&rain, clock, Locale::default()).panel_visibility,
+            RainForecast {
+                sources: RainSources::Radar(&rain),
+                alerts: &DEFAULT_RAIN_ALERTS,
+            }
+            .reading_row(clock, Locale::default())
+            .panel_visibility,
             PanelVisibility::Shown
         );
         assert_eq!(forecast.display_state(clock), ReadingDisplayState::Off);

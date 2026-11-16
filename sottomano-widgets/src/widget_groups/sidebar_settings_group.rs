@@ -241,7 +241,19 @@ impl SidebarSettingsGroup {
         &'a self,
         config: &'a Config,
     ) -> WidgetGroupContent<'a, SidebarSettingsMessage> {
-        let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
+        let mut rows = vec![
+            GroupItem::toggle(
+                workspaces_sidebar_toggle(self.workspaces_placement),
+                SidebarSettingsMessage::ToggleWorkspacesPlacement,
+            ),
+            GroupItem::toggle(
+                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
+                SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
+            ),
+        ];
+        if self.workspaces_placement == WorkspacesPlacement::Sidebar {
+            rows.extend(self.layer.items(config, SidebarSettingsMessage::Appearance));
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SidebarSettings,
             GroupSummary::glyph(
@@ -250,23 +262,7 @@ impl SidebarSettingsGroup {
             ),
             &self.expansion,
             SidebarSettingsMessage::Expansion,
-            [
-                GroupItem::toggle(
-                    workspaces_sidebar_toggle(self.workspaces_placement),
-                    SidebarSettingsMessage::ToggleWorkspacesPlacement,
-                ),
-                GroupItem::toggle(
-                    auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
-                    SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
-                ),
-            ]
-            .into_iter()
-            .chain(
-                sidebar_shown
-                    .then(|| self.layer.items(config, SidebarSettingsMessage::Appearance))
-                    .into_iter()
-                    .flatten(),
-            ),
+            rows,
         )
     }
 }

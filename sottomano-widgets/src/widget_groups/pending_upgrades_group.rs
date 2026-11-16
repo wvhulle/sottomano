@@ -35,10 +35,12 @@ use crate::{
         },
     },
     widgets::{
-        icon_glyph::IconGlyph, localized_quantities::Quantity, phosphor::Phosphor,
+        localized_quantities::Quantity, phosphor::Phosphor,
         subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
     },
 };
+
+const FIRMWARE_UPGRADES_GLYPH: Phosphor = Phosphor::Circuitry(Weight::Regular);
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
@@ -95,6 +97,23 @@ impl PendingUpgradesGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
+        let mut rows = Vec::new();
+        if let Some(upgrades) = self
+            .firmware
+            .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
+        {
+            rows.push(self.firmware_upgrade_item(upgrades, config));
+        }
+        if let Some(placeholder) = self.firmware.failure() {
+            rows.push(
+                GroupItem::reading(placeholder.reading_row(FIRMWARE_UPGRADES_GLYPH.into()))
+                    .with_hover_card(Box::new(move |_| {
+                        self.firmware.sections_described_by(|snapshot| {
+                            firmware_upgrades_hover_card(snapshot)
+                        })
+                    })),
+            );
+        }
         let group_summary = GroupSummary::summarising(
             Phosphor::ArrowCircleUp(Weight::Regular).into(),
             GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
@@ -106,20 +125,7 @@ impl PendingUpgradesGroup {
             group_summary,
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
-            [
-                self.firmware_upgrade_item(config),
-                self.firmware.failure().map(|failure| {
-                    GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(
-                        Box::new(move |_| {
-                            self.firmware.sections_described_by(|snapshot| {
-                                firmware_upgrades_hover_card(snapshot)
-                            })
-                        }),
-                    )
-                }),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
     }
 

@@ -1,6 +1,3 @@
-use crate::{
-    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
-};
 mod backlight_display;
 mod clight_auto_brightness;
 use clight_auto_brightness::auto_brightness_reading_row;
@@ -30,8 +27,10 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        toggle_control::{ToggleControl, ToggleMessage},
+        toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
@@ -47,6 +46,7 @@ use crate::{
     },
 };
 
+const AUTO_BRIGHTNESS_GLYPH: Phosphor = Phosphor::Eye(Weight::Regular);
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 5.0;
 
@@ -263,18 +263,54 @@ impl MonitorGroup {
         outputs: &'a HashMap<String, OutputInfo>,
         clock: Clock,
     ) -> WidgetGroupContent<'a, MonitorInteraction> {
-        let backlight_items = self.sliders.iter().map(|(backlight_serial, slider)| {
-            let message_serial = backlight_serial.clone();
-            GroupItem::slider(slider, config, move |control_message| {
-                MonitorInteraction::Backlight(message_serial.clone(), control_message)
+        let mut rows: Vec<_> = self
+            .sliders
+            .iter()
+            .map(|(backlight_serial, slider)| {
+                let message_serial = backlight_serial.clone();
+                GroupItem::slider(slider, config, move |control_message| {
+                    MonitorInteraction::Backlight(message_serial.clone(), control_message)
+                })
+                .with_hover_card(Box::new(move |_| {
+                    self.backlight_hover_card(backlight_serial, slider, outputs)
+                }))
+                .refreshed_by(MonitorInteraction::OnBuses(
+                    MonitorBusRequest::Refresh(MonitorSource::Backlights),
+                ))
             })
-            .with_hover_card(Box::new(move |_| {
-                self.backlight_hover_card(backlight_serial, slider, outputs)
-            }))
-            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
-                MonitorSource::Backlights,
-            )))
-        });
+            .collect();
+        match self.clight.subscribed_reading() {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let brightness_row = auto_brightness_reading_row(held_snapshot);
+                if brightness_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
+                        held_snapshot.switch_position(),
+                        held_snapshot.press_action_text(),
+                        MonitorInteraction::AutoBrightnessPressed,
+                    ));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                let brightness_row =
+                    troubled_snapshot.shown_over(auto_brightness_reading_row(held_snapshot), clock);
+                if brightness_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
+                        held_snapshot.switch_position(),
+                        held_snapshot.press_action_text(),
+                        MonitorInteraction::AutoBrightnessPressed,
+                    ));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(
+                    self.auto_brightness_item(
+                        placeholder.reading_row(AUTO_BRIGHTNESS_GLYPH.into()),
+                    ),
+                );
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
             GroupSummary::glyph(
@@ -283,23 +319,19 @@ impl MonitorGroup {
             ),
             &self.expansion,
             MonitorInteraction::Expansion,
-            backlight_items.chain(
-                self.clight
-                    .group_item(
-                        IconGlyph::default(),
-                        auto_brightness_reading_row,
-                        MonitorInteraction::AutoBrightnessPressed,
-                        clock,
-                    )
-                    .map(|clight_item| {
-                        clight_item
-                            .with_hover_card(Box::new(move |_| self.clight.hover_card()))
-                            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
-                                MonitorSource::AutoBrightness,
-                            )))
-                    }),
-            ),
+            rows,
         )
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
+    }
+
+    fn auto_brightness_item<'a>(
+        &'a self,
+        brightness_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, MonitorInteraction> {
+        GroupItem::reading(brightness_row)
+            .with_hover_card(Box::new(move |_| self.clight.hover_card()))
+            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
+                MonitorSource::AutoBrightness,
+            )))
     }
 }

@@ -652,25 +652,31 @@ impl GamepadGroup {
             GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row()),
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
-        let connection = (!shown_in_bluetooth_group)
-            .then(|| GroupItem::reading(self.link_reading(slot, link).reading_row()));
-        let battery = (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery)
-            .then(|| GroupItem::reading(battery_reading.reading_row()));
-        let compositor_driving = GroupItem::toggle(
-            compositor_driving_toggle(self.controller_custody(slot)),
-            GamepadInteraction::ToggleCompositorDriving { slot },
-        )
-        .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot)));
-        let usb_cable = usb_cable_role(link.transport).map(|role| {
-            let item = GroupItem::reading(UsbCableReading { role }.reading_row());
-            match role {
-                UsbCableRole::ChargingOnly => item.on_press(
+        let mut rows = vec![
+            GroupItem::toggle(
+                compositor_driving_toggle(self.controller_custody(slot)),
+                GamepadInteraction::ToggleCompositorDriving { slot },
+            )
+            .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
+        ];
+        if !shown_in_bluetooth_group {
+            rows.push(GroupItem::reading(
+                self.link_reading(slot, link).reading_row(),
+            ));
+            if gamepad.power != GamepadPower::NoBattery {
+                rows.push(GroupItem::reading(battery_reading.reading_row()));
+            }
+        }
+        if let Some(cable_role) = usb_cable_role(link.transport) {
+            let cable_item = GroupItem::reading(UsbCableReading { role: cable_role }.reading_row());
+            rows.push(match cable_role {
+                UsbCableRole::ChargingOnly => cable_item.on_press(
                     "disconnect Bluetooth so the cable can take over",
                     GamepadInteraction::DisconnectBluetooth { slot },
                 ),
-                UsbCableRole::InputAndCharging => item,
-            }
-        });
+                UsbCableRole::InputAndCharging => cable_item,
+            });
+        }
         let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
@@ -681,9 +687,7 @@ impl GamepadGroup {
             group_summary,
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
-            [Some(compositor_driving), connection, battery, usb_cable]
-                .into_iter()
-                .flatten(),
+            rows,
         ))
     }
 

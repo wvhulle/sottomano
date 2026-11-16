@@ -3,7 +3,6 @@ use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::Coredum
 use sottomano_toml_config::Config;
 
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -16,7 +15,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -45,31 +43,26 @@ impl From<&CoredumpEntry> for TableRecord<4> {
     }
 }
 
+pub(super) const COREDUMP_LOG_GLYPH: Phosphor = Phosphor::Bug(Weight::Regular);
+
 impl JournalScopeGroup {
-    pub(super) fn coredump_log_item(
-        &self,
+    pub(super) fn coredump_log_item<'a>(
+        &'a self,
         config: &Config,
-        clock: Clock,
-    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let coredumps = self.coredumps.reading_row(
-            IconGlyph::default(),
-            |snapshot| coredump_log_reading_row(snapshot),
-            clock,
-        )?;
-        Some(
-            GroupItem::reading(coredumps)
-                .on_press(
-                    TerminalCommand::JOURNAL_PRESS_HINT,
-                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                        config,
-                        CoredumpEntry::follow_log_args(),
-                    )),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.coredumps
-                        .sections_described_by(|snapshot| coredump_log_hover_card(snapshot))
-                })),
-        )
+        coredump_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, JournalEventsInteraction> {
+        GroupItem::reading(coredump_row)
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    CoredumpEntry::follow_log_args(),
+                )),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.coredumps
+                    .sections_described_by(|snapshot| coredump_log_hover_card(snapshot))
+            }))
     }
 }
 
@@ -96,7 +89,7 @@ pub(super) fn coredump_log_reading_row(entries: &[CoredumpEntry]) -> ReadingRow<
         panel_visibility: coredump_log_panel_visibility(entries),
         ..ReadingRow::glyph_only(
             "Coredumps",
-            Phosphor::Bug(Weight::Regular).into(),
+            COREDUMP_LOG_GLYPH.into(),
             coredump_log_state(entries),
             Box::new(move |_| coredump_log_hover_card(entries)),
         )

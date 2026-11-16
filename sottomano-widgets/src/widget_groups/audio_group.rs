@@ -1,4 +1,3 @@
-use crate::widgets::icon_glyph::IconGlyph;
 mod channel_level_control;
 
 use std::{
@@ -44,6 +43,7 @@ use crate::{
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
 const SCROLL_STEP: f32 = 5.0;
+const AUDIO_STATE_GLYPH: Phosphor = Phosphor::Waveform(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlKind {
@@ -287,45 +287,46 @@ impl AudioGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
+        let mut rows = Vec::new();
+        if let Some(sink_levels) = sink {
+            rows.push(
+                GroupItem::slider(
+                    &self.sink_control,
+                    config,
+                    AudioMessage::Control.with(ControlKind::Sink),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.channel_level_sections(ControlKind::Sink, sink_levels, &self.sink_control)
+                })),
+            );
+        }
+        if let Some(source_levels) = source {
+            rows.push(
+                GroupItem::slider(
+                    &self.source_control,
+                    config,
+                    AudioMessage::Control.with(ControlKind::Source),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.channel_level_sections(
+                        ControlKind::Source,
+                        source_levels,
+                        &self.source_control,
+                    )
+                })),
+            );
+        }
+        if let Some(failure_placeholder) = self.state.failure() {
+            rows.push(GroupItem::reading(
+                failure_placeholder.reading_row(AUDIO_STATE_GLYPH.into()),
+            ));
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Audio,
-            GroupSummary::glyph(
-                Phosphor::Waveform(Weight::Regular).into(),
-                self.sink_control.shown_state(),
-            ),
+            GroupSummary::glyph(AUDIO_STATE_GLYPH.into(), self.sink_control.shown_state()),
             &self.expansion,
             AudioMessage::Expansion,
-            [
-                sink.map(|reading| {
-                    GroupItem::slider(
-                        &self.sink_control,
-                        config,
-                        AudioMessage::Control.with(ControlKind::Sink),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.channel_level_sections(ControlKind::Sink, reading, &self.sink_control)
-                    }))
-                }),
-                source.map(|reading| {
-                    GroupItem::slider(
-                        &self.source_control,
-                        config,
-                        AudioMessage::Control.with(ControlKind::Source),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.channel_level_sections(
-                            ControlKind::Source,
-                            reading,
-                            &self.source_control,
-                        )
-                    }))
-                }),
-                self.state
-                    .failure()
-                    .map(|failure| GroupItem::reading(failure.reading_row(IconGlyph::default()))),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }

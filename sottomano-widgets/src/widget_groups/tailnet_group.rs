@@ -28,7 +28,9 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -50,10 +52,15 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, icon_glyph::IconGlyph,
-        simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const TAILSCALE_GLYPH: SimpleIcon = SimpleIcon::Tailscale;
+const TAILSCALE_EXIT_NODES_GLYPH: Phosphor = Phosphor::SignOut(Weight::Regular);
 
 mod tailscale_access_hover_card;
 mod tailscale_exit_node_hover_card;
@@ -281,13 +288,11 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_item(&self, clock: Clock) -> Option<GroupItem<'_, TailnetInteraction>> {
-        let membership_row = self.tailscale.reading_row(
-            IconGlyph::default(),
-            |snapshot| tailscale_reading_row(snapshot, clock),
-            clock,
-        )?;
-        let item = GroupItem::reading(membership_row)
+    fn membership_item<'a>(
+        &'a self,
+        membership_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, TailnetInteraction> {
+        GroupItem::reading(membership_row)
             .on_right_press(
                 "open the Tailscale admin console",
                 TailnetInteraction::OpenAdminConsole,
@@ -295,20 +300,27 @@ impl TailnetGroup {
             .with_hover_card(Box::new(move |card_clock| {
                 self.tailscale
                     .sections_described_by(|snapshot| tailscale_hover_card(snapshot, card_clock))
-            }));
-        Some(match self.tailscale.get().map(Tailscale::switch) {
-            Some(TailscaleSwitch::Up) => item.on_switch_press(
+            }))
+    }
+
+    fn membership_switch_item<'a>(
+        &'a self,
+        membership_row: ReadingRow<'a>,
+        tailscale: &Tailscale,
+    ) -> GroupItem<'a, TailnetInteraction> {
+        let membership_item = self.membership_item(membership_row);
+        match tailscale.switch() {
+            TailscaleSwitch::Up => membership_item.on_switch_press(
                 SwitchPosition::Off,
                 "turn Tailscale on",
                 TailnetInteraction::SwitchTailscale(TailscaleSwitch::Up),
             ),
-            Some(TailscaleSwitch::Down) => item.on_switch_press(
+            TailscaleSwitch::Down => membership_item.on_switch_press(
                 SwitchPosition::On,
                 "turn Tailscale off",
                 TailnetInteraction::SwitchTailscale(TailscaleSwitch::Down),
             ),
-            None => item,
-        })
+        }
     }
 
     fn running_tailnet(&self) -> Option<&Tailnet> {
@@ -318,19 +330,25 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(&self) -> Option<GroupItem<'_, TailnetInteraction>> {
-        self.running_tailnet()?;
-        match self.policy_file_access {
-            PolicyFileAccess::NoApiToken => None,
-            PolicyFileAccess::ApiToken { .. } => Some(
-                GroupItem::reading(PolicyFileRow::reading_row())
-                    .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
-                    .fetching_on_hover(
-                        TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
-                        TailnetInteraction::StopHoverFetches,
-                    ),
-            ),
-        }
+    fn policy_file_item(&self) -> GroupItem<'_, TailnetInteraction> {
+        GroupItem::reading(PolicyFileRow::reading_row())
+            .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
+            .fetching_on_hover(
+                TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
+                TailnetInteraction::StopHoverFetches,
+            )
+    }
+
+    fn inbound_access_item(&self) -> GroupItem<'_, TailnetInteraction> {
+        GroupItem::reading(InboundAccessRow::reading_row())
+            .with_hover_card(Box::new(move |_| {
+                self.inbound_access
+                    .sections_described_by(tailscale_inbound_access_sections)
+            }))
+            .fetching_on_hover(
+                TailnetInteraction::StartInboundAccessFetch,
+                TailnetInteraction::StopHoverFetches,
+            )
     }
 
     fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetInteraction> {
@@ -402,7 +420,7 @@ impl TailnetGroup {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
-        exit_node_choices
+        let mut exit_node_items: Vec<_> = exit_node_choices
             .options
             .iter()
             .map(|exit_node_option| {
@@ -418,63 +436,78 @@ impl TailnetGroup {
                     }),
                 )
             })
-            .chain((!exit_node_choices.options.is_empty()).then(|| {
+            .collect();
+        if !exit_node_choices.options.is_empty() {
+            exit_node_items.push(
                 Self::exit_node_lan_access_item(exit_node_choices).with_hover_card(Box::new(
                     move |_| {
                         self.tailscale_exit_nodes.hover_card_with(
                             ExitNodeLanAccessRow { exit_node_choices }.hover_card(),
                         )
                     },
-                ))
-            }))
-            .collect()
+                )),
+            );
+        }
+        exit_node_items
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, TailnetInteraction> {
-        let own_node_item = self
-            .tailscale
-            .get()
-            .and_then(OwnNodeRow::running_own_node)
-            .map(|own_node_row| {
+        let mut rows = Vec::new();
+        match &self.tailscale {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let membership_row = tailscale_reading_row(held_snapshot, clock);
+                if membership_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.membership_switch_item(membership_row, held_snapshot));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                let membership_row = troubled_snapshot
+                    .shown_over(tailscale_reading_row(held_snapshot, clock), clock);
+                if membership_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.membership_switch_item(membership_row, held_snapshot));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.membership_item(placeholder.reading_row(TAILSCALE_GLYPH.into())));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if let Some(own_node_row) = self.tailscale.get().and_then(OwnNodeRow::running_own_node) {
+            rows.push(
                 GroupItem::reading(own_node_row.reading_row()).with_hover_card(Box::new(
                     move |_| self.tailscale.hover_card_with(own_node_row.hover_card()),
-                ))
-            });
-        let inbound_access_item = self.running_tailnet().map(|_| {
-            GroupItem::reading(InboundAccessRow::reading_row())
-                .with_hover_card(Box::new(move |_| {
-                    self.inbound_access
-                        .sections_described_by(tailscale_inbound_access_sections)
-                }))
-                .fetching_on_hover(
-                    TailnetInteraction::StartInboundAccessFetch,
-                    TailnetInteraction::StopHoverFetches,
-                )
-        });
+                )),
+            );
+        }
+        if let Some(tailnet) = self.running_tailnet() {
+            rows.push(self.inbound_access_item());
+            if matches!(self.policy_file_access, PolicyFileAccess::ApiToken { .. }) {
+                rows.push(self.policy_file_item());
+            }
+            rows.push(
+                Self::exit_offer_item(tailnet).with_hover_card(Box::new(move |_| {
+                    self.tailscale
+                        .hover_card_with(ExitOfferRow { tailnet }.hover_card())
+                })),
+            );
+        }
+        rows.extend(self.exit_node_choice_items());
+        if let Some(failure_reading) = self.tailscale_exit_nodes.failure() {
+            rows.push(
+                GroupItem::reading(failure_reading.reading_row(TAILSCALE_EXIT_NODES_GLYPH.into()))
+                    .with_hover_card(Box::new(move |_| {
+                        self.tailscale_exit_nodes
+                            .sections_described_by(|_| Vec::new())
+                    })),
+            );
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
             GroupSummary::glyph(SimpleIcon::Tailscale.into(), ReadingDisplayState::Idle),
             &self.expansion,
             TailnetInteraction::Expansion,
-            self.membership_item(clock)
-                .into_iter()
-                .chain(own_node_item)
-                .chain(inbound_access_item)
-                .chain(self.policy_file_item())
-                .chain(self.running_tailnet().map(|tailnet| {
-                    Self::exit_offer_item(tailnet).with_hover_card(Box::new(move |_| {
-                        self.tailscale
-                            .hover_card_with(ExitOfferRow { tailnet }.hover_card())
-                    }))
-                }))
-                .chain(self.exit_node_choice_items())
-                .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
-                    GroupItem::reading(failure_reading.reading_row(IconGlyph::default()))
-                        .with_hover_card(Box::new(move |_| {
-                            self.tailscale_exit_nodes
-                                .sections_described_by(|_| Vec::new())
-                        }))
-                }))
+            rows.into_iter()
                 .map(|tailnet_item| tailnet_item.refreshed_by(TailnetInteraction::Refresh)),
         )
     }
@@ -535,13 +568,21 @@ mod tests {
         running_group
     }
 
+    fn lists_policy_file_row(tailnet_group: &TailnetGroup) -> bool {
+        tailnet_group
+            .group_content(Clock::real())
+            .instrument_keys()
+            .iter()
+            .any(|instrument_key| instrument_key.name == "Policy file")
+    }
+
     #[test]
     fn the_policy_file_row_needs_an_api_token() {
         let without_token = group_running_tailnet(TailnetGroup::without_policy_file());
-        assert!(without_token.policy_file_item().is_none());
+        assert!(!lists_policy_file_row(&without_token));
         let with_token =
             group_running_tailnet(TailnetGroup::with_policy_file(PathBuf::from("token")));
-        assert!(with_token.policy_file_item().is_some());
+        assert!(lists_policy_file_row(&with_token));
     }
 
     #[test]

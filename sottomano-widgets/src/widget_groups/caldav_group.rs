@@ -1,7 +1,12 @@
 use chrono::Locale;
 
 use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
+    group_items::{
+        group_item::GroupItem,
+        offline_internet_reading::SnapshotPlaceholder,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     widget_groups::caldav_group::{
         open_tasks_reading::{open_tasks_hover_card, open_tasks_reading_row},
         upcoming_events_reading::{
@@ -43,6 +48,8 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
+
+const OPEN_TASKS_GLYPH: Phosphor = Phosphor::ListChecks(Weight::Regular);
 
 pub struct CaldavGroup {
     upcoming_events: SubscribedSnapshot<UpcomingEventList>,
@@ -147,48 +154,86 @@ impl CaldavGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let upcoming_events_item = if self.account(config).is_some() {
-            self.upcoming_events.group_item_while_pending(
-                UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
-                clock,
-            )
-        } else {
-            self.upcoming_events.group_item(
-                UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
-                clock,
-            )
-        };
+        let mut rows = Vec::new();
+        match &self.upcoming_events {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let events_row = upcoming_events_reading_row(held_snapshot, clock, locale);
+                if events_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.upcoming_events_item(events_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let events_row = troubled_snapshot.shown_over(
+                    upcoming_events_reading_row(&troubled_snapshot.held_snapshot, clock, locale),
+                    clock,
+                );
+                if events_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.upcoming_events_item(events_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.upcoming_events_item(
+                    placeholder.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                if self.account(config).is_some() {
+                    rows.push(self.upcoming_events_item(
+                        SnapshotPlaceholder::<UpcomingEventList>::awaiting_row(
+                            UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+                        ),
+                    ));
+                }
+            }
+            SubscribedSnapshot::SourceUnavailable => {}
+        }
+        match &self.open_tasks {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let tasks_row = open_tasks_reading_row(held_snapshot, clock);
+                if tasks_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.open_tasks_item(tasks_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let tasks_row = troubled_snapshot.shown_over(
+                    open_tasks_reading_row(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                );
+                if tasks_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.open_tasks_item(tasks_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.open_tasks_item(placeholder.reading_row(OPEN_TASKS_GLYPH.into())));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
             GroupSummary::glyph(self.account_handle_glyph(), ReadingDisplayState::Idle),
             &self.expansion,
             identity,
-            [
-                upcoming_events_item.map(|item| {
-                    item.with_hover_card(Box::new(move |card_clock| {
-                        self.upcoming_events.sections_described_by(|snapshot| {
-                            upcoming_events_hover_card(snapshot, card_clock)
-                        })
-                    }))
-                }),
-                self.open_tasks
-                    .group_item(
-                        IconGlyph::default(),
-                        |snapshot| open_tasks_reading_row(snapshot, clock),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |card_clock| {
-                            self.open_tasks.sections_described_by(|snapshot| {
-                                open_tasks_hover_card(snapshot, card_clock)
-                            })
-                        }))
-                    }),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
+    }
+
+    fn upcoming_events_item<'a>(
+        &'a self,
+        events_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, WidgetGroupExpansionMessage> {
+        GroupItem::reading(events_row).with_hover_card(Box::new(move |card_clock| {
+            self.upcoming_events
+                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
+        }))
+    }
+
+    fn open_tasks_item<'a>(
+        &'a self,
+        tasks_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, WidgetGroupExpansionMessage> {
+        GroupItem::reading(tasks_row).with_hover_card(Box::new(move |card_clock| {
+            self.open_tasks
+                .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))
+        }))
     }
 }

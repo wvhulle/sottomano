@@ -275,18 +275,16 @@ mod tests {
     fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
         let pending_events = SubscribedSnapshot::<UpcomingEventList>::default();
         assert!(!pending_events.hover_card_with(Vec::new()).is_empty());
-        assert!(
-            pending_events
-                .group_item_while_pending::<()>(
-                    UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                    |snapshot| upcoming_events_reading_row(
-                        snapshot,
-                        Clock::real(),
-                        Locale::default()
-                    ),
-                    Clock::real(),
-                )
-                .is_some()
+        assert!(matches!(
+            pending_events,
+            SubscribedSnapshot::AwaitingFirstSnapshot
+        ));
+        assert_eq!(
+            SnapshotPlaceholder::<UpcomingEventList>::awaiting_row(
+                UPCOMING_EVENT_LIST_FALLBACK_GLYPH
+            )
+            .shown_state(),
+            ReadingDisplayState::Pending
         );
     }
 

@@ -3,7 +3,6 @@ use sottomano_desktop_sources::{
     SnapshotSource,
     systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors},
 };
-use sottomano_toml_config::Config;
 
 use crate::{
     group_items::{
@@ -13,14 +12,10 @@ use crate::{
         source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
-    widget_groups::{
-        journal_events_group::{
-            JournalEventsInteraction, JournalScopeGroup, MESSAGE_CAP, shown_while_alerting,
-        },
-        terminal_command::TerminalCommand,
+    widget_groups::journal_events_group::{
+        JournalEventsInteraction, JournalScopeGroup, MESSAGE_CAP, shown_while_alerting,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -28,38 +23,17 @@ use crate::{
     },
 };
 
+pub(super) const SERVICE_ERRORS_GLYPH: Phosphor = Phosphor::WarningCircle(Weight::Regular);
+
 impl JournalScopeGroup {
-    pub(super) fn service_errors_item(
-        &self,
-        config: &Config,
-    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let Some(service_errors) = self
-            .service_errors
-            .visible_reading(service_errors_panel_visibility)
-        else {
-            return self.service_errors.failure().map(|failure| {
-                GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(
-                    Box::new(move |_| {
-                        self.service_errors
-                            .sections_described_by(service_errors_hover_card)
-                    }),
-                )
-            });
-        };
-        Some(
-            GroupItem::reading(service_errors_reading_row(service_errors))
-                .on_press(
-                    TerminalCommand::JOURNAL_PRESS_HINT,
-                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                        config,
-                        service_errors.follow_log_args(),
-                    )),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.service_errors
-                        .sections_described_by(service_errors_hover_card)
-                })),
-        )
+    pub(super) fn service_errors_item<'a>(
+        &'a self,
+        service_errors_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, JournalEventsInteraction> {
+        GroupItem::reading(service_errors_row).with_hover_card(Box::new(move |_| {
+            self.service_errors
+                .sections_described_by(service_errors_hover_card)
+        }))
     }
 }
 
@@ -125,7 +99,7 @@ pub(super) fn service_errors_hover_card(errors: &ServiceErrors) -> Vec<Section> 
 pub(super) fn service_errors_reading_row(errors: &ServiceErrors) -> ReadingRow<'_> {
     let base = ReadingRow::glyph_only(
         ServiceErrors::NAME,
-        Phosphor::WarningCircle(Weight::Regular).into(),
+        SERVICE_ERRORS_GLYPH.into(),
         service_errors_state(errors),
         Box::new(move |_| service_errors_hover_card(errors)),
     );

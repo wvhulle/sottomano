@@ -237,6 +237,48 @@ impl ColorTemperatureGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, ColorTemperatureInteraction> {
         let gamma_available = self.gamma.get().is_some();
+        let mut rows = Vec::new();
+        if gamma_available {
+            rows.push(
+                GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
+                    .with_hover_card(Box::new(move |_| {
+                        self.gamma.hover_card_with(vec![Section::new(
+                            "Setting",
+                            dictionary_table([LabeledValue::new(
+                                "Temperature",
+                                self.warmth.readout_cell(),
+                            )]),
+                        )])
+                    }))
+                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                        ColorTemperatureBusRequest::Refresh,
+                    )),
+            );
+            rows.push(
+                GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
+                    .with_hover_card(Box::new(move |_| {
+                        self.gamma.hover_card_with(vec![Section::new(
+                            "Setting",
+                            dictionary_table([LabeledValue::new("Dim", self.dim.readout_cell())]),
+                        )])
+                    }))
+                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                        ColorTemperatureBusRequest::Refresh,
+                    )),
+            );
+        }
+        if let Some(switch_reading) = self.auto.switch_reading(ServiceReadiness::Serving) {
+            rows.push(
+                switch_reading
+                    .switch_item(ColorTemperatureInteraction::AutoPressed)
+                    .with_hover_card(Box::new(move |_| {
+                        self.auto.hover_card(ServiceReadiness::Serving)
+                    }))
+                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                        ColorTemperatureBusRequest::Refresh,
+                    )),
+            );
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
             GroupSummary::glyph(
@@ -245,54 +287,7 @@ impl ColorTemperatureGroup {
             ),
             &self.expansion,
             ColorTemperatureInteraction::Expansion,
-            [
-                gamma_available.then(|| {
-                    GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
-                        .with_hover_card(Box::new(move |_| {
-                            self.gamma.hover_card_with(vec![Section::new(
-                                "Setting",
-                                dictionary_table([LabeledValue::new(
-                                    "Temperature",
-                                    self.warmth.readout_cell(),
-                                )]),
-                            )])
-                        }))
-                        .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                            ColorTemperatureBusRequest::Refresh,
-                        ))
-                }),
-                gamma_available.then(|| {
-                    GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
-                        .with_hover_card(Box::new(move |_| {
-                            self.gamma.hover_card_with(vec![Section::new(
-                                "Setting",
-                                dictionary_table([LabeledValue::new(
-                                    "Dim",
-                                    self.dim.readout_cell(),
-                                )]),
-                            )])
-                        }))
-                        .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                            ColorTemperatureBusRequest::Refresh,
-                        ))
-                }),
-                self.auto
-                    .group_item(
-                        ServiceReadiness::Serving,
-                        ColorTemperatureInteraction::AutoPressed,
-                    )
-                    .map(|auto_item| {
-                        auto_item
-                            .with_hover_card(Box::new(move |_| {
-                                self.auto.hover_card(ServiceReadiness::Serving)
-                            }))
-                            .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                                ColorTemperatureBusRequest::Refresh,
-                            ))
-                    }),
-            ]
-            .into_iter()
-            .flatten(),
+            rows,
         )
         .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }

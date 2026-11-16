@@ -494,9 +494,15 @@ impl GlobalMenuGroup {
     }
 
     pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
-        let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
-            GroupItem::reading(MenuLookupFailureReading { lookup_failure }.reading_row())
-        });
+        let mut rows = vec![GroupItem::toggle(
+            global_menu_use_toggle(self.global_menu_use),
+            GlobalMenuInteraction::ToggleUse,
+        )];
+        if let Some(lookup_failure) = self.lookup_failure() {
+            rows.push(GroupItem::reading(
+                MenuLookupFailureReading { lookup_failure }.reading_row(),
+            ));
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
             GroupSummary::glyph(
@@ -508,12 +514,7 @@ impl GlobalMenuGroup {
             ),
             &self.switch_expansion,
             GlobalMenuInteraction::SwitchExpansion,
-            [GroupItem::toggle(
-                global_menu_use_toggle(self.global_menu_use),
-                GlobalMenuInteraction::ToggleUse,
-            )]
-            .into_iter()
-            .chain(lookup_failure_row),
+            rows,
         )
     }
 

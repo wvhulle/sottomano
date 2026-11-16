@@ -13,12 +13,9 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::Section,
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
     },
@@ -200,22 +197,8 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.get()
     }
 
-    pub fn group_item<'s, M: Clone + 's>(
-        &'s self,
-        fallback_icon: IconGlyph,
-        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        on_press: M,
-        clock: Clock,
-    ) -> Option<GroupItem<'s, M>> {
-        let shown = self.reading.group_item(fallback_icon, describe, clock)?;
-        Some(match self.reading.get() {
-            Some(current) => shown.on_switch_press(
-                current.switch_position(),
-                current.press_action_text(),
-                on_press,
-            ),
-            None => shown,
-        })
+    pub fn subscribed_reading(&self) -> &SubscribedSnapshot<S> {
+        &self.reading
     }
 }
 
@@ -229,6 +212,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        group_items::reading_row::PanelVisibility,
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
         widget_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_reading_row,
     };
@@ -255,24 +239,13 @@ mod tests {
         let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
 
         assert!(control.snapshot().is_none());
-        let shown = control
-            .reading
-            .reading_row(
-                IconGlyph::default(),
-                |snapshot| x3d_cache_preference_reading_row(snapshot),
+        assert_eq!(
+            control.reading.shown_state(
+                |snapshot| x3d_cache_preference_reading_row(snapshot).shown_state(),
+                |_| PanelVisibility::Shown,
                 clock,
-            )
-            .expect("failed reading still shows");
-        assert_eq!(shown.shown_state(), ReadingDisplayState::Failed);
-        assert!(
-            control
-                .group_item(
-                    IconGlyph::default(),
-                    |snapshot| x3d_cache_preference_reading_row(snapshot),
-                    (),
-                    clock,
-                )
-                .is_some()
+            ),
+            Some(ReadingDisplayState::Failed)
         );
         let shown_sections: Vec<(String, SectionSource)> = control
             .hover_card()

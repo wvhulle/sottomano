@@ -297,21 +297,22 @@ impl LoginSessionGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionInteraction> {
-        let items = self
-            .identity
-            .get()
-            .into_iter()
-            .flat_map(|identity| self.identity_items(identity));
-        let kernel = self.system.get().map(|system| {
-            GroupItem::reading(KernelFace { system }.reading_row())
-                .with_hover_card(Box::new(move |_| {
-                    self.system
-                        .hover_card_with(KernelFace { system }.hover_card())
-                }))
-                .refreshed_by(LoginSessionInteraction::OnBuses(
-                    LoginSessionBusRequest::Refresh(LoginSessionSource::OperatingSystem),
-                ))
-        });
+        let mut rows = Vec::new();
+        if let Some(system) = self.system.get() {
+            rows.push(
+                GroupItem::reading(KernelFace { system }.reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.system
+                            .hover_card_with(KernelFace { system }.hover_card())
+                    }))
+                    .refreshed_by(LoginSessionInteraction::OnBuses(
+                        LoginSessionBusRequest::Refresh(LoginSessionSource::OperatingSystem),
+                    )),
+            );
+        }
+        if let Some(identity) = self.identity.get() {
+            rows.extend(self.identity_items(identity));
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
             GroupSummary::glyph(
@@ -320,7 +321,7 @@ impl LoginSessionGroup {
             ),
             &self.expansion,
             LoginSessionInteraction::Expansion,
-            kernel.into_iter().chain(items),
+            rows,
         )
     }
 }

@@ -29,7 +29,11 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_items::{
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+    },
     widget_groups::{
         group_summary::GroupSummary,
         widget_group_content::{
@@ -207,77 +211,146 @@ impl OpenRouterCreditGroup {
         &self,
         clock: Clock,
     ) -> WidgetGroupContent<'_, OpenRouterCreditInteraction> {
-        let refresh_source = |source| {
-            OpenRouterCreditInteraction::OnBuses(OpenRouterCreditBusRequest::Refresh(source))
-        };
-        let group_summary = match self.spend.reading_row(
-            SimpleIcon::OpenRouter.into(),
-            |snapshot| spend_reading_row(snapshot, clock),
-            clock,
-        ) {
-            Some(summarised_row) => GroupSummary::summarising(
+        let group_summary = match &self.spend {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
-                GroupItem::reading(summarised_row)
-                    .with_hover_card(Box::new(move |card_clock| {
-                        self.spend.sections_described_by(|snapshot| {
-                            spend_hover_card(snapshot, card_clock)
-                        })
-                    }))
-                    .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
+                self.spend_item(spend_reading_row(held_snapshot, clock)),
             ),
-            None => GroupSummary::glyph(SimpleIcon::OpenRouter.into(), self.spend.unshown_state()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                GroupSummary::summarising(
+                    SimpleIcon::OpenRouter.into(),
+                    self.spend_item(troubled_snapshot.shown_over(
+                        spend_reading_row(&troubled_snapshot.held_snapshot, clock),
+                        clock,
+                    )),
+                )
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
+                SimpleIcon::OpenRouter.into(),
+                self.spend_item(placeholder.reading_row(SimpleIcon::OpenRouter.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => {
+                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), ReadingDisplayState::Pending)
+            }
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), ReadingDisplayState::Off)
+            }
         };
+        let mut rows = Vec::new();
+        match &self.strict_budget {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let budget_row = strict_budget_reading_row(held_snapshot);
+                if budget_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.strict_budget_item(budget_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let budget_row = troubled_snapshot.shown_over(
+                    strict_budget_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if budget_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.strict_budget_item(budget_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.strict_budget_item(
+                    placeholder.reading_row(OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        match &self.model_rankings {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                let rankings_row = best_models_reading_row(held_snapshot);
+                if rankings_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.model_rankings_item(rankings_row));
+                }
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let rankings_row = troubled_snapshot.shown_over(
+                    best_models_reading_row(&troubled_snapshot.held_snapshot),
+                    clock,
+                );
+                if rankings_row.panel_visibility == PanelVisibility::Shown {
+                    rows.push(self.model_rankings_item(rankings_row));
+                }
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                rows.push(self.model_rankings_item(
+                    placeholder.reading_row(OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+        if let Some(ranking) = self.model_ranking() {
+            rows.push(
+                GroupItem::reading(ranking.most_used_model_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.spend.hover_card_with(ranking.hover_card())
+                    }))
+                    .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend)),
+            );
+            rows.push(
+                GroupItem::reading(ranking.most_used_spend_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.spend.hover_card_with(ranking.top_model_share())
+                    }))
+                    .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend)),
+            );
+        }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
             group_summary,
             &self.expansion,
             OpenRouterCreditInteraction::Expansion,
-            [
-                self.strict_budget
-                    .group_item(
-                        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
-                        |snapshot| strict_budget_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.strict_budget
-                                .sections_described_by(strict_budget_hover_card)
-                        }))
-                        .refreshed_by(refresh_source(OpenRouterCreditSource::StrictBudget))
-                    }),
-                self.model_rankings
-                    .group_item(
-                        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
-                        |snapshot| best_models_reading_row(snapshot),
-                        clock,
-                    )
-                    .map(|item| {
-                        item.with_hover_card(Box::new(move |_| {
-                            self.model_rankings
-                                .sections_described_by(best_models_hover_card)
-                        }))
-                        .refreshed_by(refresh_source(OpenRouterCreditSource::ModelRankings))
-                    }),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(self.model_ranking().into_iter().flat_map(|ranking| {
-                [
-                    GroupItem::reading(ranking.most_used_model_row())
-                        .with_hover_card(Box::new(move |_| {
-                            self.spend.hover_card_with(ranking.hover_card())
-                        }))
-                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
-                    GroupItem::reading(ranking.most_used_spend_row())
-                        .with_hover_card(Box::new(move |_| {
-                            self.spend.hover_card_with(ranking.top_model_share())
-                        }))
-                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
-                ]
-            })),
+            rows,
         )
     }
+
+    fn spend_item<'a>(
+        &'a self,
+        spend_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+        GroupItem::reading(spend_row)
+            .with_hover_card(Box::new(move |card_clock| {
+                self.spend
+                    .sections_described_by(|snapshot| spend_hover_card(snapshot, card_clock))
+            }))
+            .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
+    }
+
+    fn strict_budget_item<'a>(
+        &'a self,
+        budget_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+        GroupItem::reading(budget_row)
+            .with_hover_card(Box::new(move |_| {
+                self.strict_budget
+                    .sections_described_by(strict_budget_hover_card)
+            }))
+            .refreshed_by(credit_refresh_interaction(
+                OpenRouterCreditSource::StrictBudget,
+            ))
+    }
+
+    fn model_rankings_item<'a>(
+        &'a self,
+        rankings_row: ReadingRow<'a>,
+    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+        GroupItem::reading(rankings_row)
+            .with_hover_card(Box::new(move |_| {
+                self.model_rankings
+                    .sections_described_by(best_models_hover_card)
+            }))
+            .refreshed_by(credit_refresh_interaction(
+                OpenRouterCreditSource::ModelRankings,
+            ))
+    }
+}
+
+fn credit_refresh_interaction(source: OpenRouterCreditSource) -> OpenRouterCreditInteraction {
+    OpenRouterCreditInteraction::OnBuses(OpenRouterCreditBusRequest::Refresh(source))
 }
 
 fn account(
