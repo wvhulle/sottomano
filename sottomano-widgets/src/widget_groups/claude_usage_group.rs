@@ -306,10 +306,7 @@ impl ClaudeUsageGroup {
         )
     }
 
-    fn enterprise_spend_item<'a>(
-        &'a self,
-        spend_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ClaudeUsageInteraction> {
+    fn enterprise_spend_item<'a>(&'a self, spend_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(spend_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
@@ -330,10 +327,7 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_periods_item<'a>(
-        &'a self,
-        periods_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ClaudeUsageInteraction> {
+    fn ccusage_periods_item<'a>(&'a self, periods_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(periods_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_periods.sections_described_by(|snapshot| {
@@ -345,10 +339,7 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_block_item<'a>(
-        &'a self,
-        block_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ClaudeUsageInteraction> {
+    fn ccusage_block_item<'a>(&'a self, block_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(block_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_block.sections_described_by(|snapshot| {
@@ -360,10 +351,7 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn usage_windows_item<'a>(
-        &'a self,
-        windows_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ClaudeUsageInteraction> {
+    fn usage_windows_item<'a>(&'a self, windows_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(windows_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.usage_windows.sections_described_by(|snapshot| {
@@ -375,7 +363,7 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = self.usage_windows_summary(clock);
         let mut rows = Vec::new();
         self.push_enterprise_spend_rows(&mut rows, clock);
@@ -392,7 +380,7 @@ impl ClaudeUsageGroup {
         )
     }
 
-    fn usage_windows_summary(&self, clock: Clock) -> GroupSummary<'_, ClaudeUsageInteraction> {
+    fn usage_windows_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.usage_windows {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::Claude.into(),
@@ -420,11 +408,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_enterprise_spend_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ClaudeUsageInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_enterprise_spend_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.enterprise_spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let spend_row = claude_enterprise_reading_row(held_snapshot, clock);
@@ -450,11 +434,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_periods_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ClaudeUsageInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_ccusage_periods_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.ccusage_periods {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let periods_row = claude_ccusage_periods_reading_row(held_snapshot, clock);
@@ -480,11 +460,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_block_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ClaudeUsageInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_ccusage_block_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.ccusage_block {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let block_row = claude_ccusage_block_reading_row(held_snapshot);
@@ -510,10 +486,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_model_ranking_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ClaudeUsageInteraction>>,
-    ) {
+    fn push_model_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 GroupItem::reading(ranking.most_used_model_row())
@@ -527,10 +500,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_billed_ranking_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ClaudeUsageInteraction>>,
-    ) {
+    fn push_billed_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(billed_ranking) = self.billed_model_ranking() {
             rows.push(
                 GroupItem::reading(billed_ranking.most_used_spend_row())

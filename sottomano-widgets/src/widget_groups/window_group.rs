@@ -188,16 +188,14 @@ impl WindowGroup {
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         slot_context: PanelSlotContext<'a>,
-    ) -> Option<Element<'a, GroupEvent<WindowGroupInteraction>>> {
+    ) -> Option<Element<'a, GroupEvent>> {
         self.window_list
             .view(compositor, icons, audio, output, slot_context)
             .map(|element| {
                 element.map(|interaction| match interaction {
-                    WindowListInteraction::HoverCard(hover_card) => {
-                        GroupEvent::HoverCard(hover_card)
-                    }
+                    WindowListInteraction::HoverCard(hover_card) => GroupEvent::from(hover_card),
                     interaction => {
-                        GroupEvent::Group(WindowGroupInteraction::WindowList(interaction))
+                        GroupEvent::from(WindowGroupInteraction::WindowList(interaction))
                     }
                 })
             })

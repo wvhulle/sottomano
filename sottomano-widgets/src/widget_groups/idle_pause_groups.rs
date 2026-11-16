@@ -379,7 +379,7 @@ impl IdlePauseGroups {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> [WidgetGroupContent<'a, IdlePauseInteraction>; 5] {
+    ) -> [WidgetGroupContent<'a>; 5] {
         IdleAction::ALL.map(|pause| self.pause_group(pause, config, clock))
     }
 
@@ -388,7 +388,7 @@ impl IdlePauseGroups {
         pause: IdleAction,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, IdlePauseInteraction> {
+    ) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let first_blocker = self.blockers_of(pause).next();
         let timeout_slider =

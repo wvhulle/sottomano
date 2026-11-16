@@ -279,7 +279,7 @@ impl ScopedLlamaServers {
         &'a self,
         lift: fn(ScopedServersInteraction) -> LlamaServerInteraction,
         model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
-    ) -> impl Iterator<Item = GroupItem<'a, LlamaServerInteraction>> + 'a {
+    ) -> impl Iterator<Item = GroupItem<'a>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
             let server_label = readings.server_label.as_str();

@@ -350,7 +350,7 @@ impl VirtualMachinesGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let machines = self
             .readout
             .get()

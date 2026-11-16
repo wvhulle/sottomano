@@ -209,16 +209,23 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     pub fn show_widget_toasts(
         &mut self,
-        requests: GroupToastRequests<Routed>,
+        requests: GroupToastRequests,
         context: &ToastContext,
     ) -> Task<Routed> {
-        let ongoing_toasts = self.show_ongoing_toasts(requests.ongoing_toasts, context);
+        let ongoing_toasts = self.show_ongoing_toasts(
+            requests
+                .ongoing_toasts
+                .into_iter()
+                .map(|ongoing_toast| ongoing_toast.map_messages(Routed::from))
+                .collect(),
+            context,
+        );
         let previous_levels = mem::replace(&mut self.previous_levels, requests.levels.clone());
         let level_toasts: Vec<Task<Routed>> = requests
             .levels
             .into_iter()
             .filter(|reading| reading.change_since(&previous_levels) == LevelReadingChange::Changed)
-            .map(|reading| self.announce_level(reading, context))
+            .map(|reading| self.announce_level(reading.map_message(Routed::from), context))
             .collect();
         Task::batch(iter::once(ongoing_toasts).chain(level_toasts))
     }

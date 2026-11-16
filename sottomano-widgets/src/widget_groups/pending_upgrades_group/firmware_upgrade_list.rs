@@ -35,7 +35,7 @@ impl PendingUpgradesGroup {
         &'a self,
         upgrades: &'a [FirmwareUpgrade],
         config: &Config,
-    ) -> GroupItem<'a, PendingUpgradesInteraction> {
+    ) -> GroupItem<'a> {
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),

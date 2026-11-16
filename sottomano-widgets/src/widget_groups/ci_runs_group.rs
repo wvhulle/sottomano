@@ -207,11 +207,7 @@ impl CiRunsGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, CiRunsInteraction> {
+    pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let watched_runners = self.watched_runners();
         let total_runs = watched_runners
             .iter()
@@ -244,7 +240,7 @@ impl CiRunsGroup {
         &'a self,
         failure_row: CiRunnerFailureRow<'a>,
         failure_reference: CiRunnerReference,
-    ) -> GroupItem<'a, CiRunsInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(failure_row.reading_row()).with_hover_card(Box::new(move |_| {
             self.runner_hover_card(&failure_reference, |watched_runner| {
                 CiRunnerFailureRow::failing_runner(watched_runner)
@@ -260,7 +256,7 @@ impl CiRunsGroup {
         task_reference: CiRunnerReference,
         clock: Clock,
         locale: Locale,
-    ) -> GroupItem<'a, CiRunsInteraction> {
+    ) -> GroupItem<'a> {
         let task_item = GroupItem::reading(
             CiTaskRow {
                 kind: runner_kind,

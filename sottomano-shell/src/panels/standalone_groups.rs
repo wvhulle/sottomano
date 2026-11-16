@@ -1,59 +1,42 @@
 use sottomano_desktop_sources::desktop_windows_apps::window_edge_placement::Placement;
 use sottomano_widgets::widget_groups::{
     fixed_panel_group::FixedPanelGroup, notification_group::NotificationStatus,
-    widget_group_content::WidgetGroupContent, widget_group_interaction::WidgetGroupInteraction,
+    widget_group_content::WidgetGroupContent,
 };
 
 use crate::{
     desktop_shell::DesktopShell,
     panels::{FixedPanelEntry, StandaloneWidgetGroup},
-    shell_message::ShellInteraction,
 };
 
 impl DesktopShell {
-    pub(crate) fn fixed_panel_group(
-        &self,
-        entry: FixedPanelEntry,
-    ) -> FixedPanelGroup<'_, ShellInteraction> {
+    pub(crate) fn fixed_panel_group(&self, entry: FixedPanelEntry) -> FixedPanelGroup<'_> {
         match entry {
-            FixedPanelEntry::SessionPower => self
-                .widget_groups
-                .session_power_group
-                .group_content()
-                .map(WidgetGroupInteraction::Session)
-                .map(ShellInteraction::Group),
+            FixedPanelEntry::SessionPower => self.widget_groups.session_power_group.group_content(),
         }
     }
 
-    pub(crate) fn standalone_group(
-        &self,
-        group: StandaloneWidgetGroup,
-    ) -> WidgetGroupContent<'_, ShellInteraction> {
+    pub(crate) fn standalone_group(&self, group: StandaloneWidgetGroup) -> WidgetGroupContent<'_> {
         let config = &self.config;
         let window_placement = Placement::derive(&self.compositor);
-        let group_content = match group {
+        match group {
             StandaloneWidgetGroup::Clock => self
                 .widget_groups
                 .clock_group
-                .group_content(self.clock, self.config.calendar.locale)
-                .map(WidgetGroupInteraction::Clock),
-            StandaloneWidgetGroup::Notifications => self
-                .widget_groups
-                .notification_group
-                .group_content(
+                .group_content(self.clock, self.config.calendar.locale),
+            StandaloneWidgetGroup::Notifications => {
+                self.widget_groups.notification_group.group_content(
                     self.notification_status(),
                     &self.widget_groups.quiet_schedule_group,
                 )
-                .map(WidgetGroupInteraction::NotificationGroup),
+            }
             StandaloneWidgetGroup::Tray => self
                 .widget_groups
                 .tray_group
                 .group_content(config, &|owner| {
                     window_placement.window_owned_by(owner).is_some()
-                })
-                .map(WidgetGroupInteraction::Tray),
-        };
-        group_content.map(ShellInteraction::Group)
+                }),
+        }
     }
 
     pub(crate) fn notification_status(&self) -> NotificationStatus {

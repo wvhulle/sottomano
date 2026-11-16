@@ -3,10 +3,10 @@ use sottomano_widgets::{
     widget_groups::widget_group_content::WidgetGroupContent,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn appearance_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn appearance_group_menu(&self) -> GroupMenuView<'_> {
         self.group_menu(
             GroupMenuTopic::Appearance,
             self.settings_groups()

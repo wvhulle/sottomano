@@ -222,10 +222,7 @@ impl CgroupMemoryLimitsGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, CgroupMemoryLimitsInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(self.cgroup_row(cgroup).reading_row())
                 .with_hover_card(Box::new(move |_| {

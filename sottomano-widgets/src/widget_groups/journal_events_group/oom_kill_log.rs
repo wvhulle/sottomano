@@ -48,7 +48,7 @@ impl JournalScopeGroup {
         &'a self,
         config: &Config,
         oom_kill_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, JournalEventsInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(oom_kill_row)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

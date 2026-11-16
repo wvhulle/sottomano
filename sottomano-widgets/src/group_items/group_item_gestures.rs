@@ -1,13 +1,15 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupItemGesture<M> {
+use crate::widget_groups::widget_group_interaction::WidgetGroupInteraction;
+
+#[derive(Debug, Clone)]
+pub enum GroupItemGesture {
     Inert,
     Performs {
         description: &'static str,
-        message: M,
+        message: WidgetGroupInteraction,
     },
 }
 
-impl<M> GroupItemGesture<M> {
+impl GroupItemGesture {
     #[must_use]
     pub const fn description(&self) -> Option<&'static str> {
         match self {
@@ -15,42 +17,20 @@ impl<M> GroupItemGesture<M> {
             GroupItemGesture::Performs { description, .. } => Some(*description),
         }
     }
-
-    #[must_use]
-    pub fn map<Outer>(self, lift: fn(M) -> Outer) -> GroupItemGesture<Outer> {
-        match self {
-            GroupItemGesture::Inert => GroupItemGesture::Inert,
-            GroupItemGesture::Performs {
-                description,
-                message,
-            } => GroupItemGesture::Performs {
-                description,
-                message: lift(message),
-            },
-        }
-    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GroupItemGestures<M> {
-    pub left: GroupItemGesture<M>,
-    pub right: GroupItemGesture<M>,
+#[derive(Debug, Clone)]
+pub struct GroupItemGestures {
+    pub left: GroupItemGesture,
+    pub right: GroupItemGesture,
 }
 
-impl<M> GroupItemGestures<M> {
+impl GroupItemGestures {
     #[must_use]
     pub const fn inert() -> Self {
         Self {
             left: GroupItemGesture::Inert,
             right: GroupItemGesture::Inert,
-        }
-    }
-
-    #[must_use]
-    pub fn map<Outer>(self, lift: fn(M) -> Outer) -> GroupItemGestures<Outer> {
-        GroupItemGestures {
-            left: self.left.map(lift),
-            right: self.right.map(lift),
         }
     }
 }

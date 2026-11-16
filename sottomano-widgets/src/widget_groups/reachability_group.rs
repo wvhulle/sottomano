@@ -199,7 +199,7 @@ impl ReachabilityGroup {
         )
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ReachabilityInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = match &self.connectivity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 CONNECTIVITY_GLYPH.into(),
@@ -287,10 +287,7 @@ impl ReachabilityGroup {
         )
     }
 
-    fn interface_throughput_item<'a>(
-        &'a self,
-        interface_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ReachabilityInteraction> {
+    fn interface_throughput_item<'a>(&'a self, interface_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(interface_row)
             .with_hover_card(Box::new(move |_| {
                 self.throughput
@@ -304,7 +301,7 @@ impl ReachabilityGroup {
     fn direction_throughput_item<'a>(
         &'a self,
         direction_throughput: &'a Throughput,
-    ) -> GroupItem<'a, ReachabilityInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(throughput_reading_row(direction_throughput))
             .with_hover_card(Box::new(move |_| {
                 self.direction_hover_card(direction_throughput)
@@ -314,10 +311,7 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn internet_latency_item<'a>(
-        &'a self,
-        latency_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ReachabilityInteraction> {
+    fn internet_latency_item<'a>(&'a self, latency_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(latency_row)
             .with_hover_card(Box::new(move |_| {
                 self.latency

@@ -12,9 +12,7 @@ use crate::{
         source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
-    widget_groups::journal_events_group::{
-        JournalEventsInteraction, JournalScopeGroup, MESSAGE_CAP, shown_while_alerting,
-    },
+    widget_groups::journal_events_group::{JournalScopeGroup, MESSAGE_CAP, shown_while_alerting},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
@@ -29,7 +27,7 @@ impl JournalScopeGroup {
     pub(super) fn service_errors_item<'a>(
         &'a self,
         service_errors_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, JournalEventsInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(service_errors_row).with_hover_card(Box::new(move |_| {
             self.service_errors
                 .sections_described_by(service_errors_hover_card)

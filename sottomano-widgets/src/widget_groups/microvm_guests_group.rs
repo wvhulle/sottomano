@@ -365,7 +365,7 @@ impl MicrovmGuestsGroup {
             .find(|machine| machine.unit_name.as_deref() == Some(unit.unit_name.as_str()))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
@@ -379,15 +379,14 @@ impl MicrovmGuestsGroup {
         )
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_>> {
         let units = self.unit_listing();
-        let mut rows: Vec<GroupItem<'_, MicrovmGuestsInteraction>> =
-            units.iter().map(|unit| self.unit_row(unit)).collect();
+        let mut rows: Vec<GroupItem<'_>> = units.iter().map(|unit| self.unit_row(unit)).collect();
         rows.extend(self.unmanaged_guest_rows(units));
         rows
     }
 
-    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a, MicrovmGuestsInteraction> {
+    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a> {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(MicrovmGuestRow { machine }.reading_row())
                 .with_hover_card(Box::new(move |clock| {
@@ -416,10 +415,7 @@ impl MicrovmGuestsGroup {
         }
     }
 
-    fn unmanaged_guest_rows<'a>(
-        &'a self,
-        units: &'a [MicrovmUnit],
-    ) -> Vec<GroupItem<'a, MicrovmGuestsInteraction>> {
+    fn unmanaged_guest_rows<'a>(&'a self, units: &'a [MicrovmUnit]) -> Vec<GroupItem<'a>> {
         let managed_by_unit = |unit_name: Option<&str>| {
             units
                 .iter()

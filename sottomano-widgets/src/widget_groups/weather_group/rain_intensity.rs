@@ -661,7 +661,7 @@ mod tests {
     use crate::{
         group_items::{group_item::GroupItem, reading_row::PanelVisibility},
         widget_groups::{
-            weather_group::rain_forecast_ranking::RADAR_FRAME_LENGTH,
+            weather_group::{WeatherInteraction, rain_forecast_ranking::RADAR_FRAME_LENGTH},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::keyed_record_table::RecordCells,
@@ -822,7 +822,7 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let rain_item: GroupItem<'_, u8> = GroupItem::reading(
+        let rain_item: GroupItem<'_> = GroupItem::reading(
             RainForecast {
                 sources: RainSources::Radar(&rain),
                 alerts: &DEFAULT_RAIN_ALERTS,
@@ -832,7 +832,7 @@ mod tests {
         let toast = rain_item
             .toast_requests(
                 &WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
-                0,
+                WeatherInteraction::RefreshLocation.into(),
                 Locale::default(),
                 clock,
             )

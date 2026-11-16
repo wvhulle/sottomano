@@ -232,11 +232,7 @@ impl WeatherGroup {
         sections
     }
 
-    fn rain_item<'a>(
-        &'a self,
-        config: &'a Config,
-        rain_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, WeatherInteraction> {
+    fn rain_item<'a>(&'a self, config: &'a Config, rain_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(rain_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.rain_hover_card(config, card_clock)
@@ -244,10 +240,7 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Rain))
     }
 
-    fn temperature_item<'a>(
-        &'a self,
-        temperature_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, WeatherInteraction> {
+    fn temperature_item<'a>(&'a self, temperature_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(temperature_row)
             .with_hover_card(Box::new(move |_| {
                 self.temperature
@@ -256,7 +249,7 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Temperature))
     }
 
-    fn wind_item<'a>(&'a self, wind_row: ReadingRow<'a>) -> GroupItem<'a, WeatherInteraction> {
+    fn wind_item<'a>(&'a self, wind_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(wind_row)
             .with_hover_card(Box::new(move |_| {
                 self.wind.sections_described_by(wind_hover_card)
@@ -264,10 +257,7 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Wind))
     }
 
-    fn location_item<'a>(
-        &'a self,
-        location_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, WeatherInteraction> {
+    fn location_item<'a>(&'a self, location_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(location_row)
             .with_hover_card(Box::new(move |_| {
                 self.location.sections_described_by(location_hover_card)
@@ -275,7 +265,7 @@ impl WeatherGroup {
             .refreshed_by(WeatherInteraction::RefreshLocation)
     }
 
-    fn temperature_summary(&self, clock: Clock) -> GroupSummary<'_, WeatherInteraction> {
+    fn temperature_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.temperature {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 WEATHER_GLYPH.into(),
@@ -303,11 +293,7 @@ impl WeatherGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, WeatherInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let group_summary = self.temperature_summary(clock);
         let mut rows = Vec::new();

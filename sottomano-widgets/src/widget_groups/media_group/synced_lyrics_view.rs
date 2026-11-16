@@ -11,7 +11,6 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use super::MediaInteraction;
 use crate::{
     group_items::{
         group_item::{GroupItem, GroupItemValue},
@@ -137,7 +136,7 @@ pub(super) fn current_lyric_line<'a>(
     media: &'a Media,
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
-) -> GroupItem<'a, MediaInteraction> {
+) -> GroupItem<'a> {
     let icon = GroupItemIcon::IconGlyph {
         glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
         state: ReadingDisplayState::Idle,

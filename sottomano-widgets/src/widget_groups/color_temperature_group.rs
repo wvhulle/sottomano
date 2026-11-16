@@ -232,10 +232,7 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, ColorTemperatureInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let gamma_available = self.gamma.get().is_some();
         let mut rows = Vec::new();
         if gamma_available {

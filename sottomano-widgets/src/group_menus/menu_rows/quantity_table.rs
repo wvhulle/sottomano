@@ -16,15 +16,15 @@ use crate::{
     widgets::text::{column_heading, row_key_label},
 };
 
-pub(crate) struct QuantityTableColumn<'a, M> {
+pub(crate) struct QuantityTableColumn<'a> {
     pub group_title: WidgetGroupTitle,
-    pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
+    pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent>>,
 }
 
-pub(crate) fn quantity_table<'a, M: 'a>(
-    members: Vec<QuantityTableColumn<'a, M>>,
+pub(crate) fn quantity_table<'a>(
+    members: Vec<QuantityTableColumn<'a>>,
     config: &'a Config,
-) -> Option<Element<'a, GroupEvent<M>>> {
+) -> Option<Element<'a, GroupEvent>> {
     if members.is_empty() {
         return None;
     }
@@ -33,7 +33,7 @@ pub(crate) fn quantity_table<'a, M: 'a>(
     let quantity_rows =
         aligned_quantity_rows(members.iter().map(|member| member.aligned.keys().copied()));
     let row_height = menu_row_height(config);
-    let table_cell = |content: Element<'a, GroupEvent<M>>| -> Element<'a, GroupEvent<M>> {
+    let table_cell = |content: Element<'a, GroupEvent>| -> Element<'a, GroupEvent> {
         container(content).center_y(row_height).into()
     };
     let label_column = Column::with_children(

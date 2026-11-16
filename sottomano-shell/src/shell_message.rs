@@ -240,6 +240,12 @@ impl From<ShellInteraction> for Message {
     }
 }
 
+impl From<WidgetGroupInteraction> for Message {
+    fn from(group_interaction: WidgetGroupInteraction) -> Self {
+        Message::Interaction(ShellInteraction::Group(group_interaction))
+    }
+}
+
 impl From<WidgetGroupInteraction> for ShellInteraction {
     fn from(group_interaction: WidgetGroupInteraction) -> Self {
         ShellInteraction::Group(group_interaction)
@@ -279,11 +285,11 @@ impl From<HoverCardMessage> for ShellInteraction {
     }
 }
 
-impl From<GroupEvent<ShellInteraction>> for ShellInteraction {
-    fn from(event: GroupEvent<ShellInteraction>) -> Self {
+impl From<GroupEvent> for ShellInteraction {
+    fn from(event: GroupEvent) -> Self {
         match event {
-            GroupEvent::Group(interaction) => interaction,
-            GroupEvent::HoverCard(hover_card) => ShellInteraction::from(hover_card),
+            GroupEvent::Interaction(interaction) => ShellInteraction::Group(interaction),
+            GroupEvent::Popup(popup) => ShellInteraction::Popup(popup),
         }
     }
 }

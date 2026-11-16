@@ -138,11 +138,7 @@ impl ClockGroup {
         &mut self.zone_times[position].1
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, ClockInteraction> {
+    pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = match &self.time {
             SubscribedSnapshot::SnapshotHeld { .. } => GroupSummary::summarising(
                 LOCAL_TIME_GLYPH.into(),
@@ -224,7 +220,7 @@ impl ClockGroup {
         )
     }
 
-    fn local_time_item<'a>(&'a self, time_row: ReadingRow<'a>) -> GroupItem<'a, ClockInteraction> {
+    fn local_time_item<'a>(&'a self, time_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(time_row)
             .with_hover_card(Box::new(|card_clock| {
                 self.time
@@ -233,7 +229,7 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
     }
 
-    fn local_date_item<'a>(&'a self, date_row: ReadingRow<'a>) -> GroupItem<'a, ClockInteraction> {
+    fn local_date_item<'a>(&'a self, date_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(date_row)
             .with_hover_card(Box::new(|card_clock| {
                 self.date
@@ -246,7 +242,7 @@ impl ClockGroup {
         zone: Tz,
         zone_time: &'a SubscribedSnapshot<ZoneTime>,
         zone_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ClockInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(zone_row)
             .with_hover_card(Box::new(|card_clock| {
                 zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))

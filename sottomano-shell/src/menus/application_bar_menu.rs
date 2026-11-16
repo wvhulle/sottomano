@@ -1,19 +1,14 @@
-use sottomano_widgets::{
-    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+use sottomano_widgets::group_menus::{
+    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn application_bar_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn application_bar_group_menu(&self) -> GroupMenuView<'_> {
         self.group_menu(
             GroupMenuTopic::ApplicationMenu,
-            self.widget_groups
-                .global_menu_group
-                .group_contents()
-                .into_iter()
-                .map(|group| group.map(WidgetGroupInteraction::GlobalMenu)),
+            self.widget_groups.global_menu_group.group_contents(),
         )
     }
 }

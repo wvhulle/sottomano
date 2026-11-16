@@ -3,7 +3,7 @@ mod photo_credit;
 mod place_label;
 pub mod wallpaper_lookup;
 
-use std::{convert::identity, path::PathBuf};
+use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -23,6 +23,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -85,10 +86,7 @@ impl WallpaperGroup {
         Task::none()
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = match &self.lookup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 WALLPAPER_GLYPH.into(),
@@ -140,7 +138,7 @@ impl WallpaperGroup {
             WidgetGroupFamily::Wallpaper,
             group_summary,
             &self.expansion,
-            identity,
+            WidgetGroupInteraction::Wallpaper,
             rows,
         )
     }

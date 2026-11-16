@@ -21,6 +21,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -83,7 +84,7 @@ impl UnitSwitchReading {
         }
     }
 
-    pub fn switch_item<'a, M: 'a>(self, pressed: M) -> GroupItem<'a, M> {
+    pub fn switch_item<'a>(self, pressed: impl Into<WidgetGroupInteraction>) -> GroupItem<'a> {
         let switch_position = self.toggle.switch_position;
         let press_does = self.toggle.press_does();
         GroupItem::reading(self.reading_row()).on_switch_press(switch_position, press_does, pressed)
@@ -248,11 +249,11 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn attach_switch_press<'a, M: 'a>(
+    pub fn attach_switch_press<'a>(
         &self,
-        group_item: GroupItem<'a, M>,
-        pressed: M,
-    ) -> GroupItem<'a, M> {
+        group_item: GroupItem<'a>,
+        pressed: impl Into<WidgetGroupInteraction>,
+    ) -> GroupItem<'a> {
         match self.switch_reading(ServiceReadiness::Serving) {
             Some(reading) => group_item.on_switch_press(
                 reading.toggle.switch_position,

@@ -263,7 +263,7 @@ impl EthernetPortsGroup {
         &'a self,
         port_state: &'a PortState,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, EthernetPortsInteraction>> {
+    ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&port_state.name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::Network(Weight::Regular).into(),
@@ -329,7 +329,7 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, EthernetPortsInteraction>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_>> {
         let port_states = self
             .ethernet
             .get()

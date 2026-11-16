@@ -618,7 +618,7 @@ impl GamepadGroup {
         }
     }
 
-    fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
+    fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_>> {
         let failure_row = self.controller_discovery_failure_reading()?.reading_row();
         let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
         let group_summary = GroupSummary::summarising(
@@ -641,7 +641,7 @@ impl GamepadGroup {
         link: &'a PhysicalGamepadLink,
         group_title: WidgetGroupTitle,
         bindings: &'a GamepadBindingsConfig,
-    ) -> Option<WidgetGroupContent<'a, GamepadInteraction>> {
+    ) -> Option<WidgetGroupContent<'a>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.get(&slot)?;
         let battery_reading = ControllerBatteryReading {
@@ -695,7 +695,7 @@ impl GamepadGroup {
     pub fn group_contents<'a>(
         &'a self,
         bindings: &'a GamepadBindingsConfig,
-    ) -> Vec<WidgetGroupContent<'a, GamepadInteraction>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         let controllers = self.controllers_in_player_order();
         let titles = WidgetGroupTitle::numbered_namesakes(
             controllers.iter().map(|(gamepad, _)| gamepad.name.clone()),

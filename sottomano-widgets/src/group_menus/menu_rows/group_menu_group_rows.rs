@@ -15,8 +15,10 @@ use crate::{
         group_item_gestures::GroupItemGesture,
     },
     group_menus::{
-        group_menu_state::{GroupMenuPin, GroupMenuState, ItemPin, PanelPin, PanelPinDuration},
-        group_menu_view::GroupMenuMessenger,
+        group_menu_state::{
+            GroupMenuMessage, GroupMenuPin, GroupMenuState, ItemPin, PanelPin, PanelPinDuration,
+        },
+        group_menu_view::{GroupMenuMessenger, menu_event},
         menu_rows::menu_row::menu_row_content,
     },
     hover_cards::{InstrumentKey, marked_by_menu_pin},
@@ -32,20 +34,20 @@ use crate::{
     },
 };
 
-pub(crate) struct GroupMenuGroupRow<'a, M> {
+pub(crate) struct GroupMenuGroupRow<'a> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
-    pub summary: GroupSummary<'a, M>,
-    pub items: Vec<GroupItem<'a, M>>,
+    pub summary: GroupSummary<'a>,
+    pub items: Vec<GroupItem<'a>>,
 }
 
-pub(crate) fn one_row_per_identity<'a, M>(
-    rows: impl IntoIterator<Item = GroupMenuGroupRow<'a, M>>,
-) -> Vec<GroupMenuGroupRow<'a, M>> {
+pub(crate) fn one_row_per_identity<'a>(
+    rows: impl IntoIterator<Item = GroupMenuGroupRow<'a>>,
+) -> Vec<GroupMenuGroupRow<'a>> {
     rows.into_iter().fold(Vec::new(), |mut merged, row| {
         match merged
             .iter_mut()
-            .find(|existing: &&mut GroupMenuGroupRow<'a, M>| {
+            .find(|existing: &&mut GroupMenuGroupRow<'a>| {
                 existing.group_identity == row.group_identity
             }) {
             Some(existing) => existing.items.extend(row.items),
@@ -55,11 +57,11 @@ pub(crate) fn one_row_per_identity<'a, M>(
     })
 }
 
-pub(crate) struct GroupMenuRowContext<'p, M> {
+pub(crate) struct GroupMenuRowContext<'p> {
     pub config: &'p Config,
     pub direction: CascadeDirection,
     pub presentation: NestedMenuPresentation,
-    pub menu: &'p GroupMenuMessenger<M>,
+    pub menu: &'p GroupMenuMessenger,
     pub group_menus: &'p GroupMenuState,
     pub clock: Clock,
 }
@@ -87,13 +89,13 @@ fn pinned_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> ic
     }
 }
 
-pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
-    layout: &GroupMenuRowContext<'_, M>,
+pub(crate) fn group_header<'a>(
+    layout: &GroupMenuRowContext<'_>,
     entry_identity: &WidgetGroupIdentity,
     group_title: &WidgetGroupTitle,
-    summary: &GroupSummary<'a, M>,
+    summary: &GroupSummary<'a>,
     emphasis: NestedMenuRowEmphasis,
-) -> NestedMenuRow<'a, M> {
+) -> NestedMenuRow<'a, GroupEvent> {
     let icon_size = layout.config.theme.font.icon_size_px;
     let pinned_entry = GroupMenuPin::Group(entry_identity.clone());
     let pin = marked_by_menu_pin(
@@ -141,9 +143,9 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         NestedMenuLayout::Cascading => (
             layout.menu.reveal_group(group_identity.clone()),
             RowHoverReaction::Reveals {
-                reveal: M::from(layout.menu.reveal_group(group_identity.clone())),
-                defer_reveal: M::from(layout.menu.intend_group_reveal(group_identity.clone())),
-                cancel_reveal: M::from(layout.menu.cancel_group_reveal(group_identity)),
+                reveal: layout.menu.reveal_group(group_identity.clone()),
+                defer_reveal: layout.menu.intend_group_reveal(group_identity.clone()),
+                cancel_reveal: menu_event(GroupMenuMessage::CancelRevealIntent { group_identity }),
                 satellite_reach: if layout.group_menus.open_groups(layout.menu.topic).is_empty() {
                     SatelliteReach::Closed
                 } else {
@@ -159,7 +161,7 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     NestedMenuRow {
         content,
         emphasis,
-        press: RowGesture::Publishes(M::from(press)),
+        press: RowGesture::Publishes(press),
         hover_reaction,
         entered: RowGesture::Inert,
         right_pressed: RowGesture::Inert,
@@ -167,12 +169,12 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     }
 }
 
-pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
-    layout: &GroupMenuRowContext<'_, M>,
+pub(crate) fn item_entry<'a>(
+    layout: &GroupMenuRowContext<'_>,
     group_identity: &WidgetGroupIdentity,
-    item: &GroupItem<'a, M>,
-    beside: BesideRow<'a, M>,
-) -> NestedMenuItem<'a, InstrumentKey, M> {
+    item: &GroupItem<'a>,
+    beside: BesideRow<'a, GroupEvent>,
+) -> NestedMenuItem<'a, InstrumentKey, GroupEvent> {
     let emphasis = item.row_emphasis(
         group_identity,
         layout.group_menus.inspected_instrument(layout.menu.topic),
@@ -225,21 +227,21 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     let gestures = item.gestures();
     let press = match gestures.left {
         GroupItemGesture::Performs { message, .. } => {
-            RowGesture::Publishes(M::from(GroupEvent::Group(message)))
+            RowGesture::Publishes(GroupEvent::Interaction(message))
         }
         GroupItemGesture::Inert => RowGesture::Inert,
     };
     let right_pressed = match gestures.right {
         GroupItemGesture::Performs { message, .. } => {
-            RowGesture::Publishes(M::from(GroupEvent::Group(message)))
+            RowGesture::Publishes(GroupEvent::Interaction(message))
         }
         GroupItemGesture::Inert => RowGesture::Inert,
     };
     let scrolled = match item.row_scroll() {
         RowScroll::AdjustsValue(adjust_by_scroll) => RowGesture::Publishes(Box::new(move |delta| {
-            M::from(GroupEvent::Group(adjust_by_scroll(delta)))
+            GroupEvent::Interaction(adjust_by_scroll(delta))
         })
-            as Box<dyn Fn(ScrollDelta) -> M + 'a>),
+            as Box<dyn Fn(ScrollDelta) -> GroupEvent + 'a>),
         RowScroll::Inert => RowGesture::Inert,
     };
     NestedMenuItem {
@@ -249,7 +251,7 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
             emphasis,
             press,
             hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(M::from(layout.menu.inspect_row(instrument))),
+            entered: RowGesture::Publishes(layout.menu.inspect_row(instrument)),
             right_pressed,
             scrolled,
         },
@@ -269,7 +271,7 @@ mod tests {
         widgets::icon_glyph::IconGlyph,
     };
 
-    fn row_of(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'static, ()> {
+    fn row_of(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'static> {
         GroupMenuGroupRow {
             group_identity,
             group_title: WidgetGroupTitle::Named(title.to_owned().into()),

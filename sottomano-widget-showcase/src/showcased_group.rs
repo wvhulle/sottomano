@@ -186,26 +186,13 @@ pub enum ShownSettingItems {
 }
 
 impl ShowcasedShellSettings {
-    fn group_contents<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
+    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<WidgetGroupContent<'a>> {
         let inert_settings = [
-            self.panels
-                .group_content(config)
-                .map(|_| ShowcaseInteraction::OutsideShowcase),
-            self.sidebar
-                .group_content(config)
-                .map(|_| ShowcaseInteraction::OutsideShowcase),
-            self.overlays
-                .group_content(config)
-                .map(|_| ShowcaseInteraction::OutsideShowcase),
-            self.compositor_styling
-                .group_content(config)
-                .map(|_| ShowcaseInteraction::OutsideShowcase),
-            self.menus
-                .settings_content(config)
-                .map(|_| ShowcaseInteraction::OutsideShowcase),
+            self.panels.group_content(config),
+            self.sidebar.group_content(config),
+            self.overlays.group_content(config),
+            self.compositor_styling.group_content(config),
+            self.menus.settings_content(config),
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
@@ -374,15 +361,7 @@ impl ShowcasedDesktopSession {
                 SHOWCASE_OUTPUT,
                 undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
             )
-            .map(|element| {
-                element.map(|event| {
-                    ShowcaseInteraction::from(event.map(|window_interaction| {
-                        ShowcaseInteraction::Group(WidgetGroupInteraction::WindowGroup(
-                            window_interaction,
-                        ))
-                    }))
-                })
-            });
+            .map(|element| element.map(ShowcaseInteraction::from));
         workspaces.into_iter().chain(windows).collect()
     }
 
@@ -468,13 +447,12 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         match self {
             ShowcasedGroup::AppLauncher(launcher) => launcher
                 .group
                 .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT)
                 .into_iter()
-                .map(|group| group.map(|_| ShowcaseInteraction::OutsideShowcase))
                 .collect(),
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
@@ -484,7 +462,6 @@ impl ShowcasedGroup {
             interactive_group => interactive_group
                 .interactive_group_contents(config, clock)
                 .into_iter()
-                .map(|group| group.map(ShowcaseInteraction::Group))
                 .collect(),
         }
     }
@@ -493,46 +470,25 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a, WidgetGroupInteraction>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         let locale = config.calendar.locale;
         let sole_group = match self {
-            ShowcasedGroup::Compute(group) => group
-                .group_content(clock, locale)
-                .map(WidgetGroupInteraction::Compute),
-            ShowcasedGroup::MemoryBoard(group) => group
-                .group_content(clock, locale)
-                .map(WidgetGroupInteraction::MemoryBoard),
-            ShowcasedGroup::Weather(group) => group
-                .group_content(config, clock)
-                .map(WidgetGroupInteraction::Weather),
-            ShowcasedGroup::ClaudeUsage(group) => group
-                .group_content(clock)
-                .map(WidgetGroupInteraction::ClaudeUsage),
-            ShowcasedGroup::Wallpaper(group) => group
-                .group_content(clock)
-                .map(WidgetGroupInteraction::Wallpaper),
-            ShowcasedGroup::Audio(group) => group
-                .group_content(config)
-                .map(WidgetGroupInteraction::Audio),
-            ShowcasedGroup::VoiceDictation(group) => group
-                .group_content(clock)
-                .map(WidgetGroupInteraction::VoiceDictation),
-            ShowcasedGroup::Caldav(group) => group
-                .group_content(&config.widget_groups.caldav, clock, locale)
-                .map(WidgetGroupInteraction::Caldav),
-            ShowcasedGroup::Tailnet(group) => group
-                .group_content(clock)
-                .map(WidgetGroupInteraction::Tailnet),
-            ShowcasedGroup::WireguardTunnels(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::WireguardTunnels),
-            ShowcasedGroup::LoginSession(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::LoginSession),
-            ShowcasedGroup::AppearancePresets(presets) => presets
-                .group
-                .group_content(&presets.appearance)
-                .map(WidgetGroupInteraction::AppearancePresets),
+            ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
+            ShowcasedGroup::MemoryBoard(group) => group.group_content(clock, locale),
+            ShowcasedGroup::Weather(group) => group.group_content(config, clock),
+            ShowcasedGroup::ClaudeUsage(group) => group.group_content(clock),
+            ShowcasedGroup::Wallpaper(group) => group.group_content(clock),
+            ShowcasedGroup::Audio(group) => group.group_content(config),
+            ShowcasedGroup::VoiceDictation(group) => group.group_content(clock),
+            ShowcasedGroup::Caldav(group) => {
+                group.group_content(&config.widget_groups.caldav, clock, locale)
+            }
+            ShowcasedGroup::Tailnet(group) => group.group_content(clock),
+            ShowcasedGroup::WireguardTunnels(group) => group.group_content(),
+            ShowcasedGroup::LoginSession(group) => group.group_content(),
+            ShowcasedGroup::AppearancePresets(presets) => {
+                presets.group.group_content(&presets.appearance)
+            }
             listed_group => return listed_group.listed_group_contents(config, clock),
         };
         vec![sole_group]
@@ -542,23 +498,19 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a, WidgetGroupInteraction>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         match self {
             ShowcasedGroup::Media(media) => media
                 .group
                 .group_contents(config, &media.desktop_entries, clock)
-                .map(|group| group.map(WidgetGroupInteraction::Media))
                 .collect(),
-            ShowcasedGroup::IdleTimeouts(group) => group
-                .pause_groups(config, clock)
-                .into_iter()
-                .map(|pause_group| pause_group.map(WidgetGroupInteraction::IdleTimeouts))
-                .collect(),
+            ShowcasedGroup::IdleTimeouts(group) => {
+                group.pause_groups(config, clock).into_iter().collect()
+            }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
                 .group_contents(&gamepad.bindings)
                 .into_iter()
-                .map(|group| group.map(WidgetGroupInteraction::Gamepad))
                 .collect(),
             guest_group => guest_group.guest_group_contents(config, clock),
         }
@@ -568,51 +520,23 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a, WidgetGroupInteraction>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         let locale = config.calendar.locale;
         let guest_group = match self {
-            ShowcasedGroup::PodmanEngines(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::PodmanEngines),
-            ShowcasedGroup::VirtualMachines(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::VirtualMachines),
-            ShowcasedGroup::NspawnContainers(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::NspawnContainers),
-            ShowcasedGroup::DockerEngines(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::DockerEngines),
-            ShowcasedGroup::ApptainerContainers(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::ApptainerContainers),
-            ShowcasedGroup::VmwareMachines(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::VmwareMachines),
-            ShowcasedGroup::VirtualBoxMachines(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::VirtualBoxMachines),
-            ShowcasedGroup::WaydroidContainer(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::WaydroidContainer),
-            ShowcasedGroup::FlatpakSandboxes(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::FlatpakSandboxes),
-            ShowcasedGroup::LxcContainers(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::LxcContainers),
-            ShowcasedGroup::IncusInstances(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::IncusInstances),
-            ShowcasedGroup::MicrovmGuests(group) => group
-                .group_content()
-                .map(WidgetGroupInteraction::MicrovmGuests),
-            ShowcasedGroup::CgroupMemoryLimits(group) => group
-                .group_content(config)
-                .map(WidgetGroupInteraction::CgroupMemoryLimits),
-            ShowcasedGroup::CiRuns(group) => group
-                .group_content(clock, locale)
-                .map(WidgetGroupInteraction::CiRuns),
+            ShowcasedGroup::PodmanEngines(group) => group.group_content(),
+            ShowcasedGroup::VirtualMachines(group) => group.group_content(),
+            ShowcasedGroup::NspawnContainers(group) => group.group_content(),
+            ShowcasedGroup::DockerEngines(group) => group.group_content(),
+            ShowcasedGroup::ApptainerContainers(group) => group.group_content(),
+            ShowcasedGroup::VmwareMachines(group) => group.group_content(),
+            ShowcasedGroup::VirtualBoxMachines(group) => group.group_content(),
+            ShowcasedGroup::WaydroidContainer(group) => group.group_content(),
+            ShowcasedGroup::FlatpakSandboxes(group) => group.group_content(),
+            ShowcasedGroup::LxcContainers(group) => group.group_content(),
+            ShowcasedGroup::IncusInstances(group) => group.group_content(),
+            ShowcasedGroup::MicrovmGuests(group) => group.group_content(),
+            ShowcasedGroup::CgroupMemoryLimits(group) => group.group_content(config),
+            ShowcasedGroup::CiRuns(group) => group.group_content(clock, locale),
             _ => return Vec::new(),
         };
         vec![guest_group]
@@ -631,6 +555,7 @@ impl ShowcasedGroup {
                 .group_contents(config, clock)
                 .into_iter()
                 .filter_map(|group| group.view(config, position, clock))
+                .map(|element| element.map(ShowcaseInteraction::from))
                 .collect(),
         }
     }
@@ -1001,14 +926,14 @@ impl ShowcasedGroup {
             .find_map(|group| group.hovered_instrument(target))
             .map(|hovered_row| hovered_row.hover_fetch().clone());
         let Some(HoverFetch::Fetch {
-            start: ShowcaseInteraction::Group(started_fetch),
+            start: started_fetch,
             ..
         }) = hovered_fetch
         else {
             return Vec::new();
         };
         let fetch_replies = hover_fetch_replies(&started_fetch);
-        let _started = self.interact(started_fetch, config, clock);
+        let _started = self.interact(*started_fetch, config, clock);
         fetch_replies
     }
 

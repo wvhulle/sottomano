@@ -388,13 +388,10 @@ impl ShowcaseState {
             .collect();
     }
 
-    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_, ShowcaseInteraction> {
+    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_> {
         GroupMenuView::new(
             kind,
             &self.group_menus,
-            |menu_message| {
-                ShowcaseInteraction::Group(WidgetGroupInteraction::GroupMenus(menu_message))
-            },
             self.group.group_contents(&self.config, self.clock),
         )
     }
@@ -412,6 +409,7 @@ impl ShowcaseState {
                         .handle_indicator(&HoverTarget::GroupMenu(kind), SHOWCASE_OUTPUT),
                     self.clock,
                 )
+                .map(|element| element.map(ShowcaseInteraction::from))
                 .collect(),
             GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
         }
@@ -446,8 +444,11 @@ impl ShowcaseState {
             satellites,
         } = surfaces?;
         Some(HoverContent::GroupMenu {
-            primary,
-            satellites,
+            primary: primary.map(ShowcaseInteraction::from),
+            satellites: satellites
+                .into_iter()
+                .map(|satellite| satellite.map(ShowcaseInteraction::from))
+                .collect(),
             orientation,
         })
     }

@@ -244,7 +244,7 @@ impl LlamaServerGroup {
         .collect()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
             GroupSummary::glyph(

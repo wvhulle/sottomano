@@ -17,6 +17,7 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -27,10 +28,10 @@ use crate::{
     },
 };
 
-pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
+pub(super) fn wireguard_tunnel_item<Message: Into<WidgetGroupInteraction>>(
     tunnel: &Tunnel,
     on_switch: fn(NmConnectionSwitch) -> Message,
-) -> GroupItem<'_, Message> {
+) -> GroupItem<'_> {
     let item = GroupItem::reading(tunnel_reading_row(tunnel));
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(

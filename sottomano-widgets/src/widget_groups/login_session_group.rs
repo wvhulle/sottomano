@@ -201,10 +201,7 @@ impl LoginSessionGroup {
         }
     }
 
-    fn identity_items<'a>(
-        &'a self,
-        identity: &'a SessionIdentity,
-    ) -> [GroupItem<'a, LoginSessionInteraction>; 6] {
+    fn identity_items<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupItem<'a>; 6] {
         [
             GroupItem::reading(
                 SeatFace {
@@ -296,7 +293,7 @@ impl LoginSessionGroup {
         ]
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let mut rows = Vec::new();
         if let Some(system) = self.system.get() {
             rows.push(

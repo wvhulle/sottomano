@@ -50,7 +50,7 @@ impl JournalScopeGroup {
         &'a self,
         config: &Config,
         coredump_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, JournalEventsInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(coredump_row)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

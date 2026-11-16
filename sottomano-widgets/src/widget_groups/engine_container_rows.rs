@@ -28,6 +28,7 @@ use crate::{
     widget_groups::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::WidgetGroupExpansionMessage,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -216,10 +217,10 @@ impl<'a> EngineContainers<'a> {
         }
     }
 
-    pub(crate) fn running_rows<Message: 'a>(
+    pub(crate) fn running_rows<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupItem<'a, Message>> {
+    ) -> Vec<GroupItem<'a>> {
         let owner = self.owner;
         self.listing
             .running
@@ -236,10 +237,10 @@ impl<'a> EngineContainers<'a> {
             .collect()
     }
 
-    pub(crate) fn stopped_rows<Message: 'a>(
+    pub(crate) fn stopped_rows<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupItem<'a, Message>> {
+    ) -> Vec<GroupItem<'a>> {
         let owner = self.owner;
         self.listing
             .stopped
@@ -256,12 +257,12 @@ impl<'a> EngineContainers<'a> {
     }
 }
 
-pub(crate) fn with_container_switch<'a, Message: 'a>(
-    row: GroupItem<'a, Message>,
+pub(crate) fn with_container_switch<Message: Into<WidgetGroupInteraction>>(
+    row: GroupItem<'_>,
     run_state: ContainerRunState,
     container: EngineContainerAddress,
     switched: fn(ContainerSwitchRequest) -> Message,
-) -> GroupItem<'a, Message> {
+) -> GroupItem<'_> {
     match run_state {
         ContainerRunState::Running => row.on_switch_press(
             SwitchPosition::On,
@@ -282,9 +283,7 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
     }
 }
 
-pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
-    mut rows: Vec<GroupItem<'a, Message>>,
-) -> Vec<GroupItem<'a, Message>> {
+pub(crate) fn rows_ending_in_hidden_count(mut rows: Vec<GroupItem<'_>>) -> Vec<GroupItem<'_>> {
     if rows.len() <= SHOWN_CONTAINER_ROWS {
         return rows;
     }

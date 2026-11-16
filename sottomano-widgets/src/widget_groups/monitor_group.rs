@@ -262,7 +262,7 @@ impl MonitorGroup {
         config: &'a Config,
         outputs: &'a HashMap<String, OutputInfo>,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, MonitorInteraction> {
+    ) -> WidgetGroupContent<'a> {
         let mut rows: Vec<_> = self
             .sliders
             .iter()
@@ -324,10 +324,7 @@ impl MonitorGroup {
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 
-    fn auto_brightness_item<'a>(
-        &'a self,
-        brightness_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, MonitorInteraction> {
+    fn auto_brightness_item<'a>(&'a self, brightness_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(brightness_row)
             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(

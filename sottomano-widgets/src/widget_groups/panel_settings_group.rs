@@ -378,10 +378,7 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, PanelSettingsMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PanelSettings,
             GroupSummary::glyph(

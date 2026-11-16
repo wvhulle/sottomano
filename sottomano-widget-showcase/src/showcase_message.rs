@@ -93,11 +93,11 @@ impl From<WidgetGroupInteraction> for ShowcaseInteraction {
     }
 }
 
-impl From<GroupEvent<ShowcaseInteraction>> for ShowcaseInteraction {
-    fn from(event: GroupEvent<ShowcaseInteraction>) -> Self {
+impl From<GroupEvent> for ShowcaseInteraction {
+    fn from(event: GroupEvent) -> Self {
         match event {
-            GroupEvent::Group(message) => message,
-            GroupEvent::HoverCard(hover_card) => ShowcaseInteraction::from(hover_card),
+            GroupEvent::Interaction(interaction) => ShowcaseInteraction::Group(interaction),
+            GroupEvent::Popup(popup) => ShowcaseInteraction::Popup(popup),
         }
     }
 }

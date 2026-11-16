@@ -61,7 +61,7 @@ fn menu_rescan_need(menu_message: &GroupMenuMessage) -> AlertRescanNeed {
 }
 
 pub(crate) struct GroupAlertScan {
-    pub toast_requests: GroupToastRequests<ShellInteraction>,
+    pub toast_requests: GroupToastRequests,
     pub panel_raises: Vec<PanelRaise>,
 }
 

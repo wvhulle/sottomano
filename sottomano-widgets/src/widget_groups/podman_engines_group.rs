@@ -31,6 +31,7 @@ use crate::{
         group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
@@ -174,14 +175,18 @@ impl PodmanEnginesGroup {
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
         reading: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupItem<'a, PodmanEnginesInteraction>> {
+    ) -> Vec<GroupItem<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
             listing,
         };
         engine_containers
-            .running_rows(EngineContainerInteraction::SwitchContainer)
+            .running_rows(|request| {
+                WidgetGroupInteraction::PodmanEngines(EngineContainerInteraction::SwitchContainer(
+                    request,
+                ))
+            })
             .into_iter()
             .zip(&listing.running.containers)
             .map(|(row, container)| {
@@ -202,14 +207,18 @@ impl PodmanEnginesGroup {
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
         reading: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupItem<'a, PodmanEnginesInteraction>> {
+    ) -> Vec<GroupItem<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
             listing,
         };
         engine_containers
-            .stopped_rows(EngineContainerInteraction::SwitchContainer)
+            .stopped_rows(|request| {
+                WidgetGroupInteraction::PodmanEngines(EngineContainerInteraction::SwitchContainer(
+                    request,
+                ))
+            })
             .into_iter()
             .zip(&listing.stopped)
             .map(|(row, container)| {
@@ -226,7 +235,7 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, PodmanEnginesInteraction>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
@@ -252,7 +261,8 @@ impl PodmanEnginesGroup {
         failure_rows
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
+    #[must_use]
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
             GroupSummary::glyph(
@@ -260,7 +270,11 @@ impl PodmanEnginesGroup {
                 ReadingDisplayState::Idle,
             ),
             &self.expansion,
-            EngineContainerInteraction::Expansion,
+            |expansion| {
+                WidgetGroupInteraction::PodmanEngines(EngineContainerInteraction::Expansion(
+                    expansion,
+                ))
+            },
             self.container_rows(),
         )
     }

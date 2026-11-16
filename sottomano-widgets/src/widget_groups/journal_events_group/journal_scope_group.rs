@@ -63,7 +63,7 @@ impl JournalScopeGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
+    ) -> WidgetGroupContent<'a> {
         let unit_scope = self.unit_scope;
         let mut rows = Vec::new();
         self.push_kernel_log_rows(&mut rows, clock, config);
@@ -83,7 +83,7 @@ impl JournalScopeGroup {
 
     fn push_kernel_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, JournalEventsInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {
@@ -112,11 +112,7 @@ impl JournalScopeGroup {
         }
     }
 
-    fn push_service_errors_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, JournalEventsInteraction>>,
-        config: &'a Config,
-    ) {
+    fn push_service_errors_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, config: &'a Config) {
         match &self.service_errors {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let service_errors_row = service_errors_reading_row(held_snapshot);
@@ -154,7 +150,7 @@ impl JournalScopeGroup {
 
     fn push_coredump_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, JournalEventsInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {
@@ -188,7 +184,7 @@ impl JournalScopeGroup {
 
     fn push_oom_kill_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, JournalEventsInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {

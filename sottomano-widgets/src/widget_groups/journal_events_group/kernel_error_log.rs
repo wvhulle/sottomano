@@ -33,7 +33,7 @@ impl JournalScopeGroup {
         &'a self,
         config: &Config,
         kernel_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, JournalEventsInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(kernel_row)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

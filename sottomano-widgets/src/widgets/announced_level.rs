@@ -27,7 +27,19 @@ pub struct LevelReading<Message> {
 }
 
 impl<Message> LevelReading<Message> {
-    pub fn change_since(&self, previous: &[LevelReading<Message>]) -> LevelReadingChange {
+    pub fn map_message<Lifted>(self, lift: impl Fn(Message) -> Lifted) -> LevelReading<Lifted> {
+        LevelReading {
+            instrument: self.instrument,
+            glyph: self.glyph,
+            level: self.level,
+            on_body_clicked: lift(self.on_body_clicked),
+        }
+    }
+
+    pub fn change_since<Previous>(
+        &self,
+        previous: &[LevelReading<Previous>],
+    ) -> LevelReadingChange {
         if previous.iter().any(|seen| {
             seen.instrument == self.instrument
                 && seen.level.external_change_count != self.level.external_change_count
@@ -162,7 +174,7 @@ mod tests {
             reading(ControlKind::Source, 1),
         ];
         assert_eq!(
-            reading(ControlKind::Sink, 3).change_since(&[]),
+            reading(ControlKind::Sink, 3).change_since::<()>(&[]),
             LevelReadingChange::Unchanged
         );
         assert_eq!(

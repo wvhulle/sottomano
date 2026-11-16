@@ -183,9 +183,9 @@ fn player_fallback_message(bus: &str, interaction: PlayerInteraction) -> MediaMe
 
 fn lifted_to_player<'a>(
     bus: &'a str,
-    element: Element<'a, GroupEvent<PlayerInteraction>>,
-) -> Element<'a, GroupEvent<MediaInteraction>> {
-    element.map(move |event| event.map(|interaction| player_interaction(bus, interaction)))
+    element: Element<'a, PlayerInteraction>,
+) -> Element<'a, GroupEvent> {
+    element.map(move |interaction| GroupEvent::from(player_interaction(bus, interaction)))
 }
 
 impl MediaGroup {
@@ -443,7 +443,7 @@ impl MediaGroup {
         config: &'a Config,
         index: &'a DesktopIndex,
         clock: Clock,
-    ) -> impl Iterator<Item = WidgetGroupContent<'a, MediaInteraction>> {
+    ) -> impl Iterator<Item = WidgetGroupContent<'a>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
             let group_title = self.group_title_of(media);
@@ -470,7 +470,7 @@ fn session_buttons_item<'a>(
     config: &'a Config,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> GroupItem<'a, MediaInteraction> {
+) -> GroupItem<'a> {
     let bus = media.bus.as_str();
     GroupItem::composed(
         "Session",
@@ -494,7 +494,7 @@ fn seek_position_item<'a>(
     clock: Clock,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> GroupItem<'a, MediaInteraction> {
+) -> GroupItem<'a> {
     let bus = media.bus.as_str();
     GroupItem::composed(
         "Position",
@@ -506,10 +506,7 @@ fn seek_position_item<'a>(
             let bar = session
                 .seek_bar
                 .view(config, media, clock.instant)
-                .map_or_else(
-                    || Row::new().into(),
-                    |bar| bar.map(|seek| GroupEvent::Group(PlayerInteraction::Seek(seek))),
-                );
+                .map_or_else(|| Row::new().into(), |bar| bar.map(PlayerInteraction::Seek));
             lifted_to_player(bus, bar)
         }),
         Box::new(|_| Vec::new()),
@@ -520,10 +517,7 @@ fn seek_position_item<'a>(
     ])
 }
 
-fn transport_controls_item<'a>(
-    config: &'a Config,
-    media: &'a Media,
-) -> GroupItem<'a, MediaInteraction> {
+fn transport_controls_item<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a> {
     let bus = media.bus.as_str();
     let press_actions =
         TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
@@ -533,10 +527,7 @@ fn transport_controls_item<'a>(
         GroupItemValue::drawn(move |reveal| {
             lifted_to_player(
                 bus,
-                TransportControls::new(config, media, reveal, |command| {
-                    GroupEvent::Group(PlayerInteraction::Command(command))
-                })
-                .into(),
+                TransportControls::new(config, media, reveal, PlayerInteraction::Command).into(),
             )
         }),
         Box::new(|_| Vec::new()),
@@ -552,7 +543,7 @@ fn player_group<'a>(
     session: &'a PlayerSession,
     lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
     cards: PlayerCards<'a>,
-) -> WidgetGroupContent<'a, MediaInteraction> {
+) -> WidgetGroupContent<'a> {
     let bus = media.bus.as_str();
     let seek_availability = SeekBar::seek_availability(media, clock.instant);
     let gauge_fraction = media
@@ -633,16 +624,16 @@ fn session_controls<'a>(
     media: &'a Media,
     session: &'a PlayerSession,
     reveal: f32,
-) -> SessionControls<'a, GroupEvent<PlayerInteraction>> {
+) -> SessionControls<'a, PlayerInteraction> {
     SessionControls::new(
         config,
         media,
         &session.quit_button,
         reveal,
         SessionMessages {
-            command: |command| GroupEvent::Group(PlayerInteraction::Command(command)),
-            quit: GroupEvent::Group(PlayerInteraction::Quit),
-            cancel_quit: GroupEvent::Group(PlayerInteraction::CancelQuit),
+            command: PlayerInteraction::Command,
+            quit: PlayerInteraction::Quit,
+            cancel_quit: PlayerInteraction::CancelQuit,
         },
     )
 }

@@ -319,11 +319,11 @@ impl GroupMenuState {
         }))
     }
 
-    pub(crate) fn item_pin<'a, M: 'a>(
+    pub(crate) fn item_pin(
         &self,
         menu: GroupMenuTopic,
         group: &WidgetGroupIdentity,
-        item: &GroupItem<'a, M>,
+        item: &GroupItem<'_>,
         promotion_severity: Severity,
     ) -> ItemPin {
         let Some(entry) = item.menu_pin(group) else {

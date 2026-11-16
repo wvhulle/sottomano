@@ -144,7 +144,7 @@ impl WireguardTunnelsGroup {
             .flat_map(|wireguard| &wireguard.tunnels)
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
             GroupSummary::glyph(SimpleIcon::WireGuard.into(), ReadingDisplayState::Idle),

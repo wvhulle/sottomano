@@ -1,52 +1,40 @@
-use sottomano_widgets::{
-    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+use sottomano_widgets::group_menus::{
+    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn services_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn services_group_menu(&self) -> GroupMenuView<'_> {
         let config = &self.config;
         self.group_menu(
             GroupMenuTopic::Services,
             [
-                self.widget_groups
-                    .llama_server_group
-                    .group_content()
-                    .map(WidgetGroupInteraction::LlamaServer),
+                self.widget_groups.llama_server_group.group_content(),
                 self.widget_groups
                     .ci_runs_group
-                    .group_content(self.clock, self.config.calendar.locale)
-                    .map(WidgetGroupInteraction::CiRuns),
+                    .group_content(self.clock, self.config.calendar.locale),
                 self.widget_groups
                     .claude_usage_group
-                    .group_content(self.clock)
-                    .map(WidgetGroupInteraction::ClaudeUsage),
+                    .group_content(self.clock),
                 self.widget_groups
                     .copilot_usage_group
-                    .group_content(self.clock)
-                    .map(WidgetGroupInteraction::CopilotUsage),
+                    .group_content(self.clock),
                 self.widget_groups
                     .openrouter_credit_group
-                    .group_content(self.clock)
-                    .map(WidgetGroupInteraction::OpenRouterCredit),
+                    .group_content(self.clock),
                 self.widget_groups
                     .systemd_manager_group
-                    .group_content(config, self.clock)
-                    .map(WidgetGroupInteraction::SystemdManager),
+                    .group_content(config, self.clock),
                 self.widget_groups
                     .journal_events_group
-                    .system_journal_content(config, self.clock)
-                    .map(WidgetGroupInteraction::JournalEvents),
+                    .system_journal_content(config, self.clock),
                 self.widget_groups
                     .journal_events_group
-                    .user_journal_content(config, self.clock)
-                    .map(WidgetGroupInteraction::JournalEvents),
+                    .user_journal_content(config, self.clock),
                 self.widget_groups
                     .pending_upgrades_group
-                    .group_content(config, self.clock)
-                    .map(WidgetGroupInteraction::PendingUpgrades),
+                    .group_content(config, self.clock),
             ],
         )
     }

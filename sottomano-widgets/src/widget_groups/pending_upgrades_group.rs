@@ -92,11 +92,7 @@ impl PendingUpgradesGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let mut rows = Vec::new();
         if let Some(upgrades) = self
             .firmware

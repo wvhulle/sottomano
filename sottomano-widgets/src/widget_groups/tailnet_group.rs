@@ -288,10 +288,7 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_item<'a>(
-        &'a self,
-        membership_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, TailnetInteraction> {
+    fn membership_item<'a>(&'a self, membership_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(membership_row)
             .on_right_press(
                 "open the Tailscale admin console",
@@ -307,7 +304,7 @@ impl TailnetGroup {
         &'a self,
         membership_row: ReadingRow<'a>,
         tailscale: &Tailscale,
-    ) -> GroupItem<'a, TailnetInteraction> {
+    ) -> GroupItem<'a> {
         let membership_item = self.membership_item(membership_row);
         match tailscale.switch() {
             TailscaleSwitch::Up => membership_item.on_switch_press(
@@ -330,7 +327,7 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(&self) -> GroupItem<'_, TailnetInteraction> {
+    fn policy_file_item(&self) -> GroupItem<'_> {
         GroupItem::reading(PolicyFileRow::reading_row())
             .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
             .fetching_on_hover(
@@ -339,7 +336,7 @@ impl TailnetGroup {
             )
     }
 
-    fn inbound_access_item(&self) -> GroupItem<'_, TailnetInteraction> {
+    fn inbound_access_item(&self) -> GroupItem<'_> {
         GroupItem::reading(InboundAccessRow::reading_row())
             .with_hover_card(Box::new(move |_| {
                 self.inbound_access
@@ -351,7 +348,7 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetInteraction> {
+    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_> {
         let item = GroupItem::reading(ExitOfferRow { tailnet }.reading_row());
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
@@ -381,7 +378,7 @@ impl TailnetGroup {
     fn exit_node_choice_item<'a>(
         exit_node_option: &'a ExitNodeOption,
         exit_node_choices: &'a ExitNodeChoices,
-    ) -> GroupItem<'a, TailnetInteraction> {
+    ) -> GroupItem<'a> {
         let exit_node_item = GroupItem::reading(
             ExitNodeChoiceRow {
                 exit_node_option,
@@ -402,9 +399,7 @@ impl TailnetGroup {
         }
     }
 
-    fn exit_node_lan_access_item(
-        exit_node_choices: &ExitNodeChoices,
-    ) -> GroupItem<'_, TailnetInteraction> {
+    fn exit_node_lan_access_item(exit_node_choices: &ExitNodeChoices) -> GroupItem<'_> {
         GroupItem::reading(ExitNodeLanAccessRow { exit_node_choices }.reading_row())
             .on_switch_press(
                 exit_node_choices.lan_access,
@@ -416,7 +411,7 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetInteraction>> {
+    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_>> {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
@@ -451,7 +446,7 @@ impl TailnetGroup {
         exit_node_items
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, TailnetInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let mut rows = Vec::new();
         match &self.tailscale {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -521,7 +516,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::group_items::group_item_gestures::GroupItemGesture;
+    use crate::{
+        group_items::group_item_gestures::GroupItemGesture,
+        widget_groups::widget_group_interaction::WidgetGroupInteraction,
+    };
 
     fn tailnet_offering(exit_offer: ExitNodeOffer, exit_node_use: ExitNodeUse) -> Tailnet {
         Tailnet {
@@ -591,7 +589,9 @@ mod tests {
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Performs {
-                message: TailnetInteraction::SwitchExitOffer(ExitOfferSwitch::StopOffering),
+                message: WidgetGroupInteraction::Tailnet(TailnetInteraction::SwitchExitOffer(
+                    ExitOfferSwitch::StopOffering
+                )),
                 ..
             }
         ));

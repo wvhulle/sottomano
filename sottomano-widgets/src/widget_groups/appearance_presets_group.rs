@@ -25,10 +25,7 @@ pub enum AppearancePresetsMessage {
     Expansion(WidgetGroupExpansionMessage),
 }
 
-fn preset_group_item<'a>(
-    preset: AppearancePreset,
-    current: &ShellAppearance,
-) -> GroupItem<'a, AppearancePresetsMessage> {
+fn preset_group_item<'a>(preset: AppearancePreset, current: &ShellAppearance) -> GroupItem<'a> {
     let display_state = match preset.applied_to(*current).look_comparison(current) {
         LookComparison::Matching => ReadingDisplayState::On,
         LookComparison::Differing => ReadingDisplayState::Idle,
@@ -65,10 +62,7 @@ impl AppearancePresetsGroup {
         self.expansion.update(message);
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        current: &ShellAppearance,
-    ) -> WidgetGroupContent<'a, AppearancePresetsMessage> {
+    pub fn group_content<'a>(&'a self, current: &ShellAppearance) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::AppearancePresets,
             GroupSummary::glyph(

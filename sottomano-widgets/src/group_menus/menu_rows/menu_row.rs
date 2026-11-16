@@ -19,20 +19,19 @@ pub(crate) fn menu_row_height(config: &Config) -> f32 {
     menu_metrics(config).row_height_px
 }
 
-pub(crate) fn menu_row_content<'a, M: From<GroupEvent<M>> + 'a>(
+pub(crate) fn menu_row_content<'a>(
     config: &Config,
-    leading: Vec<Element<'a, GroupEvent<M>>>,
-    icon: Element<'a, GroupEvent<M>>,
+    leading: Vec<Element<'a, GroupEvent>>,
+    icon: Element<'a, GroupEvent>,
     name: Cow<'static, str>,
-    value: Element<'a, GroupEvent<M>>,
-    trailing: Vec<Element<'a, GroupEvent<M>>>,
-) -> NestedMenuRowContent<'a, M> {
-    let lifted = |element: Element<'a, GroupEvent<M>>| element.map(M::from);
+    value: Element<'a, GroupEvent>,
+    trailing: Vec<Element<'a, GroupEvent>>,
+) -> NestedMenuRowContent<'a, GroupEvent> {
+    let lifted = |element: Element<'a, GroupEvent>| element;
     NestedMenuRowContent {
         leading: leading.into_iter().map(lifted).collect(),
         icon: lifted(icon),
-        label: Element::from(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
-            .map(M::from),
+        label: Element::from(panel_text(&config.theme.font, name).wrapping(Wrapping::None)),
         value: lifted(value),
         trailing: trailing.into_iter().map(lifted).collect(),
     }

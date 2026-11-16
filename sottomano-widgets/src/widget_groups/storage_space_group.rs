@@ -257,7 +257,7 @@ impl StorageSpaceGroup {
     fn property_items(
         filesystem: &MountedFilesystem,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_, StorageInteraction>> {
+    ) -> impl Iterator<Item = GroupItem<'_>> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         filesystem.usage.get().into_iter().flat_map(move |usage| {
             FilesystemProperty::listed_for(usage)
@@ -283,7 +283,7 @@ impl StorageSpaceGroup {
     fn subvolume_items(
         filesystem: &MountedFilesystem,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_, StorageInteraction>> {
+    ) -> impl Iterator<Item = GroupItem<'_>> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         filesystem
             .usage
@@ -319,7 +319,7 @@ impl StorageSpaceGroup {
         filesystem: &MountedFilesystem,
         clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'_, StorageInteraction> {
+    ) -> WidgetGroupContent<'_> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let group_summary = match &filesystem.usage {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
@@ -390,7 +390,7 @@ impl StorageSpaceGroup {
     fn filesystem_usage_item<'a>(
         filesystem: &'a MountedFilesystem,
         usage_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, StorageInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(usage_row)
             .with_hover_card(Box::new(move |_| {
                 filesystem
@@ -405,7 +405,7 @@ impl StorageSpaceGroup {
     fn subvolume_failure_item<'a>(
         filesystem: &'a MountedFilesystem,
         failure_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, StorageInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(failure_row)
             .with_hover_card(Box::new(move |_| {
                 filesystem
@@ -417,7 +417,7 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupItem<'_, StorageInteraction> {
+    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupItem<'_> {
         GroupItem::reading(SnapshotDeletionRow::reading_row())
             .with_hover_card(Box::new(move |_| {
                 filesystem
@@ -429,10 +429,7 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn discovery_item<'a>(
-        &'a self,
-        discovery_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, StorageInteraction> {
+    fn discovery_item<'a>(&'a self, discovery_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(discovery_row)
             .with_hover_card(Box::new(move |_| {
                 self.discovery
@@ -442,11 +439,7 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn group_contents(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<WidgetGroupContent<'_, StorageInteraction>> {
+    pub fn group_contents(&self, clock: Clock, locale: Locale) -> Vec<WidgetGroupContent<'_>> {
         if !self.filesystems.is_empty() {
             return self
                 .filesystems

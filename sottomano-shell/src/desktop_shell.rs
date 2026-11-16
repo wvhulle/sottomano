@@ -89,7 +89,7 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub hover_card: HoverCardHost,
-    pub active_hover_fetch: HoverFetch<ShellInteraction>,
+    pub active_hover_fetch: HoverFetch,
     pub notifications: NotificationLayer<ShellInteraction>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
@@ -511,27 +511,36 @@ impl DesktopShell {
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()
         });
-        group_menu.surfaces(
-            &self.config,
-            &self
-                .widget_groups
-                .group_menus
-                .layer
-                .appearance()
-                .with_background_faded(satellite_fade_level),
-            &InspectionCard {
-                sections: &inspected_sections,
-                card_appearance: self
+        group_menu
+            .surfaces(
+                &self.config,
+                &self
                     .widget_groups
-                    .overlay_settings_group
+                    .group_menus
                     .layer
                     .appearance()
                     .with_background_faded(satellite_fade_level),
-                assets: self.window_assets(),
-                clock: self.clock,
-            },
-            self.group_menu_orientation(),
-        )
+                &InspectionCard {
+                    sections: &inspected_sections,
+                    card_appearance: self
+                        .widget_groups
+                        .overlay_settings_group
+                        .layer
+                        .appearance()
+                        .with_background_faded(satellite_fade_level),
+                    assets: self.window_assets(),
+                    clock: self.clock,
+                },
+                self.group_menu_orientation(),
+            )
+            .map(|surfaces| GroupMenuCascadeSurfaces {
+                primary: surfaces.primary.map(ShellInteraction::from),
+                satellites: surfaces
+                    .satellites
+                    .into_iter()
+                    .map(|satellite| satellite.map(ShellInteraction::from))
+                    .collect(),
+            })
     }
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, ShellInteraction>> {

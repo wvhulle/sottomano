@@ -318,7 +318,7 @@ impl WaydroidContainerGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let rows = self.waydroid_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
@@ -332,10 +332,7 @@ impl WaydroidContainerGroup {
         )
     }
 
-    fn container_row<'a>(
-        &'a self,
-        shown: ShownWaydroid<'a>,
-    ) -> GroupItem<'a, WaydroidContainerInteraction> {
+    fn container_row<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupItem<'a> {
         let row = GroupItem::reading(WaydroidContainerRow { shown }.reading_row()).with_hover_card(
             Box::new(move |_| {
                 self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
@@ -352,7 +349,7 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
+    fn waydroid_rows(&self) -> Vec<GroupItem<'_>> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };

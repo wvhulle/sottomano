@@ -437,34 +437,24 @@ impl AppLauncherGroup {
             })
     }
 
-    fn jump_indicator<'a>(
-        &self,
-        app: &LaunchableApp,
-        config: &'a Config,
-    ) -> GroupItemValue<'a, AppLauncherMessage> {
+    fn jump_indicator<'a>(&self, app: &LaunchableApp, config: &'a Config) -> GroupItemValue<'a> {
         self.usage
             .open_windows
             .get(&app.app_id)
             .map_or(GroupItemValue::Nothing, |open_windows| {
                 let window = open_windows.latest_focused_window;
-                GroupItemValue::drawn(
-                    move |_reveal| -> Element<'a, GroupEvent<AppLauncherMessage>> {
-                        glyph_button(
-                            Phosphor::ArrowSquareOut(Weight::Regular),
-                            config.theme.font.icon_size_px,
-                            primary_color,
-                            GroupEvent::Group(AppLauncherMessage::JumpToWindow(window)),
-                        )
-                    },
-                )
+                GroupItemValue::drawn(move |_reveal| -> Element<'a, GroupEvent> {
+                    glyph_button(
+                        Phosphor::ArrowSquareOut(Weight::Regular),
+                        config.theme.font.icon_size_px,
+                        primary_color,
+                        GroupEvent::from(AppLauncherMessage::JumpToWindow(window)),
+                    )
+                })
             })
     }
 
-    fn with_app_gestures<'a>(
-        &self,
-        row: GroupItem<'a, AppLauncherMessage>,
-        app: &LaunchableApp,
-    ) -> GroupItem<'a, AppLauncherMessage> {
+    fn with_app_gestures<'a>(&self, row: GroupItem<'a>, app: &LaunchableApp) -> GroupItem<'a> {
         let launchable_row = row.on_press("launch", AppLauncherMessage::Launch(app.app_id.clone()));
         match self.usage.open_windows.get(&app.app_id) {
             Some(open_windows) => launchable_row.on_right_press(
@@ -480,7 +470,7 @@ impl AppLauncherGroup {
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
-    ) -> GroupItem<'a, AppLauncherMessage> {
+    ) -> GroupItem<'a> {
         let card_app_id = app.app_id.clone();
         self.with_app_gestures(
             GroupItem::composed(
@@ -499,7 +489,7 @@ impl AppLauncherGroup {
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
-    ) -> GroupItem<'a, AppLauncherMessage> {
+    ) -> GroupItem<'a> {
         let card_app_id = app.app_id.clone();
         self.with_app_gestures(
             GroupItem::composed_pinnable(
@@ -518,7 +508,7 @@ impl AppLauncherGroup {
         index: &DesktopIndex,
         config: &'a Config,
         output: &str,
-    ) -> WidgetGroupContent<'a, AppLauncherMessage> {
+    ) -> WidgetGroupContent<'a> {
         let output_frequent_apps = self.usage.frequent_by_output.get(output);
         let frequent_apps =
             output_frequent_apps.map_or(&[][..], |frequent| frequent.apps.as_slice());
@@ -545,7 +535,7 @@ impl AppLauncherGroup {
         group: &'a AppCategoryGroup,
         index: &DesktopIndex,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, AppLauncherMessage> {
+    ) -> WidgetGroupContent<'a> {
         let category = group.category;
         let category_rows: Vec<_> = group
             .shown_apps
@@ -565,7 +555,7 @@ impl AppLauncherGroup {
         )
     }
 
-    fn options_group(&self) -> WidgetGroupContent<'_, AppLauncherMessage> {
+    fn options_group(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, OPTIONS_GROUP_NAME),
             WidgetGroupTitle::fixed("Launcher options"),
@@ -594,7 +584,7 @@ impl AppLauncherGroup {
         index: &DesktopIndex,
         config: &'a Config,
         output: &str,
-    ) -> Vec<WidgetGroupContent<'a, AppLauncherMessage>> {
+    ) -> Vec<WidgetGroupContent<'a>> {
         [self.frequent_group(index, config, output)]
             .into_iter()
             .chain(

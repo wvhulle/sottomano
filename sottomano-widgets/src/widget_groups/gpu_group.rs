@@ -326,7 +326,7 @@ impl GpuGroup {
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         clock: Clock,
-    ) -> GroupSummary<'a, GpuInteraction> {
+    ) -> GroupSummary<'a> {
         match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -395,7 +395,7 @@ impl GpuGroup {
         device: &'a GpuDevice,
         snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
         load_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, GpuInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(load_row)
             .with_hover_card(Box::new(move |_| {
                 snapshot
@@ -407,11 +407,7 @@ impl GpuGroup {
             .refreshed_by(GpuInteraction::Refresh(bus.clone()))
     }
 
-    fn device_items<'a>(
-        &'a self,
-        bus: &'a PciBusId,
-        device: &'a GpuDevice,
-    ) -> Vec<GroupItem<'a, GpuInteraction>> {
+    fn device_items<'a>(&'a self, bus: &'a PciBusId, device: &'a GpuDevice) -> Vec<GroupItem<'a>> {
         let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
             return Vec::new();
         };
@@ -476,10 +472,7 @@ impl GpuGroup {
         rows
     }
 
-    pub fn group_contents(
-        &self,
-        clock: Clock,
-    ) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {
+    pub fn group_contents(&self, clock: Clock) -> impl Iterator<Item = WidgetGroupContent<'_>> {
         self.devices
             .iter()
             .zip(WidgetGroupTitle::numbered_namesakes(

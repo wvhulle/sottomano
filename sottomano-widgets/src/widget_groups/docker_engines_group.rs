@@ -34,6 +34,7 @@ use crate::{
         group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         icon_glyph::IconGlyph, simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
@@ -266,14 +267,18 @@ impl DockerEnginesGroup {
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+    ) -> Vec<GroupItem<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
             listing,
         };
         engine_containers
-            .running_rows(EngineContainerInteraction::SwitchContainer)
+            .running_rows(|request| {
+                WidgetGroupInteraction::DockerEngines(EngineContainerInteraction::SwitchContainer(
+                    request,
+                ))
+            })
             .into_iter()
             .zip(&listing.running.containers)
             .map(|(row, container)| {
@@ -294,14 +299,18 @@ impl DockerEnginesGroup {
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+    ) -> Vec<GroupItem<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
             listing,
         };
         engine_containers
-            .stopped_rows(EngineContainerInteraction::SwitchContainer)
+            .stopped_rows(|request| {
+                WidgetGroupInteraction::DockerEngines(EngineContainerInteraction::SwitchContainer(
+                    request,
+                ))
+            })
             .into_iter()
             .zip(&listing.stopped)
             .map(|(row, container)| {
@@ -318,7 +327,8 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
+    #[must_use]
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
             GroupSummary::glyph(
@@ -326,15 +336,16 @@ impl DockerEnginesGroup {
                 self.shown_state(),
             ),
             &self.expansion,
-            EngineContainerInteraction::Expansion,
+            |expansion| {
+                WidgetGroupInteraction::DockerEngines(EngineContainerInteraction::Expansion(
+                    expansion,
+                ))
+            },
             self.container_rows(),
         )
     }
 
-    fn listed_rows<'a>(
-        &'a self,
-        engine: &'a DockerEngineSocket,
-    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+    fn listed_rows<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupItem<'a>> {
         let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
             return Vec::new();
         };
@@ -351,7 +362,11 @@ impl DockerEnginesGroup {
                     GroupItem::reading(ListedContainerRow { engine, listed }.reading_row()),
                     listed.run_state,
                     target,
-                    EngineContainerInteraction::SwitchContainer,
+                    |request| {
+                        WidgetGroupInteraction::DockerEngines(
+                            EngineContainerInteraction::SwitchContainer(request),
+                        )
+                    },
                 )
                 .with_hover_card(Box::new(move |_| {
                     engine_listings
@@ -361,7 +376,7 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();

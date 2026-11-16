@@ -9,26 +9,15 @@ use crate::{
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
 
-pub enum FixedPanelGroup<'a, M> {
+pub enum FixedPanelGroup<'a> {
     Empty,
     Shown {
-        item: Box<GroupItem<'a, M>>,
+        item: Box<GroupItem<'a>>,
         hover_target: HoverTarget,
     },
 }
 
-impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
-    #[must_use]
-    pub fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> FixedPanelGroup<'a, Outer> {
-        match self {
-            FixedPanelGroup::Empty => FixedPanelGroup::Empty,
-            FixedPanelGroup::Shown { item, hover_target } => FixedPanelGroup::Shown {
-                item: Box::new((*item).map(lift)),
-                hover_target,
-            },
-        }
-    }
-
+impl<'a> FixedPanelGroup<'a> {
     #[must_use]
     pub fn handle_target(&self) -> Option<&HoverTarget> {
         match self {
@@ -58,25 +47,19 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
         open_trigger: NestedMenuOpenTrigger,
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
-    ) -> Option<Element<'a, M>>
-    where
-        M: From<GroupEvent<M>>,
-    {
+    ) -> Option<Element<'a, GroupEvent>> {
         let FixedPanelGroup::Shown { item, hover_target } = self else {
             return None;
         };
         let item = item.opening_card_on(open_trigger);
-        Some(
-            fixed_view(
-                &item,
-                hover_target,
-                Severity::default(),
-                handle_indicator,
-                config,
-                panel_position,
-                clock,
-            )
-            .map(M::from),
-        )
+        Some(fixed_view(
+            &item,
+            hover_target,
+            Severity::default(),
+            handle_indicator,
+            config,
+            panel_position,
+            clock,
+        ))
     }
 }

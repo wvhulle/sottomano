@@ -15,16 +15,15 @@ use sottomano_widgets::{
 use crate::{
     desktop_shell::DesktopShell,
     panels::{PanelZoneEntry, all_panel_entries},
-    shell_message::ShellInteraction,
 };
 
 pub struct HoveredRowRequests {
-    pub hover_fetch: HoverFetch<ShellInteraction>,
-    pub refresh: ReadingRefresh<ShellInteraction>,
+    pub hover_fetch: HoverFetch,
+    pub refresh: ReadingRefresh,
 }
 
-impl From<&GroupItem<'_, ShellInteraction>> for HoveredRowRequests {
-    fn from(hovered_row: &GroupItem<'_, ShellInteraction>) -> Self {
+impl From<&GroupItem<'_>> for HoveredRowRequests {
+    fn from(hovered_row: &GroupItem<'_>) -> Self {
         Self {
             hover_fetch: hovered_row.hover_fetch().clone(),
             refresh: hovered_row.refresh().clone(),

@@ -15,32 +15,32 @@ use crate::{
     widgets::icon_glyph::IconGlyph,
 };
 
-pub enum GroupSummary<'a, M> {
+pub enum GroupSummary<'a> {
     Glyph {
         glyph: IconGlyph,
         state: ReadingDisplayState,
     },
     Row {
         glyph: IconGlyph,
-        row: Box<GroupItem<'a, M>>,
+        row: Box<GroupItem<'a>>,
     },
 }
 
-impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
+impl<'a> GroupSummary<'a> {
     #[must_use]
     pub fn glyph(glyph: IconGlyph, state: ReadingDisplayState) -> Self {
         GroupSummary::Glyph { glyph, state }
     }
 
     #[must_use]
-    pub fn summarising(glyph: IconGlyph, row: GroupItem<'a, M>) -> Self {
+    pub fn summarising(glyph: IconGlyph, row: GroupItem<'a>) -> Self {
         GroupSummary::Row {
             glyph,
             row: Box::new(row),
         }
     }
 
-    pub(crate) fn summarised_row(&self) -> Option<&GroupItem<'a, M>> {
+    pub(crate) fn summarised_row(&self) -> Option<&GroupItem<'a>> {
         match self {
             GroupSummary::Glyph { .. } => None,
             GroupSummary::Row { row, .. } => Some(row),
@@ -60,13 +60,13 @@ impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
         }
     }
 
-    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
         self.glyph_icon()
             .view(config, 1.0)
             .unwrap_or_else(|| Space::new().into())
     }
 
-    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
         match self {
             GroupSummary::Glyph { .. } => Row::new().into(),
             GroupSummary::Row { row, .. } => row.menu_value(config, clock),
@@ -78,9 +78,9 @@ impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
         config: &'a Config,
         reveal_fraction: f32,
         clock: Clock,
-    ) -> Element<'a, GroupEvent<M>> {
+    ) -> Element<'a, GroupEvent> {
         let hidden = 1.0 - reveal_fraction;
-        let collapsing_value: Element<'a, GroupEvent<M>> = match self {
+        let collapsing_value: Element<'a, GroupEvent> = match self {
             GroupSummary::Row { row, .. } if hidden > 0.0 => reveal(
                 container(row.menu_value(config, clock))
                     .padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
@@ -93,15 +93,5 @@ impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
         Row::with_children([self.menu_icon(config), collapsing_value])
             .align_y(Alignment::Center)
             .into()
-    }
-
-    pub(crate) fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupSummary<'a, Outer> {
-        match self {
-            GroupSummary::Glyph { glyph, state } => GroupSummary::Glyph { glyph, state },
-            GroupSummary::Row { glyph, row } => GroupSummary::Row {
-                glyph,
-                row: Box::new(row.map(lift)),
-            },
-        }
     }
 }

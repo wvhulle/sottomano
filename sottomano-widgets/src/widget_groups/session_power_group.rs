@@ -166,7 +166,7 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, SessionMessage> {
+    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a> {
         if self.permissions.allowed.is_empty() {
             return FixedPanelGroup::Empty;
         }

@@ -65,6 +65,10 @@ pub enum WidgetGroupExpansionMessage {
 
 use corredo::transitions::ExpansionState;
 
+use crate::{
+    hover_cards::PopupMessage, widget_groups::widget_group_interaction::WidgetGroupInteraction,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpansionChange {
     JustCollapsed,
@@ -174,36 +178,37 @@ impl WidgetGroupExpansion {
 }
 
 #[derive(Debug, Clone)]
-pub enum GroupEvent<M> {
-    Group(M),
-    HoverCard(HoverCardMessage),
+pub enum GroupEvent {
+    Interaction(WidgetGroupInteraction),
+    Popup(PopupMessage),
 }
 
-impl<M> GroupEvent<M> {
-    pub fn map<Lifted>(self, lift: impl FnOnce(M) -> Lifted) -> GroupEvent<Lifted> {
-        match self {
-            GroupEvent::Group(message) => GroupEvent::Group(lift(message)),
-            GroupEvent::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
-        }
+impl From<HoverCardMessage> for GroupEvent {
+    fn from(hover_card: HoverCardMessage) -> Self {
+        GroupEvent::Popup(PopupMessage::HoverCard(hover_card))
     }
 }
 
-pub struct GroupToastRequests<M> {
-    pub ongoing_toasts: Vec<OngoingToast<M>>,
-    pub levels: Vec<LevelReading<M>>,
-}
-
-impl<M> Default for GroupToastRequests<M> {
-    fn default() -> Self {
-        Self {
-            ongoing_toasts: Vec::new(),
-            levels: Vec::new(),
-        }
+impl From<PopupMessage> for GroupEvent {
+    fn from(popup: PopupMessage) -> Self {
+        GroupEvent::Popup(popup)
     }
 }
 
-impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
-    fn from_iter<I: IntoIterator<Item = GroupToastRequests<M>>>(groups: I) -> Self {
+impl<Interaction: Into<WidgetGroupInteraction>> From<Interaction> for GroupEvent {
+    fn from(interaction: Interaction) -> Self {
+        GroupEvent::Interaction(interaction.into())
+    }
+}
+
+#[derive(Default)]
+pub struct GroupToastRequests {
+    pub ongoing_toasts: Vec<OngoingToast<WidgetGroupInteraction>>,
+    pub levels: Vec<LevelReading<WidgetGroupInteraction>>,
+}
+
+impl FromIterator<GroupToastRequests> for GroupToastRequests {
+    fn from_iter<I: IntoIterator<Item = GroupToastRequests>>(groups: I) -> Self {
         groups.into_iter().fold(
             GroupToastRequests {
                 ongoing_toasts: Vec::new(),
@@ -224,24 +229,24 @@ pub struct CardTitleClash {
     pub clashing_title: String,
 }
 
-pub struct WidgetGroupContent<'a, M> {
+pub struct WidgetGroupContent<'a> {
     group_identity: WidgetGroupIdentity,
     group_title: WidgetGroupTitle,
     expansion: &'a WidgetGroupExpansion,
-    on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
-    summary: GroupSummary<'a, M>,
+    on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> WidgetGroupInteraction + 'a>,
+    summary: GroupSummary<'a>,
     scroll_does: Option<&'static str>,
-    items: Vec<GroupItem<'a, M>>,
+    items: Vec<GroupItem<'a>>,
     panel_pin: PanelPinOrigin,
 }
 
-impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
-    pub fn expandable(
+impl<'a> WidgetGroupContent<'a> {
+    pub fn expandable<Interaction: Into<WidgetGroupInteraction>>(
         family: WidgetGroupFamily,
-        summary: GroupSummary<'a, M>,
+        summary: GroupSummary<'a>,
         expansion: &'a WidgetGroupExpansion,
-        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
-        items: impl IntoIterator<Item = GroupItem<'a, M>>,
+        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
+        items: impl IntoIterator<Item = GroupItem<'a>>,
     ) -> Self {
         Self::expandable_instance(
             WidgetGroupIdentity::sole(family),
@@ -253,19 +258,19 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         )
     }
 
-    pub fn expandable_instance(
+    pub fn expandable_instance<Interaction: Into<WidgetGroupInteraction>>(
         group_identity: WidgetGroupIdentity,
         group_title: WidgetGroupTitle,
-        summary: GroupSummary<'a, M>,
+        summary: GroupSummary<'a>,
         expansion: &'a WidgetGroupExpansion,
-        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
-        items: impl IntoIterator<Item = GroupItem<'a, M>>,
+        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
+        items: impl IntoIterator<Item = GroupItem<'a>>,
     ) -> Self {
         Self {
             group_identity,
             group_title,
             expansion,
-            on_expansion: Rc::new(on_expansion),
+            on_expansion: Rc::new(move |message| on_expansion(message).into()),
             summary,
             scroll_does: None,
             items: items.into_iter().collect(),
@@ -362,31 +367,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         self
     }
 
-    pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> WidgetGroupContent<'a, Outer> {
-        WidgetGroupContent {
-            group_identity: self.group_identity,
-            group_title: self.group_title,
-            expansion: self.expansion,
-            on_expansion: {
-                let on_expansion = self.on_expansion;
-                Rc::new(move |message| lift(on_expansion(message)))
-            },
-            summary: self.summary.map(lift),
-            scroll_does: self.scroll_does,
-            items: self.items.into_iter().map(|item| item.map(lift)).collect(),
-            panel_pin: self.panel_pin,
-        }
-    }
-
     #[must_use]
-    pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
+    pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
         self.rows()
             .map(|item| item.toast_requests(&self.group_identity, expand.clone(), locale, clock))
             .collect()
     }
 
-    fn rows(&self) -> impl Iterator<Item = &GroupItem<'a, M>> {
+    fn rows(&self) -> impl Iterator<Item = &GroupItem<'a>> {
         self.summary.summarised_row().into_iter().chain(&self.items)
     }
 
@@ -398,7 +387,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a, M>> {
+    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a>> {
         if instrument_key.group != self.group_identity {
             return None;
         }
@@ -414,7 +403,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
+    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a>> {
         match target.summarised_group() {
             Some(group_identity) if *group_identity == self.group_identity => {
                 self.summary.summarised_row()
@@ -504,10 +493,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Vec<Element<'a, M>>
-    where
-        M: From<GroupEvent<M>>,
-    {
+    ) -> Vec<Element<'a, GroupEvent>> {
         let promotion_severity = config.group_menus.alert_promotion_severity;
         self.rows()
             .filter_map(|item| {
@@ -516,18 +502,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 else {
                     return None;
                 };
-                Some(
-                    fixed_view(
-                        item,
-                        HoverTarget::PinnedOnPanel(Box::new(panel_pin)),
-                        item.shown_alert_severity().unwrap_or_default(),
-                        MenuHandleIndicator::default(),
-                        config,
-                        panel_position,
-                        clock,
-                    )
-                    .map(M::from),
-                )
+                Some(fixed_view(
+                    item,
+                    HoverTarget::PinnedOnPanel(Box::new(panel_pin)),
+                    item.shown_alert_severity().unwrap_or_default(),
+                    MenuHandleIndicator::default(),
+                    config,
+                    panel_position,
+                    clock,
+                ))
             })
             .collect()
     }
@@ -538,8 +521,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         clock: Clock,
         _group_menus: &GroupMenuState,
         _menu: GroupMenuTopic,
-        mut sections: MenuSections<'a, M>,
-    ) -> MenuSections<'a, M> {
+        mut sections: MenuSections<'a>,
+    ) -> MenuSections<'a> {
         let WidgetGroupContent {
             group_identity,
             group_title,
@@ -581,12 +564,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Option<Element<'a, M>>
-    where
-        M: From<GroupEvent<M>>,
-    {
+    ) -> Option<Element<'a, GroupEvent>> {
         self.view_events(config, panel_position, clock)
-            .map(|element| element.map(M::from))
     }
 
     #[must_use]
@@ -595,7 +574,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Option<Element<'a, GroupEvent<M>>> {
+    ) -> Option<Element<'a, GroupEvent>> {
         self.rows().next()?;
         let highest_alert_severity = self.highest_alert_severity();
         let WidgetGroupContent {
@@ -613,14 +592,14 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
             PanelPinOrigin::Unpinned => HoverTarget::GroupSummary(Box::new(group_identity.clone())),
         };
-        let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
+        let expansion_event = move |message| GroupEvent::Interaction(on_expansion(message));
         let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
         let on_enter = expansion_event(WidgetGroupExpansionMessage::CursorEntered);
         let on_exit = expansion_event(WidgetGroupExpansionMessage::CursorExited);
         let handle_indicator = expansion.handle_indicator();
         let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
-            let handle: Element<'a, GroupEvent<M>> =
+            let handle: Element<'a, GroupEvent> =
                 button(summary.handle_view(config, reveal, clock))
                     .padding(0)
                     .style(flat_button(text_color))
@@ -630,7 +609,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 NestedMenuOpenTrigger::Hover,
                 handle,
                 handle_target.clone(),
-                GroupEvent::HoverCard,
+                GroupEvent::from,
             );
             let handle = if scroll_does.is_some() {
                 let expansion_event = expansion_event.clone();
@@ -670,15 +649,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 }
 
-pub(crate) fn fixed_view<'a, M: Clone + 'a>(
-    item: &GroupItem<'a, M>,
+pub(crate) fn fixed_view<'a>(
+    item: &GroupItem<'a>,
     hover_target: HoverTarget,
     highest_alert_severity: Severity,
     handle_indicator: MenuHandleIndicator,
     config: &'a Config,
     panel_position: Position,
     clock: Clock,
-) -> Element<'a, GroupEvent<M>> {
+) -> Element<'a, GroupEvent> {
     let row = Row::with_children([item.view(config, 1.0, clock, hover_target)])
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
@@ -732,13 +711,13 @@ pub(crate) fn edge_indicator<'a, Message: 'a>(
     }
 }
 
-fn items_row<'r, 'a: 'r, M: Clone + 'a>(
+fn items_row<'r, 'a: 'r>(
     config: &Config,
     group_identity: &WidgetGroupIdentity,
-    rows: impl IntoIterator<Item = &'r GroupItem<'a, M>>,
+    rows: impl IntoIterator<Item = &'r GroupItem<'a>>,
     reveal: f32,
     clock: Clock,
-) -> Element<'a, GroupEvent<M>> {
+) -> Element<'a, GroupEvent> {
     Row::with_children(rows.into_iter().map(|item| {
         item.view(
             config,
@@ -770,7 +749,7 @@ fn revealed_content<'a, Message: 'a>(
 mod tests {
     use sottomano_toml_config::severity::Severity;
 
-    use super::{WidgetGroupContent, WidgetGroupExpansion};
+    use super::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage};
     use crate::{
         clock::Clock,
         group_items::{
@@ -780,6 +759,7 @@ mod tests {
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, InstrumentKey, MouseGesture, PressAction},
         widget_groups::{
+            clock_group::ClockInteraction,
             group_summary::GroupSummary,
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
@@ -798,12 +778,12 @@ mod tests {
     fn group_showing(
         expansion: &WidgetGroupExpansion,
         shown_state: ReadingDisplayState,
-    ) -> WidgetGroupContent<'_, ()> {
+    ) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             expansion,
-            |_| (),
+            ClockInteraction::Expansion,
             [GroupItem::reading(shown_state_row(shown_state))],
         )
     }
@@ -843,10 +823,12 @@ mod tests {
                 WidgetGroupFamily::NetworkManagerVpns,
                 GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
                 &expansion,
-                |_| (),
+                ClockInteraction::Expansion,
                 [
-                    GroupItem::reading(shown_state_row(ReadingDisplayState::Idle))
-                        .on_press(description, ()),
+                    GroupItem::reading(shown_state_row(ReadingDisplayState::Idle)).on_press(
+                        description,
+                        ClockInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
+                    ),
                 ],
             )
         };

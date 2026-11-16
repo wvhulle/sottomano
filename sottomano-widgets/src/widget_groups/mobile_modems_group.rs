@@ -150,7 +150,7 @@ impl MobileModemsGroup {
         &'a self,
         modem: &'a Mobile,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, MobileModemsInteraction>> {
+    ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let group_summary = GroupSummary::summarising(
@@ -231,7 +231,7 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, MobileModemsInteraction>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_>> {
         self.mobile_modems
             .get()
             .map(|mobile_modems| mobile_modems.modems.as_slice())

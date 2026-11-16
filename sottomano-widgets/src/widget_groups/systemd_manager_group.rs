@@ -78,7 +78,7 @@ fn slow_jobs_entry<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerInteraction> {
+) -> GroupItem<'a> {
     slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(slow_jobs_hover_card)
     }))
@@ -89,7 +89,7 @@ fn failed_units_entry<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerInteraction> {
+) -> GroupItem<'a> {
     failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(failed_units_hover_card)
     }))
@@ -214,11 +214,7 @@ impl SystemdManagerGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, SystemdManagerInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let mut rows = Vec::new();
         if let Some(timeline) = self.boot.get() {
@@ -320,7 +316,7 @@ impl SystemdManagerGroup {
         &'a self,
         last_shutdown: &'a LastShutdown,
         config: &'a Config,
-    ) -> GroupItem<'a, SystemdManagerInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(last_shutdown_reading_row(
             last_shutdown,
             config.calendar.locale,

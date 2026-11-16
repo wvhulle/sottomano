@@ -13,19 +13,13 @@ mod virtualization_menu;
 
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::{
-        widget_group_content::WidgetGroupContent, widget_group_interaction::WidgetGroupInteraction,
-    },
+    widget_groups::widget_group_content::WidgetGroupContent,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn group_menu_of(
-        &self,
-        topic: GroupMenuTopic,
-        output: &str,
-    ) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn group_menu_of(&self, topic: GroupMenuTopic, output: &str) -> GroupMenuView<'_> {
         match topic {
             GroupMenuTopic::Applications => self.applications_group_menu(output),
             GroupMenuTopic::ApplicationMenu => self.application_bar_group_menu(),
@@ -45,47 +39,28 @@ impl DesktopShell {
     fn group_menu<'a>(
         &'a self,
         topic: GroupMenuTopic,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a, WidgetGroupInteraction>>,
-    ) -> GroupMenuView<'a, ShellInteraction> {
-        GroupMenuView::new(
-            topic,
-            &self.widget_groups.group_menus,
-            |menu_message| {
-                ShellInteraction::Group(WidgetGroupInteraction::GroupMenus(menu_message))
-            },
-            groups
-                .into_iter()
-                .map(|group| group.map(ShellInteraction::Group)),
-        )
+        groups: impl IntoIterator<Item = WidgetGroupContent<'a>>,
+    ) -> GroupMenuView<'a> {
+        GroupMenuView::new(topic, &self.widget_groups.group_menus, groups)
     }
 
-    fn settings_groups(&self) -> [WidgetGroupContent<'_, WidgetGroupInteraction>; 6] {
+    fn settings_groups(&self) -> [WidgetGroupContent<'_>; 6] {
         let config = &self.config;
         [
             self.widget_groups
                 .panel_settings_group
-                .group_content(config)
-                .map(WidgetGroupInteraction::PanelSettings),
+                .group_content(config),
             self.widget_groups
                 .sidebar_settings_group
-                .group_content(config)
-                .map(WidgetGroupInteraction::SidebarSettings),
+                .group_content(config),
             self.widget_groups
                 .overlay_settings_group
-                .group_content(config)
-                .map(WidgetGroupInteraction::OverlaySettings),
+                .group_content(config),
             self.widget_groups
                 .compositor_styling_group
-                .group_content(config)
-                .map(WidgetGroupInteraction::CompositorStyling),
-            self.widget_groups
-                .group_menus
-                .settings_content(config)
-                .map(WidgetGroupInteraction::GroupMenus),
-            self.widget_groups
-                .global_menu_group
-                .switch_content()
-                .map(WidgetGroupInteraction::GlobalMenu),
+                .group_content(config),
+            self.widget_groups.group_menus.settings_content(config),
+            self.widget_groups.global_menu_group.switch_content(),
         ]
     }
 }

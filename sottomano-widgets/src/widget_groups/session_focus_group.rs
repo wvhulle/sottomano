@@ -253,11 +253,7 @@ impl SessionFocusGroup {
         usage.body(clock.utc()).into_iter().collect()
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, SessionFocusMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let group_summary = GroupSummary::summarising(
             Phosphor::UserFocus(Weight::Regular).into(),

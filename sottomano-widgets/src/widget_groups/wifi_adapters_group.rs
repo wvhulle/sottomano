@@ -250,7 +250,7 @@ impl WifiAdaptersGroup {
         adapter: &'a WifiAdapter,
         radio_power: RadioPower,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, WifiAdaptersInteraction>> {
+    ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::WifiHigh(Weight::Regular).into(),
@@ -331,7 +331,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_>> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };

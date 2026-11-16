@@ -184,7 +184,7 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = self.metered_summary(clock);
         let mut rows = Vec::new();
         self.push_free_rows(&mut rows, clock);
@@ -199,7 +199,7 @@ impl CopilotUsageGroup {
         )
     }
 
-    fn metered_summary(&self, clock: Clock) -> GroupSummary<'_, CopilotUsageInteraction> {
+    fn metered_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.metered {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::GitHubCopilot.into(),
@@ -228,11 +228,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_free_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, CopilotUsageInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_free_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.free {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let free_row = copilot_free_reading_row(held_snapshot);
@@ -256,11 +252,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_cli_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, CopilotUsageInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_cli_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.cli {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let cli_row = copilot_ccusage_reading_row(held_snapshot, clock);
@@ -284,10 +276,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_model_ranking_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, CopilotUsageInteraction>>,
-    ) {
+    fn push_model_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 GroupItem::reading(ranking.most_used_model_row())
@@ -306,10 +295,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn metered_item<'a>(
-        &'a self,
-        metered_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, CopilotUsageInteraction> {
+    fn metered_item<'a>(&'a self, metered_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(metered_row)
             .with_hover_card(Box::new(move |_| {
                 self.metered
@@ -320,7 +306,7 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn free_item<'a>(&'a self, free_row: ReadingRow<'a>) -> GroupItem<'a, CopilotUsageInteraction> {
+    fn free_item<'a>(&'a self, free_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(free_row)
             .with_hover_card(Box::new(move |_| {
                 self.free.sections_described_by(copilot_free_hover_card)
@@ -330,7 +316,7 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn cli_item<'a>(&'a self, cli_row: ReadingRow<'a>) -> GroupItem<'a, CopilotUsageInteraction> {
+    fn cli_item<'a>(&'a self, cli_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(cli_row)
             .with_hover_card(Box::new(move |_| {
                 self.cli.sections_described_by(copilot_ccusage_hover_card)

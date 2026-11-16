@@ -318,7 +318,7 @@ impl VoiceDictationGroup {
         dictation_row: ReadingRow<'a>,
         switch_position: SwitchPosition,
         press_text: &'static str,
-    ) -> GroupItem<'a, VoiceDictationInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(dictation_row)
             .on_switch_press(
                 switch_position,
@@ -332,10 +332,7 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
     }
 
-    fn interface_mismatch_item<'a>(
-        &'a self,
-        mismatch_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, VoiceDictationInteraction> {
+    fn interface_mismatch_item<'a>(&'a self, mismatch_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(mismatch_row)
             .with_hover_card(Box::new(move |_| {
                 self.interface_mismatch
@@ -346,10 +343,7 @@ impl VoiceDictationGroup {
             ))
     }
 
-    fn pipeline_item<'a>(
-        &'a self,
-        pipeline_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, VoiceDictationInteraction> {
+    fn pipeline_item<'a>(&'a self, pipeline_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(pipeline_row)
             .with_hover_card(Box::new(move |_| {
                 self.pipeline
@@ -358,10 +352,7 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
     }
 
-    fn engine_item<'a>(
-        &'a self,
-        engine_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, VoiceDictationInteraction> {
+    fn engine_item<'a>(&'a self, engine_row: ReadingRow<'a>) -> GroupItem<'a> {
         let engine_item = GroupItem::reading(engine_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
@@ -383,10 +374,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn output_problems_item<'a>(
-        &'a self,
-        problems_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, VoiceDictationInteraction> {
+    fn output_problems_item<'a>(&'a self, problems_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(problems_row)
             .with_hover_card(Box::new(move |_| {
                 self.output_problems
@@ -395,7 +383,7 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::OutputProblems))
     }
 
-    fn dictation_summary(&self, clock: Clock) -> GroupSummary<'_, VoiceDictationInteraction> {
+    fn dictation_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.dictation {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 DICTATION_GLYPH.into(),
@@ -434,7 +422,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = self.dictation_summary(clock);
         let mut rows = Vec::new();
         self.push_interface_mismatch_rows(&mut rows, clock);
@@ -452,11 +440,7 @@ impl VoiceDictationGroup {
         )
     }
 
-    fn push_interface_mismatch_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_interface_mismatch_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.interface_mismatch {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let mismatch_row = notulist_interface_mismatch_reading_row(held_snapshot);
@@ -482,11 +466,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_pipeline_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_pipeline_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         let dictation = self.dictation.get();
         let pipeline_active = dictation.is_some_and(|held_dictation| {
             matches!(
@@ -524,10 +504,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_runtime_switch_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-    ) {
+    fn push_runtime_switch_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         let dictation = self.dictation.get();
         let runtime_glyph = self
             .loaded_engine()
@@ -546,11 +523,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_engine_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_engine_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.engine {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let engine_row = notulist_engine_reading_row(held_snapshot);
@@ -576,10 +549,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_loaded_engine_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-    ) {
+    fn push_loaded_engine_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(loaded) = self.loaded_engine() {
             rows.push(
                 GroupItem::reading(RuntimeConfiguration(loaded).reading_row())
@@ -600,11 +570,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_output_problems_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, VoiceDictationInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_output_problems_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.output_problems {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let problems_row = notulist_output_problems_reading_row(held_snapshot);

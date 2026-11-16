@@ -1,34 +1,28 @@
-use sottomano_widgets::{
-    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+use sottomano_widgets::group_menus::{
+    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn media_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn media_group_menu(&self) -> GroupMenuView<'_> {
         let config = &self.config;
-        let media_groups = self
-            .widget_groups
-            .media_group
-            .group_contents(config, &self.desktop_entries, self.clock)
-            .map(|group| group.map(WidgetGroupInteraction::Media));
+        let media_groups = self.widget_groups.media_group.group_contents(
+            config,
+            &self.desktop_entries,
+            self.clock,
+        );
         let gamepad_groups = self
             .widget_groups
             .gamepad_group
             .group_contents(&config.widget_groups.gamepad)
-            .into_iter()
-            .map(|group| group.map(WidgetGroupInteraction::Gamepad));
+            .into_iter();
         let groups = media_groups
             .chain([
-                self.widget_groups
-                    .audio_group
-                    .group_content(config)
-                    .map(WidgetGroupInteraction::Audio),
+                self.widget_groups.audio_group.group_content(config),
                 self.widget_groups
                     .voice_dictation_group
-                    .group_content(self.clock)
-                    .map(WidgetGroupInteraction::VoiceDictation),
+                    .group_content(self.clock),
             ])
             .chain(gamepad_groups);
         self.group_menu(GroupMenuTopic::Media, groups)

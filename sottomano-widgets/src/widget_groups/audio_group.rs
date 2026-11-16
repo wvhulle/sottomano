@@ -284,7 +284,7 @@ impl AudioGroup {
         )])
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
         let mut rows = Vec::new();

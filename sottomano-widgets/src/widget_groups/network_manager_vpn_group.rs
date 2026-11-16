@@ -118,10 +118,7 @@ impl NetworkManagerVpnGroup {
             .map_or(&[][..], |vpns| &vpns.connections)
     }
 
-    fn vpn_connection_item<'a>(
-        &'a self,
-        vpn_connection: &'a VpnConnection,
-    ) -> GroupItem<'a, NetworkManagerVpnInteraction> {
+    fn vpn_connection_item<'a>(&'a self, vpn_connection: &'a VpnConnection) -> GroupItem<'a> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(vpn_connection_reading_row(vpn_connection))
             .on_switch_press(
@@ -144,7 +141,7 @@ impl NetworkManagerVpnGroup {
             ))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,
             GroupSummary::glyph(

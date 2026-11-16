@@ -481,10 +481,7 @@ impl QuietScheduleGroup {
         )]
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, QuietScheduleMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let slider = |slider| {
             GroupItem::slider(
                 self.slider(slider),
@@ -515,7 +512,7 @@ impl QuietScheduleGroup {
                             reveal,
                             WeekdayPickerMessages {
                                 on_toggle: |day| {
-                                    GroupEvent::Group(QuietScheduleMessage::ToggleWorkingDay(day))
+                                    GroupEvent::from(QuietScheduleMessage::ToggleWorkingDay(day))
                                 },
                             },
                         )

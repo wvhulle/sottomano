@@ -18,7 +18,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerInteraction, unit_toast_key},
+        systemd_manager_group::{SystemdManagerInteraction, unit_toast_key},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -46,13 +46,11 @@ impl From<&SlowJob> for TableRecord<2> {
     }
 }
 
-impl SystemdManagerGroup {}
-
 pub(super) fn slow_jobs_item<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerInteraction> {
+) -> GroupItem<'a> {
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let locale = config.calendar.locale;

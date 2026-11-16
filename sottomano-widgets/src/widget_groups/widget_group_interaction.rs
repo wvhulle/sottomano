@@ -130,6 +130,354 @@ pub enum WidgetGroupInteraction {
     GroupMenus(GroupMenuMessage),
 }
 
+impl From<WeatherInteraction> for WidgetGroupInteraction {
+    fn from(interaction: WeatherInteraction) -> Self {
+        WidgetGroupInteraction::Weather(interaction)
+    }
+}
+
+impl From<PowerInteraction> for WidgetGroupInteraction {
+    fn from(interaction: PowerInteraction) -> Self {
+        WidgetGroupInteraction::Power(interaction)
+    }
+}
+
+impl From<ComputeInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ComputeInteraction) -> Self {
+        WidgetGroupInteraction::Compute(interaction)
+    }
+}
+
+impl From<MemoryBoardInteraction> for WidgetGroupInteraction {
+    fn from(interaction: MemoryBoardInteraction) -> Self {
+        WidgetGroupInteraction::MemoryBoard(interaction)
+    }
+}
+
+impl From<GamepadInteraction> for WidgetGroupInteraction {
+    fn from(interaction: GamepadInteraction) -> Self {
+        WidgetGroupInteraction::Gamepad(interaction)
+    }
+}
+
+impl From<GpuInteraction> for WidgetGroupInteraction {
+    fn from(interaction: GpuInteraction) -> Self {
+        WidgetGroupInteraction::Gpu(interaction)
+    }
+}
+
+impl From<StorageInteraction> for WidgetGroupInteraction {
+    fn from(interaction: StorageInteraction) -> Self {
+        WidgetGroupInteraction::Storage(interaction)
+    }
+}
+
+impl From<DriveInteraction> for WidgetGroupInteraction {
+    fn from(interaction: DriveInteraction) -> Self {
+        WidgetGroupInteraction::Drive(interaction)
+    }
+}
+
+impl From<PanelSettingsMessage> for WidgetGroupInteraction {
+    fn from(interaction: PanelSettingsMessage) -> Self {
+        WidgetGroupInteraction::PanelSettings(interaction)
+    }
+}
+
+impl From<SidebarSettingsMessage> for WidgetGroupInteraction {
+    fn from(interaction: SidebarSettingsMessage) -> Self {
+        WidgetGroupInteraction::SidebarSettings(interaction)
+    }
+}
+
+impl From<AppearancePresetsMessage> for WidgetGroupInteraction {
+    fn from(interaction: AppearancePresetsMessage) -> Self {
+        WidgetGroupInteraction::AppearancePresets(interaction)
+    }
+}
+
+impl From<OverlaySettingsMessage> for WidgetGroupInteraction {
+    fn from(interaction: OverlaySettingsMessage) -> Self {
+        WidgetGroupInteraction::OverlaySettings(interaction)
+    }
+}
+
+impl From<CompositorStylingMessage> for WidgetGroupInteraction {
+    fn from(interaction: CompositorStylingMessage) -> Self {
+        WidgetGroupInteraction::CompositorStyling(interaction)
+    }
+}
+
+impl From<ClockInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ClockInteraction) -> Self {
+        WidgetGroupInteraction::Clock(interaction)
+    }
+}
+
+impl From<NotificationGroupMessage> for WidgetGroupInteraction {
+    fn from(interaction: NotificationGroupMessage) -> Self {
+        WidgetGroupInteraction::NotificationGroup(interaction)
+    }
+}
+
+impl From<QuietScheduleMessage> for WidgetGroupInteraction {
+    fn from(interaction: QuietScheduleMessage) -> Self {
+        WidgetGroupInteraction::QuietSchedule(interaction)
+    }
+}
+
+impl From<SessionMessage> for WidgetGroupInteraction {
+    fn from(interaction: SessionMessage) -> Self {
+        WidgetGroupInteraction::Session(interaction)
+    }
+}
+
+impl From<SystemdManagerInteraction> for WidgetGroupInteraction {
+    fn from(interaction: SystemdManagerInteraction) -> Self {
+        WidgetGroupInteraction::SystemdManager(interaction)
+    }
+}
+
+impl From<JournalEventsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: JournalEventsInteraction) -> Self {
+        WidgetGroupInteraction::JournalEvents(interaction)
+    }
+}
+
+impl From<PendingUpgradesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: PendingUpgradesInteraction) -> Self {
+        WidgetGroupInteraction::PendingUpgrades(interaction)
+    }
+}
+
+impl From<ReachabilityInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ReachabilityInteraction) -> Self {
+        WidgetGroupInteraction::Reachability(interaction)
+    }
+}
+
+impl From<TailnetInteraction> for WidgetGroupInteraction {
+    fn from(interaction: TailnetInteraction) -> Self {
+        WidgetGroupInteraction::Tailnet(interaction)
+    }
+}
+
+impl From<WireguardTunnelsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: WireguardTunnelsInteraction) -> Self {
+        WidgetGroupInteraction::WireguardTunnels(interaction)
+    }
+}
+
+impl From<NetworkManagerVpnInteraction> for WidgetGroupInteraction {
+    fn from(interaction: NetworkManagerVpnInteraction) -> Self {
+        WidgetGroupInteraction::NetworkManagerVpns(interaction)
+    }
+}
+
+impl From<WifiAdaptersInteraction> for WidgetGroupInteraction {
+    fn from(interaction: WifiAdaptersInteraction) -> Self {
+        WidgetGroupInteraction::WifiAdapters(interaction)
+    }
+}
+
+impl From<MobileModemsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: MobileModemsInteraction) -> Self {
+        WidgetGroupInteraction::MobileModems(interaction)
+    }
+}
+
+impl From<EthernetPortsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: EthernetPortsInteraction) -> Self {
+        WidgetGroupInteraction::EthernetPorts(interaction)
+    }
+}
+
+impl From<BluetoothInteraction> for WidgetGroupInteraction {
+    fn from(interaction: BluetoothInteraction) -> Self {
+        WidgetGroupInteraction::BluetoothAdapters(interaction)
+    }
+}
+
+impl From<MonitorInteraction> for WidgetGroupInteraction {
+    fn from(interaction: MonitorInteraction) -> Self {
+        WidgetGroupInteraction::Monitor(interaction)
+    }
+}
+
+impl From<ColorTemperatureInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ColorTemperatureInteraction) -> Self {
+        WidgetGroupInteraction::ColorTemperature(interaction)
+    }
+}
+
+impl From<DarkModeInteraction> for WidgetGroupInteraction {
+    fn from(interaction: DarkModeInteraction) -> Self {
+        WidgetGroupInteraction::DarkMode(interaction)
+    }
+}
+
+impl From<VoiceDictationInteraction> for WidgetGroupInteraction {
+    fn from(interaction: VoiceDictationInteraction) -> Self {
+        WidgetGroupInteraction::VoiceDictation(interaction)
+    }
+}
+
+impl From<IdlePauseInteraction> for WidgetGroupInteraction {
+    fn from(interaction: IdlePauseInteraction) -> Self {
+        WidgetGroupInteraction::IdleTimeouts(interaction)
+    }
+}
+
+impl From<MediaInteraction> for WidgetGroupInteraction {
+    fn from(interaction: MediaInteraction) -> Self {
+        WidgetGroupInteraction::Media(interaction)
+    }
+}
+
+impl From<TrayMessage> for WidgetGroupInteraction {
+    fn from(interaction: TrayMessage) -> Self {
+        WidgetGroupInteraction::Tray(interaction)
+    }
+}
+
+impl From<GlobalMenuInteraction> for WidgetGroupInteraction {
+    fn from(interaction: GlobalMenuInteraction) -> Self {
+        WidgetGroupInteraction::GlobalMenu(interaction)
+    }
+}
+
+impl From<AudioMessage> for WidgetGroupInteraction {
+    fn from(interaction: AudioMessage) -> Self {
+        WidgetGroupInteraction::Audio(interaction)
+    }
+}
+
+impl From<ClaudeUsageInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ClaudeUsageInteraction) -> Self {
+        WidgetGroupInteraction::ClaudeUsage(interaction)
+    }
+}
+
+impl From<CopilotUsageInteraction> for WidgetGroupInteraction {
+    fn from(interaction: CopilotUsageInteraction) -> Self {
+        WidgetGroupInteraction::CopilotUsage(interaction)
+    }
+}
+
+impl From<OpenRouterCreditInteraction> for WidgetGroupInteraction {
+    fn from(interaction: OpenRouterCreditInteraction) -> Self {
+        WidgetGroupInteraction::OpenRouterCredit(interaction)
+    }
+}
+
+impl From<LlamaServerInteraction> for WidgetGroupInteraction {
+    fn from(interaction: LlamaServerInteraction) -> Self {
+        WidgetGroupInteraction::LlamaServer(interaction)
+    }
+}
+
+impl From<VirtualMachinesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: VirtualMachinesInteraction) -> Self {
+        WidgetGroupInteraction::VirtualMachines(interaction)
+    }
+}
+
+impl From<NspawnContainersInteraction> for WidgetGroupInteraction {
+    fn from(interaction: NspawnContainersInteraction) -> Self {
+        WidgetGroupInteraction::NspawnContainers(interaction)
+    }
+}
+
+impl From<CgroupMemoryLimitsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: CgroupMemoryLimitsInteraction) -> Self {
+        WidgetGroupInteraction::CgroupMemoryLimits(interaction)
+    }
+}
+
+impl From<ApptainerContainersInteraction> for WidgetGroupInteraction {
+    fn from(interaction: ApptainerContainersInteraction) -> Self {
+        WidgetGroupInteraction::ApptainerContainers(interaction)
+    }
+}
+
+impl From<VmwareMachinesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: VmwareMachinesInteraction) -> Self {
+        WidgetGroupInteraction::VmwareMachines(interaction)
+    }
+}
+
+impl From<VirtualBoxMachinesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: VirtualBoxMachinesInteraction) -> Self {
+        WidgetGroupInteraction::VirtualBoxMachines(interaction)
+    }
+}
+
+impl From<WaydroidContainerInteraction> for WidgetGroupInteraction {
+    fn from(interaction: WaydroidContainerInteraction) -> Self {
+        WidgetGroupInteraction::WaydroidContainer(interaction)
+    }
+}
+
+impl From<FlatpakSandboxesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: FlatpakSandboxesInteraction) -> Self {
+        WidgetGroupInteraction::FlatpakSandboxes(interaction)
+    }
+}
+
+impl From<LxcContainersInteraction> for WidgetGroupInteraction {
+    fn from(interaction: LxcContainersInteraction) -> Self {
+        WidgetGroupInteraction::LxcContainers(interaction)
+    }
+}
+
+impl From<IncusInstancesInteraction> for WidgetGroupInteraction {
+    fn from(interaction: IncusInstancesInteraction) -> Self {
+        WidgetGroupInteraction::IncusInstances(interaction)
+    }
+}
+
+impl From<MicrovmGuestsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: MicrovmGuestsInteraction) -> Self {
+        WidgetGroupInteraction::MicrovmGuests(interaction)
+    }
+}
+
+impl From<CiRunsInteraction> for WidgetGroupInteraction {
+    fn from(interaction: CiRunsInteraction) -> Self {
+        WidgetGroupInteraction::CiRuns(interaction)
+    }
+}
+
+impl From<SessionFocusMessage> for WidgetGroupInteraction {
+    fn from(interaction: SessionFocusMessage) -> Self {
+        WidgetGroupInteraction::SessionFocus(interaction)
+    }
+}
+
+impl From<LoginSessionInteraction> for WidgetGroupInteraction {
+    fn from(interaction: LoginSessionInteraction) -> Self {
+        WidgetGroupInteraction::LoginSession(interaction)
+    }
+}
+
+impl From<WindowGroupInteraction> for WidgetGroupInteraction {
+    fn from(interaction: WindowGroupInteraction) -> Self {
+        WidgetGroupInteraction::WindowGroup(interaction)
+    }
+}
+
+impl From<AppLauncherMessage> for WidgetGroupInteraction {
+    fn from(interaction: AppLauncherMessage) -> Self {
+        WidgetGroupInteraction::AppLauncher(interaction)
+    }
+}
+
+impl From<GroupMenuMessage> for WidgetGroupInteraction {
+    fn from(interaction: GroupMenuMessage) -> Self {
+        WidgetGroupInteraction::GroupMenus(interaction)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum WidgetGroupBusRequest {
     Weather(WeatherBusRequest),

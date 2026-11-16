@@ -44,6 +44,7 @@ use crate::{
             GroupEvent, GroupToastRequests, WidgetGroupContent, edge_indicator,
         },
         widget_group_identity::WidgetGroupIdentity,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         configured_scroll::configured_scroll, icon_glyph::IconGlyph,
@@ -51,10 +52,10 @@ use crate::{
     },
 };
 
-pub struct GroupMenuView<'a, M> {
+pub struct GroupMenuView<'a> {
     group_menus: &'a GroupMenuState,
-    messenger: GroupMenuMessenger<M>,
-    groups: Vec<WidgetGroupContent<'a, M>>,
+    messenger: GroupMenuMessenger,
+    groups: Vec<WidgetGroupContent<'a>>,
 }
 
 pub struct GroupMenuCascadeSurfaces<'a, Message> {
@@ -76,84 +77,67 @@ impl InspectionCard<'_, '_> {
     }
 }
 
-pub(crate) struct GroupMenuMessenger<M> {
+pub(crate) struct GroupMenuMessenger {
     pub(crate) topic: GroupMenuTopic,
-    on_message: fn(GroupMenuMessage) -> M,
 }
 
-impl<M> GroupMenuMessenger<M> {
-    fn sent(&self, message: GroupMenuMessage) -> GroupEvent<M> {
-        GroupEvent::Group((self.on_message)(message))
-    }
+pub(crate) fn menu_event(message: GroupMenuMessage) -> GroupEvent {
+    GroupEvent::Interaction(WidgetGroupInteraction::GroupMenus(message))
+}
 
-    pub(crate) fn toggle_pin(&self, entry: GroupMenuPin) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::TogglePin {
+impl GroupMenuMessenger {
+    pub(crate) fn toggle_pin(&self, entry: GroupMenuPin) -> GroupEvent {
+        menu_event(GroupMenuMessage::TogglePin {
             menu: self.topic,
             entry,
         })
     }
 
-    pub(crate) fn reveal_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::RevealMenuGroup {
+    pub(crate) fn reveal_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+        menu_event(GroupMenuMessage::RevealMenuGroup {
             menu: self.topic,
             group_identity,
         })
     }
 
-    pub(crate) fn intend_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::IntendRevealMenuGroup {
+    pub(crate) fn intend_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+        menu_event(GroupMenuMessage::IntendRevealMenuGroup {
             menu: self.topic,
             group_identity,
         })
     }
 
-    pub(crate) fn cancel_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::CancelRevealIntent { group_identity })
-    }
-
-    pub(crate) fn toggle_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::ToggleMenuGroup {
+    pub(crate) fn toggle_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent {
+        menu_event(GroupMenuMessage::ToggleMenuGroup {
             menu: self.topic,
             group_identity,
         })
     }
 
-    pub(crate) fn scroll_message(&self) -> impl Fn(f32) -> GroupEvent<M> + use<M> {
-        let on_message = self.on_message;
+    pub(crate) fn scroll_message(&self) -> impl Fn(f32) -> GroupEvent + use<> {
         let menu = self.topic;
-        move |scrolled_px| {
-            GroupEvent::Group(on_message(GroupMenuMessage::MenuScrolled {
-                menu,
-                scrolled_px,
-            }))
-        }
+        move |scrolled_px| menu_event(GroupMenuMessage::MenuScrolled { menu, scrolled_px })
     }
 
-    pub(crate) fn item_list_scroll_message(&self) -> impl Fn(f32) -> GroupEvent<M> + use<M> {
-        let on_message = self.on_message;
+    pub(crate) fn item_list_scroll_message(&self) -> impl Fn(f32) -> GroupEvent + use<> {
         let menu = self.topic;
-        move |scrolled_px| {
-            GroupEvent::Group(on_message(GroupMenuMessage::ItemListScrolled {
-                menu,
-                scrolled_px,
-            }))
-        }
+        move |scrolled_px| menu_event(GroupMenuMessage::ItemListScrolled { menu, scrolled_px })
     }
 
-    pub(crate) fn inspect_row(&self, instrument: InstrumentKey) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::InspectRow {
+    pub(crate) fn inspect_row(&self, instrument: InstrumentKey) -> GroupEvent {
+        menu_event(GroupMenuMessage::InspectRow {
             menu: self.topic,
             instrument,
         })
     }
 }
 
-pub(crate) struct MenuSections<'a, M> {
-    pub table_columns: Vec<QuantityTableColumn<'a, M>>,
-    pub group_rows: Vec<GroupMenuGroupRow<'a, M>>,
+pub(crate) struct MenuSections<'a> {
+    pub table_columns: Vec<QuantityTableColumn<'a>>,
+    pub group_rows: Vec<GroupMenuGroupRow<'a>>,
 }
 
-impl<M> MenuSections<'_, M> {
+impl MenuSections<'_> {
     fn empty() -> Self {
         Self {
             table_columns: Vec::new(),
@@ -162,29 +146,28 @@ impl<M> MenuSections<'_, M> {
     }
 }
 
-impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
+impl<'a> GroupMenuView<'a> {
     pub fn new(
         topic: GroupMenuTopic,
         group_menus: &'a GroupMenuState,
-        on_message: fn(GroupMenuMessage) -> M,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a, M>>,
+        groups: impl IntoIterator<Item = WidgetGroupContent<'a>>,
     ) -> Self {
         Self {
             group_menus,
-            messenger: GroupMenuMessenger { topic, on_message },
+            messenger: GroupMenuMessenger { topic },
             groups: groups.into_iter().collect(),
         }
     }
 
     #[must_use]
-    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a, M>> {
+    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a>> {
         self.groups
             .iter()
             .find_map(|group| group.instrument(instrument_key))
     }
 
     #[must_use]
-    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
+    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a>> {
         self.groups
             .iter()
             .find_map(|group| group.hovered_instrument(target))
@@ -222,7 +205,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     }
 
     #[must_use]
-    pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
+    pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests {
         self.groups
             .iter()
             .map(|member| member.toast_requests(locale, clock))
@@ -241,10 +224,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         config: &'a Config,
         panel_position: Position,
         handle_indicator: MenuHandleIndicator,
-    ) -> Element<'a, M>
-    where
-        M: From<GroupEvent<M>>,
-    {
+    ) -> Element<'a, GroupEvent> {
         let highest_alert_severity = self
             .groups
             .iter()
@@ -257,16 +237,14 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             self.group_menus.presentation().open_trigger,
             glyph,
             HoverTarget::GroupMenu(self.messenger.topic),
-            GroupEvent::HoverCard,
+            GroupEvent::from,
         );
         let indicator = edge_indicator(
             highest_alert_severity,
             handle_indicator,
             handle_indicator.settled_reveal(),
         );
-        PanelSlot::new(handle, indicator)
-            .view(panel_position)
-            .map(M::from)
+        PanelSlot::new(handle, indicator).view(panel_position)
     }
 
     pub fn panel_views(
@@ -275,10 +253,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         panel_position: Position,
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
-    ) -> impl Iterator<Item = Element<'a, M>> + 'a
-    where
-        M: From<GroupEvent<M>>,
-    {
+    ) -> impl Iterator<Item = Element<'a, GroupEvent>> + 'a {
         let handle_slot = self.handle_view(config, panel_position, handle_indicator);
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
@@ -304,10 +279,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         appearance: &LayerAppearance,
         card: &InspectionCard<'_, 'a>,
         orientation: CascadeOrientation,
-    ) -> Option<GroupMenuCascadeSurfaces<'a, M>>
-    where
-        M: From<GroupEvent<M>> + From<PopupMessage>,
-    {
+    ) -> Option<GroupMenuCascadeSurfaces<'a, GroupEvent>> {
         let GroupMenuView {
             group_menus,
             messenger,
@@ -333,7 +305,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                     sections,
                 )
             });
-        let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
+        let table = quantity_table(table_columns, config);
         let topic = messenger.topic;
         let presentation = group_menus.presentation();
         let row_context = GroupMenuRowContext {
@@ -359,8 +331,8 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             presentation.layout,
             orientation,
             menu_metrics(config),
-            move |scrolled_px| M::from(list_scroll_message(scrolled_px)),
-            move |scrolled_px| M::from(item_list_scroll_message(scrolled_px)),
+            list_scroll_message,
+            item_list_scroll_message,
         )
         .style(NestedMenuStyle {
             list_frame,
@@ -394,7 +366,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 primary: configured_scroll(table, Axis::Vertical, config)
                     .edge_fade(ScrollEdgeFade::within_frame(list_frame, fade_extent_px))
                     .controlled(scrolled_px, move |scrolled_px| {
-                        M::from(table_scroll_message(scrolled_px))
+                        table_scroll_message(scrolled_px)
                     })
                     .into(),
                 satellites: Vec::new(),
@@ -407,11 +379,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     }
 }
 
-fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a>(
-    row_context: &GroupMenuRowContext<'_, M>,
-    group_rows: Vec<GroupMenuGroupRow<'a, M>>,
+fn nested_menu_groups<'a>(
+    row_context: &GroupMenuRowContext<'_>,
+    group_rows: Vec<GroupMenuGroupRow<'a>>,
     card: &InspectionCard<'_, 'a>,
-) -> Vec<NestedMenuGroup<'a, InstrumentKey, M>> {
+) -> Vec<NestedMenuGroup<'a, InstrumentKey, GroupEvent>> {
     let topic = row_context.menu.topic;
     let open_groups = row_context.group_menus.open_groups(topic);
     let inspected_instrument = row_context.group_menus.inspected_instrument(topic);
@@ -450,7 +422,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                             NestedMenuRowEmphasis::Selected => card
                                 .view(row_context.config)
                                 .map_or(BesideRow::Nothing, |card_view| {
-                                    BesideRow::Card(card_view.map(M::from))
+                                    BesideRow::Card(card_view.map(GroupEvent::Popup))
                                 }),
                             NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
                                 BesideRow::Nothing
@@ -502,9 +474,12 @@ mod tests {
             hover_card_body::Section,
         },
         widget_groups::{
+            clock_group::ClockInteraction,
+            compositor_styling_group::CompositorStylingMessage,
             group_summary::GroupSummary,
             widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+            widget_group_interaction::WidgetGroupInteraction,
         },
         widgets::{
             favicon::Favicons, icon_glyph::IconGlyph, shell_layer_appearance::ShellLayer,
@@ -549,12 +524,12 @@ mod tests {
         }
     }
 
-    impl<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a> GroupMenuView<'a, M> {
+    impl<'a> GroupMenuView<'a> {
         fn bench_surfaces(
             self,
             bench: &'a MenuTestBench,
             orientation: CascadeOrientation,
-        ) -> GroupMenuCascadeSurfaces<'a, M> {
+        ) -> GroupMenuCascadeSurfaces<'a, GroupEvent> {
             self.surfaces(
                 &bench.config,
                 &ShellLayer::Overlays.default_appearance(),
@@ -565,27 +540,12 @@ mod tests {
         }
     }
 
-    impl<'a, M> GroupMenuCascadeSurfaces<'a, M> {
-        fn first_item_list(self) -> Element<'a, M> {
+    impl<'a> GroupMenuCascadeSurfaces<'a, GroupEvent> {
+        fn first_item_list(self) -> Element<'a, GroupEvent> {
             self.satellites
                 .into_iter()
                 .next()
                 .expect("the open group has an item list")
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    struct SmokeMessage;
-
-    impl From<GroupEvent<SmokeMessage>> for SmokeMessage {
-        fn from(_: GroupEvent<SmokeMessage>) -> Self {
-            SmokeMessage
-        }
-    }
-
-    impl From<PopupMessage> for SmokeMessage {
-        fn from(_: PopupMessage) -> Self {
-            SmokeMessage
         }
     }
 
@@ -637,16 +597,11 @@ mod tests {
             WidgetGroupFamily::Gpu,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
-            |_| SmokeMessage,
+            ClockInteraction::Expansion,
             [GroupItem::reading(named_test_row("Smoke item"))],
         );
-        let surfaces = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            group_menus,
-            |_| SmokeMessage,
-            [group],
-        )
-        .bench_surfaces(&bench, orientation);
+        let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, group_menus, [group])
+            .bench_surfaces(&bench, orientation);
         let mut primary = Simulator::with_size(
             Settings::default(),
             Size::new(1200.0, 800.0),
@@ -674,15 +629,10 @@ mod tests {
             WidgetGroupFamily::Gpu,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
-            |_| SmokeMessage,
-            Vec::<GroupItem<'_, SmokeMessage>>::new(),
+            ClockInteraction::Expansion,
+            Vec::<GroupItem<'_>>::new(),
         );
-        let menu = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |_| SmokeMessage,
-            [empty_group],
-        );
+        let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [empty_group]);
         assert_eq!(menu.open_group_menu().families.len(), 1);
     }
 
@@ -697,19 +647,14 @@ mod tests {
                 GroupItem::reading(named_test_row("Summary row")),
             ),
             &expansion,
-            |_| SmokeMessage,
-            Vec::<GroupItem<'_, SmokeMessage>>::new(),
+            ClockInteraction::Expansion,
+            Vec::<GroupItem<'_>>::new(),
         );
         let summary_row_key = InstrumentKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
             name: "Summary row".into(),
         };
-        let menu = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |_| SmokeMessage,
-            [summarised_group],
-        );
+        let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [summarised_group]);
         assert!(menu.instrument(&summary_row_key).is_some());
         assert_eq!(menu.open_group_menu().families.len(), 1);
     }
@@ -752,7 +697,7 @@ mod tests {
             WidgetGroupFamily::Media,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
-            |_| SmokeMessage,
+            ClockInteraction::Expansion,
             long_list,
         );
         let mut group_menus = GroupMenuState::default();
@@ -771,19 +716,14 @@ mod tests {
             scrolled_px: item_list_scrolled_px,
         });
         let bench = MenuTestBench::default();
-        let surfaces = GroupMenuView::new(
-            GroupMenuTopic::Media,
-            &group_menus,
-            |_| SmokeMessage,
-            [group],
-        )
-        .bench_surfaces(
-            &bench,
-            CascadeOrientation {
-                direction: CascadeDirection::Rightward,
-                growth: PopupGrowth::Downward,
-            },
-        );
+        let surfaces = GroupMenuView::new(GroupMenuTopic::Media, &group_menus, [group])
+            .bench_surfaces(
+                &bench,
+                CascadeOrientation {
+                    direction: CascadeDirection::Rightward,
+                    growth: PopupGrowth::Downward,
+                },
+            );
         let item_list = surfaces.first_item_list();
         Simulator::with_size(
             Settings::default(),
@@ -846,18 +786,31 @@ mod tests {
         Unrelated,
     }
 
-    impl From<GroupEvent<RowPointerMessage>> for RowPointerMessage {
-        fn from(event: GroupEvent<RowPointerMessage>) -> Self {
+    impl From<GroupEvent> for RowPointerMessage {
+        fn from(event: GroupEvent) -> Self {
             match event {
-                GroupEvent::Group(message) => message,
-                GroupEvent::HoverCard(_) => RowPointerMessage::Unrelated,
+                GroupEvent::Interaction(WidgetGroupInteraction::CompositorStyling(
+                    CompositorStylingMessage::ToggleXray,
+                )) => RowPointerMessage::RowAction,
+                GroupEvent::Interaction(WidgetGroupInteraction::GroupMenus(menu_message)) => {
+                    match menu_message {
+                        GroupMenuMessage::InspectRow { instrument, .. } => {
+                            RowPointerMessage::RowInspected(instrument)
+                        }
+                        GroupMenuMessage::RevealMenuGroup { group_identity, .. } => {
+                            RowPointerMessage::Revealed(group_identity)
+                        }
+                        GroupMenuMessage::IntendRevealMenuGroup { group_identity, .. } => {
+                            RowPointerMessage::RevealIntended(group_identity)
+                        }
+                        GroupMenuMessage::CancelRevealIntent { group_identity } => {
+                            RowPointerMessage::RevealCancelled(group_identity)
+                        }
+                        _ => RowPointerMessage::Unrelated,
+                    }
+                }
+                GroupEvent::Interaction(_) | GroupEvent::Popup(_) => RowPointerMessage::Unrelated,
             }
-        }
-    }
-
-    impl From<PopupMessage> for RowPointerMessage {
-        fn from(_: PopupMessage) -> Self {
-            RowPointerMessage::Unrelated
         }
     }
 
@@ -875,7 +828,7 @@ mod tests {
     }
 
     fn messages_after_pointing(
-        pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
+        pointer_target: impl Fn(&mut Simulator<'_, GroupEvent>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
         messages_after_pointing_at_row(PointedRowPress::PerformsAction, pointer_target, pressed)
@@ -883,7 +836,7 @@ mod tests {
 
     fn messages_after_pointing_at_row(
         row_press: PointedRowPress,
-        pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
+        pointer_target: impl Fn(&mut Simulator<'_, GroupEvent>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
@@ -893,31 +846,21 @@ mod tests {
             WidgetGroupFamily::Gpu,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
-            |_| RowPointerMessage::Unrelated,
+            ClockInteraction::Expansion,
             [match row_press {
                 PointedRowPress::PerformsAction => GroupItem::reading(named_test_row("Smoke item"))
-                    .on_press("act", RowPointerMessage::RowAction),
+                    .on_press("act", CompositorStylingMessage::ToggleXray),
                 PointedRowPress::ReadOnly => GroupItem::reading(named_test_row("Smoke item")),
             }],
         );
-        let surfaces = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |message| match message {
-                GroupMenuMessage::InspectRow { instrument, .. } => {
-                    RowPointerMessage::RowInspected(instrument)
-                }
-                _ => RowPointerMessage::Unrelated,
-            },
-            [group],
-        )
-        .bench_surfaces(
-            &bench,
-            CascadeOrientation {
-                direction: CascadeDirection::Rightward,
-                growth: PopupGrowth::Downward,
-            },
-        );
+        let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [group])
+            .bench_surfaces(
+                &bench,
+                CascadeOrientation {
+                    direction: CascadeDirection::Rightward,
+                    growth: PopupGrowth::Downward,
+                },
+            );
         let item_list = surfaces.first_item_list();
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
@@ -930,10 +873,13 @@ mod tests {
         if pressed {
             let _statuses = simulator.simulate(click());
         }
-        simulator.into_messages().collect()
+        simulator
+            .into_messages()
+            .map(RowPointerMessage::from)
+            .collect()
     }
 
-    fn row_name_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
+    fn row_name_center(simulator: &mut Simulator<'_, GroupEvent>) -> Point {
         simulator
             .find("Smoke item")
             .expect("the row is laid out")
@@ -957,34 +903,18 @@ mod tests {
                 family,
                 GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
                 &expansion,
-                |_| RowPointerMessage::Unrelated,
+                ClockInteraction::Expansion,
                 [GroupItem::reading(named_test_row("Smoke item"))],
             )
         });
-        let surfaces = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |message| match message {
-                GroupMenuMessage::RevealMenuGroup { group_identity, .. } => {
-                    RowPointerMessage::Revealed(group_identity)
-                }
-                GroupMenuMessage::IntendRevealMenuGroup { group_identity, .. } => {
-                    RowPointerMessage::RevealIntended(group_identity)
-                }
-                GroupMenuMessage::CancelRevealIntent { group_identity } => {
-                    RowPointerMessage::RevealCancelled(group_identity)
-                }
-                _ => RowPointerMessage::Unrelated,
-            },
-            groups,
-        )
-        .bench_surfaces(
-            &bench,
-            CascadeOrientation {
-                direction: CascadeDirection::Rightward,
-                growth: PopupGrowth::Downward,
-            },
-        );
+        let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, groups)
+            .bench_surfaces(
+                &bench,
+                CascadeOrientation {
+                    direction: CascadeDirection::Rightward,
+                    growth: PopupGrowth::Downward,
+                },
+            );
         let mut simulator = Simulator::with_size(
             Settings::default(),
             Size::new(1200.0, 800.0),
@@ -1011,6 +941,7 @@ mod tests {
         let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
         simulator
             .into_messages()
+            .map(RowPointerMessage::from)
             .filter(|message| match message {
                 RowPointerMessage::Revealed(identity)
                 | RowPointerMessage::RevealIntended(identity)
@@ -1044,7 +975,7 @@ mod tests {
         );
     }
 
-    fn row_icon_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
+    fn row_icon_center(simulator: &mut Simulator<'_, GroupEvent>) -> Point {
         let row_name_bounds = simulator
             .find("Smoke item")
             .expect("the row is laid out")
@@ -1107,7 +1038,7 @@ mod tests {
             WidgetGroupFamily::Media,
             GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             &expansion,
-            |_| SmokeMessage,
+            ClockInteraction::Expansion,
             [GroupItem::composed_pinnable(
                 "Lyrics",
                 GroupItemIcon::Absent,
@@ -1115,19 +1046,14 @@ mod tests {
                 Box::new(|_| Vec::new()),
             )],
         );
-        let panel_views: Vec<_> = GroupMenuView::new(
-            GroupMenuTopic::Media,
-            &group_menus,
-            |_| SmokeMessage,
-            [group],
-        )
-        .panel_views(
-            &config,
-            Position::Top,
-            MenuHandleIndicator::default(),
-            clock,
-        )
-        .collect();
+        let panel_views: Vec<_> = GroupMenuView::new(GroupMenuTopic::Media, &group_menus, [group])
+            .panel_views(
+                &config,
+                Position::Top,
+                MenuHandleIndicator::default(),
+                clock,
+            )
+            .collect();
         assert_eq!(panel_views.len(), 2);
         let mut panel = Simulator::with_size(
             Settings::default(),

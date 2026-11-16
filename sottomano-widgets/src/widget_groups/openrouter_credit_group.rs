@@ -207,10 +207,7 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-    ) -> WidgetGroupContent<'_, OpenRouterCreditInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = match &self.spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
@@ -308,10 +305,7 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    fn spend_item<'a>(
-        &'a self,
-        spend_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+    fn spend_item<'a>(&'a self, spend_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(spend_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.spend
@@ -320,10 +314,7 @@ impl OpenRouterCreditGroup {
             .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
     }
 
-    fn strict_budget_item<'a>(
-        &'a self,
-        budget_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+    fn strict_budget_item<'a>(&'a self, budget_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(budget_row)
             .with_hover_card(Box::new(move |_| {
                 self.strict_budget
@@ -334,10 +325,7 @@ impl OpenRouterCreditGroup {
             ))
     }
 
-    fn model_rankings_item<'a>(
-        &'a self,
-        rankings_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, OpenRouterCreditInteraction> {
+    fn model_rankings_item<'a>(&'a self, rankings_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(rankings_row)
             .with_hover_card(Box::new(move |_| {
                 self.model_rankings

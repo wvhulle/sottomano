@@ -252,11 +252,7 @@ impl ComputeGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, ComputeInteraction> {
+    pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = self.cpu_load_summary(clock);
         let mut rows = Vec::new();
         self.push_cpu_clock_rows(&mut rows, clock);
@@ -273,7 +269,7 @@ impl ComputeGroup {
         )
     }
 
-    fn cpu_load_summary(&self, clock: Clock) -> GroupSummary<'_, ComputeInteraction> {
+    fn cpu_load_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.cpu_load {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 CPU_LOAD_GLYPH.into(),
@@ -301,11 +297,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_clock_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_cpu_clock_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match &self.cpu_clock {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let clock_row = cpu_clock_reading_row(held_snapshot);
@@ -344,7 +336,7 @@ impl ComputeGroup {
 
     fn push_cpu_temperature_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
@@ -375,7 +367,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_power_draw_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a, ComputeInteraction>>) {
+    fn push_cpu_power_draw_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(power) = self.cpu_power_draw.get() {
             let power_row = cpu_power_reading_row(power);
             if power_row.panel_visibility == PanelVisibility::Shown {
@@ -384,7 +376,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_model_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a, ComputeInteraction>>) {
+    fn push_cpu_model_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
         if let Some(hardware) = self.host_hardware.get() {
             let model_row = cpu_model_reading_row(&hardware.cpu);
             if model_row.panel_visibility == PanelVisibility::Shown {
@@ -396,11 +388,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_x3d_cache_preference_rows<'a>(
-        &'a self,
-        rows: &mut Vec<GroupItem<'a, ComputeInteraction>>,
-        clock: Clock,
-    ) {
+    fn push_x3d_cache_preference_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
         match self.x3d_cache_preference.subscribed_reading() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let preference_row = x3d_cache_preference_reading_row(held_snapshot);
@@ -439,7 +427,7 @@ impl ComputeGroup {
         }
     }
 
-    fn cpu_load_item<'a>(&'a self, load_row: ReadingRow<'a>) -> GroupItem<'a, ComputeInteraction> {
+    fn cpu_load_item<'a>(&'a self, load_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(load_row)
             .with_hover_card(Box::new(move |_| self.cpu_load_card()))
             .fetching_on_hover(
@@ -449,10 +437,7 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
     }
 
-    fn cpu_clock_item<'a>(
-        &'a self,
-        clock_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ComputeInteraction> {
+    fn cpu_clock_item<'a>(&'a self, clock_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(clock_row)
             .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
             .fetching_on_hover(
@@ -462,19 +447,13 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_clock_limits_item<'a>(
-        &'a self,
-        limits_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ComputeInteraction> {
+    fn cpu_clock_limits_item<'a>(&'a self, limits_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(limits_row)
             .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_temperature_item<'a>(
-        &'a self,
-        temperature_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ComputeInteraction> {
+    fn cpu_temperature_item<'a>(&'a self, temperature_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(temperature_row)
             .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
             .fetching_on_hover(
@@ -484,10 +463,7 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
     }
 
-    fn cpu_power_draw_item<'a>(
-        &'a self,
-        power_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ComputeInteraction> {
+    fn cpu_power_draw_item<'a>(&'a self, power_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(power_row)
             .with_hover_card(Box::new(move |_| {
                 self.cpu_power_draw
@@ -496,10 +472,7 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
     }
 
-    fn x3d_cache_preference_item<'a>(
-        &'a self,
-        preference_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, ComputeInteraction> {
+    fn x3d_cache_preference_item<'a>(&'a self, preference_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(preference_row)
             .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
             .refreshed_by(ComputeInteraction::Refresh(

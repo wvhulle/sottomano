@@ -234,7 +234,7 @@ impl JournalEventsGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
+    ) -> WidgetGroupContent<'a> {
         self.system_journal.group_content(config, clock)
     }
 
@@ -243,7 +243,7 @@ impl JournalEventsGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
+    ) -> WidgetGroupContent<'a> {
         self.user_journal.group_content(config, clock)
     }
 }

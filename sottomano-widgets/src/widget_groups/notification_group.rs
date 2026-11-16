@@ -141,7 +141,7 @@ impl NotificationGroup {
         &'a self,
         status: NotificationStatus,
         quiet_schedule: &'a QuietScheduleGroup,
-    ) -> WidgetGroupContent<'a, NotificationGroupMessage> {
+    ) -> WidgetGroupContent<'a> {
         let quiet_phase = status.quiet_phase;
         let group_summary = GroupSummary::summarising(
             Phosphor::Bell(Weight::Regular).into(),

@@ -266,7 +266,7 @@ impl TrayGroup {
         &'a self,
         config: &'a Config,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
-    ) -> WidgetGroupContent<'a, TrayMessage> {
+    ) -> WidgetGroupContent<'a> {
         let group_items: Vec<_> = self
             .visible(config)
             .into_iter()
@@ -351,13 +351,13 @@ fn item_view<'a>(
     item: &TrayItem,
     item_window: &TrayItemWindow,
     reveal: f32,
-) -> Element<'a, GroupEvent<TrayMessage>> {
+) -> Element<'a, GroupEvent> {
     let side = config.theme.font.icon_size_px;
     let tint = ReadingStateTint {
         state: ReadingDisplayState::Idle,
         opacity: reveal,
     };
-    let glyph: Element<'a, GroupEvent<TrayMessage>> = item.icon.as_ref().map_or_else(
+    let glyph: Element<'a, GroupEvent> = item.icon.as_ref().map_or_else(
         || {
             IconGlyph::from(Phosphor::Question(Weight::Regular))
                 .view(side, move |theme| tint.color(theme))
@@ -369,7 +369,7 @@ fn item_view<'a>(
         },
     );
 
-    let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
+    let marked: Element<'a, GroupEvent> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
             container(activity_line(
@@ -393,13 +393,13 @@ fn item_view<'a>(
     let right = click_message(rule.right_click, item_window, item);
     let mut clickable = mouse_area(marked);
     if let Some(message) = left {
-        clickable = clickable.on_press(GroupEvent::Group(message));
+        clickable = clickable.on_press(GroupEvent::from(message));
     }
     if let Some(message) = middle {
-        clickable = clickable.on_middle_press(GroupEvent::Group(message));
+        clickable = clickable.on_middle_press(GroupEvent::from(message));
     }
     if let Some(message) = right {
-        clickable = clickable.on_right_press(GroupEvent::Group(message));
+        clickable = clickable.on_right_press(GroupEvent::from(message));
     }
     clickable.into()
 }

@@ -493,7 +493,7 @@ impl GlobalMenuGroup {
         }
     }
 
-    pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
+    pub fn switch_content(&self) -> WidgetGroupContent<'_> {
         let mut rows = vec![GroupItem::toggle(
             global_menu_use_toggle(self.global_menu_use),
             GlobalMenuInteraction::ToggleUse,
@@ -518,7 +518,7 @@ impl GlobalMenuGroup {
         )
     }
 
-    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_, GlobalMenuInteraction> {
+    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_> {
         let node = entry.node;
         let icon = match node.kind {
             MenuKind::Toggle(true) => GroupItemIcon::IconGlyph {
@@ -551,7 +551,7 @@ impl GlobalMenuGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, GlobalMenuInteraction>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_>> {
         if self.global_menu_use == GlobalMenuUse::Disabled {
             return Vec::new();
         }

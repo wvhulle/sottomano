@@ -18,7 +18,7 @@ use crate::{
 mod open_tasks_reading;
 mod upcoming_events_reading;
 
-use std::{convert::identity, path::PathBuf};
+use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -40,6 +40,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -153,7 +154,7 @@ impl CaldavGroup {
         config: &CaldavAccountConfig,
         clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    ) -> WidgetGroupContent<'_> {
         let mut rows = Vec::new();
         match &self.upcoming_events {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -212,25 +213,19 @@ impl CaldavGroup {
             WidgetGroupFamily::Caldav,
             GroupSummary::glyph(self.account_handle_glyph(), ReadingDisplayState::Idle),
             &self.expansion,
-            identity,
+            WidgetGroupInteraction::Caldav,
             rows,
         )
     }
 
-    fn upcoming_events_item<'a>(
-        &'a self,
-        events_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, WidgetGroupExpansionMessage> {
+    fn upcoming_events_item<'a>(&'a self, events_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(events_row).with_hover_card(Box::new(move |card_clock| {
             self.upcoming_events
                 .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
         }))
     }
 
-    fn open_tasks_item<'a>(
-        &'a self,
-        tasks_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, WidgetGroupExpansionMessage> {
+    fn open_tasks_item<'a>(&'a self, tasks_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(tasks_row).with_hover_card(Box::new(move |card_clock| {
             self.open_tasks
                 .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))

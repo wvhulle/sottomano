@@ -148,10 +148,7 @@ impl OverlaySettingsGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, OverlaySettingsMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OverlaySettings,
             GroupSummary::glyph(

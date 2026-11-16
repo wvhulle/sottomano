@@ -237,10 +237,7 @@ impl SidebarSettingsGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, SidebarSettingsMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let mut rows = vec![
             GroupItem::toggle(
                 workspaces_sidebar_toggle(self.workspaces_placement),

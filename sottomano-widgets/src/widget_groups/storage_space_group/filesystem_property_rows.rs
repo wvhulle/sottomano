@@ -100,7 +100,7 @@ pub(super) enum FilesystemPropertyRow<'a> {
 }
 
 impl<'a> FilesystemPropertyRow<'a> {
-    pub(super) fn group_item<M: 'a>(self, locale: Locale) -> GroupItem<'a, M> {
+    pub(super) fn group_item(self, locale: Locale) -> GroupItem<'a> {
         match self {
             FilesystemPropertyRow::Mount(row) => GroupItem::reading(row.reading_row()),
             FilesystemPropertyRow::Volume(row) => GroupItem::reading(row.reading_row()),

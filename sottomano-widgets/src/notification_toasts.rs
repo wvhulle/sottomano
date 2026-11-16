@@ -49,6 +49,7 @@ use crate::{
     widget_groups::{
         notification_group::AlertSound, overlay_settings_group::ToastArrangement,
         quiet_schedule_group::quiet_window::QuietPhase,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         announced_level::LevelReading, ongoing_toast::OngoingKey,
@@ -118,6 +119,7 @@ pub trait ToastLayerHost:
     + From<SurfaceRequest>
     + From<NotificationMessage>
     + From<CompositorRequestFailure>
+    + From<WidgetGroupInteraction>
 {
 }
 
@@ -129,6 +131,7 @@ impl<Routed> ToastLayerHost for Routed where
         + From<SurfaceRequest>
         + From<NotificationMessage>
         + From<CompositorRequestFailure>
+        + From<WidgetGroupInteraction>
 {
 }
 
@@ -146,7 +149,7 @@ pub struct NotificationLayer<Routed> {
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
-    previous_levels: Vec<LevelReading<Routed>>,
+    previous_levels: Vec<LevelReading<WidgetGroupInteraction>>,
 }
 
 impl<Routed> Default for NotificationLayer<Routed> {

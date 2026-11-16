@@ -16,10 +16,7 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep_until;
 
-use crate::{
-    desktop_shell::DesktopShell,
-    shell_message::{Message, ShellInteraction},
-};
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 const HOVER_LOG_TARGET: &str = "sottomano_shell::hover_cards";
 
@@ -218,7 +215,7 @@ impl DesktopShell {
         }
     }
 
-    fn hovered_row_fetch(&self) -> HoverFetch<ShellInteraction> {
+    fn hovered_row_fetch(&self) -> HoverFetch {
         self.hovered_reading_target()
             .and_then(|target| self.hovered_row_requests(&target))
             .map_or(HoverFetch::NothingToFetch, |requests| requests.hover_fetch)
@@ -228,7 +225,7 @@ impl DesktopShell {
         self.active_hover_fetch = self.hovered_row_fetch();
         match &self.active_hover_fetch {
             HoverFetch::Fetch { start, .. } => {
-                let start = start.clone();
+                let start = start.as_ref().clone();
                 self.dispatch_message(Message::from(start))
             }
             HoverFetch::NothingToFetch => Task::none(),
@@ -249,7 +246,7 @@ impl DesktopShell {
 
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
         let stopped = match replace(&mut self.active_hover_fetch, HoverFetch::NothingToFetch) {
-            HoverFetch::Fetch { stop, .. } => self.dispatch_message(Message::from(stop)),
+            HoverFetch::Fetch { stop, .. } => self.dispatch_message(Message::from(*stop)),
             HoverFetch::NothingToFetch => Task::none(),
         };
         let hovered_target = self.hovered_reading_target();

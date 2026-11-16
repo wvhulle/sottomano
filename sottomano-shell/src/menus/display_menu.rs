@@ -1,32 +1,25 @@
-use sottomano_widgets::{
-    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_interaction::WidgetGroupInteraction,
+use sottomano_widgets::group_menus::{
+    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn display_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
+    pub(crate) fn display_group_menu(&self) -> GroupMenuView<'_> {
         let config = &self.config;
         self.group_menu(
             GroupMenuTopic::Display,
             [
                 self.widget_groups
                     .monitor_group
-                    .group_content(config, &self.outputs, self.clock)
-                    .map(WidgetGroupInteraction::Monitor),
+                    .group_content(config, &self.outputs, self.clock),
                 self.widget_groups
                     .dark_mode_group
-                    .group_content(config, self.clock)
-                    .map(WidgetGroupInteraction::DarkMode),
+                    .group_content(config, self.clock),
                 self.widget_groups
                     .color_temperature_group
-                    .group_content(config)
-                    .map(WidgetGroupInteraction::ColorTemperature),
-                self.widget_groups
-                    .wallpaper_group
-                    .group_content(self.clock)
-                    .map(WidgetGroupInteraction::Wallpaper),
+                    .group_content(config),
+                self.widget_groups.wallpaper_group.group_content(self.clock),
             ],
         )
     }

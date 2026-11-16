@@ -287,10 +287,7 @@ impl CompositorStylingGroup {
         }
     }
 
-    fn with_unwritable_rules_warning<'a>(
-        &'a self,
-        styling_item: GroupItem<'a, CompositorStylingMessage>,
-    ) -> GroupItem<'a, CompositorStylingMessage> {
+    fn with_unwritable_rules_warning<'a>(&'a self, styling_item: GroupItem<'a>) -> GroupItem<'a> {
         if self.rules_file.unwritable().is_none() {
             return styling_item;
         }
@@ -363,10 +360,7 @@ impl CompositorStylingGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> WidgetGroupContent<'a, CompositorStylingMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let styling_items = [
             (
                 StylingControl::WindowCornerRadius,

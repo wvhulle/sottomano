@@ -267,7 +267,7 @@ impl PhysicalDriveGroup {
     fn transfer_items<'a>(
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
-    ) -> impl Iterator<Item = GroupItem<'a, DriveInteraction>> {
+    ) -> impl Iterator<Item = GroupItem<'a>> {
         readings
             .activity
             .get()
@@ -296,7 +296,7 @@ impl PhysicalDriveGroup {
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'a, DriveInteraction>> {
+    ) -> impl Iterator<Item = GroupItem<'a>> {
         readings
             .space
             .get()
@@ -322,7 +322,7 @@ impl PhysicalDriveGroup {
         readings: &'a PhysicalDiskReadings,
         clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'a, DriveInteraction> {
+    ) -> WidgetGroupContent<'a> {
         let group_summary = self.disk_space_summary(disk, readings, clock);
         let mut rows: Vec<_> = Self::member_items(disk, readings, locale).collect();
         Self::push_drive_health_rows(&mut rows, clock, disk, readings);
@@ -346,7 +346,7 @@ impl PhysicalDriveGroup {
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
         clock: Clock,
-    ) -> GroupSummary<'a, DriveInteraction> {
+    ) -> GroupSummary<'a> {
         match &readings.space {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 HARD_DRIVES_GLYPH.into(),
@@ -390,7 +390,7 @@ impl PhysicalDriveGroup {
     }
 
     fn push_drive_health_rows<'a>(
-        rows: &mut Vec<GroupItem<'a, DriveInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
@@ -423,7 +423,7 @@ impl PhysicalDriveGroup {
     }
 
     fn push_disk_activity_rows<'a>(
-        rows: &mut Vec<GroupItem<'a, DriveInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
@@ -459,7 +459,7 @@ impl PhysicalDriveGroup {
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
         space_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, DriveInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(space_row)
             .with_hover_card(Box::new(move |_| {
                 readings.space.sections_described_by(disk_space_hover_card)
@@ -473,7 +473,7 @@ impl PhysicalDriveGroup {
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
         health_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, DriveInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(health_row)
             .with_hover_card(Box::new(move |_| {
                 readings
@@ -489,7 +489,7 @@ impl PhysicalDriveGroup {
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
         activity_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, DriveInteraction> {
+    ) -> GroupItem<'a> {
         GroupItem::reading(activity_row)
             .with_hover_card(Box::new(move |_| {
                 readings
@@ -499,10 +499,7 @@ impl PhysicalDriveGroup {
             .refreshed_by(refresh_activity(disk))
     }
 
-    fn mount_discovery_item<'a>(
-        &'a self,
-        discovery_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, DriveInteraction> {
+    fn mount_discovery_item<'a>(&'a self, discovery_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(discovery_row)
             .with_hover_card(Box::new(move |_| {
                 self.discovery
@@ -512,11 +509,7 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn group_contents(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
+    pub fn group_contents(&self, clock: Clock, locale: Locale) -> Vec<WidgetGroupContent<'_>> {
         let group_summary = match &self.discovery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 HARD_DRIVES_GLYPH.into(),

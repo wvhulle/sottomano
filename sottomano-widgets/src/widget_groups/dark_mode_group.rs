@@ -330,11 +330,7 @@ impl DarkModeGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, DarkModeInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let offset_slider = |edge| {
             GroupItem::slider(
@@ -398,10 +394,7 @@ impl DarkModeGroup {
         )
     }
 
-    fn mode_toggle_item<'a>(
-        &'a self,
-        mode_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, DarkModeInteraction> {
+    fn mode_toggle_item<'a>(&'a self, mode_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(mode_row)
             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))

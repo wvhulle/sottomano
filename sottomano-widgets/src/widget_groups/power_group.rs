@@ -221,11 +221,7 @@ impl PowerGroup {
         ])
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, PowerInteraction> {
+    pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let switch_to_saving_profiles =
             self.power_profile
@@ -297,7 +293,7 @@ impl PowerGroup {
         )
     }
 
-    fn power_profile_item<'a>(&'a self, config: &'a Config) -> GroupItem<'a, PowerInteraction> {
+    fn power_profile_item<'a>(&'a self, config: &'a Config) -> GroupItem<'a> {
         GroupItem::slider(
             self.power_profile.slider_control(),
             config,
@@ -319,10 +315,7 @@ impl PowerGroup {
         )))
     }
 
-    fn battery_charge_item<'a>(
-        &'a self,
-        charge_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, PowerInteraction> {
+    fn battery_charge_item<'a>(&'a self, charge_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(charge_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.battery.sections_described_by(battery_hover_card);
@@ -335,7 +328,7 @@ impl PowerGroup {
             .refreshed_by(battery_refresh())
     }
 
-    fn power_draw_item(&self, draw: PowerDraw) -> GroupItem<'_, PowerInteraction> {
+    fn power_draw_item(&self, draw: PowerDraw) -> GroupItem<'_> {
         GroupItem::reading(draw.reading_row())
             .with_hover_card(Box::new(move |_| {
                 self.draw().map_or_else(Vec::new, |current_draw| {

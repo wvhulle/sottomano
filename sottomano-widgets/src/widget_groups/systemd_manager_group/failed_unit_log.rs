@@ -25,9 +25,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
-        systemd_manager_group::{
-            SystemdManagerGroup, SystemdManagerInteraction, unit_scope_icon, unit_toast_key,
-        },
+        systemd_manager_group::{SystemdManagerInteraction, unit_scope_icon, unit_toast_key},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -39,13 +37,11 @@ use crate::{
     },
 };
 
-impl SystemdManagerGroup {}
-
 pub(super) fn failed_units_item<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerInteraction> {
+) -> GroupItem<'a> {
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {

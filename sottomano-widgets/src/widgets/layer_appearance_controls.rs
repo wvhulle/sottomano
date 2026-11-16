@@ -14,6 +14,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
     widgets::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
@@ -330,11 +331,11 @@ impl LayerAppearanceControls {
         )
     }
 
-    pub fn items<'a, M: Clone + 'a>(
+    pub fn items<'a, M: Into<WidgetGroupInteraction> + 'a>(
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,
-    ) -> [GroupItem<'a, M>; 8] {
+    ) -> [GroupItem<'a>; 8] {
         [
             GroupItem::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))

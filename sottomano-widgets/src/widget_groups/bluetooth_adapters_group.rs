@@ -194,7 +194,7 @@ impl BluetoothAdaptersGroup {
         adapter: &'a BluetoothAdapter,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
+    ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::Bluetooth(Weight::Regular).into(),
@@ -218,7 +218,7 @@ impl BluetoothAdaptersGroup {
                     .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
             }));
         let siblings = adapter.power.connected_devices();
-        let device_items: Vec<GroupItem<'a, BluetoothInteraction>> = siblings
+        let device_items: Vec<GroupItem<'a>> = siblings
             .iter()
             .map(|device| {
                 let input_reports = report_timing_for(&device.address)
@@ -262,7 +262,7 @@ impl BluetoothAdaptersGroup {
         &self,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'_, BluetoothInteraction>> {
+    ) -> Vec<WidgetGroupContent<'_>> {
         self.bluetooth
             .get()
             .map(|bluetooth| bluetooth.adapters.as_slice())

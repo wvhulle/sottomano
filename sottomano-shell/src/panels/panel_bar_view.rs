@@ -14,7 +14,7 @@ use sottomano_widgets::{
     hover_cards::HoverTarget,
     widget_groups::{
         panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
-        widget_group_interaction::WidgetGroupInteraction, workspaces_group::inline_strip,
+        workspaces_group::inline_strip,
     },
 };
 
@@ -74,11 +74,13 @@ impl DesktopShell {
                         .handle_indicator(&HoverTarget::GroupMenu(topic), output),
                     self.clock,
                 )
+                .map(|element| element.map(ShellInteraction::from))
                 .collect(),
             PanelZoneEntry::Standalone(group) => self
                 .standalone_group(group)
                 .view(config, position, self.clock)
                 .into_iter()
+                .map(|element| element.map(ShellInteraction::from))
                 .collect(),
             PanelZoneEntry::Fixed(entry) => {
                 let fixed_group = self.fixed_panel_group(entry);
@@ -95,6 +97,7 @@ impl DesktopShell {
                         self.clock,
                     )
                     .into_iter()
+                    .map(|element| element.map(ShellInteraction::from))
                     .collect()
             }
             PanelZoneEntry::InlineWorkspaces => self
@@ -223,14 +226,6 @@ impl DesktopShell {
                 output,
                 self.panel_slot_context(position),
             )
-            .map(|element| {
-                element.map(|event| {
-                    ShellInteraction::from(event.map(|window_interaction| {
-                        ShellInteraction::Group(WidgetGroupInteraction::WindowGroup(
-                            window_interaction,
-                        ))
-                    }))
-                })
-            })
+            .map(|element| element.map(ShellInteraction::from))
     }
 }

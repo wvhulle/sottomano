@@ -37,6 +37,7 @@ use crate::{
     widget_groups::{
         widget_group_content::{GroupEvent, GroupToastRequests},
         widget_group_identity::WidgetGroupIdentity,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -48,14 +49,14 @@ use crate::{
     },
 };
 
-type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
-type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawItem<'a> = Box<dyn Fn(f32) -> Element<'a, GroupEvent> + 'a>;
+type DrawControl<'a> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent> + 'a>;
 
-type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
+type AdjustByScroll<'a> = Rc<dyn Fn(ScrollDelta) -> WidgetGroupInteraction + 'a>;
 
-pub(crate) enum RowScroll<'a, M> {
+pub(crate) enum RowScroll<'a> {
     Inert,
-    AdjustsValue(AdjustByScroll<'a, M>),
+    AdjustsValue(AdjustByScroll<'a>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,37 +74,19 @@ enum ItemPowerControl {
     StopGlyph,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HoverFetch<M> {
+#[derive(Debug, Clone)]
+pub enum HoverFetch {
     NothingToFetch,
-    Fetch { start: M, stop: M },
+    Fetch {
+        start: Box<WidgetGroupInteraction>,
+        stop: Box<WidgetGroupInteraction>,
+    },
 }
 
-impl<M> HoverFetch<M> {
-    fn map<Outer>(self, lift: fn(M) -> Outer) -> HoverFetch<Outer> {
-        match self {
-            HoverFetch::NothingToFetch => HoverFetch::NothingToFetch,
-            HoverFetch::Fetch { start, stop } => HoverFetch::Fetch {
-                start: lift(start),
-                stop: lift(stop),
-            },
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReadingRefresh<M> {
+#[derive(Debug, Clone)]
+pub enum ReadingRefresh {
     Unrefreshable,
-    Refreshes(M),
-}
-
-impl<M> ReadingRefresh<M> {
-    fn map<Outer>(self, lift: fn(M) -> Outer) -> ReadingRefresh<Outer> {
-        match self {
-            ReadingRefresh::Unrefreshable => ReadingRefresh::Unrefreshable,
-            ReadingRefresh::Refreshes(message) => ReadingRefresh::Refreshes(lift(message)),
-        }
-    }
+    Refreshes(WidgetGroupInteraction),
 }
 
 pub struct RowHoverCard {
@@ -111,61 +94,31 @@ pub struct RowHoverCard {
     pub header: CardHeader,
 }
 
-pub enum GroupItemValue<'a, M> {
+pub enum GroupItemValue<'a> {
     Nothing,
-    Drawn(DrawItem<'a, M>),
+    Drawn(DrawItem<'a>),
 }
 
-impl<'a, M: 'a> GroupItemValue<'a, M> {
-    pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
+impl<'a> GroupItemValue<'a> {
+    pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent> + 'a) -> Self {
         GroupItemValue::Drawn(Box::new(draw))
     }
 
-    fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent<M>>> {
+    fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent>> {
         match self {
             GroupItemValue::Nothing => None,
             GroupItemValue::Drawn(draw) => Some(draw(reveal)),
         }
     }
-
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItemValue<'a, Outer> {
-        match self {
-            GroupItemValue::Nothing => GroupItemValue::Nothing,
-            GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(Box::new(move |reveal| {
-                draw(reveal).map(move |event| event.map(lift))
-            })),
-        }
-    }
 }
 
-enum RowValueControl<'a, M> {
+enum RowValueControl<'a> {
     RowReadout(RowReadout),
     Slider {
-        readout: RowReadout,
-        draw: DrawControl<'a, M>,
-        adjust_by_scroll: AdjustByScroll<'a, M>,
+        draw: DrawControl<'a>,
+        adjust_by_scroll: AdjustByScroll<'a>,
     },
-    Drawn(GroupItemValue<'a, M>),
-}
-
-impl<'a, M: 'a> RowValueControl<'a, M> {
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> RowValueControl<'a, Outer> {
-        match self {
-            RowValueControl::RowReadout(readout) => RowValueControl::RowReadout(readout),
-            RowValueControl::Slider {
-                readout,
-                draw,
-                adjust_by_scroll,
-            } => RowValueControl::Slider {
-                readout,
-                draw: Box::new(move |reveal, clock, placement| {
-                    draw(reveal, clock, placement).map(move |event| event.map(lift))
-                }),
-                adjust_by_scroll: Rc::new(move |delta| lift(adjust_by_scroll(delta))),
-            },
-            RowValueControl::Drawn(value) => RowValueControl::Drawn(value.map(lift)),
-        }
-    }
+    Drawn(GroupItemValue<'a>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -181,28 +134,28 @@ pub(crate) fn reading_toast_severity(row: &ReadingRow<'_>) -> Option<Severity> {
     state_alert_severity(row.shown_state(), &row.alerts.state_toast)
 }
 
-pub struct GroupItem<'a, M> {
+pub struct GroupItem<'a> {
     face: RowFace,
-    value: RowValueControl<'a, M>,
+    value: RowValueControl<'a>,
     pinning: ItemPinning,
     card: DescribeCard<'a>,
     alerts: ReadingAlerts,
-    gestures: GroupItemGestures<M>,
+    gestures: GroupItemGestures,
     control_actions: Vec<PressAction>,
     button_actions: Vec<PressAction>,
-    hover_fetch: HoverFetch<M>,
-    refresh: ReadingRefresh<M>,
+    hover_fetch: HoverFetch,
+    refresh: ReadingRefresh,
     power_control: ItemPowerControl,
-    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
-    ongoing_toasts: Vec<OngoingToast<M>>,
+    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<WidgetGroupInteraction>>,
+    ongoing_toasts: Vec<OngoingToast<WidgetGroupInteraction>>,
     alignment: ItemAlignment,
     card_opening_trigger: NestedMenuOpenTrigger,
 }
 
-impl<'a, M: 'a> GroupItem<'a, M> {
+impl<'a> GroupItem<'a> {
     fn assembled_row(
         face: RowFace,
-        value: RowValueControl<'a, M>,
+        value: RowValueControl<'a>,
         pinning: ItemPinning,
         card: DescribeCard<'a>,
         alerts: ReadingAlerts,
@@ -251,10 +204,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         )
     }
 
-    pub fn slider(
+    pub fn slider<Interaction: Into<WidgetGroupInteraction>>(
         slider: &'a SliderControl,
         config: &'a Config,
-        on_control: impl Fn(ControlMessage) -> M + 'a,
+        on_control: impl Fn(ControlMessage) -> Interaction + 'a,
     ) -> Self {
         let ReadingRow {
             face,
@@ -273,9 +226,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let slider_row = Self::assembled_row(
             face,
             RowValueControl::Slider {
-                readout,
                 adjust_by_scroll: Rc::new(move |delta| {
-                    scrolled_control(ControlMessage::Scroll(delta))
+                    scrolled_control(ControlMessage::Scroll(delta)).into()
                 }),
                 draw: Box::new(move |reveal, _, placement| {
                     let on_control = Rc::clone(&on_control);
@@ -284,7 +236,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                         ItemPlacement::Table => slider.always_open_view(config),
                         ItemPlacement::Menu => slider.menu_view(config),
                     };
-                    slider_view.map(move |message| GroupEvent::Group(on_control(message)))
+                    slider_view
+                        .map(move |message| GroupEvent::Interaction(on_control(message).into()))
                 }),
             },
             ItemPinning::Pinnable,
@@ -300,7 +253,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub fn composed(
         name: impl Into<Cow<'static, str>>,
         icon: GroupItemIcon,
-        value: GroupItemValue<'a, M>,
+        value: GroupItemValue<'a>,
         card: DescribeCard<'a>,
     ) -> Self {
         Self::assembled_row(
@@ -319,7 +272,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub fn composed_pinnable(
         name: impl Into<Cow<'static, str>>,
         icon: GroupItemIcon,
-        value: GroupItemValue<'a, M>,
+        value: GroupItemValue<'a>,
         card: DescribeCard<'a>,
     ) -> Self {
         Self {
@@ -328,7 +281,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn toggle(toggle: IconToggle, message: M) -> Self {
+    pub fn toggle(toggle: IconToggle, message: impl Into<WidgetGroupInteraction>) -> Self {
         let switch_position = toggle.switch_position;
         let press_does = toggle.press_does();
         Self::reading(toggle.reading_row()).on_switch_press(switch_position, press_does, message)
@@ -339,7 +292,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         mut self,
         switch_position: impl Into<SwitchPosition>,
         description: &'static str,
-        message: M,
+        message: impl Into<WidgetGroupInteraction>,
     ) -> Self {
         self.power_control = ItemPowerControl::Switch(switch_position.into());
         self.on_press(description, message)
@@ -352,25 +305,37 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn on_stop_press(mut self, description: &'static str, message: M) -> Self {
+    pub fn on_stop_press(
+        mut self,
+        description: &'static str,
+        message: impl Into<WidgetGroupInteraction>,
+    ) -> Self {
         self.power_control = ItemPowerControl::StopGlyph;
         self.on_press(description, message)
     }
 
     #[must_use]
-    pub fn on_press(mut self, description: &'static str, message: M) -> Self {
+    pub fn on_press(
+        mut self,
+        description: &'static str,
+        message: impl Into<WidgetGroupInteraction>,
+    ) -> Self {
         self.gestures.left = GroupItemGesture::Performs {
             description,
-            message,
+            message: message.into(),
         };
         self
     }
 
     #[must_use]
-    pub fn on_right_press(mut self, description: &'static str, message: M) -> Self {
+    pub fn on_right_press(
+        mut self,
+        description: &'static str,
+        message: impl Into<WidgetGroupInteraction>,
+    ) -> Self {
         self.gestures.right = GroupItemGesture::Performs {
             description,
-            message,
+            message: message.into(),
         };
         self
     }
@@ -387,34 +352,41 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn fetching_on_hover(self, start: M, stop: M) -> Self {
+    pub fn fetching_on_hover(
+        self,
+        start: impl Into<WidgetGroupInteraction>,
+        stop: impl Into<WidgetGroupInteraction>,
+    ) -> Self {
         Self {
-            hover_fetch: HoverFetch::Fetch { start, stop },
+            hover_fetch: HoverFetch::Fetch {
+                start: Box::new(start.into()),
+                stop: Box::new(stop.into()),
+            },
             ..self
         }
     }
 
     #[must_use]
-    pub fn refreshed_by(self, refresh: M) -> Self {
+    pub fn refreshed_by(self, refresh: impl Into<WidgetGroupInteraction>) -> Self {
         Self {
-            refresh: ReadingRefresh::Refreshes(refresh),
+            refresh: ReadingRefresh::Refreshes(refresh.into()),
             ..self
         }
     }
 
     #[must_use]
-    pub fn hover_fetch(&self) -> &HoverFetch<M> {
+    pub fn hover_fetch(&self) -> &HoverFetch {
         &self.hover_fetch
     }
 
     #[must_use]
-    pub fn refresh(&self) -> &ReadingRefresh<M> {
+    pub fn refresh(&self) -> &ReadingRefresh {
         &self.refresh
     }
 
     #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
-        let gesture_action = |gesture, item_gesture: &GroupItemGesture<M>| {
+        let gesture_action = |gesture, item_gesture: &GroupItemGesture| {
             item_gesture
                 .description()
                 .map(|description| PressAction::new(gesture, description))
@@ -443,20 +415,29 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn ongoing_toasts(self, ongoing_toasts: impl IntoIterator<Item = OngoingToast<M>>) -> Self {
+    pub fn ongoing_toasts<Interaction: Into<WidgetGroupInteraction>>(
+        self,
+        ongoing_toasts: impl IntoIterator<Item = OngoingToast<Interaction>>,
+    ) -> Self {
         Self {
-            ongoing_toasts: ongoing_toasts.into_iter().collect(),
+            ongoing_toasts: ongoing_toasts
+                .into_iter()
+                .map(|ongoing_toast| ongoing_toast.map_messages(Into::into))
+                .collect(),
             ..self
         }
     }
 
     #[must_use]
-    pub fn ongoing_toast_action_buttons(
+    pub fn ongoing_toast_action_buttons<Interaction: Into<WidgetGroupInteraction>>(
         self,
-        buttons: impl IntoIterator<Item = OngoingToastActionButton<M>>,
+        buttons: impl IntoIterator<Item = OngoingToastActionButton<Interaction>>,
     ) -> Self {
         Self {
-            ongoing_toast_action_buttons: buttons.into_iter().collect(),
+            ongoing_toast_action_buttons: buttons
+                .into_iter()
+                .map(|button| button.map_message(Into::into))
+                .collect(),
             ..self
         }
     }
@@ -483,44 +464,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .collect()
     }
 
-    pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
-        GroupItem {
-            face: self.face,
-            value: self.value.map(lift),
-            pinning: self.pinning,
-            card: self.card,
-            alerts: self.alerts,
-            gestures: self.gestures.map(lift),
-            control_actions: self.control_actions,
-            button_actions: self.button_actions,
-            hover_fetch: self.hover_fetch.map(lift),
-            refresh: self.refresh.map(lift),
-            power_control: self.power_control,
-            card_opening_trigger: self.card_opening_trigger,
-            ongoing_toast_action_buttons: self
-                .ongoing_toast_action_buttons
-                .into_iter()
-                .map(|button| button.map_message(lift))
-                .collect(),
-            ongoing_toasts: self
-                .ongoing_toasts
-                .into_iter()
-                .map(|alert| alert.map_messages(lift))
-                .collect(),
-            alignment: self.alignment,
-        }
-    }
-
     pub(crate) fn toast_requests(
         &self,
         group: &WidgetGroupIdentity,
-        on_body_clicked: M,
+        on_body_clicked: WidgetGroupInteraction,
         locale: Locale,
         clock: Clock,
-    ) -> GroupToastRequests<M>
-    where
-        M: Clone,
-    {
+    ) -> GroupToastRequests {
         let notice = RowNotice {
             instrument: self.instrument_key(group),
             widget_name: self.face.name.clone(),
@@ -568,47 +518,31 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         reveal: f32,
         clock: Clock,
         hover_target: HoverTarget,
-    ) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
+    ) -> Element<'a, GroupEvent> {
         let opening = self.card_opening_trigger;
         self.placed_view(
             config,
             reveal,
             clock,
             ItemPlacement::Panel,
-            move |content| hoverable(opening, content, hover_target, GroupEvent::HoverCard),
+            move |content| hoverable(opening, content, hover_target, GroupEvent::from),
         )
     }
 
-    pub(crate) fn table_cell_view(
-        &self,
-        config: &Config,
-        clock: Clock,
-    ) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
+    pub(crate) fn table_cell_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
         self.placed_view(config, 1.0, clock, ItemPlacement::Table, identity)
     }
 
-    pub(crate) fn gestures(&self) -> GroupItemGestures<M>
-    where
-        M: Clone,
-    {
+    pub(crate) fn gestures(&self) -> GroupItemGestures {
         self.gestures.clone()
     }
 
-    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
         face_icon(config, &self.face, 1.0).unwrap_or_else(|| Space::new().into())
     }
 
-    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
-        let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
+        let empty = || -> Element<'a, GroupEvent> { Space::new().into() };
         match &self.value {
             RowValueControl::RowReadout(readout) => {
                 reading_value(config, &self.face, readout, 1.0).unwrap_or_else(empty)
@@ -621,9 +555,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     fn with_switch_indicator(
         &self,
         config: &Config,
-        switched_content: Element<'a, GroupEvent<M>>,
+        switched_content: Element<'a, GroupEvent>,
         opacity: f32,
-    ) -> Element<'a, GroupEvent<M>> {
+    ) -> Element<'a, GroupEvent> {
         let power_indicator = match self.power_control {
             ItemPowerControl::Absent => return switched_content,
             ItemPowerControl::Switch(switch_position) => {
@@ -643,10 +577,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .into()
     }
 
-    pub(crate) fn menu_row_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
+    pub(crate) fn menu_row_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
         self.with_switch_indicator(config, self.menu_value(config, clock), 1.0)
     }
 
@@ -662,7 +593,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(crate) fn row_scroll(&self) -> RowScroll<'a, M> {
+    pub(crate) fn row_scroll(&self) -> RowScroll<'a> {
         match &self.value {
             RowValueControl::Slider {
                 adjust_by_scroll, ..
@@ -701,11 +632,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         reveal: f32,
         clock: Clock,
         placement: ItemPlacement,
-        hover_area: impl FnOnce(Element<'a, GroupEvent<M>>) -> Element<'a, GroupEvent<M>>,
-    ) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
+        hover_area: impl FnOnce(Element<'a, GroupEvent>) -> Element<'a, GroupEvent>,
+    ) -> Element<'a, GroupEvent> {
         let content = match &self.value {
             RowValueControl::RowReadout(readout) => self.with_switch_indicator(
                 config,
@@ -730,12 +658,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             element = button(element)
                 .padding(0)
                 .style(flat_button(text_color))
-                .on_press(GroupEvent::Group(message))
+                .on_press(GroupEvent::Interaction(message))
                 .into();
         }
         if let GroupItemGesture::Performs { message, .. } = self.gestures.right.clone() {
             element = mouse_area(element)
-                .on_right_press(GroupEvent::Group(message))
+                .on_right_press(GroupEvent::Interaction(message))
                 .into();
         }
         element
@@ -754,12 +682,15 @@ mod tests {
     use crate::{
         group_items::{reading_row::named_test_row, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
-        hover_cards::{AnchorEvent, HoverCardMessage},
-        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage},
+        widget_groups::{
+            compositor_styling_group::CompositorStylingMessage,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        },
         widgets::phosphor::{Phosphor, Weight},
     };
 
-    fn composed_row() -> GroupItem<'static, ()> {
+    fn composed_row() -> GroupItem<'static> {
         GroupItem::composed(
             "Composed row",
             GroupItemIcon::Absent,
@@ -768,7 +699,7 @@ mod tests {
         )
     }
 
-    fn left_action(item: &GroupItem<'_, ()>) -> Option<Cow<'static, str>> {
+    fn left_action(item: &GroupItem<'_>) -> Option<Cow<'static, str>> {
         item.press_actions()
             .into_iter()
             .find(|action| action.gesture == MouseGesture::LeftClick)
@@ -782,14 +713,16 @@ mod tests {
 
     #[test]
     fn items_without_a_press_have_inert_gestures() {
-        assert_eq!(composed_row().gestures(), GroupItemGestures::inert());
+        let gestures = composed_row().gestures();
+        assert!(matches!(gestures.left, GroupItemGesture::Inert));
+        assert!(matches!(gestures.right, GroupItemGesture::Inert));
     }
 
     #[test]
     fn every_listed_gesture_has_a_handler() {
         let item = composed_row()
-            .on_press("left action", ())
-            .on_right_press("right action", ());
+            .on_press("left action", CompositorStylingMessage::ToggleXray)
+            .on_right_press("right action", CompositorStylingMessage::ToggleXray);
         assert_eq!(
             item.press_actions(),
             vec![
@@ -820,8 +753,8 @@ mod tests {
 
     #[test]
     fn a_composed_item_shares_the_pin_of_the_reading_it_replaces_under_the_same_name() {
-        let reading: GroupItem<'static, ()> = GroupItem::reading(named_test_row("Lyrics"));
-        let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
+        let reading: GroupItem<'static> = GroupItem::reading(named_test_row("Lyrics"));
+        let composed: GroupItem<'static> = GroupItem::composed_pinnable(
             "Lyrics",
             GroupItemIcon::Absent,
             GroupItemValue::Nothing,
@@ -845,15 +778,17 @@ mod tests {
 
     #[test]
     fn an_item_with_only_a_press_action_shows_no_switch() {
-        let launcher_row = composed_row().on_press("launch", ());
+        let launcher_row = composed_row().on_press("launch", CompositorStylingMessage::ToggleXray);
         assert_eq!(launcher_row.power_control, ItemPowerControl::Absent);
     }
 
     #[test]
     fn a_toggle_shows_a_switch_in_its_current_position() {
         let indicator_of = |switch_position| {
-            let item: GroupItem<'static, ()> =
-                GroupItem::toggle(toggle_in_position(switch_position), ());
+            let item: GroupItem<'static> = GroupItem::toggle(
+                toggle_in_position(switch_position),
+                CompositorStylingMessage::ToggleXray,
+            );
             item.power_control
         };
         assert_eq!(
@@ -868,7 +803,11 @@ mod tests {
 
     #[test]
     fn a_switch_press_lists_the_same_gesture_as_a_plain_press() {
-        let item = composed_row().on_switch_press(SwitchPosition::On, "turn off", ());
+        let item = composed_row().on_switch_press(
+            SwitchPosition::On,
+            "turn off",
+            CompositorStylingMessage::ToggleXray,
+        );
         assert_eq!(left_action(&item).as_deref(), Some("turn off"));
     }
 
@@ -880,10 +819,10 @@ mod tests {
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
         let config = Config::default();
         let slider = offset_slider();
-        let reading: GroupItem<'static, ()> = GroupItem::reading(named_test_row("Named reading"));
+        let reading: GroupItem<'static> = GroupItem::reading(named_test_row("Named reading"));
         assert_eq!(reading.pinning(), ItemPinning::Pinnable);
         assert_eq!(
-            GroupItem::slider(&slider, &config, |_| ()).pinning(),
+            GroupItem::slider(&slider, &config, CompositorStylingMessage::CornerRadius).pinning(),
             ItemPinning::Pinnable
         );
         assert_eq!(composed_row().pinning(), ItemPinning::Unpinnable);
@@ -894,7 +833,8 @@ mod tests {
         let config = Config::default();
         let slider = offset_slider();
         assert_eq!(
-            GroupItem::slider(&slider, &config, |_| ()).item_in_group_name(),
+            GroupItem::slider(&slider, &config, CompositorStylingMessage::CornerRadius)
+                .item_in_group_name(),
             slider.name()
         );
     }
@@ -904,7 +844,8 @@ mod tests {
         let config = Config::default();
         let slider = offset_slider();
         assert_eq!(
-            GroupItem::slider(&slider, &config, |_| ()).press_actions(),
+            GroupItem::slider(&slider, &config, CompositorStylingMessage::CornerRadius)
+                .press_actions(),
             vec![
                 PressAction::new(MouseGesture::LeftClick, "open the slider"),
                 PressAction::new(MouseGesture::Scroll, "adjust"),
@@ -929,12 +870,10 @@ mod tests {
         Press,
     }
 
-    fn events_from_pointing_at_pinned_slider(
-        slider_pointing: SliderPointing,
-    ) -> Vec<GroupEvent<ControlMessage>> {
+    fn events_from_pointing_at_pinned_slider(slider_pointing: SliderPointing) -> Vec<GroupEvent> {
         let config = Config::default();
         let slider = offset_slider();
-        let item = GroupItem::slider(&slider, &config, |message| message);
+        let item = GroupItem::slider(&slider, &config, CompositorStylingMessage::CornerRadius);
         let mut panel = Simulator::with_size(
             Settings::default(),
             Size::new(200.0, 100.0),
@@ -958,9 +897,9 @@ mod tests {
             events_from_pointing_at_pinned_slider(SliderPointing::Hover)
                 .into_iter()
                 .filter_map(|event| match event {
-                    GroupEvent::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
-                        target,
-                    })) => Some(target),
+                    GroupEvent::Popup(PopupMessage::HoverCard(HoverCardMessage::Anchor(
+                        AnchorEvent::Entered { target },
+                    ))) => Some(target),
                     _ => None,
                 })
                 .collect();
@@ -972,13 +911,19 @@ mod tests {
         assert!(
             events_from_pointing_at_pinned_slider(SliderPointing::Press)
                 .iter()
-                .any(|event| matches!(event, GroupEvent::Group(ControlMessage::Press)))
+                .any(|event| matches!(
+                    event,
+                    GroupEvent::Interaction(WidgetGroupInteraction::CompositorStyling(
+                        CompositorStylingMessage::CornerRadius(ControlMessage::Press)
+                    ))
+                ))
         );
     }
 
     #[test]
     fn a_stop_press_shows_a_stop_glyph_and_an_inert_switch_has_no_press() {
-        let stoppable = composed_row().on_stop_press("stop the machine", ());
+        let stoppable =
+            composed_row().on_stop_press("stop the machine", CompositorStylingMessage::ToggleXray);
         assert_eq!(stoppable.power_control, ItemPowerControl::StopGlyph);
         assert_eq!(left_action(&stoppable).as_deref(), Some("stop the machine"));
         let uncontrolled = composed_row().inert_switch(SwitchPosition::On);

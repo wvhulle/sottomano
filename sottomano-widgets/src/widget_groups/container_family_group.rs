@@ -21,6 +21,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::WidgetGroupFamily,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot},
 };
@@ -106,7 +107,10 @@ pub enum ContainerFamilyInteraction<Family: ContainerFamily> {
     Expansion(WidgetGroupExpansionMessage),
 }
 
-impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
+impl<Family: ContainerFamily> ContainerFamilyGroup<Family>
+where
+    ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
+{
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -148,10 +152,10 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         interaction: ContainerFamilyInteraction<Family>,
     ) -> Task<ContainerFamilyMessage<Family>> {
         match interaction {
-            ContainerFamilyInteraction::Stop(request) => {
+            ContainerFamilyInteraction::<Family>::Stop(request) => {
                 refused_power_change(Family::stop(request))
             }
-            ContainerFamilyInteraction::Start(request) => {
+            ContainerFamilyInteraction::<Family>::Start(request) => {
                 refused_power_change(Family::start(request))
             }
             ContainerFamilyInteraction::Expansion(expansion_message) => {
@@ -182,20 +186,19 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             .unwrap_or_default()
     }
 
-    fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
+    fn group_rows(&self) -> Vec<GroupItem<'_>> {
         let detail_rows = self.detail_rows();
-        let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
-            if detail_rows.is_empty() {
-                self.listing_rows()
-                    .into_iter()
-                    .map(|row| switchable_item(stamped_by_source(&self.listings, row)))
-                    .collect()
-            } else {
-                detail_rows
-                    .into_iter()
-                    .map(|row| switchable_item(stamped_by_source(&self.detail, row)))
-                    .collect()
-            };
+        let mut group_rows: Vec<GroupItem<'_>> = if detail_rows.is_empty() {
+            self.listing_rows()
+                .into_iter()
+                .map(|row| switchable_item(stamped_by_source(&self.listings, row)))
+                .collect()
+        } else {
+            detail_rows
+                .into_iter()
+                .map(|row| switchable_item(stamped_by_source(&self.detail, row)))
+                .collect()
+        };
         group_rows.extend(
             self.stopped_rows()
                 .into_iter()
@@ -204,7 +207,7 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         group_rows
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             Family::FAMILY,
             GroupSummary::glyph(
@@ -242,24 +245,26 @@ fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
     }
 }
 
-fn switchable_item<Family: ContainerFamily>(
-    row: FamilyRow<'_, Family>,
-) -> GroupItem<'_, ContainerFamilyInteraction<Family>> {
+fn switchable_item<Family: ContainerFamily>(row: FamilyRow<'_, Family>) -> GroupItem<'_>
+where
+    ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
+{
     let item = GroupItem::reading(row.reading);
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
             Family::STOP_HINT,
-            ContainerFamilyInteraction::Stop(request),
+            ContainerFamilyInteraction::<Family>::Stop(request),
         ),
         RowPower::SwitchedOff(request) => item.on_switch_press(
             SwitchPosition::Off,
             Family::START_HINT,
-            ContainerFamilyInteraction::Start(request),
+            ContainerFamilyInteraction::<Family>::Start(request),
         ),
-        RowPower::Stoppable(request) => {
-            item.on_stop_press(Family::STOP_HINT, ContainerFamilyInteraction::Stop(request))
-        }
+        RowPower::Stoppable(request) => item.on_stop_press(
+            Family::STOP_HINT,
+            ContainerFamilyInteraction::<Family>::Stop(request),
+        ),
     }
 }
 
@@ -281,7 +286,7 @@ mod tests {
         vmware_machines::{VmwareMachine, VmwareMachineListing},
     };
 
-    use super::{ContainerFamily, ContainerFamilyGroup, RowPower};
+    use super::{ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction, RowPower};
     use crate::{
         clock::Clock,
         hover_cards::{HoverTarget, InstrumentKey, hover_card_body::Section},
@@ -290,6 +295,7 @@ mod tests {
             virtualbox_machines_group::{VirtualBoxMachinesGroup, VirtualBoxMachinesMessage},
             vmware_machines_group::{VmwareMachinesGroup, VmwareMachinesMessage},
             widget_group_identity::WidgetGroupIdentity,
+            widget_group_interaction::WidgetGroupInteraction,
         },
     };
 
@@ -307,7 +313,10 @@ mod tests {
         group: &ContainerFamilyGroup<Family>,
         row_name: &'static str,
         clock: Clock,
-    ) -> Vec<Section> {
+    ) -> Vec<Section>
+    where
+        ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
+    {
         let instrument = HoverTarget::Instrument(InstrumentKey {
             group: WidgetGroupIdentity::sole(Family::FAMILY),
             name: row_name.into(),

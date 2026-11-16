@@ -63,10 +63,10 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
 }
 
 fn instance_power_switch<'a>(
-    row: GroupItem<'a, IncusInstancesInteraction>,
+    row: GroupItem<'a>,
     instance_daemon: InstanceDaemon,
     listing: &DaemonInstanceListing,
-) -> GroupItem<'a, IncusInstancesInteraction> {
+) -> GroupItem<'a> {
     let (switch_position, hint, run_change) = match listing.run_state {
         ContainerRunState::Running => (SwitchPosition::On, STOP_HINT, RunChange::Stop),
         ContainerRunState::Stopped => (SwitchPosition::Off, START_HINT, RunChange::Start),
@@ -364,7 +364,7 @@ impl IncusInstancesGroup {
             .map(|InstanceDaemonProbe(availability)| *availability)
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let rows = WATCHED_DAEMONS
             .into_iter()
             .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
@@ -386,10 +386,7 @@ impl IncusInstancesGroup {
         )
     }
 
-    fn daemon_rows(
-        &self,
-        instance_daemon: InstanceDaemon,
-    ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
+    fn daemon_rows(&self, instance_daemon: InstanceDaemon) -> Vec<GroupItem<'_>> {
         if let Some(detail_reading) = self.details.get(&instance_daemon)
             && let Some(instances) = detail_reading.get()
         {

@@ -190,10 +190,7 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn slot_items(
-        &self,
-        locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_, MemoryBoardInteraction>> {
+    fn slot_items(&self, locale: Locale) -> impl Iterator<Item = GroupItem<'_>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
             hardware
@@ -217,7 +214,7 @@ impl MemoryBoardGroup {
         })
     }
 
-    fn temperature_items(&self) -> impl Iterator<Item = GroupItem<'_, MemoryBoardInteraction>> {
+    fn temperature_items(&self) -> impl Iterator<Item = GroupItem<'_>> {
         self.module_temperatures
             .get()
             .into_iter()
@@ -239,11 +236,7 @@ impl MemoryBoardGroup {
             })
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
+    pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = self.memory_usage_summary(clock, locale);
         let mut rows = Vec::new();
         self.push_memory_growth_rows(&mut rows, clock, locale);
@@ -260,11 +253,7 @@ impl MemoryBoardGroup {
         )
     }
 
-    fn memory_usage_summary(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> GroupSummary<'_, MemoryBoardInteraction> {
+    fn memory_usage_summary(&self, clock: Clock, locale: Locale) -> GroupSummary<'_> {
         match &self.memory {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 MEMORY_USAGE_GLYPH.into(),
@@ -294,7 +283,7 @@ impl MemoryBoardGroup {
 
     fn push_memory_growth_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
@@ -325,7 +314,7 @@ impl MemoryBoardGroup {
 
     fn push_stall_pressure_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
@@ -356,7 +345,7 @@ impl MemoryBoardGroup {
 
     fn push_swap_activity_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a, MemoryBoardInteraction>>,
+        rows: &mut Vec<GroupItem<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
@@ -385,10 +374,7 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn memory_usage_item<'a>(
-        &'a self,
-        usage_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, MemoryBoardInteraction> {
+    fn memory_usage_item<'a>(&'a self, usage_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(usage_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.memory.sections_described_by(memory_hover_card);
@@ -405,10 +391,7 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
     }
 
-    fn memory_growth_item<'a>(
-        &'a self,
-        growth_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, MemoryBoardInteraction> {
+    fn memory_growth_item<'a>(&'a self, growth_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(growth_row)
             .with_hover_card(Box::new(move |_| {
                 self.memory_growth
@@ -417,10 +400,7 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
     }
 
-    fn stall_pressure_item<'a>(
-        &'a self,
-        pressure_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, MemoryBoardInteraction> {
+    fn stall_pressure_item<'a>(&'a self, pressure_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(pressure_row)
             .with_hover_card(Box::new(move |_| {
                 self.stall_pressure
@@ -429,10 +409,7 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
     }
 
-    fn swap_activity_item<'a>(
-        &'a self,
-        swap_row: ReadingRow<'a>,
-    ) -> GroupItem<'a, MemoryBoardInteraction> {
+    fn swap_activity_item<'a>(&'a self, swap_row: ReadingRow<'a>) -> GroupItem<'a> {
         GroupItem::reading(swap_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self

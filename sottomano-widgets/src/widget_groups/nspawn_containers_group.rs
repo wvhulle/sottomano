@@ -302,7 +302,7 @@ impl NspawnContainersGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NspawnContainersInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let containers = self
             .listing
             .get()
