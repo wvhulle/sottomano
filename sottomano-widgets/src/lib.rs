@@ -6,6 +6,7 @@ pub mod group_items;
 pub mod group_menus;
 pub mod hover_cards;
 pub mod layer_surfaces;
+pub mod load_tally;
 pub mod notification_toasts;
 pub mod toast_messages;
 pub mod widget_groups;

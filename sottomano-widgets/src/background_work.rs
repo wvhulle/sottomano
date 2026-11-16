@@ -1,4 +1,4 @@
-use std::{convert::identity, fmt::Display};
+use std::{convert::identity, fmt::Display, task::Poll};
 
 use iced::{
     Subscription, Task,
@@ -13,6 +13,8 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
 };
+
+use crate::load_tally::{PollOutcome, WorkMeasurement, record_source_poll};
 
 pub fn compositor_request<Routed: From<CompositorRequestFailure> + Send + 'static>(
     request: CompositorRequest,
@@ -50,7 +52,15 @@ fn source_spanned_stream<Delivery>(
     let source_span = tracing::debug_span!("snapshot_source", source = source_name);
     let mut pinned_deliveries = Box::pin(deliveries);
     stream::poll_fn(move |context| {
-        source_span.in_scope(|| pinned_deliveries.as_mut().poll_next(context))
+        let measurement = WorkMeasurement::start();
+        let polled = source_span.in_scope(|| pinned_deliveries.as_mut().poll_next(context));
+        let outcome = match &polled {
+            Poll::Ready(Some(_)) => PollOutcome::Delivered,
+            Poll::Ready(None) => PollOutcome::Finished,
+            Poll::Pending => PollOutcome::Pending,
+        };
+        record_source_poll(source_name, measurement.finish(), outcome);
+        polled
     })
 }
 

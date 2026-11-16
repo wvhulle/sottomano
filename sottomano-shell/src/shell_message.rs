@@ -65,6 +65,7 @@ use sottomano_widgets::{
     },
     widgets::typing_under_cards::TypingSignal,
 };
+use strum::IntoStaticStr;
 
 #[derive(Debug, Clone)]
 pub enum OutputChange {
@@ -75,7 +76,7 @@ pub enum OutputChange {
 }
 
 #[to_layer_message(multi)]
-#[derive(Debug)]
+#[derive(Debug, IntoStaticStr)]
 pub enum Message {
     Weather(WeatherMessage),
     Wallpaper(WallpaperMessage),
@@ -222,7 +223,7 @@ impl From<CompositorRequestFailure> for Message {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, IntoStaticStr)]
 pub enum ShellInteraction {
     Group(WidgetGroupInteraction),
     Popup(PopupMessage),

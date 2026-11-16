@@ -2,6 +2,8 @@ mod command_line;
 mod compact_tokio_executor;
 mod compositor_updates;
 mod config_adoption;
+#[cfg(feature = "allocation-tally")]
+mod counting_allocator;
 mod desktop_shell;
 mod hover_card_updates;
 mod menus;
@@ -10,7 +12,7 @@ mod monitors;
 mod notification_updates;
 mod panels;
 mod pointer_drag;
-mod process_memory_report;
+mod process_load_report;
 mod shell_interactions;
 mod shell_message;
 mod sqlite_app_launches;
@@ -87,7 +89,7 @@ fn install_tracing_subscriber() {
         .with(log_output_layer())
         .with(chrome_layer.map(|layer| layer.with_filter(EnvFilter::new(trace_directives))))
         .init();
-    process_memory_report::spawn_memory_reports(move || {
+    process_load_report::spawn_load_reports(move || {
         trace_flush_guard.iter().for_each(FlushGuard::flush);
     });
 }

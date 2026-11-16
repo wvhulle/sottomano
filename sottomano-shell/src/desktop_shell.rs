@@ -46,6 +46,7 @@ use sottomano_widgets::{
         HoverCardHost, HoverTarget, hover_card_surfaces::HoverContent,
         hover_card_transition::CardRetention,
     },
+    load_tally::{WorkKind, WorkMeasurement, record_update, record_view},
     notification_toasts::{
         NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
     },
@@ -163,7 +164,15 @@ impl DesktopShell {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        let _span = tracing::trace_span!("update", ?message).entered();
+        let kind = message_work_kind(&message);
+        let _span = tracing::trace_span!("update", kind = %kind).entered();
+        let measurement = WorkMeasurement::start();
+        let updated = self.measured_update(message);
+        record_update(kind, measurement.finish());
+        updated
+    }
+
+    fn measured_update(&mut self, message: Message) -> Task<Message> {
         self.clock = Clock::real();
         let hover_card_target_before = self.hover_card.target().cloned();
         let hovered_before = self.hovered_reading_target();
@@ -612,7 +621,10 @@ impl DesktopShell {
     }
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
-        self.interaction_view(window).map(Message::from)
+        let measurement = WorkMeasurement::start();
+        let viewed = self.interaction_view(window).map(Message::from);
+        record_view(measurement.finish());
+        viewed
     }
 
     fn interaction_view(&self, window: Id) -> Element<'_, ShellInteraction> {
@@ -661,5 +673,22 @@ impl DesktopShell {
             background_color: Color::TRANSPARENT,
             text_color: text_color(theme),
         }
+    }
+}
+
+fn message_work_kind(message: &Message) -> WorkKind {
+    match message {
+        Message::Interaction(ShellInteraction::Group(group_interaction)) => WorkKind {
+            layer: "GroupInteraction",
+            variant: group_interaction.into(),
+        },
+        Message::Interaction(shell_interaction) => WorkKind {
+            layer: "ShellInteraction",
+            variant: shell_interaction.into(),
+        },
+        message => WorkKind {
+            layer: "Message",
+            variant: message.into(),
+        },
     }
 }

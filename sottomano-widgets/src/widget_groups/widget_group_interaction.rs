@@ -1,3 +1,5 @@
+use strum::IntoStaticStr;
+
 use crate::{
     group_menus::group_menu_state::GroupMenuMessage,
     widget_groups::{
@@ -64,7 +66,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, IntoStaticStr)]
 pub enum WidgetGroupInteraction {
     Weather(WeatherInteraction),
     Wallpaper(WidgetGroupExpansionMessage),

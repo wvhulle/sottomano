@@ -1,7 +1,7 @@
 # Development
 
 Setup and workflow for working on sottomano: building and checking it,
-debugging, CI, the VM tests and the tour recordings. How the crates fit
+debugging, measuring its load, CI, the VM tests and the tour recordings. How the crates fit
 together is in [Architecture](architecture.md); the rules the code follows are
 in [Style](style.md).
 
@@ -48,6 +48,57 @@ moves. The shell's beacon keeps retrying its connection, so comet and the shell
 can start in either order. Comet then shows each message with its update, view,
 layout and draw timings, plus task and subscription counts; under `time-travel`
 it can rewind the shell to an earlier message.
+
+## Measuring CPU, memory and wakeups
+
+The shell reports its own load once a minute in the log, at debug level:
+
+```sh
+RUST_LOG=sottomano_shell=debug cargo r
+```
+
+Set `SOTTOMANO_LOAD_REPORT_SECONDS` to report more often while measuring, for
+example `SOTTOMANO_LOAD_REPORT_SECONDS=10`. Each report has two events:
+
+- `process memory`: resident, anonymous, file-backed, swapped and peak memory
+  in KiB, and the thread count, read from `/proc/self/status`.
+- `process load`, covering the interval since the previous report:
+  - `process_cpu_percent`: CPU time of all threads as a percentage of one core.
+  - `busiest_threads`: CPU per thread name, read from `/proc/self/task`, so
+    tokio workers, blocking threads and the UI thread show up separately.
+  - `updates` and `busiest_updates`: how many messages `update` handled, and
+    per message kind (for example `Message::Compute` or
+    `GroupInteraction::Weather`) how often it ran and how long it took in
+    total. Every message wakes the UI thread, so a kind with many runs keeps
+    the laptop out of idle even when each run is short.
+  - `views`: how often `view` built a widget tree and how long that took. It
+    does not include iced's layout and drawing.
+  - `busiest_sources`: per snapshot source, how often its stream was polled,
+    how long the polls took and how many snapshots it delivered.
+
+Build with `--features allocation-tally` to add allocation counts and bytes to
+the update, view and source totals:
+
+```sh
+RUST_LOG=sottomano_shell=debug cargo r --features allocation-tally
+```
+
+The counter is process-wide, so allocations by other threads during an update
+are counted towards that update too.
+
+For a timeline of single updates, views and source polls, set
+`SOTTOMANO_TRACE_FILE` to a path; the shell then writes a Chrome trace there,
+which [Perfetto](https://ui.perfetto.dev) opens. `SOTTOMANO_TRACE_FILTER`
+chooses which spans it records, in `RUST_LOG` syntax. Each source poll runs in
+a `snapshot_source` span named after its source. The `update` span, which
+carries the message kind, and the `view` span are at trace level, so include
+them explicitly:
+
+```sh
+SOTTOMANO_TRACE_FILE=/tmp/sottomano-trace.json \
+SOTTOMANO_TRACE_FILTER=error,sottomano_shell=trace,sottomano_widgets=debug \
+  cargo r
+```
 
 ## CI
 
