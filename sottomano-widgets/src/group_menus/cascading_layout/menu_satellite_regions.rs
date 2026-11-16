@@ -1,4 +1,4 @@
-use corredo::popovers::{NestedMenuSatellite, NotchedPanelRegions, SatelliteRole};
+use corredo::popovers::{NestedMenuSatellite, NotchedPanelRegions, PanelNesting, SatelliteRole};
 use iced::{Element, border::Radius};
 
 use crate::desktop_panels::{
@@ -16,13 +16,17 @@ pub(crate) fn satellite_with_regions<'a, Message: 'a>(
     satellite: NestedMenuSatellite<'a, Message>,
     satellite_blur: SatelliteBlur,
 ) -> Element<'a, Message> {
-    let backdrop_blur = match satellite.role {
+    let outermost_blur = match satellite.role {
         SatelliteRole::ItemList => satellite_blur.item_list,
         SatelliteRole::Beside => satellite_blur.beside,
     };
     translated_regions(
         satellite.element,
         move |regions: &NotchedPanelRegions, operation| {
+            let backdrop_blur = match regions.nesting {
+                PanelNesting::Outermost => outermost_blur,
+                PanelNesting::BesideParent => satellite_blur.beside,
+            };
             RegionRoles {
                 pointer_input: PointerInput::PassedThrough,
                 backdrop_blur,

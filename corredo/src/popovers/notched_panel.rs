@@ -1,4 +1,4 @@
-use std::{cell::Cell, rc::Rc, slice};
+use std::iter::once;
 
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
@@ -19,7 +19,7 @@ use crate::{
     orientation::Edge,
     popovers::{
         CascadeDirection, CascadeOrientation, ConnectedSurface, ConnectorTriangle, PopupGrowth,
-        RectangleMorph, SubmenuConnector,
+        RectangleMorph, SubmenuConnector, cascade_row::drawn_extent,
     },
     theming::FrameStyle,
     transitions::MotionState,
@@ -31,25 +31,25 @@ enum NotchSide {
     Right,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NotchRowAnchor {
     FromPrimaryTop(f32),
-    WithinPanel {
-        panel_top: Rc<Cell<f32>>,
-        row_offset: f32,
-    },
+    WithinParent { row_offset: f32 },
 }
 
 impl NotchRowAnchor {
-    fn row_top(&self) -> f32 {
+    fn row_top(self, parent_panel_top: f32) -> f32 {
         match self {
-            NotchRowAnchor::FromPrimaryTop(row_top) => *row_top,
-            NotchRowAnchor::WithinPanel {
-                panel_top,
-                row_offset,
-            } => panel_top.get() + row_offset,
+            NotchRowAnchor::FromPrimaryTop(row_top) => row_top,
+            NotchRowAnchor::WithinParent { row_offset } => parent_panel_top + row_offset,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelNesting {
+    Outermost,
+    BesideParent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -90,7 +90,6 @@ struct NotchPlacement {
     side: NotchSide,
     growth: PopupGrowth,
     row: NotchRowAnchor,
-    panel_top: Rc<Cell<f32>>,
     row_height: f32,
     gap_to_parent: f32,
     submenu_connector: SubmenuConnector,
@@ -102,6 +101,7 @@ pub struct NotchedPanelRegions {
     pub surface_corners: Radius,
     pub accepting_input: Rectangle,
     pub bounds: Rectangle,
+    pub nesting: PanelNesting,
 }
 
 pub struct NotchedPanel<'a, Message> {
@@ -111,6 +111,9 @@ pub struct NotchedPanel<'a, Message> {
     placement: NotchPlacement,
     row_top: f32,
     morph: Duration,
+    beside: Vec<NotchedPanel<'a, Message>>,
+    parent_panel_top: f32,
+    nesting: PanelNesting,
 }
 
 #[must_use]
@@ -124,7 +127,7 @@ pub fn notched_panel<'a, Message: 'a>(
         content: content.into(),
         corner_radius: frame.corner_radius().top_left,
         frame,
-        row_top: row.row_top(),
+        row_top: row.row_top(0.0),
         placement: NotchPlacement {
             side: match orientation.direction {
                 CascadeDirection::Rightward => NotchSide::Left,
@@ -132,12 +135,14 @@ pub fn notched_panel<'a, Message: 'a>(
             },
             growth: orientation.growth,
             row,
-            panel_top: Rc::default(),
             row_height: 0.0,
             gap_to_parent: 0.0,
             submenu_connector: SubmenuConnector::default(),
         },
         morph: DEFAULT_MORPH,
+        beside: Vec::new(),
+        parent_panel_top: 0.0,
+        nesting: PanelNesting::Outermost,
     }
 }
 
@@ -190,12 +195,15 @@ impl<'a, Message: 'a> NotchedPanel<'a, Message> {
     }
 
     #[must_use]
-    pub fn publishes_top(self, panel_top: Rc<Cell<f32>>) -> Self {
+    pub fn beside(self, beside: impl IntoIterator<Item = NotchedPanel<'a, Message>>) -> Self {
         Self {
-            placement: NotchPlacement {
-                panel_top,
-                ..self.placement
-            },
+            beside: beside
+                .into_iter()
+                .map(|panel| NotchedPanel {
+                    nesting: PanelNesting::BesideParent,
+                    ..panel
+                })
+                .collect(),
             ..self
         }
     }
@@ -311,11 +319,25 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
     }
 
     fn children(&self) -> Vec<Tree> {
-        vec![Tree::new(&self.content)]
+        once(Tree::new(&self.content))
+            .chain(
+                self.beside.iter().map(|panel| {
+                    Tree::new(panel as &dyn Widget<Message, iced::Theme, iced::Renderer>)
+                }),
+            )
+            .collect()
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(slice::from_ref(&self.content));
+        let widgets: Vec<&dyn Widget<Message, iced::Theme, iced::Renderer>> =
+            once(self.content.as_widget())
+                .chain(
+                    self.beside
+                        .iter()
+                        .map(|panel| panel as &dyn Widget<Message, iced::Theme, iced::Renderer>),
+                )
+                .collect();
+        tree.diff_children(&widgets);
     }
 
     fn size(&self) -> Size<Length> {
@@ -325,31 +347,62 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let room = limits.max();
         let screen_room = ScreenRoom::from(limits);
-        self.row_top = self.placement.row.row_top();
+        self.row_top = self.placement.row.row_top(self.parent_panel_top);
+        let gap_to_parent = self.placement.gap_to_parent;
         let content_limits = Limits::new(
             Size::ZERO,
             Size::new(
-                (room.width - self.placement.gap_to_parent).max(0.0),
+                (room.width - gap_to_parent).max(0.0),
                 room.height.max(self.placement.row_height),
             ),
         );
+        let (content_tree, beside_trees) = tree.children.split_at_mut(1);
         let content =
             self.content
                 .as_widget_mut()
-                .layout(&mut tree.children[0], renderer, &content_limits);
+                .layout(&mut content_tree[0], renderer, &content_limits);
         let target = self.panel_target(content.size(), screen_room);
-        self.placement.panel_top.set(target.y);
-        let node_size = Size::new(
-            target.width + self.placement.gap_to_parent,
-            target.y + target.height,
-        );
+        let node_size = Size::new(target.width + gap_to_parent, target.y + target.height);
+        let side = self.placement.side;
+        let beside_nodes: Vec<Node> = self
+            .beside
+            .iter_mut()
+            .zip(beside_trees.iter_mut())
+            .scan(0.0, |placed_width: &mut f32, (panel, panel_tree)| {
+                panel.parent_panel_top = target.y;
+                let remaining_width = (room.width - node_size.width - *placed_width).max(0.0);
+                let node = panel.layout(
+                    panel_tree,
+                    renderer,
+                    &screen_room.limits_within(remaining_width),
+                );
+                let extent = drawn_extent(&node);
+                let x = match side {
+                    NotchSide::Left => node_size.width + *placed_width,
+                    NotchSide::Right => -*placed_width - extent.width,
+                };
+                *placed_width += extent.width;
+                Some(
+                    Node::with_children(
+                        extent.size(),
+                        vec![node.move_to(Point::new(-extent.x, -extent.y))],
+                    )
+                    .move_to(Point::new(x, extent.y)),
+                )
+            })
+            .collect();
         let from_notch_edge = self.node_origin_from_notch_edge(node_size.width);
         let edge_target = target + from_notch_edge;
         let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
         panel_morph.laid_out = edge_target;
         panel_morph.laid_out_folded = self.folded_into_notch(target) + from_notch_edge;
         panel_morph.morph.follow(panel_morph.morphing_toward);
-        Node::with_children(node_size, vec![content.move_to(target.position())])
+        Node::with_children(
+            node_size,
+            once(content.move_to(target.position()))
+                .chain(beside_nodes)
+                .collect(),
+        )
     }
 
     fn draw(
@@ -403,6 +456,26 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
                 &content_clip,
             );
         });
+        self.beside
+            .iter()
+            .zip(&tree.children[1..])
+            .zip(
+                layout
+                    .children()
+                    .skip(1)
+                    .filter_map(|wrapper| wrapper.children().next()),
+            )
+            .for_each(|((panel, panel_tree), panel_layout)| {
+                panel.draw(
+                    panel_tree,
+                    renderer,
+                    theme,
+                    style,
+                    panel_layout,
+                    cursor,
+                    viewport,
+                );
+            });
     }
 
     fn operate(
@@ -427,15 +500,29 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
                 surface_corners,
                 accepting_input: self.panel_with_gap(panel),
                 bounds: layout.bounds(),
+                nesting: self.nesting,
             },
         );
         let content_layout = layout.children().next().unwrap();
+        let (content_tree, beside_trees) = tree.children.split_at_mut(1);
         self.content.as_widget_mut().operate(
-            &mut tree.children[0],
+            &mut content_tree[0],
             content_layout,
             renderer,
             operation,
         );
+        self.beside
+            .iter_mut()
+            .zip(beside_trees.iter_mut())
+            .zip(
+                layout
+                    .children()
+                    .skip(1)
+                    .filter_map(|wrapper| wrapper.children().next()),
+            )
+            .for_each(|((panel, panel_tree), panel_layout)| {
+                panel.operate(panel_tree, panel_layout, renderer, operation);
+            });
     }
 
     fn update(
@@ -450,8 +537,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         viewport: &Rectangle,
     ) {
         let content_layout = layout.children().next().unwrap();
+        let (content_tree, beside_trees) = tree.children.split_at_mut(1);
         self.content.as_widget_mut().update(
-            &mut tree.children[0],
+            &mut content_tree[0],
             event,
             content_layout,
             cursor,
@@ -460,6 +548,27 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             shell,
             viewport,
         );
+        self.beside
+            .iter_mut()
+            .zip(beside_trees.iter_mut())
+            .zip(
+                layout
+                    .children()
+                    .skip(1)
+                    .filter_map(|wrapper| wrapper.children().next()),
+            )
+            .for_each(|((panel, panel_tree), panel_layout)| {
+                panel.update(
+                    panel_tree,
+                    event,
+                    panel_layout,
+                    cursor,
+                    renderer,
+                    clipboard,
+                    shell,
+                    viewport,
+                );
+            });
         let Event::Window(window::Event::RedrawRequested(now)) = event else {
             return;
         };
@@ -484,13 +593,29 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
         let content_layout = layout.children().next().unwrap();
-        self.content.as_widget().mouse_interaction(
+        once(self.content.as_widget().mouse_interaction(
             &tree.children[0],
             content_layout,
             cursor,
             viewport,
             renderer,
+        ))
+        .chain(
+            self.beside
+                .iter()
+                .zip(&tree.children[1..])
+                .zip(
+                    layout
+                        .children()
+                        .skip(1)
+                        .filter_map(|wrapper| wrapper.children().next()),
+                )
+                .map(|((panel, panel_tree), panel_layout)| {
+                    panel.mouse_interaction(panel_tree, panel_layout, cursor, viewport, renderer)
+                }),
         )
+        .max()
+        .unwrap_or_default()
     }
 }
 
@@ -525,6 +650,125 @@ mod screen_room_tests {
     fn a_panel_taller_than_the_screen_starts_at_the_screen_top() {
         assert!(
             (ROOM_OVER_BOTTOM_PANEL.panel_top_on_screen(40.0, 400.0) + 300.0).abs() < f32::EPSILON
+        );
+    }
+}
+
+#[cfg(test)]
+mod nesting_tests {
+    use iced::{
+        Element, Rectangle, Settings, Size,
+        widget::{Column, text},
+    };
+    use iced_test::Simulator;
+
+    use super::{NotchRowAnchor, notched_panel};
+    use crate::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, cascade_row};
+
+    const ROW_OFFSET: f32 = 30.0;
+
+    fn cascade_with_card(
+        direction: CascadeDirection,
+        list_row_top: f32,
+        card_label: &'static str,
+    ) -> Element<'static, ()> {
+        let orientation = CascadeOrientation {
+            direction,
+            growth: PopupGrowth::Downward,
+        };
+        let card = notched_panel(
+            text(card_label),
+            orientation,
+            NotchRowAnchor::WithinParent {
+                row_offset: ROW_OFFSET,
+            },
+        )
+        .row_height(20.0);
+        let list_rows = Column::with_children(
+            ["list", "second", "third", "fourth", "fifth", "sixth"].map(|label| text(label).into()),
+        );
+        let list = notched_panel(
+            list_rows,
+            orientation,
+            NotchRowAnchor::FromPrimaryTop(list_row_top),
+        )
+        .row_height(20.0)
+        .beside([card]);
+        cascade_row(text("primary").into(), [list.into()], orientation)
+    }
+
+    fn bounds_of(simulator: &mut Simulator<'_, ()>, label: &str) -> Rectangle {
+        simulator
+            .find(label)
+            .unwrap_or_else(|_| panic!("{label} is laid out"))
+            .bounds()
+    }
+
+    fn simulated(screen: Size, cascade: Element<'static, ()>) -> Simulator<'static, ()> {
+        Simulator::with_size(Settings::default(), screen, cascade)
+    }
+
+    #[test]
+    fn a_nested_card_lines_up_with_its_row_and_has_room() {
+        let mut simulator = simulated(
+            Size::new(600.0, 400.0),
+            cascade_with_card(CascadeDirection::Rightward, 40.0, "card"),
+        );
+        let list = bounds_of(&mut simulator, "list");
+        let card = bounds_of(&mut simulator, "card");
+        assert!(
+            (card.y - list.y - ROW_OFFSET).abs() < 0.5,
+            "list {list:?}, card {card:?}"
+        );
+        assert!(card.x > list.x + list.width, "list {list:?}, card {card:?}");
+        assert!(card.width > 0.0, "card {card:?}");
+    }
+
+    #[test]
+    fn a_leftward_card_opens_left_of_its_list() {
+        let mut simulator = simulated(
+            Size::new(600.0, 400.0),
+            cascade_with_card(CascadeDirection::Leftward, 40.0, "card"),
+        );
+        let list = bounds_of(&mut simulator, "list");
+        let card = bounds_of(&mut simulator, "card");
+        assert!(
+            card.x + card.width <= list.x + 0.5,
+            "list {list:?}, card {card:?}"
+        );
+        assert!(card.width > 0.0, "card {card:?}");
+    }
+
+    #[test]
+    fn a_nested_card_follows_a_list_pushed_back_on_screen() {
+        let mut simulator = simulated(
+            Size::new(600.0, 120.0),
+            cascade_with_card(CascadeDirection::Rightward, 110.0, "card"),
+        );
+        let list = bounds_of(&mut simulator, "list");
+        let card = bounds_of(&mut simulator, "card");
+        assert!(
+            list.y < 110.0,
+            "the list is pushed back on screen, at {list:?}"
+        );
+        assert!(
+            (card.y - list.y - ROW_OFFSET).abs() < 0.5,
+            "list {list:?}, card {card:?}"
+        );
+    }
+
+    #[test]
+    fn a_wider_card_leaves_the_list_width_unchanged() {
+        let list_width = |card_label: &'static str| {
+            let mut simulator = simulated(
+                Size::new(600.0, 400.0),
+                cascade_with_card(CascadeDirection::Leftward, 40.0, card_label),
+            );
+            bounds_of(&mut simulator, "sixth").width
+        };
+        assert!(
+            (list_width("card") - list_width("a much much wider card than the list itself")).abs()
+                < 0.5
         );
     }
 }

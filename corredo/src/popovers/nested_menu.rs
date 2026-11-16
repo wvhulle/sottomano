@@ -1,4 +1,4 @@
-use std::{cell::Cell, iter::once, rc::Rc, time::Duration};
+use std::{iter::once, time::Duration};
 
 use iced::{
     Border, Element, Length, Theme,
@@ -12,7 +12,7 @@ use crate::{
     orientation::Axis,
     popovers::{
         CascadeOrientation, NestedMenuLayout, NestedMenuMetrics, NestedMenuRowContent,
-        NestedMenuRowEmphasis, NestedMenuRowLook, NotchRowAnchor, RowHoverReaction,
+        NestedMenuRowEmphasis, NestedMenuRowLook, NotchRowAnchor, NotchedPanel, RowHoverReaction,
         SubmenuConnector, anchor_marker, nested_menu_row, notched_panel,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
@@ -244,28 +244,22 @@ impl MenuChrome {
             .into()
     }
 
-    fn satellite<'a, Message: 'a>(
+    fn panel<'a, Message: 'a>(
         self,
         role: SatelliteRole,
         content: Element<'a, Message>,
         row: NotchRowAnchor,
-        panel_top: Rc<Cell<f32>>,
-    ) -> NestedMenuSatellite<'a, Message> {
+    ) -> NotchedPanel<'a, Message> {
         let frame = match role {
             SatelliteRole::ItemList => self.style.list_frame,
             SatelliteRole::Beside => self.style.beside_frame,
         };
-        NestedMenuSatellite {
-            role,
-            element: notched_panel(content, self.orientation, row)
-                .frame(frame)
-                .row_height(self.metrics.row_height_px)
-                .gap_to_parent(self.style.gap_to_parent_px)
-                .submenu_connector(self.style.submenu_connector)
-                .morph(self.style.morph)
-                .publishes_top(panel_top)
-                .into(),
-        }
+        notched_panel(content, self.orientation, row)
+            .frame(frame)
+            .row_height(self.metrics.row_height_px)
+            .gap_to_parent(self.style.gap_to_parent_px)
+            .submenu_connector(self.style.submenu_connector)
+            .morph(self.style.morph)
     }
 
     fn rows_offset(self, rows_above: usize) -> f32 {
@@ -341,25 +335,26 @@ impl MenuChrome {
             .collect();
         let item_list_offset_px = item_list_scroll.offset_px;
         let item_list = self.scrolled_list(rows, item_list_scroll);
-        let list_top = Rc::new(Cell::new(0.0));
-        let item_satellite = self.satellite(
-            SatelliteRole::ItemList,
-            item_list,
-            NotchRowAnchor::FromPrimaryTop(open_row_top),
-            list_top.clone(),
-        );
-        let card_satellite = beside_card.map(|(position, card)| {
-            self.satellite(
+        let card_panels = beside_card.into_iter().map(|(position, card)| {
+            self.panel(
                 SatelliteRole::Beside,
                 card,
-                NotchRowAnchor::WithinPanel {
-                    panel_top: list_top,
+                NotchRowAnchor::WithinParent {
                     row_offset: self.rows_offset(position) - item_list_offset_px,
                 },
-                Rc::default(),
             )
         });
-        once(item_satellite).chain(card_satellite).collect()
+        vec![NestedMenuSatellite {
+            role: SatelliteRole::ItemList,
+            element: self
+                .panel(
+                    SatelliteRole::ItemList,
+                    item_list,
+                    NotchRowAnchor::FromPrimaryTop(open_row_top),
+                )
+                .beside(card_panels)
+                .into(),
+        }]
     }
 
     fn accordion_surfaces<'a, RowKey: Clone + Send + Sync + 'static, Message: Clone + 'a>(
@@ -430,13 +425,17 @@ impl MenuChrome {
         let list_offset_px = list_scroll.offset_px;
         let primary = self.scrolled_list(rows, list_scroll);
         let satellites = beside_card
-            .map(|(rows_above, card)| {
-                self.satellite(
-                    SatelliteRole::Beside,
-                    card,
-                    NotchRowAnchor::FromPrimaryTop(self.rows_offset(rows_above) - list_offset_px),
-                    Rc::default(),
-                )
+            .map(|(rows_above, card)| NestedMenuSatellite {
+                role: SatelliteRole::Beside,
+                element: self
+                    .panel(
+                        SatelliteRole::Beside,
+                        card,
+                        NotchRowAnchor::FromPrimaryTop(
+                            self.rows_offset(rows_above) - list_offset_px,
+                        ),
+                    )
+                    .into(),
             })
             .into_iter()
             .collect();

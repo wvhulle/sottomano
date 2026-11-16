@@ -21,7 +21,7 @@ pub struct CascadeRow<'a, Message> {
     orientation: CascadeOrientation,
 }
 
-fn drawn_extent(panel: &Node) -> Rectangle {
+pub(crate) fn drawn_extent(panel: &Node) -> Rectangle {
     panel.children().iter().map(Node::bounds).fold(
         Rectangle::new(Point::ORIGIN, panel.size()),
         |extent, child| extent.union(&child),
@@ -77,11 +77,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
             .iter_mut()
             .zip(satellite_trees.iter_mut())
             .map(|(satellite, satellite_tree)| {
-                satellite
-                    .as_widget_mut()
-                    .layout(satellite_tree, renderer, &within(room_width))
-                    .size()
-                    .width
+                drawn_extent(&satellite.as_widget_mut().layout(
+                    satellite_tree,
+                    renderer,
+                    &within(room_width),
+                ))
+                .width
             })
             .collect();
         let satellites: Vec<Node> = satellite_slots
@@ -95,7 +96,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
             })
             .collect();
         let nodes: Vec<Node> = once(primary).chain(satellites).collect();
-        let total_width: f32 = nodes.iter().map(|node| node.size().width).sum();
+        let total_width: f32 = nodes.iter().map(|node| drawn_extent(node).width).sum();
         let overhang_above = nodes
             .iter()
             .map(|node| -drawn_extent(node).y)
@@ -111,13 +112,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
         let placed = nodes
             .into_iter()
             .scan(0.0, |extent_so_far: &mut f32, node| {
-                let width = node.size().width;
-                let x = match self.orientation.direction {
+                let extent = drawn_extent(&node);
+                let column_left = match self.orientation.direction {
                     CascadeDirection::Rightward => *extent_so_far,
-                    CascadeDirection::Leftward => total_width - *extent_so_far - width,
+                    CascadeDirection::Leftward => total_width - *extent_so_far - extent.width,
                 };
-                *extent_so_far += width;
-                Some(node.move_to(Point::new(x, overhang_above)))
+                *extent_so_far += extent.width;
+                Some(node.move_to(Point::new(column_left - extent.x, overhang_above)))
             })
             .collect();
         Node::with_children(Size::new(total_width, height), placed)
