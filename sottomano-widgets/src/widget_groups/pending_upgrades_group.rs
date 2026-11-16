@@ -1,3 +1,5 @@
+use std::iter;
+
 use iced::{Subscription, Task};
 
 use crate::{
@@ -25,7 +27,6 @@ use crate::{
     group_indicators::indicator_state::IndicatorState,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -108,18 +109,19 @@ impl PendingUpgradesGroup {
                     })),
             );
         }
-        let group_summary = GroupSummary::summarising(
-            Phosphor::ArrowFatLinesUp(Weight::Regular).into(),
+        let build_pending_upgrades_indicator = || {
             self.indicator(clock).with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
-            })),
-        );
+            }))
+        };
+        let headline_indicator = build_pending_upgrades_indicator()
+            .with_headline_glyph(Phosphor::ArrowFatLinesUp(Weight::Regular).into());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
-            rows,
+            iter::once(build_pending_upgrades_indicator()).chain(rows),
         )
     }
 

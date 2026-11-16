@@ -16,9 +16,8 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_indicators::indicator_state::IndicatorState,
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -87,31 +86,40 @@ impl WallpaperGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = match &self.lookup {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Mountains(Weight::Regular).into(),
-                held_snapshot.indicator(),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Mountains(Weight::Regular).into(),
-                    troubled_snapshot
-                        .shown_over(troubled_snapshot.held_snapshot.indicator(), clock),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Mountains(Weight::Regular).into(),
-                placeholder.indicator(WALLPAPER_GLYPH.into()),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+        let headline_indicator = match &self.lookup {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => held_snapshot
+                .indicator()
+                .with_headline_glyph(Phosphor::Mountains(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => troubled_snapshot
+                .shown_over(troubled_snapshot.held_snapshot.indicator(), clock)
+                .with_headline_glyph(Phosphor::Mountains(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => placeholder
+                .indicator(WALLPAPER_GLYPH.into())
+                .with_headline_glyph(Phosphor::Mountains(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Wallpaper.title(),
                 Phosphor::Mountains(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Wallpaper.title(),
                 Phosphor::Mountains(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         };
+        let mut lead_indicators = Vec::new();
+        match &self.lookup {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                lead_indicators.push(held_snapshot.indicator());
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => lead_indicators.push(
+                troubled_snapshot.shown_over(troubled_snapshot.held_snapshot.indicator(), clock),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                lead_indicators.push(placeholder.indicator(WALLPAPER_GLYPH.into()));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let mut rows = Vec::new();
         if let Some(lookup) = self.lookup.get() {
             if let Some(place) = &lookup.place {
@@ -130,10 +138,10 @@ impl WallpaperGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             WidgetGroupInteraction::Wallpaper,
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 }

@@ -33,7 +33,6 @@ use crate::{
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -316,10 +315,16 @@ impl MonitorGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
-            GroupSummary::glyph(
-                Phosphor::Lightbulb(Weight::Regular).into(),
-                IndicatorState::Idle,
-            ),
+            match self.sliders.values().next() {
+                Some(first_backlight) => first_backlight
+                    .indicator(config.calendar.locale)
+                    .with_headline_glyph(Phosphor::Lightbulb(Weight::Regular).into()),
+                None => GroupIndicator::glyph_only(
+                    WidgetGroupFamily::Monitor.title(),
+                    Phosphor::Lightbulb(Weight::Regular).into(),
+                    IndicatorState::Idle,
+                ),
+            },
             &self.expansion,
             MonitorInteraction::Expansion,
             rows,

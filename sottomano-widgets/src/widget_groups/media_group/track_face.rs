@@ -12,7 +12,7 @@ use crate::{
     group_indicators::{
         gauge::Gauge,
         group_indicator::{GroupIndicator, IndicatorValue},
-        indicator_drawing::IndicatorIcon,
+        indicator_drawing::{IndicatorIcon, ReadoutGauge},
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
     widgets::{
@@ -71,6 +71,24 @@ pub(super) fn track_indicator<'a>(
     } else {
         track
     }
+}
+
+pub(super) fn player_headline_indicator<'a>(
+    media: &Media,
+    gauge_fraction: Option<Ratio>,
+) -> GroupIndicator<'a> {
+    let glyph = match SimpleIcon::titled(&media.identity) {
+        Some(brand_icon) => IconGlyph::from(brand_icon),
+        None => Phosphor::MusicNotes(Weight::Regular).into(),
+    };
+    let gauge = match gauge_fraction {
+        Some(fraction) => ReadoutGauge::Gauged {
+            fill: fraction,
+            live: fraction,
+        },
+        None => ReadoutGauge::Ungauged,
+    };
+    GroupIndicator::glyph_only("Player", glyph, playback_state(media)).with_gauge(gauge)
 }
 
 pub(super) fn wired_player_indicator<'a>(

@@ -41,7 +41,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -322,42 +321,67 @@ impl StorageSpaceGroup {
         locale: Locale,
     ) -> WidgetGroupContent<'_> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
-        let group_summary = match &filesystem.usage {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Archive(Weight::Regular).into(),
+        let headline_indicator = match &filesystem.usage {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 Self::wired_filesystem_usage_indicator(
                     filesystem,
                     filesystem_usage_indicator(held_snapshot),
-                ),
-            ),
+                )
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into())
+            }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Archive(Weight::Regular).into(),
-                    Self::wired_filesystem_usage_indicator(
-                        filesystem,
-                        troubled_snapshot.shown_over(
-                            filesystem_usage_indicator(&troubled_snapshot.held_snapshot),
-                            clock,
-                        ),
+                Self::wired_filesystem_usage_indicator(
+                    filesystem,
+                    troubled_snapshot.shown_over(
+                        filesystem_usage_indicator(&troubled_snapshot.held_snapshot),
+                        clock,
                     ),
                 )
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into())
             }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Archive(Weight::Regular).into(),
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
                 Self::wired_filesystem_usage_indicator(
                     filesystem,
                     placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into()),
-                ),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                )
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into())
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                mount_group_title(primary_mount_point).to_string(),
                 Phosphor::Archive(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                mount_group_title(primary_mount_point).to_string(),
                 Phosphor::Archive(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         };
+        let mut lead_indicators = Vec::new();
+        match &filesystem.usage {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                lead_indicators.push(Self::wired_filesystem_usage_indicator(
+                    filesystem,
+                    filesystem_usage_indicator(held_snapshot),
+                ));
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                lead_indicators.push(Self::wired_filesystem_usage_indicator(
+                    filesystem,
+                    troubled_snapshot.shown_over(
+                        filesystem_usage_indicator(&troubled_snapshot.held_snapshot),
+                        clock,
+                    ),
+                ));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                lead_indicators.push(Self::wired_filesystem_usage_indicator(
+                    filesystem,
+                    placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into()),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let mut rows = Vec::new();
         rows.extend(Self::property_indicators(filesystem, locale));
         rows.extend(Self::subvolume_indicators(filesystem, locale));
@@ -380,13 +404,13 @@ impl StorageSpaceGroup {
                 primary_mount_point.display().to_string(),
             ),
             mount_group_title(primary_mount_point),
-            group_summary,
+            headline_indicator,
             &filesystem.expansion,
             move |expansion| StorageInteraction::MountExpansion {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 
@@ -450,39 +474,52 @@ impl StorageSpaceGroup {
                 .map(|filesystem| Self::mount_group(filesystem, clock, locale))
                 .collect();
         }
-        let group_summary = match &self.discovery {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_indicator(block_filesystem_discovery_indicator(held_snapshot)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Archive(Weight::Regular).into(),
-                    self.discovery_indicator(troubled_snapshot.shown_over(
-                        block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_indicator(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+        let headline_indicator = match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .discovery_indicator(block_filesystem_discovery_indicator(held_snapshot))
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .discovery_indicator(troubled_snapshot.shown_over(
+                    block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                ))
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .discovery_indicator(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Archive(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::StorageSpace.title(),
                 Phosphor::Archive(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::StorageSpace.title(),
                 Phosphor::Archive(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         };
+        let mut lead_indicators = Vec::new();
+        match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => lead_indicators.push(
+                self.discovery_indicator(block_filesystem_discovery_indicator(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                lead_indicators.push(self.discovery_indicator(troubled_snapshot.shown_over(
+                    block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                )));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => lead_indicators.push(
+                self.discovery_indicator(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
-            group_summary,
+            headline_indicator,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            [],
+            lead_indicators.into_iter().chain([]),
         )]
     }
 }

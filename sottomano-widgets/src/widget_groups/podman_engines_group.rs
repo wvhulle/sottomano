@@ -27,7 +27,6 @@ use crate::{
             StoppedContainerIndicator, container_switch_task, engine_failure_label,
             indicators_ending_in_hidden_count,
         },
-        group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
         widget_group_interaction::WidgetGroupInteraction,
@@ -262,7 +261,8 @@ impl PodmanEnginesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::PodmanEngines.title(),
                 IconGlyph::SimpleIcon(SimpleIcon::Podman),
                 IndicatorState::Idle,
             ),

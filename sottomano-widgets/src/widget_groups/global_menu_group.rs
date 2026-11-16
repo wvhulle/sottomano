@@ -40,7 +40,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
-        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -502,7 +501,8 @@ impl GlobalMenuGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::GlobalMenuSwitch.title(),
                 Phosphor::CursorClick(Weight::Regular).into(),
                 match self.lookup_failure() {
                     Some(_) => IndicatorState::Failed,
@@ -571,7 +571,8 @@ impl GlobalMenuGroup {
                         ),
                     },
                     WidgetGroupTitle::Named(top_menu_label.clone().into()),
-                    GroupSummary::glyph(
+                    GroupIndicator::glyph_only(
+                        WidgetGroupTitle::Named(top_menu_label.clone().into()).to_string(),
                         top_menu_glyph(&top_menu_label).into(),
                         IndicatorState::Idle,
                     ),

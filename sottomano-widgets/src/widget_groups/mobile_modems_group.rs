@@ -1,3 +1,4 @@
+use std::iter;
 mod modem_signal_indicator;
 
 use iced::{Subscription, Task};
@@ -22,7 +23,6 @@ use crate::{
     clock::Clock,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         interface_address_sections::{AddressFamily, InterfaceAddressIndicator},
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
@@ -152,15 +152,16 @@ impl MobileModemsGroup {
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
-        let group_summary = GroupSummary::summarising(
-            Phosphor::SimCard(Weight::Regular).into(),
+        let build_modem_signal_indicator = || {
             ModemSignalIndicator { modem }
                 .indicator()
                 .with_hover_card(Box::new(move |_| {
                     self.mobile_modems
                         .hover_card_with(ModemSignalIndicator { modem }.hover_card())
-                })),
-        );
+                }))
+        };
+        let headline_indicator = build_modem_signal_indicator()
+            .with_headline_glyph(Phosphor::SimCard(Weight::Regular).into());
         let mut rows = Vec::new();
         if modem.radio_power() == RadioPower::On {
             let connection_switch = ModemConnectionSwitch { modem };
@@ -222,13 +223,13 @@ impl MobileModemsGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
-            group_summary,
+            headline_indicator,
             expansion,
             move |expansion| MobileModemsInteraction::Expansion {
                 modem_path: expanded_modem_path.clone(),
                 expansion,
             },
-            rows,
+            iter::once(build_modem_signal_indicator()).chain(rows),
         ))
     }
 

@@ -43,7 +43,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -274,39 +273,57 @@ impl WeatherGroup {
             .refreshed_by(WeatherInteraction::RefreshLocation)
     }
 
-    fn temperature_summary(&self, clock: Clock) -> GroupSummary<'_> {
+    fn temperature_headline(&self, clock: Clock) -> GroupIndicator<'_> {
         match &self.temperature {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Umbrella(Weight::Regular).into(),
-                self.wired_temperature_indicator(temperature_indicator(held_snapshot)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Umbrella(Weight::Regular).into(),
-                    self.wired_temperature_indicator(troubled_snapshot.shown_over(
-                        temperature_indicator(&troubled_snapshot.held_snapshot),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Umbrella(Weight::Regular).into(),
-                self.wired_temperature_indicator(placeholder.indicator(WEATHER_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .wired_temperature_indicator(temperature_indicator(held_snapshot))
+                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .wired_temperature_indicator(troubled_snapshot.shown_over(
+                    temperature_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                ))
+                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .wired_temperature_indicator(placeholder.indicator(WEATHER_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Weather.title(),
                 Phosphor::Umbrella(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Weather.title(),
                 Phosphor::Umbrella(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         }
     }
 
+    fn list_temperature<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.temperature {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
+                self.wired_temperature_indicator(temperature_indicator(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                self.wired_temperature_indicator(troubled_snapshot.shown_over(
+                    temperature_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                )),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
+                self.wired_temperature_indicator(placeholder.indicator(WEATHER_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
     pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
-        let group_summary = self.temperature_summary(clock);
+        let headline_indicator = self.temperature_headline(clock);
         let mut rows = Vec::new();
         if let Some(forecast) = self.rain_forecast(config) {
             rows.push(self.rain_indicator(config, forecast.indicator(clock, locale)));
@@ -378,9 +395,10 @@ impl WeatherGroup {
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
+        self.list_temperature(clock, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             WeatherInteraction::Expansion,
             rows,

@@ -6,7 +6,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -68,7 +67,8 @@ impl AppearancePresetsGroup {
     pub fn group_content<'a>(&'a self, current: &ShellAppearance) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::AppearancePresets,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::AppearancePresets.title(),
                 Phosphor::Palette(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

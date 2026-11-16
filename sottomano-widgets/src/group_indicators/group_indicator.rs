@@ -2,15 +2,17 @@ use std::{borrow::Cow, convert::identity, iter::once, rc::Rc};
 
 use chrono::Locale;
 use corredo::{
+    orientation::Axis,
     popovers::{NestedMenuOpenTrigger, NestedMenuRowEmphasis},
     press_actions::flat_button,
     theming::{secondary_text_color, text_color},
+    transitions::reveal,
     value_controls::SwitchResponse,
 };
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Padding,
     mouse::ScrollDelta,
-    widget::{Row, Space, button, mouse_area, row},
+    widget::{Row, Space, button, container, mouse_area, row},
 };
 use sottomano_toml_config::{Config, severity::Severity};
 
@@ -20,7 +22,8 @@ use crate::{
         aligned_quantity::{AlignedQuantity, IndicatorAlignment},
         indicator_drawing::{
             IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, ReadoutBadge,
-            ReadoutGauge, ReadoutLabel, face_icon, indicator_drawing, readout_view,
+            ReadoutGauge, ReadoutLabel, badged_face_icon, face_icon, indicator_drawing,
+            readout_view,
         },
         indicator_gestures::{IndicatorGesture, IndicatorGestures},
         indicator_state::IndicatorState,
@@ -223,6 +226,49 @@ impl<'a> GroupIndicator<'a> {
             Box::new(|_| Vec::new()),
             IndicatorAlerts::default(),
         )
+    }
+
+    #[must_use]
+    pub fn with_headline_glyph(self, glyph: IconGlyph) -> Self {
+        let state = self.shown_state();
+        Self {
+            face: IndicatorFace {
+                icon: IndicatorIcon::IconGlyph { glyph, state },
+                ..self.face
+            },
+            ..self
+        }
+    }
+
+    pub(crate) fn handle_view(
+        &self,
+        config: &'a Config,
+        reveal_fraction: f32,
+    ) -> Element<'a, GroupEvent> {
+        let (badge, value) = match &self.value {
+            RowValueControl::IndicatorReadout(readout) => (
+                readout.badge,
+                readout_view(config, &self.face, readout, 1.0),
+            ),
+            RowValueControl::Drawn(value) => (ReadoutBadge::Unbadged, value.view(1.0)),
+            RowValueControl::Slider { .. } => (ReadoutBadge::Unbadged, None),
+        };
+        let hidden = 1.0 - reveal_fraction;
+        let collapsing_value: Element<'a, GroupEvent> = match value {
+            Some(value) if hidden > 0.0 => reveal(
+                container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
+                hidden,
+                Axis::Horizontal,
+            )
+            .into(),
+            Some(_) | None => Row::new().into(),
+        };
+        Row::with_children([
+            badged_face_icon(config, &self.face, badge),
+            collapsing_value,
+        ])
+        .align_y(Alignment::Center)
+        .into()
     }
 
     #[must_use]

@@ -18,7 +18,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -241,7 +240,8 @@ impl CgroupMemoryLimitsGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CgroupMemoryLimits,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::CgroupMemoryLimits.title(),
                 Phosphor::ChartPieSlice(Weight::Regular).into(),
                 self.state(),
             ),

@@ -34,7 +34,6 @@ use crate::{
     },
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
-        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -386,7 +385,8 @@ impl DarkModeGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DarkMode,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::DarkMode.title(),
                 Phosphor::MoonStars(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

@@ -27,7 +27,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -237,7 +236,7 @@ impl WaydroidContainerGroup {
         Subscription::batch([
             snapshot_subscription::<WaydroidProbe>(()).map(WaydroidContainerMessage::Probe),
             demand
-                .while_summary_shown(snapshot_subscription::<WaydroidListing>(buses.clone()))
+                .while_headline_shown(snapshot_subscription::<WaydroidListing>(buses.clone()))
                 .map(WaydroidContainerMessage::Listing),
             demand
                 .while_indicators_shown(snapshot_subscription::<WaydroidReadout>(buses.clone()))
@@ -317,7 +316,8 @@ impl WaydroidContainerGroup {
         let rows = self.waydroid_indicators();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::WaydroidContainer.title(),
                 IconGlyph::SimpleIcon(SimpleIcon::Android),
                 self.shown_state(),
             ),

@@ -9,8 +9,7 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     widget_groups::{
-        group_summary::GroupSummary, widget_group_content::WidgetGroupContent,
-        widget_group_identity::WidgetGroupFamily,
+        widget_group_content::WidgetGroupContent, widget_group_identity::WidgetGroupFamily,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -76,7 +75,8 @@ impl GroupMenuState {
             });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GroupMenuSettings,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::GroupMenuSettings.title(),
                 Phosphor::ListDashes(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

@@ -32,7 +32,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         compositor_styling_group::switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
-        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -395,7 +394,8 @@ impl CompositorStylingGroup {
         ];
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CompositorStyling,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::CompositorStyling.title(),
                 compositor_face(self.rules_file.compositor()),
                 IndicatorState::Idle,
             ),

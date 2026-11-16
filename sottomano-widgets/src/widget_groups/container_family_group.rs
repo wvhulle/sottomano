@@ -16,7 +16,6 @@ use crate::{
     },
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -123,7 +122,7 @@ where
         Subscription::batch([
             snapshot_subscription::<Family::Probe>(()).map(ContainerFamilyMessage::Probe),
             demand
-                .while_summary_shown(snapshot_subscription::<Family::Listings>(()))
+                .while_headline_shown(snapshot_subscription::<Family::Listings>(()))
                 .map(ContainerFamilyMessage::Listings),
             demand
                 .while_indicators_shown(snapshot_subscription::<Family::Detail>(()))
@@ -210,7 +209,8 @@ where
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             Family::FAMILY,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                Family::FAMILY.title(),
                 Family::group_glyph(),
                 match self.probe.get() {
                     Some(probe) if Family::running_count(probe) > 0 => IndicatorState::On,

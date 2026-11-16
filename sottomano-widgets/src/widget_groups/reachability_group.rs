@@ -41,7 +41,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         reachability_group::{
             metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
             sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
@@ -105,7 +104,7 @@ impl ReachabilityGroup {
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
-            demand.while_summary_shown(
+            demand.while_headline_shown(
                 snapshot_subscription::<UplinkConnectivity>(buses.clone())
                     .map(ReachabilityMessage::Connectivity),
             ),
@@ -199,33 +198,47 @@ impl ReachabilityGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = match &self.connectivity {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::GlobeSimple(Weight::Regular).into(),
-                uplink_connectivity_indicator(held_snapshot),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::GlobeSimple(Weight::Regular).into(),
-                    troubled_snapshot.shown_over(
-                        uplink_connectivity_indicator(&troubled_snapshot.held_snapshot),
-                        clock,
-                    ),
-                )
+        let headline_indicator = match &self.connectivity {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                uplink_connectivity_indicator(held_snapshot)
+                    .with_headline_glyph(Phosphor::GlobeSimple(Weight::Regular).into())
             }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::GlobeSimple(Weight::Regular).into(),
-                placeholder.indicator(CONNECTIVITY_GLYPH.into()),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => troubled_snapshot
+                .shown_over(
+                    uplink_connectivity_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                )
+                .with_headline_glyph(Phosphor::GlobeSimple(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => placeholder
+                .indicator(CONNECTIVITY_GLYPH.into())
+                .with_headline_glyph(Phosphor::GlobeSimple(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Reachability.title(),
                 Phosphor::GlobeSimple(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Reachability.title(),
                 Phosphor::GlobeSimple(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         };
+        let mut lead_indicators = Vec::new();
+        match &self.connectivity {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                lead_indicators.push(uplink_connectivity_indicator(held_snapshot));
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                lead_indicators.push(troubled_snapshot.shown_over(
+                    uplink_connectivity_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                ));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                lead_indicators.push(placeholder.indicator(CONNECTIVITY_GLYPH.into()));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let mut rows = Vec::new();
         match &self.throughput {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -279,10 +292,10 @@ impl ReachabilityGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 

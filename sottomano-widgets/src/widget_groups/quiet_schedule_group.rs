@@ -33,7 +33,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         quiet_schedule_group::{
             quiet_window::{QuietPhase, QuietScheduleAdherence, QuietWindow},
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_press_actions},
@@ -491,7 +490,11 @@ impl QuietScheduleGroup {
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::QuietSchedule,
-            GroupSummary::glyph(self.face_icon().into(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::QuietSchedule.title(),
+                self.face_icon().into(),
+                IndicatorState::Idle,
+            ),
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [

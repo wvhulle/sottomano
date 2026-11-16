@@ -31,7 +31,6 @@ use crate::{
             engine_container_name, engine_failure_label, indicators_ending_in_hidden_count,
             with_container_switch,
         },
-        group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
         widget_group_identity::WidgetGroupFamily,
         widget_group_interaction::WidgetGroupInteraction,
@@ -164,7 +163,7 @@ impl DockerEnginesGroup {
                         DockerEnginesMessage::Probe(socket_path, delivery)
                     }),
                 demand
-                    .while_summary_shown(
+                    .while_headline_shown(
                         snapshot_subscription::<DockerEngineListing>(socket_path.clone())
                             .with(socket_path.clone()),
                     )
@@ -330,7 +329,8 @@ impl DockerEnginesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::DockerEngines.title(),
                 IconGlyph::SimpleIcon(SimpleIcon::Docker),
                 self.shown_state(),
             ),

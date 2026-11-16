@@ -45,7 +45,6 @@ use crate::{
     },
     widget_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -374,49 +373,72 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = self.usage_windows_summary(clock);
+        let headline_indicator = self.usage_windows_headline(clock);
         let mut rows = Vec::new();
         self.push_enterprise_spend_indicators(&mut rows, clock);
         self.push_ccusage_periods_indicators(&mut rows, clock);
         self.push_ccusage_block_indicators(&mut rows, clock);
         self.push_model_ranking_indicators(&mut rows);
         self.push_billed_ranking_indicators(&mut rows);
+        self.list_usage_windows(clock, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             ClaudeUsageInteraction::Expansion,
             rows,
         )
     }
 
-    fn usage_windows_summary(&self, clock: Clock) -> GroupSummary<'_> {
+    fn usage_windows_headline(&self, clock: Clock) -> GroupIndicator<'_> {
         match &self.usage_windows {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .usage_windows_indicator(claude_usage_windows_indicator(held_snapshot, clock))
+                .with_headline_glyph(SimpleIcon::Claude.into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .usage_windows_indicator(troubled_snapshot.shown_over(
+                    claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                ))
+                .with_headline_glyph(SimpleIcon::Claude.into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .usage_windows_indicator(
+                    placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
+                )
+                .with_headline_glyph(SimpleIcon::Claude.into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::ClaudeUsage.title(),
                 SimpleIcon::Claude.into(),
+                IndicatorState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::ClaudeUsage.title(),
+                SimpleIcon::Claude.into(),
+                IndicatorState::Off,
+            ),
+        }
+    }
+
+    fn list_usage_windows<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.usage_windows {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
                 self.usage_windows_indicator(claude_usage_windows_indicator(held_snapshot, clock)),
             ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    SimpleIcon::Claude.into(),
-                    self.usage_windows_indicator(troubled_snapshot.shown_over(
-                        claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                SimpleIcon::Claude.into(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                self.usage_windows_indicator(troubled_snapshot.shown_over(
+                    claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                )),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
                 self.usage_windows_indicator(
                     placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(SimpleIcon::Claude.into(), IndicatorState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(SimpleIcon::Claude.into(), IndicatorState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

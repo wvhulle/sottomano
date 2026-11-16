@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn the_summary_names_the_most_used_app_not_the_latest_focus() {
+    fn the_headline_names_the_most_used_app_not_the_latest_focus() {
         let config = config();
         let ledger = ledger_after([(focused(1, "firefox"), 0), (focused(2, "kitty"), 40)]);
         let face = SessionFace {

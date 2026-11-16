@@ -1,3 +1,4 @@
+use std::iter;
 mod port_link_indicator;
 
 use iced::{Subscription, Task};
@@ -23,7 +24,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         interface_address_sections::{
             AddressFamily, InterfaceAddressIndicator, InterfaceDnsIndicator, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -264,8 +264,7 @@ impl EthernetPortsGroup {
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&port_state.name)?;
-        let group_summary = GroupSummary::summarising(
-            Phosphor::ShareNetwork(Weight::Regular).into(),
+        let build_port_link_indicator = || {
             PortLinkIndicator {
                 port_state,
                 marking: self.port_marking(port_state),
@@ -275,8 +274,10 @@ impl EthernetPortsGroup {
             .fetching_on_hover(
                 EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
                 EthernetPortsInteraction::StopHoverFetches,
-            ),
-        );
+            )
+        };
+        let headline_indicator = build_port_link_indicator()
+            .with_headline_glyph(Phosphor::ShareNetwork(Weight::Regular).into());
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
         let connection_item = connection_switch
@@ -308,22 +309,21 @@ impl EthernetPortsGroup {
             );
         }
         let port_name = port_state.name.clone();
-        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
-            group_summary,
+            headline_indicator,
             expansion,
             move |expansion| EthernetPortsInteraction::Expansion {
                 port_name: port_name.clone(),
                 expansion,
             },
-            rows.into_iter().map(|port_item| {
+            iter::once(build_port_link_indicator()).chain(rows.into_iter().map(|port_item| {
                 port_item.fetching_on_hover(
                     EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
                     EthernetPortsInteraction::StopHoverFetches,
                 )
-            }),
+            })),
         ))
     }
 

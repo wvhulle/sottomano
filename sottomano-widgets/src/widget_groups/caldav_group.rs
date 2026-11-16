@@ -34,7 +34,6 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -212,7 +211,11 @@ impl CaldavGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
-            GroupSummary::glyph(self.account_handle_glyph(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Caldav.title(),
+                self.account_handle_glyph(),
+                IndicatorState::Idle,
+            ),
             &self.expansion,
             WidgetGroupInteraction::Caldav,
             rows,

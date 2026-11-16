@@ -189,6 +189,15 @@ pub fn face_icon<'a, Message: 'a>(
     })
 }
 
+pub(crate) fn badged_face_icon<'a, Message: 'a>(
+    config: &Config,
+    face: &IndicatorFace,
+    badge: ReadoutBadge,
+) -> Element<'a, Message> {
+    let icon = face_icon(config, face, 1.0).unwrap_or_else(|| Row::new().into());
+    badged(config, icon, badge, face.tint(1.0))
+}
+
 #[must_use]
 pub fn readout_view<'a, Message: 'a>(
     config: &Config,

@@ -36,7 +36,7 @@ pub struct IndicatorKey {
 pub enum HoverTarget {
     Indicator(IndicatorKey),
     PinnedOnPanel(Box<PanelPin>),
-    GroupSummary(Box<WidgetGroupIdentity>),
+    GroupHeadline(Box<WidgetGroupIdentity>),
     GroupMenu(GroupMenuTopic),
     SessionMenu,
     Window(WindowTarget),
@@ -60,7 +60,7 @@ impl HoverTarget {
                 GroupMenuPin::Item(indicator_key) => Some(indicator_key),
                 GroupMenuPin::Group(_) => None,
             },
-            HoverTarget::GroupSummary(_)
+            HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
@@ -71,9 +71,9 @@ impl HoverTarget {
     }
 
     #[must_use]
-    pub fn summarised_group(&self) -> Option<&WidgetGroupIdentity> {
+    pub fn headline_group(&self) -> Option<&WidgetGroupIdentity> {
         match self {
-            HoverTarget::GroupSummary(group_identity) => Some(group_identity),
+            HoverTarget::GroupHeadline(group_identity) => Some(group_identity),
             HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
                 GroupMenuPin::Group(group_identity) => Some(group_identity),
                 GroupMenuPin::Item(_) => None,

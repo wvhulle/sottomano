@@ -12,7 +12,6 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
-        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -381,7 +380,11 @@ impl PanelSettingsGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PanelSettings,
-            GroupSummary::glyph(Phosphor::Rows(Weight::Regular).into(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::PanelSettings.title(),
+                Phosphor::Rows(Weight::Regular).into(),
+                IndicatorState::Idle,
+            ),
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [

@@ -33,7 +33,6 @@ use crate::{
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         power_group::{
             cpu_tuning_sections::cpu_tuning_sections,
             power_draw_gauge::{PowerSource, charger_supply_sections},
@@ -231,24 +230,50 @@ impl PowerGroup {
                         PowerProfileInteraction::SwitchToProfile(profile),
                     ),
                 });
-        let group_summary = match self.power_profile.profile_status() {
-            SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotTroubled { .. } => GroupSummary::summarising(
-                Phosphor::Plug(Weight::Regular).into(),
-                self.power_profile_indicator(config),
-            ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::glyph(
-                Phosphor::Plug(Weight::Regular).into(),
-                placeholder.shown_state(),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
-                Phosphor::Plug(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(Phosphor::Plug(Weight::Regular).into(), IndicatorState::Off)
+        let headline_indicator = match &self.battery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                battery_indicator(held_snapshot)
+                    .with_headline_glyph(Phosphor::Plug(Weight::Regular).into())
             }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => troubled_snapshot
+                .shown_over(battery_indicator(&troubled_snapshot.held_snapshot), clock)
+                .with_headline_glyph(Phosphor::Plug(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { .. }
+            | SubscribedSnapshot::AwaitingFirstSnapshot
+            | SubscribedSnapshot::SourceUnavailable => match self.power_profile.profile_status() {
+                SubscribedSnapshot::SnapshotHeld { .. }
+                | SubscribedSnapshot::SnapshotTroubled { .. } => self
+                    .power_profile
+                    .slider_control()
+                    .indicator(config.calendar.locale)
+                    .with_headline_glyph(Phosphor::Plug(Weight::Regular).into()),
+                SubscribedSnapshot::NoSnapshot { placeholder } => GroupIndicator::glyph_only(
+                    WidgetGroupFamily::Power.title(),
+                    Phosphor::Plug(Weight::Regular).into(),
+                    placeholder.shown_state(),
+                ),
+                SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                    WidgetGroupFamily::Power.title(),
+                    Phosphor::Plug(Weight::Regular).into(),
+                    IndicatorState::Pending,
+                ),
+                SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                    WidgetGroupFamily::Power.title(),
+                    Phosphor::Plug(Weight::Regular).into(),
+                    IndicatorState::Off,
+                ),
+            },
         };
+        let mut lead_indicators = Vec::new();
+        match self.power_profile.profile_status() {
+            SubscribedSnapshot::SnapshotHeld { .. }
+            | SubscribedSnapshot::SnapshotTroubled { .. } => {
+                lead_indicators.push(self.power_profile_indicator(config));
+            }
+            SubscribedSnapshot::NoSnapshot { .. }
+            | SubscribedSnapshot::AwaitingFirstSnapshot
+            | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let mut rows = Vec::new();
         match &self.battery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -288,10 +313,10 @@ impl PowerGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Power,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             PowerInteraction::Expansion,
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 

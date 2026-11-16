@@ -11,7 +11,6 @@ use crate::{
         indicator_state::IndicatorState,
     },
     widget_groups::{
-        group_summary::GroupSummary,
         journal_events_group::{
             JournalEventsInteraction,
             coredump_log::{
@@ -72,7 +71,7 @@ impl JournalScopeGroup {
         self.push_oom_kill_log_indicators(&mut rows, clock, config);
         WidgetGroupContent::expandable(
             self.family(),
-            GroupSummary::glyph(self.icon(), self.state(clock)),
+            GroupIndicator::glyph_only(self.family().title(), self.icon(), self.state(clock)),
             &self.expansion,
             move |expansion_message| {
                 JournalEventsInteraction::Expansion(unit_scope, expansion_message)

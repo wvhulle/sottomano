@@ -54,7 +54,6 @@ use crate::{
     },
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         voice_dictation_group::{
             dictation_phase_indicator::press_does,
             inference_hardware_indicator::InferenceHardware,
@@ -387,10 +386,49 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::OutputProblems))
     }
 
-    fn dictation_summary(&self, clock: Clock) -> GroupSummary<'_> {
+    fn dictation_headline(&self, clock: Clock) -> GroupIndicator<'_> {
         match &self.dictation {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .dictation_indicator(
+                    notulist_dictation_indicator(held_snapshot),
+                    SwitchPosition::from(held_snapshot),
+                    press_does(held_snapshot),
+                )
+                .with_headline_glyph(Phosphor::ChatTeardropText(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                self.dictation_indicator(
+                    troubled_snapshot
+                        .shown_over(notulist_dictation_indicator(held_snapshot), clock),
+                    SwitchPosition::from(held_snapshot),
+                    press_does(held_snapshot),
+                )
+                .with_headline_glyph(Phosphor::ChatTeardropText(Weight::Regular).into())
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .dictation_indicator(
+                    placeholder.indicator(DICTATION_GLYPH.into()),
+                    SwitchPosition::Off,
+                    "start dictating at the cursor",
+                )
+                .with_headline_glyph(Phosphor::ChatTeardropText(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::VoiceDictation.title(),
                 Phosphor::ChatTeardropText(Weight::Regular).into(),
+                IndicatorState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::VoiceDictation.title(),
+                Phosphor::ChatTeardropText(Weight::Regular).into(),
+                IndicatorState::Off,
+            ),
+        }
+    }
+
+    fn list_dictation<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.dictation {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
                 self.dictation_indicator(
                     notulist_dictation_indicator(held_snapshot),
                     SwitchPosition::from(held_snapshot),
@@ -399,37 +437,30 @@ impl VoiceDictationGroup {
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                GroupSummary::summarising(
-                    Phosphor::ChatTeardropText(Weight::Regular).into(),
+                indicators.insert(
+                    0,
                     self.dictation_indicator(
                         troubled_snapshot
                             .shown_over(notulist_dictation_indicator(held_snapshot), clock),
                         SwitchPosition::from(held_snapshot),
                         press_does(held_snapshot),
                     ),
-                )
+                );
             }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::ChatTeardropText(Weight::Regular).into(),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
                 self.dictation_indicator(
                     placeholder.indicator(DICTATION_GLYPH.into()),
                     SwitchPosition::Off,
                     "start dictating at the cursor",
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
-                Phosphor::ChatTeardropText(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
-                Phosphor::ChatTeardropText(Weight::Regular).into(),
-                IndicatorState::Off,
-            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = self.dictation_summary(clock);
+        let headline_indicator = self.dictation_headline(clock);
         let mut rows = Vec::new();
         self.push_interface_mismatch_indicators(&mut rows, clock);
         self.push_pipeline_indicators(&mut rows, clock);
@@ -437,9 +468,10 @@ impl VoiceDictationGroup {
         self.push_engine_indicators(&mut rows, clock);
         self.push_loaded_engine_indicators(&mut rows);
         self.push_output_problems_indicators(&mut rows, clock);
+        self.list_dictation(clock, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VoiceDictation,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             VoiceDictationInteraction::Expansion,
             rows,

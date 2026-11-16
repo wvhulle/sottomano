@@ -21,7 +21,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -524,7 +523,8 @@ impl AppLauncherGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, FREQUENT_GROUP_NAME),
             WidgetGroupTitle::fixed(scope.group_title()),
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupTitle::fixed(scope.group_title()).to_string(),
                 IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
                 IndicatorState::Idle,
             ),
@@ -549,7 +549,8 @@ impl AppLauncherGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, category.stored_name()),
             WidgetGroupTitle::fixed(category.title()),
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupTitle::fixed(category.title()).to_string(),
                 IconGlyph::from(category_glyph(category)),
                 IndicatorState::Idle,
             ),
@@ -563,7 +564,8 @@ impl AppLauncherGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, OPTIONS_GROUP_NAME),
             WidgetGroupTitle::fixed("Launcher options"),
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupTitle::fixed("Launcher options").to_string(),
                 IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
                 IndicatorState::Idle,
             ),

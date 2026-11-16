@@ -32,8 +32,6 @@ use crate::{
 mod network_manager_vpn_hover_card;
 use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_indicator};
 
-use crate::widget_groups::group_summary::GroupSummary;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkManagerVpnBusRequest {
     Refresh,
@@ -67,7 +65,7 @@ impl NetworkManagerVpnGroup {
         buses: &DesktopBuses,
         demand: &GroupSourceDemand,
     ) -> Subscription<NetworkManagerVpnMessage> {
-        demand.while_summary_shown(
+        demand.while_headline_shown(
             snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                 .map(NetworkManagerVpnMessage::NetworkManagerVpns),
         )
@@ -147,7 +145,8 @@ impl NetworkManagerVpnGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::NetworkManagerVpns.title(),
                 Phosphor::ShieldCheck(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

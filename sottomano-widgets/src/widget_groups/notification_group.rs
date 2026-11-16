@@ -10,7 +10,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         quiet_schedule_group::{QuietScheduleGroup, quiet_window::QuietPhase},
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -142,15 +141,16 @@ impl NotificationGroup {
         quiet_schedule: &'a QuietScheduleGroup,
     ) -> WidgetGroupContent<'a> {
         let quiet_phase = status.quiet_phase;
-        let group_summary =
-            GroupSummary::summarising(Phosphor::Tray(Weight::Regular).into(), status.indicator());
-        let group_summary = group_summary;
+        let build_pending_notifications_indicator = || status.indicator();
+        let headline_indicator = build_pending_notifications_indicator()
+            .with_headline_glyph(Phosphor::Tray(Weight::Regular).into());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
+                build_pending_notifications_indicator(),
                 do_not_disturb_indicator(DoNotDisturbStatus { quiet_phase })
                     .on_switch_press(
                         quiet_phase,
@@ -234,7 +234,10 @@ fn do_not_disturb_indicator<'indicator>(status: DoNotDisturbStatus) -> GroupIndi
 
 #[cfg(test)]
 mod tests {
-    use super::{AlertSound, NotificationGroup, NotificationGroupMessage};
+    use super::{
+        AlertSound, NotificationGroup, NotificationGroupMessage, NotificationStatus, QuietPhase,
+        ReadoutBadge,
+    };
 
     #[test]
     fn a_loaded_sound_setting_reads_back_unchanged() {
@@ -242,5 +245,39 @@ mod tests {
         let _ =
             notification_group.update(NotificationGroupMessage::SoundLoaded(AlertSound::Silent));
         assert_eq!(notification_group.alert_sound(), AlertSound::Silent);
+    }
+
+    #[test]
+    fn the_headline_counts_live_and_held_notifications() {
+        let pending = NotificationStatus {
+            quiet_phase: QuietPhase::Inactive,
+            live: 2,
+            held: 1,
+        };
+        assert_eq!(
+            pending
+                .indicator()
+                .shown_readout()
+                .expect("a readout indicator")
+                .badge,
+            ReadoutBadge::Counted(3)
+        );
+    }
+
+    #[test]
+    fn the_headline_has_no_count_without_notifications() {
+        let quiet = NotificationStatus {
+            quiet_phase: QuietPhase::Inactive,
+            live: 0,
+            held: 0,
+        };
+        assert_eq!(
+            quiet
+                .indicator()
+                .shown_readout()
+                .expect("a readout indicator")
+                .badge,
+            ReadoutBadge::Unbadged
+        );
     }
 }

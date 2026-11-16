@@ -47,7 +47,6 @@ use crate::{
     hover_cards::hover_card_body::Section,
     widget_groups::{
         compute_group::cpu_load_gauge::cpu_busy_processes_sections,
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -160,7 +159,7 @@ impl ComputeGroup {
     ) -> Subscription<ComputeMessage> {
         let demand = demand.expanded_when(self.expansion.state());
         Subscription::batch([
-            demand.while_summary_shown(
+            demand.while_headline_shown(
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
             ),
             demand.while_indicators_shown(
@@ -252,51 +251,68 @@ impl ComputeGroup {
     }
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
-        let group_summary = self.cpu_load_summary(clock);
+        let headline_indicator = self.cpu_load_headline(clock);
         let mut rows = Vec::new();
         self.push_cpu_clock_indicators(&mut rows, clock);
         self.push_cpu_temperature_indicators(&mut rows, clock, locale);
         self.push_cpu_power_draw_indicators(&mut rows);
         self.push_cpu_model_indicators(&mut rows);
         self.push_x3d_cache_preference_indicators(&mut rows, clock);
+        self.list_cpu_load(clock, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             ComputeInteraction::Expansion,
             rows,
         )
     }
 
-    fn cpu_load_summary(&self, clock: Clock) -> GroupSummary<'_> {
+    fn cpu_load_headline(&self, clock: Clock) -> GroupIndicator<'_> {
         match &self.cpu_load {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Circuitry(Weight::Regular).into(),
-                self.cpu_load_indicator(cpu_usage_indicator(held_snapshot)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Circuitry(Weight::Regular).into(),
-                    self.cpu_load_indicator(
-                        troubled_snapshot.shown_over(
-                            cpu_usage_indicator(&troubled_snapshot.held_snapshot),
-                            clock,
-                        ),
-                    ),
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .cpu_load_indicator(cpu_usage_indicator(held_snapshot))
+                .with_headline_glyph(Phosphor::Circuitry(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .cpu_load_indicator(
+                    troubled_snapshot
+                        .shown_over(cpu_usage_indicator(&troubled_snapshot.held_snapshot), clock),
                 )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Circuitry(Weight::Regular).into(),
-                self.cpu_load_indicator(placeholder.indicator(CPU_LOAD_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                .with_headline_glyph(Phosphor::Circuitry(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .cpu_load_indicator(placeholder.indicator(CPU_LOAD_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Circuitry(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Compute.title(),
                 Phosphor::Circuitry(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Compute.title(),
                 Phosphor::Circuitry(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
+        }
+    }
+
+    fn list_cpu_load<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.cpu_load {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
+                self.cpu_load_indicator(cpu_usage_indicator(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                self.cpu_load_indicator(
+                    troubled_snapshot
+                        .shown_over(cpu_usage_indicator(&troubled_snapshot.held_snapshot), clock),
+                ),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
+                self.cpu_load_indicator(placeholder.indicator(CPU_LOAD_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

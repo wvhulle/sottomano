@@ -20,7 +20,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -322,7 +321,8 @@ impl NspawnContainersGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NspawnContainers,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::NspawnContainers.title(),
                 Phosphor::Hexagon(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

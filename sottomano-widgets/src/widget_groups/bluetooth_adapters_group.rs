@@ -1,3 +1,4 @@
+use std::iter;
 mod adapter_radio_indicator;
 mod connected_device_indicator;
 mod reconnect_churn_counting;
@@ -27,7 +28,6 @@ use crate::{
     clock::Clock,
     group_indicators::group_indicator::GroupIndicator,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -196,15 +196,16 @@ impl BluetoothAdaptersGroup {
         clock: Clock,
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
-        let group_summary = GroupSummary::summarising(
-            Phosphor::BluetoothConnected(Weight::Regular).into(),
+        let build_adapter_radio_indicator = || {
             self.adapter_indicator(adapter)
                 .indicator()
                 .with_hover_card(Box::new(move |_| {
                     self.bluetooth
                         .hover_card_with(self.adapter_indicator(adapter).hover_card())
-                })),
-        );
+                }))
+        };
+        let headline_indicator = build_adapter_radio_indicator()
+            .with_headline_glyph(Phosphor::BluetoothConnected(Weight::Regular).into());
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
         let wired_power_indicator = power_switch
@@ -243,20 +244,20 @@ impl BluetoothAdaptersGroup {
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
-        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::BluetoothAdapters,
                 adapter.controller_name.clone(),
             ),
             adapter_group_title(self.adapter_naming(adapter)),
-            group_summary,
+            headline_indicator,
             expansion,
             move |expansion| BluetoothInteraction::Expansion {
                 controller_name: controller_name.clone(),
                 expansion,
             },
-            [wired_power_indicator].into_iter().chain(device_indicators),
+            iter::once(build_adapter_radio_indicator())
+                .chain([wired_power_indicator].into_iter().chain(device_indicators)),
         ))
     }
 

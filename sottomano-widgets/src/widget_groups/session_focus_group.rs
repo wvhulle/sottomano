@@ -29,7 +29,6 @@ use crate::{
     clock::Clock,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         session_focus_group::{
             break_log::BreakLog,
             context_switch_rate::ContextSwitchRate,
@@ -254,8 +253,7 @@ impl SessionFocusGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Crosshair(Weight::Regular).into(),
+        let build_focus_session_indicator = || {
             self.session_face(config)
                 .indicator(clock, locale)
                 .ongoing_toast_action_buttons([
@@ -276,19 +274,26 @@ impl SessionFocusGroup {
                         tint: ActionTint::Hold,
                         on_button_pressed: SessionFocusMessage::WarningSnoozed,
                     },
-                ]),
-        );
+                ])
+        };
+        let headline_indicator = build_focus_session_indicator()
+            .with_headline_glyph(Phosphor::Crosshair(Weight::Regular).into());
         let breaks = self.break_log(config).indicator(clock);
         let focus_run = self.focus_run_indicator(config).indicator(clock);
         let totals = self.daily_totals.indicator(locale);
         let switches = self.context_switch_rate(config).indicator(clock);
-        let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             SessionFocusMessage::Expansion,
-            [breaks, focus_run, totals, switches],
+            [
+                build_focus_session_indicator(),
+                breaks,
+                focus_run,
+                totals,
+                switches,
+            ],
         )
     }
 }

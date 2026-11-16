@@ -33,7 +33,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -394,7 +393,8 @@ impl VirtualMachinesGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::VirtualMachines.title(),
                 Phosphor::Browsers(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

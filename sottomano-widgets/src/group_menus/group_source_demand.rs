@@ -34,7 +34,7 @@ impl GroupSourceDemand {
         self
     }
 
-    pub fn while_summary_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+    pub fn while_headline_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         match self.surface {
             GroupSurface::SummaryOnly | GroupSurface::AllRows => subscription,
             GroupSurface::Hidden => Subscription::none(),
@@ -49,7 +49,7 @@ impl GroupSourceDemand {
     }
 
     pub fn while_any_indicator_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
-        self.while_summary_shown(subscription)
+        self.while_headline_shown(subscription)
     }
 }
 

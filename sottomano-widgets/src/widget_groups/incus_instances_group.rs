@@ -28,7 +28,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         engine_container_indicators::engine_failure_label,
-        group_summary::GroupSummary,
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -275,7 +274,7 @@ impl IncusInstancesGroup {
                     .map(|(instance_daemon, delivery)| {
                         IncusInstancesMessage::Probe(instance_daemon, delivery)
                     }),
-                demand.while_summary_shown(
+                demand.while_headline_shown(
                     snapshot_subscription::<FamilyListings<DaemonInstanceListing>>(instance_daemon)
                         .with(instance_daemon)
                         .map(|(instance_daemon, delivery)| {
@@ -363,7 +362,8 @@ impl IncusInstancesGroup {
             .flat_map(|instance_daemon| self.daemon_indicators(instance_daemon));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::IncusInstances.title(),
                 Phosphor::CubeFocus(Weight::Regular).into(),
                 if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
                     self.probe_availability(instance_daemon) == Some(Availability::Available)

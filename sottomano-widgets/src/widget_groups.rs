@@ -23,7 +23,6 @@ pub mod flatpak_sandboxes_group;
 pub mod gamepad_group;
 pub mod global_menu_group;
 pub mod gpu_group;
-pub mod group_summary;
 pub mod idle_pause_groups;
 pub mod incus_instances_group;
 mod interface_address_sections;

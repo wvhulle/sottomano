@@ -28,7 +28,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -321,10 +320,17 @@ impl AudioGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Audio,
-            GroupSummary::glyph(
-                Phosphor::Equalizer(Weight::Regular).into(),
-                self.sink_control.shown_state(),
-            ),
+            match sink {
+                Some(_) => self
+                    .sink_control
+                    .indicator(config.calendar.locale)
+                    .with_headline_glyph(Phosphor::Equalizer(Weight::Regular).into()),
+                None => GroupIndicator::glyph_only(
+                    WidgetGroupFamily::Audio.title(),
+                    Phosphor::Equalizer(Weight::Regular).into(),
+                    self.sink_control.shown_state(),
+                ),
+            },
             &self.expansion,
             AudioMessage::Expansion,
             rows,
@@ -349,5 +355,29 @@ fn slow_write_delay() {
         && let Ok(ms) = raw.parse::<u64>()
     {
         thread::sleep(Duration::from_millis(ms));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Locale;
+
+    use super::AudioGroup;
+    use crate::{
+        group_indicators::indicator_drawing::ReadoutGauge,
+        widgets::phosphor::{Phosphor, Weight},
+    };
+
+    #[test]
+    fn the_audio_headline_draws_the_output_volume_as_a_gauge() {
+        let audio_group = AudioGroup::default();
+        let headline = audio_group
+            .sink_control
+            .indicator(Locale::en_US)
+            .with_headline_glyph(Phosphor::Equalizer(Weight::Regular).into());
+        assert!(matches!(
+            headline.shown_readout().expect("a readout indicator").gauge,
+            ReadoutGauge::Gauged { .. }
+        ));
     }
 }

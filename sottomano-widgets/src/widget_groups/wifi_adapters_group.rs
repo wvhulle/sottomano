@@ -1,3 +1,4 @@
+use std::iter;
 mod adapter_signal_indicator;
 
 use iced::{Subscription, Task};
@@ -25,7 +26,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         interface_address_sections::{
             AddressFamily, InterfaceAddressIndicator, InterfaceDnsIndicator, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -251,8 +251,7 @@ impl WifiAdaptersGroup {
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.device)?;
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Broadcast(Weight::Regular).into(),
+        let build_adapter_signal_indicator = || {
             AdapterSignalIndicator {
                 adapter,
                 radio_power,
@@ -264,8 +263,10 @@ impl WifiAdaptersGroup {
             .fetching_on_hover(
                 WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
                 WifiAdaptersInteraction::StopHoverFetches,
-            ),
-        );
+            )
+        };
+        let headline_indicator = build_adapter_signal_indicator()
+            .with_headline_glyph(Phosphor::Broadcast(Weight::Regular).into());
         let mut rows = Vec::new();
         if radio_power == RadioPower::On {
             let connection_switch = AdapterConnectionSwitch { adapter };
@@ -315,18 +316,20 @@ impl WifiAdaptersGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
-            group_summary,
+            headline_indicator,
             expansion,
             move |expansion| WifiAdaptersInteraction::Expansion {
                 adapter_device: adapter_device.clone(),
                 expansion,
             },
-            rows.into_iter().map(|adapter_item| {
-                adapter_item.fetching_on_hover(
-                    WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
-                    WifiAdaptersInteraction::StopHoverFetches,
-                )
-            }),
+            iter::once(build_adapter_signal_indicator()).chain(rows.into_iter().map(
+                |adapter_item| {
+                    adapter_item.fetching_on_hover(
+                        WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
+                        WifiAdaptersInteraction::StopHoverFetches,
+                    )
+                },
+            )),
         ))
     }
 

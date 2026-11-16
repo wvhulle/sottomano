@@ -73,11 +73,10 @@ use self::{
         TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
         track_lyrics_indicator,
     },
-    track_face::{track_indicator, wired_player_indicator},
+    track_face::{player_headline_indicator, track_indicator, wired_player_indicator},
     track_hover_card::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
-use crate::widget_groups::group_summary::GroupSummary;
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
 const LYRICS_TICK: Duration = Duration::from_millis(250);
@@ -453,6 +452,7 @@ impl MediaGroup {
                 session,
                 self.lyrics_of(media),
                 PlayerCards {
+                    headline: Box::new(move |_| self.player_hover_card(media)),
                     player: Box::new(move |_| self.player_hover_card(media)),
                     track: Box::new(move |card_clock| {
                         self.track_hover_card(media, index, card_clock)
@@ -482,6 +482,7 @@ fn session_buttons_indicator<'a>(
 }
 
 struct PlayerCards<'a> {
+    headline: DescribeCard<'a>,
     player: DescribeCard<'a>,
     track: DescribeCard<'a>,
     lyrics: DescribeCard<'a>,
@@ -551,11 +552,10 @@ fn player_group<'a>(
             !(seek_availability == SeekAvailability::Seekable
                 && session.expansion.state() == ExpansionState::Expanded)
         });
-    let group_summary = GroupSummary::summarising(
-        Phosphor::MusicNotes(Weight::Regular).into(),
-        wired_player_indicator(config, media, gauge_fraction).with_hover_card(cards.player),
-    );
+    let headline_indicator =
+        player_headline_indicator(media, gauge_fraction).with_hover_card(cards.headline);
     let mut rows = vec![
+        wired_player_indicator(config, media, gauge_fraction).with_hover_card(cards.player),
         track_indicator(
             config,
             media,
@@ -608,7 +608,7 @@ fn player_group<'a>(
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),
         group_title,
-        group_summary,
+        headline_indicator,
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
         rows,
@@ -697,6 +697,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon};
 
     fn titled_player(bus: &str, status: Status) -> Media {
         Media {
@@ -875,5 +876,24 @@ mod tests {
                 .lyrics_of(&low_tide)
                 .is_some_and(|lyrics_snapshot| lyrics_snapshot.failure().is_some())
         );
+    }
+
+    #[test]
+    fn a_spotify_handle_shows_the_spotify_glyph() {
+        let spotify = titled_player("Spotify", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&spotify, None).face().icon,
+            IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
+        ));
+    }
+
+    #[test]
+    fn an_unbranded_player_handle_shows_music_notes() {
+        let unbranded = titled_player("Unbranded test player", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&unbranded, None).face().icon,
+            IndicatorIcon::IconGlyph { glyph, .. }
+                if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
+        ));
     }
 }

@@ -33,7 +33,6 @@ use crate::{
     group_indicators::{group_indicator::GroupIndicator, slider_control::ControlMessage},
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         idle_pause_groups::pause_blocker_indicators::TimerArming,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -428,14 +427,18 @@ impl IdlePauseGroups {
                 );
             }
         }
-        let summary_state = match first_blocker {
+        let headline_state = match first_blocker {
             Some(blocker) => blocker.display_state(),
             None => IndicatorState::Idle,
         };
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::IdleTimeouts, pause_stored_name(pause)),
             WidgetGroupTitle::fixed(pause_title(pause)),
-            GroupSummary::glyph(pause_glyph(pause).into(), summary_state),
+            GroupIndicator::glyph_only(
+                WidgetGroupTitle::fixed(pause_title(pause)).to_string(),
+                pause_glyph(pause).into(),
+                headline_state,
+            ),
             &self.pause(pause).expansion,
             move |message| IdlePauseInteraction::Expansion(pause, message),
             rows,

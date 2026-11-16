@@ -35,7 +35,6 @@ use crate::{
             gpu_clock_label::gpu_clocks_sections,
             gpu_memory_gauge::{gpu_memory_sections, gpu_processes_sections},
         },
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -320,41 +319,98 @@ impl GpuGroup {
         }
     }
 
-    fn device_summary<'a>(
+    fn device_headline<'a>(
+        &'a self,
+        bus: &'a PciBusId,
+        device: &'a GpuDevice,
+        group_title: &WidgetGroupTitle,
+        clock: Clock,
+    ) -> GroupIndicator<'a> {
+        match &device.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                    .wired_gpu_load_indicator(
+                        bus,
+                        device,
+                        snapshot,
+                        gpu_load_indicator(held_snapshot),
+                    )
+                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                    .wired_gpu_load_indicator(
+                        bus,
+                        device,
+                        snapshot,
+                        troubled_snapshot.shown_over(
+                            gpu_load_indicator(&troubled_snapshot.held_snapshot),
+                            clock,
+                        ),
+                    )
+                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
+                SubscribedSnapshot::NoSnapshot { placeholder } => self
+                    .wired_gpu_load_indicator(
+                        bus,
+                        device,
+                        snapshot,
+                        placeholder.indicator(GPU_LOAD_GLYPH.into()),
+                    )
+                    .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
+                SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                    group_title.to_string(),
+                    Phosphor::CubeTransparent(Weight::Regular).into(),
+                    IndicatorState::Pending,
+                ),
+                SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                    group_title.to_string(),
+                    Phosphor::CubeTransparent(Weight::Regular).into(),
+                    IndicatorState::Off,
+                ),
+            },
+            GpuDeviceAccess::Unreadable { handle_failure } => handle_failure
+                .indicator(GPU_LOAD_GLYPH.into())
+                .with_hover_card(Box::new(move |_| {
+                    [handle_failure.source_state()]
+                        .into_iter()
+                        .chain(self.model_sections(device))
+                        .collect()
+                }))
+                .refreshed_by(GpuInteraction::Refresh(bus.clone()))
+                .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
+        }
+    }
+
+    fn list_device<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         clock: Clock,
-    ) -> GroupSummary<'a> {
+        indicators: &mut Vec<GroupIndicator<'a>>,
+    ) {
         match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
-                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    GroupSummary::summarising(
-                        Phosphor::CubeTransparent(Weight::Regular).into(),
-                        self.wired_gpu_load_indicator(
-                            bus,
-                            device,
-                            snapshot,
-                            gpu_load_indicator(held_snapshot),
+                SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                    0,
+                    self.wired_gpu_load_indicator(
+                        bus,
+                        device,
+                        snapshot,
+                        gpu_load_indicator(held_snapshot),
+                    ),
+                ),
+                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                    0,
+                    self.wired_gpu_load_indicator(
+                        bus,
+                        device,
+                        snapshot,
+                        troubled_snapshot.shown_over(
+                            gpu_load_indicator(&troubled_snapshot.held_snapshot),
+                            clock,
                         ),
-                    )
-                }
-                SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    GroupSummary::summarising(
-                        Phosphor::CubeTransparent(Weight::Regular).into(),
-                        self.wired_gpu_load_indicator(
-                            bus,
-                            device,
-                            snapshot,
-                            troubled_snapshot.shown_over(
-                                gpu_load_indicator(&troubled_snapshot.held_snapshot),
-                                clock,
-                            ),
-                        ),
-                    )
-                }
-                SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                    Phosphor::CubeTransparent(Weight::Regular).into(),
+                    ),
+                ),
+                SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                    0,
                     self.wired_gpu_load_indicator(
                         bus,
                         device,
@@ -362,17 +418,11 @@ impl GpuGroup {
                         placeholder.indicator(GPU_LOAD_GLYPH.into()),
                     ),
                 ),
-                SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
-                    Phosphor::CubeTransparent(Weight::Regular).into(),
-                    IndicatorState::Pending,
-                ),
-                SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
-                    Phosphor::CubeTransparent(Weight::Regular).into(),
-                    IndicatorState::Off,
-                ),
+                SubscribedSnapshot::AwaitingFirstSnapshot
+                | SubscribedSnapshot::SourceUnavailable => {}
             },
-            GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
-                Phosphor::CubeTransparent(Weight::Regular).into(),
+            GpuDeviceAccess::Unreadable { handle_failure } => indicators.insert(
+                0,
                 handle_failure
                     .indicator(GPU_LOAD_GLYPH.into())
                     .with_hover_card(Box::new(move |_| {
@@ -491,13 +541,18 @@ impl GpuGroup {
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
+                let headline_indicator = self.device_headline(bus, device, &group_title, clock);
+                let mut lead_indicators = Vec::new();
+                self.list_device(bus, device, clock, &mut lead_indicators);
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,
-                    self.device_summary(bus, device, clock),
+                    headline_indicator,
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    self.device_indicators(bus, device),
+                    lead_indicators
+                        .into_iter()
+                        .chain(self.device_indicators(bus, device)),
                 )
             })
     }

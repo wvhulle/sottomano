@@ -28,7 +28,6 @@ use crate::{
     group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -226,7 +225,8 @@ impl CiRunsGroup {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::sole(WidgetGroupFamily::CiRuns),
             WidgetGroupTitle::Named(ci_runs_title(total_runs).into()),
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupTitle::Named(ci_runs_title(total_runs).into()).to_string(),
                 Phosphor::FlowArrow(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

@@ -34,7 +34,6 @@ use crate::{
         indicator_state::IndicatorState,
     },
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -187,47 +186,68 @@ impl CopilotUsageGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = self.metered_summary(clock);
+        let headline_indicator = self.metered_headline(clock);
         let mut rows = Vec::new();
         self.push_free_indicators(&mut rows, clock);
         self.push_cli_indicators(&mut rows, clock);
         self.push_model_ranking_indicators(&mut rows);
+        self.list_metered(clock, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             CopilotUsageInteraction::Expansion,
             rows,
         )
     }
 
-    fn metered_summary(&self, clock: Clock) -> GroupSummary<'_> {
+    fn metered_headline(&self, clock: Clock) -> GroupIndicator<'_> {
         match &self.metered {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .metered_indicator(copilot_metered_indicator(held_snapshot, clock))
+                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .metered_indicator(troubled_snapshot.shown_over(
+                    copilot_metered_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                ))
+                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .metered_indicator(placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()))
+                .with_headline_glyph(SimpleIcon::GitHubCopilot.into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::CopilotUsage.title(),
                 SimpleIcon::GitHubCopilot.into(),
+                IndicatorState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::CopilotUsage.title(),
+                SimpleIcon::GitHubCopilot.into(),
+                IndicatorState::Off,
+            ),
+        }
+    }
+
+    fn list_metered<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.metered {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
                 self.metered_indicator(copilot_metered_indicator(held_snapshot, clock)),
             ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    SimpleIcon::GitHubCopilot.into(),
-                    self.metered_indicator(troubled_snapshot.shown_over(
-                        copilot_metered_indicator(&troubled_snapshot.held_snapshot, clock),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                SimpleIcon::GitHubCopilot.into(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                self.metered_indicator(troubled_snapshot.shown_over(
+                    copilot_metered_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                )),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
                 self.metered_indicator(
                     placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(SimpleIcon::GitHubCopilot.into(), IndicatorState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(SimpleIcon::GitHubCopilot.into(), IndicatorState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

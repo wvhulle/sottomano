@@ -408,14 +408,12 @@ fn nested_menu_groups<'a>(
                 row_context,
                 &entry.group_identity,
                 &entry.group_title,
-                &entry.summary,
+                &entry.headline_indicator,
                 emphasis,
             );
             let indicators = entry
-                .summary
-                .summarised_indicator()
-                .into_iter()
-                .chain(&entry.indicators)
+                .indicators
+                .iter()
                 .map(|indicator| {
                     let beside =
                         match indicator.row_emphasis(&entry.group_identity, inspected_indicator) {
@@ -475,7 +473,6 @@ mod tests {
         widget_groups::{
             clock_group::ClockInteraction,
             compositor_styling_group::CompositorStylingMessage,
-            group_summary::GroupSummary,
             widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
             widget_group_interaction::WidgetGroupInteraction,
@@ -594,7 +591,11 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Gpu.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             &expansion,
             ClockInteraction::Expansion,
             [named_test_indicator("Smoke item")],
@@ -621,12 +622,16 @@ mod tests {
     }
 
     #[test]
-    fn a_glyph_summarised_group_without_indicators_stays_in_the_menu() {
+    fn a_group_without_indicators_leaves_the_menu() {
         let group_menus = opened_menu_state(every_presentation()[0]);
         let expansion = WidgetGroupExpansion::default();
         let empty_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Gpu.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             &expansion,
             ClockInteraction::Expansion,
             Vec::<GroupIndicator<'_>>::new(),
@@ -636,23 +641,23 @@ mod tests {
     }
 
     #[test]
-    fn a_group_whose_only_row_is_its_summary_lists_that_row() {
+    fn a_headline_indicator_is_not_listed_among_the_group_indicators() {
         let group_menus = opened_menu_state(every_presentation()[0]);
         let expansion = WidgetGroupExpansion::default();
-        let summarised_group = WidgetGroupContent::expandable(
+        let headline_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::summarising(IconGlyph::default(), named_test_indicator("Summary row")),
+            named_test_indicator("Headline").with_headline_glyph(IconGlyph::default()),
             &expansion,
             ClockInteraction::Expansion,
-            Vec::<GroupIndicator<'_>>::new(),
+            [named_test_indicator("Listed")],
         );
-        let summary_row_key = IndicatorKey {
+        let indicator_key = |name: &str| IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
-            name: "Summary row".into(),
+            name: name.to_owned().into(),
         };
-        let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [summarised_group]);
-        assert!(menu.indicator(&summary_row_key).is_some());
-        assert_eq!(menu.open_group_menu().families.len(), 1);
+        let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [headline_group]);
+        assert!(menu.indicator(&indicator_key("Headline")).is_none());
+        assert!(menu.indicator(&indicator_key("Listed")).is_some());
     }
 
     #[test]
@@ -691,7 +696,11 @@ mod tests {
         });
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Media.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             &expansion,
             ClockInteraction::Expansion,
             long_list,
@@ -841,7 +850,11 @@ mod tests {
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Gpu.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             &expansion,
             ClockInteraction::Expansion,
             [match row_press {
@@ -898,7 +911,11 @@ mod tests {
         let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
             WidgetGroupContent::expandable(
                 family,
-                GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+                GroupIndicator::glyph_only(
+                    family.title(),
+                    IconGlyph::default(),
+                    IndicatorState::Idle,
+                ),
                 &expansion,
                 ClockInteraction::Expansion,
                 [named_test_indicator("Smoke item")],
@@ -1033,7 +1050,11 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Media.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             &expansion,
             ClockInteraction::Expansion,
             [GroupIndicator::composed_pinnable(

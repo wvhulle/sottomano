@@ -39,7 +39,6 @@ use crate::{
         indicator_state::IndicatorState,
     },
     widget_groups::{
-        group_summary::GroupSummary,
         memory_board_group::{
             memory_usage_gauge::memory_processes_sections,
             swap_activity_gauge::swapped_processes_sections,
@@ -241,49 +240,73 @@ impl MemoryBoardGroup {
     }
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
-        let group_summary = self.memory_usage_summary(clock, locale);
+        let headline_indicator = self.memory_usage_headline(clock, locale);
         let mut rows = Vec::new();
         self.push_memory_growth_indicators(&mut rows, clock, locale);
         self.push_stall_pressure_indicators(&mut rows, clock, locale);
         self.push_swap_activity_indicators(&mut rows, clock, locale);
         rows.extend(self.slot_indicators(locale));
         rows.extend(self.temperature_indicators());
+        self.list_memory_usage(clock, locale, &mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             MemoryBoardInteraction::Expansion,
             rows,
         )
     }
 
-    fn memory_usage_summary(&self, clock: Clock, locale: Locale) -> GroupSummary<'_> {
+    fn memory_usage_headline(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
         match &self.memory {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_indicator(memory_indicator(held_snapshot, locale)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Database(Weight::Regular).into(),
-                    self.memory_usage_indicator(troubled_snapshot.shown_over(
-                        memory_indicator(&troubled_snapshot.held_snapshot, locale),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .memory_usage_indicator(memory_indicator(held_snapshot, locale))
+                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .memory_usage_indicator(troubled_snapshot.shown_over(
+                    memory_indicator(&troubled_snapshot.held_snapshot, locale),
+                    clock,
+                ))
+                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Database(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::MemoryBoard.title(),
                 Phosphor::Database(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::MemoryBoard.title(),
                 Phosphor::Database(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
+        }
+    }
+
+    fn list_memory_usage<'a>(
+        &'a self,
+        clock: Clock,
+        locale: Locale,
+        indicators: &mut Vec<GroupIndicator<'a>>,
+    ) {
+        match &self.memory {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
+                self.memory_usage_indicator(memory_indicator(held_snapshot, locale)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                self.memory_usage_indicator(troubled_snapshot.shown_over(
+                    memory_indicator(&troubled_snapshot.held_snapshot, locale),
+                    clock,
+                )),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
+                self.memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 

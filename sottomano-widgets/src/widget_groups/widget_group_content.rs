@@ -43,9 +43,8 @@ use crate::{
         hover_card_body::{Section, hover_card_source_delivery::SectionSource},
         hoverable,
     },
-    widget_groups::{
-        group_summary::GroupSummary,
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
+    widget_groups::widget_group_identity::{
+        WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
     },
     widgets::{
         announced_level::LevelToastRequest, ongoing_toast::OngoingToast,
@@ -234,7 +233,7 @@ pub struct WidgetGroupContent<'a> {
     group_title: WidgetGroupTitle,
     expansion: &'a WidgetGroupExpansion,
     on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> WidgetGroupInteraction + 'a>,
-    summary: GroupSummary<'a>,
+    headline_indicator: GroupIndicator<'a>,
     scroll_does: Option<&'static str>,
     indicators: Vec<GroupIndicator<'a>>,
     panel_pin: PanelPinOrigin,
@@ -243,7 +242,7 @@ pub struct WidgetGroupContent<'a> {
 impl<'a> WidgetGroupContent<'a> {
     pub fn expandable<Interaction: Into<WidgetGroupInteraction>>(
         family: WidgetGroupFamily,
-        summary: GroupSummary<'a>,
+        headline_indicator: GroupIndicator<'a>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
         indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
@@ -251,7 +250,7 @@ impl<'a> WidgetGroupContent<'a> {
         Self::expandable_instance(
             WidgetGroupIdentity::sole(family),
             WidgetGroupTitle::fixed(family.title()),
-            summary,
+            headline_indicator,
             expansion,
             on_expansion,
             indicators,
@@ -261,7 +260,7 @@ impl<'a> WidgetGroupContent<'a> {
     pub fn expandable_instance<Interaction: Into<WidgetGroupInteraction>>(
         group_identity: WidgetGroupIdentity,
         group_title: WidgetGroupTitle,
-        summary: GroupSummary<'a>,
+        headline_indicator: GroupIndicator<'a>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
         indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
@@ -271,7 +270,7 @@ impl<'a> WidgetGroupContent<'a> {
             group_title,
             expansion,
             on_expansion: Rc::new(move |message| on_expansion(message).into()),
-            summary,
+            headline_indicator,
             scroll_does: None,
             indicators: indicators.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
@@ -387,10 +386,7 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     fn rows(&self) -> impl Iterator<Item = &GroupIndicator<'a>> {
-        self.summary
-            .summarised_indicator()
-            .into_iter()
-            .chain(&self.indicators)
+        self.indicators.iter()
     }
 
     pub(crate) fn highest_alert_severity(&self) -> Severity {
@@ -418,9 +414,9 @@ impl<'a> WidgetGroupContent<'a> {
 
     #[must_use]
     pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'a>> {
-        match target.summarised_group() {
+        match target.headline_group() {
             Some(group_identity) if *group_identity == self.group_identity => {
-                self.summary.summarised_indicator()
+                Some(&self.headline_indicator)
             }
             Some(_) => None,
             None => target
@@ -430,10 +426,7 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     fn handle_actions(&self) -> Vec<PressAction> {
-        let face_actions = match &self.summary {
-            GroupSummary::Row { row, .. } => row.press_actions(),
-            GroupSummary::Glyph { .. } => Vec::new(),
-        };
+        let face_actions = self.headline_indicator.press_actions();
         let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
             .into_iter()
             .chain(
@@ -450,11 +443,8 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     fn face_card(&self, clock: Clock) -> Vec<Section> {
-        let summary_sections = match &self.summary {
-            GroupSummary::Row { row, .. } => row.hover_card(clock),
-            GroupSummary::Glyph { .. } => Vec::new(),
-        };
-        summary_sections
+        self.headline_indicator
+            .hover_card(clock)
             .into_iter()
             .chain(Section::press_actions(self.handle_actions()))
             .collect()
@@ -462,7 +452,7 @@ impl<'a> WidgetGroupContent<'a> {
 
     #[must_use]
     pub fn hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
-        let sections = match target.summarised_group() {
+        let sections = match target.headline_group() {
             Some(group_identity) if *group_identity == self.group_identity => self.face_card(clock),
             Some(_) => return None,
             None => self
@@ -475,7 +465,7 @@ impl<'a> WidgetGroupContent<'a> {
                 pin: panel_pin.clone(),
             },
             HoverTarget::Indicator(_)
-            | HoverTarget::GroupSummary(_)
+            | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
@@ -543,7 +533,7 @@ impl<'a> WidgetGroupContent<'a> {
         let WidgetGroupContent {
             group_identity,
             group_title,
-            summary,
+            headline_indicator,
             indicators,
             ..
         } = self;
@@ -564,11 +554,11 @@ impl<'a> WidgetGroupContent<'a> {
                 aligned,
             });
         }
-        if !item_rows.is_empty() || summary.summarised_indicator().is_some() {
+        if !item_rows.is_empty() {
             sections.group_rows.push(GroupMenuGroupRow {
                 group_identity,
                 group_title,
-                summary,
+                headline_indicator,
                 indicators: item_rows,
             });
         }
@@ -599,7 +589,7 @@ impl<'a> WidgetGroupContent<'a> {
             group_title: _,
             expansion,
             on_expansion,
-            summary,
+            headline_indicator,
             scroll_does,
             indicators,
             panel_pin,
@@ -607,7 +597,9 @@ impl<'a> WidgetGroupContent<'a> {
         } = self;
         let handle_target = match panel_pin {
             PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
-            PanelPinOrigin::Unpinned => HoverTarget::GroupSummary(Box::new(group_identity.clone())),
+            PanelPinOrigin::Unpinned => {
+                HoverTarget::GroupHeadline(Box::new(group_identity.clone()))
+            }
         };
         let expansion_event = move |message| GroupEvent::Interaction(on_expansion(message));
         let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
@@ -617,7 +609,7 @@ impl<'a> WidgetGroupContent<'a> {
         let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent> =
-                button(summary.handle_view(config, reveal, clock))
+                button(headline_indicator.handle_view(config, reveal))
                     .padding(0)
                     .style(flat_button(text_color))
                     .on_press(toggle.clone())
@@ -644,16 +636,7 @@ impl<'a> WidgetGroupContent<'a> {
                     revealed_content(
                         config,
                         reveal,
-                        indicators_row(
-                            config,
-                            &group_identity,
-                            summary
-                                .summarised_indicator()
-                                .into_iter()
-                                .chain(&indicators),
-                            reveal,
-                            clock,
-                        ),
+                        indicators_row(config, &group_identity, &indicators, reveal, clock),
                     )
                 }))
                 .align_y(Alignment::Center);
@@ -767,7 +750,7 @@ fn revealed_content<'a, Message: 'a>(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_toml_config::severity::Severity;
+    use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
     use super::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage};
     use crate::{
@@ -777,7 +760,6 @@ mod tests {
         hover_cards::{HoverTarget, IndicatorKey, MouseGesture, PressAction},
         widget_groups::{
             clock_group::ClockInteraction,
-            group_summary::GroupSummary,
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::icon_glyph::IconGlyph,
@@ -796,7 +778,11 @@ mod tests {
     ) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
-            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Weather.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             expansion,
             ClockInteraction::Expansion,
             [shown_state_indicator(shown_state)],
@@ -836,7 +822,11 @@ mod tests {
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
                 WidgetGroupFamily::NetworkManagerVpns,
-                GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+                GroupIndicator::glyph_only(
+                    WidgetGroupFamily::NetworkManagerVpns.title(),
+                    IconGlyph::default(),
+                    IndicatorState::Idle,
+                ),
                 &expansion,
                 ClockInteraction::Expansion,
                 [shown_state_indicator(IndicatorState::Idle).on_press(
@@ -876,6 +866,28 @@ mod tests {
                 MouseGesture::LeftClick,
                 "disconnect the VPN"
             )])
+        );
+    }
+
+    #[test]
+    fn a_group_without_indicators_has_no_panel_view() {
+        let expansion = WidgetGroupExpansion::default();
+        let config = Config::default();
+        let empty_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Weather,
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Weather.title(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
+            &expansion,
+            ClockInteraction::Expansion,
+            Vec::new(),
+        );
+        assert!(
+            empty_group
+                .view(&config, Position::Top, Clock::real())
+                .is_none()
         );
     }
 }

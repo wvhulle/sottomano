@@ -25,7 +25,6 @@ use crate::{
     clock::Clock,
     group_indicators::group_indicator::GroupIndicator,
     widget_groups::{
-        group_summary::GroupSummary,
         login_session_group::{
             account_face::AccountFace,
             compositor_face::{CompositorFace, graphical_session_sections},
@@ -314,7 +313,8 @@ impl LoginSessionGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::LoginSession.title(),
                 Phosphor::StackSimple(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

@@ -39,7 +39,6 @@ use crate::{
     },
     layer_surfaces::ActivationTokenOutcome,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -291,7 +290,8 @@ impl TrayGroup {
             .collect();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tray,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Tray.title(),
                 Phosphor::DotsThreeVertical(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

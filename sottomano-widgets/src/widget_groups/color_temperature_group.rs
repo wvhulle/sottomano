@@ -26,7 +26,6 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -278,10 +277,17 @@ impl ColorTemperatureGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
-            GroupSummary::glyph(
-                Phosphor::ThermometerHot(Weight::Regular).into(),
-                IndicatorState::Idle,
-            ),
+            if gamma_available {
+                self.warmth
+                    .indicator(config.calendar.locale)
+                    .with_headline_glyph(Phosphor::ThermometerHot(Weight::Regular).into())
+            } else {
+                GroupIndicator::glyph_only(
+                    WidgetGroupFamily::ColorTemperature.title(),
+                    Phosphor::ThermometerHot(Weight::Regular).into(),
+                    IndicatorState::Idle,
+                )
+            },
             &self.expansion,
             ColorTemperatureInteraction::Expansion,
             rows,

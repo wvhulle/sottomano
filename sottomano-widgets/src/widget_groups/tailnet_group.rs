@@ -35,7 +35,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
-        group_summary::GroupSummary,
         tailnet_group::{
             tailscale_access_hover_card::{
                 InboundAccessIndicator, OwnNodeIndicator, PolicyFileIndicator,
@@ -173,10 +172,10 @@ impl TailnetGroup {
 
     pub fn subscription(&self, demand: &GroupSourceDemand) -> Subscription<TailnetMessage> {
         Subscription::batch([
-            demand.while_summary_shown(
+            demand.while_headline_shown(
                 snapshot_subscription::<Tailscale>(()).map(TailnetMessage::Tailscale),
             ),
-            demand.while_summary_shown(
+            demand.while_headline_shown(
                 snapshot_subscription::<TailscaleExitNodes>(())
                     .map(TailnetMessage::ExitNodesDelivered),
             ),
@@ -513,7 +512,11 @@ impl TailnetGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
-            GroupSummary::glyph(SimpleIcon::Tailscale.into(), IndicatorState::Idle),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::Tailnet.title(),
+                SimpleIcon::Tailscale.into(),
+                IndicatorState::Idle,
+            ),
             &self.expansion,
             TailnetInteraction::Expansion,
             rows.into_iter().map(|tailnet_indicator| {

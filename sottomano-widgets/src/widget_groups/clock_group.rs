@@ -21,7 +21,6 @@ use crate::{
     },
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -139,31 +138,44 @@ impl ClockGroup {
     }
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
-        let group_summary = match &self.time {
-            SubscribedSnapshot::SnapshotHeld { .. } => GroupSummary::summarising(
-                Phosphor::Watch(Weight::Regular).into(),
-                self.local_time_indicator(LocalTime::indicator(clock, locale)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Watch(Weight::Regular).into(),
-                    self.local_time_indicator(
-                        troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
-                    ),
+        let headline_indicator = match &self.time {
+            SubscribedSnapshot::SnapshotHeld { .. } => self
+                .local_time_indicator(LocalTime::indicator(clock, locale))
+                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .local_time_indicator(
+                    troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
                 )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Watch(Weight::Regular).into(),
-                self.local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Watch(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Clock.title(),
                 Phosphor::Watch(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(Phosphor::Watch(Weight::Regular).into(), IndicatorState::Off)
-            }
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::Clock.title(),
+                Phosphor::Watch(Weight::Regular).into(),
+                IndicatorState::Off,
+            ),
         };
+        let mut lead_indicators = Vec::new();
+        match &self.time {
+            SubscribedSnapshot::SnapshotHeld { .. } => {
+                lead_indicators
+                    .push(self.local_time_indicator(LocalTime::indicator(clock, locale)));
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                lead_indicators.push(self.local_time_indicator(
+                    troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
+                ));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => lead_indicators
+                .push(self.local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into()))),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let mut rows = Vec::new();
         match &self.date {
             SubscribedSnapshot::SnapshotHeld { .. } => {
@@ -216,10 +228,10 @@ impl ClockGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             ClockInteraction::Expansion,
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 

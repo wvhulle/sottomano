@@ -40,7 +40,6 @@ use crate::{
     },
     hover_cards::IndicatorKey,
     widget_groups::{
-        group_summary::GroupSummary,
         terminal_command::TerminalCommand,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -304,7 +303,11 @@ impl SystemdManagerGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SystemdManager,
-            GroupSummary::glyph(Phosphor::Speedometer(Weight::Regular).into(), self.state()),
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::SystemdManager.title(),
+                Phosphor::Speedometer(Weight::Regular).into(),
+                self.state(),
+            ),
             &self.expansion,
             SystemdManagerInteraction::Expansion,
             rows,

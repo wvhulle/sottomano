@@ -33,7 +33,6 @@ use crate::{
         indicator_state::IndicatorState,
     },
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -206,34 +205,54 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
-        let group_summary = match &self.spend {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                SimpleIcon::OpenRouter.into(),
-                self.wired_spend_indicator(spend_indicator(held_snapshot, clock)),
-            ),
+    fn list_spend<'a>(&'a self, clock: Clock, lead_indicators: &mut Vec<GroupIndicator<'a>>) {
+        match &self.spend {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => lead_indicators
+                .push(self.wired_spend_indicator(spend_indicator(held_snapshot, clock))),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    SimpleIcon::OpenRouter.into(),
-                    self.wired_spend_indicator(troubled_snapshot.shown_over(
-                        spend_indicator(&troubled_snapshot.held_snapshot, clock),
-                        clock,
-                    )),
-                )
+                lead_indicators.push(self.wired_spend_indicator(troubled_snapshot.shown_over(
+                    spend_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                )));
             }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                SimpleIcon::OpenRouter.into(),
-                self.wired_spend_indicator(
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                lead_indicators.push(self.wired_spend_indicator(
                     placeholder.indicator(Phosphor::Coins(Weight::Regular).into()),
-                ),
+                ));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
+    }
+
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
+        let headline_indicator = match &self.spend {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .wired_spend_indicator(spend_indicator(held_snapshot, clock))
+                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .wired_spend_indicator(troubled_snapshot.shown_over(
+                    spend_indicator(&troubled_snapshot.held_snapshot, clock),
+                    clock,
+                ))
+                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .wired_spend_indicator(
+                    placeholder.indicator(Phosphor::Coins(Weight::Regular).into()),
+                )
+                .with_headline_glyph(SimpleIcon::OpenRouter.into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::OpenRouterCredit.title(),
+                SimpleIcon::OpenRouter.into(),
+                IndicatorState::Pending,
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), IndicatorState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), IndicatorState::Off)
-            }
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::OpenRouterCredit.title(),
+                SimpleIcon::OpenRouter.into(),
+                IndicatorState::Off,
+            ),
         };
+        let mut lead_indicators = Vec::new();
+        self.list_spend(clock, &mut lead_indicators);
         let mut rows = Vec::new();
         match &self.strict_budget {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
@@ -301,10 +320,10 @@ impl OpenRouterCreditGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
-            group_summary,
+            headline_indicator,
             &self.expansion,
             OpenRouterCreditInteraction::Expansion,
-            rows,
+            lead_indicators.into_iter().chain(rows),
         )
     }
 

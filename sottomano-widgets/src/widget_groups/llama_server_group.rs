@@ -21,7 +21,9 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_indicators::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
+    group_indicators::{
+        group_indicator::GroupIndicator, toggle_control::SwitchPresses, unit_switch::UnitSwitchFace,
+    },
     hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
@@ -44,12 +46,9 @@ const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {
     },
 };
 use crate::{
-    widget_groups::{
-        group_summary::GroupSummary,
-        llama_server_group::{
-            gguf_model_card_sections::gguf_model_card_sections,
-            loaded_model_label::llama_model_props_sections,
-        },
+    widget_groups::llama_server_group::{
+        gguf_model_card_sections::gguf_model_card_sections,
+        loaded_model_label::llama_model_props_sections,
     },
     widgets::huggingface_hub_sections::hugging_face_model_card_sections,
 };
@@ -247,7 +246,8 @@ impl LlamaServerGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::LlamaServer.title(),
                 Phosphor::Robot(Weight::Regular).into(),
                 IndicatorState::Idle,
             ),

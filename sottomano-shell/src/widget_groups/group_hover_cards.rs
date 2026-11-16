@@ -132,7 +132,7 @@ impl DesktopShell {
             .collect(),
             HoverTarget::Indicator(_)
             | HoverTarget::PinnedOnPanel(_)
-            | HoverTarget::GroupSummary(_)
+            | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu => Vec::new(),
         }

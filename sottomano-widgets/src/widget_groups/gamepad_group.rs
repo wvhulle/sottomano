@@ -7,6 +7,7 @@ mod sqlite_compositor_driving_controllers;
 mod usb_cable_indicator;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    iter,
     iter::once,
 };
 
@@ -61,7 +62,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
         gamepad_group::controller_link_indicator::WifiBand,
-        group_summary::GroupSummary,
         widget_group_content::{
             KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -616,19 +616,19 @@ impl GamepadGroup {
     }
 
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_>> {
-        let failure_indicator = self.controller_discovery_failure_indicator()?.indicator();
-        let group_title = WidgetGroupTitle::Named(failure_indicator.indicator_name());
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Joystick(Weight::Regular).into(),
-            failure_indicator,
-        );
+        let listed_failure = self.controller_discovery_failure_indicator()?.indicator();
+        let group_title = WidgetGroupTitle::Named(listed_failure.indicator_name());
+        let headline_indicator = self
+            .controller_discovery_failure_indicator()?
+            .indicator()
+            .with_headline_glyph(Phosphor::Joystick(Weight::Regular).into());
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
             group_title,
-            group_summary,
+            headline_indicator,
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
-            [],
+            [listed_failure],
         ))
     }
 
@@ -644,10 +644,10 @@ impl GamepadGroup {
         let battery_indicator = ControllerBatteryIndicator {
             power: gamepad.power,
         };
-        let group_summary = GroupSummary::summarising(
-            Phosphor::Joystick(Weight::Regular).into(),
-            self.face_indicator(gamepad, link, bindings).indicator(),
-        );
+        let build_controller_indicator =
+            || self.face_indicator(gamepad, link, bindings).indicator();
+        let headline_indicator = build_controller_indicator()
+            .with_headline_glyph(Phosphor::Joystick(Weight::Regular).into());
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let mut rows = vec![
             GroupIndicator::toggle(
@@ -672,17 +672,16 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => cable_indicator,
             });
         }
-        let group_summary = group_summary;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
                 WidgetGroupFamily::Gamepad,
                 controller_custody_key(link).to_owned(),
             ),
             group_title,
-            group_summary,
+            headline_indicator,
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
-            rows,
+            iter::once(build_controller_indicator()).chain(rows),
         ))
     }
 

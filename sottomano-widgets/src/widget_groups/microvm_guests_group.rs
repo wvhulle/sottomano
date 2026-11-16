@@ -29,7 +29,6 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        group_summary::GroupSummary,
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -227,12 +226,12 @@ impl MicrovmGuestsGroup {
         ));
         Subscription::batch([
             demand
-                .while_summary_shown(snapshot_subscription::<MicrovmUnits>(buses.clone()))
+                .while_headline_shown(snapshot_subscription::<MicrovmUnits>(buses.clone()))
                 .map(MicrovmGuestsMessage::Units),
             demand.while_indicators_shown(unit_switch_subscriptions),
             snapshot_subscription::<MicrovmProbe>(()).map(MicrovmGuestsMessage::Probe),
             demand
-                .while_summary_shown(
+                .while_headline_shown(
                     snapshot_subscription::<FamilyListings<MicrovmGuestListing>>(()),
                 )
                 .map(MicrovmGuestsMessage::Listings),
@@ -362,7 +361,8 @@ impl MicrovmGuestsGroup {
         let rows = self.machine_indicators();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
-            GroupSummary::glyph(
+            GroupIndicator::glyph_only(
+                WidgetGroupFamily::MicrovmGuests.title(),
                 Phosphor::Feather(Weight::Regular).into(),
                 self.shown_state(),
             ),

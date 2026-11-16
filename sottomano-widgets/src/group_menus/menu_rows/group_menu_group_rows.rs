@@ -24,7 +24,6 @@ use crate::{
     },
     hover_cards::{IndicatorKey, marked_by_menu_pin},
     widget_groups::{
-        group_summary::GroupSummary,
         widget_group_content::GroupEvent,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -38,7 +37,7 @@ use crate::{
 pub(crate) struct GroupMenuGroupRow<'a> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
-    pub summary: GroupSummary<'a>,
+    pub headline_indicator: GroupIndicator<'a>,
     pub indicators: Vec<GroupIndicator<'a>>,
 }
 
@@ -94,7 +93,7 @@ pub(crate) fn group_header<'a>(
     layout: &GroupMenuRowContext<'_>,
     entry_identity: &WidgetGroupIdentity,
     group_title: &WidgetGroupTitle,
-    summary: &GroupSummary<'a>,
+    headline_indicator: &GroupIndicator<'a>,
     emphasis: NestedMenuRowEmphasis,
 ) -> NestedMenuRow<'a, GroupEvent> {
     let icon_size = layout.config.theme.font.icon_size_px;
@@ -134,9 +133,9 @@ pub(crate) fn group_header<'a>(
     let content = menu_row_content(
         layout.config,
         leading,
-        summary.menu_icon(layout.config),
+        headline_indicator.menu_icon(layout.config),
         group_title.to_string().into(),
-        summary.menu_value(layout.config, layout.clock),
+        headline_indicator.menu_value(layout.config, layout.clock),
         trailing,
     );
     let group_identity = entry_identity.clone();
@@ -264,19 +263,20 @@ pub(crate) fn indicator_entry<'a>(
 mod tests {
     use super::{GroupMenuGroupRow, WidgetGroupIdentity, one_row_per_identity};
     use crate::{
-        group_indicators::indicator_state::IndicatorState,
-        widget_groups::{
-            group_summary::GroupSummary,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
-        },
+        group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
         widgets::icon_glyph::IconGlyph,
     };
 
-    fn row_of(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'static> {
+    fn row_of<'row>(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'row> {
         GroupMenuGroupRow {
             group_identity,
             group_title: WidgetGroupTitle::Named(title.to_owned().into()),
-            summary: GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
+            headline_indicator: GroupIndicator::glyph_only(
+                title.to_owned(),
+                IconGlyph::default(),
+                IndicatorState::Idle,
+            ),
             indicators: Vec::new(),
         }
     }

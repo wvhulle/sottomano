@@ -35,7 +35,6 @@ use crate::{
     },
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
-        group_summary::GroupSummary,
         storage_space_group::{
             block_filesystem_discovery_hover_card, block_filesystem_discovery_indicator,
         },
@@ -123,7 +122,7 @@ impl PhysicalDriveGroup {
         let demand = demand.expanded_when(disk_expansion);
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
-                demand.while_summary_shown(
+                demand.while_headline_shown(
                     snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
                         .with(disk.clone())
                         .map(|(disk, sample)| DriveMessage::DiskSpace(disk, Box::new(sample))),
@@ -323,15 +322,16 @@ impl PhysicalDriveGroup {
         clock: Clock,
         locale: Locale,
     ) -> WidgetGroupContent<'a> {
-        let group_summary = self.disk_space_summary(disk, samples, clock);
+        let headline_indicator = self.disk_space_headline(disk, samples, clock);
         let mut rows: Vec<_> = Self::member_indicators(disk, samples, locale).collect();
         Self::push_drive_health_indicators(&mut rows, clock, disk, samples);
         Self::push_disk_activity_indicators(&mut rows, clock, disk, samples);
         rows.extend(Self::transfer_indicators(disk, samples));
+        self.list_disk_space(disk, samples, clock, &mut rows);
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
-            group_summary,
+            headline_indicator,
             &samples.expansion,
             move |expansion| DriveInteraction::DiskExpansion {
                 disk: disk.clone(),
@@ -341,53 +341,93 @@ impl PhysicalDriveGroup {
         )
     }
 
-    fn disk_space_summary<'a>(
+    fn disk_space_headline<'a>(
         &self,
         disk: &'a KernelDevice,
         samples: &'a PhysicalDiskSamples,
         clock: Clock,
-    ) -> GroupSummary<'a> {
+    ) -> GroupIndicator<'a> {
         match &samples.space {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                Self::wired_disk_space_indicator(
+                    disk,
+                    samples,
+                    disk_space_indicator(held_snapshot, self.disk_marking(disk)),
+                )
+                .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into())
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                Self::wired_disk_space_indicator(
+                    disk,
+                    samples,
+                    troubled_snapshot.shown_over(
+                        disk_space_indicator(
+                            &troubled_snapshot.held_snapshot,
+                            self.disk_marking(disk),
+                        ),
+                        clock,
+                    ),
+                )
+                .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into())
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => Self::wired_disk_space_indicator(
+                disk,
+                samples,
+                placeholder.indicator(HARD_DRIVES_GLYPH.into()),
+            )
+            .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::PhysicalDrive.title(),
                 Phosphor::Cylinder(Weight::Regular).into(),
+                IndicatorState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::PhysicalDrive.title(),
+                Phosphor::Cylinder(Weight::Regular).into(),
+                IndicatorState::Off,
+            ),
+        }
+    }
+
+    fn list_disk_space<'a>(
+        &self,
+        disk: &'a KernelDevice,
+        samples: &'a PhysicalDiskSamples,
+        clock: Clock,
+        indicators: &mut Vec<GroupIndicator<'a>>,
+    ) {
+        match &samples.space {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => indicators.insert(
+                0,
                 Self::wired_disk_space_indicator(
                     disk,
                     samples,
                     disk_space_indicator(held_snapshot, self.disk_marking(disk)),
                 ),
             ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Cylinder(Weight::Regular).into(),
-                    Self::wired_disk_space_indicator(
-                        disk,
-                        samples,
-                        troubled_snapshot.shown_over(
-                            disk_space_indicator(
-                                &troubled_snapshot.held_snapshot,
-                                self.disk_marking(disk),
-                            ),
-                            clock,
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => indicators.insert(
+                0,
+                Self::wired_disk_space_indicator(
+                    disk,
+                    samples,
+                    troubled_snapshot.shown_over(
+                        disk_space_indicator(
+                            &troubled_snapshot.held_snapshot,
+                            self.disk_marking(disk),
                         ),
+                        clock,
                     ),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Cylinder(Weight::Regular).into(),
+                ),
+            ),
+            SubscribedSnapshot::NoSnapshot { placeholder } => indicators.insert(
+                0,
                 Self::wired_disk_space_indicator(
                     disk,
                     samples,
                     placeholder.indicator(HARD_DRIVES_GLYPH.into()),
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
-                Phosphor::Cylinder(Weight::Regular).into(),
-                IndicatorState::Pending,
-            ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
-                Phosphor::Cylinder(Weight::Regular).into(),
-                IndicatorState::Off,
-            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
@@ -531,39 +571,52 @@ impl PhysicalDriveGroup {
 
     #[must_use]
     pub fn group_contents(&self, clock: Clock, locale: Locale) -> Vec<WidgetGroupContent<'_>> {
-        let group_summary = match &self.discovery {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                Phosphor::Cylinder(Weight::Regular).into(),
-                self.mount_discovery_indicator(block_filesystem_discovery_indicator(held_snapshot)),
-            ),
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                GroupSummary::summarising(
-                    Phosphor::Cylinder(Weight::Regular).into(),
-                    self.mount_discovery_indicator(troubled_snapshot.shown_over(
-                        block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
-                        clock,
-                    )),
-                )
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                Phosphor::Cylinder(Weight::Regular).into(),
-                self.mount_discovery_indicator(placeholder.indicator(HARD_DRIVES_GLYPH.into())),
-            ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+        let headline_indicator = match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => self
+                .mount_discovery_indicator(block_filesystem_discovery_indicator(held_snapshot))
+                .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into()),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => self
+                .mount_discovery_indicator(troubled_snapshot.shown_over(
+                    block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                ))
+                .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into()),
+            SubscribedSnapshot::NoSnapshot { placeholder } => self
+                .mount_discovery_indicator(placeholder.indicator(HARD_DRIVES_GLYPH.into()))
+                .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into()),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupIndicator::glyph_only(
+                WidgetGroupFamily::PhysicalDrive.title(),
                 Phosphor::Cylinder(Weight::Regular).into(),
                 IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+            SubscribedSnapshot::SourceUnavailable => GroupIndicator::glyph_only(
+                WidgetGroupFamily::PhysicalDrive.title(),
                 Phosphor::Cylinder(Weight::Regular).into(),
                 IndicatorState::Off,
             ),
         };
+        let mut lead_indicators = Vec::new();
+        match &self.discovery {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => lead_indicators.push(
+                self.mount_discovery_indicator(block_filesystem_discovery_indicator(held_snapshot)),
+            ),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                lead_indicators.push(self.mount_discovery_indicator(troubled_snapshot.shown_over(
+                    block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
+                    clock,
+                )));
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => lead_indicators.push(
+                self.mount_discovery_indicator(placeholder.indicator(HARD_DRIVES_GLYPH.into())),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
+        }
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,
-            group_summary,
+            headline_indicator,
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            [],
+            lead_indicators.into_iter().chain([]),
         );
         [discovery_group]
             .into_iter()
