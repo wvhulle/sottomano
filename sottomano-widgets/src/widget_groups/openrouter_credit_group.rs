@@ -1,11 +1,10 @@
 use crate::widget_groups::openrouter_credit_group::{
     best_models_within_cap::{
-        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card, best_models_reading_row,
+        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card, best_models_indicator,
     },
-    openrouter_soft_budget::{spend_hover_card, spend_panel_visibility, spend_reading_row},
+    openrouter_soft_budget::{spend_hover_card, spend_indicator, spend_panel_visibility},
     strict_budget_remaining::{
-        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card,
-        strict_budget_reading_row,
+        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card, strict_budget_indicator,
     },
 };
 mod best_models_within_cap;
@@ -29,9 +28,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::{
@@ -161,14 +160,14 @@ impl OpenRouterCreditGroup {
         clock: Clock,
     ) -> Task<OpenRouterCreditMessage> {
         match message {
-            OpenRouterCreditMessage::SoftBudget(reading) => {
-                self.spend.receive(reading, clock);
+            OpenRouterCreditMessage::SoftBudget(sample) => {
+                self.spend.receive(sample, clock);
             }
-            OpenRouterCreditMessage::StrictBudget(reading) => {
-                self.strict_budget.receive(reading, clock);
+            OpenRouterCreditMessage::StrictBudget(sample) => {
+                self.strict_budget.receive(sample, clock);
             }
-            OpenRouterCreditMessage::ModelRankings(reading) => {
-                self.model_rankings.receive(reading, clock);
+            OpenRouterCreditMessage::ModelRankings(sample) => {
+                self.model_rankings.receive(sample, clock);
             }
         }
         Task::none()
@@ -188,7 +187,7 @@ impl OpenRouterCreditGroup {
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
-        let spend = self.spend.visible_reading(spend_panel_visibility)?;
+        let spend = self.spend.visible_indicator(spend_panel_visibility)?;
         ModelSpendRanking::new(
             "OpenRouter analytics, per local calendar span",
             [
@@ -212,13 +211,13 @@ impl OpenRouterCreditGroup {
         let group_summary = match &self.spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
-                self.spend_item(spend_reading_row(held_snapshot, clock)),
+                self.spend_item(spend_indicator(held_snapshot, clock)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     SimpleIcon::OpenRouter.into(),
                     self.spend_item(troubled_snapshot.shown_over(
-                        spend_reading_row(&troubled_snapshot.held_snapshot, clock),
+                        spend_indicator(&troubled_snapshot.held_snapshot, clock),
                         clock,
                     )),
                 )
@@ -228,23 +227,23 @@ impl OpenRouterCreditGroup {
                 self.spend_item(placeholder.reading_row(Phosphor::Coins(Weight::Regular).into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), ReadingDisplayState::Pending)
+                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), IndicatorState::Pending)
             }
             SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), ReadingDisplayState::Off)
+                GroupSummary::glyph(SimpleIcon::OpenRouter.into(), IndicatorState::Off)
             }
         };
         let mut rows = Vec::new();
         match &self.strict_budget {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let budget_row = strict_budget_reading_row(held_snapshot);
+                let budget_row = strict_budget_indicator(held_snapshot);
                 if budget_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.strict_budget_item(budget_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let budget_row = troubled_snapshot.shown_over(
-                    strict_budget_reading_row(&troubled_snapshot.held_snapshot),
+                    strict_budget_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if budget_row.panel_visibility == PanelVisibility::Shown {
@@ -260,14 +259,14 @@ impl OpenRouterCreditGroup {
         }
         match &self.model_rankings {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let rankings_row = best_models_reading_row(held_snapshot);
+                let rankings_row = best_models_indicator(held_snapshot);
                 if rankings_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.model_rankings_item(rankings_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let rankings_row = troubled_snapshot.shown_over(
-                    best_models_reading_row(&troubled_snapshot.held_snapshot),
+                    best_models_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if rankings_row.panel_visibility == PanelVisibility::Shown {
@@ -283,14 +282,14 @@ impl OpenRouterCreditGroup {
         }
         if let Some(ranking) = self.model_ranking() {
             rows.push(
-                GroupItem::reading(ranking.most_used_model_row())
+                GroupIndicator::sample(ranking.most_used_model_row())
                     .with_hover_card(Box::new(move |_| {
                         self.spend.hover_card_with(ranking.hover_card())
                     }))
                     .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend)),
             );
             rows.push(
-                GroupItem::reading(ranking.most_used_spend_row())
+                GroupIndicator::sample(ranking.most_used_spend_row())
                     .with_hover_card(Box::new(move |_| {
                         self.spend.hover_card_with(ranking.top_model_share())
                     }))
@@ -306,8 +305,8 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    fn spend_item<'a>(&'a self, spend_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(spend_row)
+    fn spend_item<'a>(&'a self, spend_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(spend_row)
             .with_hover_card(Box::new(move |card_clock| {
                 self.spend
                     .sections_described_by(|snapshot| spend_hover_card(snapshot, card_clock))
@@ -315,8 +314,8 @@ impl OpenRouterCreditGroup {
             .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
     }
 
-    fn strict_budget_item<'a>(&'a self, budget_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(budget_row)
+    fn strict_budget_item<'a>(&'a self, budget_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(budget_row)
             .with_hover_card(Box::new(move |_| {
                 self.strict_budget
                     .sections_described_by(strict_budget_hover_card)
@@ -326,8 +325,8 @@ impl OpenRouterCreditGroup {
             ))
     }
 
-    fn model_rankings_item<'a>(&'a self, rankings_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(rankings_row)
+    fn model_rankings_item<'a>(&'a self, rankings_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(rankings_row)
             .with_hover_card(Box::new(move |_| {
                 self.model_rankings
                     .sections_described_by(best_models_hover_card)

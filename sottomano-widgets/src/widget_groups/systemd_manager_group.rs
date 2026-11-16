@@ -4,17 +4,17 @@ use iced::{Subscription, Task};
 
 use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupFamily};
 
-mod boot_timeline_reading;
+mod boot_timeline_indicator;
 mod failed_unit_log;
-mod last_shutdown_reading;
-mod running_job_reading;
+mod last_shutdown_indicator;
+mod running_job_indicator;
 
-use boot_timeline_reading::{StartupUnits, boot_timeline_hover_card, boot_timeline_reading_row};
+use boot_timeline_indicator::{StartupUnits, boot_timeline_hover_card, boot_timeline_indicator};
 use failed_unit_log::{
     failed_units_hover_card, failed_units_item, failed_units_panel_visibility, failed_units_state,
 };
-use last_shutdown_reading::{last_shutdown_hover_card, last_shutdown_reading_row};
-use running_job_reading::{slow_jobs_hover_card, slow_jobs_item, slow_jobs_panel_visibility};
+use last_shutdown_indicator::{last_shutdown_hover_card, last_shutdown_indicator};
+use running_job_indicator::{slow_jobs_hover_card, slow_jobs_item, slow_jobs_panel_visibility};
 use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -31,11 +31,11 @@ use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManag
 
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
         reading_row::PanelVisibility,
     },
-    hover_cards::InstrumentKey,
+    hover_cards::IndicatorKey,
     widget_groups::{
         group_summary::GroupSummary,
         terminal_command::TerminalCommand,
@@ -64,8 +64,8 @@ fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
 }
 
 fn unit_toast_key(row_name: Cow<'static, str>, unit_name: String) -> OngoingKey {
-    OngoingKey::ReadingDetail {
-        instrument: InstrumentKey {
+    OngoingKey::SampleDetail {
+        indicator: IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::SystemdManager),
             name: row_name,
         },
@@ -78,7 +78,7 @@ fn slow_jobs_entry<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(slow_jobs_hover_card)
     }))
@@ -89,7 +89,7 @@ fn failed_units_entry<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(failed_units_hover_card)
     }))
@@ -219,12 +219,12 @@ impl SystemdManagerGroup {
         let mut rows = Vec::new();
         if let Some(timeline) = self.boot.get() {
             rows.push(
-                GroupItem::reading(boot_timeline_reading_row(timeline, locale)).with_hover_card(
+                GroupIndicator::sample(boot_timeline_indicator(timeline, locale)).with_hover_card(
                     Box::new(move |_| self.boot.sections_described_by(boot_timeline_hover_card)),
                 ),
             );
             rows.push(
-                GroupItem::reading(StartupUnits { timeline }.reading_row()).with_hover_card(
+                GroupIndicator::sample(StartupUnits { timeline }.reading_row()).with_hover_card(
                     Box::new(move |_| {
                         self.boot
                             .hover_card_with(StartupUnits { timeline }.hover_card())
@@ -246,7 +246,7 @@ impl SystemdManagerGroup {
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(GroupItem::reading(
+                    rows.push(GroupIndicator::sample(
                         placeholder.reading_row(SLOW_JOBS_GLYPH.into()),
                     ));
                 }
@@ -281,7 +281,7 @@ impl SystemdManagerGroup {
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(GroupItem::reading(
+                    rows.push(GroupIndicator::sample(
                         placeholder.reading_row(failed_units_glyph.into()),
                     ));
                 }
@@ -297,7 +297,7 @@ impl SystemdManagerGroup {
                 rows.push(self.last_shutdown_item(&troubled_snapshot.held_snapshot, config));
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(GroupItem::reading(
+                rows.push(GroupIndicator::sample(
                     placeholder.reading_row(LAST_SHUTDOWN_GLYPH.into()),
                 ));
             }
@@ -316,8 +316,8 @@ impl SystemdManagerGroup {
         &'a self,
         last_shutdown: &'a LastShutdown,
         config: &'a Config,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(last_shutdown_reading_row(
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(last_shutdown_indicator(
             last_shutdown,
             config.calendar.locale,
         ))
@@ -334,33 +334,33 @@ impl SystemdManagerGroup {
         }))
     }
 
-    fn current_health_states(&self) -> [Option<ReadingDisplayState>; 4] {
+    fn current_health_states(&self) -> [Option<IndicatorState>; 4] {
         [
             self.slow_system_jobs
-                .visible_reading(slow_jobs_panel_visibility)
-                .map(|_| ReadingDisplayState::Warning),
+                .visible_indicator(slow_jobs_panel_visibility)
+                .map(|_| IndicatorState::Warning),
             self.slow_user_jobs
-                .visible_reading(slow_jobs_panel_visibility)
-                .map(|_| ReadingDisplayState::Warning),
+                .visible_indicator(slow_jobs_panel_visibility)
+                .map(|_| IndicatorState::Warning),
             self.failed_system
-                .visible_reading(failed_units_panel_visibility)
+                .visible_indicator(failed_units_panel_visibility)
                 .map(|_| failed_units_state()),
             self.failed_user
-                .visible_reading(failed_units_panel_visibility)
+                .visible_indicator(failed_units_panel_visibility)
                 .map(|_| failed_units_state()),
         ]
     }
 }
 
 impl SystemdManagerGroup {
-    fn state(&self) -> ReadingDisplayState {
+    fn state(&self) -> IndicatorState {
         if self.boot.get().is_none() {
-            return ReadingDisplayState::Pending;
+            return IndicatorState::Pending;
         }
         self.current_health_states()
             .into_iter()
             .flatten()
-            .map(ReadingDisplayState::severity)
+            .map(IndicatorState::severity)
             .max()
             .unwrap_or_default()
             .into()

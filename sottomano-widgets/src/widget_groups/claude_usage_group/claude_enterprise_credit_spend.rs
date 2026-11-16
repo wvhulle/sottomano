@@ -8,16 +8,16 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::LabeledValue,
@@ -27,10 +27,7 @@ use crate::{
 pub(crate) const CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Buildings(Weight::Regular));
 
-pub fn claude_enterprise_reading_row(
-    spend: &ClaudeEnterpriseSpend,
-    clock: Clock,
-) -> ReadingRow<'_> {
+pub fn claude_enterprise_indicator(spend: &ClaudeEnterpriseSpend, clock: Clock) -> ReadingRow<'_> {
     let quota_windows = spend.quotas(clock.utc());
     let state = Quota::worst_severity(&quota_windows)
         .unwrap_or_else(|| level_from_used(spend.used_share))
@@ -48,14 +45,14 @@ pub fn claude_enterprise_reading_row(
         PanelVisibility::Hidden
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(format!("{} month", spend_text(&spend.used))),
             gauge,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         panel_visibility,
         ..ReadingRow::glyph_only(

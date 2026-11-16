@@ -46,16 +46,16 @@ impl ChipletLiveState<'_> {
     }
 
     pub fn temperature_text(&self, group: &CoreGroup) -> Option<String> {
-        let readings = &self.temperature?.readings;
+        let samples = &self.temperature?.samples;
         let temperatures: Vec<String> = group
             .chiplets()
             .iter()
             .filter_map(|chiplet| {
                 let label = format!("Tccd{}", chiplet.position + 1);
-                readings
+                samples
                     .iter()
-                    .find(|reading| reading.label == label)
-                    .map(|reading| celsius_text(reading.temperature))
+                    .find(|sample| sample.label == label)
+                    .map(|sample| celsius_text(sample.temperature))
             })
             .collect();
         (!temperatures.is_empty()).then(|| temperatures.join(" · "))

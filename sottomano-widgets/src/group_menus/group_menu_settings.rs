@@ -2,9 +2,9 @@ use corredo::popovers::{NestedMenuLayout, NestedMenuPresentation};
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
@@ -68,7 +68,7 @@ impl GroupMenuState {
     pub fn settings_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let presentation = self.presentation();
         let accordion_only_item = (presentation.layout == NestedMenuLayout::Accordion).then(|| {
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 keep_one_group_open_toggle(presentation),
                 GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
             )
@@ -77,20 +77,20 @@ impl GroupMenuState {
             WidgetGroupFamily::GroupMenuSettings,
             GroupSummary::glyph(
                 Phosphor::ListDashes(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             self.settings_expansion(),
             GroupMenuMessage::SettingsExpansion,
             [
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     accordion_layout_toggle(presentation),
                     GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     click_to_open_menus_toggle(presentation),
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     submenu_connector_toggle(presentation),
                     GroupMenuMessage::SwitchPresentation(
                         presentation.with_submenu_connector_toggled(),

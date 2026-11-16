@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod account_face;
 mod compositor_face;
 mod desktop_services_face;
@@ -23,7 +23,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     widget_groups::{
         group_summary::GroupSummary,
         login_session_group::{
@@ -201,9 +201,9 @@ impl LoginSessionGroup {
         }
     }
 
-    fn identity_items<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupItem<'a>; 6] {
+    fn identity_items<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupIndicator<'a>; 6] {
         [
-            GroupItem::reading(
+            GroupIndicator::sample(
                 SeatFace {
                     seat: &identity.seat,
                     virtual_terminal: identity.virtual_terminal,
@@ -220,7 +220,7 @@ impl LoginSessionGroup {
                 )
             }))
             .refreshed_by(identity_refresh()),
-            GroupItem::reading(LoginFace { identity }.reading_row())
+            GroupIndicator::sample(LoginFace { identity }.reading_row())
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -233,13 +233,13 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupItem::reading(AccountFace { identity }.reading_row())
+            GroupIndicator::sample(AccountFace { identity }.reading_row())
                 .with_hover_card(Box::new(move |_| {
                     self.identity
                         .hover_card_with(AccountFace { identity }.hover_card())
                 }))
                 .refreshed_by(identity_refresh()),
-            GroupItem::reading(ServiceManagerFace::reading_row())
+            GroupIndicator::sample(ServiceManagerFace::reading_row())
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -257,7 +257,7 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupItem::reading(CompositorFace { identity }.reading_row())
+            GroupIndicator::sample(CompositorFace { identity }.reading_row())
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -273,7 +273,7 @@ impl LoginSessionGroup {
                     LoginSessionInteraction::StopHoverFetches,
                 )
                 .refreshed_by(identity_refresh()),
-            GroupItem::reading(DesktopServicesFace::reading_row())
+            GroupIndicator::sample(DesktopServicesFace::reading_row())
                 .with_hover_card(Box::new(move |_| {
                     let mut sections = self
                         .identity
@@ -297,7 +297,7 @@ impl LoginSessionGroup {
         let mut rows = Vec::new();
         if let Some(system) = self.system.get() {
             rows.push(
-                GroupItem::reading(KernelFace { system }.reading_row())
+                GroupIndicator::sample(KernelFace { system }.reading_row())
                     .with_hover_card(Box::new(move |_| {
                         self.system
                             .hover_card_with(KernelFace { system }.hover_card())
@@ -314,7 +314,7 @@ impl LoginSessionGroup {
             WidgetGroupFamily::LoginSession,
             GroupSummary::glyph(
                 Phosphor::StackSimple(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             LoginSessionInteraction::Expansion,

@@ -4,7 +4,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -19,13 +19,13 @@ const MISMATCH_REMEDY: &str =
 pub(crate) const NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::LinkBreak(Weight::Regular));
 
-pub fn notulist_interface_mismatch_reading_row(
+pub fn notulist_interface_mismatch_indicator(
     mismatch: &NotulistInterfaceMismatch,
 ) -> ReadingRow<'_> {
     ReadingRow::glyph_only(
         NotulistInterfaceMismatch::NAME,
         Phosphor::LinkBreak(Weight::Regular).into(),
-        ReadingDisplayState::Failed,
+        IndicatorState::Failed,
         Box::new(move |_| notulist_interface_mismatch_hover_card(mismatch)),
     )
 }

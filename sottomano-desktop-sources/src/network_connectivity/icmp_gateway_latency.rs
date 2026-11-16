@@ -15,7 +15,7 @@ use crate::{
             probe_address,
         },
         network_manager_proxies::{self, DeviceGateway},
-        nm_readings,
+        nm_samples,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
@@ -38,12 +38,12 @@ impl SnapshotSource for GatewayLatencies {
     const NAME: &'static str = "Router latency";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let gateway_changes = nm_readings(
+        let gateway_changes = nm_samples(
             buses.system,
             network_manager_proxies::GATEWAY_PROPERTIES,
             network_manager_proxies::device_gateways,
         )
-        .map(|gateway_reading| match gateway_reading {
+        .map(|gateway_sample| match gateway_sample {
             Ok(gateways) => ProbeEvent::GatewaysChanged(gateways),
             Err(listing_error) => ProbeEvent::GatewayListingFailed(listing_error),
         });

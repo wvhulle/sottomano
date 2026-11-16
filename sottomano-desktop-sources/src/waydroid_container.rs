@@ -162,7 +162,7 @@ async fn read_waydroid(system_bus: &zbus::Connection) -> WaydroidReadout {
     let session = waydroid_session(system_bus).await;
     WaydroidReadout {
         state: state_of_session(&session, container),
-        memory_in_use: container_memory.map(|reading| reading.current),
+        memory_in_use: container_memory.map(|sample| sample.current),
     }
 }
 

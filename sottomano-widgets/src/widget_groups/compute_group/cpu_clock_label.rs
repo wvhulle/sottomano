@@ -12,10 +12,10 @@ use super::{
     cpu_clock_limit_causes::causes_text,
 };
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -29,13 +29,13 @@ fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
-pub(super) fn cpu_clock_reading_row(cpu_clock: &CpuClock) -> ReadingRow<'_> {
+pub(super) fn cpu_clock_indicator(cpu_clock: &CpuClock) -> ReadingRow<'_> {
     let label = match cpu_clock.average() {
         Some(average) => ReadoutLabel::Labeled(frequency_text(average)),
         None => ReadoutLabel::Unlabeled,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -43,7 +43,7 @@ pub(super) fn cpu_clock_reading_row(cpu_clock: &CpuClock) -> ReadingRow<'_> {
         ..ReadingRow::glyph_only(
             CpuClock::NAME,
             Phosphor::WaveSine(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| cpu_clock_hover_card(cpu_clock)),
         )
     }

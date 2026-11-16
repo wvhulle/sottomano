@@ -12,10 +12,10 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
@@ -52,7 +52,7 @@ impl<'a> OwnNodeRow<'a> {
 impl<'a> OwnNodeRow<'a> {
     pub(super) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.own_tags_text()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -60,7 +60,7 @@ impl<'a> OwnNodeRow<'a> {
             ..ReadingRow::glyph_only(
                 "This machine",
                 Phosphor::IdentificationBadge(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -90,7 +90,7 @@ impl InboundAccessRow {
         ReadingRow::glyph_only(
             "Reachable from",
             Phosphor::ArrowsInSimple(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Vec::new()),
         )
     }
@@ -103,7 +103,7 @@ impl PolicyFileRow {
         ReadingRow::glyph_only(
             "Policy file",
             Phosphor::Scroll(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Vec::new()),
         )
     }

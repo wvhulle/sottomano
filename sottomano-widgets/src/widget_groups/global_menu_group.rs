@@ -29,11 +29,13 @@ use sottomano_desktop_sources::{
 use self::top_menu_glyphs::top_menu_glyph;
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::{
+            IndicatorIcon, IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel,
+        },
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{GroupItemIcon, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -105,14 +107,14 @@ fn global_menu_use_toggle(global_menu_use: GlobalMenuUse) -> IconToggle {
     )
 }
 
-struct MenuLookupFailureReading<'failure> {
+struct MenuLookupFailureIndicator<'failure> {
     lookup_failure: &'failure X11MenuLookupError,
 }
 
-impl<'failure> MenuLookupFailureReading<'failure> {
+impl<'failure> MenuLookupFailureIndicator<'failure> {
     fn reading_row(self) -> ReadingRow<'failure> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("failed".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -120,7 +122,7 @@ impl<'failure> MenuLookupFailureReading<'failure> {
             ..ReadingRow::glyph_only(
                 "Menu lookup",
                 Phosphor::Warning(Weight::Regular).into(),
-                ReadingDisplayState::Failed,
+                IndicatorState::Failed,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -494,13 +496,13 @@ impl GlobalMenuGroup {
     }
 
     pub fn switch_content(&self) -> WidgetGroupContent<'_> {
-        let mut rows = vec![GroupItem::toggle(
+        let mut rows = vec![GroupIndicator::toggle(
             global_menu_use_toggle(self.global_menu_use),
             GlobalMenuInteraction::ToggleUse,
         )];
         if let Some(lookup_failure) = self.lookup_failure() {
-            rows.push(GroupItem::reading(
-                MenuLookupFailureReading { lookup_failure }.reading_row(),
+            rows.push(GroupIndicator::sample(
+                MenuLookupFailureIndicator { lookup_failure }.reading_row(),
             ));
         }
         WidgetGroupContent::expandable(
@@ -508,8 +510,8 @@ impl GlobalMenuGroup {
             GroupSummary::glyph(
                 Phosphor::CursorClick(Weight::Regular).into(),
                 match self.lookup_failure() {
-                    Some(_) => ReadingDisplayState::Failed,
-                    None => ReadingDisplayState::Idle,
+                    Some(_) => IndicatorState::Failed,
+                    None => IndicatorState::Idle,
                 },
             ),
             &self.switch_expansion,
@@ -518,28 +520,28 @@ impl GlobalMenuGroup {
         )
     }
 
-    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_> {
+    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupIndicator<'_> {
         let node = entry.node;
         let icon = match node.kind {
-            MenuKind::Toggle(true) => GroupItemIcon::IconGlyph {
+            MenuKind::Toggle(true) => IndicatorIcon::IconGlyph {
                 glyph: Phosphor::Check(Weight::Regular).into(),
-                state: ReadingDisplayState::Idle,
+                state: IndicatorState::Idle,
             },
             _ => match &node.icon {
                 Some(icon_source) => {
-                    GroupItemIcon::Image(self.pixmap_handles.icon_handle(icon_source))
+                    IndicatorIcon::Image(self.pixmap_handles.icon_handle(icon_source))
                 }
-                None => GroupItemIcon::IconGlyph {
+                None => IndicatorIcon::IconGlyph {
                     glyph: Phosphor::Dot(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
+                    state: IndicatorState::Idle,
                 },
             },
         };
         let card_label_path = entry.label_path.clone();
-        let entry_item = GroupItem::composed_pinnable(
+        let entry_item = GroupIndicator::composed_pinnable(
             entry.label_path,
             icon,
-            GroupItemValue::Nothing,
+            IndicatorValue::Nothing,
             Box::new(|_| Vec::new()),
         )
         .with_hover_card(Box::new(move |_| self.entry_sections(&card_label_path)));
@@ -576,7 +578,7 @@ impl GlobalMenuGroup {
                     WidgetGroupTitle::Named(top_menu_label.clone().into()),
                     GroupSummary::glyph(
                         top_menu_glyph(&top_menu_label).into(),
-                        ReadingDisplayState::Idle,
+                        IndicatorState::Idle,
                     ),
                     expansion,
                     move |expansion_message| GlobalMenuInteraction::Expansion {

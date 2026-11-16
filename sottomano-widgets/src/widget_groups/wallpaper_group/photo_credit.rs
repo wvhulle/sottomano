@@ -1,10 +1,10 @@
 use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -24,7 +24,7 @@ pub struct Photo {
 impl Photo {
     pub(super) fn reading_row(&self) -> ReadingRow<'_> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: match &self.photographer {
                     Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
                     Some(_) | None => ReadoutLabel::Unlabeled,
@@ -35,7 +35,7 @@ impl Photo {
             ..ReadingRow::glyph_only(
                 "Wallpaper photo",
                 SimpleIcon::Unsplash.into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

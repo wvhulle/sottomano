@@ -8,10 +8,10 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -134,7 +134,7 @@ impl BreakLog<'_> {
 impl<'a> BreakLog<'a> {
     pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(
                     self.recent_breaks(clock.utc())
                         .taken_breaks
@@ -147,7 +147,7 @@ impl<'a> BreakLog<'a> {
             ..ReadingRow::glyph_only(
                 "Breaks",
                 Phosphor::Coffee(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }

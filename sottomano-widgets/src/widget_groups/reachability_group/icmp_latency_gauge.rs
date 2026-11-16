@@ -6,9 +6,9 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutGauge},
         reading_row::ReadingRow,
-        source_reading::{ReadoutGauge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle},
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
@@ -35,7 +35,7 @@ pub(super) fn internet_latency_hover_card(latency: &InternetLatency) -> Vec<Sect
     )]
 }
 
-pub(super) fn internet_latency_reading_row(latency: &InternetLatency) -> ReadingRow<'_> {
+pub(super) fn internet_latency_indicator(latency: &InternetLatency) -> ReadingRow<'_> {
     let base = ReadingRow::glyph_only(
         InternetLatency::NAME,
         Phosphor::Timer(Weight::Regular).into(),
@@ -50,7 +50,7 @@ pub(super) fn internet_latency_reading_row(latency: &InternetLatency) -> Reading
         None => ReadoutGauge::Ungauged,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             gauge,
             ..base.readout
         },

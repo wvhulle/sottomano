@@ -4,7 +4,7 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
-    group_items::group_item::{GroupItem, RowHoverCard},
+    group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
     hover_cards::{CardHeader, HoverTarget, MenuHandleIndicator},
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
@@ -12,7 +12,7 @@ use crate::{
 pub enum FixedPanelGroup<'a> {
     Empty,
     Shown {
-        item: Box<GroupItem<'a>>,
+        item: Box<GroupIndicator<'a>>,
         hover_target: HoverTarget,
     },
 }

@@ -9,15 +9,15 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list},
+        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -37,7 +37,7 @@ pub fn memory_processes_sections(memory_processes: &MemoryProcesses) -> Vec<Sect
     )]
 }
 
-pub fn memory_reading_row(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_indicator(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
     let state = match memory.percent() {
         used if used > FULL_CRITICAL_PERCENT => Severity::Critical,
         used if used > FULL_WARNING_PERCENT => Severity::Warning,
@@ -58,19 +58,19 @@ pub fn memory_reading_row(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
         ),
     ]);
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged { fill, live: fill },
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Critical,
                 summary_text: "RAM almost full",
                 body: ToastBody::Text(toast_body),
                 progress: ToastProgress::Measured(fill),
             },
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         ..ReadingRow::glyph_only(
             Memory::NAME,
@@ -95,8 +95,8 @@ pub fn memory_hover_card(memory: &Memory) -> Vec<Section> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::group_items::{
-        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    use crate::group_indicators::{
+        group_indicator::indicator_toast_severity, indicator_state::IndicatorState,
     };
 
     fn memory_at(used_gibibytes: u64) -> Memory {
@@ -109,27 +109,27 @@ mod tests {
     #[test]
     fn fullness_sets_the_state() {
         assert_eq!(
-            memory_reading_row(&memory_at(40), Locale::default()).shown_state(),
-            ReadingDisplayState::Idle
+            memory_indicator(&memory_at(40), Locale::default()).shown_state(),
+            IndicatorState::Idle
         );
         assert_eq!(
-            memory_reading_row(&memory_at(80), Locale::default()).shown_state(),
-            ReadingDisplayState::Warning
+            memory_indicator(&memory_at(80), Locale::default()).shown_state(),
+            IndicatorState::Warning
         );
         assert_eq!(
-            memory_reading_row(&memory_at(95), Locale::default()).shown_state(),
-            ReadingDisplayState::Critical
+            memory_indicator(&memory_at(95), Locale::default()).shown_state(),
+            IndicatorState::Critical
         );
     }
 
     #[test]
     fn only_a_nearly_full_ram_raises_a_toast() {
         assert_eq!(
-            reading_toast_severity(&memory_reading_row(&memory_at(80), Locale::default())),
+            indicator_toast_severity(&memory_indicator(&memory_at(80), Locale::default())),
             None
         );
         assert_eq!(
-            reading_toast_severity(&memory_reading_row(&memory_at(95), Locale::default())),
+            indicator_toast_severity(&memory_indicator(&memory_at(95), Locale::default())),
             Some(Severity::Critical)
         );
     }
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn ram_toast_lists_used_and_available_memory() {
         let nearly_full = memory_at(95);
-        let toast_row = memory_reading_row(&nearly_full, Locale::en_US);
+        let toast_row = memory_indicator(&nearly_full, Locale::en_US);
         let StateToast::NotifyFromSeverity {
             body: ToastBody::Text(toast_body),
             ..

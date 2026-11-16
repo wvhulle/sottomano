@@ -11,10 +11,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -43,7 +43,7 @@ impl<'a> ApptainerContainerListingRow<'a> {
             self.listing.container_name, self.listing.runtime_pid
         );
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -78,7 +78,7 @@ impl<'a> ApptainerContainerRow<'a> {
             container.listing.container_name, container.listing.runtime_pid
         );
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(container.memory_in_use)),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -86,7 +86,7 @@ impl<'a> ApptainerContainerRow<'a> {
             ..ReadingRow::glyph_only(
                 name,
                 Phosphor::Flask(Weight::Regular).into(),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |clock| Self::hover_card(container, clock)),
             )
         }
@@ -152,7 +152,7 @@ impl ContainerFamily for ApptainerFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                reading: ApptainerContainerListingRow { listing }.reading_row(),
+                sample: ApptainerContainerListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
@@ -163,7 +163,7 @@ impl ContainerFamily for ApptainerFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                reading: ApptainerContainerRow { container }.reading_row(),
+                sample: ApptainerContainerRow { container }.reading_row(),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()

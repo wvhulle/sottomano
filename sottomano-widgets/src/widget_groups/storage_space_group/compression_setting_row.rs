@@ -5,10 +5,10 @@ use sottomano_desktop_sources::disk_storage::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -74,7 +74,7 @@ impl<'a> CompressionSettingRow<'a> {
             None => self.algorithm_text(),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -83,7 +83,7 @@ impl<'a> CompressionSettingRow<'a> {
             ..ReadingRow::glyph_only(
                 "Compression",
                 Phosphor::ArrowsInSimple(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

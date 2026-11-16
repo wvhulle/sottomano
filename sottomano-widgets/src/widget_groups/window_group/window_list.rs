@@ -48,7 +48,7 @@ use crate::{
             window_source_workspace,
         },
     },
-    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
     hover_cards::{
         HoverCardMessage, MouseGesture, PressAction, hover_card_body::Section, hoverable,
     },
@@ -777,7 +777,7 @@ struct WindowSlot<'s> {
 }
 
 fn glyph_color(
-    tint: ReadingStateTint,
+    tint: IndicatorStateTint,
     slot_backdrop: SlotBackdrop,
 ) -> impl Fn(&iced::Theme) -> iced::Color {
     move |theme| match slot_backdrop {
@@ -891,8 +891,8 @@ impl WindowSlot<'_> {
         &self,
         icon: fn(Weight) -> Phosphor,
     ) -> Element<'a, WindowListInteraction> {
-        let tint = ReadingStateTint {
-            state: ReadingDisplayState::Off,
+        let tint = IndicatorStateTint {
+            state: IndicatorState::Off,
             opacity: self.opacity,
         };
         IconGlyph::from(icon(tint.state.weight())).view(
@@ -929,16 +929,10 @@ impl WindowSlot<'_> {
     fn audio_glyph<'a>(&self) -> Option<Element<'a, WindowListInteraction>> {
         let (state, icon) = match self.extras.audio? {
             WindowAudio::Silent => return None,
-            WindowAudio::Audible => (
-                ReadingDisplayState::On,
-                Phosphor::SpeakerHigh(Weight::Regular),
-            ),
-            WindowAudio::Muted => (
-                ReadingDisplayState::Off,
-                Phosphor::SpeakerX(Weight::Regular),
-            ),
+            WindowAudio::Audible => (IndicatorState::On, Phosphor::SpeakerHigh(Weight::Regular)),
+            WindowAudio::Muted => (IndicatorState::Off, Phosphor::SpeakerX(Weight::Regular)),
         };
-        let tint = ReadingStateTint {
+        let tint = IndicatorStateTint {
             state,
             opacity: self.opacity,
         };
@@ -1037,8 +1031,8 @@ impl WindowSlot<'_> {
         else {
             return self.resolved_icon(icons);
         };
-        let tint = ReadingStateTint {
-            state: ReadingDisplayState::Idle,
+        let tint = IndicatorStateTint {
+            state: IndicatorState::Idle,
             opacity: self.opacity,
         };
         Some(view_simple_icon(

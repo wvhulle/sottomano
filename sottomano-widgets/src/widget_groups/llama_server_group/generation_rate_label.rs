@@ -1,10 +1,10 @@
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,7 +22,7 @@ pub struct GenerationRate<'a> {
 impl<'a> GenerationRate<'a> {
     pub fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(format!("{:.0} tok/s", self.rate.get::<hertz>())),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -30,7 +30,7 @@ impl<'a> GenerationRate<'a> {
             ..ReadingRow::glyph_only(
                 format!("{} generation rate", self.server),
                 Phosphor::Lightning(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

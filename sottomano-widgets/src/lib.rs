@@ -2,7 +2,7 @@ pub mod background_work;
 pub mod clock;
 pub mod desktop_index;
 pub mod desktop_panels;
-pub mod group_items;
+pub mod group_indicators;
 pub mod group_menus;
 pub mod hover_cards;
 pub mod layer_surfaces;

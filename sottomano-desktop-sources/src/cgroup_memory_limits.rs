@@ -11,7 +11,7 @@ use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         sysfs_attribute_reads::FileReadError,
-        sysfs_cgroup_memory::{CGROUP_ROOT, CgroupMemoryReading, read_cgroup_memory},
+        sysfs_cgroup_memory::{CGROUP_ROOT, CgroupMemorySample, read_cgroup_memory},
     },
 };
 
@@ -22,7 +22,7 @@ const ALWAYS_SHOWN_CGROUPS: [&str; 1] = ["machine.slice"];
 pub struct LimitedCgroup {
     pub unit_name: String,
     pub cgroup_path: String,
-    pub memory: CgroupMemoryReading,
+    pub memory: CgroupMemorySample,
 }
 
 #[derive(Debug, Clone, PartialEq)]

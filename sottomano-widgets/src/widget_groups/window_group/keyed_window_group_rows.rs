@@ -19,7 +19,7 @@ use super::{
 };
 use crate::{
     desktop_panels::panel_slot_drag::PanelSlotContext,
-    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
     widgets::{
         icon_handle::IconHandle,
         shared_metrics::ACCENT_STROKE_PX,
@@ -123,8 +123,8 @@ fn keyed_group_heading<'a>(
     config: &Config,
 ) -> Option<Element<'a, WindowListInteraction>> {
     let heading_text = keyed_group_heading_text(window_entry, icons)?;
-    let tint = ReadingStateTint {
-        state: ReadingDisplayState::Idle,
+    let tint = IndicatorStateTint {
+        state: IndicatorState::Idle,
         opacity: 1.0,
     };
     let icon = window_entry

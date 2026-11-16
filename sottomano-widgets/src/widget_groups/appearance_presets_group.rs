@@ -1,8 +1,8 @@
 use crate::{
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
-        source_reading::GroupItemIcon,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
@@ -25,18 +25,21 @@ pub enum AppearancePresetsMessage {
     Expansion(WidgetGroupExpansionMessage),
 }
 
-fn preset_group_item<'a>(preset: AppearancePreset, current: &ShellAppearance) -> GroupItem<'a> {
+fn preset_group_indicator<'a>(
+    preset: AppearancePreset,
+    current: &ShellAppearance,
+) -> GroupIndicator<'a> {
     let display_state = match preset.applied_to(*current).look_comparison(current) {
-        LookComparison::Matching => ReadingDisplayState::On,
-        LookComparison::Differing => ReadingDisplayState::Idle,
+        LookComparison::Matching => IndicatorState::On,
+        LookComparison::Differing => IndicatorState::Idle,
     };
-    GroupItem::composed(
+    GroupIndicator::composed(
         preset.name(),
-        GroupItemIcon::IconGlyph {
+        IndicatorIcon::IconGlyph {
             glyph: preset.icon().into(),
             state: display_state,
         },
-        GroupItemValue::Nothing,
+        IndicatorValue::Nothing,
         Box::new(|_| Vec::new()),
     )
     .with_hover_card(Box::new(move |_| {
@@ -67,13 +70,13 @@ impl AppearancePresetsGroup {
             WidgetGroupFamily::AppearancePresets,
             GroupSummary::glyph(
                 Phosphor::Palette(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             AppearancePresetsMessage::Expansion,
             AppearancePreset::ALL
                 .into_iter()
-                .map(|preset| preset_group_item(preset, current)),
+                .map(|preset| preset_group_indicator(preset, current)),
         )
     }
 }

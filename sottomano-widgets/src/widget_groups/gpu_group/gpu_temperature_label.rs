@@ -1,19 +1,19 @@
 use sottomano_desktop_sources::cpu_memory_compute::{
-    pci_gpu_readings::GpuTemperatureLimits, temperature_thresholds::celsius_text,
+    pci_gpu_samples::GpuTemperatureLimits, temperature_thresholds::celsius_text,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -30,19 +30,19 @@ impl GpuTemperatureLabel {
         let label = celsius_text(self.current);
         let state = self.display_state();
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label.clone()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
             },
-            alerts: ReadingAlerts {
+            alerts: IndicatorAlerts {
                 state_toast: StateToast::NotifyFromSeverity {
                     minimum_severity: Severity::Critical,
                     summary_text: "GPU overheating",
                     body: ToastBody::Text(label),
                     progress: ToastProgress::Unmeasured,
                 },
-                ..ReadingAlerts::default()
+                ..IndicatorAlerts::default()
             },
             ..ReadingRow::glyph_only(
                 "GPU temperature",
@@ -53,7 +53,7 @@ impl GpuTemperatureLabel {
         }
     }
 
-    fn display_state(&self) -> ReadingDisplayState {
+    fn display_state(&self) -> IndicatorState {
         let reached = |limit: Option<ThermodynamicTemperature>| {
             limit.is_some_and(|limit| self.current >= limit)
         };

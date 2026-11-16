@@ -13,10 +13,10 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::logged_failure_task,
     desktop_index::DesktopIndex,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
-        source_reading::GroupItemIcon,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -429,21 +429,21 @@ impl AppLauncherGroup {
         }
     }
 
-    fn app_icon(app: &LaunchableApp, index: &DesktopIndex) -> GroupItemIcon {
+    fn app_icon(app: &LaunchableApp, index: &DesktopIndex) -> IndicatorIcon {
         index
             .app_icon(&app.app_id)
-            .map_or(GroupItemIcon::Absent, |icon_handle| {
-                GroupItemIcon::Image(icon_handle.clone())
+            .map_or(IndicatorIcon::Absent, |icon_handle| {
+                IndicatorIcon::Image(icon_handle.clone())
             })
     }
 
-    fn jump_indicator<'a>(&self, app: &LaunchableApp, config: &'a Config) -> GroupItemValue<'a> {
+    fn jump_indicator<'a>(&self, app: &LaunchableApp, config: &'a Config) -> IndicatorValue<'a> {
         self.usage
             .open_windows
             .get(&app.app_id)
-            .map_or(GroupItemValue::Nothing, |open_windows| {
+            .map_or(IndicatorValue::Nothing, |open_windows| {
                 let window = open_windows.latest_focused_window;
-                GroupItemValue::drawn(move |_reveal| -> Element<'a, GroupEvent> {
+                IndicatorValue::drawn(move |_reveal| -> Element<'a, GroupEvent> {
                     glyph_button(
                         Phosphor::ArrowSquareOut(Weight::Regular),
                         config.theme.font.icon_size_px,
@@ -454,7 +454,11 @@ impl AppLauncherGroup {
             })
     }
 
-    fn with_app_gestures<'a>(&self, row: GroupItem<'a>, app: &LaunchableApp) -> GroupItem<'a> {
+    fn with_app_gestures<'a>(
+        &self,
+        row: GroupIndicator<'a>,
+        app: &LaunchableApp,
+    ) -> GroupIndicator<'a> {
         let launchable_row = row.on_press("launch", AppLauncherMessage::Launch(app.app_id.clone()));
         match self.usage.open_windows.get(&app.app_id) {
             Some(open_windows) => launchable_row.on_right_press(
@@ -470,10 +474,10 @@ impl AppLauncherGroup {
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
-    ) -> GroupItem<'a> {
+    ) -> GroupIndicator<'a> {
         let card_app_id = app.app_id.clone();
         self.with_app_gestures(
-            GroupItem::composed(
+            GroupIndicator::composed(
                 app.name.clone(),
                 Self::app_icon(app, index),
                 self.jump_indicator(app, config),
@@ -489,10 +493,10 @@ impl AppLauncherGroup {
         app: &LaunchableApp,
         index: &DesktopIndex,
         config: &'a Config,
-    ) -> GroupItem<'a> {
+    ) -> GroupIndicator<'a> {
         let card_app_id = app.app_id.clone();
         self.with_app_gestures(
-            GroupItem::composed_pinnable(
+            GroupIndicator::composed_pinnable(
                 app.name.clone(),
                 Self::app_icon(app, index),
                 self.jump_indicator(app, config),
@@ -522,7 +526,7 @@ impl AppLauncherGroup {
             WidgetGroupTitle::fixed(scope.group_title()),
             GroupSummary::glyph(
                 IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.frequent_expansion,
             AppLauncherMessage::FrequentExpansion,
@@ -547,7 +551,7 @@ impl AppLauncherGroup {
             WidgetGroupTitle::fixed(category.title()),
             GroupSummary::glyph(
                 IconGlyph::from(category_glyph(category)),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &group.expansion,
             move |expansion| AppLauncherMessage::CategoryExpansion(category, expansion),
@@ -561,16 +565,16 @@ impl AppLauncherGroup {
             WidgetGroupTitle::fixed("Launcher options"),
             GroupSummary::glyph(
                 IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.options_expansion,
             AppLauncherMessage::OptionsExpansion,
             [
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     hide_open_apps_toggle(self.open_app_listing),
                     AppLauncherMessage::ToggleHideOpenApps,
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     sort_by_usage_toggle(self.category_app_order),
                     AppLauncherMessage::ToggleSortByUsage,
                 ),
@@ -608,7 +612,7 @@ mod tests {
 
     use super::{
         Action, AppLaunchUsage, AppLauncherGroup, AppLauncherMessage, FrequentApp,
-        FrequentAppScope, GroupItemValue, MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps,
+        FrequentAppScope, IndicatorValue, MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps,
         WorkspaceWindowPresence, apps_shown_in_category, frequent_apps_shown,
     };
     use crate::desktop_index::DesktopIndex;
@@ -803,11 +807,11 @@ mod tests {
 
         assert!(matches!(
             group.jump_indicator(&development_app("helix"), &config),
-            GroupItemValue::Drawn(_)
+            IndicatorValue::Drawn(_)
         ));
         assert!(matches!(
             group.jump_indicator(&development_app("zed"), &config),
-            GroupItemValue::Nothing
+            IndicatorValue::Nothing
         ));
     }
 }

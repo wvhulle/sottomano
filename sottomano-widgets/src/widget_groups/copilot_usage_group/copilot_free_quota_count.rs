@@ -4,10 +4,10 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,16 +22,16 @@ use crate::{
 pub(crate) const COPILOT_FREE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::ChatCircleDots(Weight::Regular));
 
-pub fn copilot_free_reading_row(free: &CopilotFree) -> ReadingRow<'_> {
+pub fn copilot_free_indicator(free: &CopilotFree) -> ReadingRow<'_> {
     let state = if free.chat <= 5 {
-        ReadingDisplayState::Critical
+        IndicatorState::Critical
     } else if free.chat <= 20 {
-        ReadingDisplayState::Warning
+        IndicatorState::Warning
     } else {
-        ReadingDisplayState::Idle
+        IndicatorState::Idle
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(format!("{} chats", free.chat)),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,

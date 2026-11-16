@@ -29,11 +29,11 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     desktop_index::DesktopIndex,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
         reading_row::{DescribeCard, PanelVisibility},
-        source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -72,7 +72,7 @@ use self::{
     session_controls::{SessionControls, SessionMessages},
     synced_lyrics_view::{
         TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
-        track_lyrics_reading_row,
+        track_lyrics_indicator,
     },
     track_face::{player_item, track_item},
     track_hover_card::{playback_section, search_section, track_section},
@@ -123,8 +123,8 @@ struct CoverArt {
 
 #[derive(Debug)]
 pub enum MediaMessage {
-    Reading(SnapshotDelivery<Vec<Media>>),
-    LyricsReading {
+    Sample(SnapshotDelivery<Vec<Media>>),
+    LyricsIndicator {
         query: LyricsQuery,
         delivery: SnapshotDelivery<TrackLyrics>,
     },
@@ -201,8 +201,7 @@ impl MediaGroup {
         lyrics_config: &MediaLyricsConfig,
         demand: &GroupSourceDemand,
     ) -> Subscription<MediaMessage> {
-        let readings =
-            snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
+        let samples = snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Sample);
         let lyrics_lookups = self
             .unfetched_lyrics_queries()
             .filter(|_| lyrics_config.lrclib_lookup == LrclibLookup::Enabled)
@@ -212,7 +211,7 @@ impl MediaGroup {
                     inputs: query.clone(),
                 })
                 .with(query)
-                .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })
+                .map(|(query, delivery)| MediaMessage::LyricsIndicator { query, delivery })
             });
         let progress_tick = match self.playback_pace() {
             PlaybackPace::Singing => {
@@ -223,9 +222,9 @@ impl MediaGroup {
             }
             PlaybackPace::Still => None,
         }
-        .map(|tick| demand.while_any_reading_shown(tick));
+        .map(|tick| demand.while_any_indicator_shown(tick));
         Subscription::batch(
-            iter::once(readings)
+            iter::once(samples)
                 .chain(lyrics_lookups)
                 .chain(progress_tick),
         )
@@ -297,14 +296,14 @@ impl MediaGroup {
 
     pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
         match msg {
-            MediaMessage::LyricsReading { query, delivery } => {
+            MediaMessage::LyricsIndicator { query, delivery } => {
                 self.lyrics_snapshots
                     .entry(query)
                     .or_default()
                     .receive(delivery, clock);
             }
             MediaMessage::ProgressAdvanced => {}
-            MediaMessage::Reading(delivery) => {
+            MediaMessage::Sample(delivery) => {
                 self.players.receive(delivery, clock);
                 self.follow_players(clock.instant);
                 return Action::Run(self.art_loads());
@@ -470,12 +469,12 @@ fn session_buttons_item<'a>(
     config: &'a Config,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let bus = media.bus.as_str();
-    GroupItem::composed(
+    GroupIndicator::composed(
         "Session",
-        GroupItemIcon::Absent,
-        GroupItemValue::drawn(move |reveal| {
+        IndicatorIcon::Absent,
+        IndicatorValue::drawn(move |reveal| {
             lifted_to_player(bus, session_controls(config, media, session, reveal).into())
         }),
         Box::new(|_| Vec::new()),
@@ -494,15 +493,15 @@ fn seek_position_item<'a>(
     clock: Clock,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let bus = media.bus.as_str();
-    GroupItem::composed(
+    GroupIndicator::composed(
         "Position",
-        GroupItemIcon::IconGlyph {
+        IndicatorIcon::IconGlyph {
             glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
+            state: IndicatorState::Idle,
         },
-        GroupItemValue::drawn(move |_| {
+        IndicatorValue::drawn(move |_| {
             let bar = session
                 .seek_bar
                 .view(config, media, clock.instant)
@@ -517,14 +516,14 @@ fn seek_position_item<'a>(
     ])
 }
 
-fn transport_controls_item<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a> {
+fn transport_controls_item<'a>(config: &'a Config, media: &'a Media) -> GroupIndicator<'a> {
     let bus = media.bus.as_str();
     let press_actions =
         TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
-    GroupItem::composed(
+    GroupIndicator::composed(
         "Playback",
-        GroupItemIcon::Absent,
-        GroupItemValue::drawn(move |reveal| {
+        IndicatorIcon::Absent,
+        IndicatorValue::drawn(move |reveal| {
             lifted_to_player(
                 bus,
                 TransportControls::new(config, media, reveal, PlayerInteraction::Command).into(),
@@ -574,24 +573,26 @@ fn player_group<'a>(
         } else {
             match lyrics_snapshot {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let lyrics_row = track_lyrics_reading_row(held_snapshot);
+                    let lyrics_row = track_lyrics_indicator(held_snapshot);
                     if lyrics_row.panel_visibility == PanelVisibility::Shown {
-                        rows.push(GroupItem::reading(lyrics_row).with_hover_card(cards.lyrics));
+                        rows.push(GroupIndicator::sample(lyrics_row).with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                     let lyrics_row = troubled_snapshot.shown_over(
-                        track_lyrics_reading_row(&troubled_snapshot.held_snapshot),
+                        track_lyrics_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     );
                     if lyrics_row.panel_visibility == PanelVisibility::Shown {
-                        rows.push(GroupItem::reading(lyrics_row).with_hover_card(cards.lyrics));
+                        rows.push(GroupIndicator::sample(lyrics_row).with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
                     rows.push(
-                        GroupItem::reading(placeholder.reading_row(TRACK_LYRICS_FALLBACK_GLYPH))
-                            .with_hover_card(cards.lyrics),
+                        GroupIndicator::sample(
+                            placeholder.reading_row(TRACK_LYRICS_FALLBACK_GLYPH),
+                        )
+                        .with_hover_card(cards.lyrics),
                     );
                 }
                 SubscribedSnapshot::AwaitingFirstSnapshot
@@ -721,7 +722,7 @@ mod tests {
 
     fn reported(group: &mut MediaGroup, players: Vec<Media>, clock: Clock) {
         let _ = group.update(
-            MediaMessage::Reading(SnapshotDelivery::live_push(Ok(players))),
+            MediaMessage::Sample(SnapshotDelivery::live_push(Ok(players))),
             clock,
         );
     }
@@ -826,7 +827,7 @@ mod tests {
 
     fn lyrics_delivered(group: &mut MediaGroup, media: &Media, clock: Clock) {
         let _ = group.update(
-            MediaMessage::LyricsReading {
+            MediaMessage::LyricsIndicator {
                 query: media
                     .lyrics_query()
                     .expect("a timed, titled track has a query"),
@@ -860,7 +861,7 @@ mod tests {
         let low_tide = singing_player("Low Tide", clock);
         reported(&mut group, vec![low_tide.clone()], clock);
         let _ = group.update(
-            MediaMessage::LyricsReading {
+            MediaMessage::LyricsIndicator {
                 query: low_tide
                     .lyrics_query()
                     .expect("a timed, titled track has a query"),

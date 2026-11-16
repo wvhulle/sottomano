@@ -1,0 +1,282 @@
+use std::borrow::Cow;
+
+use iced::{Subscription, Task};
+use sottomano_desktop_sources::{
+    SnapshotDelivery, SnapshotSource,
+    network_connectivity::{
+        network_manager_proxies::{LinkPhase, RadioPower},
+        tailscale_exit_nodes::ExitNodeLanAccess,
+        tailscale_status::ExitNodeUse,
+    },
+};
+
+use crate::{
+    background_work::{first_delivery, snapshot_subscription},
+    clock::Clock,
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
+    hover_cards::hover_card_body::Section,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
+    },
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchPosition {
+    On,
+    Off,
+}
+
+impl From<SwitchPosition> for IndicatorState {
+    fn from(switch_position: SwitchPosition) -> Self {
+        match switch_position {
+            SwitchPosition::On => IndicatorState::On,
+            SwitchPosition::Off => IndicatorState::Off,
+        }
+    }
+}
+
+impl From<LinkPhase> for SwitchPosition {
+    fn from(link_state: LinkPhase) -> Self {
+        match link_state {
+            LinkPhase::Up => SwitchPosition::On,
+            LinkPhase::Switching | LinkPhase::Down => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<RadioPower> for SwitchPosition {
+    fn from(radio_power: RadioPower) -> Self {
+        match radio_power {
+            RadioPower::On => SwitchPosition::On,
+            RadioPower::Off => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<ExitNodeUse> for SwitchPosition {
+    fn from(node_use: ExitNodeUse) -> Self {
+        match node_use {
+            ExitNodeUse::InUse => SwitchPosition::On,
+            ExitNodeUse::Unused => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<ExitNodeLanAccess> for SwitchPosition {
+    fn from(lan_access: ExitNodeLanAccess) -> Self {
+        match lan_access {
+            ExitNodeLanAccess::Allowed => SwitchPosition::On,
+            ExitNodeLanAccess::Blocked => SwitchPosition::Off,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct SwitchPresses {
+    pub turning_on: &'static str,
+    pub turning_off: &'static str,
+}
+
+#[derive(Clone)]
+pub struct IconToggle {
+    pub name: Cow<'static, str>,
+    pub icon: Phosphor,
+    pub switch_position: SwitchPosition,
+    pub presses: SwitchPresses,
+}
+
+impl IconToggle {
+    #[must_use]
+    pub fn new(
+        name: impl Into<Cow<'static, str>>,
+        icon: Phosphor,
+        switch_position: impl Into<SwitchPosition>,
+        presses: SwitchPresses,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            icon,
+            switch_position: switch_position.into(),
+            presses,
+        }
+    }
+
+    #[must_use]
+    pub fn press_does(&self) -> &'static str {
+        match self.switch_position {
+            SwitchPosition::On => self.presses.turning_off,
+            SwitchPosition::Off => self.presses.turning_on,
+        }
+    }
+
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            self.name,
+            self.icon.with_weight(Weight::Regular).into(),
+            IndicatorState::from(self.switch_position),
+            Box::new(|_| Vec::new()),
+        )
+    }
+}
+
+pub trait ToggleableSource: SnapshotSource {
+    #[must_use]
+    fn toggled_value(&self) -> Self;
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
+    fn press_action_text(&self) -> &'static str;
+    fn switch_position(&self) -> SwitchPosition;
+}
+
+pub struct ToggleControl<S: ToggleableSource> {
+    sample: SubscribedSnapshot<S>,
+}
+
+impl<S: ToggleableSource> Default for ToggleControl<S> {
+    fn default() -> Self {
+        Self {
+            sample: SubscribedSnapshot::default(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ToggleMessage<S: ToggleableSource> {
+    Sample(SnapshotDelivery<S>),
+    Applied,
+    Refused(S::Error),
+}
+
+impl<S: ToggleableSource> ToggleControl<S> {
+    pub fn subscription(inputs: S::StreamInputs) -> Subscription<ToggleMessage<S>> {
+        snapshot_subscription::<S>(inputs).map(ToggleMessage::Sample)
+    }
+
+    pub fn refresh(inputs: S::StreamInputs) -> Task<ToggleMessage<S>> {
+        first_delivery::<S>(inputs).map(ToggleMessage::Sample)
+    }
+
+    pub fn update(&mut self, message: ToggleMessage<S>, clock: Clock) -> Task<ToggleMessage<S>> {
+        match message {
+            ToggleMessage::Sample(sample) => {
+                self.sample.receive(sample, clock);
+                Task::none()
+            }
+            ToggleMessage::Applied => Task::none(),
+            ToggleMessage::Refused(refusal) => {
+                self.sample
+                    .apply_command(CommandOutcome::Refused { refusal });
+                Task::none()
+            }
+        }
+    }
+
+    pub fn press(&mut self) -> Task<ToggleMessage<S>> {
+        let Some(current) = self.sample.get().cloned() else {
+            return Task::none();
+        };
+        self.sample.apply_command(CommandOutcome::Applied {
+            expected_snapshot: current.toggled_value(),
+        });
+        Task::future(current.apply_toggle()).map(|applied| match applied {
+            Ok(()) => ToggleMessage::Applied,
+            Err(refusal) => ToggleMessage::Refused(refusal),
+        })
+    }
+
+    pub fn apply_command(&mut self, command_outcome: CommandOutcome<S>) {
+        self.sample.apply_command(command_outcome);
+    }
+
+    pub fn hover_card(&self) -> Vec<Section> {
+        self.sample.hover_card_with(Vec::new())
+    }
+
+    pub fn snapshot(&self) -> Option<&S> {
+        self.sample.get()
+    }
+
+    pub fn subscribed_indicator(&self) -> &SubscribedSnapshot<S> {
+        &self.sample
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use sottomano_desktop_sources::{
+        cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
+        system_protocol_clients::sysfs_attribute_reads::FileReadError,
+    };
+
+    use super::*;
+    use crate::{
+        group_indicators::reading_row::PanelVisibility,
+        hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
+        widget_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_indicator,
+    };
+
+    fn refused_write() -> FileReadError {
+        FileReadError::Unwritable {
+            path: "/sys/bus/platform/drivers/amd_x3d_vcache/AMDI0101:00/amd_x3d_mode".to_owned(),
+            detail: "Permission denied (os error 13)".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
+        let clock = Clock::real();
+        let mut control = ToggleControl::<X3dCachePreference>::default();
+        control.sample.receive(
+            SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
+            Clock::real(),
+        );
+        control.apply_command(CommandOutcome::Applied {
+            expected_snapshot: X3dCachePreference::Cache,
+        });
+
+        let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
+
+        assert!(control.snapshot().is_none());
+        assert_eq!(
+            control.sample.shown_state(
+                |snapshot| x3d_cache_preference_indicator(snapshot).shown_state(),
+                |_| PanelVisibility::Shown,
+                clock,
+            ),
+            Some(IndicatorState::Failed)
+        );
+        let shown_sections: Vec<(String, SectionSource)> = control
+            .hover_card()
+            .iter()
+            .map(|section| (section.title().text().to_owned(), section.source()))
+            .collect();
+        assert_eq!(
+            shown_sections,
+            [(
+                "Unavailable".to_owned(),
+                SectionSource::Snapshot {
+                    source_name: X3dCachePreference::NAME,
+                    delivery: SourceDelivery::Failed,
+                }
+            )]
+        );
+    }
+
+    #[test]
+    fn an_accepted_write_keeps_the_assumed_value() {
+        let mut control = ToggleControl::<X3dCachePreference>::default();
+        control.sample.receive(
+            SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
+            Clock::real(),
+        );
+        control.apply_command(CommandOutcome::Applied {
+            expected_snapshot: X3dCachePreference::Cache,
+        });
+
+        let _ = control.update(ToggleMessage::Applied, Clock::real());
+
+        assert_eq!(control.sample.get(), Some(&X3dCachePreference::Cache));
+    }
+}

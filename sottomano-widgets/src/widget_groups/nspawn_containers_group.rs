@@ -11,11 +11,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutLabel, RowReadout},
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -120,11 +120,11 @@ impl<'a> NspawnContainerRow<'a> {
         }
     }
 
-    fn state(&self) -> ReadingDisplayState {
+    fn state(&self) -> IndicatorState {
         match self.shown_activity() {
-            UnitActivity::Running => ReadingDisplayState::On,
-            UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
-            UnitActivity::Stopped => ReadingDisplayState::Off,
+            UnitActivity::Running => IndicatorState::On,
+            UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
+            UnitActivity::Stopped => IndicatorState::Off,
         }
     }
 
@@ -147,7 +147,7 @@ impl<'a> NspawnContainerRow<'a> {
             Box::new(move |card_clock| self.hover_card(card_clock)),
         );
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 ..base.readout
             },
@@ -309,7 +309,7 @@ impl NspawnContainersGroup {
             .map(|readout| readout.containers.as_slice())
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
-            let row = GroupItem::reading(self.container_row(container).reading_row())
+            let row = GroupIndicator::sample(self.container_row(container).reading_row())
                 .with_hover_card(Box::new(move |clock| {
                     self.listing
                         .hover_card_with(self.container_row(container).hover_card(clock))
@@ -326,7 +326,7 @@ impl NspawnContainersGroup {
             WidgetGroupFamily::NspawnContainers,
             GroupSummary::glyph(
                 Phosphor::Hexagon(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             NspawnContainersInteraction::Expansion,
@@ -392,7 +392,7 @@ mod tests {
             switched_activity: Some(UnitActivity::Stopping),
         };
         assert_eq!(row.label(), Some("stopping".to_owned()));
-        assert_eq!(row.state(), ReadingDisplayState::Pending);
+        assert_eq!(row.state(), IndicatorState::Pending);
     }
 
     #[test]
@@ -409,7 +409,7 @@ mod tests {
             switched_activity: None,
         };
         assert_eq!(row.detail_entries(clock).len(), 2);
-        assert_eq!(row.state(), ReadingDisplayState::Off);
+        assert_eq!(row.state(), IndicatorState::Off);
     }
 
     #[test]

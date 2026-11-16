@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod clock_slider;
 pub mod quiet_window;
 mod sqlite_quiet_hours;
@@ -25,10 +25,10 @@ use self::{
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
         slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
-        source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -196,11 +196,11 @@ impl QuietScheduleGroup {
     fn adopt_schedule(&mut self, schedule: QuietHoursSchedule) {
         self.schedule_adherence = schedule.schedule_adherence;
         self.start_slider
-            .update(ControlMessage::Reading(clock_minutes(schedule.start)));
+            .update(ControlMessage::Sample(clock_minutes(schedule.start)));
         self.end_slider
-            .update(ControlMessage::Reading(clock_minutes(schedule.end)));
+            .update(ControlMessage::Sample(clock_minutes(schedule.end)));
         self.screen_off_slider
-            .update(ControlMessage::Reading(position(schedule.screen_off)));
+            .update(ControlMessage::Sample(position(schedule.screen_off)));
         self.screen_off_slider
             .update(ControlMessage::Activity(match schedule.screen_off {
                 Some(_) => SliderActivity::Active,
@@ -483,7 +483,7 @@ impl QuietScheduleGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let slider = |slider| {
-            GroupItem::slider(
+            GroupIndicator::slider(
                 self.slider(slider),
                 config,
                 QuietScheduleMessage::Slider.with(slider),
@@ -491,21 +491,21 @@ impl QuietScheduleGroup {
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::QuietSchedule,
-            GroupSummary::glyph(self.face_icon().into(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(self.face_icon().into(), IndicatorState::Idle),
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     self.follow_schedule_toggle(),
                     QuietScheduleMessage::ToggleFollowsSchedule,
                 ),
                 slider(QuietSlider::Start),
                 slider(QuietSlider::End),
                 slider(QuietSlider::ScreenOff),
-                GroupItem::composed(
+                GroupIndicator::composed(
                     "Working days",
-                    GroupItemIcon::Absent,
-                    GroupItemValue::drawn(move |reveal| {
+                    IndicatorIcon::Absent,
+                    IndicatorValue::drawn(move |reveal| {
                         WeekdayPicker::new(
                             config,
                             self.working_days(),

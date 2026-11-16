@@ -8,10 +8,10 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -34,13 +34,13 @@ pub(crate) fn strict_budget_panel_visibility(budget: &OpenRouterStrictBudget) ->
     }
 }
 
-pub(crate) fn strict_budget_reading_row(budget: &OpenRouterStrictBudget) -> ReadingRow<'_> {
+pub(crate) fn strict_budget_indicator(budget: &OpenRouterStrictBudget) -> ReadingRow<'_> {
     let state = match budget.credit_standing() {
-        CreditStanding::Exhausted => ReadingDisplayState::Critical,
-        CreditStanding::Remaining => ReadingDisplayState::Idle,
+        CreditStanding::Exhausted => IndicatorState::Critical,
+        CreditStanding::Remaining => IndicatorState::Idle,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(format!(
                 "{} left",
                 spend_text(&budget.tightest_remaining())

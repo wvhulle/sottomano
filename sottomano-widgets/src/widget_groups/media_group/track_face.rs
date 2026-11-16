@@ -9,11 +9,11 @@ use uom::si::f64::Ratio;
 
 use super::{PlayerInteraction, RAISE_PLAYER_HINT, player_interaction};
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::Gauge,
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::GroupItemIcon,
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::{IndicatorState, IndicatorStateTint},
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -24,11 +24,11 @@ use crate::{
     },
 };
 
-fn playback_state(media: &Media) -> ReadingDisplayState {
+fn playback_state(media: &Media) -> IndicatorState {
     if media.status == Status::Playing {
-        ReadingDisplayState::Idle
+        IndicatorState::Idle
     } else {
-        ReadingDisplayState::Off
+        IndicatorState::Off
     }
 }
 
@@ -36,23 +36,23 @@ pub(super) fn track_item<'a>(
     config: &'a Config,
     media: &'a Media,
     cover_art: Option<&IconHandle>,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
     let icon = cover_art.map_or_else(
-        || GroupItemIcon::IconGlyph {
+        || IndicatorIcon::IconGlyph {
             glyph: Phosphor::VinylRecord(Weight::Regular).into(),
             state: playback_state(media),
         },
-        |art| GroupItemIcon::Image(art.clone()),
+        |art| IndicatorIcon::Image(art.clone()),
     );
-    let track = GroupItem::composed(
+    let track = GroupIndicator::composed(
         "Track",
         icon,
-        GroupItemValue::drawn(move |reveal| {
+        IndicatorValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
-                    ReadingStateTint {
-                        state: ReadingDisplayState::Idle,
+                    IndicatorStateTint {
+                        state: IndicatorState::Idle,
                         opacity: reveal,
                     }
                     .text_style(),
@@ -77,22 +77,22 @@ pub(super) fn player_item<'a>(
     config: &'a Config,
     media: &'a Media,
     gauge_fraction: Option<Ratio>,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let state = playback_state(media);
     let glyph = SimpleIcon::titled(&media.identity)
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);
-    let value = gauge_fraction.map_or(GroupItemValue::Nothing, |fraction| {
-        GroupItemValue::drawn(move |reveal| {
-            let tint = ReadingStateTint {
+    let value = gauge_fraction.map_or(IndicatorValue::Nothing, |fraction| {
+        IndicatorValue::drawn(move |reveal| {
+            let tint = IndicatorStateTint {
                 state,
                 opacity: reveal,
             };
             Gauge::new(fraction, tint, config.theme.font.icon_size_px).into()
         })
     });
-    GroupItem::composed(
+    GroupIndicator::composed(
         "Player",
-        GroupItemIcon::IconGlyph { glyph, state },
+        IndicatorIcon::IconGlyph { glyph, state },
         value,
         Box::new(|_| Vec::new()),
     )

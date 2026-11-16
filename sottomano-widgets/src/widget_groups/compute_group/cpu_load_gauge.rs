@@ -12,12 +12,12 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    core_grid_sections::{CoreGridSection, PerCoreSample},
 };
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
@@ -41,7 +41,7 @@ fn busy_level(busy: Ratio) -> Severity {
     }
 }
 
-struct CoreReading {
+struct CoreLoadSample {
     core: u32,
     busy: Ratio,
     split: LoadSplit,
@@ -56,10 +56,10 @@ fn mean_share<'a>(shares: impl Iterator<Item = Ratio> + 'a) -> Option<Ratio> {
 
 impl ChipletLiveState<'_> {
     pub fn core_load_sections(&self, loads: &CpuCoreLoads) -> Vec<Section> {
-        let readings: Vec<CoreReading> = loads
+        let samples: Vec<CoreLoadSample> = loads
             .cores
             .iter()
-            .map(|load| CoreReading {
+            .map(|load| CoreLoadSample {
                 core: load.core,
                 busy: load.busy,
                 split: load.split,
@@ -72,7 +72,7 @@ impl ChipletLiveState<'_> {
             .collect();
         let grid = CoreGridSection {
             topology: &loads.topology,
-            readings: &readings,
+            samples: &samples,
         };
         vec![grid.section(
             SectionTitle::captioned(
@@ -83,17 +83,17 @@ impl ChipletLiveState<'_> {
             ),
             |group| self.title(group),
             |group, members| {
-                let mean = |share: fn(&CoreReading) -> Ratio| {
-                    mean_share(members.iter().map(|reading| share(reading)))
+                let mean = |share: fn(&CoreLoadSample) -> Ratio| {
+                    mean_share(members.iter().map(|sample| share(sample)))
                 };
-                let load = mean(|reading| reading.busy).map(|busy| {
+                let load = mean(|sample| sample.busy).map(|busy| {
                     LabeledValue::new("Load", Quantity::share(busy)).level(busy_level(busy))
                 });
-                let user = mean(|reading| reading.split.user)
+                let user = mean(|sample| sample.split.user)
                     .map(|user| LabeledValue::new("User", Quantity::share(user)));
-                let kernel = mean(|reading| reading.split.system)
+                let kernel = mean(|sample| sample.split.system)
                     .map(|system| LabeledValue::new("Kernel", Quantity::share(system)));
-                let deep_idle = mean_share(members.iter().filter_map(|reading| reading.deep_idle))
+                let deep_idle = mean_share(members.iter().filter_map(|sample| sample.deep_idle))
                     .map(|idle| LabeledValue::new("Deep sleep", Quantity::share(idle)));
                 load.into_iter()
                     .chain(user)
@@ -106,7 +106,7 @@ impl ChipletLiveState<'_> {
     }
 }
 
-impl PerCoreReading for CoreReading {
+impl PerCoreSample for CoreLoadSample {
     fn core_index(&self) -> u32 {
         self.core
     }
@@ -119,9 +119,9 @@ impl PerCoreReading for CoreReading {
     }
 }
 
-pub(super) fn cpu_usage_reading_row(usage: &CpuUsage) -> ReadingRow<'_> {
+pub(super) fn cpu_usage_indicator(usage: &CpuUsage) -> ReadingRow<'_> {
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged {
                 fill: usage.busy,

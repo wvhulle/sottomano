@@ -17,7 +17,7 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
-    group_items::group_item::{GroupItem, RowHoverCard},
+    group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
     group_menus::{
         cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{
@@ -34,7 +34,7 @@ use crate::{
         },
     },
     hover_cards::{
-        CardHeader, HoverTarget, InstrumentKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
+        CardHeader, HoverTarget, IndicatorKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_card_content::HoverCardContent,
         hoverable,
@@ -124,10 +124,10 @@ impl GroupMenuMessenger {
         move |scrolled_px| menu_event(GroupMenuMessage::ItemListScrolled { menu, scrolled_px })
     }
 
-    pub(crate) fn inspect_row(&self, instrument: InstrumentKey) -> GroupEvent {
+    pub(crate) fn inspect_row(&self, indicator: IndicatorKey) -> GroupEvent {
         menu_event(GroupMenuMessage::InspectRow {
             menu: self.topic,
-            instrument,
+            indicator,
         })
     }
 }
@@ -160,17 +160,17 @@ impl<'a> GroupMenuView<'a> {
     }
 
     #[must_use]
-    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a>> {
+    pub fn indicator(&self, indicator_key: &IndicatorKey) -> Option<&GroupIndicator<'a>> {
         self.groups
             .iter()
-            .find_map(|group| group.instrument(instrument_key))
+            .find_map(|group| group.indicator(indicator_key))
     }
 
     #[must_use]
-    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a>> {
+    pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'a>> {
         self.groups
             .iter()
-            .find_map(|group| group.hovered_instrument(target))
+            .find_map(|group| group.hovered_indicator(target))
     }
 
     #[must_use]
@@ -181,8 +181,8 @@ impl<'a> GroupMenuView<'a> {
     }
 
     #[must_use]
-    pub fn row_hover_card(&self, instrument_key: &InstrumentKey, clock: Clock) -> Vec<Section> {
-        self.instrument(instrument_key)
+    pub fn row_hover_card(&self, indicator_key: &IndicatorKey, clock: Clock) -> Vec<Section> {
+        self.indicator(indicator_key)
             .map(|item| item.card_with_actions(clock))
             .unwrap_or_default()
     }
@@ -383,10 +383,10 @@ fn nested_menu_groups<'a>(
     row_context: &GroupMenuRowContext<'_>,
     group_rows: Vec<GroupMenuGroupRow<'a>>,
     card: &InspectionCard<'_, 'a>,
-) -> Vec<NestedMenuGroup<'a, InstrumentKey, GroupEvent>> {
+) -> Vec<NestedMenuGroup<'a, IndicatorKey, GroupEvent>> {
     let topic = row_context.menu.topic;
     let open_groups = row_context.group_menus.open_groups(topic);
-    let inspected_instrument = row_context.group_menus.inspected_instrument(topic);
+    let inspected_indicator = row_context.group_menus.inspected_indicator(topic);
     one_row_per_identity(group_rows)
         .into_iter()
         .map(|entry| {
@@ -417,17 +417,17 @@ fn nested_menu_groups<'a>(
                 .into_iter()
                 .chain(&entry.items)
                 .map(|item| {
-                    let beside =
-                        match item.row_emphasis(&entry.group_identity, inspected_instrument) {
-                            NestedMenuRowEmphasis::Selected => card
-                                .view(row_context.config)
-                                .map_or(BesideRow::Nothing, |card_view| {
-                                    BesideRow::Card(card_view.map(GroupEvent::Popup))
-                                }),
-                            NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
-                                BesideRow::Nothing
-                            }
-                        };
+                    let beside = match item.row_emphasis(&entry.group_identity, inspected_indicator)
+                    {
+                        NestedMenuRowEmphasis::Selected => card
+                            .view(row_context.config)
+                            .map_or(BesideRow::Nothing, |card_view| {
+                                BesideRow::Card(card_view.map(GroupEvent::Popup))
+                            }),
+                        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
+                            BesideRow::Nothing
+                        }
+                    };
                     item_entry(row_context, &entry.group_identity, item, beside)
                 })
                 .collect();
@@ -459,18 +459,18 @@ mod tests {
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
-        group_items::{
-            group_item::{GroupItem, GroupItemValue},
-            reading_display_state::ReadingDisplayState,
+        group_indicators::{
+            group_indicator::{GroupIndicator, IndicatorValue},
+            indicator_drawing::IndicatorIcon,
+            indicator_state::IndicatorState,
             reading_row::named_test_row,
-            source_reading::GroupItemIcon,
         },
         group_menus::{
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
             menu_rows::menu_row::menu_row_height,
         },
         hover_cards::{
-            InstrumentKey, MenuHandleIndicator, MouseGesture, PopupMessage, PressAction,
+            IndicatorKey, MenuHandleIndicator, MouseGesture, PopupMessage, PressAction,
             hover_card_body::Section,
         },
         widget_groups::{
@@ -595,10 +595,10 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
-            [GroupItem::reading(named_test_row("Smoke item"))],
+            [GroupIndicator::sample(named_test_row("Smoke item"))],
         );
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, group_menus, [group])
             .bench_surfaces(&bench, orientation);
@@ -627,10 +627,10 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let empty_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
-            Vec::<GroupItem<'_>>::new(),
+            Vec::<GroupIndicator<'_>>::new(),
         );
         let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [empty_group]);
         assert_eq!(menu.open_group_menu().families.len(), 1);
@@ -644,18 +644,18 @@ mod tests {
             WidgetGroupFamily::Gpu,
             GroupSummary::summarising(
                 IconGlyph::default(),
-                GroupItem::reading(named_test_row("Summary row")),
+                GroupIndicator::sample(named_test_row("Summary row")),
             ),
             &expansion,
             ClockInteraction::Expansion,
-            Vec::<GroupItem<'_>>::new(),
+            Vec::<GroupIndicator<'_>>::new(),
         );
-        let summary_row_key = InstrumentKey {
+        let summary_row_key = IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
             name: "Summary row".into(),
         };
         let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [summarised_group]);
-        assert!(menu.instrument(&summary_row_key).is_some());
+        assert!(menu.indicator(&summary_row_key).is_some());
         assert_eq!(menu.open_group_menu().families.len(), 1);
     }
 
@@ -686,16 +686,16 @@ mod tests {
     ) -> f32 {
         let expansion = WidgetGroupExpansion::default();
         let long_list = (0..40).map(|position| {
-            GroupItem::composed(
+            GroupIndicator::composed(
                 format!("Row {position}"),
-                GroupItemIcon::Absent,
-                GroupItemValue::Nothing,
+                IndicatorIcon::Absent,
+                IndicatorValue::Nothing,
                 Box::new(|_| Vec::new()),
             )
         });
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
-            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
             long_list,
@@ -778,7 +778,7 @@ mod tests {
 
     #[derive(Debug, Clone, PartialEq)]
     enum RowPointerMessage {
-        RowInspected(InstrumentKey),
+        RowInspected(IndicatorKey),
         RowAction,
         Revealed(WidgetGroupIdentity),
         RevealIntended(WidgetGroupIdentity),
@@ -794,8 +794,8 @@ mod tests {
                 )) => RowPointerMessage::RowAction,
                 GroupEvent::Interaction(WidgetGroupInteraction::GroupMenus(menu_message)) => {
                     match menu_message {
-                        GroupMenuMessage::InspectRow { instrument, .. } => {
-                            RowPointerMessage::RowInspected(instrument)
+                        GroupMenuMessage::InspectRow { indicator, .. } => {
+                            RowPointerMessage::RowInspected(indicator)
                         }
                         GroupMenuMessage::RevealMenuGroup { group_identity, .. } => {
                             RowPointerMessage::Revealed(group_identity)
@@ -814,8 +814,8 @@ mod tests {
         }
     }
 
-    fn pointed_row() -> InstrumentKey {
-        InstrumentKey {
+    fn pointed_row() -> IndicatorKey {
+        IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
             name: "Smoke item".into(),
         }
@@ -844,13 +844,15 @@ mod tests {
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
-            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
             [match row_press {
-                PointedRowPress::PerformsAction => GroupItem::reading(named_test_row("Smoke item"))
-                    .on_press("act", CompositorStylingMessage::ToggleXray),
-                PointedRowPress::ReadOnly => GroupItem::reading(named_test_row("Smoke item")),
+                PointedRowPress::PerformsAction => {
+                    GroupIndicator::sample(named_test_row("Smoke item"))
+                        .on_press("act", CompositorStylingMessage::ToggleXray)
+                }
+                PointedRowPress::ReadOnly => GroupIndicator::sample(named_test_row("Smoke item")),
             }],
         );
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [group])
@@ -901,10 +903,10 @@ mod tests {
         let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
             WidgetGroupContent::expandable(
                 family,
-                GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+                GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
                 &expansion,
                 ClockInteraction::Expansion,
-                [GroupItem::reading(named_test_row("Smoke item"))],
+                [GroupIndicator::sample(named_test_row("Smoke item"))],
             )
         });
         let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, groups)
@@ -1028,7 +1030,7 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::TogglePin {
             menu: GroupMenuTopic::Media,
-            entry: GroupMenuPin::Item(InstrumentKey {
+            entry: GroupMenuPin::Item(IndicatorKey {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
                 name: "Lyrics".into(),
             }),
@@ -1036,13 +1038,13 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Media,
-            GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
-            [GroupItem::composed_pinnable(
+            [GroupIndicator::composed_pinnable(
                 "Lyrics",
-                GroupItemIcon::Absent,
-                GroupItemValue::drawn(|_| text("the sung line").into()),
+                IndicatorIcon::Absent,
+                IndicatorValue::drawn(|_| text("the sung line").into()),
                 Box::new(|_| Vec::new()),
             )],
         );

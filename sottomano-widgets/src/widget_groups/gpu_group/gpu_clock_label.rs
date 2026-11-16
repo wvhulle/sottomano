@@ -1,4 +1,4 @@
-use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
     GpuClocks, GpuThrottleReason,
 };
 use uom::{
@@ -7,10 +7,10 @@ use uom::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -32,7 +32,7 @@ pub struct GpuClockLabel {
 impl GpuClockLabel {
     pub fn reading_row(self) -> ReadingRow<'static> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(megahertz_text(self.current)),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -40,7 +40,7 @@ impl GpuClockLabel {
             ..ReadingRow::glyph_only(
                 "GPU clock",
                 Phosphor::WaveSine(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

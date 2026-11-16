@@ -25,11 +25,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -158,7 +158,7 @@ struct InactiveDomainRow<'a> {
 impl<'a> InactiveDomainRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("shut off".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -166,7 +166,7 @@ impl<'a> InactiveDomainRow<'a> {
             ..ReadingRow::glyph_only(
                 self.domain_name.to_owned(),
                 Phosphor::DesktopTower(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
                 Box::new(|_| Self::hover_card()),
             )
         }
@@ -201,12 +201,12 @@ impl<'a> VirtualMachineRow<'a> {
             None => ReadoutLabel::Unlabeled,
         };
         let state = match machine.run_state {
-            GuestRunState::Running | GuestRunState::Unreported => ReadingDisplayState::Idle,
-            GuestRunState::Paused => ReadingDisplayState::Off,
-            GuestRunState::ShuttingDown => ReadingDisplayState::Pending,
+            GuestRunState::Running | GuestRunState::Unreported => IndicatorState::Idle,
+            GuestRunState::Paused => IndicatorState::Off,
+            GuestRunState::ShuttingDown => IndicatorState::Pending,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -357,7 +357,7 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.machines.as_slice())
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
-            let row = GroupItem::reading(VirtualMachineRow { machine }.reading_row())
+            let row = GroupIndicator::sample(VirtualMachineRow { machine }.reading_row())
                 .with_hover_card(Box::new(move |clock| {
                     self.readout
                         .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
@@ -388,7 +388,7 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.inactive_domains.as_slice())
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
-            GroupItem::reading(InactiveDomainRow { domain_name }.reading_row())
+            GroupIndicator::sample(InactiveDomainRow { domain_name }.reading_row())
                 .with_hover_card(Box::new(|_| {
                     self.readout
                         .hover_card_with(InactiveDomainRow::hover_card())
@@ -403,7 +403,7 @@ impl VirtualMachinesGroup {
             WidgetGroupFamily::VirtualMachines,
             GroupSummary::glyph(
                 Phosphor::Browsers(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
@@ -444,7 +444,7 @@ mod tests {
         };
 
         use crate::{
-            hover_cards::{HoverTarget, InstrumentKey},
+            hover_cards::{HoverTarget, IndicatorKey},
             widget_groups::widget_group_identity::WidgetGroupIdentity,
         };
 
@@ -461,7 +461,7 @@ mod tests {
             clock,
         );
         let target_of = |domain_name: &'static str| {
-            HoverTarget::Instrument(InstrumentKey {
+            HoverTarget::Indicator(IndicatorKey {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::VirtualMachines),
                 name: domain_name.into(),
             })

@@ -28,10 +28,10 @@ use sottomano_toml_config::{
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::GroupItemIcon,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::{IndicatorState, IndicatorStateTint},
     },
     hover_cards::{
         MouseGesture, PressAction,
@@ -267,7 +267,7 @@ impl TrayGroup {
         config: &'a Config,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
     ) -> WidgetGroupContent<'a> {
-        let group_items: Vec<_> = self
+        let group_indicators: Vec<_> = self
             .visible(config)
             .into_iter()
             .map(|item| {
@@ -278,10 +278,10 @@ impl TrayGroup {
                 );
                 let item_rule = config.widget_groups.tray.rule(&item.id);
                 let press_actions = item_press_actions(&item_rule, &item_window);
-                GroupItem::composed(
+                GroupIndicator::composed(
                     item.name().to_owned(),
-                    GroupItemIcon::Absent,
-                    GroupItemValue::drawn(move |reveal| {
+                    IndicatorIcon::Absent,
+                    IndicatorValue::drawn(move |reveal| {
                         item_view(config, &self.pixmap_handles, item, &item_window, reveal)
                     }),
                     Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
@@ -293,11 +293,11 @@ impl TrayGroup {
             WidgetGroupFamily::Tray,
             GroupSummary::glyph(
                 Phosphor::DotsThreeVertical(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             TrayMessage::Expansion,
-            group_items,
+            group_indicators,
         )
     }
 }
@@ -353,8 +353,8 @@ fn item_view<'a>(
     reveal: f32,
 ) -> Element<'a, GroupEvent> {
     let side = config.theme.font.icon_size_px;
-    let tint = ReadingStateTint {
-        state: ReadingDisplayState::Idle,
+    let tint = IndicatorStateTint {
+        state: IndicatorState::Idle,
         opacity: reveal,
     };
     let glyph: Element<'a, GroupEvent> = item.icon.as_ref().map_or_else(

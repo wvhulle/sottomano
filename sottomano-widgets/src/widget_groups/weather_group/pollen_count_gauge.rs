@@ -2,10 +2,10 @@ use sottomano_desktop_sources::weather::open_meteo_pollen::{Allergen, AllergenCo
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -59,7 +59,7 @@ impl ConcentrationThresholds {
     }
 }
 
-pub fn allergen_reading_row(concentration: &AllergenConcentration) -> ReadingRow<'_> {
+pub fn allergen_indicator(concentration: &AllergenConcentration) -> ReadingRow<'_> {
     let weight = Weight::Regular;
     let glyph: IconGlyph = match concentration.allergen {
         Allergen::Alder => Phosphor::Leaf(weight),
@@ -72,15 +72,15 @@ pub fn allergen_reading_row(concentration: &AllergenConcentration) -> ReadingRow
     .into();
     let thresholds = ConcentrationThresholds::recommended_for(concentration.allergen);
     let state = if concentration.grains_per_cubic_metre >= thresholds.high {
-        ReadingDisplayState::Critical
+        IndicatorState::Critical
     } else if concentration.grains_per_cubic_metre >= thresholds.moderate {
-        ReadingDisplayState::Warning
+        IndicatorState::Warning
     } else {
-        ReadingDisplayState::Idle
+        IndicatorState::Idle
     };
     let fill = allergen_gauge_fill(concentration);
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged { fill, live: fill },
             badge: ReadoutBadge::Unbadged,

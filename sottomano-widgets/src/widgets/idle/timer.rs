@@ -4,7 +4,7 @@ use sottomano_desktop_sources::login_session_presence::idle_session_actions::Idl
 
 use crate::{
     clock::Clock,
-    group_items::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
+    group_indicators::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
@@ -85,7 +85,7 @@ impl IdleTimer {
     pub fn set_timeout(&mut self, timeout: Option<Duration>) {
         self.timeout = timeout;
         self.control
-            .update(ControlMessage::Reading(position(timeout)));
+            .update(ControlMessage::Sample(position(timeout)));
         self.show_as_off_when_inactive();
     }
 

@@ -19,11 +19,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -62,12 +62,12 @@ struct MicrovmUnitRow<'a> {
 impl<'a> MicrovmUnitRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         let state = match self.activity {
-            UnitActivity::Running => ReadingDisplayState::On,
-            UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
-            UnitActivity::Stopped => ReadingDisplayState::Off,
+            UnitActivity::Running => IndicatorState::On,
+            UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
+            UnitActivity::Stopped => IndicatorState::Off,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(activity_text(self.activity).to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -99,7 +99,7 @@ struct MicrovmGuestListingRow<'a> {
 impl<'a> MicrovmGuestListingRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -162,7 +162,7 @@ impl MicrovmGuestRow<'_> {
 impl<'a> MicrovmGuestRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -170,7 +170,7 @@ impl<'a> MicrovmGuestRow<'a> {
             ..ReadingRow::glyph_only(
                 self.machine.listing.machine_name.clone(),
                 Phosphor::Lightning(Weight::Regular).into(),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }
@@ -379,21 +379,22 @@ impl MicrovmGuestsGroup {
         )
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_>> {
+    fn machine_rows(&self) -> Vec<GroupIndicator<'_>> {
         let units = self.unit_listing();
-        let mut rows: Vec<GroupItem<'_>> = units.iter().map(|unit| self.unit_row(unit)).collect();
+        let mut rows: Vec<GroupIndicator<'_>> =
+            units.iter().map(|unit| self.unit_row(unit)).collect();
         rows.extend(self.unmanaged_guest_rows(units));
         rows
     }
 
-    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a> {
+    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupIndicator<'a> {
         let row = match self.running_guest_of(unit) {
-            Some(machine) => GroupItem::reading(MicrovmGuestRow { machine }.reading_row())
+            Some(machine) => GroupIndicator::sample(MicrovmGuestRow { machine }.reading_row())
                 .with_hover_card(Box::new(move |clock| {
                     self.detail
                         .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
                 })),
-            None => GroupItem::reading(
+            None => GroupIndicator::sample(
                 MicrovmUnitRow {
                     unit,
                     activity: self.unit_activity(unit),
@@ -415,7 +416,7 @@ impl MicrovmGuestsGroup {
         }
     }
 
-    fn unmanaged_guest_rows<'a>(&'a self, units: &'a [MicrovmUnit]) -> Vec<GroupItem<'a>> {
+    fn unmanaged_guest_rows<'a>(&'a self, units: &'a [MicrovmUnit]) -> Vec<GroupIndicator<'a>> {
         let managed_by_unit = |unit_name: Option<&str>| {
             units
                 .iter()
@@ -427,7 +428,7 @@ impl MicrovmGuestsGroup {
                 .iter()
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
-                    let row = GroupItem::reading(MicrovmGuestRow { machine }.reading_row())
+                    let row = GroupIndicator::sample(MicrovmGuestRow { machine }.reading_row())
                         .with_hover_card(Box::new(move |clock| {
                             self.detail
                                 .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
@@ -457,7 +458,7 @@ impl MicrovmGuestsGroup {
                             .any(|unit| unit.instance_name == listing.machine_name)
                     })
                     .map(|listing| {
-                        GroupItem::reading(MicrovmGuestListingRow { listing }.reading_row())
+                        GroupIndicator::sample(MicrovmGuestListingRow { listing }.reading_row())
                             .with_hover_card(Box::new(move |_| {
                                 self.listings
                                     .hover_card_with(MicrovmGuestListingRow::hover_card())
@@ -470,15 +471,15 @@ impl MicrovmGuestsGroup {
 }
 
 impl MicrovmGuestsGroup {
-    fn shown_state(&self) -> ReadingDisplayState {
+    fn shown_state(&self) -> IndicatorState {
         if self
             .probe
             .get()
             .is_some_and(|probe| probe.running_count > 0)
         {
-            ReadingDisplayState::On
+            IndicatorState::On
         } else {
-            ReadingDisplayState::Off
+            IndicatorState::Off
         }
     }
 }

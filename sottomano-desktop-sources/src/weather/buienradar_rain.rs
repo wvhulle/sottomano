@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_forecast_has_no_rain_reading() {
+    fn an_empty_forecast_has_no_rain_sample() {
         assert!(Rain::try_from(Vec::new()).is_err());
     }
 

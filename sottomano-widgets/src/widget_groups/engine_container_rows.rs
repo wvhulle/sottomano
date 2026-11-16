@@ -17,11 +17,11 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -104,7 +104,7 @@ pub(crate) struct RunningContainerRow<'a> {
 impl<'a> RunningContainerRow<'a> {
     pub(crate) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(
                     self.container.resident_memory,
                 )),
@@ -150,7 +150,7 @@ pub(crate) struct StoppedContainerRow<'a> {
 impl<'a> StoppedContainerRow<'a> {
     pub(crate) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(ContainerRunState::Stopped.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -187,7 +187,7 @@ impl HiddenContainersRow {
         ReadingRow::glyph_only(
             format!("{} more", self.hidden_count),
             Phosphor::DotsThree(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| self.hover_card()),
         )
     }
@@ -220,7 +220,7 @@ impl<'a> EngineContainers<'a> {
     pub(crate) fn running_rows<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupItem<'a>> {
+    ) -> Vec<GroupIndicator<'a>> {
         let owner = self.owner;
         self.listing
             .running
@@ -228,7 +228,7 @@ impl<'a> EngineContainers<'a> {
             .iter()
             .map(|container| {
                 with_container_switch(
-                    GroupItem::reading(RunningContainerRow { container, owner }.reading_row()),
+                    GroupIndicator::sample(RunningContainerRow { container, owner }.reading_row()),
                     ContainerRunState::Running,
                     self.container_address(&container.id),
                     switched,
@@ -240,14 +240,14 @@ impl<'a> EngineContainers<'a> {
     pub(crate) fn stopped_rows<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupItem<'a>> {
+    ) -> Vec<GroupIndicator<'a>> {
         let owner = self.owner;
         self.listing
             .stopped
             .iter()
             .map(|container| {
                 with_container_switch(
-                    GroupItem::reading(StoppedContainerRow { container, owner }.reading_row()),
+                    GroupIndicator::sample(StoppedContainerRow { container, owner }.reading_row()),
                     ContainerRunState::Stopped,
                     self.container_address(&container.id),
                     switched,
@@ -258,11 +258,11 @@ impl<'a> EngineContainers<'a> {
 }
 
 pub(crate) fn with_container_switch<Message: Into<WidgetGroupInteraction>>(
-    row: GroupItem<'_>,
+    row: GroupIndicator<'_>,
     run_state: ContainerRunState,
     container: EngineContainerAddress,
     switched: fn(ContainerSwitchRequest) -> Message,
-) -> GroupItem<'_> {
+) -> GroupIndicator<'_> {
     match run_state {
         ContainerRunState::Running => row.on_switch_press(
             SwitchPosition::On,
@@ -283,12 +283,14 @@ pub(crate) fn with_container_switch<Message: Into<WidgetGroupInteraction>>(
     }
 }
 
-pub(crate) fn rows_ending_in_hidden_count(mut rows: Vec<GroupItem<'_>>) -> Vec<GroupItem<'_>> {
+pub(crate) fn rows_ending_in_hidden_count(
+    mut rows: Vec<GroupIndicator<'_>>,
+) -> Vec<GroupIndicator<'_>> {
     if rows.len() <= SHOWN_CONTAINER_ROWS {
         return rows;
     }
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
-    rows.push(GroupItem::reading(
+    rows.push(GroupIndicator::sample(
         HiddenContainersRow { hidden_count }.reading_row(),
     ));
     rows

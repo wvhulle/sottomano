@@ -3,11 +3,11 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
-        reading_display_state::ReadingDisplayState,
+        indicator_drawing::{IdentityOrdinal, ReadoutGauge},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{IdentityOrdinal, ReadoutGauge},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -23,7 +23,7 @@ pub enum DiskMarking {
     Numbered { ordinal: u8 },
 }
 
-pub(crate) fn disk_space_reading_row(
+pub(crate) fn disk_space_indicator(
     occupancy: &DiskSpaceOccupancy,
     marking: DiskMarking,
 ) -> ReadingRow<'_> {
@@ -31,7 +31,7 @@ pub(crate) fn disk_space_reading_row(
     let mut row = ReadingRow::glyph_only(
         DiskSpaceOccupancy::NAME,
         Phosphor::HardDrive(Weight::Regular).into(),
-        ReadingDisplayState::Idle,
+        IndicatorState::Idle,
         Box::new(move |_| disk_space_hover_card(occupancy)),
     );
     row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };

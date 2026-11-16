@@ -23,14 +23,14 @@ const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
     gen_blocking = false
 )]
 pub trait ClightdBacklight {
-    fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightReading>>;
+    fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightSample>>;
     fn set(&self, target: f64, smooth: Smooth, serial: &str) -> zbus::Result<bool>;
     #[zbus(signal)]
     fn changed(&self, serial: &str, fraction: f64) -> zbus::Result<()>;
 }
 
 #[derive(Debug, Deserialize, Type)]
-struct BacklightReading {
+struct BacklightSample {
     serial: String,
     fraction: f64,
 }
@@ -125,20 +125,20 @@ pub async fn poll_all() -> Vec<Backlight> {
     })
 }
 
-fn backlights(readings: Vec<BacklightReading>) -> Vec<Backlight> {
+fn backlights(samples: Vec<BacklightSample>) -> Vec<Backlight> {
     let internal = internal_names();
-    let mut list: Vec<Backlight> = readings
+    let mut list: Vec<Backlight> = samples
         .into_iter()
-        .map(|reading| {
-            let kind = if internal.contains(&reading.serial) {
+        .map(|sample| {
+            let kind = if internal.contains(&sample.serial) {
                 BacklightKind::Internal
             } else {
                 BacklightKind::External
             };
             #[allow(clippy::cast_possible_truncation)]
-            let percent = (reading.fraction * 100.0).round() as i64;
+            let percent = (sample.fraction * 100.0).round() as i64;
             Backlight {
-                serial: reading.serial,
+                serial: sample.serial,
                 kind,
                 percent,
             }

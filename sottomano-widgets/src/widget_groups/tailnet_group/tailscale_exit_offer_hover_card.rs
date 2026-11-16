@@ -4,10 +4,10 @@ use sottomano_desktop_sources::network_connectivity::tailscale_status::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -37,7 +37,7 @@ impl<'a> ExitOfferRow<'a> {
             ExitOfferControl::BlockedByExitNodeInUse => ReadoutLabel::Labeled("blocked".to_owned()),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -45,7 +45,7 @@ impl<'a> ExitOfferRow<'a> {
             ..ReadingRow::glyph_only(
                 "Offer as exit node",
                 Phosphor::Broadcast(Weight::Regular).into(),
-                ReadingDisplayState::from(self.tailnet.exit_offer),
+                IndicatorState::from(self.tailnet.exit_offer),
                 Box::new(move |_| self.hover_card()),
             )
         }

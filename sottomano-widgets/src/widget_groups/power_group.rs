@@ -1,5 +1,5 @@
 mod battery_charge_gauge;
-mod battery_time_reading;
+mod battery_time_indicator;
 mod cpu_tuning_sections;
 mod estimate_columns;
 mod power_draw_gauge;
@@ -8,8 +8,8 @@ mod profile_status_sections;
 mod sqlite_charge_power_curve;
 mod sqlite_power_draw_regression;
 
-use battery_charge_gauge::{battery_hover_card, battery_reading_row};
-use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
+use battery_charge_gauge::{battery_hover_card, battery_indicator};
+use battery_time_indicator::{BatteryTime, BatteryTimeIndicator, CurveLoaded};
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileInteraction, PowerProfileMessage};
@@ -27,9 +27,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::Section,
@@ -70,7 +70,7 @@ pub enum PowerBusRequest {
 pub struct PowerGroup {
     battery: SubscribedSnapshot<Battery>,
     time: Option<BatteryTime>,
-    time_reading: BatteryTimeReading,
+    time_indicator: BatteryTimeIndicator,
     power_profile: PowerProfileControl,
     charger: HoverFetchedSnapshot<ChargerSupply>,
     cpu_tuning: HoverFetchedSnapshot<CpuTuning>,
@@ -134,8 +134,8 @@ impl PowerGroup {
 
     pub fn update(&mut self, power_message: PowerMessage, clock: Clock) -> Task<PowerMessage> {
         let task = match power_message {
-            PowerMessage::Battery(reading) => {
-                self.battery.receive(reading, clock);
+            PowerMessage::Battery(sample) => {
+                self.battery.receive(sample, clock);
                 self.observe_battery(clock)
             }
             PowerMessage::ChargerFetched(fetched) => {
@@ -147,7 +147,7 @@ impl PowerGroup {
                 Task::none()
             }
             PowerMessage::ChargeCurveLoaded(curve) => {
-                self.time_reading.loaded(curve);
+                self.time_indicator.loaded(curve);
                 Task::none()
             }
             PowerMessage::PowerProfile(profile_message) => self
@@ -194,7 +194,7 @@ impl PowerGroup {
     fn estimate_time_left(&mut self) {
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
-            self.time_reading
+            self.time_indicator
                 .time_for(battery, self.power_profile.active_estimate())
         });
     }
@@ -211,7 +211,7 @@ impl PowerGroup {
             return Task::none();
         };
         Task::batch([
-            self.time_reading
+            self.time_indicator
                 .learn(battery, now)
                 .map(PowerMessage::ChargeCurveLoaded),
             self.power_profile
@@ -244,24 +244,23 @@ impl PowerGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Plug(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
-                Phosphor::Plug(Weight::Regular).into(),
-                ReadingDisplayState::Off,
-            ),
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(Phosphor::Plug(Weight::Regular).into(), IndicatorState::Off)
+            }
         };
         let mut rows = Vec::new();
         match &self.battery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let charge_row = battery_reading_row(held_snapshot);
+                let charge_row = battery_indicator(held_snapshot);
                 if charge_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.battery_charge_item(charge_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let charge_row = troubled_snapshot
-                    .shown_over(battery_reading_row(&troubled_snapshot.held_snapshot), clock);
+                    .shown_over(battery_indicator(&troubled_snapshot.held_snapshot), clock);
                 if charge_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.battery_charge_item(charge_row));
                 }
@@ -278,7 +277,7 @@ impl PowerGroup {
         }
         if let Some(time) = &self.time {
             rows.push(
-                GroupItem::reading(time.reading_row(locale))
+                GroupIndicator::sample(time.reading_row(locale))
                     .ongoing_toast_action_buttons(switch_to_saving_profiles)
                     .with_hover_card(Box::new(move |_| {
                         self.battery.hover_card_with(time.hover_card())
@@ -295,8 +294,8 @@ impl PowerGroup {
         )
     }
 
-    fn power_profile_item<'a>(&'a self, config: &'a Config) -> GroupItem<'a> {
-        GroupItem::slider(
+    fn power_profile_item<'a>(&'a self, config: &'a Config) -> GroupIndicator<'a> {
+        GroupIndicator::slider(
             self.power_profile.slider_control(),
             config,
             |control_message| {
@@ -317,8 +316,8 @@ impl PowerGroup {
         )))
     }
 
-    fn battery_charge_item<'a>(&'a self, charge_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(charge_row)
+    fn battery_charge_item<'a>(&'a self, charge_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(charge_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.battery.sections_described_by(battery_hover_card);
                 sections.extend(
@@ -330,8 +329,8 @@ impl PowerGroup {
             .refreshed_by(battery_refresh())
     }
 
-    fn power_draw_item(&self, draw: PowerDraw) -> GroupItem<'_> {
-        GroupItem::reading(draw.reading_row())
+    fn power_draw_item(&self, draw: PowerDraw) -> GroupIndicator<'_> {
+        GroupIndicator::sample(draw.reading_row())
             .with_hover_card(Box::new(move |_| {
                 self.draw().map_or_else(Vec::new, |current_draw| {
                     let mut sections = self.battery.hover_card_with(current_draw.hover_card());

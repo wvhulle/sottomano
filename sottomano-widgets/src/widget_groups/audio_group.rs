@@ -20,8 +20,8 @@ use tokio::task::spawn_blocking;
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
+    group_indicators::{
+        group_indicator::GroupIndicator,
         slider_control::{
             Action, ControlMessage, SeverityDirection, SliderControl, as_percent, percent_f,
         },
@@ -264,10 +264,10 @@ impl AudioGroup {
     fn channel_level_sections(
         &self,
         kind: ControlKind,
-        reading: &ChannelLevels,
+        sample: &ChannelLevels,
         control: &SliderControl,
     ) -> Vec<Section> {
-        let device = reading
+        let device = sample
             .device
             .as_deref()
             .map(|device| LabeledValue::new("Device", device));
@@ -276,7 +276,7 @@ impl AudioGroup {
             dictionary_table(
                 [
                     LabeledValue::new(kind.label(), control.readout_cell()),
-                    LabeledValue::new("State", reading.mute_state.label()),
+                    LabeledValue::new("State", sample.mute_state.label()),
                 ]
                 .into_iter()
                 .chain(device),
@@ -290,7 +290,7 @@ impl AudioGroup {
         let mut rows = Vec::new();
         if let Some(sink_levels) = sink {
             rows.push(
-                GroupItem::slider(
+                GroupIndicator::slider(
                     &self.sink_control,
                     config,
                     AudioMessage::Control.with(ControlKind::Sink),
@@ -302,7 +302,7 @@ impl AudioGroup {
         }
         if let Some(source_levels) = source {
             rows.push(
-                GroupItem::slider(
+                GroupIndicator::slider(
                     &self.source_control,
                     config,
                     AudioMessage::Control.with(ControlKind::Source),
@@ -317,7 +317,7 @@ impl AudioGroup {
             );
         }
         if let Some(failure_placeholder) = self.state.failure() {
-            rows.push(GroupItem::reading(
+            rows.push(GroupIndicator::sample(
                 failure_placeholder.reading_row(AUDIO_STATE_GLYPH.into()),
             ));
         }

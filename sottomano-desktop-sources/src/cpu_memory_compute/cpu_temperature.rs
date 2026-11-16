@@ -42,7 +42,7 @@ const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 const TEMPERATURE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(5));
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TempReading {
+pub struct TemperatureSample {
     pub chip: String,
     pub label: String,
     pub temperature: ThermodynamicTemperature,
@@ -59,7 +59,7 @@ pub struct CoreTemperature {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
-    pub readings: Vec<TempReading>,
+    pub samples: Vec<TemperatureSample>,
     pub throttle_limit: Option<ThermodynamicTemperature>,
     pub overrides: ThresholdOverrides,
     pub critical_since: Option<SystemTime>,
@@ -134,7 +134,7 @@ impl Temperature {
     }
 
     fn temperatures(&self) -> impl Iterator<Item = ThermodynamicTemperature> + '_ {
-        self.readings.iter().map(|reading| reading.temperature)
+        self.samples.iter().map(|sample| sample.temperature)
     }
 
     pub fn hottest(&self) -> ThermodynamicTemperature {
@@ -148,7 +148,7 @@ impl Temperature {
             .temperatures()
             .map(|temperature| temperature.get::<kelvin>())
             .sum();
-        ThermodynamicTemperature::new::<kelvin>(total_kelvin / self.readings.len() as f64)
+        ThermodynamicTemperature::new::<kelvin>(total_kelvin / self.samples.len() as f64)
     }
 
     pub fn lowest(&self) -> Option<ThermodynamicTemperature> {
@@ -156,8 +156,8 @@ impl Temperature {
     }
 
     #[must_use]
-    pub fn hottest_reading(&self) -> Option<&TempReading> {
-        self.readings.iter().max_by(|a, b| {
+    pub fn hottest_sample(&self) -> Option<&TemperatureSample> {
+        self.samples.iter().max_by(|a, b| {
             a.temperature
                 .partial_cmp(&b.temperature)
                 .unwrap_or(Ordering::Equal)
@@ -223,14 +223,14 @@ fn holding_earliest_critical(
     deliveries.scan(None, |held, delivery| {
         let delivery = match delivery {
             SnapshotDelivery::SnapshotDelivered {
-                snapshot_fetch: Ok(reading),
+                snapshot_fetch: Ok(sample),
                 delivery_cadence,
             } => {
-                *held = reading.critical_since.map(|now| held.unwrap_or(now));
+                *held = sample.critical_since.map(|now| held.unwrap_or(now));
                 SnapshotDelivery::SnapshotDelivered {
                     snapshot_fetch: Ok(Temperature {
                         critical_since: *held,
-                        ..reading
+                        ..sample
                     }),
                     delivery_cadence,
                 }
@@ -246,17 +246,17 @@ fn holding_earliest_critical(
 }
 
 fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, CpuTemperatureError> {
-    let readings: Vec<TempReading> = probe
+    let samples: Vec<TemperatureSample> = probe
         .sensors
         .iter()
-        .flat_map(ChosenSensors::readings)
+        .flat_map(ChosenSensors::samples)
         .collect();
-    if readings.is_empty() {
+    if samples.is_empty() {
         return Err(CpuTemperatureError::NoTemperatureSensor);
     }
     let temperature = Temperature {
-        throttle_limit: throttle_limit(&readings),
-        readings,
+        throttle_limit: throttle_limit(&samples),
+        samples,
         overrides: probe.config.overrides(),
         critical_since: None,
     };
@@ -350,11 +350,11 @@ fn package_chip_sensors(chip: &HwmonChip) -> ChosenSensors {
 }
 
 impl ChosenSensors {
-    fn readings(&self) -> Vec<TempReading> {
+    fn samples(&self) -> Vec<TemperatureSample> {
         self.sensors
             .iter()
             .filter_map(|sensor| {
-                Some(TempReading {
+                Some(TemperatureSample {
                     chip: self.chip.name.clone(),
                     label: sensor.label.clone(),
                     temperature: self.chip.temperature(sensor)?,
@@ -365,10 +365,10 @@ impl ChosenSensors {
     }
 }
 
-fn throttle_limit(readings: &[TempReading]) -> Option<ThermodynamicTemperature> {
-    readings
+fn throttle_limit(samples: &[TemperatureSample]) -> Option<ThermodynamicTemperature> {
+    samples
         .iter()
-        .filter_map(|reading| reading.limit)
+        .filter_map(|sample| sample.limit)
         .reduce(ThermodynamicTemperature::min)
 }
 
@@ -387,11 +387,11 @@ fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
                     );
                 })
                 .ok()?;
-            let reading = by_physical_core.get(&physical_core)?;
+            let sample = by_physical_core.get(&physical_core)?;
             Some(CoreTemperature {
                 core,
-                temperature: reading.temperature,
-                limit: reading.limit,
+                temperature: sample.temperature,
+                limit: sample.limit,
                 overrides,
             })
         })
@@ -401,12 +401,12 @@ fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct SensorReading {
+struct SensorSample {
     temperature: ThermodynamicTemperature,
     limit: Option<ThermodynamicTemperature>,
 }
 
-fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
+fn physical_core_temperatures() -> HashMap<u32, SensorSample> {
     HwmonChip::all()
         .into_iter()
         .filter(|chip| chip.name.starts_with("coretemp"))
@@ -426,11 +426,11 @@ fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
                             );
                         })
                         .ok()?;
-                    let reading = SensorReading {
+                    let sample = SensorSample {
                         temperature: chip.temperature(&sensor)?,
                         limit: chip.limit(&sensor, LimitKind::Crit),
                     };
-                    Some((physical_core, reading))
+                    Some((physical_core, sample))
                 })
         })
         .collect()
@@ -443,9 +443,9 @@ mod tests {
     use super::*;
     use crate::delivery_cadence_drivers::DeliveryCadence;
 
-    fn reading_critical_since(critical_since: Option<SystemTime>) -> Temperature {
+    fn sample_critical_since(critical_since: Option<SystemTime>) -> Temperature {
         Temperature {
-            readings: Vec::new(),
+            samples: Vec::new(),
             throttle_limit: None,
             overrides: ThresholdOverrides::default(),
             critical_since,
@@ -460,7 +460,7 @@ mod tests {
         let deliveries =
             stream::iter([Some(first), Some(second), None, Some(third)].map(|since| {
                 SnapshotDelivery::fixture_delivered(
-                    Ok(reading_critical_since(since)),
+                    Ok(sample_critical_since(since)),
                     DeliveryCadence::PeriodicPolling(TEMPERATURE_POLLING),
                 )
             }));
@@ -468,9 +468,9 @@ mod tests {
             holding_earliest_critical(deliveries)
                 .map(|delivery| match delivery {
                     SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Ok(reading),
+                        snapshot_fetch: Ok(sample),
                         ..
-                    } => reading.critical_since,
+                    } => sample.critical_since,
                     SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Err(_),
                         ..

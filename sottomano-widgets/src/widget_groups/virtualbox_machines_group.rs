@@ -13,10 +13,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -56,7 +56,7 @@ impl<'a> VirtualBoxListedRow<'a> {
             }
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.run_state().label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -101,7 +101,7 @@ impl<'a> VirtualBoxMachineRow<'a> {
             self.machine.listing.machine_name, self.machine.listing.pid
         );
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -109,7 +109,7 @@ impl<'a> VirtualBoxMachineRow<'a> {
             ..ReadingRow::glyph_only(
                 name,
                 IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }
@@ -180,7 +180,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                reading: VirtualBoxListedRow::Running(listing).reading_row(),
+                sample: VirtualBoxListedRow::Running(listing).reading_row(),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
@@ -191,7 +191,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .details
             .iter()
             .map(|machine| FamilyRow {
-                reading: VirtualBoxMachineRow { machine }.reading_row(),
+                sample: VirtualBoxMachineRow { machine }.reading_row(),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
             .collect()
@@ -202,7 +202,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .stopped_machines
             .iter()
             .map(|machine| FamilyRow {
-                reading: VirtualBoxListedRow::Stopped(machine).reading_row(),
+                sample: VirtualBoxListedRow::Stopped(machine).reading_row(),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })
             .collect()

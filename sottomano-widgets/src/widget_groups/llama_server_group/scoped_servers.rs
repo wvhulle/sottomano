@@ -19,8 +19,8 @@ use super::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
+    group_indicators::{
+        group_indicator::GroupIndicator,
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -30,14 +30,14 @@ use crate::{
     },
 };
 
-struct ServerReadings {
+struct ServerSamples {
     server_label: String,
     discovered: LlamaServerUnit,
     switch: UnitSwitch,
     server: SubscribedSnapshot<LlamaServer>,
 }
 
-impl ServerReadings {
+impl ServerSamples {
     fn model_hover_card(&self, model_sections: Vec<Section>) -> Vec<Section> {
         let Some(server) = self.server.get() else {
             return Vec::new();
@@ -140,7 +140,7 @@ impl ServerReadings {
 pub struct ScopedLlamaServers {
     scope: SystemdUnitScope,
     services: SubscribedSnapshot<ServiceCommands>,
-    servers: BTreeMap<String, ServerReadings>,
+    servers: BTreeMap<String, ServerSamples>,
 }
 
 #[derive(Debug)]
@@ -175,14 +175,14 @@ impl ScopedLlamaServers {
                     .map(ScopedServersMessage::Services),
             ]
             .into_iter()
-            .chain(self.servers.values().flat_map(|readings| {
-                let unit = readings.discovered.unit.unit_name.clone();
+            .chain(self.servers.values().flat_map(|samples| {
+                let unit = samples.discovered.unit.unit_name.clone();
                 let server = OnBus {
                     buses: buses.clone(),
-                    inputs: readings.discovered.clone(),
+                    inputs: samples.discovered.clone(),
                 };
                 [
-                    readings
+                    samples
                         .switch
                         .subscription(buses)
                         .with(unit.clone())
@@ -204,11 +204,11 @@ impl ScopedLlamaServers {
             .flat_map(|services| services.services.iter())
             .filter_map(|command| LlamaServerUnit::discovered(self.scope, command))
             .map(|discovered| {
-                let readings = previous
+                let samples = previous
                     .remove(&discovered.unit.unit_name)
-                    .filter(|readings| readings.discovered == discovered)
-                    .unwrap_or_else(|| ServerReadings::new(self.scope, discovered));
-                (readings.discovered.unit.unit_name.clone(), readings)
+                    .filter(|samples| samples.discovered == discovered)
+                    .unwrap_or_else(|| ServerSamples::new(self.scope, discovered));
+                (samples.discovered.unit.unit_name.clone(), samples)
             })
             .collect();
     }
@@ -225,15 +225,15 @@ impl ScopedLlamaServers {
                 Task::none()
             }
             ScopedServersMessage::Switch(unit, message) => match self.servers.get_mut(&unit) {
-                Some(readings) => readings
+                Some(samples) => samples
                     .switch
                     .update(message, clock)
                     .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
                 None => Task::none(),
             },
             ScopedServersMessage::Server(unit, delivery) => {
-                if let Some(readings) = self.servers.get_mut(&unit) {
-                    readings.server.receive(delivery, clock);
+                if let Some(samples) = self.servers.get_mut(&unit) {
+                    samples.server.receive(delivery, clock);
                 }
                 Task::none()
             }
@@ -246,7 +246,7 @@ impl ScopedLlamaServers {
     ) -> Task<ScopedServersMessage> {
         match interaction {
             ScopedServersInteraction::SwitchPressed(unit) => match self.servers.get_mut(&unit) {
-                Some(readings) => readings
+                Some(samples) => samples
                     .switch
                     .press()
                     .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
@@ -279,16 +279,16 @@ impl ScopedLlamaServers {
         &'a self,
         lift: fn(ScopedServersInteraction) -> LlamaServerInteraction,
         model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
-    ) -> impl Iterator<Item = GroupItem<'a>> + 'a {
-        self.servers.values().flat_map(move |readings| {
-            let unit = &readings.discovered.unit.unit_name;
-            let server_label = readings.server_label.as_str();
+    ) -> impl Iterator<Item = GroupIndicator<'a>> + 'a {
+        self.servers.values().flat_map(move |samples| {
+            let unit = &samples.discovered.unit.unit_name;
+            let server_label = samples.server_label.as_str();
             let mut rows = Vec::new();
-            if readings.switch.activity() == Some(UnitActivity::Running)
-                && let Some(server) = readings.server.get()
+            if samples.switch.activity() == Some(UnitActivity::Running)
+                && let Some(server) = samples.server.get()
             {
                 rows.push(
-                    GroupItem::reading(
+                    GroupIndicator::sample(
                         ServedModel {
                             resident: server.resident_model(),
                             server: server_label,
@@ -296,7 +296,7 @@ impl ScopedLlamaServers {
                         .reading_row(),
                     )
                     .with_hover_card(Box::new(move |_| {
-                        readings.model_hover_card(model_sections())
+                        samples.model_hover_card(model_sections())
                     }))
                     .fetching_on_hover(
                         LlamaServerInteraction::StartModelFetches(ServedModelUnit {
@@ -309,7 +309,7 @@ impl ScopedLlamaServers {
                 let server_busy = server.busy_slots().next().is_some();
                 if server_busy && let Some(rate) = server.generation_rate {
                     rows.push(
-                        GroupItem::reading(
+                        GroupIndicator::sample(
                             GenerationRate {
                                 rate,
                                 server: server_label,
@@ -317,13 +317,13 @@ impl ScopedLlamaServers {
                             .reading_row(),
                         )
                         .with_hover_card(Box::new(move |_| {
-                            readings.generation_rate_hover_card(rate)
+                            samples.generation_rate_hover_card(rate)
                         })),
                     );
                 }
                 if !server.slots.is_empty() {
                     rows.push(
-                        GroupItem::reading(
+                        GroupIndicator::sample(
                             SlotOccupancy {
                                 slots: &server.slots,
                                 server: server_label,
@@ -331,27 +331,25 @@ impl ScopedLlamaServers {
                             .reading_row(),
                         )
                         .with_hover_card(Box::new(move |_| {
-                            readings.slot_occupancy_hover_card(server)
+                            samples.slot_occupancy_hover_card(server)
                         })),
                     );
                 }
                 if server_busy
                     && let Some(fill) = ContextFill::fullest_busy_slot(&server.slots, server_label)
                 {
-                    rows.push(
-                        GroupItem::reading(fill.reading_row()).with_hover_card(Box::new(
-                            move |_| readings.context_fill_hover_card(&fill),
-                        )),
-                    );
+                    rows.push(GroupIndicator::sample(fill.reading_row()).with_hover_card(
+                        Box::new(move |_| samples.context_fill_hover_card(&fill)),
+                    ));
                 }
             }
-            if let Some(switch_reading) =
-                readings.switch.switch_reading(readings.service_readiness())
+            if let Some(switch_indicator) =
+                samples.switch.switch_indicator(samples.service_readiness())
             {
                 rows.push(
-                    switch_reading
+                    switch_indicator
                         .switch_item(lift(ScopedServersInteraction::SwitchPressed(unit.clone())))
-                        .with_hover_card(Box::new(move |_| readings.switch_hover_card())),
+                        .with_hover_card(Box::new(move |_| samples.switch_hover_card())),
                 );
             }
             rows

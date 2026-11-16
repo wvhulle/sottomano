@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod sqlite_panel_layout;
 
 use iced::Task;
@@ -6,8 +6,8 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::GroupItem,
+    group_indicators::{
+        group_indicator::GroupIndicator,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -280,7 +280,7 @@ impl PanelSettingsGroup {
         self.group_framing = panel_layout.group_framing;
         self.group_collapsing = panel_layout.group_collapsing;
         self.float_offset
-            .update(ControlMessage::Reading(panel_layout.float_offset_px));
+            .update(ControlMessage::Sample(panel_layout.float_offset_px));
     }
 
     fn close_sliders(&mut self) {
@@ -381,30 +381,27 @@ impl PanelSettingsGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PanelSettings,
-            GroupSummary::glyph(
-                Phosphor::Rows(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
-            ),
+            GroupSummary::glyph(Phosphor::Rows(Weight::Regular).into(), IndicatorState::Idle),
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     disconnected_toggle(self.group_framing),
                     PanelSettingsMessage::ToggleDisconnectedGroups,
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     pinned_groups_toggle(self.group_collapsing),
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     window_row_layout_toggle(self.window_row_layout),
                     PanelSettingsMessage::ToggleWindowRowLayout,
                 ),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     window_title_length_toggle(self.window_title_length),
                     PanelSettingsMessage::ToggleWindowTitleLength,
                 ),
-                GroupItem::slider(
+                GroupIndicator::slider(
                     &self.float_offset,
                     config,
                     PanelSettingsMessage::FloatOffset,

@@ -51,7 +51,7 @@ impl DesktopShell {
                 self.dismiss_hover_card(),
                 compositor_request(CompositorRequest::FocusWindow(window)),
             ]),
-            PopupMessage::RefreshHoveredReading => self.refresh_hovered_reading(),
+            PopupMessage::RefreshHoveredIndicator => self.refresh_hovered_indicator(),
             PopupMessage::WindowGroup(window_interaction) => {
                 self.interact_window_group(window_interaction)
             }

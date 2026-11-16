@@ -260,7 +260,7 @@ impl Tunnel {
     fn observed_profile(
         profile: WireguardProfile,
         active_wireguards: &[ActiveWireguard],
-        kernel_readings: &HashMap<String, KernelReading>,
+        kernel_tunnel_statuses: &HashMap<String, KernelTunnelStatus>,
     ) -> Self {
         let activity = active_wireguards
             .iter()
@@ -273,14 +273,16 @@ impl Tunnel {
                 }
             });
         let configured_peers = profile.peers.into_iter().map(Peer::configured);
-        let (statistics_access, peers) = match kernel_readings.get(&profile.interface) {
-            Some(KernelReading::Dumped(kernel_tunnel)) => (
+        let (statistics_access, peers) = match kernel_tunnel_statuses.get(&profile.interface) {
+            Some(KernelTunnelStatus::Dumped(kernel_tunnel)) => (
                 StatisticsAccess::Read,
                 configured_peers
                     .map(|peer| peer.observed_by(&kernel_tunnel.peers))
                     .collect(),
             ),
-            Some(KernelReading::Unreadable(access)) => (access.clone(), configured_peers.collect()),
+            Some(KernelTunnelStatus::Unreadable(access)) => {
+                (access.clone(), configured_peers.collect())
+            }
             None => (StatisticsAccess::TunnelDown, configured_peers.collect()),
         };
         Self {
@@ -296,14 +298,16 @@ impl Tunnel {
         }
     }
 
-    fn kernel_only(interface: String, reading: KernelReading) -> Self {
-        let (role, statistics_access, peers) = match reading {
-            KernelReading::Dumped(kernel_tunnel) => (
+    fn kernel_only(interface: String, sample: KernelTunnelStatus) -> Self {
+        let (role, statistics_access, peers) = match sample {
+            KernelTunnelStatus::Dumped(kernel_tunnel) => (
                 TunnelRole::inferred_from_peers(kernel_tunnel.listen_port, &kernel_tunnel.peers),
                 StatisticsAccess::Read,
                 kernel_tunnel.peers,
             ),
-            KernelReading::Unreadable(access) => (TunnelRole::Undetermined, access, Vec::new()),
+            KernelTunnelStatus::Unreadable(access) => {
+                (TunnelRole::Undetermined, access, Vec::new())
+            }
         };
         Self {
             name: interface.clone(),
@@ -402,10 +406,10 @@ async fn read_wireguard(system: Connection) -> zbus::Result<Wireguard> {
         }
         Err(bus_error) => return Err(bus_error),
     };
-    let kernel_readings = join_all(kernel_wireguard_interfaces().await.into_iter().map(
+    let kernel_tunnel_statuses = join_all(kernel_wireguard_interfaces().await.into_iter().map(
         |interface| async move {
-            let reading = read_kernel_tunnel(&interface).await;
-            (interface, reading)
+            let sample = read_kernel_tunnel(&interface).await;
+            (interface, sample)
         },
     ))
     .await
@@ -414,25 +418,27 @@ async fn read_wireguard(system: Connection) -> zbus::Result<Wireguard> {
     Ok(assemble_tunnels(
         profiles,
         &active_wireguards,
-        kernel_readings,
+        kernel_tunnel_statuses,
     ))
 }
 
 fn assemble_tunnels(
     profiles: Vec<WireguardProfile>,
     active_wireguards: &[ActiveWireguard],
-    mut kernel_readings: HashMap<String, KernelReading>,
+    mut kernel_tunnel_statuses: HashMap<String, KernelTunnelStatus>,
 ) -> Wireguard {
     let profile_tunnels: Vec<Tunnel> = profiles
         .into_iter()
-        .map(|profile| Tunnel::observed_profile(profile, active_wireguards, &kernel_readings))
+        .map(|profile| {
+            Tunnel::observed_profile(profile, active_wireguards, &kernel_tunnel_statuses)
+        })
         .collect();
     for tunnel in &profile_tunnels {
-        kernel_readings.remove(&tunnel.interface);
+        kernel_tunnel_statuses.remove(&tunnel.interface);
     }
-    let mut kernel_only_tunnels: Vec<Tunnel> = kernel_readings
+    let mut kernel_only_tunnels: Vec<Tunnel> = kernel_tunnel_statuses
         .into_iter()
-        .map(|(interface, reading)| Tunnel::kernel_only(interface, reading))
+        .map(|(interface, sample)| Tunnel::kernel_only(interface, sample))
         .collect();
     kernel_only_tunnels.sort_by(|left, right| left.interface.cmp(&right.interface));
     Wireguard {
@@ -450,7 +456,7 @@ struct KernelTunnel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum KernelReading {
+enum KernelTunnelStatus {
     Dumped(KernelTunnel),
     Unreadable(StatisticsAccess),
 }
@@ -482,7 +488,7 @@ fn wireguard_interface_names(listing: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-async fn read_kernel_tunnel(interface: &str) -> KernelReading {
+async fn read_kernel_tunnel(interface: &str) -> KernelTunnelStatus {
     match shell_command_output::output("wg", &["show", interface, "dump"]).await {
         Ok(dump) => {
             let now = SystemTime::now()
@@ -490,21 +496,21 @@ async fn read_kernel_tunnel(interface: &str) -> KernelReading {
                 .map_or(0, |since_epoch| since_epoch.as_secs());
             parse_kernel_dump(&dump, now).map_or_else(
                 || {
-                    KernelReading::Unreadable(StatisticsAccess::Unreadable(format!(
+                    KernelTunnelStatus::Unreadable(StatisticsAccess::Unreadable(format!(
                         "empty dump for {interface}"
                     )))
                 },
-                KernelReading::Dumped,
+                KernelTunnelStatus::Dumped,
             )
         }
         Err(shell_command_output::Error::Failed { stderr, .. })
             if stderr.contains(PERMISSION_DENIED_MESSAGE) =>
         {
-            KernelReading::Unreadable(StatisticsAccess::NeedsNetAdmin)
+            KernelTunnelStatus::Unreadable(StatisticsAccess::NeedsNetAdmin)
         }
         Err(dump_error) => {
             tracing::debug!("wireguard: cannot dump {interface}: {dump_error}");
-            KernelReading::Unreadable(StatisticsAccess::Unreadable(dump_error.to_string()))
+            KernelTunnelStatus::Unreadable(StatisticsAccess::Unreadable(dump_error.to_string()))
         }
     }
 }
@@ -693,8 +699,8 @@ mod tests {
         }
     }
 
-    fn dumped(dump_rows: &[&[&str]]) -> KernelReading {
-        KernelReading::Dumped(parsed_dump(dump_rows))
+    fn dumped(dump_rows: &[&[&str]]) -> KernelTunnelStatus {
+        KernelTunnelStatus::Dumped(parsed_dump(dump_rows))
     }
 
     #[test]
@@ -746,7 +752,7 @@ mod tests {
             &[active_server()],
             HashMap::from([(
                 "wg-wss".to_owned(),
-                KernelReading::Unreadable(StatisticsAccess::NeedsNetAdmin),
+                KernelTunnelStatus::Unreadable(StatisticsAccess::NeedsNetAdmin),
             )]),
         );
         let [tunnel] = wireguard.tunnels.as_slice() else {

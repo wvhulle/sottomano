@@ -6,9 +6,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -50,7 +50,7 @@ impl ContextSwitchRate<'_> {
                 / i32::try_from(switches_last_day)
                     .expect("a day holds fewer than i32::MAX focus switches")
         });
-        let readings = Section::new(
+        let samples = Section::new(
             SectionTitle::captioned(
                 "Window switches".to_owned(),
                 "A switch is focusing another window, or the same window in another app or \
@@ -105,14 +105,14 @@ impl ContextSwitchRate<'_> {
                 ),
             ]),
         );
-        [readings, thresholds]
+        [samples, thresholds]
     }
 }
 
 impl<'a> ContextSwitchRate<'a> {
     pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(format!("{}/h", self.per_hour(clock.utc()))),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,

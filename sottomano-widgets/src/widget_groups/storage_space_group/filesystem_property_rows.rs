@@ -9,7 +9,9 @@ use super::{
     metadata_room_row::MetadataRoomRow, mount_access_row::MountAccessRow,
     volume_identity_row::VolumeIdentityRow,
 };
-use crate::{group_items::group_item::GroupItem, hover_cards::hover_card_body::Section};
+use crate::{
+    group_indicators::group_indicator::GroupIndicator, hover_cards::hover_card_body::Section,
+};
 
 const LISTED_PROPERTIES: [FilesystemProperty; 7] = [
     FilesystemProperty::Mount,
@@ -100,15 +102,23 @@ pub(super) enum FilesystemPropertyRow<'a> {
 }
 
 impl<'a> FilesystemPropertyRow<'a> {
-    pub(super) fn group_item(self, locale: Locale) -> GroupItem<'a> {
+    pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'a> {
         match self {
-            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row.reading_row()),
-            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row.reading_row()),
-            FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row.reading_row(locale)),
-            FilesystemPropertyRow::MetadataRoom(row) => GroupItem::reading(row.reading_row(locale)),
-            FilesystemPropertyRow::Compression(row) => GroupItem::reading(row.reading_row(locale)),
-            FilesystemPropertyRow::Ext4Errors(row) => GroupItem::reading(row.reading_row(locale)),
-            FilesystemPropertyRow::Ext4Writes(row) => GroupItem::reading(row.reading_row(locale)),
+            FilesystemPropertyRow::Mount(row) => GroupIndicator::sample(row.reading_row()),
+            FilesystemPropertyRow::Volume(row) => GroupIndicator::sample(row.reading_row()),
+            FilesystemPropertyRow::Inodes(row) => GroupIndicator::sample(row.reading_row(locale)),
+            FilesystemPropertyRow::MetadataRoom(row) => {
+                GroupIndicator::sample(row.reading_row(locale))
+            }
+            FilesystemPropertyRow::Compression(row) => {
+                GroupIndicator::sample(row.reading_row(locale))
+            }
+            FilesystemPropertyRow::Ext4Errors(row) => {
+                GroupIndicator::sample(row.reading_row(locale))
+            }
+            FilesystemPropertyRow::Ext4Writes(row) => {
+                GroupIndicator::sample(row.reading_row(locale))
+            }
         }
     }
 

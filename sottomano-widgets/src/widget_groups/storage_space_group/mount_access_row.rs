@@ -3,10 +3,10 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -29,7 +29,7 @@ fn access_text(access: MountAccess) -> &'static str {
 impl<'a> MountAccessRow<'a> {
     pub(super) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(access_text(self.usage.access).to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -37,7 +37,7 @@ impl<'a> MountAccessRow<'a> {
             ..ReadingRow::glyph_only(
                 "Mount",
                 Phosphor::HardDrive(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

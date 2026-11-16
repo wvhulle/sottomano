@@ -3,7 +3,7 @@ use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
 };
 
 use crate::{
-    group_items::slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
+    group_indicators::slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
     widgets::phosphor::{Phosphor, Weight},
 };
 
@@ -39,11 +39,11 @@ pub(super) fn input_glyph(_value: f32, slider_activity: SliderActivity) -> Phosp
     }
 }
 
-pub(super) fn feed(control: &mut SliderControl, reading: Option<&ChannelLevels>) {
-    if let Some(reading) = reading {
-        control.update(ControlMessage::Reading(percent_f(reading.percent)));
+pub(super) fn feed(control: &mut SliderControl, sample: Option<&ChannelLevels>) {
+    if let Some(sample) = sample {
+        control.update(ControlMessage::Sample(percent_f(sample.percent)));
         control.update(ControlMessage::Activity(SliderActivity::from(
-            reading.mute_state,
+            sample.mute_state,
         )));
     }
 }

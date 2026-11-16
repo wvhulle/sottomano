@@ -6,19 +6,19 @@ use iced::Element;
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::{
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::{
+        indicator_state::{IndicatorState, IndicatorStateTint},
         toggle_control::SwitchPresses,
     },
     hover_cards::{MouseGesture, PressAction},
     widgets::text::{font_faces_of, text_face_of},
 };
 
-impl From<DaySelection> for ReadingDisplayState {
+impl From<DaySelection> for IndicatorState {
     fn from(day_selection: DaySelection) -> Self {
         match day_selection {
-            DaySelection::Chosen => ReadingDisplayState::On,
-            DaySelection::Unchosen => ReadingDisplayState::Off,
+            DaySelection::Chosen => IndicatorState::On,
+            DaySelection::Unchosen => IndicatorState::Off,
         }
     }
 }
@@ -82,8 +82,8 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
             .spacing(picker.config.theme.spacing.item_gap)
             .locale(picker.config.calendar.locale)
             .day_color(move |day_selection, theme| {
-                ReadingStateTint {
-                    state: ReadingDisplayState::from(day_selection),
+                IndicatorStateTint {
+                    state: IndicatorState::from(day_selection),
                     opacity: reveal,
                 }
                 .color(theme)

@@ -9,10 +9,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
@@ -68,7 +68,7 @@ impl ZoneTime {
 impl ZoneTime {
     pub(super) fn reading_row(&self, clock: Clock, locale: Locale) -> ReadingRow<'_> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(
                     LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale),
                 ),
@@ -78,7 +78,7 @@ impl ZoneTime {
             ..ReadingRow::glyph_only(
                 city_name(self.zone()),
                 Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }

@@ -11,21 +11,21 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub trait PerCoreReading {
+pub trait PerCoreSample {
     fn core_index(&self) -> u32;
     fn thread_cell(&self) -> ThreadCell;
 }
 
-pub struct CoreGridSection<'a, Reading> {
+pub struct CoreGridSection<'a, Sample> {
     pub topology: &'a CpuTopology,
-    pub readings: &'a [Reading],
+    pub samples: &'a [Sample],
 }
 
-impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
-    pub fn members<'r>(&'r self, group: &CoreGroup) -> Vec<&'r Reading> {
-        self.readings
+impl<Sample: PerCoreSample> CoreGridSection<'_, Sample> {
+    pub fn members<'r>(&'r self, group: &CoreGroup) -> Vec<&'r Sample> {
+        self.samples
             .iter()
-            .filter(|reading| group.contains(reading.core_index()))
+            .filter(|sample| group.contains(sample.core_index()))
             .collect()
     }
 
@@ -33,7 +33,7 @@ impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
         &self,
         section_title: impl Into<SectionTitle>,
         chiplet_title: impl Fn(&CoreGroup) -> String,
-        facts: impl Fn(&CoreGroup, &[&Reading]) -> Vec<LabeledValue>,
+        facts: impl Fn(&CoreGroup, &[&Sample]) -> Vec<LabeledValue>,
     ) -> Section {
         Section::new(
             section_title,
@@ -49,8 +49,8 @@ impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
                             .filter_map(|thread| {
                                 members
                                     .iter()
-                                    .find(|reading| reading.core_index() == *thread)
-                                    .map(|reading| reading.thread_cell())
+                                    .find(|sample| sample.core_index() == *thread)
+                                    .map(|sample| sample.thread_cell())
                             })
                             .collect(),
                     })

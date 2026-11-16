@@ -10,18 +10,19 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::{GroupItem, RowScroll},
-        group_item_gestures::GroupItemGesture,
+    group_indicators::{
+        group_indicator::{GroupIndicator, RowScroll},
+        indicator_gestures::IndicatorGesture,
     },
     group_menus::{
         group_menu_state::{
-            GroupMenuMessage, GroupMenuPin, GroupMenuState, ItemPin, PanelPin, PanelPinDuration,
+            GroupMenuMessage, GroupMenuPin, GroupMenuState, IndicatorPin, PanelPin,
+            PanelPinDuration,
         },
         group_menu_view::{GroupMenuMessenger, menu_event},
         menu_rows::menu_row::menu_row_content,
     },
-    hover_cards::{InstrumentKey, marked_by_menu_pin},
+    hover_cards::{IndicatorKey, marked_by_menu_pin},
     widget_groups::{
         group_summary::GroupSummary,
         widget_group_content::GroupEvent,
@@ -38,7 +39,7 @@ pub(crate) struct GroupMenuGroupRow<'a> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
     pub summary: GroupSummary<'a>,
-    pub items: Vec<GroupItem<'a>>,
+    pub items: Vec<GroupIndicator<'a>>,
 }
 
 pub(crate) fn one_row_per_identity<'a>(
@@ -172,14 +173,14 @@ pub(crate) fn group_header<'a>(
 pub(crate) fn item_entry<'a>(
     layout: &GroupMenuRowContext<'_>,
     group_identity: &WidgetGroupIdentity,
-    item: &GroupItem<'a>,
+    item: &GroupIndicator<'a>,
     beside: BesideRow<'a, GroupEvent>,
-) -> NestedMenuItem<'a, InstrumentKey, GroupEvent> {
+) -> NestedMenuItem<'a, IndicatorKey, GroupEvent> {
     let emphasis = item.row_emphasis(
         group_identity,
-        layout.group_menus.inspected_instrument(layout.menu.topic),
+        layout.group_menus.inspected_indicator(layout.menu.topic),
     );
-    let instrument = item.instrument_key(group_identity);
+    let indicator = item.indicator_key(group_identity);
     let item_pin = layout.group_menus.item_pin(
         layout.menu.topic,
         group_identity,
@@ -195,8 +196,8 @@ pub(crate) fn item_entry<'a>(
         )
     };
     let item_pin = match item_pin {
-        ItemPin::Unpinnable => None,
-        ItemPin::Pinned(PanelPin {
+        IndicatorPin::Unpinnable => None,
+        IndicatorPin::Pinned(PanelPin {
             entry,
             duration: PanelPinDuration::Permanent,
             ..
@@ -205,8 +206,8 @@ pub(crate) fn item_entry<'a>(
             Weight::Fill,
             pinned_glyph_color(emphasis),
         )),
-        ItemPin::Unpinned(entry)
-        | ItemPin::Pinned(PanelPin {
+        IndicatorPin::Unpinned(entry)
+        | IndicatorPin::Pinned(PanelPin {
             entry,
             duration: PanelPinDuration::UntilAlertEnds,
             ..
@@ -220,22 +221,22 @@ pub(crate) fn item_entry<'a>(
         layout.config,
         Vec::new(),
         item.menu_icon(layout.config),
-        item.item_in_group_name(),
+        item.indicator_name(),
         item.menu_row_value(layout.config, layout.clock),
         item_pin.into_iter().collect(),
     );
     let gestures = item.gestures();
     let press = match gestures.left {
-        GroupItemGesture::Performs { message, .. } => {
+        IndicatorGesture::Performs { message, .. } => {
             RowGesture::Publishes(GroupEvent::Interaction(message))
         }
-        GroupItemGesture::Inert => RowGesture::Inert,
+        IndicatorGesture::Inert => RowGesture::Inert,
     };
     let right_pressed = match gestures.right {
-        GroupItemGesture::Performs { message, .. } => {
+        IndicatorGesture::Performs { message, .. } => {
             RowGesture::Publishes(GroupEvent::Interaction(message))
         }
-        GroupItemGesture::Inert => RowGesture::Inert,
+        IndicatorGesture::Inert => RowGesture::Inert,
     };
     let scrolled = match item.row_scroll() {
         RowScroll::AdjustsValue(adjust_by_scroll) => RowGesture::Publishes(Box::new(move |delta| {
@@ -245,13 +246,13 @@ pub(crate) fn item_entry<'a>(
         RowScroll::Inert => RowGesture::Inert,
     };
     NestedMenuItem {
-        key: instrument.clone(),
+        key: indicator.clone(),
         row: NestedMenuRow {
             content,
             emphasis,
             press,
             hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(layout.menu.inspect_row(instrument)),
+            entered: RowGesture::Publishes(layout.menu.inspect_row(indicator)),
             right_pressed,
             scrolled,
         },
@@ -263,7 +264,7 @@ pub(crate) fn item_entry<'a>(
 mod tests {
     use super::{GroupMenuGroupRow, WidgetGroupIdentity, one_row_per_identity};
     use crate::{
-        group_items::reading_display_state::ReadingDisplayState,
+        group_indicators::indicator_state::IndicatorState,
         widget_groups::{
             group_summary::GroupSummary,
             widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
@@ -275,7 +276,7 @@ mod tests {
         GroupMenuGroupRow {
             group_identity,
             group_title: WidgetGroupTitle::Named(title.to_owned().into()),
-            summary: GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
+            summary: GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             items: Vec::new(),
         }
     }

@@ -17,11 +17,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
@@ -53,7 +53,7 @@ struct UnreadableEngineRow<'a> {
 impl<'a> UnreadableEngineRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -61,7 +61,7 @@ impl<'a> UnreadableEngineRow<'a> {
             ..ReadingRow::glyph_only(
                 self.engine.owner.to_string(),
                 Phosphor::Package(Weight::Regular).into(),
-                ReadingDisplayState::Failed,
+                IndicatorState::Failed,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -92,7 +92,7 @@ struct ListedContainerRow<'a> {
 impl<'a> ListedContainerRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.listed.run_state.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -270,7 +270,7 @@ impl DockerEnginesGroup {
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupItem<'a>> {
+    ) -> Vec<GroupIndicator<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -302,7 +302,7 @@ impl DockerEnginesGroup {
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupItem<'a>> {
+    ) -> Vec<GroupIndicator<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -348,7 +348,7 @@ impl DockerEnginesGroup {
         )
     }
 
-    fn listed_rows<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupItem<'a>> {
+    fn listed_rows<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupIndicator<'a>> {
         let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
             return Vec::new();
         };
@@ -362,7 +362,7 @@ impl DockerEnginesGroup {
                     container_id: Cow::Owned(listed.id.clone()),
                 };
                 with_container_switch(
-                    GroupItem::reading(ListedContainerRow { engine, listed }.reading_row()),
+                    GroupIndicator::sample(ListedContainerRow { engine, listed }.reading_row()),
                     listed.run_state,
                     target,
                     |request| {
@@ -379,7 +379,7 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_>> {
+    fn container_rows(&self) -> Vec<GroupIndicator<'_>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
@@ -398,7 +398,7 @@ impl DockerEnginesGroup {
                     engine_readout,
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
-                failure_rows.push(GroupItem::reading(
+                failure_rows.push(GroupIndicator::sample(
                     UnreadableEngineRow {
                         engine,
                         read_failure,
@@ -416,14 +416,14 @@ impl DockerEnginesGroup {
 }
 
 impl DockerEnginesGroup {
-    fn shown_state(&self) -> ReadingDisplayState {
+    fn shown_state(&self) -> IndicatorState {
         let any_engine_present = self
             .probe_presence_count()
             .is_some_and(|presence_count| presence_count > 0);
         if any_engine_present {
-            ReadingDisplayState::On
+            IndicatorState::On
         } else {
-            ReadingDisplayState::Off
+            IndicatorState::Off
         }
     }
 }
@@ -444,7 +444,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        hover_cards::{HoverTarget, InstrumentKey},
+        hover_cards::{HoverTarget, IndicatorKey},
         widget_groups::widget_group_identity::WidgetGroupIdentity,
     };
 
@@ -478,9 +478,9 @@ mod tests {
             Clock::real(),
         );
         assert_eq!(group.container_rows().len(), 1);
-        let failure_row = HoverTarget::Instrument(InstrumentKey {
+        let failure_row = HoverTarget::Indicator(IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::DockerEngines),
-            name: group.container_rows()[0].item_in_group_name(),
+            name: group.container_rows()[0].indicator_name(),
         });
         assert!(
             group

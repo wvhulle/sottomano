@@ -9,10 +9,10 @@ use uom::si::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::ReadoutGauge,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::ReadoutGauge,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -49,15 +49,15 @@ fn transfer_fill(transfer: &DiskTransfer) -> Ratio {
     Ratio::new::<ratio>((position / scale_width).clamp(0.0, 1.0))
 }
 
-pub(crate) fn disk_transfer_reading_row(transfer: &DiskTransfer) -> ReadingRow<'_> {
+pub(crate) fn disk_transfer_indicator(transfer: &DiskTransfer) -> ReadingRow<'_> {
     let name = match transfer.direction {
         DiskTransferDirection::Read => "Disk reads",
         DiskTransferDirection::Write => "Disk writes",
     };
     let state = if transfer.rate <= background_rate() {
-        ReadingDisplayState::Off
+        IndicatorState::Off
     } else {
-        ReadingDisplayState::Idle
+        IndicatorState::Idle
     };
     let fill = transfer_fill(transfer);
     let mut row = ReadingRow::glyph_only(
@@ -70,13 +70,13 @@ pub(crate) fn disk_transfer_reading_row(transfer: &DiskTransfer) -> ReadingRow<'
     row
 }
 
-pub(crate) fn disk_activity_reading_row(activity: &DiskActivity) -> ReadingRow<'_> {
+pub(crate) fn disk_activity_indicator(activity: &DiskActivity) -> ReadingRow<'_> {
     ReadingRow {
         panel_visibility: PanelVisibility::Hidden,
         ..ReadingRow::glyph_only(
             DiskActivity::NAME,
             transfer_icon(&activity.read),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| disk_transfer_hover_card(&activity.read)),
         )
     }

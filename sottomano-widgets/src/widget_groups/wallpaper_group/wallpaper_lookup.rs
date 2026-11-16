@@ -16,7 +16,7 @@ use sottomano_desktop_sources::{
 
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -120,7 +120,7 @@ impl Lookup {
         ReadingRow::glyph_only(
             "Wallpaper lookup",
             Phosphor::Image(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| self.hover_card()),
         )
     }

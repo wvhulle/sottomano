@@ -7,9 +7,9 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState,
-        source_reading::state_glyph_view,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_drawing::state_glyph_view,
+        indicator_state::IndicatorState,
     },
     widget_groups::widget_group_content::GroupEvent,
     widgets::icon_glyph::IconGlyph,
@@ -18,29 +18,29 @@ use crate::{
 pub enum GroupSummary<'a> {
     Glyph {
         glyph: IconGlyph,
-        state: ReadingDisplayState,
+        state: IndicatorState,
     },
     Row {
         glyph: IconGlyph,
-        row: Box<GroupItem<'a>>,
+        row: Box<GroupIndicator<'a>>,
     },
 }
 
 impl<'a> GroupSummary<'a> {
     #[must_use]
-    pub fn glyph(glyph: IconGlyph, state: ReadingDisplayState) -> Self {
+    pub fn glyph(glyph: IconGlyph, state: IndicatorState) -> Self {
         GroupSummary::Glyph { glyph, state }
     }
 
     #[must_use]
-    pub fn summarising(glyph: IconGlyph, row: GroupItem<'a>) -> Self {
+    pub fn summarising(glyph: IconGlyph, row: GroupIndicator<'a>) -> Self {
         GroupSummary::Row {
             glyph,
             row: Box::new(row),
         }
     }
 
-    pub(crate) fn summarised_row(&self) -> Option<&GroupItem<'a>> {
+    pub(crate) fn summarised_row(&self) -> Option<&GroupIndicator<'a>> {
         match self {
             GroupSummary::Glyph { .. } => None,
             GroupSummary::Row { row, .. } => Some(row),

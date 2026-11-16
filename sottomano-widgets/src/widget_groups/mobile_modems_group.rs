@@ -1,4 +1,4 @@
-mod modem_signal_reading;
+mod modem_signal_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
@@ -13,18 +13,18 @@ use sottomano_desktop_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-use self::modem_signal_reading::{
-    AllMobileRadiosSwitch, ModemConnectionSwitch, ModemDataReading, ModemSignalReading,
+use self::modem_signal_indicator::{
+    AllMobileRadiosSwitch, ModemConnectionSwitch, ModemDataIndicator, ModemSignalIndicator,
     modem_family_address,
 };
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         group_summary::GroupSummary,
-        interface_address_sections::{AddressFamily, InterfaceAddressReading},
+        interface_address_sections::{AddressFamily, InterfaceAddressIndicator},
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -155,10 +155,10 @@ impl MobileModemsGroup {
         let modem_path = || modem.modem_path.clone();
         let group_summary = GroupSummary::summarising(
             Phosphor::SimCard(Weight::Regular).into(),
-            GroupItem::reading(ModemSignalReading { modem }.reading_row()).with_hover_card(
+            GroupIndicator::sample(ModemSignalIndicator { modem }.reading_row()).with_hover_card(
                 Box::new(move |_| {
                     self.mobile_modems
-                        .hover_card_with(ModemSignalReading { modem }.hover_card())
+                        .hover_card_with(ModemSignalIndicator { modem }.hover_card())
                 }),
             ),
         );
@@ -167,7 +167,7 @@ impl MobileModemsGroup {
             let connection_switch = ModemConnectionSwitch { modem };
             let connection_press_does = connection_switch.press_does();
             rows.push(
-                GroupItem::reading(connection_switch.reading_row())
+                GroupIndicator::sample(connection_switch.reading_row())
                     .with_hover_card(Box::new(move |_| self.modem_connection_hover_card(modem)))
                     .on_switch_press(
                         modem.link_state(),
@@ -184,7 +184,7 @@ impl MobileModemsGroup {
                         && modem_family_address(modem, *family).is_some()
                 })
                 .map(|family| {
-                    GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                    GroupIndicator::sample(InterfaceAddressIndicator { family }.reading_row())
                         .with_hover_card(Box::new(move |_| {
                             self.modem_address_hover_card(modem, family)
                         }))
@@ -192,10 +192,10 @@ impl MobileModemsGroup {
         );
         if modem.rx.is_some() || modem.tx.is_some() {
             rows.push(
-                GroupItem::reading(ModemDataReading { modem }.reading_row()).with_hover_card(
+                GroupIndicator::sample(ModemDataIndicator { modem }.reading_row()).with_hover_card(
                     Box::new(move |_| {
                         self.mobile_modems
-                            .hover_card_with(ModemDataReading { modem }.hover_card())
+                            .hover_card_with(ModemDataIndicator { modem }.hover_card())
                     }),
                 ),
             );
@@ -206,7 +206,7 @@ impl MobileModemsGroup {
         };
         let radios_press_does = radios_switch.press_does();
         rows.push(
-            GroupItem::reading(radios_switch.reading_row())
+            GroupIndicator::sample(radios_switch.reading_row())
                 .on_switch_press(
                     any_radio_power,
                     radios_press_does,

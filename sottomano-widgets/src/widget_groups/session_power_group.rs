@@ -15,10 +15,10 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::ReadingDisplayState,
-        source_reading::GroupItemIcon,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
     },
     hover_cards::HoverTarget,
     widget_groups::{
@@ -171,13 +171,13 @@ impl SessionPowerGroup {
             return FixedPanelGroup::Empty;
         }
         FixedPanelGroup::Shown {
-            item: Box::new(GroupItem::composed(
+            item: Box::new(GroupIndicator::composed(
                 "Session",
-                GroupItemIcon::IconGlyph {
+                IndicatorIcon::IconGlyph {
                     glyph: Phosphor::Power(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
+                    state: IndicatorState::Idle,
                 },
-                GroupItemValue::Nothing,
+                IndicatorValue::Nothing,
                 Box::new(|_| Vec::new()),
             )),
             hover_target: HoverTarget::SessionMenu,

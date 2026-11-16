@@ -6,8 +6,8 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
@@ -17,15 +17,14 @@ use crate::{
     },
 };
 
-pub fn auto_brightness_reading_row(brightness: &AutoBrightness) -> ReadingRow<'_> {
+pub fn auto_brightness_indicator(brightness: &AutoBrightness) -> ReadingRow<'_> {
     let (glyph, state): (IconGlyph, _) = match brightness.calibration {
-        BrightnessCalibration::FromWebcam => (
-            Phosphor::Eye(Weight::Regular).into(),
-            ReadingDisplayState::On,
-        ),
+        BrightnessCalibration::FromWebcam => {
+            (Phosphor::Eye(Weight::Regular).into(), IndicatorState::On)
+        }
         BrightnessCalibration::Fixed => (
             Phosphor::EyeSlash(Weight::Regular).into(),
-            ReadingDisplayState::Off,
+            IndicatorState::Off,
         ),
     };
     ReadingRow::glyph_only(AutoBrightness::NAME, glyph, state, Box::new(|_| Vec::new()))

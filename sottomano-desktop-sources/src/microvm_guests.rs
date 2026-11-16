@@ -207,8 +207,7 @@ fn shown_machine(
         .filter(|_| microvm_name.is_some())
         .and_then(|_| cgroup_directory_of_process(hypervisor_process.pid.unsigned_abs()))
         .and_then(|process_cgroup| {
-            read_cgroup_memory(unit_cgroup_enclosing(&process_cgroup)?)
-                .map(|reading| reading.current)
+            read_cgroup_memory(unit_cgroup_enclosing(&process_cgroup)?).map(|sample| sample.current)
         })
         .unwrap_or_else(|| {
             ByteSize::b(

@@ -8,15 +8,15 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         localized_quantities::Quantity,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         value_cells::LabeledValue,
@@ -31,7 +31,7 @@ pub(crate) fn spend_panel_visibility(spend: &OpenRouterSpend) -> PanelVisibility
     }
 }
 
-pub(crate) fn spend_reading_row(spend: &OpenRouterSpend, clock: Clock) -> ReadingRow<'_> {
+pub(crate) fn spend_indicator(spend: &OpenRouterSpend, clock: Clock) -> ReadingRow<'_> {
     let today = spend.today.models.total();
     let label = if today.is_positive() {
         ReadoutLabel::Labeled(format!("{} today", spend_text(&today)))
@@ -45,14 +45,14 @@ pub(crate) fn spend_reading_row(spend: &OpenRouterSpend, clock: Clock) -> Readin
         })
         .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows: quotas,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         panel_visibility: spend_panel_visibility(spend),
         ..ReadingRow::glyph_only(

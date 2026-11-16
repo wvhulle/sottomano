@@ -3,10 +3,10 @@ use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -29,13 +29,13 @@ impl From<LlamaModelStatus> for ValueCell {
     }
 }
 
-pub fn llama_model_state(model: &LlamaModel) -> ReadingDisplayState {
+pub fn llama_model_state(model: &LlamaModel) -> IndicatorState {
     match model.status {
-        LlamaModelStatus::Loading | LlamaModelStatus::Downloading => ReadingDisplayState::Pending,
+        LlamaModelStatus::Loading | LlamaModelStatus::Downloading => IndicatorState::Pending,
         LlamaModelStatus::Sleeping | LlamaModelStatus::Unloaded | LlamaModelStatus::Downloaded => {
-            ReadingDisplayState::Off
+            IndicatorState::Off
         }
-        LlamaModelStatus::Loaded => ReadingDisplayState::Idle,
+        LlamaModelStatus::Loaded => IndicatorState::Idle,
     }
 }
 
@@ -57,11 +57,9 @@ impl<'a> ServedModel<'a> {
             Some(resident) if !resident.id.is_empty() => ReadoutLabel::Labeled(resident.id.clone()),
             Some(_) | None => ReadoutLabel::Unlabeled,
         };
-        let state = self
-            .resident
-            .map_or(ReadingDisplayState::Off, llama_model_state);
+        let state = self.resident.map_or(IndicatorState::Off, llama_model_state);
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,

@@ -32,7 +32,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    group_items::reading_display_state::ReadingDisplayState,
+    group_indicators::indicator_state::IndicatorState,
     group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
     hover_cards::{
         CardHeader, PopupMessage, PressAction,
@@ -156,10 +156,10 @@ impl<'a> HoverCardContent<'a> {
         let group_name = self.small_dim_text(group_title.to_string());
         let header: Element<'static, PopupMessage> = match &panel_pin.entry {
             GroupMenuPin::Group(_) => group_name.into(),
-            GroupMenuPin::Item(instrument_key) => row([
+            GroupMenuPin::Item(indicator_key) => row([
                 group_name.into(),
                 self.small_dim_text("\u{203a}".to_owned()).into(),
-                self.bold_title(&instrument_key.name).into(),
+                self.bold_title(&indicator_key.name).into(),
             ])
             .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Center)
@@ -394,7 +394,7 @@ impl<'a> HoverCardContent<'a> {
                 .spacing(self.config.theme.spacing.item_gap)
                 .align_y(Vertical::Center),
                 (),
-                |()| PopupMessage::RefreshHoveredReading,
+                |()| PopupMessage::RefreshHoveredIndicator,
             )
             .accent(success_shades)
             .hold(self.config.hover_cards.copy_flash_duration)
@@ -514,7 +514,7 @@ impl<'a> HoverCardContent<'a> {
                 key_view.key(record.key().clone(), secondary_text_color)
             }),
             value_cell: Rc::new(move |record, position| {
-                let state = ReadingDisplayState::from(*record.level());
+                let state = IndicatorState::from(*record.level());
                 cell_view.value(
                     record.cell(position).cloned().unwrap_or(ValueCell::Blank),
                     move |theme| state.color(theme),
@@ -555,7 +555,7 @@ impl<'a> HoverCardContent<'a> {
                     drawn.callout(
                         callout.anchor,
                         panel_text(font, callout.label.clone())
-                            .style(ReadingDisplayState::from(callout.level).text_style()),
+                            .style(IndicatorState::from(callout.level).text_style()),
                     )
                 },
             )

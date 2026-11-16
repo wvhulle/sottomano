@@ -6,11 +6,11 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widget_groups::{
@@ -21,7 +21,7 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
-            OngoingToastActionButton, ReadingAlerts, StateToast, ToastBody, ToastProgress,
+            IndicatorAlerts, OngoingToastActionButton, StateToast, ToastBody, ToastProgress,
         },
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
@@ -35,12 +35,12 @@ impl PendingUpgradesGroup {
         &'a self,
         upgrades: &'a [FirmwareUpgrade],
         config: &Config,
-    ) -> GroupItem<'a> {
+    ) -> GroupIndicator<'a> {
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupItem::reading(firmware_upgrades_reading_row(upgrades))
+        GroupIndicator::sample(firmware_upgrades_indicator(upgrades))
             .on_press("run fwupdmgr update in a terminal", install.clone())
             .ongoing_toast_action_buttons([OngoingToastActionButton {
                 button_label: "Install".to_owned(),
@@ -62,7 +62,7 @@ pub(super) fn firmware_upgrades_panel_visibility(upgrades: &[FirmwareUpgrade]) -
     }
 }
 
-pub(super) fn firmware_upgrades_state(upgrades: &[FirmwareUpgrade]) -> ReadingDisplayState {
+pub(super) fn firmware_upgrades_state(upgrades: &[FirmwareUpgrade]) -> IndicatorState {
     upgrades
         .iter()
         .map(FirmwareUpgrade::severity)
@@ -92,7 +92,7 @@ pub(super) fn firmware_upgrades_hover_card(upgrades: &[FirmwareUpgrade]) -> Vec<
     )]
 }
 
-pub(super) fn firmware_upgrades_reading_row(upgrades: &[FirmwareUpgrade]) -> ReadingRow<'_> {
+pub(super) fn firmware_upgrades_indicator(upgrades: &[FirmwareUpgrade]) -> ReadingRow<'_> {
     let base = ReadingRow::glyph_only(
         LABEL,
         Phosphor::Circuitry(Weight::Regular).into(),
@@ -104,11 +104,11 @@ pub(super) fn firmware_upgrades_reading_row(upgrades: &[FirmwareUpgrade]) -> Rea
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             badge,
             ..base.readout
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Warning,
                 summary_text: "Firmware upgrade available",

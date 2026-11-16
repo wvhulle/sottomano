@@ -5,11 +5,11 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::journal_events_group::{JournalScopeGroup, MESSAGE_CAP, shown_while_alerting},
@@ -27,8 +27,8 @@ impl JournalScopeGroup {
     pub(super) fn service_errors_item<'a>(
         &'a self,
         service_errors_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(service_errors_row).with_hover_card(Box::new(move |_| {
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(service_errors_row).with_hover_card(Box::new(move |_| {
             self.service_errors
                 .sections_described_by(service_errors_hover_card)
         }))
@@ -57,7 +57,7 @@ impl From<&UnitErrors> for TableRecord<3> {
     }
 }
 
-pub(super) fn service_errors_state(errors: &ServiceErrors) -> ReadingDisplayState {
+pub(super) fn service_errors_state(errors: &ServiceErrors) -> IndicatorState {
     errors
         .by_unit_oldest_first
         .iter()
@@ -94,7 +94,7 @@ pub(super) fn service_errors_hover_card(errors: &ServiceErrors) -> Vec<Section> 
     )]
 }
 
-pub(super) fn service_errors_reading_row(errors: &ServiceErrors) -> ReadingRow<'_> {
+pub(super) fn service_errors_indicator(errors: &ServiceErrors) -> ReadingRow<'_> {
     let base = ReadingRow::glyph_only(
         ServiceErrors::NAME,
         SERVICE_ERRORS_GLYPH.into(),
@@ -106,7 +106,7 @@ pub(super) fn service_errors_reading_row(errors: &ServiceErrors) -> ReadingRow<'
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             badge,
             ..base.readout
         },

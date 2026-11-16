@@ -7,9 +7,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::session_focus_group::WarningSnooze,
@@ -17,7 +17,7 @@ use crate::{
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
-            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -179,7 +179,7 @@ impl<'a> SessionFace<'a> {
             None => ToastBody::Bodiless,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: match label {
                     Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
                     Some(_) | None => ReadoutLabel::Unlabeled,
@@ -187,14 +187,14 @@ impl<'a> SessionFace<'a> {
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
             },
-            alerts: ReadingAlerts {
+            alerts: IndicatorAlerts {
                 state_toast: StateToast::NotifyFromSeverity {
                     minimum_severity: Severity::Warning,
                     summary_text: "Long focus session",
                     body,
                     progress: ToastProgress::Unmeasured,
                 },
-                ..ReadingAlerts::default()
+                ..IndicatorAlerts::default()
             },
             ..ReadingRow::glyph_only(
                 "Current focus",

@@ -1,9 +1,9 @@
 use chrono::Locale;
 
 mod growth_trend_label;
-mod memory_slot_reading;
+mod memory_slot_indicator;
 mod memory_usage_gauge;
-mod module_temperature_reading;
+mod module_temperature_indicator;
 mod stall_pressure_label;
 mod swap_activity_gauge;
 
@@ -24,19 +24,19 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig};
 
 use self::{
-    growth_trend_label::{memory_growth_hover_card, memory_growth_reading_row},
-    memory_slot_reading::MemorySlotReading,
-    memory_usage_gauge::{memory_hover_card, memory_reading_row},
-    module_temperature_reading::MemoryModuleTemperatureReading,
-    stall_pressure_label::{memory_stall_hover_card, memory_stall_reading_row},
-    swap_activity_gauge::{swap_activity_hover_card, swap_activity_reading_row},
+    growth_trend_label::{memory_growth_hover_card, memory_growth_indicator},
+    memory_slot_indicator::MemorySlotIndicator,
+    memory_usage_gauge::{memory_hover_card, memory_indicator},
+    module_temperature_indicator::MemoryModuleTemperatureIndicator,
+    stall_pressure_label::{memory_stall_hover_card, memory_stall_indicator},
+    swap_activity_gauge::{swap_activity_hover_card, swap_activity_indicator},
 };
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     widget_groups::{
@@ -133,14 +133,14 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::Hardware(delivery) => {
                 self.hardware.receive(*delivery, clock);
             }
-            MemoryBoardMessage::Memory(reading) => self.memory.receive(reading, clock),
-            MemoryBoardMessage::MemoryGrowth(reading) => self.memory_growth.receive(reading, clock),
-            MemoryBoardMessage::StallPressure(reading) => {
-                self.stall_pressure.receive(reading, clock);
+            MemoryBoardMessage::Memory(sample) => self.memory.receive(sample, clock),
+            MemoryBoardMessage::MemoryGrowth(sample) => self.memory_growth.receive(sample, clock),
+            MemoryBoardMessage::StallPressure(sample) => {
+                self.stall_pressure.receive(sample, clock);
             }
-            MemoryBoardMessage::SwapActivity(reading) => self.swap_activity.receive(reading, clock),
-            MemoryBoardMessage::ModuleTemperatures(reading) => {
-                self.module_temperatures.receive(reading, clock);
+            MemoryBoardMessage::SwapActivity(sample) => self.swap_activity.receive(sample, clock),
+            MemoryBoardMessage::ModuleTemperatures(sample) => {
+                self.module_temperatures.receive(sample, clock);
             }
             MemoryBoardMessage::MemoryProcessesFetched(fetched) => {
                 self.memory_processes.receive(fetched, clock);
@@ -190,7 +190,7 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn slot_items(&self, locale: Locale) -> impl Iterator<Item = GroupItem<'_>> {
+    fn slot_items(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
             hardware
@@ -199,7 +199,7 @@ impl MemoryBoardGroup {
                 .iter()
                 .enumerate()
                 .map(move |(slot_index, slot_module)| {
-                    let slot_reading = MemorySlotReading {
+                    let slot_indicator = MemorySlotIndicator {
                         slot_module: slot_module.clone(),
                         machine: if slot_index == 0 {
                             machine.clone()
@@ -207,27 +207,28 @@ impl MemoryBoardGroup {
                             MachineInfo::default()
                         },
                     };
-                    GroupItem::reading(slot_reading.clone().reading_row(locale)).with_hover_card(
-                        Box::new(move |_| self.hardware.hover_card_with(slot_reading.hover_card())),
-                    )
+                    GroupIndicator::sample(slot_indicator.clone().reading_row(locale))
+                        .with_hover_card(Box::new(move |_| {
+                            self.hardware.hover_card_with(slot_indicator.hover_card())
+                        }))
                 })
         })
     }
 
-    fn temperature_items(&self) -> impl Iterator<Item = GroupItem<'_>> {
+    fn temperature_items(&self) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.module_temperatures
             .get()
             .into_iter()
             .flat_map(move |temperatures| {
                 temperatures.modules.iter().map(move |module| {
-                    let temperature_reading = MemoryModuleTemperatureReading {
+                    let temperature_indicator = MemoryModuleTemperatureIndicator {
                         bus_address: module.bus_address.clone(),
                         temperature: module.temperature,
                     };
-                    GroupItem::reading(temperature_reading.clone().reading_row())
+                    GroupIndicator::sample(temperature_indicator.clone().reading_row())
                         .with_hover_card(Box::new(move |_| {
                             self.module_temperatures
-                                .hover_card_with(temperature_reading.hover_card())
+                                .hover_card_with(temperature_indicator.hover_card())
                         }))
                         .refreshed_by(MemoryBoardInteraction::Refresh(
                             MemoryBoardSource::ModuleTemperatures,
@@ -257,13 +258,13 @@ impl MemoryBoardGroup {
         match &self.memory {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_item(memory_reading_row(held_snapshot, locale)),
+                self.memory_usage_item(memory_indicator(held_snapshot, locale)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Database(Weight::Regular).into(),
                     self.memory_usage_item(troubled_snapshot.shown_over(
-                        memory_reading_row(&troubled_snapshot.held_snapshot, locale),
+                        memory_indicator(&troubled_snapshot.held_snapshot, locale),
                         clock,
                     )),
                 )
@@ -274,31 +275,31 @@ impl MemoryBoardGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Database(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::Database(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         }
     }
 
     fn push_memory_growth_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
         match &self.memory_growth {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let growth_row = memory_growth_reading_row(held_snapshot, locale);
+                let growth_row = memory_growth_indicator(held_snapshot, locale);
                 if growth_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.memory_growth_item(growth_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let growth_row = troubled_snapshot.shown_over(
-                    memory_growth_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    memory_growth_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
                 if growth_row.panel_visibility == PanelVisibility::Shown {
@@ -316,20 +317,20 @@ impl MemoryBoardGroup {
 
     fn push_stall_pressure_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
         match &self.stall_pressure {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let pressure_row = memory_stall_reading_row(held_snapshot, locale);
+                let pressure_row = memory_stall_indicator(held_snapshot, locale);
                 if pressure_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.stall_pressure_item(pressure_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let pressure_row = troubled_snapshot.shown_over(
-                    memory_stall_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    memory_stall_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
                 if pressure_row.panel_visibility == PanelVisibility::Shown {
@@ -347,20 +348,20 @@ impl MemoryBoardGroup {
 
     fn push_swap_activity_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         locale: Locale,
     ) {
         match &self.swap_activity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let swap_row = swap_activity_reading_row(held_snapshot, locale);
+                let swap_row = swap_activity_indicator(held_snapshot, locale);
                 if swap_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.swap_activity_item(swap_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let swap_row = troubled_snapshot.shown_over(
-                    swap_activity_reading_row(&troubled_snapshot.held_snapshot, locale),
+                    swap_activity_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
                 if swap_row.panel_visibility == PanelVisibility::Shown {
@@ -376,8 +377,8 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn memory_usage_item<'a>(&'a self, usage_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(usage_row)
+    fn memory_usage_item<'a>(&'a self, usage_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(usage_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.memory.sections_described_by(memory_hover_card);
                 sections.extend(
@@ -393,8 +394,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
     }
 
-    fn memory_growth_item<'a>(&'a self, growth_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(growth_row)
+    fn memory_growth_item<'a>(&'a self, growth_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(growth_row)
             .with_hover_card(Box::new(move |_| {
                 self.memory_growth
                     .sections_described_by(memory_growth_hover_card)
@@ -402,8 +403,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
     }
 
-    fn stall_pressure_item<'a>(&'a self, pressure_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(pressure_row)
+    fn stall_pressure_item<'a>(&'a self, pressure_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(pressure_row)
             .with_hover_card(Box::new(move |_| {
                 self.stall_pressure
                     .sections_described_by(memory_stall_hover_card)
@@ -411,8 +412,8 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
     }
 
-    fn swap_activity_item<'a>(&'a self, swap_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(swap_row)
+    fn swap_activity_item<'a>(&'a self, swap_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(swap_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .swap_activity

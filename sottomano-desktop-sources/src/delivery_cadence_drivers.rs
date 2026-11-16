@@ -57,30 +57,30 @@ pub enum RereadSchedule {
 pub trait ChangeTriggerStreams<TriggerFailure>:
     Stream<Item = Result<(), TriggerFailure>> + Sized + Send + 'static
 {
-    fn triggered_rereads<Reading, Failure, ReadFuture>(
+    fn triggered_rereads<Sample, Failure, ReadFuture>(
         self,
         read: impl FnMut() -> ReadFuture + Send + 'static,
-    ) -> impl Stream<Item = Result<Reading, Failure>> + Send
+    ) -> impl Stream<Item = Result<Sample, Failure>> + Send
     where
-        Reading: Send + 'static,
+        Sample: Send + 'static,
         Failure: Send + 'static,
         TriggerFailure: Into<Failure>,
-        ReadFuture: Future<Output = Result<Reading, Failure>> + Send,
+        ReadFuture: Future<Output = Result<Sample, Failure>> + Send,
     {
         self.paced_rereads(Duration::ZERO, read, |_| RereadSchedule::WaitForTrigger)
     }
 
-    fn paced_rereads<Reading, Failure, ReadFuture>(
+    fn paced_rereads<Sample, Failure, ReadFuture>(
         self,
         minimum_trigger_gap: Duration,
         read: impl FnMut() -> ReadFuture + Send + 'static,
-        recheck_after: impl Fn(&Result<Reading, Failure>) -> RereadSchedule + Send + 'static,
-    ) -> impl Stream<Item = Result<Reading, Failure>> + Send
+        recheck_after: impl Fn(&Result<Sample, Failure>) -> RereadSchedule + Send + 'static,
+    ) -> impl Stream<Item = Result<Sample, Failure>> + Send
     where
-        Reading: Send + 'static,
+        Sample: Send + 'static,
         Failure: Send + 'static,
         TriggerFailure: Into<Failure>,
-        ReadFuture: Future<Output = Result<Reading, Failure>> + Send,
+        ReadFuture: Future<Output = Result<Sample, Failure>> + Send,
     {
         RereadOnTrigger {
             triggers: self.fuse(),
@@ -88,7 +88,7 @@ pub trait ChangeTriggerStreams<TriggerFailure>:
             recheck_after,
             read,
             trigger_failures: VecDeque::new(),
-            reading: None,
+            sample: None,
             cooldown: None,
             deadline: None,
             triggered: true,
@@ -110,7 +110,7 @@ pin_project! {
         read: ReadFn,
         trigger_failures: VecDeque<Failure>,
         #[pin]
-        reading: Option<ReadFuture>,
+        sample: Option<ReadFuture>,
         #[pin]
         cooldown: Option<Sleep>,
         #[pin]
@@ -119,21 +119,21 @@ pin_project! {
     }
 }
 
-impl<TriggerStream, TriggerFailure, Failure, Reading, RecheckFn, ReadFn, ReadFuture> Stream
+impl<TriggerStream, TriggerFailure, Failure, Sample, RecheckFn, ReadFn, ReadFuture> Stream
     for RereadOnTrigger<TriggerStream, Failure, RecheckFn, ReadFn, ReadFuture>
 where
     TriggerStream: Stream<Item = Result<(), TriggerFailure>>,
     TriggerFailure: Into<Failure>,
-    RecheckFn: Fn(&Result<Reading, Failure>) -> RereadSchedule,
+    RecheckFn: Fn(&Result<Sample, Failure>) -> RereadSchedule,
     ReadFn: FnMut() -> ReadFuture,
-    ReadFuture: Future<Output = Result<Reading, Failure>>,
+    ReadFuture: Future<Output = Result<Sample, Failure>>,
 {
-    type Item = Result<Reading, Failure>;
+    type Item = Result<Sample, Failure>;
 
     fn poll_next(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
-    ) -> Poll<Option<Result<Reading, Failure>>> {
+    ) -> Poll<Option<Result<Sample, Failure>>> {
         let mut projected = self.project();
         while let Poll::Ready(Some(trigger)) = projected.triggers.as_mut().poll_next(context) {
             match trigger {
@@ -158,7 +158,7 @@ where
             projected.deadline.set(None);
             projected.cooldown.set(None);
         }
-        if projected.reading.is_none() {
+        if projected.sample.is_none() {
             if !*projected.triggered {
                 return if projected.triggers.is_terminated() && projected.deadline.is_none() {
                     Poll::Ready(None)
@@ -180,13 +180,13 @@ where
                     projected.cooldown.set(None);
                 }
             }
-            projected.reading.set(Some((projected.read)()));
+            projected.sample.set(Some((projected.read)()));
         }
-        let Some(reading) = projected.reading.as_mut().as_pin_mut() else {
+        let Some(sample) = projected.sample.as_mut().as_pin_mut() else {
             return Poll::Pending;
         };
-        let produced = ready_poll!(reading.poll(context));
-        projected.reading.set(None);
+        let produced = ready_poll!(sample.poll(context));
+        projected.sample.set(None);
         let next_deadline = match (projected.recheck_after)(&produced) {
             RereadSchedule::WaitForTrigger => None,
             RereadSchedule::RecheckAt(recheck_instant) => Some(sleep_until(recheck_instant.into())),

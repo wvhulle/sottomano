@@ -12,7 +12,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::{Adapter, DeviceIdentity, reported},
     network_connectivity::{
-        device_or_absent, interface, managed_objects_readings, network_manager_proxies,
+        device_or_absent, interface, managed_objects_samples, network_manager_proxies,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses, Properties, prop},
 };
@@ -233,16 +233,16 @@ fn reported_prop(properties: &Properties, key: &str) -> Option<String> {
     reported(&prop::<String>(properties, key)?)
 }
 
-fn reading(objects: &ManagedObjects) -> Option<MobileModems> {
+fn sample(objects: &ManagedObjects) -> Option<MobileModems> {
     let mut modems: Vec<Mobile> = objects
         .iter()
-        .filter_map(|(modem_path, interfaces)| modem_reading(objects, modem_path, interfaces))
+        .filter_map(|(modem_path, interfaces)| modem_sample(objects, modem_path, interfaces))
         .collect();
     modems.sort_by(|left, right| left.modem_path.cmp(&right.modem_path));
     (!modems.is_empty()).then_some(MobileModems { modems })
 }
 
-fn modem_reading(
+fn modem_sample(
     objects: &ManagedObjects,
     modem_path: &OwnedObjectPath,
     interfaces: &HashMap<OwnedInterfaceName, Properties>,
@@ -303,7 +303,7 @@ impl SnapshotSource for MobileModems {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(system.clone(), SERVICE, move || {
-            managed_objects_readings(system.clone(), SERVICE, ROOT, reading)
+            managed_objects_samples(system.clone(), SERVICE, ROOT, sample)
         })
     }
 }
@@ -342,7 +342,7 @@ mod tests {
                 HashMap::new(),
             ),
         ]);
-        let read_models: Vec<Option<String>> = reading(&objects)
+        let read_models: Vec<Option<String>> = sample(&objects)
             .unwrap()
             .modems
             .into_iter()
@@ -356,6 +356,6 @@ mod tests {
 
     #[test]
     fn no_modem_reads_as_absent() {
-        assert!(reading(&HashMap::new()).is_none());
+        assert!(sample(&HashMap::new()).is_none());
     }
 }

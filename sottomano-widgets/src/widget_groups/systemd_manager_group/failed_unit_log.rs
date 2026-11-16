@@ -17,11 +17,11 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -41,7 +41,7 @@ pub(super) fn failed_units_item<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {
@@ -120,7 +120,7 @@ pub(super) fn failed_units_item<'a>(
             .collect(),
         }
     });
-    GroupItem::reading(failed_units_reading_row(failed))
+    GroupIndicator::sample(failed_units_indicator(failed))
         .on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             open_log(failed.follow_log_args()),
@@ -193,7 +193,7 @@ pub(super) fn failed_units_name(failed: &FailedUnits) -> Cow<'static, str> {
     })
 }
 
-pub(super) fn failed_units_state() -> ReadingDisplayState {
+pub(super) fn failed_units_state() -> IndicatorState {
     UNIT_FAILURE_PRIORITY.severity().into()
 }
 
@@ -207,7 +207,7 @@ pub(super) fn failed_units_hover_card(failed: &FailedUnits) -> Vec<Section> {
     )]
 }
 
-pub(super) fn failed_units_reading_row(failed: &FailedUnits) -> ReadingRow<'_> {
+pub(super) fn failed_units_indicator(failed: &FailedUnits) -> ReadingRow<'_> {
     let base = ReadingRow::glyph_only(
         failed_units_name(failed),
         unit_scope_icon(failed.scope)
@@ -221,7 +221,7 @@ pub(super) fn failed_units_reading_row(failed: &FailedUnits) -> ReadingRow<'_> {
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             badge,
             ..base.readout
         },

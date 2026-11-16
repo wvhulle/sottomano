@@ -6,10 +6,10 @@ use sottomano_desktop_sources::ai_usage_spend::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -135,7 +135,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -143,7 +143,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             ..ReadingRow::glyph_only(
                 "Most used model",
                 Phosphor::Sparkle(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -156,7 +156,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -164,7 +164,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             ..ReadingRow::glyph_only(
                 "Most used model spend",
                 Phosphor::Coins(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.top_model_share()),
             )
         }

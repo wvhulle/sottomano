@@ -273,14 +273,14 @@ impl ShowcaseState {
             PopupMessage::CopyText(_)
             | PopupMessage::OpenUrl(_)
             | PopupMessage::FocusWindow(_)
-            | PopupMessage::RefreshHoveredReading
+            | PopupMessage::RefreshHoveredIndicator
             | PopupMessage::ReleaseFromPanel(_) => Task::none(),
         }
     }
 
     fn update_group_menus(&mut self, message: GroupMenuMessage) -> Task<ShowcaseMessage> {
-        if let GroupMenuMessage::InspectRow { instrument, .. } = &message {
-            self.schedule_hover_replies(&HoverTarget::Instrument(instrument.clone()));
+        if let GroupMenuMessage::InspectRow { indicator, .. } = &message {
+            self.schedule_hover_replies(&HoverTarget::Indicator(indicator.clone()));
         }
         let _menu_task = self.group_menus.update(message);
         Task::none()
@@ -419,8 +419,8 @@ impl ShowcaseState {
         let group_menu = self.group_menu(kind);
         let inspected_sections = self
             .group_menus
-            .inspected_instrument(kind)
-            .map(|instrument_key| group_menu.row_hover_card(instrument_key, self.clock))
+            .inspected_indicator(kind)
+            .map(|indicator_key| group_menu.row_hover_card(indicator_key, self.clock))
             .unwrap_or_default();
         let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation = CascadeOrientation::toward_room(
@@ -471,8 +471,8 @@ impl ShowcaseState {
         let mut tasks = Vec::new();
         if sample(clock) > self.delivered_sample {
             self.delivered_sample = sample(clock);
-            for reading in (self.demo.live)(clock) {
-                tasks.push(self.route_message(reading));
+            for fixture_message in (self.demo.live)(clock) {
+                tasks.push(self.route_message(fixture_message));
             }
         }
         let (due_replies, waiting_replies) = self

@@ -5,11 +5,11 @@ use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -48,8 +48,8 @@ impl JournalScopeGroup {
         &'a self,
         config: &Config,
         oom_kill_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(oom_kill_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(oom_kill_row)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -64,7 +64,7 @@ impl JournalScopeGroup {
     }
 }
 
-pub(super) fn oom_kill_log_state(entries: &[OomKillEntry]) -> ReadingDisplayState {
+pub(super) fn oom_kill_log_state(entries: &[OomKillEntry]) -> IndicatorState {
     entries
         .iter()
         .map(|entry| entry.severity)
@@ -77,9 +77,9 @@ pub(super) fn oom_kill_log_panel_visibility(entries: &[OomKillEntry]) -> PanelVi
     shown_while_alerting(entries.iter().map(|entry| entry.severity))
 }
 
-pub(super) fn oom_kill_log_reading_row(entries: &[OomKillEntry]) -> ReadingRow<'_> {
+pub(super) fn oom_kill_log_indicator(entries: &[OomKillEntry]) -> ReadingRow<'_> {
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Counted(entries.len()),

@@ -2,10 +2,10 @@ use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::Ext4Counters;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,7 +22,7 @@ pub(super) struct Ext4LifetimeWritesRow {
 impl Ext4LifetimeWritesRow {
     pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(
                     Quantity::size(self.counters.lifetime_written).localized_text(locale),
                 ),
@@ -33,7 +33,7 @@ impl Ext4LifetimeWritesRow {
             ..ReadingRow::glyph_only(
                 "Writes",
                 Phosphor::PencilSimple(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

@@ -4,10 +4,10 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -20,11 +20,11 @@ use crate::{
 pub(crate) const NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Keyboard(Weight::Regular));
 
-pub fn notulist_output_problems_reading_row(output: &NotulistOutputProblems) -> ReadingRow<'_> {
+pub fn notulist_output_problems_indicator(output: &NotulistOutputProblems) -> ReadingRow<'_> {
     let state = if output.problems.iter().any(OutputProblem::blocks_typing) {
-        ReadingDisplayState::Failed
+        IndicatorState::Failed
     } else {
-        ReadingDisplayState::Warning
+        IndicatorState::Warning
     };
     let panel_visibility = if output.problems.is_empty() {
         PanelVisibility::Hidden
@@ -36,7 +36,7 @@ pub fn notulist_output_problems_reading_row(output: &NotulistOutputProblems) -> 
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge,
@@ -80,7 +80,7 @@ mod tests {
     use notulist_client::{InputMethodError, VirtualKeyboardError};
 
     use super::*;
-    use crate::group_items::reading_row::PanelVisibility;
+    use crate::group_indicators::reading_row::PanelVisibility;
 
     #[test]
     fn no_problems_stay_off_the_panel() {
@@ -88,7 +88,7 @@ mod tests {
             problems: Vec::new(),
         };
         assert_eq!(
-            notulist_output_problems_reading_row(&quiet).panel_visibility,
+            notulist_output_problems_indicator(&quiet).panel_visibility,
             PanelVisibility::Hidden
         );
     }
@@ -106,10 +106,10 @@ mod tests {
                 ),
             ],
         };
-        let discarded_row = notulist_output_problems_reading_row(&discarded);
-        let blocked_row = notulist_output_problems_reading_row(&blocked);
-        assert_eq!(discarded_row.shown_state(), ReadingDisplayState::Warning);
-        assert_eq!(blocked_row.shown_state(), ReadingDisplayState::Failed);
+        let discarded_row = notulist_output_problems_indicator(&discarded);
+        let blocked_row = notulist_output_problems_indicator(&blocked);
+        assert_eq!(discarded_row.shown_state(), IndicatorState::Warning);
+        assert_eq!(blocked_row.shown_state(), IndicatorState::Failed);
         assert_eq!(blocked_row.readout.badge, ReadoutBadge::Counted(2));
     }
 

@@ -6,10 +6,10 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::{
@@ -69,7 +69,7 @@ impl AutoSwitchToggle {
             | ScheduleStatus::NoSunEvents => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -77,7 +77,7 @@ impl AutoSwitchToggle {
             ..ReadingRow::glyph_only(
                 "Dark mode auto-switch",
                 Phosphor::Clock(Weight::Regular).into(),
-                ReadingDisplayState::from(self.saved_schedule.auto_switch_arming),
+                IndicatorState::from(self.saved_schedule.auto_switch_arming),
                 Box::new(move |card_clock| self.schedule_hover_card(card_clock)),
             )
         }

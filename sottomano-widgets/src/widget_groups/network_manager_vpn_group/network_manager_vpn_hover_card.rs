@@ -4,7 +4,7 @@ use sottomano_desktop_sources::network_connectivity::network_manager_vpn_connect
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -12,17 +12,17 @@ use crate::{
     },
 };
 
-pub fn vpn_connection_reading_row(connection: &VpnConnection) -> ReadingRow<'_> {
+pub fn vpn_connection_indicator(connection: &VpnConnection) -> ReadingRow<'_> {
     let state = match &connection.activity {
-        VpnActivity::Inactive => ReadingDisplayState::Off,
+        VpnActivity::Inactive => IndicatorState::Off,
         VpnActivity::Active(tunnel) => match tunnel.vpn_state {
-            VpnState::Activated => ReadingDisplayState::On,
-            VpnState::Failed => ReadingDisplayState::Warning,
-            VpnState::Disconnected => ReadingDisplayState::Off,
+            VpnState::Activated => IndicatorState::On,
+            VpnState::Failed => IndicatorState::Warning,
+            VpnState::Disconnected => IndicatorState::Off,
             VpnState::Preparing
             | VpnState::NeedsAuthentication
             | VpnState::Connecting
-            | VpnState::AwaitingAddress => ReadingDisplayState::Pending,
+            | VpnState::AwaitingAddress => IndicatorState::Pending,
         },
     };
     ReadingRow::glyph_only(

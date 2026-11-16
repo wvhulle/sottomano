@@ -3,9 +3,9 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
@@ -153,11 +153,11 @@ impl OverlaySettingsGroup {
             WidgetGroupFamily::OverlaySettings,
             GroupSummary::glyph(
                 Phosphor::Stack(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             OverlaySettingsMessage::Expansion,
-            [GroupItem::toggle(
+            [GroupIndicator::toggle(
                 toast_spatial_layout_toggle(self.toast_arrangement),
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
             )]

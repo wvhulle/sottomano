@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn reading_prefers_route_over_node_props() {
+    fn sample_prefers_route_over_node_props() {
         let mut graph = AudioGraph::default();
         graph.add_node(56, node(Direction::Output, "speaker", &[cubic(54)]));
         graph.set_placement(
@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn reading_falls_back_to_node_props_without_route() {
+    fn sample_falls_back_to_node_props_without_route() {
         let mut graph = AudioGraph::default();
         graph.add_node(7, node(Direction::Output, "null-sink", &[cubic(42)]));
         graph.set_default(DefaultNodeChange {
@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bluez_profile_switch_recovers_the_reading() {
+    fn a_bluez_profile_switch_recovers_the_sample() {
         let mut graph = AudioGraph::default();
         graph.add_node(
             97,

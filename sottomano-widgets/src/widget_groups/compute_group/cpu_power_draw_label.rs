@@ -5,10 +5,10 @@ use uom::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -39,13 +39,13 @@ fn cpu_power_panel_visibility(power: &CpuPower) -> PanelVisibility {
     }
 }
 
-pub(super) fn cpu_power_reading_row(power: &CpuPower) -> ReadingRow<'_> {
+pub(super) fn cpu_power_indicator(power: &CpuPower) -> ReadingRow<'_> {
     let label = match package_draw(power) {
         Some(draw) => ReadoutLabel::Labeled(watt_text(draw)),
         None => ReadoutLabel::Unlabeled,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -54,7 +54,7 @@ pub(super) fn cpu_power_reading_row(power: &CpuPower) -> ReadingRow<'_> {
         ..ReadingRow::glyph_only(
             "CPU power draw",
             Phosphor::Lightning(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| cpu_power_hover_card(power)),
         )
     }

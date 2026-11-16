@@ -18,14 +18,14 @@ use uom::si::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    core_grid_sections::{CoreGridSection, PerCoreSample},
 };
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
@@ -33,7 +33,7 @@ use crate::{
     widgets::{
         localized_quantities::Quantity,
         ongoing_toast::{
-            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -42,7 +42,7 @@ use crate::{
 
 const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
 
-impl PerCoreReading for CoreTemperature {
+impl PerCoreSample for CoreTemperature {
     fn core_index(&self) -> u32 {
         self.core
     }
@@ -59,7 +59,7 @@ impl PerCoreReading for CoreTemperature {
     }
 }
 
-fn temperature_state(temperature: &Temperature, clock: Clock) -> ReadingDisplayState {
+fn temperature_state(temperature: &Temperature, clock: Clock) -> IndicatorState {
     let critical_sustained = temperature.critical_since.is_some_and(|since| {
         clock
             .wall
@@ -75,10 +75,10 @@ fn temperature_state(temperature: &Temperature, clock: Clock) -> ReadingDisplayS
 
 fn temperature_toast_text(temperature: &Temperature, clock: Clock, locale: Locale) -> String {
     let thresholds = temperature.thresholds();
-    let sensor = temperature.hottest_reading().map(|reading| {
+    let sensor = temperature.hottest_sample().map(|sample| {
         (
             "Sensor",
-            escape(format!("{} {}", reading.chip, reading.label)).into_owned(),
+            escape(format!("{} {}", sample.chip, sample.label)).into_owned(),
         )
     });
     let above_since = temperature.critical_since.map(|since| {
@@ -99,26 +99,26 @@ fn temperature_toast_text(temperature: &Temperature, clock: Clock, locale: Local
     )
 }
 
-pub(super) fn temperature_reading_row(
+pub(super) fn temperature_indicator(
     temperature: &Temperature,
     clock: Clock,
     locale: Locale,
 ) -> ReadingRow<'_> {
     let state = temperature_state(temperature, clock);
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(celsius_text(temperature.hottest())),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Critical,
                 summary_text: "CPU overheating",
                 body: ToastBody::Text(temperature_toast_text(temperature, clock, locale)),
                 progress: ToastProgress::Unmeasured,
             },
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         ..ReadingRow::glyph_only(
             Temperature::NAME,
@@ -131,9 +131,9 @@ pub(super) fn temperature_reading_row(
 
 pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> {
     let mut chips: Vec<&str> = temperature
-        .readings
+        .samples
         .iter()
-        .map(|reading| reading.chip.as_str())
+        .map(|sample| sample.chip.as_str())
         .collect();
     chips.dedup();
     let thresholds = temperature.thresholds();
@@ -144,7 +144,7 @@ pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> 
                 Some(LabeledValue::new("Chips", chips.join(", "))),
                 Some(LabeledValue::new(
                     "Samples",
-                    Quantity::count(temperature.readings.len()),
+                    Quantity::count(temperature.samples.len()),
                 )),
                 temperature
                     .lowest()
@@ -190,7 +190,7 @@ impl ChipletLiveState<'_> {
         vec![
             CoreGridSection {
                 topology: &temperatures.topology,
-                readings: &temperatures.cores,
+                samples: &temperatures.cores,
             }
             .section(
                 SectionTitle::captioned(
@@ -203,7 +203,7 @@ impl ChipletLiveState<'_> {
                 |_, members| {
                     members
                         .iter()
-                        .map(|reading| reading.temperature)
+                        .map(|sample| sample.temperature)
                         .reduce(ThermodynamicTemperature::max)
                         .map(|hottest| LabeledValue::new("Hottest", Quantity::temperature(hottest)))
                         .into_iter()
@@ -219,15 +219,15 @@ mod tests {
     use std::time::SystemTime;
 
     use sottomano_desktop_sources::cpu_memory_compute::{
-        cpu_temperature::TempReading, temperature_thresholds::celsius,
+        cpu_temperature::TemperatureSample, temperature_thresholds::celsius,
     };
     use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
 
     use super::*;
 
-    fn hot_reading(critical_since: Option<SystemTime>) -> Temperature {
+    fn hot_indicator(critical_since: Option<SystemTime>) -> Temperature {
         Temperature {
-            readings: vec![TempReading {
+            samples: vec![TemperatureSample {
                 chip: "k10temp".into(),
                 label: "Tccd1".into(),
                 temperature: celsius(90.0),
@@ -242,15 +242,12 @@ mod tests {
     #[test]
     fn critical_heat_counts_as_warning_until_sustained() {
         let clock = Clock::real();
-        let fresh = hot_reading(Some(clock.wall));
-        assert_eq!(
-            temperature_state(&fresh, clock),
-            ReadingDisplayState::Warning
-        );
-        let sustained = hot_reading(Some(clock.wall - SUSTAINED_CRITICAL));
+        let fresh = hot_indicator(Some(clock.wall));
+        assert_eq!(temperature_state(&fresh, clock), IndicatorState::Warning);
+        let sustained = hot_indicator(Some(clock.wall - SUSTAINED_CRITICAL));
         assert_eq!(
             temperature_state(&sustained, clock),
-            ReadingDisplayState::Critical
+            IndicatorState::Critical
         );
     }
 }

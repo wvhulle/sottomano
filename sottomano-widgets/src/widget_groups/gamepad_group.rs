@@ -1,10 +1,10 @@
-mod connected_controller_reading;
-mod controller_battery_reading;
+mod connected_controller_indicator;
+mod controller_battery_indicator;
 pub mod controller_button_labels;
-mod controller_link_reading;
+mod controller_link_indicator;
 mod diagram_anchor_mapping;
 mod sqlite_compositor_driving_controllers;
-mod usb_cable_reading;
+mod usb_cable_indicator;
 use std::{
     collections::{BTreeMap, BTreeSet},
     iter::once,
@@ -44,24 +44,24 @@ use sottomano_toml_config::widget_groups::gamepad_bindings::{
 use uom::si::f64::Frequency;
 
 use self::{
-    connected_controller_reading::{ConnectedControllerReading, ControllerMarking},
-    controller_battery_reading::ControllerBatteryReading,
-    controller_link_reading::{BandSharing, ControllerLinkReading, WiredFallback, wifi_band},
-    usb_cable_reading::{UsbCableReading, UsbCableRole},
+    connected_controller_indicator::{ConnectedControllerIndicator, ControllerMarking},
+    controller_battery_indicator::ControllerBatteryIndicator,
+    controller_link_indicator::{BandSharing, ControllerLinkIndicator, WiredFallback, wifi_band},
+    usb_cable_indicator::{UsbCableIndicator, UsbCableRole},
 };
 use crate::{
     background_work::{compositor_request, logged_failure_task, snapshot_subscription},
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
-        gamepad_group::controller_link_reading::WifiBand,
+        gamepad_group::controller_link_indicator::WifiBand,
         group_summary::GroupSummary,
         widget_group_content::{
             KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -107,14 +107,14 @@ enum ControllerDiscovery {
     Failed(ChangeWatchFailure),
 }
 
-struct ControllerDiscoveryFailureReading<'failure> {
+struct ControllerDiscoveryFailureIndicator<'failure> {
     discovery_failure: &'failure ChangeWatchFailure,
 }
 
-impl<'failure> ControllerDiscoveryFailureReading<'failure> {
+impl<'failure> ControllerDiscoveryFailureIndicator<'failure> {
     fn reading_row(self) -> ReadingRow<'failure> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("failed".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -122,7 +122,7 @@ impl<'failure> ControllerDiscoveryFailureReading<'failure> {
             ..ReadingRow::glyph_only(
                 "Controller discovery",
                 Phosphor::GameController(Weight::Regular).into(),
-                ReadingDisplayState::Failed,
+                IndicatorState::Failed,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -542,13 +542,13 @@ impl GamepadGroup {
         }
     }
 
-    fn face_reading<'a>(
+    fn face_indicator<'a>(
         &'a self,
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
-    ) -> ConnectedControllerReading<'a> {
-        ConnectedControllerReading {
+    ) -> ConnectedControllerIndicator<'a> {
+        ConnectedControllerIndicator {
             gamepad,
             bindings,
             custody: self.controller_custody(gamepad.slot),
@@ -556,12 +556,12 @@ impl GamepadGroup {
         }
     }
 
-    fn link_reading<'a>(
+    fn link_indicator<'a>(
         &'a self,
         slot: usize,
         link: &'a PhysicalGamepadLink,
-    ) -> ControllerLinkReading<'a> {
-        ControllerLinkReading {
+    ) -> ControllerLinkIndicator<'a> {
+        ControllerLinkIndicator {
             transport: link.transport,
             report_timing: self.report_timings.get(&slot).copied().map_or(
                 MeasuredReportTiming::Pending,
@@ -607,23 +607,23 @@ impl GamepadGroup {
         )]
     }
 
-    fn controller_discovery_failure_reading(
+    fn controller_discovery_failure_indicator(
         &self,
-    ) -> Option<ControllerDiscoveryFailureReading<'_>> {
+    ) -> Option<ControllerDiscoveryFailureIndicator<'_>> {
         match &self.controller_discovery {
             ControllerDiscovery::Failed(discovery_failure) => {
-                Some(ControllerDiscoveryFailureReading { discovery_failure })
+                Some(ControllerDiscoveryFailureIndicator { discovery_failure })
             }
             ControllerDiscovery::Watching => None,
         }
     }
 
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_>> {
-        let failure_row = self.controller_discovery_failure_reading()?.reading_row();
+        let failure_row = self.controller_discovery_failure_indicator()?.reading_row();
         let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
         let group_summary = GroupSummary::summarising(
             Phosphor::Joystick(Weight::Regular).into(),
-            GroupItem::reading(failure_row),
+            GroupIndicator::sample(failure_row),
         );
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
@@ -644,31 +644,32 @@ impl GamepadGroup {
     ) -> Option<WidgetGroupContent<'a>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.get(&slot)?;
-        let battery_reading = ControllerBatteryReading {
+        let battery_indicator = ControllerBatteryIndicator {
             power: gamepad.power,
         };
         let group_summary = GroupSummary::summarising(
             Phosphor::Joystick(Weight::Regular).into(),
-            GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row()),
+            GroupIndicator::sample(self.face_indicator(gamepad, link, bindings).reading_row()),
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let mut rows = vec![
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 compositor_driving_toggle(self.controller_custody(slot)),
                 GamepadInteraction::ToggleCompositorDriving { slot },
             )
             .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
         ];
         if !shown_in_bluetooth_group {
-            rows.push(GroupItem::reading(
-                self.link_reading(slot, link).reading_row(),
+            rows.push(GroupIndicator::sample(
+                self.link_indicator(slot, link).reading_row(),
             ));
             if gamepad.power != GamepadPower::NoBattery {
-                rows.push(GroupItem::reading(battery_reading.reading_row()));
+                rows.push(GroupIndicator::sample(battery_indicator.reading_row()));
             }
         }
         if let Some(cable_role) = usb_cable_role(link.transport) {
-            let cable_item = GroupItem::reading(UsbCableReading { role: cable_role }.reading_row());
+            let cable_item =
+                GroupIndicator::sample(UsbCableIndicator { role: cable_role }.reading_row());
             rows.push(match cable_role {
                 UsbCableRole::ChargingOnly => cable_item.on_press(
                     "disconnect Bluetooth so the cable can take over",

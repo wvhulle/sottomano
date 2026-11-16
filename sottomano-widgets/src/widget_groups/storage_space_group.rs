@@ -28,16 +28,16 @@ use sottomano_desktop_sources::{
 pub use self::filesystem_property_rows::FilesystemProperty;
 use self::{
     filesystem_usage_gauge::{
-        SnapshotDeletionRow, filesystem_usage_hover_card, filesystem_usage_reading_row,
+        SnapshotDeletionRow, filesystem_usage_hover_card, filesystem_usage_indicator,
     },
     subvolume_usage_row::{SubvolumeUsageRow, subvolume_usage_hover_card},
 };
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -66,7 +66,7 @@ pub enum StorageSource {
     SubvolumeUsage(PathBuf),
 }
 
-pub(crate) fn block_filesystem_discovery_reading_row(
+pub(crate) fn block_filesystem_discovery_indicator(
     discovery: &BlockFilesystemDiscovery,
 ) -> ReadingRow<'_> {
     ReadingRow {
@@ -74,7 +74,7 @@ pub(crate) fn block_filesystem_discovery_reading_row(
         ..ReadingRow::glyph_only(
             BlockFilesystemDiscovery::NAME,
             Phosphor::Folders(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| block_filesystem_discovery_hover_card(discovery)),
         )
     }
@@ -141,7 +141,7 @@ impl StorageSpaceGroup {
         let usages = self.filesystems.iter().map(|(mount_point, filesystem)| {
             snapshot_subscription::<FilesystemUsage>(filesystem.mount.clone())
                 .with(mount_point.clone())
-                .map(|(mount_point, reading)| StorageMessage::Usage(mount_point, Box::new(reading)))
+                .map(|(mount_point, sample)| StorageMessage::Usage(mount_point, Box::new(sample)))
         });
         let subvolume_usages = self
             .filesystems
@@ -150,8 +150,8 @@ impl StorageSpaceGroup {
             .map(|(mount_point, filesystem)| {
                 snapshot_subscription::<BcachefsSubvolumeUsage>(filesystem.mount.clone())
                     .with(mount_point.clone())
-                    .map(|(mount_point, reading)| {
-                        StorageMessage::SubvolumeUsage(mount_point, Box::new(reading))
+                    .map(|(mount_point, sample)| {
+                        StorageMessage::SubvolumeUsage(mount_point, Box::new(sample))
                     })
             });
         Subscription::batch(
@@ -174,8 +174,8 @@ impl StorageSpaceGroup {
                 let Some(filesystem) = self.filesystems.get(&primary_mount_point) else {
                     return discover();
                 };
-                first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |reading| {
-                    StorageMessage::Usage(primary_mount_point.clone(), Box::new(reading))
+                first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |sample| {
+                    StorageMessage::Usage(primary_mount_point.clone(), Box::new(sample))
                 })
             }
             StorageSource::SubvolumeUsage(primary_mount_point) => {
@@ -183,10 +183,10 @@ impl StorageSpaceGroup {
                     return discover();
                 };
                 first_delivery::<BcachefsSubvolumeUsage>(filesystem.mount.clone()).map(
-                    move |reading| {
+                    move |sample| {
                         StorageMessage::SubvolumeUsage(
                             primary_mount_point.clone(),
-                            Box::new(reading),
+                            Box::new(sample),
                         )
                     },
                 )
@@ -196,8 +196,8 @@ impl StorageSpaceGroup {
 
     pub fn update(&mut self, message: StorageMessage, clock: Clock) -> Task<StorageMessage> {
         match message {
-            StorageMessage::Discovered(reading) => {
-                self.discovery.receive(reading, clock);
+            StorageMessage::Discovered(sample) => {
+                self.discovery.receive(sample, clock);
                 if let Some(discovery) = self.discovery.get() {
                     self.filesystems = discovery
                         .filesystems
@@ -220,14 +220,14 @@ impl StorageSpaceGroup {
                         .collect();
                 }
             }
-            StorageMessage::Usage(mount_point, reading) => {
+            StorageMessage::Usage(mount_point, sample) => {
                 if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
-                    filesystem.usage.receive(*reading, clock);
+                    filesystem.usage.receive(*sample, clock);
                 }
             }
-            StorageMessage::SubvolumeUsage(mount_point, reading) => {
+            StorageMessage::SubvolumeUsage(mount_point, sample) => {
                 if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
-                    filesystem.subvolume_usage.receive(*reading, clock);
+                    filesystem.subvolume_usage.receive(*sample, clock);
                 }
             }
         }
@@ -257,7 +257,7 @@ impl StorageSpaceGroup {
     fn property_items(
         filesystem: &MountedFilesystem,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_>> {
+    ) -> impl Iterator<Item = GroupIndicator<'_>> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         filesystem.usage.get().into_iter().flat_map(move |usage| {
             FilesystemProperty::listed_for(usage)
@@ -266,7 +266,7 @@ impl StorageSpaceGroup {
                     let row = property.row(usage)?;
                     let card_property = property.clone();
                     Some(
-                        row.group_item(locale)
+                        row.group_indicator(locale)
                             .with_hover_card(Box::new(move |_| {
                                 card_property.row(usage).map_or_else(Vec::new, |card_row| {
                                     filesystem.usage.hover_card_with(card_row.hover_card())
@@ -283,7 +283,7 @@ impl StorageSpaceGroup {
     fn subvolume_items(
         filesystem: &MountedFilesystem,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_>> {
+    ) -> impl Iterator<Item = GroupIndicator<'_>> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         filesystem
             .usage
@@ -292,7 +292,7 @@ impl StorageSpaceGroup {
             .into_iter()
             .flat_map(move |(usage, subvolume_usage)| {
                 subvolume_usage.subvolumes.iter().map(move |subvolume| {
-                    GroupItem::reading(
+                    GroupIndicator::sample(
                         SubvolumeUsageRow {
                             subvolume,
                             pool_total: usage.total,
@@ -324,10 +324,7 @@ impl StorageSpaceGroup {
         let group_summary = match &filesystem.usage {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                Self::filesystem_usage_item(
-                    filesystem,
-                    filesystem_usage_reading_row(held_snapshot),
-                ),
+                Self::filesystem_usage_item(filesystem, filesystem_usage_indicator(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
@@ -335,7 +332,7 @@ impl StorageSpaceGroup {
                     Self::filesystem_usage_item(
                         filesystem,
                         troubled_snapshot.shown_over(
-                            filesystem_usage_reading_row(&troubled_snapshot.held_snapshot),
+                            filesystem_usage_indicator(&troubled_snapshot.held_snapshot),
                             clock,
                         ),
                     ),
@@ -350,11 +347,11 @@ impl StorageSpaceGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         };
         let mut rows = Vec::new();
@@ -392,8 +389,8 @@ impl StorageSpaceGroup {
     fn filesystem_usage_item<'a>(
         filesystem: &'a MountedFilesystem,
         usage_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(usage_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(usage_row)
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
@@ -407,8 +404,8 @@ impl StorageSpaceGroup {
     fn subvolume_failure_item<'a>(
         filesystem: &'a MountedFilesystem,
         failure_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(failure_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(failure_row)
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .subvolume_usage
@@ -419,8 +416,8 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupItem<'_> {
-        GroupItem::reading(SnapshotDeletionRow::reading_row())
+    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupIndicator<'_> {
+        GroupIndicator::sample(SnapshotDeletionRow::reading_row())
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
@@ -431,8 +428,8 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn discovery_item<'a>(&'a self, discovery_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(discovery_row)
+    fn discovery_item<'a>(&'a self, discovery_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(discovery_row)
             .with_hover_card(Box::new(move |_| {
                 self.discovery
                     .sections_described_by(block_filesystem_discovery_hover_card)
@@ -452,13 +449,13 @@ impl StorageSpaceGroup {
         let group_summary = match &self.discovery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_item(block_filesystem_discovery_reading_row(held_snapshot)),
+                self.discovery_item(block_filesystem_discovery_indicator(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Archive(Weight::Regular).into(),
                     self.discovery_item(troubled_snapshot.shown_over(
-                        block_filesystem_discovery_reading_row(&troubled_snapshot.held_snapshot),
+                        block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     )),
                 )
@@ -469,11 +466,11 @@ impl StorageSpaceGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         };
         vec![WidgetGroupContent::expandable(

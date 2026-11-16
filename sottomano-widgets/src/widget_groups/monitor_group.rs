@@ -1,6 +1,6 @@
 mod backlight_display;
 mod clight_auto_brightness;
-use clight_auto_brightness::auto_brightness_reading_row;
+use clight_auto_brightness::auto_brightness_indicator;
 mod output_details;
 
 use std::{
@@ -25,9 +25,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
@@ -188,7 +188,7 @@ impl MonitorGroup {
                     .readout(|value, _| format!("{}%", as_percent(value)))
                     .announces_level("Brightness")
                 })
-                .update(ControlMessage::Reading(percent_f(backlight.percent)));
+                .update(ControlMessage::Sample(percent_f(backlight.percent)));
         }
     }
 
@@ -268,7 +268,7 @@ impl MonitorGroup {
             .iter()
             .map(|(backlight_serial, slider)| {
                 let message_serial = backlight_serial.clone();
-                GroupItem::slider(slider, config, move |control_message| {
+                GroupIndicator::slider(slider, config, move |control_message| {
                     MonitorInteraction::Backlight(message_serial.clone(), control_message)
                 })
                 .with_hover_card(Box::new(move |_| {
@@ -279,9 +279,9 @@ impl MonitorGroup {
                 ))
             })
             .collect();
-        match self.clight.subscribed_reading() {
+        match self.clight.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let brightness_row = auto_brightness_reading_row(held_snapshot);
+                let brightness_row = auto_brightness_indicator(held_snapshot);
                 if brightness_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
                         held_snapshot.switch_position(),
@@ -293,7 +293,7 @@ impl MonitorGroup {
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let brightness_row =
-                    troubled_snapshot.shown_over(auto_brightness_reading_row(held_snapshot), clock);
+                    troubled_snapshot.shown_over(auto_brightness_indicator(held_snapshot), clock);
                 if brightness_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
                         held_snapshot.switch_position(),
@@ -315,7 +315,7 @@ impl MonitorGroup {
             WidgetGroupFamily::Monitor,
             GroupSummary::glyph(
                 Phosphor::Lightbulb(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             MonitorInteraction::Expansion,
@@ -324,8 +324,8 @@ impl MonitorGroup {
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 
-    fn auto_brightness_item<'a>(&'a self, brightness_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(brightness_row)
+    fn auto_brightness_item<'a>(&'a self, brightness_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(brightness_row)
             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
                 MonitorSource::AutoBrightness,

@@ -15,7 +15,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    group_items::unit_switch::UnitSwitchMessage,
+    group_indicators::unit_switch::UnitSwitchMessage,
     widget_groups::nspawn_containers_group::{NspawnContainersGroup, NspawnContainersMessage},
 };
 

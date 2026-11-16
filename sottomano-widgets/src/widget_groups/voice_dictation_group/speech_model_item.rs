@@ -4,8 +4,8 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -22,7 +22,7 @@ const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 pub(crate) const NOTULIST_ENGINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Brain(Weight::Regular));
 
-pub fn notulist_engine_reading_row(speech: &NotulistEngine) -> ReadingRow<'_> {
+pub fn notulist_engine_indicator(speech: &NotulistEngine) -> ReadingRow<'_> {
     let glyph: IconGlyph = match &speech.engine {
         EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
             SimpleIcon::HuggingFace.into()
@@ -32,9 +32,9 @@ pub fn notulist_engine_reading_row(speech: &NotulistEngine) -> ReadingRow<'_> {
         | EngineState::SpeechModelUnavailable(_) => Phosphor::Brain(Weight::Regular).into(),
     };
     let state = match &speech.engine {
-        EngineState::LoadingSpeechModel => ReadingDisplayState::Pending,
-        EngineState::SpeechModelReady(_) => ReadingDisplayState::On,
-        EngineState::SpeechModelUnavailable(_) => ReadingDisplayState::Failed,
+        EngineState::LoadingSpeechModel => IndicatorState::Pending,
+        EngineState::SpeechModelReady(_) => IndicatorState::On,
+        EngineState::SpeechModelUnavailable(_) => IndicatorState::Failed,
     };
     let panel_visibility = if matches!(speech.engine, EngineState::LoadingSpeechModel) {
         PanelVisibility::Hidden
@@ -189,7 +189,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{reading_row::PanelVisibility, source_reading::GroupItemIcon},
+        group_indicators::{indicator_drawing::IndicatorIcon, reading_row::PanelVisibility},
         widgets::value_cells::ValueCell,
     };
 
@@ -236,10 +236,10 @@ mod tests {
             engine: EngineState::SpeechModelReady(engine),
         };
         assert_eq!(
-            notulist_engine_reading_row(&ready).face.icon,
-            GroupItemIcon::IconGlyph {
+            notulist_engine_indicator(&ready).face.icon,
+            IndicatorIcon::IconGlyph {
                 glyph: SimpleIcon::HuggingFace.into(),
-                state: ReadingDisplayState::On,
+                state: IndicatorState::On,
             }
         );
     }
@@ -254,11 +254,11 @@ mod tests {
                 ModelLoadError::ModelLoaderStoppedWithoutResult,
             ),
         };
-        let loading_row = notulist_engine_reading_row(&loading);
-        let unavailable_row = notulist_engine_reading_row(&unavailable);
+        let loading_row = notulist_engine_indicator(&loading);
+        let unavailable_row = notulist_engine_indicator(&unavailable);
         assert_eq!(loading_row.panel_visibility, PanelVisibility::Hidden);
         assert_eq!(unavailable_row.panel_visibility, PanelVisibility::Shown);
-        assert_eq!(unavailable_row.shown_state(), ReadingDisplayState::Failed);
+        assert_eq!(unavailable_row.shown_state(), IndicatorState::Failed);
     }
 
     #[test]

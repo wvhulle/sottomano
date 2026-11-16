@@ -9,10 +9,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -41,7 +41,7 @@ pub struct FlatpakSandboxListingRow<'a> {
 impl<'a> FlatpakSandboxListingRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -80,7 +80,7 @@ impl<'a> FlatpakSandboxRow<'a> {
             None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -91,7 +91,7 @@ impl<'a> FlatpakSandboxRow<'a> {
                     self.sandbox.listing.application_id, self.sandbox.listing.instance_id
                 ),
                 sandbox_icon(),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }
@@ -167,7 +167,7 @@ impl ContainerFamily for FlatpakFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                reading: FlatpakSandboxListingRow { listing }.reading_row(),
+                sample: FlatpakSandboxListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
@@ -178,7 +178,7 @@ impl ContainerFamily for FlatpakFamily {
             .details
             .iter()
             .map(|sandbox| FamilyRow {
-                reading: FlatpakSandboxRow { sandbox }.reading_row(),
+                sample: FlatpakSandboxRow { sandbox }.reading_row(),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()

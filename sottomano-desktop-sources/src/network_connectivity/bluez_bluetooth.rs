@@ -257,7 +257,7 @@ fn adapter_power(
     }
 }
 
-fn reading(objects: &ManagedObjects) -> Bluetooth {
+fn sample(objects: &ManagedObjects) -> Bluetooth {
     let mut adapters: Vec<BluetoothAdapter> = objects
         .iter()
         .filter_map(|(adapter_path, interfaces)| {
@@ -280,7 +280,7 @@ pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
         .await?
         .get_managed_objects()
         .await?;
-    Ok(reading(&objects))
+    Ok(sample(&objects))
 }
 
 async fn bluez_object_signals(

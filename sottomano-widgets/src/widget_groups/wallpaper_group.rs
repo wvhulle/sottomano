@@ -16,7 +16,7 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     widget_groups::{
         group_summary::GroupSummary,
         widget_group_content::{
@@ -69,7 +69,7 @@ impl WallpaperGroup {
             buses: buses.clone(),
             inputs: unsplash_key.clone(),
         })
-        .map(|reading| WallpaperMessage::Lookup(Box::new(reading)))
+        .map(|sample| WallpaperMessage::Lookup(Box::new(sample)))
     }
 
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
@@ -90,12 +90,12 @@ impl WallpaperGroup {
         let group_summary = match &self.lookup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Mountains(Weight::Regular).into(),
-                GroupItem::reading(held_snapshot.reading_row()),
+                GroupIndicator::sample(held_snapshot.reading_row()),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Mountains(Weight::Regular).into(),
-                    GroupItem::reading(
+                    GroupIndicator::sample(
                         troubled_snapshot
                             .shown_over(troubled_snapshot.held_snapshot.reading_row(), clock),
                     ),
@@ -103,35 +103,35 @@ impl WallpaperGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Mountains(Weight::Regular).into(),
-                GroupItem::reading(placeholder.reading_row(WALLPAPER_GLYPH.into())),
+                GroupIndicator::sample(placeholder.reading_row(WALLPAPER_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Mountains(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::Mountains(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         };
         let mut rows = Vec::new();
         if let Some(lookup) = self.lookup.get() {
             if let Some(place) = &lookup.place {
                 rows.push(
-                    GroupItem::reading(place.reading_row()).with_hover_card(Box::new(move |_| {
-                        self.lookup.hover_card_with(place.hover_card())
-                    })),
+                    GroupIndicator::sample(place.reading_row()).with_hover_card(Box::new(
+                        move |_| self.lookup.hover_card_with(place.hover_card()),
+                    )),
                 );
             }
             if let Some(article) = &lookup.article {
                 rows.push(
-                    GroupItem::reading(article.reading_row()).with_hover_card(Box::new(
+                    GroupIndicator::sample(article.reading_row()).with_hover_card(Box::new(
                         move |_| self.lookup.hover_card_with(article.hover_card()),
                     )),
                 );
             }
             rows.push(
-                GroupItem::reading(lookup.photo.reading_row()).with_hover_card(Box::new(
+                GroupIndicator::sample(lookup.photo.reading_row()).with_hover_card(Box::new(
                     move |_| self.lookup.hover_card_with(lookup.photo.hover_card()),
                 )),
             );

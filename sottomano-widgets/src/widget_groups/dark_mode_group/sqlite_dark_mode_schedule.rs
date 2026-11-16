@@ -4,9 +4,7 @@ use sottomano_desktop_sources::{
     sqlite_state_store::{StoreError, flag, in_state_store, singleton_row, with_state_store},
 };
 
-use crate::group_items::{
-    reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
-};
+use crate::group_indicators::{indicator_state::IndicatorState, toggle_control::SwitchPosition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoSwitchArming {
@@ -33,11 +31,11 @@ impl From<AutoSwitchArming> for SwitchPosition {
     }
 }
 
-impl From<AutoSwitchArming> for ReadingDisplayState {
+impl From<AutoSwitchArming> for IndicatorState {
     fn from(auto_switch_arming: AutoSwitchArming) -> Self {
         match auto_switch_arming {
-            AutoSwitchArming::Armed => ReadingDisplayState::On,
-            AutoSwitchArming::Disarmed => ReadingDisplayState::Off,
+            AutoSwitchArming::Armed => IndicatorState::On,
+            AutoSwitchArming::Disarmed => IndicatorState::Off,
         }
     }
 }

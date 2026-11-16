@@ -1,8 +1,6 @@
 use chrono::{DateTime, Days, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone};
 
-use crate::group_items::{
-    reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
-};
+use crate::group_indicators::{indicator_state::IndicatorState, toggle_control::SwitchPosition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuietPhase {
@@ -54,11 +52,11 @@ impl From<QuietPhase> for SwitchPosition {
     }
 }
 
-impl From<QuietPhase> for ReadingDisplayState {
+impl From<QuietPhase> for IndicatorState {
     fn from(quiet_phase: QuietPhase) -> Self {
         match quiet_phase {
-            QuietPhase::Active => ReadingDisplayState::On,
-            QuietPhase::Inactive => ReadingDisplayState::Off,
+            QuietPhase::Active => IndicatorState::On,
+            QuietPhase::Inactive => IndicatorState::Off,
         }
     }
 }

@@ -3,7 +3,7 @@ use std::{mem::replace, time::Instant};
 use iced::{Task, window::Id};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
-    group_items::group_item::{HoverFetch, ReadingRefresh},
+    group_indicators::group_indicator::{HoverFetch, IndicatorRefresh},
     hover_cards::{
         AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence,
         hover_card_surfaces::HoverEffect,
@@ -202,21 +202,21 @@ impl DesktopShell {
         Task::none()
     }
 
-    pub(crate) fn hovered_reading_target(&self) -> Option<HoverTarget> {
+    pub(crate) fn hovered_indicator_target(&self) -> Option<HoverTarget> {
         match self.hover_card.target() {
             Some(HoverTarget::GroupMenu(topic)) => Some(
                 self.widget_groups
                     .group_menus
-                    .inspected_instrument(*topic)
+                    .inspected_indicator(*topic)
                     .cloned()
-                    .map_or(HoverTarget::GroupMenu(*topic), HoverTarget::Instrument),
+                    .map_or(HoverTarget::GroupMenu(*topic), HoverTarget::Indicator),
             ),
             open_target => open_target.cloned(),
         }
     }
 
     fn hovered_row_fetch(&self) -> HoverFetch {
-        self.hovered_reading_target()
+        self.hovered_indicator_target()
             .and_then(|target| self.hovered_row_requests(&target))
             .map_or(HoverFetch::NothingToFetch, |requests| requests.hover_fetch)
     }
@@ -232,24 +232,24 @@ impl DesktopShell {
         }
     }
 
-    pub fn refresh_hovered_reading(&mut self) -> Task<Message> {
+    pub fn refresh_hovered_indicator(&mut self) -> Task<Message> {
         let refreshed = match self
-            .hovered_reading_target()
+            .hovered_indicator_target()
             .and_then(|target| self.hovered_row_requests(&target))
-            .map_or(ReadingRefresh::Unrefreshable, |requests| requests.refresh)
+            .map_or(IndicatorRefresh::Unrefreshable, |requests| requests.refresh)
         {
-            ReadingRefresh::Refreshes(refresh) => self.dispatch_message(Message::from(refresh)),
-            ReadingRefresh::Unrefreshable => Task::none(),
+            IndicatorRefresh::Refreshes(refresh) => self.dispatch_message(Message::from(refresh)),
+            IndicatorRefresh::Unrefreshable => Task::none(),
         };
         Task::batch([refreshed, self.start_hovered_row_fetch()])
     }
 
-    pub fn retarget_hover_readings(&mut self) -> Task<Message> {
+    pub fn retarget_hover_indicators(&mut self) -> Task<Message> {
         let stopped = match replace(&mut self.active_hover_fetch, HoverFetch::NothingToFetch) {
             HoverFetch::Fetch { stop, .. } => self.dispatch_message(Message::from(*stop)),
             HoverFetch::NothingToFetch => Task::none(),
         };
-        let hovered_target = self.hovered_reading_target();
+        let hovered_target = self.hovered_indicator_target();
         let watched_window = self
             .widget_groups
             .window_group

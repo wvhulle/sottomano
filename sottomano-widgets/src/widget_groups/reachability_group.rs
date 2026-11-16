@@ -6,7 +6,7 @@ use crate::{
     widget_groups::widget_group_identity::WidgetGroupFamily,
 };
 
-mod connectivity_state_reading;
+mod connectivity_state_indicator;
 mod icmp_latency_gauge;
 mod metered_volume_tally;
 mod network_throughput_gauge;
@@ -24,19 +24,19 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::widget_groups::reachability::ReachabilityConfig;
 
 use self::{
-    connectivity_state_reading::uplink_connectivity_reading_row,
-    icmp_latency_gauge::{internet_latency_hover_card, internet_latency_reading_row},
+    connectivity_state_indicator::uplink_connectivity_indicator,
+    icmp_latency_gauge::{internet_latency_hover_card, internet_latency_indicator},
     network_throughput_gauge::{
-        interface_throughput_hover_card, interface_throughput_reading_row, throughput_hover_card,
-        throughput_reading_row,
+        interface_throughput_hover_card, interface_throughput_indicator, throughput_hover_card,
+        throughput_indicator,
     },
 };
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -188,7 +188,7 @@ impl ReachabilityGroup {
         let metered_section = self
             .throughput
             .get()
-            .filter(|readings| readings.metering == Metering::Metered)
+            .filter(|samples| samples.metering == Metering::Metered)
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
         self.throughput.hover_card_with(
@@ -203,41 +203,41 @@ impl ReachabilityGroup {
         let group_summary = match &self.connectivity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::GlobeSimple(Weight::Regular).into(),
-                GroupItem::reading(uplink_connectivity_reading_row(held_snapshot)),
+                GroupIndicator::sample(uplink_connectivity_indicator(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::GlobeSimple(Weight::Regular).into(),
-                    GroupItem::reading(troubled_snapshot.shown_over(
-                        uplink_connectivity_reading_row(&troubled_snapshot.held_snapshot),
+                    GroupIndicator::sample(troubled_snapshot.shown_over(
+                        uplink_connectivity_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     )),
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::GlobeSimple(Weight::Regular).into(),
-                GroupItem::reading(placeholder.reading_row(CONNECTIVITY_GLYPH.into())),
+                GroupIndicator::sample(placeholder.reading_row(CONNECTIVITY_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::GlobeSimple(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::GlobeSimple(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         };
         let mut rows = Vec::new();
         match &self.throughput {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let interface_row = interface_throughput_reading_row(held_snapshot);
+                let interface_row = interface_throughput_indicator(held_snapshot);
                 if interface_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.interface_throughput_item(interface_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let interface_row = troubled_snapshot.shown_over(
-                    interface_throughput_reading_row(&troubled_snapshot.held_snapshot),
+                    interface_throughput_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if interface_row.panel_visibility == PanelVisibility::Shown {
@@ -251,20 +251,20 @@ impl ReachabilityGroup {
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
-        if let Some(readings) = self.throughput.get() {
-            rows.push(self.direction_throughput_item(&readings.down));
-            rows.push(self.direction_throughput_item(&readings.up));
+        if let Some(samples) = self.throughput.get() {
+            rows.push(self.direction_throughput_item(&samples.down));
+            rows.push(self.direction_throughput_item(&samples.up));
         }
         match &self.latency {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let latency_row = internet_latency_reading_row(held_snapshot);
+                let latency_row = internet_latency_indicator(held_snapshot);
                 if latency_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.internet_latency_item(latency_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let latency_row = troubled_snapshot.shown_over(
-                    internet_latency_reading_row(&troubled_snapshot.held_snapshot),
+                    internet_latency_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if latency_row.panel_visibility == PanelVisibility::Shown {
@@ -289,8 +289,11 @@ impl ReachabilityGroup {
         )
     }
 
-    fn interface_throughput_item<'a>(&'a self, interface_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(interface_row)
+    fn interface_throughput_item<'a>(
+        &'a self,
+        interface_row: ReadingRow<'a>,
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(interface_row)
             .with_hover_card(Box::new(move |_| {
                 self.throughput
                     .sections_described_by(interface_throughput_hover_card)
@@ -303,8 +306,8 @@ impl ReachabilityGroup {
     fn direction_throughput_item<'a>(
         &'a self,
         direction_throughput: &'a Throughput,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(throughput_reading_row(direction_throughput))
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(throughput_indicator(direction_throughput))
             .with_hover_card(Box::new(move |_| {
                 self.direction_hover_card(direction_throughput)
             }))
@@ -313,8 +316,8 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn internet_latency_item<'a>(&'a self, latency_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(latency_row)
+    fn internet_latency_item<'a>(&'a self, latency_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(latency_row)
             .with_hover_card(Box::new(move |_| {
                 self.latency
                     .sections_described_by(internet_latency_hover_card)

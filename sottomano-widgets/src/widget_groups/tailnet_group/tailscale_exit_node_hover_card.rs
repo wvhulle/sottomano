@@ -7,10 +7,10 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -48,7 +48,7 @@ impl<'a> ExitNodeChoiceRow<'a> {
             ExitNodeControl::Offline => ReadoutLabel::Labeled("offline".to_owned()),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -56,7 +56,7 @@ impl<'a> ExitNodeChoiceRow<'a> {
             ..ReadingRow::glyph_only(
                 format!("Exit via {}", self.exit_node_option.name),
                 Phosphor::SignOut(Weight::Regular).into(),
-                ReadingDisplayState::from(SwitchPosition::from(self.exit_node_option.node_use)),
+                IndicatorState::from(SwitchPosition::from(self.exit_node_option.node_use)),
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -108,7 +108,7 @@ impl<'a> ExitNodeLanAccessRow<'a> {
         ReadingRow::glyph_only(
             "LAN while exiting",
             Phosphor::HouseLine(Weight::Regular).into(),
-            ReadingDisplayState::from(SwitchPosition::from(self.exit_node_choices.lan_access)),
+            IndicatorState::from(SwitchPosition::from(self.exit_node_choices.lan_access)),
             Box::new(move |_| self.hover_card()),
         )
     }

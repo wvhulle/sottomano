@@ -2,7 +2,7 @@ use corredo::popovers::{
     NestedMenuLayout, NestedMenuOpenTrigger, OpenGroupLimit, SubmenuConnector,
 };
 
-use crate::group_items::toggle_control::SwitchPosition;
+use crate::group_indicators::toggle_control::SwitchPosition;
 
 impl From<SubmenuConnector> for SwitchPosition {
     fn from(submenu_connector: SubmenuConnector) -> Self {

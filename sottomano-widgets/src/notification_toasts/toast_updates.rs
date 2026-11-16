@@ -67,7 +67,7 @@ use crate::{
         widget_group_content::GroupToastRequests,
     },
     widgets::{
-        announced_level::{LevelReading, LevelReadingChange},
+        announced_level::{LevelToastChange, LevelToastRequest},
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
@@ -224,8 +224,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let level_toasts: Vec<Task<Routed>> = requests
             .levels
             .into_iter()
-            .filter(|reading| reading.change_since(&previous_levels) == LevelReadingChange::Changed)
-            .map(|reading| self.announce_level(reading.map_message(Routed::from), context))
+            .filter(|sample| sample.change_since(&previous_levels) == LevelToastChange::Changed)
+            .map(|sample| self.announce_level(sample.map_message(Routed::from), context))
             .collect();
         Task::batch(iter::once(ongoing_toasts).chain(level_toasts))
     }
@@ -247,7 +247,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             .showing()
             .filter(|n| {
                 matches!(&n.kind, ToastKind::Ongoing { key: shown, .. }
-                    if matches!(shown, OngoingKey::Reading(_) | OngoingKey::ReadingDetail { .. })
+                    if matches!(shown, OngoingKey::Sample(_) | OngoingKey::SampleDetail { .. })
                         && !active.iter().any(|toast| toast.key == *shown))
             })
             .map(|n| n.data.id)
@@ -298,15 +298,15 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     fn announce_level(
         &mut self,
-        reading: LevelReading<Routed>,
+        sample: LevelToastRequest<Routed>,
         context: &ToastContext,
     ) -> Task<Routed> {
         let toast_id = self
             .showing()
-            .find(|notif| notif.announced_instrument() == Some(&reading.instrument))
+            .find(|notif| notif.announced_indicator() == Some(&sample.indicator))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
         self.serve(
-            ToastContent::level_announcement(reading, toast_id, context.clock.wall),
+            ToastContent::level_announcement(sample, toast_id, context.clock.wall),
             context,
         )
     }

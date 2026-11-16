@@ -36,7 +36,7 @@ use sottomano_toml_config::{Config, ConfigFile, LoadError, SecretPaths, screen_e
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    group_items::group_item::HoverFetch,
+    group_indicators::group_indicator::HoverFetch,
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu},
@@ -175,7 +175,7 @@ impl DesktopShell {
     fn measured_update(&mut self, message: Message) -> Task<Message> {
         self.clock = Clock::real();
         let hover_card_target_before = self.hover_card.target().cloned();
-        let hovered_before = self.hovered_reading_target();
+        let hovered_before = self.hovered_indicator_target();
         let heat_effect = switch_heat_effect(&message);
         let alert_rescan = alert_rescan_need(&message);
         let dispatched = self.dispatch_message(message);
@@ -194,10 +194,10 @@ impl DesktopShell {
                 .group_menus
                 .update(GroupMenuMessage::Closed);
         }
-        let hover_readings = if self.hovered_reading_target() == hovered_before {
+        let hover_indicators = if self.hovered_indicator_target() == hovered_before {
             Task::none()
         } else {
-            self.retarget_hover_readings()
+            self.retarget_hover_indicators()
         };
         let open_menu = self.open_group_menu().map(|topic| {
             self.group_menu_of(topic, self.hovered_output())
@@ -216,7 +216,7 @@ impl DesktopShell {
         Task::batch([
             dispatched,
             reheated,
-            hover_readings,
+            hover_indicators,
             widget_toasts,
             overlay_surfaces,
         ])
@@ -514,8 +514,8 @@ impl DesktopShell {
         let inspected_sections = self
             .widget_groups
             .group_menus
-            .inspected_instrument(*topic)
-            .map(|instrument_key| group_menu.row_hover_card(instrument_key, self.clock))
+            .inspected_indicator(*topic)
+            .map(|indicator_key| group_menu.row_hover_card(indicator_key, self.clock))
             .unwrap_or_default();
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()
@@ -562,12 +562,12 @@ impl DesktopShell {
                 .corner_radius_px,
         );
         match target {
-            HoverTarget::Instrument(instrument_key)
-                if instrument_key.group == WidgetGroupIdentity::sole(WidgetGroupFamily::Tray) =>
+            HoverTarget::Indicator(indicator_key)
+                if indicator_key.group == WidgetGroupIdentity::sole(WidgetGroupFamily::Tray) =>
             {
                 self.widget_groups
                     .tray_group
-                    .menu_panel_named(&instrument_key.name, &self.config, popup_corners)
+                    .menu_panel_named(&indicator_key.name, &self.config, popup_corners)
                     .map(|panel| {
                         panel.map(|tray_message| {
                             ShellInteraction::Group(WidgetGroupInteraction::Tray(tray_message))

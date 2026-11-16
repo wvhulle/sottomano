@@ -18,11 +18,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -63,10 +63,10 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
 }
 
 fn instance_power_switch<'a>(
-    row: GroupItem<'a>,
+    row: GroupIndicator<'a>,
     instance_daemon: InstanceDaemon,
     listing: &DaemonInstanceListing,
-) -> GroupItem<'a> {
+) -> GroupIndicator<'a> {
     let (switch_position, hint, run_change) = match listing.run_state {
         ContainerRunState::Running => (SwitchPosition::On, STOP_HINT, RunChange::Stop),
         ContainerRunState::Stopped => (SwitchPosition::Off, START_HINT, RunChange::Start),
@@ -115,7 +115,7 @@ impl<'a> IncusInstanceRow<'a> {
                 .or_else(|| self.instance.memory_in_use.map(approximate_memory_text))
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: label.map_or(ReadoutLabel::Unlabeled, ReadoutLabel::Labeled),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -168,7 +168,7 @@ struct IncusInstanceListingRow<'a> {
 impl<'a> IncusInstanceListingRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.listing.status_text.to_lowercase()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -207,7 +207,7 @@ struct UnreadableDaemonRow<'a> {
 impl<'a> UnreadableDaemonRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -215,7 +215,7 @@ impl<'a> UnreadableDaemonRow<'a> {
             ..ReadingRow::glyph_only(
                 self.instance_daemon.product_name(),
                 Phosphor::Package(Weight::Regular).into(),
-                ReadingDisplayState::Failed,
+                IndicatorState::Failed,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -375,9 +375,9 @@ impl IncusInstancesGroup {
                 if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
                     self.probe_availability(instance_daemon) == Some(Availability::Available)
                 }) {
-                    ReadingDisplayState::On
+                    IndicatorState::On
                 } else {
-                    ReadingDisplayState::Off
+                    IndicatorState::Off
                 },
             ),
             &self.expansion,
@@ -386,15 +386,15 @@ impl IncusInstancesGroup {
         )
     }
 
-    fn daemon_rows(&self, instance_daemon: InstanceDaemon) -> Vec<GroupItem<'_>> {
-        if let Some(detail_reading) = self.details.get(&instance_daemon)
-            && let Some(instances) = detail_reading.get()
+    fn daemon_rows(&self, instance_daemon: InstanceDaemon) -> Vec<GroupIndicator<'_>> {
+        if let Some(detail_indicator) = self.details.get(&instance_daemon)
+            && let Some(instances) = detail_indicator.get()
         {
             return instances
                 .details
                 .iter()
                 .map(|instance| {
-                    let row = GroupItem::reading(
+                    let row = GroupIndicator::sample(
                         IncusInstanceRow {
                             instance_daemon,
                             instance,
@@ -403,7 +403,7 @@ impl IncusInstancesGroup {
                     );
                     instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
                         Box::new(move |_| {
-                            detail_reading.hover_card_with(
+                            detail_indicator.hover_card_with(
                                 IncusInstanceRow {
                                     instance_daemon,
                                     instance,
@@ -415,11 +415,11 @@ impl IncusInstancesGroup {
                 })
                 .collect();
         }
-        let Some(listing_reading) = self.listings.get(&instance_daemon) else {
+        let Some(listing_indicator) = self.listings.get(&instance_daemon) else {
             return Vec::new();
         };
-        if let Some(read_failure) = listing_reading.fetch_failure() {
-            return vec![GroupItem::reading(
+        if let Some(read_failure) = listing_indicator.fetch_failure() {
+            return vec![GroupIndicator::sample(
                 UnreadableDaemonRow {
                     instance_daemon,
                     read_failure,
@@ -427,13 +427,13 @@ impl IncusInstancesGroup {
                 .reading_row(),
             )];
         }
-        listing_reading
+        listing_indicator
             .get()
             .map(|listings| listings.listings.as_slice())
             .unwrap_or_default()
             .iter()
             .map(|listing| {
-                let row = GroupItem::reading(
+                let row = GroupIndicator::sample(
                     IncusInstanceListingRow {
                         instance_daemon,
                         listing,
@@ -442,7 +442,7 @@ impl IncusInstancesGroup {
                 );
                 instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
                     move |_| {
-                        listing_reading.hover_card_with(
+                        listing_indicator.hover_card_with(
                             IncusInstanceListingRow {
                                 instance_daemon,
                                 listing,

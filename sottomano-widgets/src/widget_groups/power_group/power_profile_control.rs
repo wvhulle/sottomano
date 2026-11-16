@@ -21,7 +21,7 @@ use uom::si::{f64::Power, power::watt};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::slider_control::{Action, ControlMessage, SliderControl},
+    group_indicators::slider_control::{Action, ControlMessage, SliderControl},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widget_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
@@ -137,7 +137,7 @@ impl PowerProfileControl {
                 self.status.receive(delivery, clock);
                 if let Some(profile) = self.active_profile() {
                     self.control
-                        .update(ControlMessage::Reading(profile.position()));
+                        .update(ControlMessage::Sample(profile.position()));
                 }
                 self.recompute();
             }

@@ -16,16 +16,16 @@ use sottomano_widgets::{
 use crate::showcased_group::ShowcasedGroup;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::LoginSession(Box::new(session_readings().into_iter().fold(
+    ShowcasedGroup::LoginSession(Box::new(session_indicators().into_iter().fold(
         LoginSessionGroup::default(),
-        |mut group, reading| {
-            let _ = group.update(reading, clock);
+        |mut group, fixture_message| {
+            let _ = group.update(fixture_message, clock);
             group
         },
     )))
 }
 
-fn session_readings() -> [LoginSessionMessage; 2] {
+fn session_indicators() -> [LoginSessionMessage; 2] {
     [
         LoginSessionMessage::SystemFetched(SnapshotDelivery::live_push(Ok(
             OperatingSystemIdentity {

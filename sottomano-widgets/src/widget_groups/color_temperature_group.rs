@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod sun_follow_toggle;
 
 use std::ops::RangeInclusive;
@@ -19,8 +19,8 @@ use uom::si::thermodynamic_temperature::kelvin;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
+    group_indicators::{
+        group_indicator::GroupIndicator,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
     },
@@ -145,12 +145,12 @@ impl ColorTemperatureGroup {
         clock: Clock,
     ) -> Task<ColorTemperatureMessage> {
         match message {
-            ColorTemperatureMessage::ColorTemperature(reading) => {
-                self.gamma.receive(reading, clock);
+            ColorTemperatureMessage::ColorTemperature(sample) => {
+                self.gamma.receive(sample, clock);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
-                        .update(ControlMessage::Reading(percent_f(gamma.brightness)));
-                    self.warmth.update(ControlMessage::Reading(
+                        .update(ControlMessage::Sample(percent_f(gamma.brightness)));
+                    self.warmth.update(ControlMessage::Sample(
                         gamma.temperature.get::<kelvin>() as f32
                     ));
                 }
@@ -237,7 +237,7 @@ impl ColorTemperatureGroup {
         let mut rows = Vec::new();
         if gamma_available {
             rows.push(
-                GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
+                GroupIndicator::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
                     .with_hover_card(Box::new(move |_| {
                         self.gamma.hover_card_with(vec![Section::new(
                             "Setting",
@@ -252,7 +252,7 @@ impl ColorTemperatureGroup {
                     )),
             );
             rows.push(
-                GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
+                GroupIndicator::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
                     .with_hover_card(Box::new(move |_| {
                         self.gamma.hover_card_with(vec![Section::new(
                             "Setting",
@@ -264,9 +264,9 @@ impl ColorTemperatureGroup {
                     )),
             );
         }
-        if let Some(switch_reading) = self.auto.switch_reading(ServiceReadiness::Serving) {
+        if let Some(switch_indicator) = self.auto.switch_indicator(ServiceReadiness::Serving) {
             rows.push(
-                switch_reading
+                switch_indicator
                     .switch_item(ColorTemperatureInteraction::AutoPressed)
                     .with_hover_card(Box::new(move |_| {
                         self.auto.hover_card(ServiceReadiness::Serving)
@@ -280,7 +280,7 @@ impl ColorTemperatureGroup {
             WidgetGroupFamily::ColorTemperature,
             GroupSummary::glyph(
                 Phosphor::ThermometerHot(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             ColorTemperatureInteraction::Expansion,

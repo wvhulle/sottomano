@@ -8,7 +8,7 @@ use crate::{
         network_manager_proxies::{
             self, ActiveVpn, AddressBlock, LinkPhase, NmConnectionSwitch, VpnProfile,
         },
-        nm_readings,
+        nm_samples,
     },
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
@@ -196,7 +196,7 @@ impl SnapshotSource for NetworkManagerVpns {
         device_or_absent(
             system.clone(),
             network_manager_proxies::SERVICE,
-            move || nm_readings(system.clone(), WATCHED_VPN_PROPERTIES, read),
+            move || nm_samples(system.clone(), WATCHED_VPN_PROPERTIES, read),
         )
     }
 }

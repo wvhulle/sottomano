@@ -5,9 +5,8 @@ use sottomano_desktop_sources::{
 
 use super::speech_model_item::model_load_error_rows;
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
-        toggle_control::SwitchPosition,
+    group_indicators::{
+        indicator_state::IndicatorState, reading_row::ReadingRow, toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -50,7 +49,7 @@ impl From<&NotulistDictation> for SwitchPosition {
     }
 }
 
-pub fn notulist_dictation_reading_row(dictation: &NotulistDictation) -> ReadingRow<'_> {
+pub fn notulist_dictation_indicator(dictation: &NotulistDictation) -> ReadingRow<'_> {
     let glyph: IconGlyph = match dictation.phase {
         DictationPhase::LoadingModel => Phosphor::HourglassMedium(Weight::Regular),
         DictationPhase::Idle => Phosphor::Microphone(Weight::Regular),
@@ -60,10 +59,10 @@ pub fn notulist_dictation_reading_row(dictation: &NotulistDictation) -> ReadingR
     }
     .into();
     let state = match dictation.phase {
-        DictationPhase::Idle => ReadingDisplayState::Idle,
-        DictationPhase::Listening => ReadingDisplayState::Live,
-        DictationPhase::LoadingModel | DictationPhase::Finishing => ReadingDisplayState::Pending,
-        DictationPhase::StoppedByError(_) => ReadingDisplayState::Failed,
+        DictationPhase::Idle => IndicatorState::Idle,
+        DictationPhase::Listening => IndicatorState::Live,
+        DictationPhase::LoadingModel | DictationPhase::Finishing => IndicatorState::Pending,
+        DictationPhase::StoppedByError(_) => IndicatorState::Failed,
     };
     ReadingRow::glyph_only(
         NotulistDictation::NAME,

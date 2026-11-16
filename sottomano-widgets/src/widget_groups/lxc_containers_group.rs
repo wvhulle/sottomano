@@ -8,9 +8,9 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -36,7 +36,7 @@ impl<'a> LxcContainerListingRow<'a> {
     fn reading_row(self) -> ReadingRow<'a> {
         let listing = self.listing;
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(listing.run_state.label().to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -71,7 +71,7 @@ impl<'a> LxcContainerRow<'a> {
             ),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -143,7 +143,7 @@ impl ContainerFamily for LxcFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                reading: LxcContainerListingRow { listing }.reading_row(),
+                sample: LxcContainerListingRow { listing }.reading_row(),
                 power: container_power(listing),
             })
             .collect()
@@ -154,7 +154,7 @@ impl ContainerFamily for LxcFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                reading: LxcContainerRow { container }.reading_row(),
+                sample: LxcContainerRow { container }.reading_row(),
                 power: container_power(&container.listing),
             })
             .collect()

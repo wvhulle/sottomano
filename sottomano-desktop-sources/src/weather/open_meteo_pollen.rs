@@ -14,11 +14,11 @@ use crate::{
 
 #[derive(Deserialize)]
 struct AirQuality {
-    current: PollenReadings,
+    current: PollenSamples,
 }
 
 #[derive(Deserialize)]
-pub struct PollenReadings {
+pub struct PollenSamples {
     #[serde(rename = "alder_pollen")]
     alder: Option<f64>,
     #[serde(rename = "birch_pollen")]
@@ -33,7 +33,7 @@ pub struct PollenReadings {
     ragweed: Option<f64>,
 }
 
-impl PollenReadings {
+impl PollenSamples {
     fn grains_per_cubic_metre(&self, allergen: Allergen) -> Option<f64> {
         match allergen {
             Allergen::Alder => self.alder,
@@ -90,15 +90,15 @@ pub struct Pollen {
     pub concentrations: Vec<AllergenConcentration>,
 }
 
-impl From<&PollenReadings> for Pollen {
-    fn from(readings: &PollenReadings) -> Self {
+impl From<&PollenSamples> for Pollen {
+    fn from(samples: &PollenSamples) -> Self {
         Self {
             concentrations: Allergen::ALL
                 .into_iter()
                 .filter_map(|allergen| {
                     Some(AllergenConcentration {
                         allergen,
-                        grains_per_cubic_metre: readings.grains_per_cubic_metre(allergen)?,
+                        grains_per_cubic_metre: samples.grains_per_cubic_metre(allergen)?,
                     })
                 })
                 .collect(),

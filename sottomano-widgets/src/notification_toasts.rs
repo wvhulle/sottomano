@@ -52,7 +52,7 @@ use crate::{
         widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
-        announced_level::LevelReading, ongoing_toast::OngoingKey,
+        announced_level::LevelToastRequest, ongoing_toast::OngoingKey,
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
     },
 };
@@ -149,7 +149,7 @@ pub struct NotificationLayer<Routed> {
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
-    previous_levels: Vec<LevelReading<WidgetGroupInteraction>>,
+    previous_levels: Vec<LevelToastRequest<WidgetGroupInteraction>>,
 }
 
 impl<Routed> Default for NotificationLayer<Routed> {

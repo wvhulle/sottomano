@@ -1,13 +1,13 @@
 use chrono::Locale;
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
-mod ci_run_readings;
+use crate::group_indicators::indicator_state::IndicatorState;
+mod ci_run_indicators;
 mod ci_runner_watches;
 
 use std::borrow::Cow;
 
-pub use ci_run_readings::CiRunnerKind;
-use ci_run_readings::{CiRunnerFailureRow, CiTaskRow, WatchedCiRunner};
+pub use ci_run_indicators::CiRunnerKind;
+use ci_run_indicators::{CiRunnerFailureRow, CiTaskRow, WatchedCiRunner};
 pub use ci_runner_watches::{CiRunnerSnapshot, CiRunnerWatches};
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
@@ -25,7 +25,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -228,7 +228,7 @@ impl CiRunsGroup {
             WidgetGroupTitle::Named(ci_runs_title(total_runs).into()),
             GroupSummary::glyph(
                 Phosphor::FlowArrow(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             CiRunsInteraction::Expansion,
@@ -240,8 +240,8 @@ impl CiRunsGroup {
         &'a self,
         failure_row: CiRunnerFailureRow<'a>,
         failure_reference: CiRunnerReference,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(failure_row.reading_row()).with_hover_card(Box::new(move |_| {
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(failure_row.reading_row()).with_hover_card(Box::new(move |_| {
             self.runner_hover_card(&failure_reference, |watched_runner| {
                 CiRunnerFailureRow::failing_runner(watched_runner)
                     .map(|failing_row| failing_row.hover_card())
@@ -256,8 +256,8 @@ impl CiRunsGroup {
         task_reference: CiRunnerReference,
         clock: Clock,
         locale: Locale,
-    ) -> GroupItem<'a> {
-        let task_item = GroupItem::reading(
+    ) -> GroupIndicator<'a> {
+        let task_item = GroupIndicator::sample(
             CiTaskRow {
                 kind: runner_kind,
                 task,

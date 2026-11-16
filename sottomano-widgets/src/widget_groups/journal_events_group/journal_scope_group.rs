@@ -6,8 +6,8 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
         reading_row::PanelVisibility,
     },
     widget_groups::{
@@ -15,19 +15,19 @@ use crate::{
         journal_events_group::{
             JournalEventsInteraction,
             coredump_log::{
-                COREDUMP_LOG_GLYPH, coredump_log_panel_visibility, coredump_log_reading_row,
+                COREDUMP_LOG_GLYPH, coredump_log_indicator, coredump_log_panel_visibility,
                 coredump_log_state,
             },
             kernel_error_log::{
-                KERNEL_LOG_GLYPH, kernel_log_panel_visibility, kernel_log_reading_row,
+                KERNEL_LOG_GLYPH, kernel_log_indicator, kernel_log_panel_visibility,
                 kernel_log_state,
             },
             oom_kill_log::{
-                OOM_KILL_LOG_GLYPH, oom_kill_log_panel_visibility, oom_kill_log_reading_row,
+                OOM_KILL_LOG_GLYPH, oom_kill_log_indicator, oom_kill_log_panel_visibility,
                 oom_kill_log_state,
             },
             service_error_log::{
-                SERVICE_ERRORS_GLYPH, service_errors_panel_visibility, service_errors_reading_row,
+                SERVICE_ERRORS_GLYPH, service_errors_indicator, service_errors_panel_visibility,
                 service_errors_state,
             },
         },
@@ -83,20 +83,20 @@ impl JournalScopeGroup {
 
     fn push_kernel_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {
         match &self.kernel {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let kernel_row = kernel_log_reading_row(held_snapshot);
+                let kernel_row = kernel_log_indicator(held_snapshot);
                 if kernel_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.kernel_log_item(config, kernel_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let kernel_row = troubled_snapshot.shown_over(
-                    kernel_log_reading_row(&troubled_snapshot.held_snapshot),
+                    kernel_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if kernel_row.panel_visibility == PanelVisibility::Shown {
@@ -112,10 +112,14 @@ impl JournalScopeGroup {
         }
     }
 
-    fn push_service_errors_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, config: &'a Config) {
+    fn push_service_errors_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupIndicator<'a>>,
+        config: &'a Config,
+    ) {
         match &self.service_errors {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let service_errors_row = service_errors_reading_row(held_snapshot);
+                let service_errors_row = service_errors_indicator(held_snapshot);
                 if service_errors_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.service_errors_item(service_errors_row).on_press(
                         TerminalCommand::JOURNAL_PRESS_HINT,
@@ -128,7 +132,7 @@ impl JournalScopeGroup {
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let service_errors_row = service_errors_reading_row(held_snapshot);
+                let service_errors_row = service_errors_indicator(held_snapshot);
                 if service_errors_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.service_errors_item(service_errors_row).on_press(
                         TerminalCommand::JOURNAL_PRESS_HINT,
@@ -150,20 +154,20 @@ impl JournalScopeGroup {
 
     fn push_coredump_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {
         match &self.coredumps {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let coredump_row = coredump_log_reading_row(held_snapshot);
+                let coredump_row = coredump_log_indicator(held_snapshot);
                 if coredump_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.coredump_log_item(config, coredump_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let coredump_row = troubled_snapshot.shown_over(
-                    coredump_log_reading_row(&troubled_snapshot.held_snapshot),
+                    coredump_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if coredump_row.panel_visibility == PanelVisibility::Shown {
@@ -184,20 +188,20 @@ impl JournalScopeGroup {
 
     fn push_oom_kill_log_rows<'a>(
         &'a self,
-        rows: &mut Vec<GroupItem<'a>>,
+        rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
         config: &'a Config,
     ) {
         match &self.oom_kills {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let oom_kill_row = oom_kill_log_reading_row(held_snapshot);
+                let oom_kill_row = oom_kill_log_indicator(held_snapshot);
                 if oom_kill_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.oom_kill_log_item(config, oom_kill_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let oom_kill_row = troubled_snapshot.shown_over(
-                    oom_kill_log_reading_row(&troubled_snapshot.held_snapshot),
+                    oom_kill_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if oom_kill_row.panel_visibility == PanelVisibility::Shown {
@@ -216,7 +220,7 @@ impl JournalScopeGroup {
         }
     }
 
-    fn journal_kind_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 4] {
+    fn journal_kind_states(&self, clock: Clock) -> [Option<IndicatorState>; 4] {
         [
             self.kernel.shown_state(
                 |snapshot| kernel_log_state(snapshot),
@@ -250,11 +254,11 @@ impl JournalScopeGroup {
         }
     }
 
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
+    fn state(&self, clock: Clock) -> IndicatorState {
         self.journal_kind_states(clock)
             .into_iter()
             .flatten()
-            .map(ReadingDisplayState::severity)
+            .map(IndicatorState::severity)
             .max()
             .unwrap_or_default()
             .into()

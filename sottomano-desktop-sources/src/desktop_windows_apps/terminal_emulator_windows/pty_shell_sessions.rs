@@ -7,7 +7,7 @@ use procfs::process::Process as Proc;
 use rustix::{fs::stat as file_status, process::getuid};
 
 use super::{
-    TerminalLabelReading, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
+    TerminalLabelSource, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
     shell_prompt_title::ShellState,
     terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
 };
@@ -204,7 +204,7 @@ pub fn terminal_windows(terminal_pid: i32, niri_window_count: usize) -> Vec<Term
             },
             shown_pid: session.shell_pid,
             pids: vec![session.shell_pid],
-            label_reading: TerminalLabelReading::ShellSession(session),
+            label_source: TerminalLabelSource::ShellSession(session),
         })
         .collect()
 }

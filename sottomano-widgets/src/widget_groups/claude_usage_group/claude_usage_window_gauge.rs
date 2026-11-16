@@ -12,21 +12,21 @@ use uom::si::ratio::percent;
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
-pub fn claude_usage_windows_reading_row(
+pub fn claude_usage_windows_indicator(
     windows: &ClaudeUsageWindows,
     clock: Clock,
 ) -> ReadingRow<'_> {
@@ -41,7 +41,7 @@ pub fn claude_usage_windows_reading_row(
         PanelVisibility::Hidden
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged {
                 fill: fullest_used,
@@ -49,9 +49,9 @@ pub fn claude_usage_windows_reading_row(
             },
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         panel_visibility,
         ..ReadingRow::glyph_only(

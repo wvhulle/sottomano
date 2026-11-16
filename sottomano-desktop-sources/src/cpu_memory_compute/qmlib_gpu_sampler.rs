@@ -25,7 +25,7 @@ use uom::si::{
 
 use super::{
     memory_usage::read_meminfo,
-    pci_gpu_readings::{
+    pci_gpu_samples::{
         DiscoveredGpu, Error, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuProcess,
         GpuProcesses, GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, GpuVendor, PciBusId,
         SharedGpuMemory, VramUsage,

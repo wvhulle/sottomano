@@ -10,8 +10,8 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_state::IndicatorState, reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -33,7 +33,7 @@ pub enum RowPower<PowerRequest> {
 }
 
 pub struct FamilyRow<'a, Family: ContainerFamily> {
-    pub reading: ReadingRow<'a>,
+    pub sample: ReadingRow<'a>,
     pub power: RowPower<Family::PowerRequest>,
 }
 
@@ -186,9 +186,9 @@ where
             .unwrap_or_default()
     }
 
-    fn group_rows(&self) -> Vec<GroupItem<'_>> {
+    fn group_rows(&self) -> Vec<GroupIndicator<'_>> {
         let detail_rows = self.detail_rows();
-        let mut group_rows: Vec<GroupItem<'_>> = if detail_rows.is_empty() {
+        let mut group_rows: Vec<GroupIndicator<'_>> = if detail_rows.is_empty() {
             self.listing_rows()
                 .into_iter()
                 .map(|row| switchable_item(stamped_by_source(&self.listings, row)))
@@ -213,8 +213,8 @@ where
             GroupSummary::glyph(
                 Family::group_glyph(),
                 match self.probe.get() {
-                    Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
-                    Some(_) | None => ReadingDisplayState::Off,
+                    Some(probe) if Family::running_count(probe) > 0 => IndicatorState::On,
+                    Some(_) | None => IndicatorState::Off,
                 },
             ),
             &self.expansion,
@@ -235,21 +235,21 @@ fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
     source: &'a SubscribedSnapshot<Source>,
     row: FamilyRow<'a, Family>,
 ) -> FamilyRow<'a, Family> {
-    let row_card = row.reading.card;
+    let row_card = row.sample.card;
     FamilyRow {
-        reading: ReadingRow {
+        sample: ReadingRow {
             card: Box::new(move |clock| source.hover_card_with(row_card(clock))),
-            ..row.reading
+            ..row.sample
         },
         ..row
     }
 }
 
-fn switchable_item<Family: ContainerFamily>(row: FamilyRow<'_, Family>) -> GroupItem<'_>
+fn switchable_item<Family: ContainerFamily>(row: FamilyRow<'_, Family>) -> GroupIndicator<'_>
 where
     ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
 {
-    let item = GroupItem::reading(row.reading);
+    let item = GroupIndicator::sample(row.sample);
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
@@ -289,7 +289,7 @@ mod tests {
     use super::{ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction, RowPower};
     use crate::{
         clock::Clock,
-        hover_cards::{HoverTarget, InstrumentKey, hover_card_body::Section},
+        hover_cards::{HoverTarget, IndicatorKey, hover_card_body::Section},
         widget_groups::{
             lxc_containers_group::LxcFamily,
             virtualbox_machines_group::{VirtualBoxMachinesGroup, VirtualBoxMachinesMessage},
@@ -317,13 +317,13 @@ mod tests {
     where
         ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
     {
-        let instrument = HoverTarget::Instrument(InstrumentKey {
+        let indicator = HoverTarget::Indicator(IndicatorKey {
             group: WidgetGroupIdentity::sole(Family::FAMILY),
             name: row_name.into(),
         });
         group
             .group_content()
-            .hover_card(&instrument, clock)
+            .hover_card(&indicator, clock)
             .map(|row_card| row_card.sections)
             .unwrap_or_default()
     }

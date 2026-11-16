@@ -1,4 +1,4 @@
-mod port_link_reading;
+mod port_link_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::toggle_ethernet_port;
@@ -13,20 +13,20 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use self::port_link_reading::{
-    PortConnectionSwitch, PortLinkReading, PortMarking, link_detail_sections,
+use self::port_link_indicator::{
+    PortConnectionSwitch, PortLinkIndicator, PortMarking, link_detail_sections,
     port_identity_sections,
 };
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
         interface_address_sections::{
-            AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
+            AddressFamily, InterfaceAddressIndicator, InterfaceDnsIndicator, dns_server_sections,
             family_address_sections, family_router_sections,
         },
         interface_group_titles::AttachmentTitles,
@@ -210,11 +210,11 @@ impl EthernetPortsGroup {
     }
 
     fn port_link_hover_card(&self, port_state: &PortState) -> Vec<Section> {
-        let link_reading = PortLinkReading {
+        let link_indicator = PortLinkIndicator {
             port_state,
             marking: self.port_marking(port_state),
         };
-        let mut sections = self.ethernet.hover_card_with(link_reading.hover_card());
+        let mut sections = self.ethernet.hover_card_with(link_indicator.hover_card());
         sections.extend(self.port_detail_sections(&port_state.name, port_identity_sections));
         sections
     }
@@ -267,8 +267,8 @@ impl EthernetPortsGroup {
         let expansion = self.expansions.get(&port_state.name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::ShareNetwork(Weight::Regular).into(),
-            GroupItem::reading(
-                PortLinkReading {
+            GroupIndicator::sample(
+                PortLinkIndicator {
                     port_state,
                     marking: self.port_marking(port_state),
                 }
@@ -282,7 +282,7 @@ impl EthernetPortsGroup {
         );
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
-        let connection_item = GroupItem::reading(connection_switch.reading_row())
+        let connection_item = GroupIndicator::sample(connection_switch.reading_row())
             .on_switch_press(
                 port_state.link_state,
                 connection_press_does,
@@ -297,14 +297,14 @@ impl EthernetPortsGroup {
                 [AddressFamily::Ipv4, AddressFamily::Ipv6]
                     .into_iter()
                     .map(|family| {
-                        GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                        GroupIndicator::sample(InterfaceAddressIndicator { family }.reading_row())
                             .with_hover_card(Box::new(move |_| {
                                 self.interface_address_hover_card(port_state, family)
                             }))
                     }),
             );
             rows.push(
-                GroupItem::reading(InterfaceDnsReading::reading_row())
+                GroupIndicator::sample(InterfaceDnsIndicator::reading_row())
                     .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state))),
             );
         }

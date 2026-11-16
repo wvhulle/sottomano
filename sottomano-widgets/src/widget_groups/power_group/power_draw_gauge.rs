@@ -4,10 +4,10 @@ use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
 use uom::si::{f64::Power, power::watt};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, dictionary_table},
     widgets::{
@@ -93,17 +93,17 @@ impl PowerDraw {
             Phosphor::PlugsConnected(Weight::Regular).into()
         };
         let state = if self.status != ChargeStatus::Discharging {
-            ReadingDisplayState::Idle
+            IndicatorState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
-            ReadingDisplayState::Critical
+            IndicatorState::Critical
         } else if self.power > Power::new::<watt>(POWER_WARN_W) {
-            ReadingDisplayState::Warning
+            IndicatorState::Warning
         } else {
-            ReadingDisplayState::Idle
+            IndicatorState::Idle
         };
         let fill = self.power / Power::new::<watt>(POWER_GAUGE_MAX_W);
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge: ReadoutGauge::Gauged { fill, live: fill },
                 badge: ReadoutBadge::Unbadged,

@@ -3,10 +3,10 @@ use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, S
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
@@ -66,7 +66,7 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
 impl<'a> ContextFill<'a> {
     pub fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge: ReadoutGauge::Gauged {
                     fill: self.fullest,
@@ -77,7 +77,7 @@ impl<'a> ContextFill<'a> {
             ..ReadingRow::glyph_only(
                 format!("{} context fill", self.server),
                 Phosphor::Scroll(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

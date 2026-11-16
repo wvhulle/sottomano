@@ -8,9 +8,9 @@ use sottomano_toml_config::severity::Severity;
 
 use super::core_grid_sections::cpu_ranges;
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -129,7 +129,7 @@ impl<'a> ClockLimitCauses<'a> {
             None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -152,7 +152,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::group_items::reading_row::PanelVisibility;
+    use crate::group_indicators::reading_row::PanelVisibility;
 
     fn clock_with(causes: [Vec<FrequencyLimitCause>; 4]) -> CpuClock {
         CpuClock {

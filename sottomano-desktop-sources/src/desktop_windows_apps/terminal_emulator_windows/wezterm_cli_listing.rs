@@ -6,7 +6,7 @@ use procfs::process::Process as Proc;
 use serde::Deserialize;
 
 use super::{
-    TerminalLabelReading, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
+    TerminalLabelSource, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
     pty_shell_sessions::{child_pids, shell_sessions},
 };
 
@@ -123,7 +123,7 @@ pub fn terminal_windows(wezterm_pid: i32) -> io::Result<Vec<TerminalWindow>> {
                     })
                     .map(|window_session| window_session.shell_pid)
                     .collect(),
-                label_reading: TerminalLabelReading::ShellSession(session.clone()),
+                label_source: TerminalLabelSource::ShellSession(session.clone()),
             })
         })
         .collect())

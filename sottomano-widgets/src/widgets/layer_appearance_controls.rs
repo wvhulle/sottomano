@@ -8,9 +8,9 @@ use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     background_work::logged_failure_task,
     desktop_panels::region_reporter::BackdropBlur,
-    group_items::{
+    group_indicators::{
         aligned_quantity::AlignedQuantity,
-        group_item::GroupItem,
+        group_indicator::GroupIndicator,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -192,15 +192,15 @@ impl LayerAppearanceControls {
         self.shadow_casting = appearance.frame.shadow.casting;
         self.outline_tracing = appearance.frame.outline.tracing;
         self.opacity
-            .update(ControlMessage::Reading(appearance.frame.opacity * 100.0));
+            .update(ControlMessage::Sample(appearance.frame.opacity * 100.0));
         self.corner_radius
-            .update(ControlMessage::Reading(appearance.frame.corner_radius_px));
+            .update(ControlMessage::Sample(appearance.frame.corner_radius_px));
         self.shadow_softness
-            .update(ControlMessage::Reading(appearance.frame.shadow.softness_px));
-        self.shadow_opacity.update(ControlMessage::Reading(
+            .update(ControlMessage::Sample(appearance.frame.shadow.softness_px));
+        self.shadow_opacity.update(ControlMessage::Sample(
             appearance.frame.shadow.opacity * 100.0,
         ));
-        self.outline_opacity.update(ControlMessage::Reading(
+        self.outline_opacity.update(ControlMessage::Sample(
             appearance.frame.outline.opacity * 100.0,
         ));
     }
@@ -335,40 +335,40 @@ impl LayerAppearanceControls {
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,
-    ) -> [GroupItem<'a>; 8] {
+    ) -> [GroupIndicator<'a>; 8] {
         [
-            GroupItem::slider(&self.opacity, config, move |control| {
+            GroupIndicator::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))
             })
             .aligned_as(AlignedQuantity::Opacity),
-            GroupItem::slider(&self.corner_radius, config, move |control| {
+            GroupIndicator::slider(&self.corner_radius, config, move |control| {
                 lift(AppearanceMessage::CornerRadius(control))
             })
             .aligned_as(AlignedQuantity::CornerRadius),
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 blur_toggle(self.backdrop_blur),
                 lift(AppearanceMessage::ToggleBlur),
             )
             .aligned_as(AlignedQuantity::Blur),
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 shadow_toggle(self.shadow_casting),
                 lift(AppearanceMessage::ToggleShadow),
             )
             .aligned_as(AlignedQuantity::ShadowCast),
-            GroupItem::slider(&self.shadow_softness, config, move |control| {
+            GroupIndicator::slider(&self.shadow_softness, config, move |control| {
                 lift(AppearanceMessage::ShadowSoftness(control))
             })
             .aligned_as(AlignedQuantity::ShadowSoftness),
-            GroupItem::slider(&self.shadow_opacity, config, move |control| {
+            GroupIndicator::slider(&self.shadow_opacity, config, move |control| {
                 lift(AppearanceMessage::ShadowOpacity(control))
             })
             .aligned_as(AlignedQuantity::ShadowOpacity),
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 outline_toggle(self.outline_tracing),
                 lift(AppearanceMessage::ToggleOutline),
             )
             .aligned_as(AlignedQuantity::Outline),
-            GroupItem::slider(&self.outline_opacity, config, move |control| {
+            GroupIndicator::slider(&self.outline_opacity, config, move |control| {
                 lift(AppearanceMessage::OutlineOpacity(control))
             })
             .aligned_as(AlignedQuantity::OutlineOpacity),
@@ -386,7 +386,7 @@ mod tests {
     use super::{AppearanceMessage, LayerAppearanceControls};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
-        group_items::slider_control::ControlMessage,
+        group_indicators::slider_control::ControlMessage,
         widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
     };
 

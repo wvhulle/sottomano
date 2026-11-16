@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod context_fill_gauge;
 mod generation_rate_label;
 mod gguf_model_card_sections;
@@ -21,7 +21,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
+    group_indicators::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
     hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
@@ -157,7 +157,7 @@ impl LlamaServerGroup {
         }
         let Some(repository) = self
             .gguf_card
-            .reading()
+            .sample()
             .and_then(GgufModelCard::base_model_repository)
             .map(str::to_owned)
         else {
@@ -249,7 +249,7 @@ impl LlamaServerGroup {
             WidgetGroupFamily::LlamaServer,
             GroupSummary::glyph(
                 Phosphor::Robot(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             LlamaServerInteraction::Expansion,

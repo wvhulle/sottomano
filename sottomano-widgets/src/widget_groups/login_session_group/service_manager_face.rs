@@ -1,7 +1,7 @@
 use sottomano_desktop_sources::systemd_units_journal::user_service_manager::UserServiceManager;
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         localized_time::LocalizedTimeFormat,
@@ -18,7 +18,7 @@ impl ServiceManagerFace {
         ReadingRow::glyph_only(
             "Service manager",
             Phosphor::GearSix(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Self::hover_card()),
         )
     }

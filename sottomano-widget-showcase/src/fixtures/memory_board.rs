@@ -38,7 +38,7 @@ const GROWING_TICK: u32 = 2;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
-    for message in memory_readings(0) {
+    for message in memory_indicators(0) {
         let _ = group.update(message, clock);
     }
     let _ = group.update(
@@ -50,7 +50,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    memory_readings(tick)
+    memory_indicators(tick)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
             &MemoryBoardInteraction::StartMemoryProcessesFetch,
@@ -68,7 +68,7 @@ fn polled_every(seconds: u64) -> DeliveryCadence {
     DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(seconds)))
 }
 
-fn memory_readings(tick: u32) -> Vec<MemoryBoardMessage> {
+fn memory_indicators(tick: u32) -> Vec<MemoryBoardMessage> {
     vec![
         MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
             Ok(Memory {

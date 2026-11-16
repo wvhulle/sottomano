@@ -24,7 +24,7 @@ pub const SPOTIFY_BUS: &str = "org.mpris.MediaPlayer2.spotify";
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MediaGroup::default();
     let _ = group.update(
-        MediaMessage::Reading(SnapshotDelivery::live_push(Ok(vec![
+        MediaMessage::Sample(SnapshotDelivery::live_push(Ok(vec![
             now_playing(clock),
             paused_video(clock),
         ]))),
@@ -32,7 +32,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     );
     if let Some(query) = now_playing(clock).lyrics_query() {
         let _ = group.update(
-            MediaMessage::LyricsReading {
+            MediaMessage::LyricsIndicator {
                 query,
                 delivery: SnapshotDelivery::single_read(Ok(low_tide_lyrics())),
             },

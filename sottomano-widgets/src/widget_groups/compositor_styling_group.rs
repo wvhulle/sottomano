@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 pub mod sqlite_compositor_styling;
 pub mod switch_heat_borders;
 
@@ -21,9 +21,9 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
+    group_indicators::{
         aligned_quantity::AlignedQuantity,
-        group_item::GroupItem,
+        group_indicator::GroupIndicator,
         slider_control::{
             Action as SliderAction, ControlMessage, ControlWriteFailure, SliderControl,
         },
@@ -237,11 +237,11 @@ impl CompositorStylingGroup {
 
     fn adopt_styling(&mut self, styling: CompositorStyling) {
         self.blur_depth = styling.blur_depth;
-        self.corner_radius.update(ControlMessage::Reading(
+        self.corner_radius.update(ControlMessage::Sample(
             styling.layout.window_corner_radius_px,
         ));
         self.gaps
-            .update(ControlMessage::Reading(styling.layout.gaps_px));
+            .update(ControlMessage::Sample(styling.layout.gaps_px));
     }
 
     fn adopt_loaded_styling(
@@ -287,7 +287,10 @@ impl CompositorStylingGroup {
         }
     }
 
-    fn with_unwritable_rules_warning<'a>(&'a self, styling_item: GroupItem<'a>) -> GroupItem<'a> {
+    fn with_unwritable_rules_warning<'a>(
+        &'a self,
+        styling_item: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
         if self.rules_file.unwritable().is_none() {
             return styling_item;
         }
@@ -364,7 +367,7 @@ impl CompositorStylingGroup {
         let styling_items = [
             (
                 StylingControl::WindowCornerRadius,
-                GroupItem::slider(
+                GroupIndicator::slider(
                     &self.corner_radius,
                     config,
                     CompositorStylingMessage::CornerRadius,
@@ -373,18 +376,18 @@ impl CompositorStylingGroup {
             ),
             (
                 StylingControl::WindowGaps,
-                GroupItem::slider(&self.gaps, config, CompositorStylingMessage::Gaps),
+                GroupIndicator::slider(&self.gaps, config, CompositorStylingMessage::Gaps),
             ),
             (
                 StylingControl::ShellBlurDepth,
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     xray_toggle(self.blur_depth),
                     CompositorStylingMessage::ToggleXray,
                 ),
             ),
             (
                 StylingControl::SwitchHeatBorders,
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     self.switch_heat.toggle(),
                     CompositorStylingMessage::ToggleSwitchHeat,
                 ),
@@ -394,7 +397,7 @@ impl CompositorStylingGroup {
             WidgetGroupFamily::CompositorStyling,
             GroupSummary::glyph(
                 compositor_face(self.rules_file.compositor()),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             CompositorStylingMessage::Expansion,

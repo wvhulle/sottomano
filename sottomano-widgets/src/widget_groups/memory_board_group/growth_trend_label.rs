@@ -9,15 +9,15 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_durations::duration_text,
         localized_quantities::Quantity,
-        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list},
+        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -43,26 +43,26 @@ fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (Strin
     )
 }
 
-pub fn memory_growth_reading_row(growth: &MemoryGrowth, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_growth_indicator(growth: &MemoryGrowth, locale: Locale) -> ReadingRow<'_> {
     let label = growth.used_per_minute.map_or_else(
         || "steady".to_owned(),
         |growth_per_minute| growth_rate_text(growth_per_minute, locale),
     );
     let toast_body = growth_toast_body(growth, locale);
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(label),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Warning,
                 summary_text: "RAM filling fast",
                 body: toast_body.map_or(ToastBody::Bodiless, ToastBody::Text),
                 progress: ToastProgress::Unmeasured,
             },
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         ..ReadingRow::glyph_only(
             MemoryGrowth::NAME,
@@ -129,8 +129,8 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::*;
-    use crate::group_items::{
-        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    use crate::group_indicators::{
+        group_indicator::indicator_toast_severity, indicator_state::IndicatorState,
     };
 
     fn growth_towards(
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn a_steady_ram_is_quiet() {
         let steady = growth_towards(None, Severity::Normal);
-        let steady_row = memory_growth_reading_row(&steady, Locale::en_US);
-        assert_eq!(steady_row.shown_state(), ReadingDisplayState::Idle);
+        let steady_row = memory_growth_indicator(&steady, Locale::en_US);
+        assert_eq!(steady_row.shown_state(), IndicatorState::Idle);
         assert_eq!(
             steady_row.readout.label,
             ReadoutLabel::Labeled("steady".to_owned())
@@ -164,27 +164,27 @@ mod tests {
     #[test]
     fn a_near_projection_toasts_from_warning() {
         assert_eq!(
-            reading_toast_severity(&memory_growth_reading_row(
+            indicator_toast_severity(&memory_growth_indicator(
                 &growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
                 Locale::default(),
             )),
             Some(Severity::Warning)
         );
         assert_eq!(
-            memory_growth_reading_row(
+            memory_growth_indicator(
                 &growth_towards(Some(Duration::from_secs(30)), Severity::Critical),
                 Locale::default()
             )
             .shown_state(),
-            ReadingDisplayState::Critical
+            IndicatorState::Critical
         );
         assert_eq!(
-            memory_growth_reading_row(
+            memory_growth_indicator(
                 &growth_towards(Some(Duration::from_secs(3_600)), Severity::Normal),
                 Locale::default()
             )
             .shown_state(),
-            ReadingDisplayState::Idle
+            IndicatorState::Idle
         );
     }
 

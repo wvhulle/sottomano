@@ -9,16 +9,16 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
@@ -37,7 +37,7 @@ pub fn copilot_ccusage_panel_visibility(ccusage: &CopilotCcusage) -> PanelVisibi
     }
 }
 
-pub fn copilot_ccusage_reading_row(ccusage: &CopilotCcusage, clock: Clock) -> ReadingRow<'_> {
+pub fn copilot_ccusage_indicator(ccusage: &CopilotCcusage, clock: Clock) -> ReadingRow<'_> {
     let label = if ccusage.period.usage.cost.is_positive() {
         format!("{} cli", spend_text(&ccusage.period.usage.cost))
     } else {
@@ -48,14 +48,14 @@ pub fn copilot_ccusage_reading_row(ccusage: &CopilotCcusage, clock: Clock) -> Re
         .unwrap_or_else(|| level_from_cost(&ccusage.period.usage.cost))
         .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(label),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows: quotas,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         panel_visibility: copilot_ccusage_panel_visibility(ccusage),
         ..ReadingRow::glyph_only(

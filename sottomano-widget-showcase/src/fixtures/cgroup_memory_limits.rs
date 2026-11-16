@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     cgroup_memory_limits::{LimitedCgroup, LimitedCgroups},
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     system_protocol_clients::sysfs_cgroup_memory::{
-        CgroupMemoryReading, MemoryBound, MemoryEventCounts,
+        CgroupMemorySample, MemoryBound, MemoryEventCounts,
     },
 };
 use sottomano_widgets::{
@@ -24,7 +24,7 @@ fn ci_runners_near_their_throttle_mark() -> LimitedCgroup {
     LimitedCgroup {
         unit_name: "ci-runners.slice".to_owned(),
         cgroup_path: HOVERED_CGROUP_PATH.to_owned(),
-        memory: CgroupMemoryReading {
+        memory: CgroupMemorySample {
             current: ByteSize::mib(9_830),
             high: MemoryBound::Bytes(ByteSize::gib(10)),
             max: MemoryBound::Bytes(ByteSize::gib(12)),
@@ -44,7 +44,7 @@ fn nix_daemon_building() -> LimitedCgroup {
     LimitedCgroup {
         unit_name: "nix-daemon.service".to_owned(),
         cgroup_path: "/system.slice/nix-daemon.service".to_owned(),
-        memory: CgroupMemoryReading {
+        memory: CgroupMemorySample {
             current: ByteSize::mib(3_460),
             high: MemoryBound::Bytes(ByteSize::gib(14)),
             max: MemoryBound::Unbounded,
@@ -60,7 +60,7 @@ fn guest_machines() -> LimitedCgroup {
     LimitedCgroup {
         unit_name: "machine.slice".to_owned(),
         cgroup_path: "/machine.slice".to_owned(),
-        memory: CgroupMemoryReading {
+        memory: CgroupMemorySample {
             current: ByteSize::mib(940),
             high: MemoryBound::Unbounded,
             max: MemoryBound::Unbounded,

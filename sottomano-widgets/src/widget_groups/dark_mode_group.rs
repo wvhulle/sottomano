@@ -17,7 +17,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 use tokio::time::sleep;
-use umbra_dark_mode::dark_mode_reading_row;
+use umbra_dark_mode::dark_mode_indicator;
 
 use self::{
     offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
@@ -26,9 +26,9 @@ use self::{
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
@@ -232,7 +232,7 @@ impl DarkModeGroup {
                     let minutes =
                         time_delta_to_minutes(saved.sun_event_offsets.offset_for_mode(edge));
                     self.offset_slider_for_mut(edge)
-                        .update(ControlMessage::Reading(minutes));
+                        .update(ControlMessage::Sample(minutes));
                 }
                 Task::none()
             }
@@ -333,7 +333,7 @@ impl DarkModeGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let offset_slider = |edge| {
-            GroupItem::slider(
+            GroupIndicator::slider(
                 self.offset_slider_for(edge),
                 config,
                 DarkModeInteraction::OffsetSlider.with(edge),
@@ -341,9 +341,9 @@ impl DarkModeGroup {
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
         let mut rows = Vec::new();
-        match self.mode_toggle.subscribed_reading() {
+        match self.mode_toggle.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let mode_row = dark_mode_reading_row(held_snapshot);
+                let mode_row = dark_mode_indicator(held_snapshot);
                 if mode_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.mode_toggle_item(mode_row).on_switch_press(
                         held_snapshot.switch_position(),
@@ -355,7 +355,7 @@ impl DarkModeGroup {
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let mode_row =
-                    troubled_snapshot.shown_over(dark_mode_reading_row(held_snapshot), clock);
+                    troubled_snapshot.shown_over(dark_mode_indicator(held_snapshot), clock);
                 if mode_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.mode_toggle_item(mode_row).on_switch_press(
                         held_snapshot.switch_position(),
@@ -371,7 +371,7 @@ impl DarkModeGroup {
         }
         if self.mode_toggle.snapshot().is_some() {
             rows.push(
-                GroupItem::reading(self.auto_switch_toggle.reading_row(clock, locale))
+                GroupIndicator::sample(self.auto_switch_toggle.reading_row(clock, locale))
                     .on_switch_press(
                         self.auto_switch_toggle.saved_schedule.auto_switch_arming,
                         self.auto_switch_toggle.press_does(),
@@ -386,7 +386,7 @@ impl DarkModeGroup {
             WidgetGroupFamily::DarkMode,
             GroupSummary::glyph(
                 Phosphor::MoonStars(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             DarkModeInteraction::Expansion,
@@ -394,8 +394,8 @@ impl DarkModeGroup {
         )
     }
 
-    fn mode_toggle_item<'a>(&'a self, mode_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(mode_row)
+    fn mode_toggle_item<'a>(&'a self, mode_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(mode_row)
             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }

@@ -12,8 +12,8 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -30,7 +30,7 @@ use crate::{
 };
 
 mod network_manager_vpn_hover_card;
-use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_reading_row};
+use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_indicator};
 
 use crate::widget_groups::group_summary::GroupSummary;
 
@@ -118,9 +118,9 @@ impl NetworkManagerVpnGroup {
             .map_or(&[][..], |vpns| &vpns.connections)
     }
 
-    fn vpn_connection_item<'a>(&'a self, vpn_connection: &'a VpnConnection) -> GroupItem<'a> {
+    fn vpn_connection_item<'a>(&'a self, vpn_connection: &'a VpnConnection) -> GroupIndicator<'a> {
         let vpn_switch = vpn_connection.switch();
-        GroupItem::reading(vpn_connection_reading_row(vpn_connection))
+        GroupIndicator::sample(vpn_connection_indicator(vpn_connection))
             .on_switch_press(
                 match vpn_switch {
                     NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
@@ -146,7 +146,7 @@ impl NetworkManagerVpnGroup {
             WidgetGroupFamily::NetworkManagerVpns,
             GroupSummary::glyph(
                 Phosphor::ShieldCheck(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,

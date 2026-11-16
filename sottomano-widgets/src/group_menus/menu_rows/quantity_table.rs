@@ -10,7 +10,7 @@ use iced::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::aligned_quantity::AlignedQuantity,
+    group_indicators::aligned_quantity::AlignedQuantity,
     group_menus::menu_rows::menu_row::menu_row_height,
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupTitle},
     widgets::text::{column_heading, row_key_label},
@@ -86,7 +86,7 @@ fn aligned_quantity_rows(
 #[cfg(test)]
 mod tests {
     use super::aligned_quantity_rows;
-    use crate::group_items::aligned_quantity::AlignedQuantity;
+    use crate::group_indicators::aligned_quantity::AlignedQuantity;
 
     #[test]
     fn rows_are_the_union_of_member_quantities_in_declared_order() {

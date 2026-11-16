@@ -16,7 +16,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    widget_groups::ci_runs_group::ci_run_readings::CiRunnerKind,
+    widget_groups::ci_runs_group::ci_run_indicators::CiRunnerKind,
     widgets::{
         discovered_systemd_services::DiscoveredSystemdServices,
         subscribed_snapshot::SubscribedSnapshot,

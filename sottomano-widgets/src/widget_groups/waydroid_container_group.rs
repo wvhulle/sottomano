@@ -17,11 +17,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -93,7 +93,7 @@ impl<'a> WaydroidContainerRow<'a> {
             }
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -137,11 +137,11 @@ impl<'a> WaydroidSessionRow<'a> {
             WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
         };
         let state = match self.state {
-            WaydroidState::Session { .. } => ReadingDisplayState::On,
-            WaydroidState::ContainerOnly | WaydroidState::Absent => ReadingDisplayState::Off,
+            WaydroidState::Session { .. } => IndicatorState::On,
+            WaydroidState::ContainerOnly | WaydroidState::Absent => IndicatorState::Off,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -332,12 +332,11 @@ impl WaydroidContainerGroup {
         )
     }
 
-    fn container_row<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupItem<'a> {
-        let row = GroupItem::reading(WaydroidContainerRow { shown }.reading_row()).with_hover_card(
-            Box::new(move |_| {
+    fn container_row<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupIndicator<'a> {
+        let row = GroupIndicator::sample(WaydroidContainerRow { shown }.reading_row())
+            .with_hover_card(Box::new(move |_| {
                 self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
-            }),
-        );
+            }));
         match self.container_switch.activity() {
             Some(_) => self
                 .container_switch
@@ -349,7 +348,7 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_rows(&self) -> Vec<GroupItem<'_>> {
+    fn waydroid_rows(&self) -> Vec<GroupIndicator<'_>> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };
@@ -357,7 +356,7 @@ impl WaydroidContainerGroup {
         if shown.container() == ContainerRunState::Stopped {
             return vec![container_row];
         }
-        let session_row = GroupItem::reading(
+        let session_row = GroupIndicator::sample(
             WaydroidSessionRow {
                 state: shown.state(),
             }
@@ -389,15 +388,15 @@ impl WaydroidContainerGroup {
 }
 
 impl WaydroidContainerGroup {
-    fn shown_state(&self) -> ReadingDisplayState {
+    fn shown_state(&self) -> IndicatorState {
         if self
             .probe
             .get()
             .is_some_and(|probe| probe.0 == Availability::Available)
         {
-            ReadingDisplayState::On
+            IndicatorState::On
         } else {
-            ReadingDisplayState::Off
+            IndicatorState::Off
         }
     }
 }

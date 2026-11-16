@@ -7,11 +7,11 @@ use sottomano_desktop_sources::disk_storage::{
 use uom::si::f64::Ratio;
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
-        reading_display_state::ReadingDisplayState,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -40,7 +40,7 @@ impl SubvolumeUsageRow<'_> {
 impl<'a> SubvolumeUsageRow<'a> {
     pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(
                     Quantity::size(self.subvolume.used).localized_text(locale),
                 ),
@@ -50,7 +50,7 @@ impl<'a> SubvolumeUsageRow<'a> {
             ..ReadingRow::glyph_only(
                 self.subvolume.path.display().to_string(),
                 Phosphor::FolderSimple(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(move |_| self.hover_card()),
             )
         }

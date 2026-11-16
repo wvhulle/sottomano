@@ -9,7 +9,7 @@ use procfs::process::Process as Proc;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    TerminalLabelReading, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
+    TerminalLabelSource, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
     pty_shell_sessions::child_pids,
     shell_prompt_title::ShellState,
     terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
@@ -222,9 +222,9 @@ impl OsWindow {
                 title: shown.title.clone(),
             },
             shown_pid: shown.pid,
-            label_reading: shown.window_label(home).map_or(
-                TerminalLabelReading::Unlabelled,
-                TerminalLabelReading::Labelled,
+            label_source: shown.window_label(home).map_or(
+                TerminalLabelSource::Unlabelled,
+                TerminalLabelSource::Labelled,
             ),
             pids: self
                 .tabs
@@ -247,7 +247,7 @@ mod tests {
 
     use super::OsWindow;
     use crate::desktop_windows_apps::terminal_emulator_windows::{
-        TerminalLabelReading, TerminalWindowKey, TitleProbeTarget,
+        TerminalLabelSource, TerminalWindowKey, TitleProbeTarget,
         terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
     };
 
@@ -298,8 +298,8 @@ mod tests {
         assert_eq!(window.shown_pid, 500);
         assert_eq!(window.pids, [400, 500, 501]);
         assert_eq!(
-            window.label_reading,
-            TerminalLabelReading::Labelled(TerminalShellLabel {
+            window.label_source,
+            TerminalLabelSource::Labelled(TerminalShellLabel {
                 working_location: WorkingLocation::LocalDirectory("/srv".to_owned()),
                 foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "pkill".to_owned(),

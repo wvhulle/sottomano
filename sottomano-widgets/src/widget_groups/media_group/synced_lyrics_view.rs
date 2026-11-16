@@ -12,11 +12,11 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::{
-        group_item::{GroupItem, GroupItemValue},
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::{IndicatorState, IndicatorStateTint},
         reading_row::ReadingRow,
-        source_reading::GroupItemIcon,
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
     widget_groups::media_group::karaoke_lyric_line::{
@@ -37,14 +37,14 @@ const LINES_AFTER_CURRENT: usize = 3;
 pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
 
-pub(super) fn track_lyrics_reading_row(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
+pub(super) fn track_lyrics_indicator(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
     let (icon, state) = match track_lyrics {
         TrackLyrics::Synced(_) => (
             Phosphor::MicrophoneStage(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
         ),
         TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
-            (TRACK_LYRICS_FALLBACK_GLYPH, ReadingDisplayState::Off)
+            (TRACK_LYRICS_FALLBACK_GLYPH, IndicatorState::Off)
         }
     };
     ReadingRow::glyph_only(
@@ -136,13 +136,13 @@ pub(super) fn current_lyric_line<'a>(
     media: &'a Media,
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
-) -> GroupItem<'a> {
-    let icon = GroupItemIcon::IconGlyph {
+) -> GroupIndicator<'a> {
+    let icon = IndicatorIcon::IconGlyph {
         glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
-        state: ReadingDisplayState::Idle,
+        state: IndicatorState::Idle,
     };
-    let value = GroupItemValue::drawn(move |reveal| {
-        let tinted = move |state| ReadingStateTint {
+    let value = IndicatorValue::drawn(move |reveal| {
+        let tinted = move |state| IndicatorStateTint {
             state,
             opacity: reveal,
         };
@@ -155,13 +155,13 @@ pub(super) fn current_lyric_line<'a>(
             },
             &config.theme.font,
             KaraokeColors {
-                sung: Box::new(move |theme| tinted(ReadingDisplayState::Live).color(theme)),
-                unsung: Box::new(move |theme| tinted(ReadingDisplayState::Off).color(theme)),
+                sung: Box::new(move |theme| tinted(IndicatorState::Live).color(theme)),
+                unsung: Box::new(move |theme| tinted(IndicatorState::Off).color(theme)),
             },
         )
         .into()
     });
-    GroupItem::composed_pinnable("Lyrics", icon, value, Box::new(|_| Vec::new()))
+    GroupIndicator::composed_pinnable("Lyrics", icon, value, Box::new(|_| Vec::new()))
 }
 
 #[cfg(test)]

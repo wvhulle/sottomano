@@ -10,15 +10,15 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -186,14 +186,14 @@ impl DailyTotalsGauge {
         let quotas = self.quotas();
         let state = Quota::worst_severity(&quotas).unwrap_or_default().into();
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge,
                 badge: ReadoutBadge::Unbadged,
             },
-            alerts: ReadingAlerts {
+            alerts: IndicatorAlerts {
                 quota_windows: quotas,
-                ..ReadingAlerts::default()
+                ..IndicatorAlerts::default()
             },
             ..ReadingRow::glyph_only(
                 "Daily focus budget",

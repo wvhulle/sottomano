@@ -9,20 +9,20 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
-pub(crate) fn drive_health_reading_row(health: &DriveHealth) -> ReadingRow<'_> {
+pub(crate) fn drive_health_indicator(health: &DriveHealth) -> ReadingRow<'_> {
     let error_level = if health.errors.iter().any(|errors| errors.total() > 0) {
         Severity::Critical
     } else {
@@ -34,19 +34,19 @@ pub(crate) fn drive_health_reading_row(health: &DriveHealth) -> ReadingRow<'_> {
         None => (ReadoutLabel::Unlabeled, ToastBody::Bodiless),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Critical,
                 summary_text: "Drive needs attention",
                 body,
                 progress: ToastProgress::Unmeasured,
             },
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         ..ReadingRow::glyph_only(
             DriveHealth::NAME,

@@ -352,15 +352,15 @@ mod tests {
 
     #[test]
     fn credits_within_budget_are_not_exhausted() {
-        let reading = OpenRouterStrictBudget {
+        let sample = OpenRouterStrictBudget {
             credits: Credits {
                 total: usd(Decimal::from(25)),
                 used: usd(Decimal::new(45, 1)),
             },
             key_limits: Vec::new(),
         };
-        assert_eq!(reading.tightest_remaining(), usd(Decimal::new(205, 1)));
-        assert_eq!(reading.credit_standing(), CreditStanding::Remaining);
+        assert_eq!(sample.tightest_remaining(), usd(Decimal::new(205, 1)));
+        assert_eq!(sample.credit_standing(), CreditStanding::Remaining);
     }
 
     #[test]

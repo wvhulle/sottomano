@@ -1,12 +1,12 @@
-use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
     GpuMemory, GpuProcesses, SharedGpuMemory,
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-pub fn gpu_memory_reading_row(memory: GpuMemory) -> ReadingRow<'static> {
+pub fn gpu_memory_indicator(memory: GpuMemory) -> ReadingRow<'static> {
     let name = match &memory {
         GpuMemory::Dedicated(_) => "VRAM",
         GpuMemory::SharedWithSystem { .. } => "GPU memory",
@@ -35,7 +35,7 @@ pub fn gpu_memory_reading_row(memory: GpuMemory) -> ReadingRow<'static> {
         ),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge,
             badge: ReadoutBadge::Unbadged,
@@ -43,7 +43,7 @@ pub fn gpu_memory_reading_row(memory: GpuMemory) -> ReadingRow<'static> {
         ..ReadingRow::glyph_only(
             name,
             Phosphor::Memory(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| gpu_memory_sections(&memory)),
         )
     }

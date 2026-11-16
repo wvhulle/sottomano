@@ -204,7 +204,7 @@ mod tests {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
-    struct RemoteReading {
+    struct RemoteSample {
         start_number: u32,
     }
 
@@ -217,7 +217,7 @@ mod tests {
         }
     }
 
-    impl SnapshotSource for RemoteReading {
+    impl SnapshotSource for RemoteSample {
         type Error = RemoteFailure;
         type StreamInputs = ();
 
@@ -246,16 +246,16 @@ mod tests {
             .buffered(1);
         held_while_reachable(spaced_access_states, move || {
             start_number += 1;
-            stream::iter([SnapshotDelivery::single_read(Ok(RemoteReading {
+            stream::iter([SnapshotDelivery::single_read(Ok(RemoteSample {
                 start_number,
             }))])
         })
         .filter_map(|delivery| {
             ready(match delivery {
                 SnapshotDelivery::SnapshotDelivered {
-                    snapshot_fetch: Ok(reading),
+                    snapshot_fetch: Ok(sample),
                     ..
-                } => Some(GatedOutcome::Started(reading.start_number)),
+                } => Some(GatedOutcome::Started(sample.start_number)),
                 SnapshotDelivery::InternetUnreachable(reason) => {
                     Some(GatedOutcome::Unreachable(reason))
                 }

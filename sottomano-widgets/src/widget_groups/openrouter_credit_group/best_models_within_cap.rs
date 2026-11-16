@@ -6,10 +6,10 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_table,
@@ -40,13 +40,13 @@ pub(crate) fn best_models_panel_visibility(rankings: &OpenRouterModelRankings) -
     }
 }
 
-pub(crate) fn best_models_reading_row(rankings: &OpenRouterModelRankings) -> ReadingRow<'_> {
+pub(crate) fn best_models_indicator(rankings: &OpenRouterModelRankings) -> ReadingRow<'_> {
     let label = match rankings.best_first.first() {
         Some(scored) => ReadoutLabel::Labeled(scored.model.clone()),
         None => ReadoutLabel::Unlabeled,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -55,7 +55,7 @@ pub(crate) fn best_models_reading_row(rankings: &OpenRouterModelRankings) -> Rea
         ..ReadingRow::glyph_only(
             OpenRouterModelRankings::NAME,
             Phosphor::Ranking(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| best_models_hover_card(rankings)),
         )
     }

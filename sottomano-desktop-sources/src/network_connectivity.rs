@@ -43,7 +43,7 @@ use crate::{
 pub fn device_or_absent<S, R>(
     system: zbus::Connection,
     service: &'static str,
-    mut readings: impl FnMut() -> R + Send,
+    mut samples: impl FnMut() -> R + Send,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
     S: SnapshotSource<Error = BusReadError>,
@@ -51,13 +51,13 @@ where
 {
     name_owned(system, service).while_available(
         move || {
-            readings().map(|device| SnapshotDelivery::live_push(device).unavailable_when_absent())
+            samples().map(|device| SnapshotDelivery::live_push(device).unavailable_when_absent())
         },
         || SnapshotDelivery::SourceUnavailable,
     )
 }
 
-pub fn nm_readings<T, F>(
+pub fn nm_samples<T, F>(
     system: Connection,
     watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
@@ -84,14 +84,14 @@ where
     Ok(signals.triggered_rereads(move || read(connection.clone())))
 }
 
-pub fn managed_objects_readings<T: Send + 'static>(
+pub fn managed_objects_samples<T: Send + 'static>(
     system: Connection,
     service: &'static str,
     path: &'static str,
-    reading: fn(&ManagedObjects) -> Option<T>,
+    sample: fn(&ManagedObjects) -> Option<T>,
 ) -> impl Stream<Item = Result<T, BusReadError>> {
     subscribed(system, move |system| {
-        subscribe_managed_objects(system, service, path, reading)
+        subscribe_managed_objects(system, service, path, sample)
     })
 }
 
@@ -99,7 +99,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
     connection: Connection,
     service: &'static str,
     path: &'static str,
-    reading: fn(&ManagedObjects) -> Option<T>,
+    sample: fn(&ManagedObjects) -> Option<T>,
 ) -> Result<impl Stream<Item = Result<T, BusReadError>>, BusReadError> {
     let objects = Arc::new(ObjectManagerProxy::new(&connection, service, path).await?);
     let signals = object_manager_changes(&connection, service, path).await?;
@@ -107,7 +107,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
         let objects = objects.clone();
         async move {
             let managed = objects.get_managed_objects().await?;
-            reading(&managed).ok_or(BusReadError::Absent)
+            sample(&managed).ok_or(BusReadError::Absent)
         }
     }))
 }

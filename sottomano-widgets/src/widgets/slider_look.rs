@@ -5,12 +5,12 @@ use corredo::{
 use iced::{Color, Theme};
 use sottomano_toml_config::{Config, severity::Severity};
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 
 fn accent_for_level(level: Severity, normal: fn(&Theme) -> Color) -> Box<dyn Fn(&Theme) -> Color> {
     Box::new(move |theme| match level {
         Severity::Normal => normal(theme),
-        other => ReadingDisplayState::from(other).color(theme),
+        other => IndicatorState::from(other).color(theme),
     })
 }
 

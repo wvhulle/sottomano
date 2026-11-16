@@ -48,7 +48,7 @@ impl GroupSourceDemand {
         }
     }
 
-    pub fn while_any_reading_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+    pub fn while_any_indicator_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         self.while_summary_shown(subscription)
     }
 }

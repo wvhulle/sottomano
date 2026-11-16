@@ -8,10 +8,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
@@ -39,7 +39,7 @@ impl SnapshotSource for LocalTime {
 impl LocalTime {
     pub(super) fn reading_row(clock: Clock, locale: Locale) -> ReadingRow<'static> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(
                     LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale),
                 ),
@@ -49,7 +49,7 @@ impl LocalTime {
             ..ReadingRow::glyph_only(
                 Self::NAME,
                 Phosphor::Clock(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(Self::hover_card),
             )
         }

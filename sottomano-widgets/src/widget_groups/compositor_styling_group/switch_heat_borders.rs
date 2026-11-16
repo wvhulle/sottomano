@@ -9,7 +9,7 @@ use sottomano_toml_config::theme::palette::Palette;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
+    group_indicators::toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     widget_groups::{
         compositor_styling_group::CompositorStylingMessage,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},

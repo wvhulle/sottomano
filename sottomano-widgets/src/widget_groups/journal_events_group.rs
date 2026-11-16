@@ -20,7 +20,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::reading_row::PanelVisibility,
+    group_indicators::reading_row::PanelVisibility,
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{

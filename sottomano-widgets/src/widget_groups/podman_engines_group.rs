@@ -16,11 +16,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
@@ -70,11 +70,11 @@ impl<'a> UnreadableEngineRow<'a> {
         let base = ReadingRow::glyph_only(
             self.engine.owner.to_string(),
             Phosphor::Cube(Weight::Regular).into(),
-            ReadingDisplayState::Failed,
+            IndicatorState::Failed,
             Box::new(move |_| self.hover_card()),
         );
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 ..base.readout
             },
@@ -176,8 +176,8 @@ impl PodmanEnginesGroup {
     fn running_container_rows<'a>(
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
-        reading: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupItem<'a>> {
+        sample: &'a SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupIndicator<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -193,7 +193,7 @@ impl PodmanEnginesGroup {
             .zip(&listing.running.containers)
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |clock| {
-                    reading.hover_card_with(
+                    sample.hover_card_with(
                         RunningContainerRow {
                             container,
                             owner: &engine.owner,
@@ -208,8 +208,8 @@ impl PodmanEnginesGroup {
     fn stopped_container_rows<'a>(
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
-        reading: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupItem<'a>> {
+        sample: &'a SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupIndicator<'a>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -225,7 +225,7 @@ impl PodmanEnginesGroup {
             .zip(&listing.stopped)
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |_| {
-                    reading.hover_card_with(
+                    sample.hover_card_with(
                         StoppedContainerRow {
                             container,
                             owner: &engine.owner,
@@ -237,19 +237,19 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_>> {
+    fn container_rows(&self) -> Vec<GroupIndicator<'_>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
         for engine in &self.engines {
-            let Some(reading) = self.readouts.get(&engine.socket_path) else {
+            let Some(sample) = self.readouts.get(&engine.socket_path) else {
                 continue;
             };
-            if let Some(listing) = reading.get() {
-                running_rows.extend(Self::running_container_rows(engine, listing, reading));
-                stopped_rows.extend(Self::stopped_container_rows(engine, listing, reading));
-            } else if let Some(read_failure) = reading.fetch_failure() {
-                failure_rows.push(GroupItem::reading(
+            if let Some(listing) = sample.get() {
+                running_rows.extend(Self::running_container_rows(engine, listing, sample));
+                stopped_rows.extend(Self::stopped_container_rows(engine, listing, sample));
+            } else if let Some(read_failure) = sample.fetch_failure() {
+                failure_rows.push(GroupIndicator::sample(
                     UnreadableEngineRow {
                         engine,
                         read_failure,
@@ -269,7 +269,7 @@ impl PodmanEnginesGroup {
             WidgetGroupFamily::PodmanEngines,
             GroupSummary::glyph(
                 IconGlyph::SimpleIcon(SimpleIcon::Podman),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             |expansion| {
@@ -343,6 +343,9 @@ mod tests {
         );
         let rows = group.container_rows();
         assert_eq!(rows.len(), 12);
-        assert_eq!(rows.last().map(GroupItem::press_actions), Some(Vec::new()));
+        assert_eq!(
+            rows.last().map(GroupIndicator::press_actions),
+            Some(Vec::new())
+        );
     }
 }

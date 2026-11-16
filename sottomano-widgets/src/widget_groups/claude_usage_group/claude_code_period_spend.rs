@@ -7,16 +7,16 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
@@ -27,7 +27,7 @@ use crate::{
 pub(crate) const CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::CalendarDots(Weight::Regular));
 
-pub fn claude_ccusage_periods_reading_row(
+pub fn claude_ccusage_periods_indicator(
     periods: &ClaudeCcusagePeriods,
     clock: Clock,
 ) -> ReadingRow<'_> {
@@ -36,7 +36,7 @@ pub fn claude_ccusage_periods_reading_row(
         .unwrap_or_else(|| level_from_cost(&periods.recent.today.usage.cost))
         .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(format!(
                 "{} today",
                 spend_text(&periods.recent.today.usage.cost)
@@ -44,9 +44,9 @@ pub fn claude_ccusage_periods_reading_row(
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         ..ReadingRow::glyph_only(
             ClaudeCcusagePeriods::NAME,

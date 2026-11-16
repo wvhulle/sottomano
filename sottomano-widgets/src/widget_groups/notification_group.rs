@@ -2,11 +2,11 @@ use iced::Task;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -145,7 +145,7 @@ impl NotificationGroup {
         let quiet_phase = status.quiet_phase;
         let group_summary = GroupSummary::summarising(
             Phosphor::Tray(Weight::Regular).into(),
-            GroupItem::reading(status.reading_row()),
+            GroupIndicator::sample(status.reading_row()),
         );
         let group_summary = group_summary;
         WidgetGroupContent::expandable(
@@ -154,7 +154,7 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::reading(do_not_disturb_reading_row(DoNotDisturbStatus {
+                GroupIndicator::sample(do_not_disturb_indicator(DoNotDisturbStatus {
                     quiet_phase,
                 }))
                 .on_switch_press(
@@ -168,7 +168,7 @@ impl NotificationGroup {
                 .with_hover_card(Box::new(move |clock| {
                     quiet_schedule.do_not_disturb_hover_card(clock)
                 })),
-                GroupItem::toggle(
+                GroupIndicator::toggle(
                     sound_toggle(self.alert_sound),
                     NotificationGroupMessage::ToggleSound,
                 ),
@@ -191,16 +191,16 @@ impl NotificationStatus {
             QuietPhase::Inactive => Phosphor::ChatCircle(Weight::Regular).into(),
         };
         let state = match self.quiet_phase {
-            QuietPhase::Active => ReadingDisplayState::Off,
-            QuietPhase::Inactive if self.live > 0 => ReadingDisplayState::On,
-            QuietPhase::Inactive => ReadingDisplayState::Idle,
+            QuietPhase::Active => IndicatorState::Off,
+            QuietPhase::Inactive if self.live > 0 => IndicatorState::On,
+            QuietPhase::Inactive => IndicatorState::Idle,
         };
         let badge = match self.live + self.held {
             0 => ReadoutBadge::Unbadged,
             count => ReadoutBadge::Counted(count),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Unlabeled,
                 gauge: ReadoutGauge::Ungauged,
                 badge,
@@ -234,11 +234,11 @@ struct DoNotDisturbStatus {
     quiet_phase: QuietPhase,
 }
 
-fn do_not_disturb_reading_row(status: DoNotDisturbStatus) -> ReadingRow<'static> {
+fn do_not_disturb_indicator(status: DoNotDisturbStatus) -> ReadingRow<'static> {
     ReadingRow::glyph_only(
         "Do not disturb",
         Phosphor::Prohibit(Weight::Regular).into(),
-        ReadingDisplayState::from(status.quiet_phase),
+        IndicatorState::from(status.quiet_phase),
         Box::new(|_| Vec::new()),
     )
 }

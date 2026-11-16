@@ -10,10 +10,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -39,7 +39,7 @@ impl<'a> VmwareMachineListingRow<'a> {
     #[must_use]
     pub fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("running".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -47,7 +47,7 @@ impl<'a> VmwareMachineListingRow<'a> {
             ..ReadingRow::glyph_only(
                 self.listing.machine_name.clone(),
                 Phosphor::Desktop(Weight::Regular).into(),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |_| self.hover_card()),
             )
         }
@@ -73,7 +73,7 @@ impl<'a> VmwareMachineRow<'a> {
     #[must_use]
     pub fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -81,7 +81,7 @@ impl<'a> VmwareMachineRow<'a> {
             ..ReadingRow::glyph_only(
                 self.machine.listing.machine_name.clone(),
                 Phosphor::Desktop(Weight::Regular).into(),
-                ReadingDisplayState::On,
+                IndicatorState::On,
                 Box::new(move |card_clock| self.hover_card(card_clock)),
             )
         }
@@ -145,7 +145,7 @@ impl ContainerFamily for VmwareFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                reading: VmwareMachineListingRow { listing }.reading_row(),
+                sample: VmwareMachineListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
             .collect()
@@ -156,7 +156,7 @@ impl ContainerFamily for VmwareFamily {
             .details
             .iter()
             .map(|machine| FamilyRow {
-                reading: VmwareMachineRow { machine }.reading_row(),
+                sample: VmwareMachineRow { machine }.reading_row(),
                 power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })
             .collect()

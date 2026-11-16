@@ -1,14 +1,14 @@
-use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuPowerDraw;
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::GpuPowerDraw;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Power, power::watt},
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,9 +22,9 @@ fn watt_text(power: Power) -> String {
     format!("{:.0}", power.into_format_args(watt, Abbreviation))
 }
 
-pub fn gpu_power_reading_row(power: GpuPowerDraw) -> ReadingRow<'static> {
+pub fn gpu_power_indicator(power: GpuPowerDraw) -> ReadingRow<'static> {
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(watt_text(power.draw)),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -32,7 +32,7 @@ pub fn gpu_power_reading_row(power: GpuPowerDraw) -> ReadingRow<'static> {
         ..ReadingRow::glyph_only(
             "GPU power",
             Phosphor::Lightning(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| gpu_power_hover_card(&power)),
         )
     }

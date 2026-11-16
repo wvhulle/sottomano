@@ -3,11 +3,11 @@ use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::Ker
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -33,8 +33,8 @@ impl JournalScopeGroup {
         &'a self,
         config: &Config,
         kernel_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(kernel_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(kernel_row)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
@@ -71,7 +71,7 @@ impl From<&KernelOccurrence> for TableRecord<2> {
     }
 }
 
-pub(super) fn kernel_log_state(occurrences: &[KernelOccurrence]) -> ReadingDisplayState {
+pub(super) fn kernel_log_state(occurrences: &[KernelOccurrence]) -> IndicatorState {
     occurrences
         .iter()
         .map(|occurrence| occurrence.severity)
@@ -84,7 +84,7 @@ pub(super) fn kernel_log_panel_visibility(occurrences: &[KernelOccurrence]) -> P
     shown_while_alerting(occurrences.iter().map(|occurrence| occurrence.severity))
 }
 
-pub(super) fn kernel_log_reading_row(occurrences: &[KernelOccurrence]) -> ReadingRow<'_> {
+pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> ReadingRow<'_> {
     let warning_count = occurrences
         .iter()
         .filter(|occurrence| occurrence.severity >= Severity::Warning)
@@ -94,7 +94,7 @@ pub(super) fn kernel_log_reading_row(occurrences: &[KernelOccurrence]) -> Readin
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge,

@@ -13,7 +13,7 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     group_menus::{
         group_menu_inspection::GroupMenuInspection,
         group_source_demand::{GroupSourceDemand, GroupSurface},
@@ -21,7 +21,7 @@ use crate::{
         sqlite_group_menu_pins::{PinChange, StoredGroupMenuPin},
         sqlite_group_menu_presentation,
     },
-    hover_cards::{InstrumentKey, PanelPinOrigin, hover_card_surfaces::SWITCH_INTENT},
+    hover_cards::{IndicatorKey, PanelPinOrigin, hover_card_surfaces::SWITCH_INTENT},
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -126,7 +126,7 @@ impl GroupMenuTopic {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupMenuPin {
     Group(WidgetGroupIdentity),
-    Item(InstrumentKey),
+    Item(IndicatorKey),
 }
 
 impl GroupMenuPin {
@@ -138,11 +138,11 @@ impl GroupMenuPin {
                 group_family: group.family.stored_name().to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
             },
-            GroupMenuPin::Item(InstrumentKey { group, name }) => StoredGroupMenuPin::Item {
+            GroupMenuPin::Item(IndicatorKey { group, name }) => StoredGroupMenuPin::Item {
                 menu_topic,
                 group_family: group.family.stored_name().to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
-                item_in_group_name: name.into_owned(),
+                indicator_name: name.into_owned(),
             },
         }
     }
@@ -167,7 +167,7 @@ pub enum AlertPromotion {
     Unpromoted,
 }
 
-pub(crate) enum ItemPin {
+pub(crate) enum IndicatorPin {
     Unpinnable,
     Unpinned(GroupMenuPin),
     Pinned(PanelPin),
@@ -203,7 +203,7 @@ pub enum GroupMenuMessage {
     },
     InspectRow {
         menu: GroupMenuTopic,
-        instrument: InstrumentKey,
+        indicator: IndicatorKey,
     },
     MenuScrolled {
         menu: GroupMenuTopic,
@@ -323,19 +323,19 @@ impl GroupMenuState {
         &self,
         menu: GroupMenuTopic,
         group: &WidgetGroupIdentity,
-        item: &GroupItem<'_>,
+        item: &GroupIndicator<'_>,
         promotion_severity: Severity,
-    ) -> ItemPin {
+    ) -> IndicatorPin {
         let Some(entry) = item.menu_pin(group) else {
-            return ItemPin::Unpinnable;
+            return IndicatorPin::Unpinnable;
         };
         match self.panel_pin(
             menu,
             entry.clone(),
             item.alert_promotion(promotion_severity),
         ) {
-            PanelPinOrigin::Pinned(pin) => ItemPin::Pinned(*pin),
-            PanelPinOrigin::Unpinned => ItemPin::Unpinned(entry),
+            PanelPinOrigin::Pinned(pin) => IndicatorPin::Pinned(*pin),
+            PanelPinOrigin::Unpinned => IndicatorPin::Unpinned(entry),
         }
     }
 
@@ -426,7 +426,7 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn inspected_instrument(&self, menu: GroupMenuTopic) -> Option<&InstrumentKey> {
+    pub fn inspected_indicator(&self, menu: GroupMenuTopic) -> Option<&IndicatorKey> {
         self.inspection.inspected_target(&menu)
     }
 
@@ -567,8 +567,8 @@ impl GroupMenuState {
                     sqlite_group_menu_presentation::save(presentation),
                 )
             }
-            GroupMenuMessage::InspectRow { menu, instrument } => {
-                self.inspection = take(&mut self.inspection).inspecting_row(&menu, instrument);
+            GroupMenuMessage::InspectRow { menu, indicator } => {
+                self.inspection = take(&mut self.inspection).inspecting_row(&menu, indicator);
                 Task::none()
             }
             GroupMenuMessage::Closed => {
@@ -593,7 +593,7 @@ mod tests {
     };
     use crate::{
         clock::Clock,
-        hover_cards::{InstrumentKey, PanelPinOrigin},
+        hover_cards::{IndicatorKey, PanelPinOrigin},
         widget_groups::widget_group_identity::WidgetGroupInstance,
     };
 
@@ -620,7 +620,7 @@ mod tests {
     const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
 
     fn gpu_load_item() -> GroupMenuPin {
-        GroupMenuPin::Item(InstrumentKey {
+        GroupMenuPin::Item(IndicatorKey {
             group: GPU_GROUP,
             name: "gpu_load".into(),
         })
@@ -735,7 +735,7 @@ mod tests {
     }
 
     fn alerting_gpu_pin() -> GroupMenuPin {
-        GroupMenuPin::Item(InstrumentKey {
+        GroupMenuPin::Item(IndicatorKey {
             group: GPU_GROUP,
             name: "hot gpu".into(),
         })
@@ -786,10 +786,10 @@ mod tests {
 
     #[test]
     fn pinning_one_sibling_item_leaves_the_other() {
-        let sibling_item = |item_in_group_name: &str| {
-            GroupMenuPin::Item(InstrumentKey {
+        let sibling_item = |indicator_name: &str| {
+            GroupMenuPin::Item(IndicatorKey {
                 group: GPU_GROUP,
-                name: item_in_group_name.to_owned().into(),
+                name: indicator_name.to_owned().into(),
             })
         };
         let mut group_menus = GroupMenuState::default();

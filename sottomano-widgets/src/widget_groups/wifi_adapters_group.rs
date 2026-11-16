@@ -1,4 +1,4 @@
-mod adapter_signal_reading;
+mod adapter_signal_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
@@ -15,20 +15,20 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use self::adapter_signal_reading::{
-    AdapterConnectionSwitch, AdapterSignalReading, AllWifiRadiosSwitch, adapter_identity_sections,
-    adapter_radio_stats_sections,
+use self::adapter_signal_indicator::{
+    AdapterConnectionSwitch, AdapterSignalIndicator, AllWifiRadiosSwitch,
+    adapter_identity_sections, adapter_radio_stats_sections,
 };
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
         interface_address_sections::{
-            AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
+            AddressFamily, InterfaceAddressIndicator, InterfaceDnsIndicator, dns_server_sections,
             family_address_sections, family_router_sections,
         },
         interface_group_titles::AttachmentTitles,
@@ -193,11 +193,11 @@ impl WifiAdaptersGroup {
         adapter: &WifiAdapter,
         radio_power: RadioPower,
     ) -> Vec<Section> {
-        let signal_reading = AdapterSignalReading {
+        let signal_indicator = AdapterSignalIndicator {
             adapter,
             radio_power,
         };
-        let mut sections = self.wifi.hover_card_with(signal_reading.hover_card());
+        let mut sections = self.wifi.hover_card_with(signal_indicator.hover_card());
         sections.extend(self.adapter_detail_sections(&adapter.device, adapter_identity_sections));
         sections
     }
@@ -254,8 +254,8 @@ impl WifiAdaptersGroup {
         let expansion = self.expansions.get(&adapter.device)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::Broadcast(Weight::Regular).into(),
-            GroupItem::reading(
-                AdapterSignalReading {
+            GroupIndicator::sample(
+                AdapterSignalIndicator {
                     adapter,
                     radio_power,
                 }
@@ -274,7 +274,7 @@ impl WifiAdaptersGroup {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
             rows.push(
-                GroupItem::reading(connection_switch.reading_row())
+                GroupIndicator::sample(connection_switch.reading_row())
                     .on_switch_press(
                         adapter.link_state,
                         connection_press_does,
@@ -287,20 +287,20 @@ impl WifiAdaptersGroup {
         }
         if adapter.link_state == LinkPhase::Up {
             rows.extend([AddressFamily::Ipv4, AddressFamily::Ipv6].map(|family| {
-                GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                GroupIndicator::sample(InterfaceAddressIndicator { family }.reading_row())
                     .with_hover_card(Box::new(move |_| {
                         self.adapter_address_hover_card(adapter, family)
                     }))
             }));
             rows.push(
-                GroupItem::reading(InterfaceDnsReading::reading_row())
+                GroupIndicator::sample(InterfaceDnsIndicator::reading_row())
                     .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter))),
             );
         }
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
         rows.push(
-            GroupItem::reading(radios_switch.reading_row())
+            GroupIndicator::sample(radios_switch.reading_row())
                 .on_switch_press(
                     radio_power,
                     radios_press_does,

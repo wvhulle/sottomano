@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -40,16 +40,16 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
 pub(crate) const NOTULIST_PIPELINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Pulse(Weight::Regular));
 
-pub fn notulist_pipeline_reading_row(pipeline: &NotulistPipeline) -> ReadingRow<'_> {
+pub fn notulist_pipeline_indicator(pipeline: &NotulistPipeline) -> ReadingRow<'_> {
     let state = match pipeline.activity.stage {
-        PipelineStage::Idle => ReadingDisplayState::Idle,
-        PipelineStage::Capturing => ReadingDisplayState::Live,
+        PipelineStage::Idle => IndicatorState::Idle,
+        PipelineStage::Capturing => IndicatorState::Live,
         PipelineStage::Gating
         | PipelineStage::DetectingLanguage
         | PipelineStage::Decoding
         | PipelineStage::Filtering
         | PipelineStage::Reconciling
-        | PipelineStage::CleaningText => ReadingDisplayState::Pending,
+        | PipelineStage::CleaningText => IndicatorState::Pending,
     };
     ReadingRow::glyph_only(
         NotulistPipeline::NAME,

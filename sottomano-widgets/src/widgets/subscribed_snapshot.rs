@@ -4,11 +4,11 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
     clock::Clock,
-    group_items::{
-        offline_internet_reading::{
+    group_indicators::{
+        indicator_state::IndicatorState,
+        offline_internet_indicator::{
             PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
         },
-        reading_display_state::ReadingDisplayState,
         reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{
@@ -246,7 +246,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         }
     }
 
-    pub fn visible_reading(
+    pub fn visible_indicator(
         &self,
         panel_visibility: impl FnOnce(&S) -> PanelVisibility,
     ) -> Option<&S> {
@@ -256,10 +256,10 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
 
     pub fn shown_state(
         &self,
-        held_state: impl FnOnce(&S) -> ReadingDisplayState,
+        held_state: impl FnOnce(&S) -> IndicatorState,
         panel_visibility: impl FnOnce(&S) -> PanelVisibility,
         clock: Clock,
-    ) -> Option<ReadingDisplayState> {
+    ) -> Option<IndicatorState> {
         match self {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 (panel_visibility(held_snapshot) == PanelVisibility::Shown)
@@ -293,7 +293,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+        group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
         widgets::icon_glyph::IconGlyph,
     };
 
@@ -324,7 +324,7 @@ mod tests {
         ReadingRow::glyph_only(
             "Counted",
             IconGlyph::default(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Vec::new()),
         )
     }
@@ -332,7 +332,7 @@ mod tests {
     fn shown_state_at(
         latest: &SubscribedSnapshot<CountedSnapshot>,
         clock: Clock,
-    ) -> Option<ReadingDisplayState> {
+    ) -> Option<IndicatorState> {
         latest.shown_state(
             |snapshot| counted_row(snapshot).shown_state(),
             |_| PanelVisibility::Shown,
@@ -402,7 +402,7 @@ mod tests {
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
             shown_state_at(&latest, timeline.at(13)),
-            Some(ReadingDisplayState::Failed)
+            Some(IndicatorState::Failed)
         );
     }
 
@@ -451,11 +451,11 @@ mod tests {
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
             shown_state_at(&latest, timeline.at(12)),
-            Some(ReadingDisplayState::Idle)
+            Some(IndicatorState::Idle)
         );
         assert_eq!(
             shown_state_at(&latest, timeline.at(13)),
-            Some(ReadingDisplayState::Offline)
+            Some(IndicatorState::Offline)
         );
         latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(16));
         assert!(matches!(latest, SubscribedSnapshot::SnapshotHeld { .. }));

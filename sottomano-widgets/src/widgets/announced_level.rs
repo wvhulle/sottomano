@@ -6,7 +6,7 @@ use sottomano_desktop_sources::desktop_notifications::notification_data::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use crate::{hover_cards::InstrumentKey, widgets::icon_glyph::IconGlyph};
+use crate::{hover_cards::IndicatorKey, widgets::icon_glyph::IconGlyph};
 
 const LEVEL_TOAST_LIFETIME: Duration = Duration::from_millis(1_500);
 
@@ -19,17 +19,20 @@ pub struct AnnouncedLevel {
 }
 
 #[derive(Debug, Clone)]
-pub struct LevelReading<Message> {
-    pub instrument: InstrumentKey,
+pub struct LevelToastRequest<Message> {
+    pub indicator: IndicatorKey,
     pub glyph: IconGlyph,
     pub level: AnnouncedLevel,
     pub on_body_clicked: Message,
 }
 
-impl<Message> LevelReading<Message> {
-    pub fn map_message<Lifted>(self, lift: impl Fn(Message) -> Lifted) -> LevelReading<Lifted> {
-        LevelReading {
-            instrument: self.instrument,
+impl<Message> LevelToastRequest<Message> {
+    pub fn map_message<Lifted>(
+        self,
+        lift: impl Fn(Message) -> Lifted,
+    ) -> LevelToastRequest<Lifted> {
+        LevelToastRequest {
+            indicator: self.indicator,
             glyph: self.glyph,
             level: self.level,
             on_body_clicked: lift(self.on_body_clicked),
@@ -38,15 +41,15 @@ impl<Message> LevelReading<Message> {
 
     pub fn change_since<Previous>(
         &self,
-        previous: &[LevelReading<Previous>],
-    ) -> LevelReadingChange {
+        previous: &[LevelToastRequest<Previous>],
+    ) -> LevelToastChange {
         if previous.iter().any(|seen| {
-            seen.instrument == self.instrument
+            seen.indicator == self.indicator
                 && seen.level.external_change_count != self.level.external_change_count
         }) {
-            LevelReadingChange::Changed
+            LevelToastChange::Changed
         } else {
-            LevelReadingChange::Unchanged
+            LevelToastChange::Unchanged
         }
     }
 
@@ -107,7 +110,7 @@ pub enum LevelChangeOrigin {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LevelReadingChange {
+pub enum LevelToastChange {
     Changed,
     Unchanged,
 }
@@ -135,9 +138,9 @@ mod tests {
             .map(|level| level.external_change_count)
     }
 
-    fn reading(kind: ControlKind, external_change_count: u64) -> LevelReading<()> {
-        LevelReading {
-            instrument: InstrumentKey {
+    fn sample(kind: ControlKind, external_change_count: u64) -> LevelToastRequest<()> {
+        LevelToastRequest {
+            indicator: IndicatorKey {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
                 name: format!("{kind:?}").into(),
             },
@@ -169,21 +172,18 @@ mod tests {
 
     #[test]
     fn a_level_is_announced_only_when_its_seen_count_changed() {
-        let seen = [
-            reading(ControlKind::Sink, 3),
-            reading(ControlKind::Source, 1),
-        ];
+        let seen = [sample(ControlKind::Sink, 3), sample(ControlKind::Source, 1)];
         assert_eq!(
-            reading(ControlKind::Sink, 3).change_since::<()>(&[]),
-            LevelReadingChange::Unchanged
+            sample(ControlKind::Sink, 3).change_since::<()>(&[]),
+            LevelToastChange::Unchanged
         );
         assert_eq!(
-            reading(ControlKind::Sink, 3).change_since(&seen),
-            LevelReadingChange::Unchanged
+            sample(ControlKind::Sink, 3).change_since(&seen),
+            LevelToastChange::Unchanged
         );
         assert_eq!(
-            reading(ControlKind::Sink, 4).change_since(&seen),
-            LevelReadingChange::Changed
+            sample(ControlKind::Sink, 4).change_since(&seen),
+            LevelToastChange::Changed
         );
     }
 }

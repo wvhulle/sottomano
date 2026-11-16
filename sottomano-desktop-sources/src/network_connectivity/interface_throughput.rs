@@ -22,7 +22,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling, SnapshotDeliveryStreams},
     network_connectivity::{
-        network_manager_proxies, network_manager_proxies::Metering, nm_readings,
+        network_manager_proxies, network_manager_proxies::Metering, nm_samples,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
@@ -104,7 +104,7 @@ impl SnapshotSource for InterfaceThroughput {
     const NAME: &'static str = "Network throughput";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let uplink_changes = nm_readings(
+        let uplink_changes = nm_samples(
             buses.system,
             network_manager_proxies::UPLINK_PROPERTIES,
             network_manager_proxies::uplink,
@@ -124,9 +124,9 @@ impl SnapshotSource for InterfaceThroughput {
                     ThroughputEvent::Tick(polling) => {
                         *sampler = mem::take(sampler).observed(ThroughputEvent::Tick(polling));
                         sampler
-                            .readings()
-                            .map(|readings| SnapshotDelivery::SnapshotDelivered {
-                                snapshot_fetch: Ok(readings),
+                            .samples()
+                            .map(|samples| SnapshotDelivery::SnapshotDelivered {
+                                snapshot_fetch: Ok(samples),
                                 delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
                             })
                     }
@@ -189,10 +189,10 @@ impl ThroughputSampler {
         }
     }
 
-    fn readings(&self) -> Option<InterfaceThroughput> {
+    fn samples(&self) -> Option<InterfaceThroughput> {
         self.latest
             .as_ref()
-            .map(|latest| readings(latest, self.rates, self.peak, self.metering))
+            .map(|latest| samples(latest, self.rates, self.peak, self.metering))
     }
 }
 
@@ -278,12 +278,7 @@ impl Sample {
     }
 }
 
-fn readings(
-    current: &Sample,
-    rates: Rates,
-    peak: Rates,
-    metering: Metering,
-) -> InterfaceThroughput {
+fn samples(current: &Sample, rates: Rates, peak: Rates, metering: Metering) -> InterfaceThroughput {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     InterfaceThroughput {
         down: Throughput {

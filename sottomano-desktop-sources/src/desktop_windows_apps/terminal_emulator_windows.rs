@@ -114,18 +114,18 @@ impl TitleProbeTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum TerminalLabelReading {
+enum TerminalLabelSource {
     Unlabelled,
     Labelled(TerminalShellLabel),
     ShellSession(ShellSession),
 }
 
-impl TerminalLabelReading {
+impl TerminalLabelSource {
     fn terminal_label(&self, compositor_title: &str, home: &Path) -> Option<TerminalShellLabel> {
         match self {
-            TerminalLabelReading::Unlabelled => None,
-            TerminalLabelReading::Labelled(label) => Some(label.clone()),
-            TerminalLabelReading::ShellSession(session) => {
+            TerminalLabelSource::Unlabelled => None,
+            TerminalLabelSource::Labelled(label) => Some(label.clone()),
+            TerminalLabelSource::ShellSession(session) => {
                 session.terminal_label(compositor_title, home)
             }
         }
@@ -138,7 +138,7 @@ struct TerminalWindow {
     probe_target: TitleProbeTarget,
     shown_pid: i32,
     pids: Vec<i32>,
-    label_reading: TerminalLabelReading,
+    label_source: TerminalLabelSource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -339,7 +339,7 @@ impl Pairing {
                             shown: terminal_window.shown_pid,
                             pids: terminal_window.pids.clone(),
                             terminal_label: terminal_window
-                                .label_reading
+                                .label_source
                                 .terminal_label(compositor_title, &self.home),
                         };
                         (compositor_window, paired_window)
@@ -551,7 +551,7 @@ mod tests {
     use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
 
     use super::{
-        Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelReading, TerminalWindow,
+        Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelSource, TerminalWindow,
         TerminalWindowKey, TitleProbeTarget,
     };
     use crate::compositor_window_ipc::{
@@ -608,7 +608,7 @@ mod tests {
             },
             shown_pid: i32::try_from(pty_number).unwrap() + 1000,
             pids: vec![i32::try_from(pty_number).unwrap() + 1000],
-            label_reading: TerminalLabelReading::Unlabelled,
+            label_source: TerminalLabelSource::Unlabelled,
         }
     }
 

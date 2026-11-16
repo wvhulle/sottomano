@@ -109,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn readings_and_hardware_are_listed_apart() {
+    fn indicators_and_hardware_are_listed_apart() {
         let outputs = laptop_panel();
         let output =
             ConnectedOutput::driving(&internal_backlight(), &outputs).expect("internal panel");

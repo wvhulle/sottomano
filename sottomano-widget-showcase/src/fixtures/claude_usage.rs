@@ -40,8 +40,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
         ))),
     ]
     .into_iter()
-    .for_each(|reading| {
-        let _ = group.update(reading, clock);
+    .for_each(|fixture_message| {
+        let _ = group.update(fixture_message, clock);
     });
     ShowcasedGroup::ClaudeUsage(Box::new(group))
 }

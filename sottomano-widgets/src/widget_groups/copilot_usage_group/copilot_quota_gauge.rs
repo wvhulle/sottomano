@@ -8,27 +8,27 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::ReadingAlerts,
+        ongoing_toast::IndicatorAlerts,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
-pub fn copilot_metered_reading_row(metered: &CopilotMetered, clock: Clock) -> ReadingRow<'_> {
+pub fn copilot_metered_indicator(metered: &CopilotMetered, clock: Clock) -> ReadingRow<'_> {
     let state = Quota::worst_severity(&metered.quotas(clock.utc()))
         .unwrap_or_else(|| level_from_used(metered.used_share))
         .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged {
                 fill: metered.used_share,
@@ -36,9 +36,9 @@ pub fn copilot_metered_reading_row(metered: &CopilotMetered, clock: Clock) -> Re
             },
             badge: ReadoutBadge::Unbadged,
         },
-        alerts: ReadingAlerts {
+        alerts: IndicatorAlerts {
             quota_windows: metered.quotas(clock.utc()),
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         },
         panel_visibility: copilot_metered_panel_visibility(metered),
         ..ReadingRow::glyph_only(

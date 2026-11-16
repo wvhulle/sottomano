@@ -1,5 +1,5 @@
-mod adapter_radio_reading;
-mod connected_device_reading;
+mod adapter_radio_indicator;
+mod connected_device_indicator;
 mod reconnect_churn_counting;
 
 use iced::{Subscription, Task};
@@ -18,14 +18,14 @@ use sottomano_desktop_sources::{
 use zbus::zvariant::OwnedObjectPath;
 
 use self::{
-    adapter_radio_reading::{AdapterNaming, AdapterPowerSwitch, AdapterRadioReading},
-    connected_device_reading::{ConnectedDeviceReading, InputReports, short_label},
+    adapter_radio_indicator::{AdapterNaming, AdapterPowerSwitch, AdapterRadioIndicator},
+    connected_device_indicator::{ConnectedDeviceIndicator, InputReports, short_label},
     reconnect_churn_counting::ReconnectHistory,
 };
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     widget_groups::{
         group_summary::GroupSummary,
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
@@ -154,9 +154,9 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn adapter_reading<'a>(&'a self, adapter: &'a BluetoothAdapter) -> AdapterRadioReading<'a> {
-        let kernel_device = AdapterRadioReading::kernel_device_of(&adapter.controller_name);
-        AdapterRadioReading {
+    fn adapter_indicator<'a>(&'a self, adapter: &'a BluetoothAdapter) -> AdapterRadioIndicator<'a> {
+        let kernel_device = AdapterRadioIndicator::kernel_device_of(&adapter.controller_name);
+        AdapterRadioIndicator {
             adapter,
             naming: self.adapter_naming(adapter),
             kernel_errors: self
@@ -167,14 +167,14 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn device_reading<'a>(
+    fn device_indicator<'a>(
         &'a self,
         device: &'a ConnectedDevice,
         siblings: &[ConnectedDevice],
         input_reports: InputReports,
         clock: Clock,
-    ) -> ConnectedDeviceReading<'a> {
-        ConnectedDeviceReading {
+    ) -> ConnectedDeviceIndicator<'a> {
+        ConnectedDeviceIndicator {
             device,
             short_label: short_label(device, siblings),
             recent_reconnects: self
@@ -198,16 +198,16 @@ impl BluetoothAdaptersGroup {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let group_summary = GroupSummary::summarising(
             Phosphor::BluetoothConnected(Weight::Regular).into(),
-            GroupItem::reading(self.adapter_reading(adapter).reading_row()).with_hover_card(
+            GroupIndicator::sample(self.adapter_indicator(adapter).reading_row()).with_hover_card(
                 Box::new(move |_| {
                     self.bluetooth
-                        .hover_card_with(self.adapter_reading(adapter).hover_card())
+                        .hover_card_with(self.adapter_indicator(adapter).hover_card())
                 }),
             ),
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
-        let power_item = GroupItem::reading(power_switch.reading_row())
+        let power_item = GroupIndicator::sample(power_switch.reading_row())
             .on_switch_press(
                 &adapter.power,
                 power_press_does,
@@ -218,22 +218,22 @@ impl BluetoothAdaptersGroup {
                     .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
             }));
         let siblings = adapter.power.connected_devices();
-        let device_items: Vec<GroupItem<'a>> = siblings
+        let device_items: Vec<GroupIndicator<'a>> = siblings
             .iter()
             .map(|device| {
                 let input_reports = report_timing_for(&device.address)
                     .map_or(InputReports::NotStreamed, |timing| {
                         InputReports::Streamed(MeasuredReportTiming::Measured(timing))
                     });
-                let reading = self.device_reading(device, siblings, input_reports, clock);
-                GroupItem::reading(reading.reading_row())
+                let sample = self.device_indicator(device, siblings, input_reports, clock);
+                GroupIndicator::sample(sample.reading_row())
                     .on_press(
-                        ConnectedDeviceReading::PRESS_DOES,
+                        ConnectedDeviceIndicator::PRESS_DOES,
                         BluetoothInteraction::Disconnect(device.object_path.clone()),
                     )
                     .with_hover_card(Box::new(move |card_clock| {
                         self.bluetooth.hover_card_with(
-                            self.device_reading(device, siblings, input_reports, card_clock)
+                            self.device_indicator(device, siblings, input_reports, card_clock)
                                 .hover_card(),
                         )
                     }))

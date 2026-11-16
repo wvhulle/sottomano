@@ -36,40 +36,40 @@ impl Display for RainForecastMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RainRateReading<'a> {
+pub enum RainRateIndicator<'a> {
     RadarFrame(&'a Downpour),
     ModelQuarter(&'a ModelQuarterHour),
 }
 
-impl RainRateReading<'_> {
+impl RainRateIndicator<'_> {
     pub fn starts_at(self) -> DateTime<Utc> {
         match self {
-            RainRateReading::RadarFrame(frame) => frame.at.to_utc(),
-            RainRateReading::ModelQuarter(quarter) => quarter.starts_at,
+            RainRateIndicator::RadarFrame(frame) => frame.at.to_utc(),
+            RainRateIndicator::ModelQuarter(quarter) => quarter.starts_at,
         }
     }
 
     fn ends_at(self) -> DateTime<Utc> {
         match self {
-            RainRateReading::RadarFrame(frame) => frame.at.to_utc() + RADAR_FRAME_LENGTH,
-            RainRateReading::ModelQuarter(quarter) => quarter.starts_at + MODEL_QUARTER_HOUR,
+            RainRateIndicator::RadarFrame(frame) => frame.at.to_utc() + RADAR_FRAME_LENGTH,
+            RainRateIndicator::ModelQuarter(quarter) => quarter.starts_at + MODEL_QUARTER_HOUR,
         }
     }
 
     pub fn intensity(self) -> Velocity {
         match self {
-            RainRateReading::RadarFrame(frame) => frame.intensity,
-            RainRateReading::ModelQuarter(quarter) => quarter.intensity,
+            RainRateIndicator::RadarFrame(frame) => frame.intensity,
+            RainRateIndicator::ModelQuarter(quarter) => quarter.intensity,
         }
     }
 
     pub fn sky_wetness(self) -> SkyWetness {
         match self {
-            RainRateReading::RadarFrame(frame) if frame.intensity > Velocity::default() => {
+            RainRateIndicator::RadarFrame(frame) if frame.intensity > Velocity::default() => {
                 SkyWetness::Precipitating
             }
-            RainRateReading::RadarFrame(_) => SkyWetness::Dry,
-            RainRateReading::ModelQuarter(quarter) => quarter.condition.sky_wetness(),
+            RainRateIndicator::RadarFrame(_) => SkyWetness::Dry,
+            RainRateIndicator::ModelQuarter(quarter) => quarter.condition.sky_wetness(),
         }
     }
 }
@@ -77,20 +77,20 @@ impl RainRateReading<'_> {
 pub struct RankedRateSource<'a> {
     pub method: RainForecastMethod,
     pub provider_name: &'static str,
-    pub readings: Vec<RainRateReading<'a>>,
+    pub samples: Vec<RainRateIndicator<'a>>,
 }
 
 pub trait RankedRainProvider {
     const METHOD: RainForecastMethod;
     const PROVIDER_NAME: &'static str;
 
-    fn upcoming_rate_readings(&self, clock: Clock) -> Vec<RainRateReading<'_>>;
+    fn upcoming_rate_indicators(&self, clock: Clock) -> Vec<RainRateIndicator<'_>>;
 
     fn ranked_rate_source(&self, clock: Clock) -> RankedRateSource<'_> {
         RankedRateSource {
             method: Self::METHOD,
             provider_name: Self::PROVIDER_NAME,
-            readings: self.upcoming_rate_readings(clock),
+            samples: self.upcoming_rate_indicators(clock),
         }
     }
 }
@@ -107,10 +107,10 @@ impl RankedRainProvider for Rain {
     const METHOD: RainForecastMethod = RainForecastMethod::RadarNowcast;
     const PROVIDER_NAME: &'static str = "Buienradar";
 
-    fn upcoming_rate_readings(&self, clock: Clock) -> Vec<RainRateReading<'_>> {
+    fn upcoming_rate_indicators(&self, clock: Clock) -> Vec<RainRateIndicator<'_>> {
         frames_not_yet_over(&self.forecast, clock.local())
             .iter()
-            .map(RainRateReading::RadarFrame)
+            .map(RainRateIndicator::RadarFrame)
             .collect()
     }
 }
@@ -119,9 +119,9 @@ impl RankedRainProvider for PrecipitationModel {
     const METHOD: RainForecastMethod = RainForecastMethod::NumericalWeatherModel;
     const PROVIDER_NAME: &'static str = "Open-Meteo";
 
-    fn upcoming_rate_readings(&self, clock: Clock) -> Vec<RainRateReading<'_>> {
+    fn upcoming_rate_indicators(&self, clock: Clock) -> Vec<RainRateIndicator<'_>> {
         quarters_not_yet_over(self, clock.utc())
-            .map(RainRateReading::ModelQuarter)
+            .map(RainRateIndicator::ModelQuarter)
             .collect()
     }
 }
@@ -131,13 +131,15 @@ pub fn ranked_by_method(mut rate_sources: Vec<RankedRateSource<'_>>) -> Vec<Rank
     rate_sources
 }
 
-pub fn rate_readings_by_rank(rate_sources: Vec<RankedRateSource<'_>>) -> Vec<RainRateReading<'_>> {
+pub fn rate_indicators_by_rank(
+    rate_sources: Vec<RankedRateSource<'_>>,
+) -> Vec<RainRateIndicator<'_>> {
     ranked_by_method(rate_sources)
         .into_iter()
         .fold(Vec::new(), |mut timeline, source| {
-            let covered_until = timeline.last().copied().map(RainRateReading::ends_at);
-            timeline.extend(source.readings.into_iter().filter(|reading| {
-                covered_until.is_none_or(|covered_until| reading.starts_at() >= covered_until)
+            let covered_until = timeline.last().copied().map(RainRateIndicator::ends_at);
+            timeline.extend(source.samples.into_iter().filter(|sample| {
+                covered_until.is_none_or(|covered_until| sample.starts_at() >= covered_until)
             }));
             timeline
         })
@@ -180,22 +182,25 @@ mod tests {
         let model_source = RankedRateSource {
             method: RainForecastMethod::NumericalWeatherModel,
             provider_name: "model",
-            readings: quarters.iter().map(RainRateReading::ModelQuarter).collect(),
+            samples: quarters
+                .iter()
+                .map(RainRateIndicator::ModelQuarter)
+                .collect(),
         };
         let radar_source = RankedRateSource {
             method: RainForecastMethod::RadarNowcast,
             provider_name: "radar",
-            readings: frames.iter().map(RainRateReading::RadarFrame).collect(),
+            samples: frames.iter().map(RainRateIndicator::RadarFrame).collect(),
         };
-        let timeline = rate_readings_by_rank(vec![model_source, radar_source]);
+        let timeline = rate_indicators_by_rank(vec![model_source, radar_source]);
         assert_eq!(
             timeline,
             [
-                RainRateReading::RadarFrame(&frames[0]),
-                RainRateReading::RadarFrame(&frames[1]),
-                RainRateReading::RadarFrame(&frames[2]),
-                RainRateReading::RadarFrame(&frames[3]),
-                RainRateReading::ModelQuarter(&quarters[2]),
+                RainRateIndicator::RadarFrame(&frames[0]),
+                RainRateIndicator::RadarFrame(&frames[1]),
+                RainRateIndicator::RadarFrame(&frames[2]),
+                RainRateIndicator::RadarFrame(&frames[3]),
+                RainRateIndicator::ModelQuarter(&quarters[2]),
             ]
         );
     }
@@ -204,16 +209,19 @@ mod tests {
     fn an_empty_higher_ranked_source_leaves_the_whole_timeline_to_the_next() {
         let now = Clock::real().utc();
         let quarters = [model_quarter(now), model_quarter(now + MODEL_QUARTER_HOUR)];
-        let timeline = rate_readings_by_rank(vec![
+        let timeline = rate_indicators_by_rank(vec![
             RankedRateSource {
                 method: RainForecastMethod::RadarNowcast,
                 provider_name: "radar",
-                readings: Vec::new(),
+                samples: Vec::new(),
             },
             RankedRateSource {
                 method: RainForecastMethod::NumericalWeatherModel,
                 provider_name: "model",
-                readings: quarters.iter().map(RainRateReading::ModelQuarter).collect(),
+                samples: quarters
+                    .iter()
+                    .map(RainRateIndicator::ModelQuarter)
+                    .collect(),
             },
         ]);
         assert_eq!(timeline.len(), 2);

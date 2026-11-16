@@ -3,7 +3,7 @@ use std::{future::ready, path::PathBuf};
 use chrono::{DateTime, Local, Utc};
 use futures::Stream;
 
-use super::{Error, local_log_readings};
+use super::{Error, local_log_samples};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
@@ -47,7 +47,7 @@ impl SnapshotSource for ClaudeCcusagePeriods {
     const NAME: &'static str = "API-priced spend";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        local_log_readings(logs, SubscriptionCoverage::Uncovered, |logs| {
+        local_log_samples(logs, SubscriptionCoverage::Uncovered, |logs| {
             SnapshotDelivery::live_push_deliveries(logs, |logs| {
                 ready(Ok(ccusage_cli_reports::transcript_changes(
                     Agent::ClaudeCode,
@@ -83,7 +83,7 @@ impl SnapshotSource for ClaudeCcusageBlock {
     const NAME: &'static str = "5-hour block spend";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        local_log_readings(logs, SubscriptionCoverage::Uncovered, |_| {
+        local_log_samples(logs, SubscriptionCoverage::Uncovered, |_| {
             SnapshotDelivery::live_push_deliveries((), |()| {
                 ready(Ok(ccusage_cli_reports::transcript_changes(
                     Agent::ClaudeCode,

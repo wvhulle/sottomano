@@ -1,19 +1,18 @@
 use crate::widget_groups::voice_dictation_group::{
-    dictation_phase_item::{notulist_dictation_hover_card, notulist_dictation_reading_row},
+    dictation_phase_item::{notulist_dictation_hover_card, notulist_dictation_indicator},
     interface_mismatch_item::{
         NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH, notulist_interface_mismatch_hover_card,
-        notulist_interface_mismatch_reading_row,
+        notulist_interface_mismatch_indicator,
     },
     output_problems_item::{
         NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH, notulist_output_problems_hover_card,
-        notulist_output_problems_reading_row,
+        notulist_output_problems_indicator,
     },
     pipeline_stage_item::{
-        NOTULIST_PIPELINE_FALLBACK_GLYPH, notulist_pipeline_hover_card,
-        notulist_pipeline_reading_row,
+        NOTULIST_PIPELINE_FALLBACK_GLYPH, notulist_pipeline_hover_card, notulist_pipeline_indicator,
     },
     speech_model_item::{
-        NOTULIST_ENGINE_FALLBACK_GLYPH, notulist_engine_hover_card, notulist_engine_reading_row,
+        NOTULIST_ENGINE_FALLBACK_GLYPH, notulist_engine_hover_card, notulist_engine_indicator,
     },
 };
 mod dictation_phase_item;
@@ -47,9 +46,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
@@ -296,7 +295,7 @@ impl VoiceDictationGroup {
     fn runtime_hover_card(&self) -> Vec<Section> {
         let runtime_sections = self
             .engine
-            .sections_described_by(|reading| match &reading.engine {
+            .sections_described_by(|sample| match &sample.engine {
                 EngineState::SpeechModelReady(engine) => SpeechRuntime(engine).sections(),
                 EngineState::LoadingSpeechModel | EngineState::SpeechModelUnavailable(_) => {
                     Vec::new()
@@ -318,8 +317,8 @@ impl VoiceDictationGroup {
         dictation_row: ReadingRow<'a>,
         switch_position: SwitchPosition,
         press_text: &'static str,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(dictation_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(dictation_row)
             .on_switch_press(
                 switch_position,
                 press_text,
@@ -332,8 +331,8 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
     }
 
-    fn interface_mismatch_item<'a>(&'a self, mismatch_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(mismatch_row)
+    fn interface_mismatch_item<'a>(&'a self, mismatch_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(mismatch_row)
             .with_hover_card(Box::new(move |_| {
                 self.interface_mismatch
                     .sections_described_by(notulist_interface_mismatch_hover_card)
@@ -343,8 +342,8 @@ impl VoiceDictationGroup {
             ))
     }
 
-    fn pipeline_item<'a>(&'a self, pipeline_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(pipeline_row)
+    fn pipeline_item<'a>(&'a self, pipeline_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(pipeline_row)
             .with_hover_card(Box::new(move |_| {
                 self.pipeline
                     .sections_described_by(notulist_pipeline_hover_card)
@@ -352,8 +351,8 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
     }
 
-    fn engine_item<'a>(&'a self, engine_row: ReadingRow<'a>) -> GroupItem<'a> {
-        let engine_item = GroupItem::reading(engine_row)
+    fn engine_item<'a>(&'a self, engine_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        let engine_item = GroupIndicator::sample(engine_row)
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .engine
@@ -374,8 +373,8 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn output_problems_item<'a>(&'a self, problems_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(problems_row)
+    fn output_problems_item<'a>(&'a self, problems_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(problems_row)
             .with_hover_card(Box::new(move |_| {
                 self.output_problems
                     .sections_described_by(notulist_output_problems_hover_card)
@@ -388,7 +387,7 @@ impl VoiceDictationGroup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::ChatTeardropText(Weight::Regular).into(),
                 self.dictation_item(
-                    notulist_dictation_reading_row(held_snapshot),
+                    notulist_dictation_indicator(held_snapshot),
                     SwitchPosition::from(held_snapshot),
                     press_does(held_snapshot),
                 ),
@@ -399,7 +398,7 @@ impl VoiceDictationGroup {
                     Phosphor::ChatTeardropText(Weight::Regular).into(),
                     self.dictation_item(
                         troubled_snapshot
-                            .shown_over(notulist_dictation_reading_row(held_snapshot), clock),
+                            .shown_over(notulist_dictation_indicator(held_snapshot), clock),
                         SwitchPosition::from(held_snapshot),
                         press_does(held_snapshot),
                     ),
@@ -415,11 +414,11 @@ impl VoiceDictationGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::ChatTeardropText(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
             SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                 Phosphor::ChatTeardropText(Weight::Regular).into(),
-                ReadingDisplayState::Off,
+                IndicatorState::Off,
             ),
         }
     }
@@ -442,17 +441,21 @@ impl VoiceDictationGroup {
         )
     }
 
-    fn push_interface_mismatch_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
+    fn push_interface_mismatch_rows<'a>(
+        &'a self,
+        rows: &mut Vec<GroupIndicator<'a>>,
+        clock: Clock,
+    ) {
         match &self.interface_mismatch {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let mismatch_row = notulist_interface_mismatch_reading_row(held_snapshot);
+                let mismatch_row = notulist_interface_mismatch_indicator(held_snapshot);
                 if mismatch_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.interface_mismatch_item(mismatch_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let mismatch_row = troubled_snapshot.shown_over(
-                    notulist_interface_mismatch_reading_row(&troubled_snapshot.held_snapshot),
+                    notulist_interface_mismatch_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if mismatch_row.panel_visibility == PanelVisibility::Shown {
@@ -468,7 +471,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_pipeline_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
+    fn push_pipeline_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
         let dictation = self.dictation.get();
         let pipeline_active = dictation.is_some_and(|held_dictation| {
             matches!(
@@ -479,14 +482,14 @@ impl VoiceDictationGroup {
         if pipeline_active || self.pipeline.failure().is_some() {
             match &self.pipeline {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let pipeline_row = notulist_pipeline_reading_row(held_snapshot);
+                    let pipeline_row = notulist_pipeline_indicator(held_snapshot);
                     if pipeline_row.panel_visibility == PanelVisibility::Shown {
                         rows.push(self.pipeline_item(pipeline_row));
                     }
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                     let pipeline_row = troubled_snapshot.shown_over(
-                        notulist_pipeline_reading_row(&troubled_snapshot.held_snapshot),
+                        notulist_pipeline_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     );
                     if pipeline_row.panel_visibility == PanelVisibility::Shown {
@@ -506,7 +509,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_runtime_switch_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
+    fn push_runtime_switch_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         let dictation = self.dictation.get();
         let runtime_glyph = self
             .loaded_engine()
@@ -514,9 +517,9 @@ impl VoiceDictationGroup {
         let runtime_readiness = dictation.map_or(ServiceReadiness::NotYetServing, |_| {
             ServiceReadiness::Serving
         });
-        if let Some(switch_reading) = self.runtime.switch_reading(runtime_readiness) {
+        if let Some(switch_indicator) = self.runtime.switch_indicator(runtime_readiness) {
             rows.push(
-                switch_reading
+                switch_indicator
                     .with_glyph(runtime_glyph)
                     .switch_item(VoiceDictationInteraction::RuntimePressed)
                     .with_hover_card(Box::new(move |_| self.runtime_hover_card()))
@@ -525,17 +528,17 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_engine_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
+    fn push_engine_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
         match &self.engine {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let engine_row = notulist_engine_reading_row(held_snapshot);
+                let engine_row = notulist_engine_indicator(held_snapshot);
                 if engine_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.engine_item(engine_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let engine_row = troubled_snapshot.shown_over(
-                    notulist_engine_reading_row(&troubled_snapshot.held_snapshot),
+                    notulist_engine_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if engine_row.panel_visibility == PanelVisibility::Shown {
@@ -551,10 +554,10 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_loaded_engine_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>) {
+    fn push_loaded_engine_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(loaded) = self.loaded_engine() {
             rows.push(
-                GroupItem::reading(RuntimeConfiguration(loaded).reading_row())
+                GroupIndicator::sample(RuntimeConfiguration(loaded).reading_row())
                     .with_hover_card(Box::new(move |_| {
                         self.engine
                             .hover_card_with(RuntimeConfiguration(loaded).hover_card())
@@ -562,7 +565,7 @@ impl VoiceDictationGroup {
                     .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
             );
             rows.push(
-                GroupItem::reading(InferenceHardware(loaded).reading_row())
+                GroupIndicator::sample(InferenceHardware(loaded).reading_row())
                     .with_hover_card(Box::new(move |_| {
                         self.engine
                             .hover_card_with(InferenceHardware(loaded).hover_card())
@@ -572,17 +575,17 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_output_problems_rows<'a>(&'a self, rows: &mut Vec<GroupItem<'a>>, clock: Clock) {
+    fn push_output_problems_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
         match &self.output_problems {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let problems_row = notulist_output_problems_reading_row(held_snapshot);
+                let problems_row = notulist_output_problems_indicator(held_snapshot);
                 if problems_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.output_problems_item(problems_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let problems_row = troubled_snapshot.shown_over(
-                    notulist_output_problems_reading_row(&troubled_snapshot.held_snapshot),
+                    notulist_output_problems_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
                 if problems_row.panel_visibility == PanelVisibility::Shown {

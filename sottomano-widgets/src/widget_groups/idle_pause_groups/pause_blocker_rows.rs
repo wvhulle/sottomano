@@ -15,10 +15,10 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
@@ -134,20 +134,20 @@ pub(super) fn pause_title(pause: IdleAction) -> &'static str {
 }
 
 impl PauseBlocker {
-    pub(super) fn display_state(&self) -> ReadingDisplayState {
+    pub(super) fn display_state(&self) -> IndicatorState {
         match (self.action_blocking, self.cause) {
-            (IdleActionBlocking::StopsArmedAction, _) => ReadingDisplayState::Critical,
+            (IdleActionBlocking::StopsArmedAction, _) => IndicatorState::Critical,
             (
                 IdleActionBlocking::LeavesActionRunning,
                 BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold,
-            ) => ReadingDisplayState::Idle,
-            (IdleActionBlocking::LeavesActionRunning, _) => ReadingDisplayState::Warning,
+            ) => IndicatorState::Idle,
+            (IdleActionBlocking::LeavesActionRunning, _) => IndicatorState::Warning,
         }
     }
 
     pub(super) fn reading_row(&self) -> ReadingRow<'_> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.blocked_phrase().into_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -207,7 +207,7 @@ pub(super) struct NextSleepStateRow {
 impl NextSleepStateRow {
     pub(super) fn reading_row(self) -> ReadingRow<'static> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("will run".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -215,7 +215,7 @@ impl NextSleepStateRow {
             ..ReadingRow::glyph_only(
                 self.state.title(),
                 Phosphor::Bed(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(|_| Vec::new()),
             )
         }
@@ -239,7 +239,7 @@ impl ScheduledShutdownRow<'_> {
             None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -247,7 +247,7 @@ impl ScheduledShutdownRow<'_> {
             ..ReadingRow::glyph_only(
                 name,
                 Phosphor::Clock(Weight::Regular).into(),
-                ReadingDisplayState::Warning,
+                IndicatorState::Warning,
                 Box::new(|_| Vec::new()),
             )
         }
@@ -611,7 +611,7 @@ mod tests {
         BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
     };
     use crate::{
-        group_items::reading_display_state::ReadingDisplayState,
+        group_indicators::indicator_state::IndicatorState,
         widget_groups::idle_pause_groups::pause_blocker_rows::{IdleActionBlocking, TimerArming},
         widgets::idle::ActionTrigger,
     };
@@ -734,7 +734,7 @@ mod tests {
         let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.display_state() == ReadingDisplayState::Critical)
+            .filter(|blocker| blocker.display_state() == IndicatorState::Critical)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Sleep]);

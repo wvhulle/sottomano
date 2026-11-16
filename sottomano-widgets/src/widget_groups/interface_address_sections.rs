@@ -8,7 +8,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::InformationRate;
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
@@ -43,11 +43,11 @@ impl AddressFamily {
     }
 }
 
-pub struct InterfaceAddressReading {
+pub struct InterfaceAddressIndicator {
     pub family: AddressFamily,
 }
 
-impl InterfaceAddressReading {
+impl InterfaceAddressIndicator {
     pub fn reading_row(self) -> ReadingRow<'static> {
         let glyph = match self.family {
             AddressFamily::Ipv4 => Phosphor::NumberCircleFour(Weight::Regular).into(),
@@ -56,20 +56,20 @@ impl InterfaceAddressReading {
         ReadingRow::glyph_only(
             self.family.title(),
             glyph,
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Vec::new()),
         )
     }
 }
 
-pub struct InterfaceDnsReading;
+pub struct InterfaceDnsIndicator;
 
-impl InterfaceDnsReading {
+impl InterfaceDnsIndicator {
     pub fn reading_row() -> ReadingRow<'static> {
         ReadingRow::glyph_only(
             "DNS",
             Phosphor::AddressBook(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(|_| Vec::new()),
         )
     }

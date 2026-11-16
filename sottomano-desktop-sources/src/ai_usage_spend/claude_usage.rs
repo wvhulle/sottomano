@@ -196,10 +196,10 @@ where
         )
 }
 
-fn local_log_readings<S, R>(
+fn local_log_samples<S, R>(
     logs: ClaudeLocalLogs,
     wanted_coverage: SubscriptionCoverage,
-    readings: impl Fn(ClaudeLocalLogs) -> R + Send + Clone + 'static,
+    samples: impl Fn(ClaudeLocalLogs) -> R + Send + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
     S: SnapshotSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
@@ -219,9 +219,9 @@ where
                 .chain(stream::iter(logs.credentials.clone()).flat_map(logins))
                 .map(coverage_availability);
             let logs = logs.clone();
-            let readings = readings.clone();
+            let samples = samples.clone();
             login_matches.while_available(
-                move || readings(logs.clone()),
+                move || samples(logs.clone()),
                 || SnapshotDelivery::SourceUnavailable,
             )
         },

@@ -7,9 +7,9 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     widget_groups::{
@@ -239,11 +239,11 @@ impl SidebarSettingsGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let mut rows = vec![
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 workspaces_sidebar_toggle(self.workspaces_placement),
                 SidebarSettingsMessage::ToggleWorkspacesPlacement,
             ),
-            GroupItem::toggle(
+            GroupIndicator::toggle(
                 auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
                 SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
             ),
@@ -255,7 +255,7 @@ impl SidebarSettingsGroup {
             WidgetGroupFamily::SidebarSettings,
             GroupSummary::glyph(
                 Phosphor::Sidebar(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
             ),
             &self.expansion,
             SidebarSettingsMessage::Expansion,

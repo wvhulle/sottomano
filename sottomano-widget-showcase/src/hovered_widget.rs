@@ -2,7 +2,7 @@ use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
 use sottomano_widgets::{
     group_menus::group_menu_state::GroupMenuPin,
-    hover_cards::{HoverTarget, InstrumentKey},
+    hover_cards::{HoverTarget, IndicatorKey},
 };
 
 pub struct HoveredWidget(pub HoverTarget);
@@ -15,8 +15,8 @@ impl Selector for HoveredWidget {
             return None;
         };
         let marks_hovered_row = match &self.0 {
-            HoverTarget::Instrument(instrument_key) => {
-                state.downcast_ref::<InstrumentKey>() == Some(instrument_key)
+            HoverTarget::Indicator(indicator_key) => {
+                state.downcast_ref::<IndicatorKey>() == Some(indicator_key)
             }
             _ => false,
         };

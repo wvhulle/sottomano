@@ -7,7 +7,7 @@ use crate::{
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
         device_or_absent, interface_bus_attachment::InterfaceAttachment, network_manager_proxies,
-        nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
+        nm_samples, sysfs_interface_faults::InterfaceFaultCounters,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
@@ -146,7 +146,7 @@ impl SnapshotSource for Ethernet {
             system.clone(),
             network_manager_proxies::SERVICE,
             move || {
-                nm_readings(
+                nm_samples(
                     system.clone(),
                     network_manager_proxies::UPLINK_PROPERTIES,
                     read,
@@ -168,7 +168,7 @@ impl SnapshotSource for EthernetDetails {
             system.clone(),
             network_manager_proxies::SERVICE,
             move || {
-                nm_readings(
+                nm_samples(
                     system.clone(),
                     &[
                         network_manager_proxies::MANAGER_PROPERTIES,

@@ -1,12 +1,10 @@
-use sottomano_desktop_sources::{
-    SnapshotSource, cpu_memory_compute::pci_gpu_readings::GpuSnapshot,
-};
+use sottomano_desktop_sources::{SnapshotSource, cpu_memory_compute::pci_gpu_samples::GpuSnapshot};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -21,13 +19,13 @@ use crate::{
 pub(crate) const GPU_SNAPSHOT_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::GraphicsCard(Weight::Regular));
 
-pub fn gpu_load_reading_row(snapshot: &GpuSnapshot) -> ReadingRow<'_> {
+pub fn gpu_load_indicator(snapshot: &GpuSnapshot) -> ReadingRow<'_> {
     let glyph = snapshot
         .vendor
         .vendor_logo()
         .map_or(GPU_SNAPSHOT_FALLBACK_GLYPH, IconGlyph::from);
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Gauged {
                 fill: snapshot.load,
@@ -38,7 +36,7 @@ pub fn gpu_load_reading_row(snapshot: &GpuSnapshot) -> ReadingRow<'_> {
         ..ReadingRow::glyph_only(
             GpuSnapshot::NAME,
             glyph,
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| gpu_load_hover_card(snapshot)),
         )
     }

@@ -13,11 +13,11 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    group_items::reading_display_state::ReadingDisplayState,
-    hover_cards::InstrumentKey,
+    group_indicators::indicator_state::IndicatorState,
+    hover_cards::IndicatorKey,
     widgets::{
         amount_text::percent_text,
-        announced_level::{AnnouncedLevel, LevelReading},
+        announced_level::{AnnouncedLevel, LevelToastRequest},
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
@@ -110,9 +110,9 @@ impl<Message> OngoingToastActionButton<Message> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OngoingKey {
-    Reading(InstrumentKey),
-    ReadingDetail {
-        instrument: InstrumentKey,
+    Sample(IndicatorKey),
+    SampleDetail {
+        indicator: IndicatorKey,
         detail: Cow<'static, str>,
     },
     ConfigFile,
@@ -164,13 +164,13 @@ pub enum LevelNotice {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ReadingAlerts {
+pub struct IndicatorAlerts {
     pub state_toast: StateToast,
     pub level: LevelNotice,
     pub quota_windows: Vec<Quota>,
 }
 
-impl Default for ReadingAlerts {
+impl Default for IndicatorAlerts {
     fn default() -> Self {
         Self {
             state_toast: StateToast::NeverNotify,
@@ -181,7 +181,7 @@ impl Default for ReadingAlerts {
 }
 
 pub(crate) fn state_alert_severity(
-    state: ReadingDisplayState,
+    state: IndicatorState,
     state_toast: &StateToast,
 ) -> Option<Severity> {
     let StateToast::NotifyFromSeverity {
@@ -207,20 +207,20 @@ pub fn quota_pace_alert_severity(quota_windows: &[Quota]) -> Option<Severity> {
 }
 
 pub struct RowNotice<'r, Message> {
-    pub instrument: InstrumentKey,
+    pub indicator: IndicatorKey,
     pub widget_name: Cow<'static, str>,
-    pub state: ReadingDisplayState,
-    pub alerts: &'r ReadingAlerts,
+    pub state: IndicatorState,
+    pub alerts: &'r IndicatorAlerts,
     pub on_body_clicked: Message,
 }
 
 impl<Message: Clone> RowNotice<'_, Message> {
-    pub fn level_reading(&self) -> Option<LevelReading<Message>> {
+    pub fn level_toast_request(&self) -> Option<LevelToastRequest<Message>> {
         let LevelNotice::Announced { level, glyph } = &self.alerts.level else {
             return None;
         };
-        Some(LevelReading {
-            instrument: self.instrument.clone(),
+        Some(LevelToastRequest {
+            indicator: self.indicator.clone(),
             glyph: *glyph,
             level: level.clone(),
             on_body_clicked: self.on_body_clicked.clone(),
@@ -229,23 +229,23 @@ impl<Message: Clone> RowNotice<'_, Message> {
 }
 
 impl<Message> OngoingToast<Message> {
-    pub fn reading_state_alert(reading: &RowNotice<'_, Message>, clock: Clock) -> Option<Self>
+    pub fn indicator_state_alert(sample: &RowNotice<'_, Message>, clock: Clock) -> Option<Self>
     where
         Message: Clone,
     {
-        let severity = state_alert_severity(reading.state, &reading.alerts.state_toast)?;
+        let severity = state_alert_severity(sample.state, &sample.alerts.state_toast)?;
         let StateToast::NotifyFromSeverity {
             summary_text,
             body,
             progress,
             ..
-        } = &reading.alerts.state_toast
+        } = &sample.alerts.state_toast
         else {
             return None;
         };
         Some(Self {
-            widget_name: reading.widget_name.clone(),
-            key: OngoingKey::Reading(reading.instrument.clone()),
+            widget_name: sample.widget_name.clone(),
+            key: OngoingKey::Sample(sample.indicator.clone()),
             severity,
             summary_text: Cow::Borrowed(summary_text),
             body: match body {
@@ -257,13 +257,13 @@ impl<Message> OngoingToast<Message> {
                 ToastProgress::Measured(fill) => Some(*fill),
             },
             since: clock.wall,
-            on_body_clicked: reading.on_body_clicked.clone(),
+            on_body_clicked: sample.on_body_clicked.clone(),
             action_buttons: Vec::new(),
         })
     }
 
     pub fn quota_pace_alert(
-        reading: &RowNotice<'_, Message>,
+        sample: &RowNotice<'_, Message>,
         locale: Locale,
         clock: Clock,
     ) -> Option<Self>
@@ -271,7 +271,7 @@ impl<Message> OngoingToast<Message> {
         Message: Clone,
     {
         let now = clock.utc();
-        let alerting: Vec<Quota> = reading
+        let alerting: Vec<Quota> = sample
             .alerts
             .quota_windows
             .iter()
@@ -285,14 +285,14 @@ impl<Message> OngoingToast<Message> {
             "runs out before reset"
         };
         Some(Self {
-            widget_name: reading.widget_name.clone(),
-            key: OngoingKey::Reading(reading.instrument.clone()),
+            widget_name: sample.widget_name.clone(),
+            key: OngoingKey::Sample(sample.indicator.clone()),
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} {outlook}", worst.label)),
             progress: Some(worst.used),
             body: Some(quota_pace_body(&alerting, now, locale)),
             since: clock.wall,
-            on_body_clicked: reading.on_body_clicked.clone(),
+            on_body_clicked: sample.on_body_clicked.clone(),
             action_buttons: Vec::new(),
         })
     }
@@ -360,14 +360,14 @@ mod tests {
         }
     }
 
-    fn alert_for(state: ReadingDisplayState, state_toast: StateToast) -> Option<OngoingToast<u8>> {
-        let alerts = ReadingAlerts {
+    fn alert_for(state: IndicatorState, state_toast: StateToast) -> Option<OngoingToast<u8>> {
+        let alerts = IndicatorAlerts {
             state_toast,
-            ..ReadingAlerts::default()
+            ..IndicatorAlerts::default()
         };
-        OngoingToast::reading_state_alert(
+        OngoingToast::indicator_state_alert(
             &RowNotice {
-                instrument: InstrumentKey {
+                indicator: IndicatorKey {
                     group: WidgetGroupIdentity::sole(WidgetGroupFamily::Power),
                     name: "Fixed reading".into(),
                 },
@@ -382,37 +382,25 @@ mod tests {
 
     #[test]
     fn widgets_that_never_notify_have_no_alert() {
-        assert!(alert_for(ReadingDisplayState::Critical, StateToast::NeverNotify).is_none());
+        assert!(alert_for(IndicatorState::Critical, StateToast::NeverNotify).is_none());
     }
 
     #[test]
-    fn readings_below_the_minimum_level_have_no_alert() {
-        assert!(alert_for(ReadingDisplayState::Idle, notifying_from(Severity::Warning)).is_none());
-        assert!(
-            alert_for(
-                ReadingDisplayState::Warning,
-                notifying_from(Severity::Critical)
-            )
-            .is_none()
-        );
+    fn indicators_below_the_minimum_level_have_no_alert() {
+        assert!(alert_for(IndicatorState::Idle, notifying_from(Severity::Warning)).is_none());
+        assert!(alert_for(IndicatorState::Warning, notifying_from(Severity::Critical)).is_none());
         assert_eq!(
-            alert_for(
-                ReadingDisplayState::Critical,
-                notifying_from(Severity::Critical)
-            )
-            .map(|alert| alert.severity),
+            alert_for(IndicatorState::Critical, notifying_from(Severity::Critical))
+                .map(|alert| alert.severity),
             Some(Severity::Critical)
         );
     }
 
     #[test]
-    fn failed_readings_alert_as_critical() {
+    fn failed_indicators_alert_as_critical() {
         assert_eq!(
-            alert_for(
-                ReadingDisplayState::Failed,
-                notifying_from(Severity::Warning)
-            )
-            .map(|alert| alert.severity),
+            alert_for(IndicatorState::Failed, notifying_from(Severity::Warning))
+                .map(|alert| alert.severity),
             Some(Severity::Critical)
         );
     }
@@ -499,14 +487,11 @@ mod tests {
 
     #[test]
     fn mapping_messages_keeps_the_body_message_and_the_action_buttons() {
-        let alert = alert_for(
-            ReadingDisplayState::Warning,
-            notifying_from(Severity::Warning),
-        )
-        .expect("warning reading alerts")
-        .with_action_button(proceed_button("first", 1))
-        .with_action_button(proceed_button("second", 2))
-        .map_messages(|message| u16::from(message) * 10);
+        let alert = alert_for(IndicatorState::Warning, notifying_from(Severity::Warning))
+            .expect("warning reading alerts")
+            .with_action_button(proceed_button("first", 1))
+            .with_action_button(proceed_button("second", 2))
+            .map_messages(|message| u16::from(message) * 10);
         assert_eq!(alert.on_body_clicked, 0);
         assert_eq!(alert.action_buttons[1].on_button_pressed, 20);
         assert_eq!(alert.toast_notification_data(7).actions[0].label, "first");

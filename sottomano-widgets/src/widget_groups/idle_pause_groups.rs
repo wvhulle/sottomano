@@ -1,4 +1,4 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_indicators::indicator_state::IndicatorState;
 mod pause_blocker_rows;
 mod sqlite_idle_timeouts;
 
@@ -30,7 +30,7 @@ pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{group_item::GroupItem, slider_control::ControlMessage},
+    group_indicators::{group_indicator::GroupIndicator, slider_control::ControlMessage},
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -392,7 +392,7 @@ impl IdlePauseGroups {
         let locale = config.calendar.locale;
         let first_blocker = self.blockers_of(pause).next();
         let timeout_slider =
-            GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
+            GroupIndicator::slider(self.pause(pause).timer.slider(), config, move |message| {
                 IdlePauseInteraction::Timer(pause, message)
             })
             .with_hover_card(Box::new(move |card_clock| {
@@ -400,7 +400,7 @@ impl IdlePauseGroups {
             }));
         let mut rows = vec![timeout_slider];
         rows.extend(self.blockers_of(pause).map(move |blocker| {
-            GroupItem::reading(blocker.reading_row())
+            GroupIndicator::sample(blocker.reading_row())
                 .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
         }));
         if let Some(obstacles) = self.sleep_obstacles.get() {
@@ -408,18 +408,17 @@ impl IdlePauseGroups {
                 && let Some(state) = obstacles.sleep_state_that_runs()
             {
                 rows.push(
-                    GroupItem::reading(NextSleepStateRow { state }.reading_row()).with_hover_card(
-                        Box::new(move |card_clock| {
+                    GroupIndicator::sample(NextSleepStateRow { state }.reading_row())
+                        .with_hover_card(Box::new(move |card_clock| {
                             self.pause_sections(IdleAction::Sleep, card_clock)
-                        }),
-                    ),
+                        })),
                 );
             }
             if pause == IdleAction::PowerOff
                 && let Some(shutdown) = obstacles.scheduled_shutdown.as_ref()
             {
                 rows.push(
-                    GroupItem::reading(
+                    GroupIndicator::sample(
                         ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
                     )
                     .with_hover_card(Box::new(move |card_clock| {
@@ -430,7 +429,7 @@ impl IdlePauseGroups {
         }
         let summary_state = match first_blocker {
             Some(blocker) => blocker.display_state(),
-            None => ReadingDisplayState::Idle,
+            None => IndicatorState::Idle,
         };
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::IdleTimeouts, pause_stored_name(pause)),

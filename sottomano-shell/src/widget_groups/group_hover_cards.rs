@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use sottomano_widgets::{
-    group_items::group_item::{GroupItem, HoverFetch, ReadingRefresh, RowHoverCard},
+    group_indicators::group_indicator::{
+        GroupIndicator, HoverFetch, IndicatorRefresh, RowHoverCard,
+    },
     hover_cards::{
         CardHeader, HoverTarget, PressAction,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
@@ -19,11 +21,11 @@ use crate::{
 
 pub struct HoveredRowRequests {
     pub hover_fetch: HoverFetch,
-    pub refresh: ReadingRefresh,
+    pub refresh: IndicatorRefresh,
 }
 
-impl From<&GroupItem<'_>> for HoveredRowRequests {
-    fn from(hovered_row: &GroupItem<'_>) -> Self {
+impl From<&GroupIndicator<'_>> for HoveredRowRequests {
+    fn from(hovered_row: &GroupIndicator<'_>) -> Self {
         Self {
             hover_fetch: hovered_row.hover_fetch().clone(),
             refresh: hovered_row.refresh().clone(),
@@ -54,11 +56,11 @@ impl DesktopShell {
         all_panel_entries().find_map(|entry| match entry {
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic, output)
-                .hovered_instrument(target)
+                .hovered_indicator(target)
                 .map(HoveredRowRequests::from),
             PanelZoneEntry::Standalone(group) => self
                 .standalone_group(group)
-                .hovered_instrument(target)
+                .hovered_indicator(target)
                 .map(HoveredRowRequests::from),
             PanelZoneEntry::Fixed(_)
             | PanelZoneEntry::InlineWorkspaces
@@ -125,7 +127,7 @@ impl DesktopShell {
             )
             .into_iter()
             .collect(),
-            HoverTarget::Instrument(_)
+            HoverTarget::Indicator(_)
             | HoverTarget::PinnedOnPanel(_)
             | HoverTarget::GroupSummary(_)
             | HoverTarget::GroupMenu(_)

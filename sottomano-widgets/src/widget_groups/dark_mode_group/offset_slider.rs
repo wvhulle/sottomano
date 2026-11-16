@@ -2,7 +2,7 @@ use chrono::TimeDelta;
 
 use super::{OFFSET_MINUTES, OFFSET_STEP_MINUTES};
 use crate::{
-    group_items::slider_control::SliderControl,
+    group_indicators::slider_control::SliderControl,
     widgets::{localized_durations::signed_duration_text, weather_icons::WeatherIcon},
 };
 

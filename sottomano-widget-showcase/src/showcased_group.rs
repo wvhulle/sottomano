@@ -21,7 +21,7 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
-    group_items::group_item::HoverFetch,
+    group_indicators::group_indicator::HoverFetch,
     group_menus::group_menu_state::GroupMenuState,
     hover_cards::{
         CardHeader, HoverTarget,
@@ -924,7 +924,7 @@ impl ShowcasedGroup {
         let hovered_fetch = self
             .group_contents(config, clock)
             .iter()
-            .find_map(|group| group.hovered_instrument(target))
+            .find_map(|group| group.hovered_indicator(target))
             .map(|hovered_row| hovered_row.hover_fetch().clone());
         let Some(HoverFetch::Fetch {
             start: started_fetch,

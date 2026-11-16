@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::{
-    cpu_memory_compute::pci_gpu_readings::GpuVendor,
+    cpu_memory_compute::pci_gpu_samples::GpuVendor,
     host_machine_identity::udev_hardware_identity::{BusId, CpuVendor},
 };
 

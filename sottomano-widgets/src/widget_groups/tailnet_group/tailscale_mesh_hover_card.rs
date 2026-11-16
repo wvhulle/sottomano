@@ -11,10 +11,10 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
@@ -96,18 +96,18 @@ impl From<&Peer> for TableRecord<7> {
     }
 }
 
-pub(super) fn tailscale_reading_row(tailscale: &Tailscale, clock: Clock) -> ReadingRow<'_> {
+pub(super) fn tailscale_indicator(tailscale: &Tailscale, clock: Clock) -> ReadingRow<'_> {
     let state = match tailscale {
-        Tailscale::Stopped => ReadingDisplayState::Off,
-        Tailscale::Starting => ReadingDisplayState::Pending,
+        Tailscale::Stopped => IndicatorState::Off,
+        Tailscale::Starting => IndicatorState::Pending,
         Tailscale::Running(tailnet)
             if !tailnet.health_warnings.is_empty()
                 || key_expiry_urgency(tailnet.key_expiry, clock.utc())
                     == KeyExpiryUrgency::ExpiresSoon =>
         {
-            ReadingDisplayState::Warning
+            IndicatorState::Warning
         }
-        Tailscale::Running(_) => ReadingDisplayState::On,
+        Tailscale::Running(_) => IndicatorState::On,
     };
     let badge = match tailscale {
         Tailscale::Running(tailnet) if !tailnet.online.is_empty() => {
@@ -116,7 +116,7 @@ pub(super) fn tailscale_reading_row(tailscale: &Tailscale, clock: Clock) -> Read
         Tailscale::Running(_) | Tailscale::Stopped | Tailscale::Starting => ReadoutBadge::Unbadged,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge,

@@ -54,10 +54,10 @@ const POLLEN_GRAINS_PER_CUBIC_METRE: [(Allergen, f64); 6] = [
 use crate::showcased_group::ShowcasedGroup;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::Weather(Box::new(readings(clock).into_iter().fold(
+    ShowcasedGroup::Weather(Box::new(fixture_messages(clock).into_iter().fold(
         WeatherGroup::default(),
-        |mut group, reading| {
-            let _ = group.update(reading, clock);
+        |mut group, fixture_message| {
+            let _ = group.update(fixture_message, clock);
             group
         },
     )))
@@ -126,7 +126,7 @@ fn pollen_counts() -> Pollen {
     }
 }
 
-fn readings(clock: Clock) -> [WeatherMessage; 5] {
+fn fixture_messages(clock: Clock) -> [WeatherMessage; 5] {
     [
         WeatherMessage::Wind(SnapshotDelivery::fixture_delivered(
             Ok(Wind {

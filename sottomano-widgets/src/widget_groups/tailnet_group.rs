@@ -27,9 +27,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
         toggle_control::SwitchPosition,
     },
@@ -44,7 +44,7 @@ use crate::{
             },
             tailscale_exit_node_hover_card::{ExitNodeChoiceRow, ExitNodeLanAccessRow},
             tailscale_exit_offer_hover_card::ExitOfferRow,
-            tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_reading_row},
+            tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_indicator},
         },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -288,8 +288,8 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_item<'a>(&'a self, membership_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(membership_row)
+    fn membership_item<'a>(&'a self, membership_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(membership_row)
             .on_right_press(
                 "open the Tailscale admin console",
                 TailnetInteraction::OpenAdminConsole,
@@ -304,7 +304,7 @@ impl TailnetGroup {
         &'a self,
         membership_row: ReadingRow<'a>,
         tailscale: &Tailscale,
-    ) -> GroupItem<'a> {
+    ) -> GroupIndicator<'a> {
         let membership_item = self.membership_item(membership_row);
         match tailscale.switch() {
             TailscaleSwitch::Up => membership_item.on_switch_press(
@@ -327,8 +327,8 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(&self) -> GroupItem<'_> {
-        GroupItem::reading(PolicyFileRow::reading_row())
+    fn policy_file_item(&self) -> GroupIndicator<'_> {
+        GroupIndicator::sample(PolicyFileRow::reading_row())
             .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
             .fetching_on_hover(
                 TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
@@ -336,8 +336,8 @@ impl TailnetGroup {
             )
     }
 
-    fn inbound_access_item(&self) -> GroupItem<'_> {
-        GroupItem::reading(InboundAccessRow::reading_row())
+    fn inbound_access_item(&self) -> GroupIndicator<'_> {
+        GroupIndicator::sample(InboundAccessRow::reading_row())
             .with_hover_card(Box::new(move |_| {
                 self.inbound_access
                     .sections_described_by(tailscale_inbound_access_sections)
@@ -348,8 +348,8 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_> {
-        let item = GroupItem::reading(ExitOfferRow { tailnet }.reading_row());
+    fn exit_offer_item(tailnet: &Tailnet) -> GroupIndicator<'_> {
+        let item = GroupIndicator::sample(ExitOfferRow { tailnet }.reading_row());
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
                 .on_switch_press(
@@ -378,8 +378,8 @@ impl TailnetGroup {
     fn exit_node_choice_item<'a>(
         exit_node_option: &'a ExitNodeOption,
         exit_node_choices: &'a ExitNodeChoices,
-    ) -> GroupItem<'a> {
-        let exit_node_item = GroupItem::reading(
+    ) -> GroupIndicator<'a> {
+        let exit_node_item = GroupIndicator::sample(
             ExitNodeChoiceRow {
                 exit_node_option,
                 exit_node_choices,
@@ -399,8 +399,8 @@ impl TailnetGroup {
         }
     }
 
-    fn exit_node_lan_access_item(exit_node_choices: &ExitNodeChoices) -> GroupItem<'_> {
-        GroupItem::reading(ExitNodeLanAccessRow { exit_node_choices }.reading_row())
+    fn exit_node_lan_access_item(exit_node_choices: &ExitNodeChoices) -> GroupIndicator<'_> {
+        GroupIndicator::sample(ExitNodeLanAccessRow { exit_node_choices }.reading_row())
             .on_switch_press(
                 exit_node_choices.lan_access,
                 match exit_node_choices.lan_access {
@@ -411,7 +411,7 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_>> {
+    fn exit_node_choice_items(&self) -> Vec<GroupIndicator<'_>> {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
@@ -450,15 +450,15 @@ impl TailnetGroup {
         let mut rows = Vec::new();
         match &self.tailscale {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let membership_row = tailscale_reading_row(held_snapshot, clock);
+                let membership_row = tailscale_indicator(held_snapshot, clock);
                 if membership_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.membership_switch_item(membership_row, held_snapshot));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let membership_row = troubled_snapshot
-                    .shown_over(tailscale_reading_row(held_snapshot, clock), clock);
+                let membership_row =
+                    troubled_snapshot.shown_over(tailscale_indicator(held_snapshot, clock), clock);
                 if membership_row.panel_visibility == PanelVisibility::Shown {
                     rows.push(self.membership_switch_item(membership_row, held_snapshot));
                 }
@@ -472,7 +472,7 @@ impl TailnetGroup {
         }
         if let Some(own_node_row) = self.tailscale.get().and_then(OwnNodeRow::running_own_node) {
             rows.push(
-                GroupItem::reading(own_node_row.reading_row()).with_hover_card(Box::new(
+                GroupIndicator::sample(own_node_row.reading_row()).with_hover_card(Box::new(
                     move |_| self.tailscale.hover_card_with(own_node_row.hover_card()),
                 )),
             );
@@ -490,18 +490,20 @@ impl TailnetGroup {
             );
         }
         rows.extend(self.exit_node_choice_items());
-        if let Some(failure_reading) = self.tailscale_exit_nodes.failure() {
+        if let Some(failure_indicator) = self.tailscale_exit_nodes.failure() {
             rows.push(
-                GroupItem::reading(failure_reading.reading_row(TAILSCALE_EXIT_NODES_GLYPH.into()))
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale_exit_nodes
-                            .sections_described_by(|_| Vec::new())
-                    })),
+                GroupIndicator::sample(
+                    failure_indicator.reading_row(TAILSCALE_EXIT_NODES_GLYPH.into()),
+                )
+                .with_hover_card(Box::new(move |_| {
+                    self.tailscale_exit_nodes
+                        .sections_described_by(|_| Vec::new())
+                })),
             );
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
-            GroupSummary::glyph(SimpleIcon::Tailscale.into(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(SimpleIcon::Tailscale.into(), IndicatorState::Idle),
             &self.expansion,
             TailnetInteraction::Expansion,
             rows.into_iter()
@@ -519,7 +521,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::group_item_gestures::GroupItemGesture,
+        group_indicators::indicator_gestures::IndicatorGesture,
         widget_groups::widget_group_interaction::WidgetGroupInteraction,
     };
 
@@ -550,7 +552,7 @@ mod tests {
         let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
-            GroupItemGesture::Inert
+            IndicatorGesture::Inert
         ));
     }
 
@@ -571,9 +573,9 @@ mod tests {
     fn lists_policy_file_row(tailnet_group: &TailnetGroup) -> bool {
         tailnet_group
             .group_content(Clock::real())
-            .instrument_keys()
+            .indicator_keys()
             .iter()
-            .any(|instrument_key| instrument_key.name == "Policy file")
+            .any(|indicator_key| indicator_key.name == "Policy file")
     }
 
     #[test]
@@ -590,7 +592,7 @@ mod tests {
         let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
-            GroupItemGesture::Performs {
+            IndicatorGesture::Performs {
                 message: WidgetGroupInteraction::Tailnet(TailnetInteraction::SwitchExitOffer(
                     ExitOfferSwitch::StopOffering
                 )),
@@ -625,7 +627,7 @@ mod tests {
             )
             .gestures()
             .left,
-            GroupItemGesture::Inert
+            IndicatorGesture::Inert
         ));
     }
 
@@ -638,7 +640,7 @@ mod tests {
             )
             .gestures()
             .left,
-            GroupItemGesture::Inert
+            IndicatorGesture::Inert
         ));
     }
 
@@ -651,7 +653,7 @@ mod tests {
             )
             .gestures()
             .left,
-            GroupItemGesture::Inert
+            IndicatorGesture::Inert
         ));
     }
 }

@@ -1,10 +1,10 @@
 use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -15,14 +15,14 @@ use crate::{
 
 pub(crate) const WIND_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::StrongWind);
 
-pub fn wind_reading_row(wind: &Wind) -> ReadingRow<'_> {
+pub fn wind_indicator(wind: &Wind) -> ReadingRow<'_> {
     let state = match wind.beaufort() {
-        0..=6 => ReadingDisplayState::Idle,
-        7..=8 => ReadingDisplayState::Warning,
-        _ => ReadingDisplayState::Critical,
+        0..=6 => IndicatorState::Idle,
+        7..=8 => IndicatorState::Warning,
+        _ => IndicatorState::Critical,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(format!(
                 "{} Bft {}",
                 wind.beaufort(),
@@ -71,7 +71,7 @@ mod tests {
             direction: Angle::new::<degree>(225.0),
         };
         assert_eq!(
-            wind_reading_row(&wind).readout.label,
+            wind_indicator(&wind).readout.label,
             ReadoutLabel::Labeled("3 Bft SW".to_owned())
         );
     }

@@ -11,11 +11,11 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
@@ -91,18 +91,18 @@ impl LimitedCgroupRow<'_> {
 }
 
 impl<'a> LimitedCgroupRow<'a> {
-    fn state(&self) -> ReadingDisplayState {
+    fn state(&self) -> IndicatorState {
         let memory = &self.cgroup.memory;
         if self.killed_this_session {
-            ReadingDisplayState::Critical
+            IndicatorState::Critical
         } else if memory.exceeds_high()
             || memory
                 .stalled_percent_last_ten_seconds
                 .is_some_and(|stalled_percent| stalled_percent > STALL_WARNING_PERCENT)
         {
-            ReadingDisplayState::Warning
+            IndicatorState::Warning
         } else {
-            ReadingDisplayState::On
+            IndicatorState::On
         }
     }
 
@@ -123,7 +123,7 @@ impl<'a> LimitedCgroupRow<'a> {
 
     fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(self.usage_text()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -224,7 +224,7 @@ impl CgroupMemoryLimitsGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
-            GroupItem::reading(self.cgroup_row(cgroup).reading_row())
+            GroupIndicator::sample(self.cgroup_row(cgroup).reading_row())
                 .with_hover_card(Box::new(move |_| {
                     self.listing
                         .hover_card_with(self.cgroup_row(cgroup).hover_card())
@@ -255,7 +255,7 @@ impl CgroupMemoryLimitsGroup {
 }
 
 impl CgroupMemoryLimitsGroup {
-    fn state(&self) -> ReadingDisplayState {
+    fn state(&self) -> IndicatorState {
         self.listed_cgroups()
             .iter()
             .map(|cgroup| self.cgroup_row(cgroup).state().severity())
@@ -274,7 +274,7 @@ mod tests {
         cgroup_memory_limits::LimitedCgroup,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         system_protocol_clients::sysfs_cgroup_memory::{
-            CgroupMemoryReading, MemoryBound, MemoryEventCounts,
+            CgroupMemorySample, MemoryBound, MemoryEventCounts,
         },
     };
 
@@ -284,7 +284,7 @@ mod tests {
         LimitedCgroup {
             unit_name: "ci-runners.slice".to_owned(),
             cgroup_path: "/ci-runners.slice".to_owned(),
-            memory: CgroupMemoryReading {
+            memory: CgroupMemorySample {
                 current,
                 high: MemoryBound::Bytes(ByteSize::gib(10)),
                 max: MemoryBound::Bytes(ByteSize::gib(12)),
@@ -322,7 +322,7 @@ mod tests {
             row.usage_text(),
             format!("{} / {}", ByteSize::gib(6), ByteSize::gib(12))
         );
-        assert_eq!(row.state(), ReadingDisplayState::On);
+        assert_eq!(row.state(), IndicatorState::On);
     }
 
     #[test]
@@ -332,15 +332,15 @@ mod tests {
             cgroup: &cgroup,
             killed_this_session: false,
         };
-        assert_eq!(row.state(), ReadingDisplayState::Warning);
+        assert_eq!(row.state(), IndicatorState::Warning);
     }
 
     #[test]
-    fn a_kill_after_the_first_reading_is_critical() {
+    fn a_kill_after_the_first_indicator_is_critical() {
         let mut group = CgroupMemoryLimitsGroup::default();
         deliver_cgroup(&mut group, capped_cgroup(ByteSize::gib(6), 2));
-        assert_ne!(group.state(), ReadingDisplayState::Critical);
+        assert_ne!(group.state(), IndicatorState::Critical);
         deliver_cgroup(&mut group, capped_cgroup(ByteSize::gib(6), 3));
-        assert_eq!(group.state(), ReadingDisplayState::Critical);
+        assert_eq!(group.state(), IndicatorState::Critical);
     }
 }

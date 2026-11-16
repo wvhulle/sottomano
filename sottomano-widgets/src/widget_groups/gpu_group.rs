@@ -7,14 +7,14 @@ mod gpu_temperature_label;
 use std::collections::BTreeMap;
 
 use gpu_clock_label::GpuClockLabel;
-use gpu_load_gauge::{gpu_load_hover_card, gpu_load_reading_row};
-use gpu_memory_gauge::gpu_memory_reading_row;
-use gpu_power_label::{gpu_power_hover_card, gpu_power_reading_row};
+use gpu_load_gauge::{gpu_load_hover_card, gpu_load_indicator};
+use gpu_memory_gauge::gpu_memory_indicator;
+use gpu_power_label::{gpu_power_hover_card, gpu_power_indicator};
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    cpu_memory_compute::pci_gpu_readings::{
+    cpu_memory_compute::pci_gpu_samples::{
         GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
         GpuRuntimePower, GpuSnapshot, PciBusId,
     },
@@ -24,10 +24,10 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
+        offline_internet_indicator::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
         reading_row::ReadingRow,
     },
     hover_cards::hover_card_body::Section,
@@ -163,7 +163,7 @@ impl GpuGroup {
         let runtime_powers = self.devices.keys().map(|bus| {
             snapshot_subscription::<GpuRuntimePower>(bus.clone())
                 .with(bus.clone())
-                .map(|(bus, reading)| GpuMessage::RuntimePower(bus, reading))
+                .map(|(bus, sample)| GpuMessage::RuntimePower(bus, sample))
         });
         let snapshots = self
             .devices
@@ -173,7 +173,7 @@ impl GpuGroup {
                 Some(
                     snapshot_subscription::<GpuSnapshot>(device.readable_handle()?.clone())
                         .with(bus.clone())
-                        .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
+                        .map(|(bus, sample)| GpuMessage::Snapshot(bus, sample)),
                 )
             });
         Subscription::batch(
@@ -233,8 +233,8 @@ impl GpuGroup {
 
     pub fn update(&mut self, msg: GpuMessage, clock: Clock) -> Task<GpuMessage> {
         match msg {
-            GpuMessage::Discovered(reading) => {
-                self.discovery.receive(reading, clock);
+            GpuMessage::Discovered(sample) => {
+                self.discovery.receive(sample, clock);
                 let Some(discovery) = self.discovery.get() else {
                     return Task::none();
                 };
@@ -277,13 +277,13 @@ impl GpuGroup {
                 }
             }
             GpuMessage::RuntimePower(..) => {}
-            GpuMessage::Snapshot(bus, reading) => {
+            GpuMessage::Snapshot(bus, sample) => {
                 if let Some(GpuDevice {
                     access: GpuDeviceAccess::Readable { snapshot, .. },
                     ..
                 }) = self.devices.get_mut(&bus)
                 {
-                    snapshot.receive(reading, clock);
+                    snapshot.receive(sample, clock);
                 }
             }
             GpuMessage::ClocksFetched(fetched) => self.clocks.receive(fetched, clock),
@@ -336,7 +336,7 @@ impl GpuGroup {
                             bus,
                             device,
                             snapshot,
-                            gpu_load_reading_row(held_snapshot),
+                            gpu_load_indicator(held_snapshot),
                         ),
                     )
                 }
@@ -348,7 +348,7 @@ impl GpuGroup {
                             device,
                             snapshot,
                             troubled_snapshot.shown_over(
-                                gpu_load_reading_row(&troubled_snapshot.held_snapshot),
+                                gpu_load_indicator(&troubled_snapshot.held_snapshot),
                                 clock,
                             ),
                         ),
@@ -365,16 +365,16 @@ impl GpuGroup {
                 ),
                 SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                     Phosphor::CubeTransparent(Weight::Regular).into(),
-                    ReadingDisplayState::Pending,
+                    IndicatorState::Pending,
                 ),
                 SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
                     Phosphor::CubeTransparent(Weight::Regular).into(),
-                    ReadingDisplayState::Off,
+                    IndicatorState::Off,
                 ),
             },
             GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
                 Phosphor::CubeTransparent(Weight::Regular).into(),
-                GroupItem::reading(handle_failure.reading_row(GPU_LOAD_GLYPH.into()))
+                GroupIndicator::sample(handle_failure.reading_row(GPU_LOAD_GLYPH.into()))
                     .with_hover_card(Box::new(move |_| {
                         [handle_failure.source_state()]
                             .into_iter()
@@ -397,8 +397,8 @@ impl GpuGroup {
         device: &'a GpuDevice,
         snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
         load_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(load_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(load_row)
             .with_hover_card(Box::new(move |_| {
                 snapshot
                     .sections_described_by(gpu_load_hover_card)
@@ -409,7 +409,11 @@ impl GpuGroup {
             .refreshed_by(GpuInteraction::Refresh(bus.clone()))
     }
 
-    fn device_items<'a>(&'a self, bus: &'a PciBusId, device: &'a GpuDevice) -> Vec<GroupItem<'a>> {
+    fn device_items<'a>(
+        &'a self,
+        bus: &'a PciBusId,
+        device: &'a GpuDevice,
+    ) -> Vec<GroupIndicator<'a>> {
         let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
             return Vec::new();
         };
@@ -417,7 +421,7 @@ impl GpuGroup {
         let mut rows = Vec::new();
         if let Some(clock_label) = device.clock_label() {
             rows.push(
-                GroupItem::reading(clock_label.reading_row())
+                GroupIndicator::sample(clock_label.reading_row())
                     .with_hover_card(Box::new(move |_| {
                         let mut sections = snapshot.hover_card_with(clock_label.hover_card());
                         sections.extend(self.hovered_sections(bus, |group| {
@@ -435,7 +439,7 @@ impl GpuGroup {
         if let Some(memory) = device.memory() {
             let card_memory = memory.clone();
             rows.push(
-                GroupItem::reading(gpu_memory_reading_row(memory))
+                GroupIndicator::sample(gpu_memory_indicator(memory))
                     .with_hover_card(Box::new(move |_| {
                         let mut sections =
                             snapshot.hover_card_with(gpu_memory_sections(&card_memory));
@@ -455,7 +459,7 @@ impl GpuGroup {
         }
         if let Some(temperature_label) = device.temperature_label() {
             rows.push(
-                GroupItem::reading(temperature_label.reading_row())
+                GroupIndicator::sample(temperature_label.reading_row())
                     .with_hover_card(Box::new(move |_| {
                         snapshot.hover_card_with(temperature_label.hover_card())
                     }))
@@ -464,7 +468,7 @@ impl GpuGroup {
         }
         if let Some(power_label) = device.power_label() {
             rows.push(
-                GroupItem::reading(gpu_power_reading_row(power_label))
+                GroupIndicator::sample(gpu_power_indicator(power_label))
                     .with_hover_card(Box::new(move |_| {
                         snapshot.hover_card_with(gpu_power_hover_card(&power_label))
                     }))
@@ -507,13 +511,13 @@ impl GpuGroup {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
         first_delivery::<GpuSnapshot>(handle)
-            .map(move |reading| GpuMessage::Snapshot(bus.clone(), reading))
+            .map(move |sample| GpuMessage::Snapshot(bus.clone(), sample))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuNames;
+    use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::GpuNames;
 
     use super::{PciBusId, WidgetGroupTitle, gpu_group_identity};
 

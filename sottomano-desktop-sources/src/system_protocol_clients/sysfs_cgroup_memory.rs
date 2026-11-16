@@ -65,7 +65,7 @@ impl MemoryEventCounts {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CgroupMemoryReading {
+pub struct CgroupMemorySample {
     pub current: ByteSize,
     pub high: MemoryBound,
     pub max: MemoryBound,
@@ -75,7 +75,7 @@ pub struct CgroupMemoryReading {
     pub event_counts: MemoryEventCounts,
 }
 
-impl CgroupMemoryReading {
+impl CgroupMemorySample {
     #[must_use]
     pub fn is_limited(&self) -> bool {
         self.limit().is_some()
@@ -148,12 +148,12 @@ fn parsed_some_average_ten_seconds(pressure_text: &str) -> Option<f64> {
 }
 
 #[must_use]
-pub fn read_cgroup_memory(cgroup_directory: &Path) -> Option<CgroupMemoryReading> {
+pub fn read_cgroup_memory(cgroup_directory: &Path) -> Option<CgroupMemorySample> {
     let current = parsed_byte_count(
         &read_text(cgroup_directory, "memory.current")?,
         "memory.current",
     )?;
-    Some(CgroupMemoryReading {
+    Some(CgroupMemorySample {
         current,
         high: read_bound(cgroup_directory, "memory.high"),
         max: read_bound(cgroup_directory, "memory.max"),
@@ -203,7 +203,7 @@ pub fn unit_cgroup_enclosing(cgroup_directory: &Path) -> Option<&Path> {
 pub fn unit_memory_of_process(pid: u32) -> Option<ByteSize> {
     let process_cgroup = cgroup_directory_of_process(pid)?;
     let unit_cgroup = unit_cgroup_enclosing(&process_cgroup)?;
-    read_cgroup_memory(unit_cgroup).map(|reading| reading.current)
+    read_cgroup_memory(unit_cgroup).map(|sample| sample.current)
 }
 
 #[must_use]
@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn a_cgroup_directory_reads_into_one_reading() {
+    fn a_cgroup_directory_reads_into_one_sample() {
         let cgroup_directory =
             env::temp_dir().join(format!("sottomano-cgroup-memory-{}", process::id()));
         fs::create_dir_all(&cgroup_directory).unwrap();
@@ -322,12 +322,12 @@ mod tests {
         ] {
             fs::write(cgroup_directory.join(file_name), file_contents).unwrap();
         }
-        let reading = read_cgroup_memory(&cgroup_directory).unwrap();
+        let sample = read_cgroup_memory(&cgroup_directory).unwrap();
         fs::remove_dir_all(&cgroup_directory).unwrap();
-        assert_eq!(reading.current, ByteSize::gib(6));
-        assert_eq!(reading.limit(), Some(ByteSize::gib(12)));
-        assert_eq!(reading.swap_current, Some(ByteSize::gib(1)));
-        assert_eq!(reading.event_counts.throttled_at_high, 2);
-        assert!(!reading.exceeds_high());
+        assert_eq!(sample.current, ByteSize::gib(6));
+        assert_eq!(sample.limit(), Some(ByteSize::gib(12)));
+        assert_eq!(sample.swap_current, Some(ByteSize::gib(1)));
+        assert_eq!(sample.event_counts.throttled_at_high, 2);
+        assert!(!sample.exceeds_high());
     }
 }

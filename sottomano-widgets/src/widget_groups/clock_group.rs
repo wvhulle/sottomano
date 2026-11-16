@@ -15,9 +15,9 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -75,10 +75,10 @@ impl ClockGroup {
 
     pub fn update(&mut self, message: ClockMessage, clock: Clock) -> Task<ClockMessage> {
         match message {
-            ClockMessage::Time(reading) => self.time.receive(reading, clock),
-            ClockMessage::Date(reading) => self.date.receive(reading, clock),
-            ClockMessage::Zone(zone, reading) => {
-                self.zone_time_mut(zone).receive(reading, clock);
+            ClockMessage::Time(sample) => self.time.receive(sample, clock),
+            ClockMessage::Date(sample) => self.date.receive(sample, clock),
+            ClockMessage::Zone(zone, sample) => {
+                self.zone_time_mut(zone).receive(sample, clock);
             }
         }
         Task::none()
@@ -104,7 +104,7 @@ impl ClockGroup {
             demand.while_rows_shown(
                 snapshot_subscription::<ZoneTime>(*zone)
                     .with(*zone)
-                    .map(|(zone, reading)| ClockMessage::Zone(zone, reading)),
+                    .map(|(zone, sample)| ClockMessage::Zone(zone, sample)),
             )
         });
         Subscription::batch(
@@ -121,8 +121,9 @@ impl ClockGroup {
         match source {
             ClockSource::LocalTime => first_delivery::<LocalTime>(()).map(ClockMessage::Time),
             ClockSource::LocalDate => first_delivery::<LocalDate>(()).map(ClockMessage::Date),
-            ClockSource::ZoneTime(zone) => first_delivery::<ZoneTime>(zone)
-                .map(move |reading| ClockMessage::Zone(zone, reading)),
+            ClockSource::ZoneTime(zone) => {
+                first_delivery::<ZoneTime>(zone).map(move |sample| ClockMessage::Zone(zone, sample))
+            }
         }
     }
 
@@ -158,12 +159,11 @@ impl ClockGroup {
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Watch(Weight::Regular).into(),
-                ReadingDisplayState::Pending,
+                IndicatorState::Pending,
             ),
-            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
-                Phosphor::Watch(Weight::Regular).into(),
-                ReadingDisplayState::Off,
-            ),
+            SubscribedSnapshot::SourceUnavailable => {
+                GroupSummary::glyph(Phosphor::Watch(Weight::Regular).into(), IndicatorState::Off)
+            }
         };
         let mut rows = Vec::new();
         match &self.date {
@@ -222,8 +222,8 @@ impl ClockGroup {
         )
     }
 
-    fn local_time_item<'a>(&'a self, time_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(time_row)
+    fn local_time_item<'a>(&'a self, time_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(time_row)
             .with_hover_card(Box::new(|card_clock| {
                 self.time
                     .sections_described_by(|_| LocalTime::hover_card(card_clock))
@@ -231,8 +231,8 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
     }
 
-    fn local_date_item<'a>(&'a self, date_row: ReadingRow<'a>) -> GroupItem<'a> {
-        GroupItem::reading(date_row)
+    fn local_date_item<'a>(&'a self, date_row: ReadingRow<'a>) -> GroupIndicator<'a> {
+        GroupIndicator::sample(date_row)
             .with_hover_card(Box::new(|card_clock| {
                 self.date
                     .sections_described_by(|_| LocalDate::hover_card(card_clock))
@@ -244,8 +244,8 @@ impl ClockGroup {
         zone: Tz,
         zone_time: &'a SubscribedSnapshot<ZoneTime>,
         zone_row: ReadingRow<'a>,
-    ) -> GroupItem<'a> {
-        GroupItem::reading(zone_row)
+    ) -> GroupIndicator<'a> {
+        GroupIndicator::sample(zone_row)
             .with_hover_card(Box::new(|card_clock| {
                 zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))
             }))

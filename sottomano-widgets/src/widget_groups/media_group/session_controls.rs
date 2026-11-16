@@ -4,7 +4,7 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Me
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
     hover_cards::{MouseGesture, PressAction},
     widget_groups::media_group::confirm_button::configured_confirm_button,
     widgets::{
@@ -74,8 +74,8 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         Message: 'a,
     {
         self.offers_stop().then(|| {
-            let state = ReadingDisplayState::Off;
-            let tint = ReadingStateTint {
+            let state = IndicatorState::Off;
+            let tint = IndicatorStateTint {
                 state,
                 opacity: self.reveal,
             };

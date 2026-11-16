@@ -14,9 +14,9 @@ use uom::si::{
 };
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, dictionary_table},
     widgets::{
@@ -65,14 +65,14 @@ pub fn swapped_processes_sections(swapped_processes: &SwappedProcesses) -> Vec<S
     )]
 }
 
-pub fn swap_activity_reading_row(activity: &SwapActivity, locale: Locale) -> ReadingRow<'_> {
+pub fn swap_activity_indicator(activity: &SwapActivity, locale: Locale) -> ReadingRow<'_> {
     let state = match swap_share(activity) {
         Some(share) if share.get::<ratio>() > SWAP_WARNING_SHARE => Severity::Warning,
         _ => Severity::Normal,
     }
     .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: paging_label(activity, locale),
             gauge: match swap_share(activity) {
                 Some(fill) => ReadoutGauge::Gauged { fill, live: fill },
@@ -132,8 +132,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{
-            group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+        group_indicators::{
+            group_indicator::indicator_toast_severity, indicator_state::IndicatorState,
         },
         widgets::keyed_record_table::KeyedTableRow,
     };
@@ -157,7 +157,7 @@ mod tests {
             paged_out_per_second: ByteSize::b(0),
         };
         assert_eq!(
-            swap_activity_reading_row(&without_swap, Locale::default()).panel_visibility,
+            swap_activity_indicator(&without_swap, Locale::default()).panel_visibility,
             PanelVisibility::Hidden
         );
     }
@@ -165,9 +165,9 @@ mod tests {
     #[test]
     fn a_nearly_full_swap_warns_without_a_toast() {
         let nearly_full = swap_with(31, ByteSize::b(0));
-        let nearly_full_row = swap_activity_reading_row(&nearly_full, Locale::default());
-        assert_eq!(nearly_full_row.shown_state(), ReadingDisplayState::Warning);
-        assert_eq!(reading_toast_severity(&nearly_full_row), None);
+        let nearly_full_row = swap_activity_indicator(&nearly_full, Locale::default());
+        assert_eq!(nearly_full_row.shown_state(), IndicatorState::Warning);
+        assert_eq!(indicator_toast_severity(&nearly_full_row), None);
     }
 
     #[test]

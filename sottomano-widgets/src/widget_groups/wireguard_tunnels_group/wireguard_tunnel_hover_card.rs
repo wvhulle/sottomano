@@ -9,11 +9,11 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
@@ -30,8 +30,8 @@ use crate::{
 pub(super) fn wireguard_tunnel_item<Message: Into<WidgetGroupInteraction>>(
     tunnel: &Tunnel,
     on_switch: fn(NmConnectionSwitch) -> Message,
-) -> GroupItem<'_> {
-    let item = GroupItem::reading(tunnel_reading_row(tunnel));
+) -> GroupIndicator<'_> {
+    let item = GroupIndicator::sample(tunnel_indicator(tunnel));
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,
@@ -217,7 +217,7 @@ fn undetermined_hover_card(tunnel: &Tunnel) -> Vec<Section> {
     )]
 }
 
-fn client_state(tunnel: &Tunnel) -> ReadingDisplayState {
+fn client_state(tunnel: &Tunnel) -> IndicatorState {
     match tunnel.statistics_access {
         StatisticsAccess::Read
             if tunnel
@@ -225,26 +225,26 @@ fn client_state(tunnel: &Tunnel) -> ReadingDisplayState {
                 .iter()
                 .any(|peer| peer.traffic.peer_link() == PeerLink::Connected) =>
         {
-            ReadingDisplayState::On
+            IndicatorState::On
         }
-        StatisticsAccess::Read => ReadingDisplayState::Pending,
+        StatisticsAccess::Read => IndicatorState::Pending,
         StatisticsAccess::TunnelDown
         | StatisticsAccess::NeedsNetAdmin
-        | StatisticsAccess::Unreadable(_) => ReadingDisplayState::On,
+        | StatisticsAccess::Unreadable(_) => IndicatorState::On,
     }
 }
 
-fn server_state(tunnel: &Tunnel) -> ReadingDisplayState {
+fn server_state(tunnel: &Tunnel) -> IndicatorState {
     match tunnel.statistics_access {
-        StatisticsAccess::Read if tunnel.connected_peers() > 0 => ReadingDisplayState::On,
-        StatisticsAccess::Read => ReadingDisplayState::Idle,
+        StatisticsAccess::Read if tunnel.connected_peers() > 0 => IndicatorState::On,
+        StatisticsAccess::Read => IndicatorState::Idle,
         StatisticsAccess::TunnelDown
         | StatisticsAccess::NeedsNetAdmin
-        | StatisticsAccess::Unreadable(_) => ReadingDisplayState::On,
+        | StatisticsAccess::Unreadable(_) => IndicatorState::On,
     }
 }
 
-pub(super) fn tunnel_reading_row(tunnel: &Tunnel) -> ReadingRow<'_> {
+pub(super) fn tunnel_indicator(tunnel: &Tunnel) -> ReadingRow<'_> {
     let glyph: IconGlyph = match tunnel.role {
         TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
         TunnelRole::Client
@@ -259,12 +259,12 @@ pub(super) fn tunnel_reading_row(tunnel: &Tunnel) -> ReadingRow<'_> {
         TunnelRole::Undetermined => Phosphor::Path(Weight::Regular).into(),
     };
     let state = match tunnel.tunnel_phase() {
-        LinkPhase::Switching => ReadingDisplayState::Pending,
-        LinkPhase::Down => ReadingDisplayState::Off,
+        LinkPhase::Switching => IndicatorState::Pending,
+        LinkPhase::Down => IndicatorState::Off,
         LinkPhase::Up => match tunnel.role {
             TunnelRole::Server { .. } => server_state(tunnel),
             TunnelRole::Client => client_state(tunnel),
-            TunnelRole::Undetermined => ReadingDisplayState::On,
+            TunnelRole::Undetermined => IndicatorState::On,
         },
     };
     let connected_server_peers = match tunnel.role {
@@ -276,7 +276,7 @@ pub(super) fn tunnel_reading_row(tunnel: &Tunnel) -> ReadingRow<'_> {
         count => ReadoutBadge::Counted(count),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Unlabeled,
             gauge: ReadoutGauge::Ungauged,
             badge,

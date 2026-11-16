@@ -1,9 +1,9 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
@@ -25,7 +25,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -96,13 +96,13 @@ impl PendingUpgradesGroup {
         let mut rows = Vec::new();
         if let Some(upgrades) = self
             .firmware
-            .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
+            .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
         {
             rows.push(self.firmware_upgrade_item(upgrades, config));
         }
         if let Some(placeholder) = self.firmware.failure() {
             rows.push(
-                GroupItem::reading(placeholder.reading_row(FIRMWARE_UPGRADES_GLYPH.into()))
+                GroupIndicator::sample(placeholder.reading_row(FIRMWARE_UPGRADES_GLYPH.into()))
                     .with_hover_card(Box::new(move |_| {
                         self.firmware.sections_described_by(|snapshot| {
                             firmware_upgrades_hover_card(snapshot)
@@ -112,7 +112,7 @@ impl PendingUpgradesGroup {
         }
         let group_summary = GroupSummary::summarising(
             Phosphor::ArrowFatLinesUp(Weight::Regular).into(),
-            GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
+            GroupIndicator::sample(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
             })),
         );
@@ -128,11 +128,11 @@ impl PendingUpgradesGroup {
     fn category_badges(&self) -> [Option<usize>; 1] {
         [self
             .firmware
-            .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
+            .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
             .map(|upgrades| firmware_upgrades_badge(upgrades))]
     }
 
-    fn category_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 1] {
+    fn category_states(&self, clock: Clock) -> [Option<IndicatorState>; 1] {
         [self.firmware.shown_state(
             |snapshot| firmware_upgrades_state(snapshot),
             |snapshot| firmware_upgrades_panel_visibility(snapshot),
@@ -142,11 +142,11 @@ impl PendingUpgradesGroup {
 }
 
 impl PendingUpgradesGroup {
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
+    fn state(&self, clock: Clock) -> IndicatorState {
         self.category_states(clock)
             .into_iter()
             .flatten()
-            .map(ReadingDisplayState::severity)
+            .map(IndicatorState::severity)
             .max()
             .unwrap_or_default()
             .into()
@@ -157,7 +157,7 @@ impl PendingUpgradesGroup {
             "Count",
             dictionary_table(
                 self.firmware
-                    .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
+                    .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
                     .map(|upgrades| {
                         LabeledValue::new(
                             firmware_upgrade_list::LABEL,
@@ -182,7 +182,7 @@ impl PendingUpgradesGroup {
             ReadoutBadge::Unbadged
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 badge,
                 ..base.readout
             },

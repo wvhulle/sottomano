@@ -1,6 +1,6 @@
 use sottomano_desktop_sources::{
     battery_power_profiles::upower_battery_state::Battery,
-    cpu_memory_compute::pci_gpu_readings::{GpuModel, GpuNames},
+    cpu_memory_compute::pci_gpu_samples::{GpuModel, GpuNames},
     disk_storage::drive_temperature_health::DriveHealth,
     host_machine_identity::udev_hardware_identity::{Adapter, CpuModel, DeviceIdentity},
     network_connectivity::modem_manager_mobile::Mobile,

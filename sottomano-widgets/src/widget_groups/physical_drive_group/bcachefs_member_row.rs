@@ -3,10 +3,10 @@ use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::Bcachefs
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -46,7 +46,7 @@ impl BcachefsMemberRow<'_> {
 impl<'a> BcachefsMemberRow<'a> {
     pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(format!(
                     "{} free",
                     Quantity::size(self.device.free).localized_text(locale)

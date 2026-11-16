@@ -3,9 +3,9 @@ use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::RecordedErrors
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -39,7 +39,7 @@ impl Ext4ErrorCountRow {
             RecordedErrors::Recorded { count, .. } => Quantity::count(count).localized_text(locale),
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label),
                 gauge: ReadoutGauge::Ungauged,
                 badge,

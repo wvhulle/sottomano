@@ -10,14 +10,14 @@ use sottomano_desktop_sources::{
         cpu_core_deep_idle::CoreDeepIdle,
         cpu_core_loads::{CoreLoad, CpuCoreLoads, CpuUsage, LoadSplit},
         cpu_power_draw::{CpuPower, PowerZone},
-        cpu_temperature::{CoreTemperature, CpuCoreTemperatures, TempReading, Temperature},
+        cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, TemperatureSample},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_widgets::{
     clock::Clock,
-    group_items::toggle_control::ToggleMessage,
+    group_indicators::toggle_control::ToggleMessage,
     widget_groups::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
 };
 use uom::si::{
@@ -54,15 +54,15 @@ const TEMPERATURE_LIMIT_CELSIUS: f64 = 95.0;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let hardware_identity =
         ComputeMessage::HostHardware(host_hardware::ryzen_workstation_delivery());
-    let cache_preference = ComputeMessage::X3dCachePreference(ToggleMessage::Reading(
+    let cache_preference = ComputeMessage::X3dCachePreference(ToggleMessage::Sample(
         SnapshotDelivery::live_push(Ok(X3dCachePreference::Cache)),
     ));
     ShowcasedGroup::Compute(Box::new(
         latest_snapshot_messages(0)
             .into_iter()
             .chain([hardware_identity, cache_preference])
-            .fold(ComputeGroup::default(), |mut group, reading| {
-                let _ = group.update(reading, clock);
+            .fold(ComputeGroup::default(), |mut group, fixture_message| {
+                let _ = group.update(fixture_message, clock);
                 group
             }),
     ))
@@ -103,10 +103,10 @@ fn latest_snapshot_messages(tick: u32) -> [ComputeMessage; 4] {
         )),
         ComputeMessage::CpuTemperature(SnapshotDelivery::fixture_delivered(
             Ok(Temperature {
-                readings: ["Tctl", "Tccd1", "Tccd2"]
+                samples: ["Tctl", "Tccd1", "Tccd2"]
                     .into_iter()
                     .zip([0.0, -6.0, -3.0])
-                    .map(|(label, offset)| TempReading {
+                    .map(|(label, offset)| TemperatureSample {
                         chip: "k10temp".to_owned(),
                         label: label.to_owned(),
                         temperature: celsius(cycled(TEMPERATURE_CELSIUS, tick) + offset),

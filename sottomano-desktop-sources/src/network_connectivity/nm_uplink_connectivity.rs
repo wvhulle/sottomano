@@ -5,7 +5,7 @@ use crate::{
     delivery_cadence_drivers::SnapshotDeliveryStreams,
     network_connectivity::{
         network_manager_proxies::{self, Connectivity},
-        nm_readings,
+        nm_samples,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
@@ -22,13 +22,13 @@ impl SnapshotSource for UplinkConnectivity {
     const NAME: &'static str = "Connectivity";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        nm_readings(
+        nm_samples(
             buses.system,
             network_manager_proxies::CONNECTIVITY_PROPERTIES,
             network_manager_proxies::manager_connectivity,
         )
-        .map(|reading| {
-            SnapshotDelivery::live_push(reading.map(|connectivity| Self { connectivity }))
+        .map(|sample| {
+            SnapshotDelivery::live_push(sample.map(|connectivity| Self { connectivity }))
                 .unavailable_when_absent()
         })
         .repeats_as_unchanged()

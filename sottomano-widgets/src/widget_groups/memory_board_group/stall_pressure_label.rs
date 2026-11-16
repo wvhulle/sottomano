@@ -7,9 +7,9 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
 use crate::{
-    group_items::{
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
@@ -46,7 +46,7 @@ impl From<StalledTasksRow> for TableRecord<3> {
     }
 }
 
-pub fn memory_stall_reading_row(pressure: &MemoryStallPressure, locale: Locale) -> ReadingRow<'_> {
+pub fn memory_stall_indicator(pressure: &MemoryStallPressure, locale: Locale) -> ReadingRow<'_> {
     let state = match pressure.some.last_minute.get::<percent>() {
         stalled if stalled >= STALL_CRITICAL_PERCENT => Severity::Critical,
         stalled if stalled >= STALL_WARNING_PERCENT => Severity::Warning,
@@ -54,7 +54,7 @@ pub fn memory_stall_reading_row(pressure: &MemoryStallPressure, locale: Locale) 
     }
     .into();
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label: ReadoutLabel::Labeled(
                 Quantity::share(pressure.some.last_minute).localized_text(locale),
             ),
@@ -94,8 +94,8 @@ mod tests {
     use uom::si::f64::Ratio;
 
     use super::*;
-    use crate::group_items::{
-        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    use crate::group_indicators::{
+        group_indicator::indicator_toast_severity, indicator_state::IndicatorState,
     };
 
     fn stalled_for(last_minute_percent: f64) -> MemoryStallPressure {
@@ -113,23 +113,23 @@ mod tests {
     #[test]
     fn sustained_stalls_set_the_state() {
         assert_eq!(
-            memory_stall_reading_row(&stalled_for(7.0), Locale::default()).shown_state(),
-            ReadingDisplayState::Idle
+            memory_stall_indicator(&stalled_for(7.0), Locale::default()).shown_state(),
+            IndicatorState::Idle
         );
         assert_eq!(
-            memory_stall_reading_row(&stalled_for(25.0), Locale::default()).shown_state(),
-            ReadingDisplayState::Warning
+            memory_stall_indicator(&stalled_for(25.0), Locale::default()).shown_state(),
+            IndicatorState::Warning
         );
         assert_eq!(
-            memory_stall_reading_row(&stalled_for(50.0), Locale::default()).shown_state(),
-            ReadingDisplayState::Critical
+            memory_stall_indicator(&stalled_for(50.0), Locale::default()).shown_state(),
+            IndicatorState::Critical
         );
     }
 
     #[test]
     fn pressure_never_raises_a_toast() {
         assert_eq!(
-            reading_toast_severity(&memory_stall_reading_row(
+            indicator_toast_severity(&memory_stall_indicator(
                 &stalled_for(80.0),
                 Locale::default()
             )),

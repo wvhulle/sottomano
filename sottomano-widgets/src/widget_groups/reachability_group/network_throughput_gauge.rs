@@ -12,10 +12,10 @@ use uom::si::{
 };
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutGauge},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutGauge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -44,12 +44,12 @@ fn severity(throughput: &Throughput) -> Severity {
     }
 }
 
-fn throughput_state(throughput: &Throughput) -> ReadingDisplayState {
+fn throughput_state(throughput: &Throughput) -> IndicatorState {
     let severity = severity(throughput);
     if throughput.interfaces.is_empty()
         || (throughput.link_usage() == LinkUsage::Idle && severity == Severity::Normal)
     {
-        ReadingDisplayState::Off
+        IndicatorState::Off
     } else {
         severity.into()
     }
@@ -85,7 +85,7 @@ pub(super) fn throughput_hover_card(throughput: &Throughput) -> Vec<Section> {
     )]
 }
 
-pub(super) fn throughput_reading_row(throughput: &Throughput) -> ReadingRow<'_> {
+pub(super) fn throughput_indicator(throughput: &Throughput) -> ReadingRow<'_> {
     let (name, glyph) = match throughput.direction {
         NetworkTrafficDirection::Upload => ("Upload", Phosphor::UploadSimple(Weight::Regular)),
         NetworkTrafficDirection::Download => {
@@ -99,7 +99,7 @@ pub(super) fn throughput_reading_row(throughput: &Throughput) -> ReadingRow<'_> 
         Box::new(move |_| throughput_hover_card(throughput)),
     );
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             gauge: ReadoutGauge::Gauged {
                 fill: Ratio::new::<ratio>(f64::from(throughput.peak_fraction())),
                 live: Ratio::new::<ratio>(f64::from(throughput.current_fraction())),
@@ -120,13 +120,13 @@ pub(super) fn interface_throughput_hover_card(throughput: &InterfaceThroughput) 
     )]
 }
 
-pub(super) fn interface_throughput_reading_row(throughput: &InterfaceThroughput) -> ReadingRow<'_> {
+pub(super) fn interface_throughput_indicator(throughput: &InterfaceThroughput) -> ReadingRow<'_> {
     ReadingRow {
         panel_visibility: PanelVisibility::Hidden,
         ..ReadingRow::glyph_only(
             InterfaceThroughput::NAME,
             Phosphor::ArrowsDownUp(Weight::Regular).into(),
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| interface_throughput_hover_card(throughput)),
         )
     }

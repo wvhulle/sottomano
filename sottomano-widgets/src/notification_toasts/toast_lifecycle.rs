@@ -17,9 +17,9 @@ use sottomano_toml_config::{
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
-    hover_cards::InstrumentKey,
+    hover_cards::IndicatorKey,
     widgets::{
-        announced_level::LevelReading,
+        announced_level::LevelToastRequest,
         icon_glyph::IconGlyph,
         ongoing_toast::{OngoingKey, OngoingToast},
     },
@@ -61,7 +61,7 @@ pub enum EventSource {
     DbusClient,
     ShellFailure,
     LevelAnnouncement {
-        instrument: InstrumentKey,
+        indicator: IndicatorKey,
         glyph: IconGlyph,
     },
 }
@@ -129,20 +129,20 @@ impl<Routed> ToastContent<Routed> {
     }
 
     pub(super) fn level_announcement(
-        reading: LevelReading<Routed>,
+        sample: LevelToastRequest<Routed>,
         toast_id: u32,
         at: SystemTime,
     ) -> Self {
         Self {
-            data: reading.toast_notification_data(toast_id),
+            data: sample.toast_notification_data(toast_id),
             kind: ToastKind::Event {
                 at,
                 source: EventSource::LevelAnnouncement {
-                    instrument: reading.instrument,
-                    glyph: reading.glyph,
+                    indicator: sample.indicator,
+                    glyph: sample.glyph,
                 },
             },
-            body_click: BodyClick::Shell(Box::new(reading.on_body_clicked)),
+            body_click: BodyClick::Shell(Box::new(sample.on_body_clicked)),
         }
     }
 
@@ -237,12 +237,12 @@ impl<Routed> Notification<Routed> {
         }
     }
 
-    pub(super) fn announced_instrument(&self) -> Option<&InstrumentKey> {
+    pub(super) fn announced_indicator(&self) -> Option<&IndicatorKey> {
         match &self.kind {
             ToastKind::Event {
-                source: EventSource::LevelAnnouncement { instrument, .. },
+                source: EventSource::LevelAnnouncement { indicator, .. },
                 ..
-            } => Some(instrument),
+            } => Some(indicator),
             ToastKind::Event { .. } | ToastKind::Ongoing { .. } => None,
         }
     }

@@ -13,7 +13,7 @@ ignores:
   - sottomano-widgets/src/hover_cards/hover_card_content.rs
   - sottomano-widgets/src/widgets/subscribed_snapshot.rs
   - sottomano-widgets/src/widgets/hover_fetched_snapshot.rs
-  - sottomano-widgets/src/group_items/offline_internet_reading.rs
+  - sottomano-widgets/src/group_indicators/offline_internet_indicator.rs
 rule:
   any:
     - kind: struct_expression

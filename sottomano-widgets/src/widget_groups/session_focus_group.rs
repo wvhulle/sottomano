@@ -1,7 +1,7 @@
 mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
-mod focus_run_reading;
+mod focus_run_indicator;
 mod focus_tracker;
 mod session_face;
 mod sqlite_focus_spans;
@@ -27,7 +27,7 @@ use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusCo
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
-    group_items::group_item::GroupItem,
+    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
@@ -35,7 +35,7 @@ use crate::{
             break_log::BreakLog,
             context_switch_rate::ContextSwitchRate,
             daily_totals_gauge::DailyTotalsGauge,
-            focus_run_reading::FocusRunReading,
+            focus_run_indicator::FocusRunIndicator,
             focus_tracker::{FocusTracker, TrackerMessage},
             session_face::SessionFace,
             window_usage::WindowUsage,
@@ -190,8 +190,8 @@ impl SessionFocusGroup {
         }
     }
 
-    fn focus_run_reading<'a>(&'a self, config: &'a Config) -> FocusRunReading<'a> {
-        FocusRunReading {
+    fn focus_run_indicator<'a>(&'a self, config: &'a Config) -> FocusRunIndicator<'a> {
+        FocusRunIndicator {
             accounting: self
                 .tracker
                 .ledger()
@@ -257,7 +257,7 @@ impl SessionFocusGroup {
         let locale = config.calendar.locale;
         let group_summary = GroupSummary::summarising(
             Phosphor::Crosshair(Weight::Regular).into(),
-            GroupItem::reading(self.session_face(config).reading_row(clock, locale))
+            GroupIndicator::sample(self.session_face(config).reading_row(clock, locale))
                 .ongoing_toast_action_buttons([
                     OngoingToastActionButton {
                         button_label: "Lock screen".to_owned(),
@@ -278,10 +278,10 @@ impl SessionFocusGroup {
                     },
                 ]),
         );
-        let breaks = GroupItem::reading(self.break_log(config).reading_row(clock));
-        let focus_run = GroupItem::reading(self.focus_run_reading(config).reading_row(clock));
-        let totals = GroupItem::reading(self.daily_totals.reading_row(locale));
-        let switches = GroupItem::reading(self.context_switch_rate(config).reading_row(clock));
+        let breaks = GroupIndicator::sample(self.break_log(config).reading_row(clock));
+        let focus_run = GroupIndicator::sample(self.focus_run_indicator(config).reading_row(clock));
+        let totals = GroupIndicator::sample(self.daily_totals.reading_row(locale));
+        let switches = GroupIndicator::sample(self.context_switch_rate(config).reading_row(clock));
         let group_summary = group_summary;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,

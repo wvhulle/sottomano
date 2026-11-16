@@ -771,10 +771,10 @@ pub async fn wireguard_profiles(connection: &Connection) -> zbus::Result<Vec<Wir
         .collect())
 }
 
-fn readable_objects<ObjectReading>(
-    object_reads: Vec<zbus::Result<ObjectReading>>,
+fn readable_objects<ObjectSample>(
+    object_reads: Vec<zbus::Result<ObjectSample>>,
     object_kind: &'static str,
-) -> impl Iterator<Item = ObjectReading> {
+) -> impl Iterator<Item = ObjectSample> {
     object_reads.into_iter().filter_map(move |object_read| {
         object_read
             .inspect_err(|read_failure| {

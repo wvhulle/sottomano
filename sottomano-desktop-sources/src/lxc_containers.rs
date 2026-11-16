@@ -218,7 +218,7 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> FamilyDetails<LxcCo
                 memory_in_use: payload_cgroup
                     .as_deref()
                     .and_then(read_cgroup_memory)
-                    .map(|reading| reading.current),
+                    .map(|sample| sample.current),
                 configured_addresses: config_path
                     .as_deref()
                     .and_then(|config_path| {

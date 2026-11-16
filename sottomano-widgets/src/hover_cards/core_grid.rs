@@ -7,7 +7,7 @@ use sottomano_toml_config::Config;
 use uom::si::ratio::ratio;
 
 use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
+    group_indicators::indicator_state::IndicatorState,
     hover_cards::{
         PopupMessage,
         hover_card_body::hover_card_figure_payloads::{PhysicalCoreCells, ThreadCell},
@@ -57,7 +57,7 @@ impl<'a> CoreCellGrid<'a> {
 }
 
 fn thread_column(thread: ThreadCell) -> Element<'static, PopupMessage> {
-    let state = ReadingDisplayState::from(thread.level);
+    let state = IndicatorState::from(thread.level);
     progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)
         .vertical()
         .length(Length::Fill)

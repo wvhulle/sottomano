@@ -2,10 +2,10 @@ use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::Cl
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::{PanelVisibility, ReadingRow},
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -21,7 +21,7 @@ use crate::{
 pub(crate) const CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Timer(Weight::Regular));
 
-pub fn claude_ccusage_block_reading_row(block: &ClaudeCcusageBlock) -> ReadingRow<'_> {
+pub fn claude_ccusage_block_indicator(block: &ClaudeCcusageBlock) -> ReadingRow<'_> {
     let (label, state, panel_visibility) = match &block.active {
         Some(active) => (
             ReadoutLabel::Labeled(format!("{} block", spend_text(&active.cost))),
@@ -30,12 +30,12 @@ pub fn claude_ccusage_block_reading_row(block: &ClaudeCcusageBlock) -> ReadingRo
         ),
         None => (
             ReadoutLabel::Unlabeled,
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             PanelVisibility::Hidden,
         ),
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,

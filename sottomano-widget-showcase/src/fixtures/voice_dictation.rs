@@ -17,7 +17,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    group_items::unit_switch::UnitSwitchMessage,
+    group_indicators::unit_switch::UnitSwitchMessage,
     widget_groups::voice_dictation_group::{
         VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationMessage,
     },
@@ -26,16 +26,16 @@ use sottomano_widgets::{
 use crate::showcased_group::ShowcasedGroup;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::VoiceDictation(Box::new(dictation_readings().into_iter().fold(
+    ShowcasedGroup::VoiceDictation(Box::new(dictation_indicators().into_iter().fold(
         VoiceDictationGroup::default(),
-        |mut group, reading| {
-            let _ = group.update(reading, clock);
+        |mut group, fixture_message| {
+            let _ = group.update(fixture_message, clock);
             group
         },
     )))
 }
 
-fn dictation_readings() -> [VoiceDictationMessage; 5] {
+fn dictation_indicators() -> [VoiceDictationMessage; 5] {
     [
         VoiceDictationMessage::Runtime(UnitSwitchMessage::ActiveState(
             SnapshotDelivery::live_push(Ok(UnitActiveState {

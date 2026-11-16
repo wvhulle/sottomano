@@ -16,10 +16,10 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{
     clock::Clock,
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::weather_group::{
@@ -27,8 +27,8 @@ use crate::{
             MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
         },
         rain_forecast_ranking::{
-            RainRateReading, RankedRainProvider, RankedRateSource, frames_not_yet_over,
-            ranked_by_method, rate_readings_by_rank,
+            RainRateIndicator, RankedRainProvider, RankedRateSource, frames_not_yet_over,
+            ranked_by_method, rate_indicators_by_rank,
         },
     },
     widgets::{
@@ -38,7 +38,7 @@ use crate::{
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
-            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -152,14 +152,14 @@ enum PrecipitationTypeMarker<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct RainTimelineRow<'a> {
-    reading: RainRateReading<'a>,
+    sample: RainRateIndicator<'a>,
     type_marker: PrecipitationTypeMarker<'a>,
     scale: RainIntensityScale,
 }
 
 impl RainTimelineRow<'_> {
     fn starting_hour(self) -> TimelineHour {
-        let starts_at = self.reading.starts_at().with_timezone(&Local);
+        let starts_at = self.sample.starts_at().with_timezone(&Local);
         TimelineHour {
             date: starts_at.date_naive(),
             hour: starts_at.hour(),
@@ -167,27 +167,29 @@ impl RainTimelineRow<'_> {
     }
 
     fn sky_wetness(self) -> SkyWetness {
-        self.reading.sky_wetness()
+        self.sample.sky_wetness()
     }
 
     fn glyph(self) -> IconGlyph {
-        let strength_glyph = self.scale.strength(self.reading.intensity()).glyph();
-        match self.reading {
-            RainRateReading::RadarFrame(_) => strength_glyph,
-            RainRateReading::ModelQuarter(quarter) => model_quarter_glyph(quarter, strength_glyph),
+        let strength_glyph = self.scale.strength(self.sample.intensity()).glyph();
+        match self.sample {
+            RainRateIndicator::RadarFrame(_) => strength_glyph,
+            RainRateIndicator::ModelQuarter(quarter) => {
+                model_quarter_glyph(quarter, strength_glyph)
+            }
         }
     }
 
     fn precipitation_type_cell(self) -> ValueCell {
-        match (self.reading, self.type_marker) {
-            (RainRateReading::ModelQuarter(quarter), _) => model_quarter_text(quarter).into(),
-            (reading, PrecipitationTypeMarker::StartsQuarter(quarter))
-                if reading.sky_wetness() == SkyWetness::Precipitating
+        match (self.sample, self.type_marker) {
+            (RainRateIndicator::ModelQuarter(quarter), _) => model_quarter_text(quarter).into(),
+            (sample, PrecipitationTypeMarker::StartsQuarter(quarter))
+                if sample.sky_wetness() == SkyWetness::Precipitating
                     && quarter.condition.sky_wetness() == SkyWetness::Precipitating =>
             {
                 model_quarter_text(quarter).into()
             }
-            (RainRateReading::RadarFrame(_), _) => ValueCell::Blank,
+            (RainRateIndicator::RadarFrame(_), _) => ValueCell::Blank,
         }
     }
 }
@@ -202,14 +204,14 @@ fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> ValueCell
 impl From<&RainTimelineRow<'_>> for TableRecord<3> {
     fn from(rain_timeline_row: &RainTimelineRow<'_>) -> Self {
         let time = ValueCell::Time {
-            at: rain_timeline_row.reading.starts_at(),
+            at: rain_timeline_row.sample.starts_at(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
         TableRecord::with_cells(
             time,
             [
                 rain_amount_cell(
-                    rain_timeline_row.reading.intensity(),
+                    rain_timeline_row.sample.intensity(),
                     rain_timeline_row.scale,
                 ),
                 ValueCell::IconGlyph(rain_timeline_row.glyph()),
@@ -240,10 +242,10 @@ fn rain_timeline<'a>(
     type_quarters: &[&'a ModelQuarterHour],
     scale: RainIntensityScale,
 ) -> Vec<RainTimelineRow<'a>> {
-    rate_readings_by_rank(rate_sources)
+    rate_indicators_by_rank(rate_sources)
         .into_iter()
-        .scan(None, |previous_quarter_start, reading| {
-            let type_marker = match model_quarter_containing(type_quarters, reading.starts_at()) {
+        .scan(None, |previous_quarter_start, sample| {
+            let type_marker = match model_quarter_containing(type_quarters, sample.starts_at()) {
                 Some(quarter) if *previous_quarter_start != Some(quarter.starts_at) => {
                     *previous_quarter_start = Some(quarter.starts_at);
                     PrecipitationTypeMarker::StartsQuarter(quarter)
@@ -251,7 +253,7 @@ fn rain_timeline<'a>(
                 _ => PrecipitationTypeMarker::Unmarked,
             };
             Some(RainTimelineRow {
-                reading,
+                sample,
                 type_marker,
                 scale,
             })
@@ -408,14 +410,14 @@ impl<'a> RainForecast<'a> {
             Some(_) | None => ReadoutLabel::Unlabeled,
         };
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label,
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
             },
-            alerts: ReadingAlerts {
+            alerts: IndicatorAlerts {
                 state_toast: self.state_toast(clock, locale),
-                ..ReadingAlerts::default()
+                ..IndicatorAlerts::default()
             },
             ..ReadingRow::glyph_only(
                 "Rain",
@@ -450,16 +452,16 @@ impl<'a> RainForecast<'a> {
             .then(|| model.current.condition.to_string())
     }
 
-    fn display_state(&self, clock: Clock) -> ReadingDisplayState {
+    fn display_state(&self, clock: Clock) -> IndicatorState {
         match self.radar_forecast() {
             Some(radar) => radar.display_state(clock),
             None => match self.sources.model() {
                 Some(model)
                     if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
                 {
-                    ReadingDisplayState::Idle
+                    IndicatorState::Idle
                 }
-                _ => ReadingDisplayState::Off,
+                _ => IndicatorState::Off,
             },
         }
     }
@@ -581,7 +583,7 @@ impl RadarRainForecast<'_> {
             .glyph()
     }
 
-    fn display_state(&self, clock: Clock) -> ReadingDisplayState {
+    fn display_state(&self, clock: Clock) -> IndicatorState {
         match self.severity(clock.local()) {
             Severity::Normal => rain_display_state(self.rain),
             alerting => alerting.into(),
@@ -625,11 +627,11 @@ fn rain_label_text(rain: &Rain, clock: Clock, locale: Locale) -> Option<String> 
     }
 }
 
-fn rain_display_state(rain: &Rain) -> ReadingDisplayState {
+fn rain_display_state(rain: &Rain) -> IndicatorState {
     if rain.outlook == RainOutlook::Dry {
-        ReadingDisplayState::Off
+        IndicatorState::Off
     } else {
-        ReadingDisplayState::Idle
+        IndicatorState::Idle
     }
 }
 
@@ -659,7 +661,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{group_item::GroupItem, reading_row::PanelVisibility},
+        group_indicators::{group_indicator::GroupIndicator, reading_row::PanelVisibility},
         widget_groups::{
             weather_group::{WeatherInteraction, rain_forecast_ranking::RADAR_FRAME_LENGTH},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
@@ -714,7 +716,7 @@ mod tests {
             .panel_visibility,
             PanelVisibility::Shown
         );
-        assert_eq!(forecast.display_state(clock), ReadingDisplayState::Off);
+        assert_eq!(forecast.display_state(clock), IndicatorState::Off);
         assert_eq!(
             forecast.glyph(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
@@ -722,7 +724,7 @@ mod tests {
         assert_eq!(
             RadarRainForecast::with_default_alerts(&radar_frames(clock, &[0.0, 0.2]))
                 .display_state(clock),
-            ReadingDisplayState::Idle
+            IndicatorState::Idle
         );
     }
 
@@ -822,7 +824,7 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let rain_item: GroupItem<'_> = GroupItem::reading(
+        let rain_item: GroupIndicator<'_> = GroupIndicator::sample(
             RainForecast {
                 sources: RainSources::Radar(&rain),
                 alerts: &DEFAULT_RAIN_ALERTS,
@@ -904,7 +906,7 @@ mod tests {
         let scale = default_scale();
         let row = |frame| {
             RecordCells::from(TableRecord::<3>::from(&RainTimelineRow {
-                reading: RainRateReading::RadarFrame(frame),
+                sample: RainRateIndicator::RadarFrame(frame),
                 type_marker: PrecipitationTypeMarker::Unmarked,
                 scale,
             }))
@@ -954,8 +956,8 @@ mod tests {
             ]
         );
         assert!(matches!(
-            timeline.last().map(|row| row.reading),
-            Some(RainRateReading::ModelQuarter(_))
+            timeline.last().map(|row| row.sample),
+            Some(RainRateIndicator::ModelQuarter(_))
         ));
     }
 
@@ -1016,7 +1018,7 @@ mod tests {
         assert!(
             timeline
                 .iter()
-                .all(|row| matches!(row.reading, RainRateReading::ModelQuarter(_)))
+                .all(|row| matches!(row.sample, RainRateIndicator::ModelQuarter(_)))
         );
     }
 
@@ -1033,7 +1035,7 @@ mod tests {
         assert!(
             timeline
                 .iter()
-                .all(|row| matches!(row.reading, RainRateReading::RadarFrame(_)))
+                .all(|row| matches!(row.sample, RainRateIndicator::RadarFrame(_)))
         );
     }
 
@@ -1075,10 +1077,7 @@ mod tests {
             clear_forecast.glyph(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
-        assert_eq!(
-            clear_forecast.display_state(clock),
-            ReadingDisplayState::Off
-        );
+        assert_eq!(clear_forecast.display_state(clock), IndicatorState::Off);
     }
 
     #[test]

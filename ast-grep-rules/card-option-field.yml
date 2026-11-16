@@ -4,7 +4,7 @@ severity: error
 message: An Option field squeezes two kinds of value into one type.
 note: Use an enum variant per state, a separate constructor, or compute the value before constructing (no-option-fields).
 files:
-  - sottomano-widgets/src/group_items/**/*.rs
+  - sottomano-widgets/src/group_indicators/**/*.rs
   - sottomano-widgets/src/hover_cards/**/*.rs
 rule:
   any:

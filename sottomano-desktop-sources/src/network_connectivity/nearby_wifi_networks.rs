@@ -8,7 +8,7 @@ use crate::{
     network_connectivity::{
         device_or_absent,
         network_manager_proxies::{self, ApInfo, DeviceInfo, WirelessProfile},
-        nm_readings,
+        nm_samples,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
@@ -150,7 +150,7 @@ impl SnapshotSource for NearbyWifiNetworks {
             system.clone(),
             network_manager_proxies::SERVICE,
             move || {
-                nm_readings(
+                nm_samples(
                     system.clone(),
                     &[
                         network_manager_proxies::DEVICE_PROPERTIES,

@@ -3,7 +3,7 @@ use std::time::Duration;
 use notulist_client::DictationEngine;
 
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
@@ -49,7 +49,7 @@ impl<'a> RuntimeConfiguration<'a> {
         ReadingRow::glyph_only(
             "Runtime configuration",
             Phosphor::SlidersHorizontal(Weight::Regular).into(),
-            ReadingDisplayState::On,
+            IndicatorState::On,
             Box::new(move |_| self.hover_card()),
         )
     }

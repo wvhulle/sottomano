@@ -186,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_live_reading_the_scenarios_coincide() {
+    fn without_a_live_sample_the_scenarios_coincide() {
         let conditions = Conditions::new(0.5, 0.3);
         let life = balanced_life(
             &on_battery(50.0),

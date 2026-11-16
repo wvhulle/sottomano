@@ -5,11 +5,11 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
-        reading_display_state::ReadingDisplayState,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -40,7 +40,7 @@ fn free_space_severity(usage: &FilesystemUsage) -> Severity {
     }
 }
 
-pub(crate) fn filesystem_usage_reading_row(usage: &FilesystemUsage) -> ReadingRow<'_> {
+pub(crate) fn filesystem_usage_indicator(usage: &FilesystemUsage) -> ReadingRow<'_> {
     let fill = percent_fill(usage.used_pct());
     let mut row = ReadingRow::glyph_only(
         FilesystemUsage::NAME,
@@ -74,7 +74,7 @@ pub(super) struct SnapshotDeletionRow;
 impl SnapshotDeletionRow {
     pub(super) fn reading_row() -> ReadingRow<'static> {
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled("in progress".to_owned()),
                 gauge: ReadoutGauge::Ungauged,
                 badge: ReadoutBadge::Unbadged,
@@ -82,7 +82,7 @@ impl SnapshotDeletionRow {
             ..ReadingRow::glyph_only(
                 "Snapshot deletion",
                 Phosphor::Trash(Weight::Regular).into(),
-                ReadingDisplayState::Idle,
+                IndicatorState::Idle,
                 Box::new(|_| Self::hover_card()),
             )
         }

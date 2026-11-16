@@ -77,7 +77,7 @@ pub struct NspawnContainersReadout {
     pub containers: Vec<NspawnContainer>,
 }
 
-struct RegisteredContainerReading {
+struct RegisteredContainerStatus {
     machine_name: String,
     unit_name: String,
     registered_machine: RegisteredContainerMachine,
@@ -110,7 +110,7 @@ fn wall_time_from_realtime_micros(realtime_micros: u64) -> Option<SystemTime> {
 }
 
 fn merged_containers(
-    registered_readings: Vec<RegisteredContainerReading>,
+    registered_samples: Vec<RegisteredContainerStatus>,
     discovered_units: Vec<TemplateInstanceUnit>,
 ) -> Vec<NspawnContainer> {
     let mut containers_by_name: BTreeMap<String, NspawnContainer> = discovered_units
@@ -127,31 +127,31 @@ fn merged_containers(
             )
         })
         .collect();
-    for registered_reading in registered_readings {
+    for registered_sample in registered_samples {
         let container = containers_by_name
-            .entry(registered_reading.machine_name.clone())
+            .entry(registered_sample.machine_name.clone())
             .or_insert_with(|| NspawnContainer {
-                machine_name: registered_reading.machine_name,
+                machine_name: registered_sample.machine_name,
                 unit_name: String::new(),
                 activity: UnitActivity::Running,
                 registration: ContainerRegistration::Unregistered,
             });
-        if !registered_reading.unit_name.is_empty() {
-            container.unit_name = registered_reading.unit_name;
+        if !registered_sample.unit_name.is_empty() {
+            container.unit_name = registered_sample.unit_name;
         }
         if container.activity == UnitActivity::Stopped {
             container.activity = UnitActivity::Running;
         }
         container.registration =
-            ContainerRegistration::Registered(registered_reading.registered_machine);
+            ContainerRegistration::Registered(registered_sample.registered_machine);
     }
     containers_by_name.into_values().collect()
 }
 
-async fn registered_container_reading(
+async fn registered_container_status(
     system_bus: &zbus::Connection,
     listing: RegisteredMachineListing,
-) -> Option<RegisteredContainerReading> {
+) -> Option<RegisteredContainerStatus> {
     let machine_proxy = registered_machine_at(system_bus, listing.machine_path)
         .await
         .inspect_err(|proxy_error| {
@@ -177,7 +177,7 @@ async fn registered_container_reading(
         tracing::debug!("machined {} leader: {leader_error}", listing.machine_name);
         0
     });
-    Some(RegisteredContainerReading {
+    Some(RegisteredContainerStatus {
         unit_name: machine_proxy.unit().await.unwrap_or_else(|unit_error| {
             tracing::debug!("machined {} unit: {unit_error}", listing.machine_name);
             String::new()
@@ -208,9 +208,9 @@ async fn registered_container_reading(
     })
 }
 
-async fn registered_container_readings(
+async fn registered_container_statuses(
     system_bus: &zbus::Connection,
-) -> Vec<RegisteredContainerReading> {
+) -> Vec<RegisteredContainerStatus> {
     let listings = match registered_machine_listings(system_bus).await {
         Ok(listings) => listings,
         Err(listing_error) => {
@@ -218,20 +218,20 @@ async fn registered_container_readings(
             return Vec::new();
         }
     };
-    let mut registered_readings = Vec::new();
+    let mut registered_samples = Vec::new();
     for listing in listings
         .into_iter()
         .filter(|listing| listing.class() == MachineClass::Container)
     {
-        if let Some(registered_reading) = registered_container_reading(system_bus, listing).await {
-            registered_readings.push(registered_reading);
+        if let Some(registered_sample) = registered_container_status(system_bus, listing).await {
+            registered_samples.push(registered_sample);
         }
     }
-    registered_readings
+    registered_samples
 }
 
 async fn read_container_listing(system_bus: &zbus::Connection) -> NspawnContainersReadout {
-    let registered_readings = registered_container_readings(system_bus).await;
+    let registered_samples = registered_container_statuses(system_bus).await;
     let discovered_units = listed_template_instances(system_bus, &CONTAINER_UNIT_TEMPLATES)
         .await
         .unwrap_or_else(|unit_listing_error| {
@@ -239,7 +239,7 @@ async fn read_container_listing(system_bus: &zbus::Connection) -> NspawnContaine
             Vec::new()
         });
     NspawnContainersReadout {
-        containers: merged_containers(registered_readings, discovered_units),
+        containers: merged_containers(registered_samples, discovered_units),
     }
 }
 
@@ -269,8 +269,8 @@ impl SnapshotSource for NspawnContainersReadout {
 mod tests {
     use super::*;
 
-    fn registered_reading(machine_name: &str, unit_name: &str) -> RegisteredContainerReading {
-        RegisteredContainerReading {
+    fn registered_sample(machine_name: &str, unit_name: &str) -> RegisteredContainerStatus {
+        RegisteredContainerStatus {
             machine_name: machine_name.to_owned(),
             unit_name: unit_name.to_owned(),
             registered_machine: RegisteredContainerMachine {
@@ -312,8 +312,8 @@ mod tests {
     fn registered_and_stopped_containers_merge_by_machine_name() {
         let containers = merged_containers(
             vec![
-                registered_reading("arr-proton", "container@arr-proton.service"),
-                registered_reading("scratch", "machine-scratch.scope"),
+                registered_sample("arr-proton", "container@arr-proton.service"),
+                registered_sample("scratch", "machine-scratch.scope"),
             ],
             vec![
                 discovered_unit("arr-proton", UnitActivity::Running),
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn a_registered_container_keeps_its_pending_unit_activity() {
         let containers = merged_containers(
-            vec![registered_reading("arr-proton", "")],
+            vec![registered_sample("arr-proton", "")],
             vec![discovered_unit("arr-proton", UnitActivity::Stopping)],
         );
         assert_eq!(containers[0].activity, UnitActivity::Stopping);

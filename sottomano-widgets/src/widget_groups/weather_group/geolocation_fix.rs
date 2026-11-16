@@ -3,10 +3,10 @@ use sottomano_desktop_sources::{SnapshotSource, weather::situo_location_fix::Loc
 use uom::si::length::kilometer;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
+    group_indicators::{
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -62,7 +62,7 @@ impl MapService {
 pub(crate) const LOCATION_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MapPin(Weight::Regular));
 
-pub fn location_reading_row(location: &Location) -> ReadingRow<'_> {
+pub fn location_indicator(location: &Location) -> ReadingRow<'_> {
     let glyph = match location.geo.origin {
         FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
         FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
@@ -73,7 +73,7 @@ pub fn location_reading_row(location: &Location) -> ReadingRow<'_> {
         Some(_) | None => ReadoutLabel::Unlabeled,
     };
     ReadingRow {
-        readout: RowReadout {
+        readout: IndicatorReadout {
             label,
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -81,7 +81,7 @@ pub fn location_reading_row(location: &Location) -> ReadingRow<'_> {
         ..ReadingRow::glyph_only(
             Location::NAME,
             glyph,
-            ReadingDisplayState::Idle,
+            IndicatorState::Idle,
             Box::new(move |_| location_hover_card(location)),
         )
     }

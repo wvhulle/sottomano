@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
+    group_indicators::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
     widgets::phosphor::{Phosphor, Weight},
 };
 

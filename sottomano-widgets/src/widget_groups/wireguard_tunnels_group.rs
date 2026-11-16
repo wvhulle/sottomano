@@ -13,7 +13,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::reading_display_state::ReadingDisplayState,
+    group_indicators::indicator_state::IndicatorState,
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
         group_summary::GroupSummary,
@@ -147,7 +147,7 @@ impl WireguardTunnelsGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
-            GroupSummary::glyph(SimpleIcon::WireGuard.into(), ReadingDisplayState::Idle),
+            GroupSummary::glyph(SimpleIcon::WireGuard.into(), IndicatorState::Idle),
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
             self.listed_tunnels().map(move |tunnel| {

@@ -2,7 +2,7 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    group_indicators::{indicator_state::IndicatorState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -59,7 +59,7 @@ impl<'a> InferenceHardware<'a> {
         ReadingRow::glyph_only(
             "Inference hardware",
             self.device_glyph(),
-            ReadingDisplayState::On,
+            IndicatorState::On,
             Box::new(move |_| self.hover_card()),
         )
     }

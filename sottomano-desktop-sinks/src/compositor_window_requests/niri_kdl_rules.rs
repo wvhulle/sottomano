@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn heated_windows_leave_the_look_unchanged_on_reading_back() {
+    fn heated_windows_leave_the_look_unchanged_on_sample_back() {
         let written = styled();
         let text = SottomanoRules::styled(written, &heated_terminal())
             .to_kdl_v1()

@@ -3,15 +3,15 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::InodeCoun
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    group_items::{
+    group_indicators::{
         gauge::percent_fill,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         reading_row::ReadingRow,
-        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -56,19 +56,19 @@ impl InodeUsageRow {
         );
         let fill = percent_fill(self.used_percent());
         ReadingRow {
-            readout: RowReadout {
+            readout: IndicatorReadout {
                 label: ReadoutLabel::Labeled(label.clone()),
                 gauge: ReadoutGauge::Gauged { fill, live: fill },
                 badge: ReadoutBadge::Unbadged,
             },
-            alerts: ReadingAlerts {
+            alerts: IndicatorAlerts {
                 state_toast: StateToast::NotifyFromSeverity {
                     minimum_severity: Severity::Critical,
                     summary_text: "Running out of inodes",
                     body: ToastBody::Text(label),
                     progress: ToastProgress::Measured(fill),
                 },
-                ..ReadingAlerts::default()
+                ..IndicatorAlerts::default()
             },
             ..ReadingRow::glyph_only(
                 "Inodes",

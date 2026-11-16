@@ -199,7 +199,7 @@ where
         };
     }
 
-    pub fn reading(&self) -> Option<&S> {
+    pub fn sample(&self) -> Option<&S> {
         let SnapshotFetchStage::Fetching {
             inputs, progress, ..
         } = &self.hover_fetch
@@ -361,7 +361,7 @@ mod tests {
         let mut hover = HoverFetchedSnapshot::default();
         hovered_at(&mut hover, 1, timeline.at(0));
         assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
-        assert!(hover.reading().is_none());
+        assert!(hover.sample().is_none());
         let seeded = hover.sections_described_by(|_| Vec::new());
         assert_eq!(
             seeded
@@ -386,7 +386,7 @@ mod tests {
         hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(60));
-        assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
+        assert_eq!(hover.sample(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
             SourceDelivery::Delivered(DeliveryStamp {
@@ -404,7 +404,7 @@ mod tests {
         hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(601));
-        assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
+        assert_eq!(hover.sample(), Some(&CountedSnapshot(4)));
         assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
     }
 
@@ -416,7 +416,7 @@ mod tests {
         hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
         hovered_at(&mut hover, 2, timeline.at(30));
-        assert!(hover.reading().is_none());
+        assert!(hover.sample().is_none());
         assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
     }
 
@@ -429,6 +429,6 @@ mod tests {
         hover.receive(SnapshotDelivery::SourceUnavailable, timeline.at(3));
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(30));
-        assert!(hover.reading().is_none());
+        assert!(hover.sample().is_none());
     }
 }

@@ -27,14 +27,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InstrumentKey {
+pub struct IndicatorKey {
     pub group: WidgetGroupIdentity,
     pub name: Cow<'static, str>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
-    Instrument(InstrumentKey),
+    Indicator(IndicatorKey),
     PinnedOnPanel(Box<PanelPin>),
     GroupSummary(Box<WidgetGroupIdentity>),
     GroupMenu(GroupMenuTopic),
@@ -45,19 +45,19 @@ pub enum HoverTarget {
     WorkspaceFolding,
 }
 
-impl From<InstrumentKey> for HoverTarget {
-    fn from(instrument_key: InstrumentKey) -> Self {
-        HoverTarget::Instrument(instrument_key)
+impl From<IndicatorKey> for HoverTarget {
+    fn from(indicator_key: IndicatorKey) -> Self {
+        HoverTarget::Indicator(indicator_key)
     }
 }
 
 impl HoverTarget {
     #[must_use]
-    pub fn instrument_key(&self) -> Option<&InstrumentKey> {
+    pub fn indicator_key(&self) -> Option<&IndicatorKey> {
         match self {
-            HoverTarget::Instrument(instrument_key) => Some(instrument_key),
+            HoverTarget::Indicator(indicator_key) => Some(indicator_key),
             HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
-                GroupMenuPin::Item(instrument_key) => Some(instrument_key),
+                GroupMenuPin::Item(indicator_key) => Some(indicator_key),
                 GroupMenuPin::Group(_) => None,
             },
             HoverTarget::GroupSummary(_)
@@ -78,7 +78,7 @@ impl HoverTarget {
                 GroupMenuPin::Group(group_identity) => Some(group_identity),
                 GroupMenuPin::Item(_) => None,
             },
-            HoverTarget::Instrument(_)
+            HoverTarget::Indicator(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
@@ -218,7 +218,7 @@ pub enum PopupMessage {
     CopyText(String),
     OpenUrl(String),
     FocusWindow(u64),
-    RefreshHoveredReading,
+    RefreshHoveredIndicator,
     WindowGroup(WindowGroupInteraction),
     ReleaseFromPanel(PanelPin),
 }

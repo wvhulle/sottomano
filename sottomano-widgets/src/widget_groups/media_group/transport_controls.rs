@@ -5,7 +5,7 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
     hover_cards::{MouseGesture, PressAction},
     widgets::{
         glyph_button,
@@ -28,7 +28,7 @@ struct TransportPress {
 
 struct TransportButton {
     glyph: Phosphor,
-    tint: ReadingStateTint,
+    tint: IndicatorStateTint,
     press: TransportPress,
 }
 
@@ -60,9 +60,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
             .collect()
     }
 
-    fn foreground(&self) -> ReadingStateTint {
-        ReadingStateTint {
-            state: ReadingDisplayState::On,
+    fn foreground(&self) -> IndicatorStateTint {
+        IndicatorStateTint {
+            state: IndicatorState::On,
             opacity: self.reveal,
         }
     }
@@ -70,12 +70,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     fn toggle(
         &self,
         icon: Phosphor,
-        state: ReadingDisplayState,
+        state: IndicatorState,
         press: TransportPress,
     ) -> TransportButton {
         TransportButton {
             glyph: icon.with_weight(state.weight()),
-            tint: ReadingStateTint {
+            tint: IndicatorStateTint {
                 state,
                 opacity: self.reveal,
             },
@@ -89,7 +89,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         };
         Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
-            ReadingDisplayState::from(queue_order),
+            IndicatorState::from(queue_order),
             TransportPress {
                 button_name: "Shuffle",
                 does: match queue_order {
@@ -169,7 +169,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         };
         Some(self.toggle(
             glyph,
-            ReadingDisplayState::from(mode),
+            IndicatorState::from(mode),
             TransportPress {
                 button_name: "Loop",
                 does: match mode.cycled() {
