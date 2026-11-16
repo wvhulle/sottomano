@@ -323,7 +323,10 @@ impl AudioGroup {
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Audio,
-            GroupSummary::glyph(AUDIO_STATE_GLYPH.into(), self.sink_control.shown_state()),
+            GroupSummary::glyph(
+                Phosphor::Equalizer(Weight::Regular).into(),
+                self.sink_control.shown_state(),
+            ),
             &self.expansion,
             AudioMessage::Expansion,
             rows,

@@ -43,6 +43,7 @@ use crate::{
     },
     widgets::{
         most_used_model::{ModelSpendRanking, RankedSpan},
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -216,7 +217,7 @@ impl CopilotUsageGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::GitHubCopilot.into(),
-                self.metered_item(placeholder.reading_row(SimpleIcon::GitHubCopilot.into())),
+                self.metered_item(placeholder.reading_row(Phosphor::Gauge(Weight::Regular).into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 SimpleIcon::GitHubCopilot.into(),

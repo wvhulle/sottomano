@@ -243,7 +243,10 @@ impl CgroupMemoryLimitsGroup {
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CgroupMemoryLimits,
-            GroupSummary::glyph(Phosphor::Gauge(Weight::Regular).into(), self.state()),
+            GroupSummary::glyph(
+                Phosphor::ChartPieSlice(Weight::Regular).into(),
+                self.state(),
+            ),
             &self.expansion,
             CgroupMemoryLimitsInteraction::Expansion,
             rows,

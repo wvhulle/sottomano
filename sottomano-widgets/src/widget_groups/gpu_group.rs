@@ -123,7 +123,7 @@ fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
     WidgetGroupIdentity::durable(WidgetGroupFamily::Gpu, bus.0.clone())
 }
 
-const GPU_SUMMARY_GLYPH: Phosphor = Phosphor::GraphicsCard(Weight::Regular);
+const GPU_LOAD_GLYPH: Phosphor = Phosphor::GraphicsCard(Weight::Regular);
 
 #[derive(Default)]
 pub struct GpuGroup {
@@ -331,7 +331,7 @@ impl GpuGroup {
             GpuDeviceAccess::Readable { snapshot, .. } => match snapshot {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                     GroupSummary::summarising(
-                        GPU_SUMMARY_GLYPH.into(),
+                        Phosphor::CubeTransparent(Weight::Regular).into(),
                         self.gpu_load_item(
                             bus,
                             device,
@@ -342,7 +342,7 @@ impl GpuGroup {
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                     GroupSummary::summarising(
-                        GPU_SUMMARY_GLYPH.into(),
+                        Phosphor::CubeTransparent(Weight::Regular).into(),
                         self.gpu_load_item(
                             bus,
                             device,
@@ -355,24 +355,26 @@ impl GpuGroup {
                     )
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                    GPU_SUMMARY_GLYPH.into(),
+                    Phosphor::CubeTransparent(Weight::Regular).into(),
                     self.gpu_load_item(
                         bus,
                         device,
                         snapshot,
-                        placeholder.reading_row(GPU_SUMMARY_GLYPH.into()),
+                        placeholder.reading_row(GPU_LOAD_GLYPH.into()),
                     ),
                 ),
-                SubscribedSnapshot::AwaitingFirstSnapshot => {
-                    GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), ReadingDisplayState::Pending)
-                }
-                SubscribedSnapshot::SourceUnavailable => {
-                    GroupSummary::glyph(GPU_SUMMARY_GLYPH.into(), ReadingDisplayState::Off)
-                }
+                SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                    Phosphor::CubeTransparent(Weight::Regular).into(),
+                    ReadingDisplayState::Pending,
+                ),
+                SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                    Phosphor::CubeTransparent(Weight::Regular).into(),
+                    ReadingDisplayState::Off,
+                ),
             },
             GpuDeviceAccess::Unreadable { handle_failure } => GroupSummary::summarising(
-                GPU_SUMMARY_GLYPH.into(),
-                GroupItem::reading(handle_failure.reading_row(GPU_SUMMARY_GLYPH.into()))
+                Phosphor::CubeTransparent(Weight::Regular).into(),
+                GroupItem::reading(handle_failure.reading_row(GPU_LOAD_GLYPH.into()))
                     .with_hover_card(Box::new(move |_| {
                         [handle_failure.source_state()]
                             .into_iter()

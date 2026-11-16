@@ -154,7 +154,7 @@ impl MobileModemsGroup {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let group_summary = GroupSummary::summarising(
-            Phosphor::CellSignalFull(Weight::Regular).into(),
+            Phosphor::SimCard(Weight::Regular).into(),
             GroupItem::reading(ModemSignalReading { modem }.reading_row()).with_hover_card(
                 Box::new(move |_| {
                     self.mobile_modems

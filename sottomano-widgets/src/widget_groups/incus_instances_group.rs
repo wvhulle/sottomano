@@ -371,7 +371,7 @@ impl IncusInstancesGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
             GroupSummary::glyph(
-                Phosphor::Package(Weight::Regular).into(),
+                Phosphor::CubeFocus(Weight::Regular).into(),
                 if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
                     self.probe_availability(instance_daemon) == Some(Availability::Available)
                 }) {

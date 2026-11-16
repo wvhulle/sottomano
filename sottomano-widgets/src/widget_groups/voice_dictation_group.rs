@@ -386,7 +386,7 @@ impl VoiceDictationGroup {
     fn dictation_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.dictation {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                DICTATION_GLYPH.into(),
+                Phosphor::ChatTeardropText(Weight::Regular).into(),
                 self.dictation_item(
                     notulist_dictation_reading_row(held_snapshot),
                     SwitchPosition::from(held_snapshot),
@@ -396,7 +396,7 @@ impl VoiceDictationGroup {
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 GroupSummary::summarising(
-                    DICTATION_GLYPH.into(),
+                    Phosphor::ChatTeardropText(Weight::Regular).into(),
                     self.dictation_item(
                         troubled_snapshot
                             .shown_over(notulist_dictation_reading_row(held_snapshot), clock),
@@ -406,19 +406,21 @@ impl VoiceDictationGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                DICTATION_GLYPH.into(),
+                Phosphor::ChatTeardropText(Weight::Regular).into(),
                 self.dictation_item(
                     placeholder.reading_row(DICTATION_GLYPH.into()),
                     SwitchPosition::Off,
                     "start dictating at the cursor",
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(DICTATION_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(DICTATION_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::ChatTeardropText(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::ChatTeardropText(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         }
     }
 

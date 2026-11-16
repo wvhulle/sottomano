@@ -554,7 +554,7 @@ fn player_group<'a>(
                 && session.expansion.state() == ExpansionState::Expanded)
         });
     let group_summary = GroupSummary::summarising(
-        Phosphor::Radio(Weight::Regular).into(),
+        Phosphor::MusicNotes(Weight::Regular).into(),
         player_item(config, media, gauge_fraction).with_hover_card(cards.player),
     );
     let mut rows = vec![

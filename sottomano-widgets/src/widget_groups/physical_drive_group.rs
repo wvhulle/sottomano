@@ -349,7 +349,7 @@ impl PhysicalDriveGroup {
     ) -> GroupSummary<'a> {
         match &readings.space {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                HARD_DRIVES_GLYPH.into(),
+                Phosphor::Cylinder(Weight::Regular).into(),
                 Self::disk_space_item(
                     disk,
                     readings,
@@ -358,7 +358,7 @@ impl PhysicalDriveGroup {
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    HARD_DRIVES_GLYPH.into(),
+                    Phosphor::Cylinder(Weight::Regular).into(),
                     Self::disk_space_item(
                         disk,
                         readings,
@@ -373,19 +373,21 @@ impl PhysicalDriveGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                HARD_DRIVES_GLYPH.into(),
+                Phosphor::Cylinder(Weight::Regular).into(),
                 Self::disk_space_item(
                     disk,
                     readings,
                     placeholder.reading_row(HARD_DRIVES_GLYPH.into()),
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Cylinder(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Cylinder(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         }
     }
 
@@ -512,12 +514,12 @@ impl PhysicalDriveGroup {
     pub fn group_contents(&self, clock: Clock, locale: Locale) -> Vec<WidgetGroupContent<'_>> {
         let group_summary = match &self.discovery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                HARD_DRIVES_GLYPH.into(),
+                Phosphor::Cylinder(Weight::Regular).into(),
                 self.mount_discovery_item(block_filesystem_discovery_reading_row(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    HARD_DRIVES_GLYPH.into(),
+                    Phosphor::Cylinder(Weight::Regular).into(),
                     self.mount_discovery_item(troubled_snapshot.shown_over(
                         block_filesystem_discovery_reading_row(&troubled_snapshot.held_snapshot),
                         clock,
@@ -525,15 +527,17 @@ impl PhysicalDriveGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                HARD_DRIVES_GLYPH.into(),
+                Phosphor::Cylinder(Weight::Regular).into(),
                 self.mount_discovery_item(placeholder.reading_row(HARD_DRIVES_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(HARD_DRIVES_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Cylinder(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Cylinder(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,

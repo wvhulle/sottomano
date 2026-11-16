@@ -52,7 +52,6 @@ use crate::{
     },
 };
 
-const POWER_PROFILE_GLYPH: Phosphor = Phosphor::Lightning(Weight::Regular);
 const BATTERY_CHARGE_GLYPH: Phosphor = Phosphor::BatteryFull(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,18 +235,21 @@ impl PowerGroup {
         let group_summary = match self.power_profile.profile_status() {
             SubscribedSnapshot::SnapshotHeld { .. }
             | SubscribedSnapshot::SnapshotTroubled { .. } => GroupSummary::summarising(
-                POWER_PROFILE_GLYPH.into(),
+                Phosphor::Plug(Weight::Regular).into(),
                 self.power_profile_item(config),
             ),
-            SubscribedSnapshot::NoSnapshot { placeholder } => {
-                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), placeholder.shown_state())
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(POWER_PROFILE_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::glyph(
+                Phosphor::Plug(Weight::Regular).into(),
+                placeholder.shown_state(),
+            ),
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Plug(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Plug(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let mut rows = Vec::new();
         match &self.battery {

@@ -268,12 +268,12 @@ impl WeatherGroup {
     fn temperature_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.temperature {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                WEATHER_GLYPH.into(),
+                Phosphor::Umbrella(Weight::Regular).into(),
                 self.temperature_item(temperature_reading_row(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    WEATHER_GLYPH.into(),
+                    Phosphor::Umbrella(Weight::Regular).into(),
                     self.temperature_item(troubled_snapshot.shown_over(
                         temperature_reading_row(&troubled_snapshot.held_snapshot),
                         clock,
@@ -281,15 +281,17 @@ impl WeatherGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                WEATHER_GLYPH.into(),
+                Phosphor::Umbrella(Weight::Regular).into(),
                 self.temperature_item(placeholder.reading_row(WEATHER_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(WEATHER_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(WEATHER_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Umbrella(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Umbrella(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         }
     }
 

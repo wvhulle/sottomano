@@ -89,12 +89,12 @@ impl WallpaperGroup {
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = match &self.lookup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                WALLPAPER_GLYPH.into(),
+                Phosphor::Mountains(Weight::Regular).into(),
                 GroupItem::reading(held_snapshot.reading_row()),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    WALLPAPER_GLYPH.into(),
+                    Phosphor::Mountains(Weight::Regular).into(),
                     GroupItem::reading(
                         troubled_snapshot
                             .shown_over(troubled_snapshot.held_snapshot.reading_row(), clock),
@@ -102,15 +102,17 @@ impl WallpaperGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                WALLPAPER_GLYPH.into(),
+                Phosphor::Mountains(Weight::Regular).into(),
                 GroupItem::reading(placeholder.reading_row(WALLPAPER_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(WALLPAPER_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(WALLPAPER_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Mountains(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Mountains(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let mut rows = Vec::new();
         if let Some(lookup) = self.lookup.get() {

@@ -43,6 +43,7 @@ use crate::{
     },
     widgets::{
         most_used_model::{ModelSpendRanking, RankedSpan},
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -224,7 +225,7 @@ impl OpenRouterCreditGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
-                self.spend_item(placeholder.reading_row(SimpleIcon::OpenRouter.into())),
+                self.spend_item(placeholder.reading_row(Phosphor::Coins(Weight::Regular).into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
                 GroupSummary::glyph(SimpleIcon::OpenRouter.into(), ReadingDisplayState::Pending)

@@ -323,7 +323,7 @@ impl StorageSpaceGroup {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let group_summary = match &filesystem.usage {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                FILESYSTEM_USAGE_GLYPH.into(),
+                Phosphor::Archive(Weight::Regular).into(),
                 Self::filesystem_usage_item(
                     filesystem,
                     filesystem_usage_reading_row(held_snapshot),
@@ -331,7 +331,7 @@ impl StorageSpaceGroup {
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    FILESYSTEM_USAGE_GLYPH.into(),
+                    Phosphor::Archive(Weight::Regular).into(),
                     Self::filesystem_usage_item(
                         filesystem,
                         troubled_snapshot.shown_over(
@@ -342,18 +342,20 @@ impl StorageSpaceGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                FILESYSTEM_USAGE_GLYPH.into(),
+                Phosphor::Archive(Weight::Regular).into(),
                 Self::filesystem_usage_item(
                     filesystem,
                     placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into()),
                 ),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Archive(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Archive(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let mut rows = Vec::new();
         rows.extend(Self::property_items(filesystem, locale));
@@ -449,12 +451,12 @@ impl StorageSpaceGroup {
         }
         let group_summary = match &self.discovery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                FILESYSTEM_USAGE_GLYPH.into(),
+                Phosphor::Archive(Weight::Regular).into(),
                 self.discovery_item(block_filesystem_discovery_reading_row(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    FILESYSTEM_USAGE_GLYPH.into(),
+                    Phosphor::Archive(Weight::Regular).into(),
                     self.discovery_item(troubled_snapshot.shown_over(
                         block_filesystem_discovery_reading_row(&troubled_snapshot.held_snapshot),
                         clock,
@@ -462,15 +464,17 @@ impl StorageSpaceGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                FILESYSTEM_USAGE_GLYPH.into(),
+                Phosphor::Archive(Weight::Regular).into(),
                 self.discovery_item(placeholder.reading_row(FILESYSTEM_USAGE_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(FILESYSTEM_USAGE_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Archive(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Archive(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,

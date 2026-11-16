@@ -254,7 +254,7 @@ impl SidebarSettingsGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SidebarSettings,
             GroupSummary::glyph(
-                Phosphor::SidebarSimple(Weight::Regular).into(),
+                Phosphor::Sidebar(Weight::Regular).into(),
                 ReadingDisplayState::Idle,
             ),
             &self.expansion,

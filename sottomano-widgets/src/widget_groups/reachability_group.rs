@@ -202,12 +202,12 @@ impl ReachabilityGroup {
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = match &self.connectivity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                CONNECTIVITY_GLYPH.into(),
+                Phosphor::GlobeSimple(Weight::Regular).into(),
                 GroupItem::reading(uplink_connectivity_reading_row(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    CONNECTIVITY_GLYPH.into(),
+                    Phosphor::GlobeSimple(Weight::Regular).into(),
                     GroupItem::reading(troubled_snapshot.shown_over(
                         uplink_connectivity_reading_row(&troubled_snapshot.held_snapshot),
                         clock,
@@ -215,15 +215,17 @@ impl ReachabilityGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                CONNECTIVITY_GLYPH.into(),
+                Phosphor::GlobeSimple(Weight::Regular).into(),
                 GroupItem::reading(placeholder.reading_row(CONNECTIVITY_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(CONNECTIVITY_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(CONNECTIVITY_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::GlobeSimple(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::GlobeSimple(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let mut rows = Vec::new();
         match &self.throughput {

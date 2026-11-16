@@ -256,7 +256,7 @@ impl SessionFocusGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config, clock: Clock) -> WidgetGroupContent<'a> {
         let locale = config.calendar.locale;
         let group_summary = GroupSummary::summarising(
-            Phosphor::UserFocus(Weight::Regular).into(),
+            Phosphor::Crosshair(Weight::Regular).into(),
             GroupItem::reading(self.session_face(config).reading_row(clock, locale))
                 .ongoing_toast_action_buttons([
                     OngoingToastActionButton {

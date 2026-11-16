@@ -370,7 +370,7 @@ impl MicrovmGuestsGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
             GroupSummary::glyph(
-                Phosphor::Lightning(Weight::Regular).into(),
+                Phosphor::Feather(Weight::Regular).into(),
                 self.shown_state(),
             ),
             &self.expansion,

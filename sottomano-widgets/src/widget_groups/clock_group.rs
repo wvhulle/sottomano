@@ -141,27 +141,29 @@ impl ClockGroup {
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = match &self.time {
             SubscribedSnapshot::SnapshotHeld { .. } => GroupSummary::summarising(
-                LOCAL_TIME_GLYPH.into(),
+                Phosphor::Watch(Weight::Regular).into(),
                 self.local_time_item(LocalTime::reading_row(clock, locale)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    LOCAL_TIME_GLYPH.into(),
+                    Phosphor::Watch(Weight::Regular).into(),
                     self.local_time_item(
                         troubled_snapshot.shown_over(LocalTime::reading_row(clock, locale), clock),
                     ),
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                LOCAL_TIME_GLYPH.into(),
+                Phosphor::Watch(Weight::Regular).into(),
                 self.local_time_item(placeholder.reading_row(LOCAL_TIME_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(LOCAL_TIME_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(LOCAL_TIME_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Watch(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Watch(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         };
         let mut rows = Vec::new();
         match &self.date {

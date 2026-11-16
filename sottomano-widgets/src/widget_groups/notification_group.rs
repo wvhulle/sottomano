@@ -144,7 +144,7 @@ impl NotificationGroup {
     ) -> WidgetGroupContent<'a> {
         let quiet_phase = status.quiet_phase;
         let group_summary = GroupSummary::summarising(
-            Phosphor::Bell(Weight::Regular).into(),
+            Phosphor::Tray(Weight::Regular).into(),
             GroupItem::reading(status.reading_row()),
         );
         let group_summary = group_summary;

@@ -266,7 +266,7 @@ impl EthernetPortsGroup {
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&port_state.name)?;
         let group_summary = GroupSummary::summarising(
-            Phosphor::Network(Weight::Regular).into(),
+            Phosphor::ShareNetwork(Weight::Regular).into(),
             GroupItem::reading(
                 PortLinkReading {
                     port_state,

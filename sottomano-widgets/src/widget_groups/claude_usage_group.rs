@@ -57,6 +57,7 @@ use crate::{
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         most_used_model::{ModelSpendRanking, RankedSpan},
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -397,7 +398,9 @@ impl ClaudeUsageGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::Claude.into(),
-                self.usage_windows_item(placeholder.reading_row(SimpleIcon::Claude.into())),
+                self.usage_windows_item(
+                    placeholder.reading_row(Phosphor::Gauge(Weight::Regular).into()),
+                ),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
                 GroupSummary::glyph(SimpleIcon::Claude.into(), ReadingDisplayState::Pending)

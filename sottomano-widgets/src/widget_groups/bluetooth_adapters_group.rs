@@ -197,7 +197,7 @@ impl BluetoothAdaptersGroup {
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let group_summary = GroupSummary::summarising(
-            Phosphor::Bluetooth(Weight::Regular).into(),
+            Phosphor::BluetoothConnected(Weight::Regular).into(),
             GroupItem::reading(self.adapter_reading(adapter).reading_row()).with_hover_card(
                 Box::new(move |_| {
                     self.bluetooth

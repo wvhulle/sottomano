@@ -506,7 +506,7 @@ impl GlobalMenuGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
             GroupSummary::glyph(
-                Phosphor::AppWindow(Weight::Regular).into(),
+                Phosphor::CursorClick(Weight::Regular).into(),
                 match self.lookup_failure() {
                     Some(_) => ReadingDisplayState::Failed,
                     None => ReadingDisplayState::Idle,

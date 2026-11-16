@@ -37,7 +37,10 @@ use crate::{
         widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
-        icon_glyph::IconGlyph, simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -57,7 +60,7 @@ impl<'a> UnreadableEngineRow<'a> {
             },
             ..ReadingRow::glyph_only(
                 self.engine.owner.to_string(),
-                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                Phosphor::Package(Weight::Regular).into(),
                 ReadingDisplayState::Failed,
                 Box::new(move |_| self.hover_card()),
             )
@@ -96,7 +99,7 @@ impl<'a> ListedContainerRow<'a> {
             },
             ..ReadingRow::glyph_only(
                 engine_container_name(&self.listed.container_name, &self.engine.owner),
-                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                Phosphor::Package(Weight::Regular).into(),
                 self.listed.run_state.into(),
                 Box::new(move |_| self.hover_card()),
             )

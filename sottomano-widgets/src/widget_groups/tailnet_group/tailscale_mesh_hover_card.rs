@@ -20,6 +20,7 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
@@ -122,7 +123,7 @@ pub(super) fn tailscale_reading_row(tailscale: &Tailscale, clock: Clock) -> Read
         },
         ..ReadingRow::glyph_only(
             Tailscale::NAME,
-            SimpleIcon::Tailscale.into(),
+            Phosphor::Plugs(Weight::Regular).into(),
             state,
             Box::new(move |card_clock| tailscale_hover_card(tailscale, card_clock)),
         )

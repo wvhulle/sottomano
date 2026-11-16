@@ -23,7 +23,6 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -257,7 +256,7 @@ pub(super) fn tunnel_reading_row(tunnel: &Tunnel) -> ReadingRow<'_> {
             Phosphor::GlobeHemisphereWest(Weight::Regular).into()
         }
         TunnelRole::Client => Phosphor::PlugsConnected(Weight::Regular).into(),
-        TunnelRole::Undetermined => SimpleIcon::WireGuard.into(),
+        TunnelRole::Undetermined => Phosphor::Path(Weight::Regular).into(),
     };
     let state = match tunnel.tunnel_phase() {
         LinkPhase::Switching => ReadingDisplayState::Pending,

@@ -148,7 +148,7 @@ impl<'a> WaydroidSessionRow<'a> {
             },
             ..ReadingRow::glyph_only(
                 "Session",
-                IconGlyph::SimpleIcon(SimpleIcon::Android),
+                Phosphor::DeviceMobile(Weight::Regular).into(),
                 state,
                 Box::new(move |_| self.hover_card()),
             )

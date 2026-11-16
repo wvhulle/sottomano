@@ -253,7 +253,7 @@ impl WifiAdaptersGroup {
     ) -> Option<WidgetGroupContent<'a>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let group_summary = GroupSummary::summarising(
-            Phosphor::WifiHigh(Weight::Regular).into(),
+            Phosphor::Broadcast(Weight::Regular).into(),
             GroupItem::reading(
                 AdapterSignalReading {
                     adapter,

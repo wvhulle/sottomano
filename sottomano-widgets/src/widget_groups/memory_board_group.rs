@@ -256,12 +256,12 @@ impl MemoryBoardGroup {
     fn memory_usage_summary(&self, clock: Clock, locale: Locale) -> GroupSummary<'_> {
         match &self.memory {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                MEMORY_USAGE_GLYPH.into(),
+                Phosphor::Database(Weight::Regular).into(),
                 self.memory_usage_item(memory_reading_row(held_snapshot, locale)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    MEMORY_USAGE_GLYPH.into(),
+                    Phosphor::Database(Weight::Regular).into(),
                     self.memory_usage_item(troubled_snapshot.shown_over(
                         memory_reading_row(&troubled_snapshot.held_snapshot, locale),
                         clock,
@@ -269,15 +269,17 @@ impl MemoryBoardGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                MEMORY_USAGE_GLYPH.into(),
+                Phosphor::Database(Weight::Regular).into(),
                 self.memory_usage_item(placeholder.reading_row(MEMORY_USAGE_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(MEMORY_USAGE_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(MEMORY_USAGE_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Database(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Database(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         }
     }
 

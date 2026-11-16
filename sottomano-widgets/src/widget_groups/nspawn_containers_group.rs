@@ -325,7 +325,7 @@ impl NspawnContainersGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NspawnContainers,
             GroupSummary::glyph(
-                Phosphor::ShippingContainer(Weight::Regular).into(),
+                Phosphor::Hexagon(Weight::Regular).into(),
                 ReadingDisplayState::Idle,
             ),
             &self.expansion,

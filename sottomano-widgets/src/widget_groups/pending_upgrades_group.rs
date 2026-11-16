@@ -111,7 +111,7 @@ impl PendingUpgradesGroup {
             );
         }
         let group_summary = GroupSummary::summarising(
-            Phosphor::ArrowCircleUp(Weight::Regular).into(),
+            Phosphor::ArrowFatLinesUp(Weight::Regular).into(),
             GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
             })),

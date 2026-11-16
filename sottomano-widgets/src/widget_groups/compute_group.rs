@@ -272,12 +272,12 @@ impl ComputeGroup {
     fn cpu_load_summary(&self, clock: Clock) -> GroupSummary<'_> {
         match &self.cpu_load {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
-                CPU_LOAD_GLYPH.into(),
+                Phosphor::Circuitry(Weight::Regular).into(),
                 self.cpu_load_item(cpu_usage_reading_row(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
-                    CPU_LOAD_GLYPH.into(),
+                    Phosphor::Circuitry(Weight::Regular).into(),
                     self.cpu_load_item(troubled_snapshot.shown_over(
                         cpu_usage_reading_row(&troubled_snapshot.held_snapshot),
                         clock,
@@ -285,15 +285,17 @@ impl ComputeGroup {
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
-                CPU_LOAD_GLYPH.into(),
+                Phosphor::Circuitry(Weight::Regular).into(),
                 self.cpu_load_item(placeholder.reading_row(CPU_LOAD_GLYPH.into())),
             ),
-            SubscribedSnapshot::AwaitingFirstSnapshot => {
-                GroupSummary::glyph(CPU_LOAD_GLYPH.into(), ReadingDisplayState::Pending)
-            }
-            SubscribedSnapshot::SourceUnavailable => {
-                GroupSummary::glyph(CPU_LOAD_GLYPH.into(), ReadingDisplayState::Off)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
+                Phosphor::Circuitry(Weight::Regular).into(),
+                ReadingDisplayState::Pending,
+            ),
+            SubscribedSnapshot::SourceUnavailable => GroupSummary::glyph(
+                Phosphor::Circuitry(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+            ),
         }
     }
 

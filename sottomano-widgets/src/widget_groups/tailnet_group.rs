@@ -59,7 +59,7 @@ use crate::{
     },
 };
 
-const TAILSCALE_GLYPH: SimpleIcon = SimpleIcon::Tailscale;
+const TAILNET_MEMBERSHIP_GLYPH: Phosphor = Phosphor::Plugs(Weight::Regular);
 const TAILSCALE_EXIT_NODES_GLYPH: Phosphor = Phosphor::SignOut(Weight::Regular);
 
 mod tailscale_access_hover_card;
@@ -464,7 +464,9 @@ impl TailnetGroup {
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.membership_item(placeholder.reading_row(TAILSCALE_GLYPH.into())));
+                rows.push(
+                    self.membership_item(placeholder.reading_row(TAILNET_MEMBERSHIP_GLYPH.into())),
+                );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }

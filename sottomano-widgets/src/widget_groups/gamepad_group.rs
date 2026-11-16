@@ -622,7 +622,7 @@ impl GamepadGroup {
         let failure_row = self.controller_discovery_failure_reading()?.reading_row();
         let group_title = WidgetGroupTitle::Named(failure_row.face.name.clone());
         let group_summary = GroupSummary::summarising(
-            Phosphor::GameController(Weight::Regular).into(),
+            Phosphor::Joystick(Weight::Regular).into(),
             GroupItem::reading(failure_row),
         );
         Some(WidgetGroupContent::expandable_instance(
@@ -648,7 +648,7 @@ impl GamepadGroup {
             power: gamepad.power,
         };
         let group_summary = GroupSummary::summarising(
-            Phosphor::GameController(Weight::Regular).into(),
+            Phosphor::Joystick(Weight::Regular).into(),
             GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row()),
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });

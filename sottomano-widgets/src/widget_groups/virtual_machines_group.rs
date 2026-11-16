@@ -402,7 +402,7 @@ impl VirtualMachinesGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
             GroupSummary::glyph(
-                Phosphor::DesktopTower(Weight::Regular).into(),
+                Phosphor::Browsers(Weight::Regular).into(),
                 ReadingDisplayState::Idle,
             ),
             &self.expansion,

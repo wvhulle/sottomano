@@ -35,7 +35,9 @@ use crate::{
     },
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
@@ -266,7 +268,7 @@ impl PodmanEnginesGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
             GroupSummary::glyph(
-                Phosphor::Cube(Weight::Regular).into(),
+                IconGlyph::SimpleIcon(SimpleIcon::Podman),
                 ReadingDisplayState::Idle,
             ),
             &self.expansion,
