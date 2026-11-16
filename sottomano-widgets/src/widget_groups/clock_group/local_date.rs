@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use chrono::{Datelike, Locale, Utc};
 use iced::futures::Stream;
@@ -14,13 +14,14 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widget_groups::clock_group::TICK,
     widgets::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const DATE_TICK: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalDate;
@@ -32,7 +33,7 @@ impl SnapshotSource for LocalDate {
     const NAME: &'static str = "Local date";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(TICK).boundary_aligned_deliveries(|| LocalDate)
+        PeriodicPolling::every(DATE_TICK).boundary_aligned_deliveries(|| LocalDate)
     }
 }
 
