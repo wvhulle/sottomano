@@ -102,7 +102,7 @@ fn runner_hover_card<S: CiRunnerSnapshot>(
     runner_label: &str,
     describe: impl FnOnce(WatchedCiRunner<'_>) -> Option<Vec<Section>>,
 ) -> Vec<Section> {
-    let Some(snapshot) = watches.snapshot_of(runner_label) else {
+    let Some(snapshot) = watches.runners.get(runner_label) else {
         return Vec::new();
     };
     let Some(held_snapshot) = snapshot.get() else {

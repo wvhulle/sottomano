@@ -47,7 +47,7 @@ impl DesktopShell {
                 failure,
                 &self.indicator_groups.toast_context(
                     &self.compositor,
-                    self.desktop_entries.get(),
+                    self.desktop_entries.entries.as_deref(),
                     &self.config,
                     self.clock,
                 ),

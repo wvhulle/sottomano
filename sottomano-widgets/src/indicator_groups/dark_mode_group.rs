@@ -139,7 +139,8 @@ impl DarkModeGroup {
     #[must_use]
     pub fn scheme(&self) -> ColorMode {
         self.mode_toggle
-            .snapshot()
+            .sample
+            .get()
             .map_or(ColorMode::Dark, |dark_mode| dark_mode.color_mode)
     }
 
@@ -360,7 +361,7 @@ impl DarkModeGroup {
                 });
             }
         }
-        if self.mode_toggle.snapshot().is_some() {
+        if self.mode_toggle.sample.get().is_some() {
             rows.push(
                 self.auto_switch_toggle
                     .indicator(clock, locale)

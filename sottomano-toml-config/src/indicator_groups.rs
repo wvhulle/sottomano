@@ -111,12 +111,7 @@ pub struct WindowGroupConfig {
     pub agents: WindowAgentsConfig,
 }
 
-impl WindowGroupConfig {
-    #[must_use]
-    pub fn resolved_maximum_window_title_width(&self, em_px: f32) -> f32 {
-        self.maximum_window_title_width.resolve(em_px)
-    }
-}
+impl WindowGroupConfig {}
 
 impl Default for WindowGroupConfig {
     fn default() -> Self {
@@ -189,7 +184,7 @@ mod window_title_width_tests {
         let window_group: WindowGroupConfig =
             toml::from_str("maximum_window_title_width = \"10em\"\n").unwrap();
         assert!(
-            (window_group.resolved_maximum_window_title_width(14.0) - 140.0).abs() < f32::EPSILON
+            (window_group.maximum_window_title_width.resolve(14.0) - 140.0).abs() < f32::EPSILON
         );
     }
 }

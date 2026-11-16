@@ -64,7 +64,7 @@ impl AgendaSnapshotPolling for OpenTaskPoller {
         tasks.sort_by(OpenTask::earliest_due_first);
         Ok(OpenTaskList {
             tasks,
-            task_list_count: self.home_poller.fetched_calendar_count(),
+            task_list_count: self.home_poller.fetched_calendars.len(),
             provider: polled_home.provider,
         })
     }

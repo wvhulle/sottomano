@@ -78,7 +78,7 @@ impl DesktopShell {
                 .collect(),
             PanelZoneEntry::Standalone(group) => self
                 .standalone_group(group)
-                .view(config, position, self.clock)
+                .view_events(config, position, self.clock)
                 .into_iter()
                 .map(|element| element.map(ShellInteraction::from))
                 .collect(),

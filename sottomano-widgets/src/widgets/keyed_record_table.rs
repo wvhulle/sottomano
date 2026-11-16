@@ -262,8 +262,8 @@ mod tests {
         );
         let record = table.records().next().unwrap();
         assert_eq!(record.key, ValueCell::from("Error"));
-        assert_eq!(record.cell(0), Some(&ValueCell::from("offline")));
-        assert_eq!(record.cell(1), None);
+        assert_eq!(record.cells.first(), Some(&ValueCell::from("offline")));
+        assert_eq!(record.cells.get(1), None);
         assert_eq!(record.level, Severity::Critical);
     }
 }

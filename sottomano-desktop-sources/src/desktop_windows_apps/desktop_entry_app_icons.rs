@@ -138,11 +138,7 @@ impl DesktopEntries {
     }
 
     #[must_use]
-    pub fn theme_icon(&self, name: &str) -> Option<PathBuf> {
-        self.theme_lookup(name)
-    }
-
-    fn theme_lookup(&self, name: &str) -> Option<PathBuf> {
+    pub fn theme_lookup(&self, name: &str) -> Option<PathBuf> {
         let mut query = lookup(name).with_size(48).with_cache();
         if let Some(theme) = &self.theme {
             query = query.with_theme(theme);
@@ -193,7 +189,7 @@ pub fn resolve_theme_icons(
     entries: &DesktopEntries,
     icon_names: Vec<String>,
 ) -> HashMap<String, TrimmedIcon> {
-    trimmed_icons_by_key(icon_names, |icon_name| entries.theme_icon(icon_name))
+    trimmed_icons_by_key(icon_names, |icon_name| entries.theme_lookup(icon_name))
 }
 
 fn trimmed_icons_by_key(

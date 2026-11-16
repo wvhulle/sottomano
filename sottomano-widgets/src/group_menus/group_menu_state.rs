@@ -135,12 +135,12 @@ impl GroupMenuPin {
         match self {
             GroupMenuPin::Group(group) => StoredGroupMenuPin::Group {
                 menu_topic,
-                group_family: group.family.stored_name().to_owned(),
+                group_family: <&'static str>::from(group.family).to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
             },
             GroupMenuPin::Item(IndicatorKey { group, name }) => StoredGroupMenuPin::Item {
                 menu_topic,
-                group_family: group.family.stored_name().to_owned(),
+                group_family: <&'static str>::from(group.family).to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
                 indicator_name: name.into_owned(),
             },
@@ -370,7 +370,7 @@ impl GroupMenuState {
 
     #[must_use]
     pub fn source_demand(&self, family: IndicatorGroupFamily) -> GroupSourceDemand {
-        let stored_family = family.stored_name();
+        let stored_family = <&'static str>::from(family);
         let menu_open = self
             .recently_open_menus
             .iter()

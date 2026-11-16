@@ -201,7 +201,7 @@ mod tests {
         let table = kernel_message_table(&errors);
         let values: Vec<ValueCell> = table
             .records()
-            .filter_map(|record| record.cell(1).cloned())
+            .filter_map(|record| record.cells.get(1).cloned())
             .collect();
         let expected: Vec<ValueCell> = once("2 earlier not shown".to_string())
             .chain((2..17).map(|secs| format!("message {secs}")))

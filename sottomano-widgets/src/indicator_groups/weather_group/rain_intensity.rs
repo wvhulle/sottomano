@@ -166,10 +166,6 @@ impl RainTimelineRow<'_> {
         }
     }
 
-    fn sky_wetness(self) -> SkyWetness {
-        self.sample.sky_wetness()
-    }
-
     fn glyph(self) -> IconGlyph {
         let strength_glyph = self.scale.strength(self.sample.intensity()).glyph();
         match self.sample {
@@ -478,7 +474,7 @@ impl<'a> RainForecast<'a> {
         let timeline = self.timeline(clock);
         let timeline_section = timeline
             .iter()
-            .any(|row| row.sky_wetness() == SkyWetness::Precipitating)
+            .any(|row| row.sample.sky_wetness() == SkyWetness::Precipitating)
             .then(|| rain_timeline_section(&timeline));
         iter::once(self.summary_section(clock))
             .chain(timeline_section)
@@ -884,7 +880,8 @@ mod tests {
             .iter()
             .map(|row| {
                 RecordCells::from(TableRecord::<3>::from(row))
-                    .cell(2)
+                    .cells
+                    .get(2)
                     .cloned()
                     .unwrap()
             })
@@ -905,19 +902,19 @@ mod tests {
         };
         let wet = row(&rain.forecast[0]);
         assert_eq!(
-            match wet.cell(0).unwrap() {
+            match wet.cells.first().unwrap() {
                 ValueCell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
                 _ => String::new(),
             },
             "2.0 mm/h"
         );
         assert_eq!(
-            wet.cell(1),
+            wet.cells.get(1),
             Some(&ValueCell::IconGlyph(WeatherIcon::Rain.into()))
         );
-        assert_eq!(wet.cell(2), Some(&ValueCell::Blank));
+        assert_eq!(wet.cells.get(2), Some(&ValueCell::Blank));
         let dry = row(&rain.forecast[1]);
-        assert_eq!(dry.cell(0), Some(&ValueCell::from("–")));
+        assert_eq!(dry.cells.first(), Some(&ValueCell::from("–")));
     }
 
     #[test]
@@ -993,7 +990,7 @@ mod tests {
         assert!(
             timeline
                 .iter()
-                .all(|row| row.sky_wetness() == SkyWetness::Dry)
+                .all(|row| row.sample.sky_wetness() == SkyWetness::Dry)
         );
     }
 

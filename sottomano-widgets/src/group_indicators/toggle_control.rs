@@ -192,10 +192,6 @@ impl<S: ToggleableSource> ToggleControl<S> {
     pub fn hover_card(&self) -> Vec<Section> {
         self.sample.hover_card_with(Vec::new())
     }
-
-    pub fn snapshot(&self) -> Option<&S> {
-        self.sample.get()
-    }
 }
 
 #[cfg(test)]
@@ -233,7 +229,7 @@ mod tests {
 
         let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
 
-        assert!(control.snapshot().is_none());
+        assert!(control.sample.get().is_none());
         assert_eq!(
             control.sample.shown_state(
                 |snapshot| x3d_cache_preference_indicator(snapshot).shown_state(),

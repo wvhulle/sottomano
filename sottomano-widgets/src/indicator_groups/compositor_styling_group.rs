@@ -185,8 +185,12 @@ impl CompositorStylingGroup {
     #[must_use]
     pub fn app_window_layout(&self) -> AppWindowLayout {
         AppWindowLayout {
-            window_corner_radius_px: self.corner_radius.expanding_slider.reported_value(),
-            gaps_px: self.gaps.expanding_slider.reported_value(),
+            window_corner_radius_px: self
+                .corner_radius
+                .expanding_slider
+                .synced_value
+                .reported_value(),
+            gaps_px: self.gaps.expanding_slider.synced_value.reported_value(),
         }
     }
 
@@ -200,8 +204,12 @@ impl CompositorStylingGroup {
 
     fn requested_layout(&self) -> AppWindowLayout {
         AppWindowLayout {
-            window_corner_radius_px: self.corner_radius.expanding_slider.shown_value(),
-            gaps_px: self.gaps.expanding_slider.shown_value(),
+            window_corner_radius_px: self
+                .corner_radius
+                .expanding_slider
+                .synced_value
+                .shown_value(),
+            gaps_px: self.gaps.expanding_slider.synced_value.shown_value(),
         }
     }
 

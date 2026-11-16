@@ -47,10 +47,6 @@ impl GroupSourceDemand {
             GroupSurface::SummaryOnly | GroupSurface::Hidden => Subscription::none(),
         }
     }
-
-    pub fn while_any_indicator_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
-        self.while_headline_shown(subscription)
-    }
 }
 
 #[cfg(test)]

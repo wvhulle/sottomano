@@ -1,0 +1,15 @@
+id: field-passthrough
+valid:
+  - "impl Jobs { fn slowest(&self) -> Option<&Job> { self.jobs.iter().max_by_key(|job| job.elapsed) } }"
+  - "impl Jobs { fn count(&self) -> usize { self.jobs.len() + self.queued.len() } }"
+  - "impl IntoIterator for Jobs { type Item = Job; type IntoIter = IntoIter<Job>; fn into_iter(self) -> IntoIter<Job> { self.jobs.into_iter() } }"
+  - "fn celsius(degrees: f64) -> Temperature { Temperature::new::<degree_celsius>(degrees) }"
+  - "impl Window { fn quota(&self, now: Time) -> Quota { self.window.quota_at(now, LIMIT) } }"
+  - "impl Group { fn sections(&self, rate: f32) -> Vec<Section> { self.snapshot.hover_card_with(build(rate)) } }"
+invalid:
+  - "impl Jobs { pub fn is_empty(&self) -> bool { self.jobs.is_empty() } }"
+  - "impl Panel { pub(crate) fn placement(&self) -> Placement { self.transition.placement() } }"
+  - "impl Indicator { pub fn hover_card(&self, clock: Clock) -> Vec<Section> { (self.card)(clock) } }"
+  - "impl Index { fn get(&self, key: &str) -> Option<&Entry> { self.entries.get(key) } }"
+  - "impl Demand { pub fn while_shown(self, subscription: Subscription) -> Self { self.while_headline_shown(subscription) } }"
+  - "impl Pair { fn two(&mut self, first: u8, second: u8) -> u8 { self.inner.two(first, second) } }"

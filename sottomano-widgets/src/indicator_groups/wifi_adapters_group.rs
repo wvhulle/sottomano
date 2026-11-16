@@ -254,7 +254,7 @@ impl WifiAdaptersGroup {
         radio_power: RadioPower,
         group_title: IndicatorGroupTitle,
     ) -> Option<IndicatorGroupContent<'a>> {
-        let expansion = self.expansions.get(&adapter.device)?;
+        let expansion = self.expansions.expansions.get(&adapter.device)?;
         let build_adapter_signal_indicator = || {
             AdapterSignalIndicator {
                 adapter,

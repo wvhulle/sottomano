@@ -170,16 +170,34 @@ impl LayerAppearanceControls {
     pub fn appearance(&self) -> LayerAppearance {
         LayerAppearance {
             frame: FrameStyle {
-                opacity: self.opacity.expanding_slider.reported_value() / 100.0,
-                corner_radius_px: self.corner_radius.expanding_slider.reported_value(),
+                opacity: self.opacity.expanding_slider.synced_value.reported_value() / 100.0,
+                corner_radius_px: self
+                    .corner_radius
+                    .expanding_slider
+                    .synced_value
+                    .reported_value(),
                 shadow: ShadowStyle {
                     casting: self.shadow_casting,
-                    softness_px: self.shadow_softness.expanding_slider.reported_value(),
-                    opacity: self.shadow_opacity.expanding_slider.reported_value() / 100.0,
+                    softness_px: self
+                        .shadow_softness
+                        .expanding_slider
+                        .synced_value
+                        .reported_value(),
+                    opacity: self
+                        .shadow_opacity
+                        .expanding_slider
+                        .synced_value
+                        .reported_value()
+                        / 100.0,
                 },
                 outline: OutlineStyle {
                     tracing: self.outline_tracing,
-                    opacity: self.outline_opacity.expanding_slider.reported_value() / 100.0,
+                    opacity: self
+                        .outline_opacity
+                        .expanding_slider
+                        .synced_value
+                        .reported_value()
+                        / 100.0,
                 },
                 ..self.layer.default_appearance().frame
             },

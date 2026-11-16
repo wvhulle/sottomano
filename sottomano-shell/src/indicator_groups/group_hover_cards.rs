@@ -96,7 +96,8 @@ impl DesktopShell {
         let window_group = &self.indicator_groups.window_group;
         match target {
             HoverTarget::Window(WindowTarget::Inspect(window)) => window_group
-                .inspect_hover_card()
+                .window_list
+                .process_sections()
                 .into_iter()
                 .chain(Section::press_actions(self.window_press_actions(*window)))
                 .collect(),

@@ -297,7 +297,7 @@ impl ShowcaseState {
                 Task::none()
             }
             HoverCardMessage::Anchor(AnchorEvent::Entered { target }) => {
-                if self.hover_card.shown_retention() != CardRetention::UntilDismissed {
+                if self.hover_card.transition.shown_retention() != CardRetention::UntilDismissed {
                     self.open_hover_card(target);
                 }
                 Task::none()
@@ -336,7 +336,7 @@ impl ShowcaseState {
                 Task::none()
             }
             HoverCardMessage::DismissHeldOpen => {
-                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                if self.hover_card.transition.shown_retention() == CardRetention::UntilDismissed {
                     self.close_held_open_card();
                 }
                 Task::none()
@@ -517,7 +517,7 @@ impl ShowcaseState {
         let unplaced = CompositorWindowState::default();
         let context = ToastContext::new(
             self.group.compositor().unwrap_or(&unplaced),
-            self.desktop_entries.get(),
+            self.desktop_entries.entries.as_deref(),
             &self.config,
             self.notification_settings,
             QuietPhase::Inactive,

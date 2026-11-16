@@ -267,7 +267,7 @@ impl EthernetPortsGroup {
         port_state: &'a PortState,
         group_title: IndicatorGroupTitle,
     ) -> Option<IndicatorGroupContent<'a>> {
-        let expansion = self.expansions.get(&port_state.name)?;
+        let expansion = self.expansions.expansions.get(&port_state.name)?;
         let build_port_link_indicator = || {
             PortLinkIndicator {
                 port_state,

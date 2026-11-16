@@ -433,7 +433,8 @@ impl AppLauncherGroup {
 
     fn app_icon(app: &LaunchableApp, index: &DesktopIndex) -> IndicatorIcon {
         index
-            .app_icon(&app.app_id)
+            .app_icons
+            .get(&app.app_id)
             .map_or(IndicatorIcon::Absent, |icon_handle| {
                 IndicatorIcon::Image(icon_handle.clone())
             })
@@ -733,7 +734,7 @@ mod tests {
                 .group_contents(&index, &config, output)
                 .into_iter()
                 .next()
-                .is_some_and(|frequent| !frequent.is_empty())
+                .is_some_and(|frequent| !frequent.indicators.is_empty())
         };
 
         assert!(items_on("DP-1"));

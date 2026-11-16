@@ -20,7 +20,7 @@ const DEFAULT_ROW_SPACING_PX: f32 = 4.0;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordCells<CellValue, RowLevel = ()> {
     pub key: CellValue,
-    cells: Vec<CellValue>,
+    pub cells: Vec<CellValue>,
     pub level: RowLevel,
 }
 
@@ -35,11 +35,6 @@ impl<CellValue, RowLevel> RecordCells<CellValue, RowLevel> {
             cells: cells.into_iter().collect(),
             level,
         }
-    }
-
-    #[must_use]
-    pub fn cell(&self, position: usize) -> Option<&CellValue> {
-        self.cells.get(position)
     }
 }
 
@@ -207,7 +202,12 @@ impl<'label, CellValue, RowLevel> GroupedTable<'label, CellValue, RowLevel> {
                 self.rows
                     .iter()
                     .filter_map(TableRow::filled_cells)
-                    .any(|record| record.cell(position).is_some_and(|cell| !is_blank(cell)))
+                    .any(|record| {
+                        record
+                            .cells
+                            .get(position)
+                            .is_some_and(|cell| !is_blank(cell))
+                    })
             })
             .collect();
         match &mut self.columns {
@@ -280,7 +280,7 @@ impl<RowLevel: 'static, Message: 'static> From<TextFace>
         Self {
             key_cell: Rc::new(move |record| face.text(record.key.clone()).into()),
             value_cell: Rc::new(move |record, position| {
-                face.text(record.cell(position).cloned().unwrap_or_default())
+                face.text(record.cells.get(position).cloned().unwrap_or_default())
                     .into()
             }),
             omitted_count: Rc::new(move |omitted_count| {
@@ -442,7 +442,10 @@ mod tests {
             TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
         );
         assert_eq!(
-            table.records().next().and_then(|record| record.cell(1)),
+            table
+                .records()
+                .next()
+                .and_then(|record| record.cells.get(1)),
             None
         );
     }

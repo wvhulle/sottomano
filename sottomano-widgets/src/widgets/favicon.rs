@@ -11,7 +11,7 @@ use crate::widgets::icon_handle::IconHandle;
 
 #[derive(Default)]
 pub struct Favicons {
-    cached: HashMap<String, IconHandle>,
+    pub cached: HashMap<String, IconHandle>,
     titles: Vec<String>,
     lookup: Lookup,
 }
@@ -27,11 +27,6 @@ enum Lookup {
 }
 
 impl Favicons {
-    #[must_use]
-    pub fn get(&self, key: &str) -> Option<&IconHandle> {
-        self.cached.get(key)
-    }
-
     pub fn merge(&mut self, raw: HashMap<String, RawFavicon>) -> Task<HashMap<String, RawFavicon>> {
         self.cached.extend(
             raw.into_iter()

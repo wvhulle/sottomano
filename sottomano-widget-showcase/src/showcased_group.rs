@@ -386,7 +386,8 @@ impl ShowcasedDesktopSession {
             }
             HoverTarget::Window(WindowTarget::Inspect(window)) => self
                 .window_group
-                .inspect_hover_card()
+                .window_list
+                .process_sections()
                 .into_iter()
                 .chain(Section::press_actions(window_press_actions(*window)))
                 .collect(),
@@ -555,7 +556,7 @@ impl ShowcasedGroup {
             _ => self
                 .group_contents(config, clock)
                 .into_iter()
-                .filter_map(|group| group.view(config, position, clock))
+                .filter_map(|group| group.view_events(config, position, clock))
                 .map(|element| element.map(ShowcaseInteraction::from))
                 .collect(),
         }

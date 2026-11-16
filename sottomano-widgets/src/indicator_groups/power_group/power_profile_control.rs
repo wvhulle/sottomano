@@ -300,8 +300,9 @@ impl PowerProfileControl {
     }
 
     fn battery_life_section(&self) -> Section {
-        let active_profile =
-            Profile::nearest_position_profile(self.control.expanding_slider.shown_value());
+        let active_profile = Profile::nearest_position_profile(
+            self.control.expanding_slider.synced_value.shown_value(),
+        );
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
             active: profile == active_profile,

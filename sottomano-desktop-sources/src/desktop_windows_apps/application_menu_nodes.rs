@@ -62,7 +62,7 @@ fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<Icon
         .filter(|icon_name| !icon_name.is_empty())?;
     symbolic_first_icon_names(icon_name)
         .into_iter()
-        .find_map(|candidate_name| entries.theme_icon(&candidate_name))
+        .find_map(|candidate_name| entries.theme_lookup(&candidate_name))
         .and_then(|icon_path| IconSource::loaded_theme_icon(&icon_path))
 }
 

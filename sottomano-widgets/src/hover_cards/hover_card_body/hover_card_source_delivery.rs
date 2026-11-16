@@ -70,7 +70,7 @@ pub enum SectionSource {
 
 #[derive(Debug, Clone)]
 pub struct HoverCard {
-    sections: Vec<Section>,
+    pub sections: Vec<Section>,
     pub header: CardHeader,
 }
 
@@ -87,10 +87,6 @@ impl HoverCard {
             sections: shown_sections,
             header,
         })
-    }
-
-    pub fn sections(&self) -> impl Iterator<Item = &Section> {
-        self.sections.iter()
     }
 }
 
@@ -120,7 +116,8 @@ mod tests {
         .expect("an actions section");
         assert_eq!(
             hover_card
-                .sections()
+                .sections
+                .iter()
                 .map(|section| section.title.text().to_owned())
                 .collect::<Vec<_>>(),
             ["Actions"]

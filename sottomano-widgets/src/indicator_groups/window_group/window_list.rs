@@ -84,7 +84,8 @@ fn maximum_window_title_width_px(config: &Config) -> f32 {
     config
         .indicator_groups
         .window
-        .resolved_maximum_window_title_width(config.theme.font.text_size_px)
+        .maximum_window_title_width
+        .resolve(config.theme.font.text_size_px)
 }
 
 fn capped_window_title<'a, Message: 'a>(
@@ -670,7 +671,7 @@ impl WindowList {
                 }
                 ElementVisibility::Hidden => None,
             },
-            launcher: app_id.and_then(|app_id| self.launcher.get(app_id)),
+            launcher: app_id.and_then(|app_id| self.launcher.by_app.get(app_id)),
             job: app_id.and_then(|app_id| self.jobs.get(app_id)),
         }
     }

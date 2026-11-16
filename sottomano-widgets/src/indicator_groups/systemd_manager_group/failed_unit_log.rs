@@ -178,7 +178,7 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
 }
 
 pub(super) fn failed_units_panel_visibility(failed: &FailedUnits) -> PanelVisibility {
-    if failed.is_empty() {
+    if failed.units.is_empty() {
         PanelVisibility::Hidden
     } else {
         PanelVisibility::Shown

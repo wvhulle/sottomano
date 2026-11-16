@@ -222,7 +222,7 @@ impl MediaGroup {
             }
             PlaybackPace::Still => None,
         }
-        .map(|tick| demand.while_any_indicator_shown(tick));
+        .map(|tick| demand.while_headline_shown(tick));
         Subscription::batch(
             iter::once(samples)
                 .chain(lyrics_lookups)

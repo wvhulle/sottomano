@@ -66,7 +66,7 @@ impl CiRunnerSnapshot for ForgejoRunnerTasks {
 
 pub struct CiRunnerWatches<S: CiRunnerSnapshot> {
     discovered_runners: Vec<DiscoveredCiRunner<S::StreamInputs>>,
-    runners: BTreeMap<String, SubscribedSnapshot<S>>,
+    pub runners: BTreeMap<String, SubscribedSnapshot<S>>,
 }
 
 impl<S: CiRunnerSnapshot> Default for CiRunnerWatches<S> {
@@ -101,11 +101,6 @@ impl<S: CiRunnerSnapshot> CiRunnerWatches<S> {
             .entry(runner_label)
             .or_default()
             .receive(delivery, clock);
-    }
-
-    #[must_use]
-    pub fn snapshot_of(&self, runner_label: &str) -> Option<&SubscribedSnapshot<S>> {
-        self.runners.get(runner_label)
     }
 
     pub fn delivered_runners(&self) -> impl Iterator<Item = (&str, &CiRunnerTasks)> {

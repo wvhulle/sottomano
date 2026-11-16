@@ -193,12 +193,12 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
         tracing::debug!(
             "upcoming events: {} kept from {} calendars",
             events.len(),
-            self.calendar_home.fetched_calendar_count(),
+            self.calendar_home.fetched_calendars.len(),
         );
         Ok(UpcomingEventList {
             events,
             failed_subscription_names,
-            calendar_count: self.calendar_home.fetched_calendar_count()
+            calendar_count: self.calendar_home.fetched_calendars.len()
                 + self.fetched_subscriptions.len(),
             provider: polled_home.provider,
         })

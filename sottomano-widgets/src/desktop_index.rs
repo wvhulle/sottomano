@@ -20,8 +20,8 @@ pub struct ResolvedIcons {
 #[derive(Default)]
 pub struct DesktopIndex {
     pub entries: Option<Arc<DesktopEntries>>,
-    app_icons: HashMap<String, IconHandle>,
-    theme_icons: HashMap<String, IconHandle>,
+    pub app_icons: HashMap<String, IconHandle>,
+    pub theme_icons: HashMap<String, IconHandle>,
     resolve: Option<Handle>,
 }
 
@@ -34,11 +34,6 @@ impl DesktopIndex {
         }
     }
 
-    #[must_use]
-    pub fn get(&self) -> Option<&DesktopEntries> {
-        self.entries.as_deref()
-    }
-
     pub fn set(&mut self, entries: Arc<DesktopEntries>) {
         self.entries = Some(entries);
         self.app_icons.clear();
@@ -46,20 +41,12 @@ impl DesktopIndex {
     }
 
     #[must_use]
-    pub fn app_icon(&self, app_id: &str) -> Option<&IconHandle> {
-        self.app_icons.get(app_id)
-    }
-
-    #[must_use]
     pub fn scheme_handling(&self, scheme: &str) -> SchemeHandling {
-        self.get().map_or(SchemeHandling::Unhandled, |entries| {
-            entries.scheme_handling(scheme)
-        })
-    }
-
-    #[must_use]
-    pub fn theme_icon(&self, name: &str) -> Option<&IconHandle> {
-        self.theme_icons.get(name)
+        self.entries
+            .as_deref()
+            .map_or(SchemeHandling::Unhandled, |entries| {
+                entries.scheme_handling(scheme)
+            })
     }
 
     pub fn resolve_missing(

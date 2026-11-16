@@ -291,8 +291,7 @@ mod tests {
             ReadoutLabel::Unlabeled
         );
         assert_eq!(pending_indicator.shown_state(), IndicatorState::Pending);
-        let card_titles: Vec<String> = pending_indicator
-            .hover_card(Clock::real())
+        let card_titles: Vec<String> = (pending_indicator.card)(Clock::real())
             .iter()
             .map(|section| section.title.text().to_owned())
             .collect();

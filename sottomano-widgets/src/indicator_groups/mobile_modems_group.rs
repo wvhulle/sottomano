@@ -154,7 +154,7 @@ impl MobileModemsGroup {
         modem: &'a Mobile,
         group_title: IndicatorGroupTitle,
     ) -> Option<IndicatorGroupContent<'a>> {
-        let expansion = self.expansions.get(&modem.modem_path)?;
+        let expansion = self.expansions.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let build_modem_signal_indicator = || {
             ModemSignalIndicator { modem }

@@ -14,7 +14,7 @@ use crate::{
     transitions::{ExpansionState, expand_transition, reveal},
     value_controls::{
         SliderAccents, inline_slider,
-        synced_value::{Nudge, SourceTracking, SyncedValue, ValueWrite},
+        synced_value::{Nudge, SyncedValue, ValueWrite},
     },
 };
 
@@ -84,7 +84,7 @@ pub struct ExpandingSliderParts<'a, Message> {
 pub struct ExpandingSlider {
     pub expansion_state: ExpansionState,
     scroll_accumulated: f32,
-    synced_value: SyncedValue,
+    pub synced_value: SyncedValue,
     pub range: RangeInclusive<f32>,
     scroll_step: f32,
     pub slider_step: f32,
@@ -147,24 +147,9 @@ impl ExpandingSlider {
     }
 
     #[must_use]
-    pub fn shown_value(&self) -> f32 {
-        self.synced_value.shown_value()
-    }
-
-    #[must_use]
-    pub fn reported_value(&self) -> f32 {
-        self.synced_value.reported_value()
-    }
-
-    #[must_use]
-    pub fn source_tracking(&self) -> SourceTracking {
-        self.synced_value.source_tracking()
-    }
-
-    #[must_use]
     pub fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
-        ((self.shown_value() - self.range.start()) / span).clamp(0.0, 1.0)
+        ((self.synced_value.shown_value() - self.range.start()) / span).clamp(0.0, 1.0)
     }
 
     pub fn close(&mut self) {
@@ -221,7 +206,7 @@ impl ExpandingSlider {
         let Some(steps) = wheel_step_direction(&mut self.scroll_accumulated, delta) else {
             return SliderEffect::Unchanged;
         };
-        let shown = self.shown_value();
+        let shown = self.synced_value.shown_value();
         #[expect(
             clippy::cast_precision_loss,
             reason = "a scroll gesture moves a handful of steps"
@@ -239,7 +224,7 @@ impl ExpandingSlider {
 
     fn position(&self) -> SliderPosition {
         SliderPosition {
-            shown: self.shown_value(),
+            shown: self.synced_value.shown_value(),
             lagging: self.synced_value.lagging_reported_value(self.slider_step),
             step: self.slider_step,
         }

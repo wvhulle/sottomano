@@ -34,7 +34,7 @@ enum WidgetContent {
 
 #[derive(Clone)]
 pub struct SectionWidget {
-    draw: Rc<DrawSection>,
+    pub(crate) draw: Rc<DrawSection>,
     content: WidgetContent,
 }
 
@@ -64,10 +64,6 @@ impl SectionWidget {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.content == WidgetContent::Empty
-    }
-
-    pub(crate) fn draw(&self, card: &HoverCardContent<'_>) -> Element<'static, PopupMessage> {
-        (self.draw)(card)
     }
 }
 

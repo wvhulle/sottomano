@@ -154,7 +154,7 @@ pub struct GroupIndicator<'a> {
     pub(crate) face: IndicatorFace,
     value: RowValueControl<'a>,
     pub(crate) pinning: IndicatorPinning,
-    card: DescribeCard<'a>,
+    pub card: DescribeCard<'a>,
     pub(crate) alerts: IndicatorAlerts,
     pub(crate) gestures: IndicatorGestures,
     control_actions: Vec<PressAction>,
@@ -604,11 +604,6 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        (self.card)(clock)
-    }
-
-    #[must_use]
     pub fn with_hover_card(self, card: DescribeCard<'a>) -> Self {
         Self { card, ..self }
     }
@@ -627,7 +622,7 @@ impl<'a> GroupIndicator<'a> {
 
     #[must_use]
     pub fn card_with_actions(&self, clock: Clock) -> Vec<Section> {
-        self.hover_card(clock)
+        (self.card)(clock)
             .into_iter()
             .chain(Section::press_actions(self.press_actions()))
             .collect()

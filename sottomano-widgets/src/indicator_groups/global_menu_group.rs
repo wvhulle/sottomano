@@ -554,7 +554,7 @@ impl GlobalMenuGroup {
             .iter()
             .filter_map(|top_menu| {
                 let top_menu_label = top_menu.label.clone()?;
-                let expansion = self.expansions.get(&top_menu_label)?;
+                let expansion = self.expansions.expansions.get(&top_menu_label)?;
                 let entry_items: Vec<_> = flattened_entries(top_menu)
                     .into_iter()
                     .map(|entry| self.entry_item(entry))

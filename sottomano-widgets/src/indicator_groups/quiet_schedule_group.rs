@@ -167,18 +167,43 @@ impl QuietScheduleGroup {
     pub fn schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
             schedule_adherence: self.schedule_adherence,
-            start: clock_at(self.start_slider.expanding_slider.reported_value()),
-            end: clock_at(self.end_slider.expanding_slider.reported_value()),
-            screen_off: timeout_at(self.screen_off_slider.expanding_slider.reported_value()),
+            start: clock_at(
+                self.start_slider
+                    .expanding_slider
+                    .synced_value
+                    .reported_value(),
+            ),
+            end: clock_at(
+                self.end_slider
+                    .expanding_slider
+                    .synced_value
+                    .reported_value(),
+            ),
+            screen_off: timeout_at(
+                self.screen_off_slider
+                    .expanding_slider
+                    .synced_value
+                    .reported_value(),
+            ),
         }
     }
 
     fn requested_schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
             schedule_adherence: self.schedule_adherence,
-            start: clock_at(self.start_slider.expanding_slider.shown_value()),
-            end: clock_at(self.end_slider.expanding_slider.shown_value()),
-            screen_off: timeout_at(self.screen_off_slider.expanding_slider.shown_value()),
+            start: clock_at(
+                self.start_slider
+                    .expanding_slider
+                    .synced_value
+                    .shown_value(),
+            ),
+            end: clock_at(self.end_slider.expanding_slider.synced_value.shown_value()),
+            screen_off: timeout_at(
+                self.screen_off_slider
+                    .expanding_slider
+                    .synced_value
+                    .shown_value(),
+            ),
         }
     }
 

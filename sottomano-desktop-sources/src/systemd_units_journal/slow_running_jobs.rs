@@ -34,11 +34,6 @@ pub struct SlowJobs {
 
 impl SlowJobs {
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.jobs.is_empty()
-    }
-
-    #[must_use]
     pub fn follow_log_args(&self) -> Vec<String> {
         self.scope
             .follow_units_log_args(self.jobs.iter().map(|job| job.unit.as_str()))

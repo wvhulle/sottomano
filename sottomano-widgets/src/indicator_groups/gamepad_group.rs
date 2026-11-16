@@ -644,7 +644,7 @@ impl GamepadGroup {
         bindings: &'a GamepadBindingsConfig,
     ) -> Option<IndicatorGroupContent<'a>> {
         let slot = gamepad.slot;
-        let expansion = self.expansions.get(&slot)?;
+        let expansion = self.expansions.expansions.get(&slot)?;
         let battery_indicator = ControllerBatteryIndicator {
             power: gamepad.power,
         };

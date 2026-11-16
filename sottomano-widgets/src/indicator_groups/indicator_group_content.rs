@@ -82,7 +82,7 @@ pub struct IndicatorGroupExpansion {
 }
 
 pub struct KeyedExpansions<Key> {
-    expansions: BTreeMap<Key, IndicatorGroupExpansion>,
+    pub expansions: BTreeMap<Key, IndicatorGroupExpansion>,
 }
 
 impl<Key> Default for KeyedExpansions<Key> {
@@ -107,11 +107,6 @@ impl<Key: Ord> KeyedExpansions<Key> {
             .map(|expansion| expansion.state)
             .find(|expansion_state| *expansion_state == ExpansionState::Expanded)
             .unwrap_or(ExpansionState::Collapsed)
-    }
-
-    #[must_use]
-    pub fn get(&self, key: &Key) -> Option<&IndicatorGroupExpansion> {
-        self.expansions.get(key)
     }
 
     pub fn update(&mut self, key: &Key, message: IndicatorGroupExpansionMessage) {
@@ -231,7 +226,7 @@ pub struct IndicatorGroupContent<'a> {
     on_expansion: Rc<dyn Fn(IndicatorGroupExpansionMessage) -> IndicatorGroupInteraction + 'a>,
     headline_indicator: GroupIndicator<'a>,
     scroll_does: Option<&'static str>,
-    indicators: Vec<GroupIndicator<'a>>,
+    pub(crate) indicators: Vec<GroupIndicator<'a>>,
     panel_pin: PanelPinOrigin,
 }
 
@@ -276,12 +271,12 @@ impl<'a> IndicatorGroupContent<'a> {
     #[must_use]
     pub fn card_title_clashes(&self, clock: Clock) -> Vec<CardTitleClash> {
         let group_title = self.group_title.to_string();
-        self.rows()
+        self.indicators
+            .iter()
             .flat_map(|indicator| {
                 let indicator_name = indicator.indicator_name().into_owned();
                 let group_title = group_title.clone();
-                indicator
-                    .hover_card(clock)
+                (indicator.card)(clock)
                     .into_iter()
                     .map(|section| {
                         let source_name = match section.source {
@@ -309,7 +304,8 @@ impl<'a> IndicatorGroupContent<'a> {
     pub fn clashing_indicator_names(&self) -> Vec<String> {
         let group_title = self.group_title.to_string();
         let mut seen_names = BTreeSet::new();
-        self.rows()
+        self.indicators
+            .iter()
             .filter(|indicator| indicator.menu_pin(&self.group_identity).is_some())
             .map(|indicator| indicator.indicator_name().into_owned())
             .filter(|indicator_name| {
@@ -323,7 +319,8 @@ impl<'a> IndicatorGroupContent<'a> {
         menu: GroupMenuTopic,
         promotion_severity: Severity,
     ) -> Vec<PanelRaise> {
-        self.rows()
+        self.indicators
+            .iter()
             .filter(|indicator| {
                 indicator.alert_promotion(promotion_severity) == AlertPromotion::Promoted
             })
@@ -374,19 +371,17 @@ impl<'a> IndicatorGroupContent<'a> {
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests {
         let expand = (self.on_expansion)(IndicatorGroupExpansionMessage::Expand);
-        self.rows()
+        self.indicators
+            .iter()
             .map(|indicator| {
                 indicator.toast_requests(&self.group_identity, expand.clone(), locale, clock)
             })
             .collect()
     }
 
-    fn rows(&self) -> impl Iterator<Item = &GroupIndicator<'a>> {
-        self.indicators.iter()
-    }
-
     pub(crate) fn highest_alert_severity(&self) -> Severity {
-        self.rows()
+        self.indicators
+            .iter()
             .filter_map(GroupIndicator::shown_alert_severity)
             .max()
             .unwrap_or_default()
@@ -397,13 +392,15 @@ impl<'a> IndicatorGroupContent<'a> {
         if indicator_key.group != self.group_identity {
             return None;
         }
-        self.rows()
+        self.indicators
+            .iter()
             .find(|indicator| indicator.indicator_name() == indicator_key.name)
     }
 
     #[must_use]
     pub fn indicator_keys(&self) -> Vec<IndicatorKey> {
-        self.rows()
+        self.indicators
+            .iter()
             .map(|indicator| indicator.indicator_key(&self.group_identity))
             .collect()
     }
@@ -439,8 +436,7 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 
     fn face_card(&self, clock: Clock) -> Vec<Section> {
-        self.headline_indicator
-            .hover_card(clock)
+        (self.headline_indicator.card)(clock)
             .into_iter()
             .chain(Section::press_actions(self.handle_actions()))
             .collect()
@@ -472,11 +468,6 @@ impl<'a> IndicatorGroupContent<'a> {
         Some(RowHoverCard { sections, header })
     }
 
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.rows().next().is_none()
-    }
-
     pub(crate) fn panel_indicator_views(
         self,
         group_menus: &GroupMenuState,
@@ -486,7 +477,8 @@ impl<'a> IndicatorGroupContent<'a> {
         clock: Clock,
     ) -> Vec<Element<'a, GroupEvent>> {
         let promotion_severity = config.group_menus.alert_promotion_severity;
-        self.rows()
+        self.indicators
+            .iter()
             .filter_map(|indicator| {
                 let IndicatorPin::Pinned(panel_pin) = group_menus.indicator_pin(
                     menu,
@@ -553,23 +545,13 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn view(
-        self,
-        config: &'a Config,
-        panel_position: Position,
-        clock: Clock,
-    ) -> Option<Element<'a, GroupEvent>> {
-        self.view_events(config, panel_position, clock)
-    }
-
-    #[must_use]
     pub fn view_events(
         self,
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
     ) -> Option<Element<'a, GroupEvent>> {
-        self.rows().next()?;
+        self.indicators.first()?;
         let highest_alert_severity = self.highest_alert_severity();
         let IndicatorGroupContent {
             group_identity,
@@ -873,7 +855,7 @@ mod tests {
         );
         assert!(
             empty_group
-                .view(&config, Position::Top, Clock::real())
+                .view_events(&config, Position::Top, Clock::real())
                 .is_none()
         );
     }

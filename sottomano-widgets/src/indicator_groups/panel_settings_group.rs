@@ -245,14 +245,21 @@ impl PanelSettingsGroup {
 
     #[must_use]
     pub fn float_offset_px(&self) -> f32 {
-        self.float_offset.expanding_slider.reported_value()
+        self.float_offset
+            .expanding_slider
+            .synced_value
+            .reported_value()
     }
 
     fn stored_layout(&self) -> PanelLayout {
         PanelLayout {
             group_framing: self.group_framing,
             group_collapsing: self.group_collapsing,
-            float_offset_px: self.float_offset.expanding_slider.reported_value(),
+            float_offset_px: self
+                .float_offset
+                .expanding_slider
+                .synced_value
+                .reported_value(),
         }
     }
 
@@ -337,7 +344,11 @@ impl PanelSettingsGroup {
 
     #[allow(clippy::float_cmp)]
     fn update_float_offset(&mut self, control: ControlMessage) -> Action {
-        let settled_before = self.float_offset.expanding_slider.reported_value();
+        let settled_before = self
+            .float_offset
+            .expanding_slider
+            .synced_value
+            .reported_value();
         let persisting = match self.float_offset.update(control) {
             SliderAction::Commit(value) => Task::future(sqlite_panel_layout::save(PanelLayout {
                 float_offset_px: value,
@@ -351,7 +362,13 @@ impl PanelSettingsGroup {
             | SliderAction::Adjust(_)
             | SliderAction::Right => Task::none(),
         };
-        if self.float_offset.expanding_slider.reported_value() == settled_before {
+        if self
+            .float_offset
+            .expanding_slider
+            .synced_value
+            .reported_value()
+            == settled_before
+        {
             Action::Run(persisting)
         } else {
             Action::Reflow(persisting)

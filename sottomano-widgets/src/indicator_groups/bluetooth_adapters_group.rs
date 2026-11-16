@@ -203,7 +203,7 @@ impl BluetoothAdaptersGroup {
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
     ) -> Option<IndicatorGroupContent<'a>> {
-        let expansion = self.expansions.get(&adapter.controller_name)?;
+        let expansion = self.expansions.expansions.get(&adapter.controller_name)?;
         let build_adapter_radio_indicator = || {
             self.adapter_indicator(adapter)
                 .indicator()

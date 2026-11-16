@@ -46,7 +46,7 @@ impl DesktopShell {
                 }
             }
             HoverCardMessage::DismissHeldOpen => {
-                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                if self.hover_card.transition.shown_retention() == CardRetention::UntilDismissed {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()
@@ -92,7 +92,7 @@ impl DesktopShell {
                     .map_or_else(Task::none, hide_hover_card_at)
             }
             AnchorEvent::Entered { target } => {
-                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                if self.hover_card.transition.shown_retention() == CardRetention::UntilDismissed {
                     tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "ignored: a card is held open");
                     return Task::none();
                 }

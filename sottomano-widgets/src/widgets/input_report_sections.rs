@@ -102,13 +102,8 @@ impl MeasuredReportTiming {
 
 impl KernelErrorListing<'_> {
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.kernel_errors.is_empty()
-    }
-
-    #[must_use]
     pub fn section(&self) -> Option<Section> {
-        (!self.is_empty()).then(|| {
+        (!self.kernel_errors.is_empty()).then(|| {
             let listed = self.kernel_errors.iter().rev().map(|error| {
                 LabeledValue::new(
                     ValueCell::RelativeMoment(DateTime::<Utc>::from(error.at)),

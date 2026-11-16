@@ -350,13 +350,13 @@ impl SliderControl {
 
     #[must_use]
     pub fn readout_text(&self, locale: Locale) -> String {
-        (self.readout)(self.expanding_slider.shown_value(), locale)
+        (self.readout)(self.expanding_slider.synced_value.shown_value(), locale)
     }
 
     #[must_use]
     pub fn readout_cell(&self) -> ValueCell {
         ValueCell::Readout(SliderReadout::new(
-            self.expanding_slider.shown_value(),
+            self.expanding_slider.synced_value.shown_value(),
             self.readout,
         ))
     }
@@ -374,7 +374,7 @@ impl SliderControl {
     fn severity(&self) -> Severity {
         match &self.severity_scale {
             SliderSeverityScale::Thresholded(thresholds) => {
-                thresholds.level(self.expanding_slider.shown_value())
+                thresholds.level(self.expanding_slider.synced_value.shown_value())
             }
             SliderSeverityScale::Unrated => Severity::Normal,
         }
@@ -392,7 +392,7 @@ impl SliderControl {
         let SliderLabelFormat::Labeled(format) = self.label_format else {
             return ReadoutLabel::Unlabeled;
         };
-        match format(self.expanding_slider.shown_value(), locale) {
+        match format(self.expanding_slider.synced_value.shown_value(), locale) {
             Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
             Some(_) | None => ReadoutLabel::Unlabeled,
         }
@@ -465,9 +465,11 @@ impl SliderControl {
 
     fn effective_icon(&self) -> IconGlyph {
         match self.glyph_source {
-            SliderGlyphSource::ValueDriven(glyph) => {
-                glyph(self.expanding_slider.shown_value(), self.slider_activity).into()
-            }
+            SliderGlyphSource::ValueDriven(glyph) => glyph(
+                self.expanding_slider.synced_value.shown_value(),
+                self.slider_activity,
+            )
+            .into(),
             SliderGlyphSource::FixedIcon => self.icon,
         }
     }
@@ -517,11 +519,11 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Sample(sample) => {
-                let tracking_before = self.expanding_slider.source_tracking();
-                let shown_before = self.expanding_slider.shown_value();
+                let tracking_before = self.expanding_slider.synced_value.source_tracking();
+                let shown_before = self.expanding_slider.synced_value.shown_value();
                 self.expanding_slider
                     .update(SliderMessage::SourceReported(sample));
-                let moved = (self.expanding_slider.shown_value() - shown_before).abs()
+                let moved = (self.expanding_slider.synced_value.shown_value() - shown_before).abs()
                     >= self.expanding_slider.slider_step / 2.0;
                 let change_origin = match tracking_before {
                     SourceTracking::FollowingSource if moved => LevelChangeOrigin::OutsidePanel,

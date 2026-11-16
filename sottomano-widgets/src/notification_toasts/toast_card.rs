@@ -166,7 +166,7 @@ pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) 
 fn themed_icon(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon> {
     let entries = entries?;
     let path = entries
-        .theme_icon(name)
+        .theme_lookup(name)
         .or_else(|| entries.icon_for(name))?;
     Some(CardIcon::at(&path))
 }

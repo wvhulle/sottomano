@@ -155,14 +155,14 @@ pub fn total_cpu_load(loads: impl Iterator<Item = ProcessTreeCpuLoad>) -> Proces
     )
 }
 
-struct CpuTickCheckpoint {
+pub(crate) struct CpuTickCheckpoint {
     spent_ticks: u64,
     taken_at: Instant,
 }
 
 pub(crate) struct CpuTickCheckpoints<CheckpointKey> {
     capacity: CpuCapacity,
-    checkpoints_by_key: HashMap<CheckpointKey, CpuTickCheckpoint>,
+    pub(crate) checkpoints_by_key: HashMap<CheckpointKey, CpuTickCheckpoint>,
 }
 
 impl<CheckpointKey> Default for CpuTickCheckpoints<CheckpointKey> {
@@ -221,16 +221,6 @@ impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
 
     pub(crate) fn clear(&mut self) {
         self.checkpoints_by_key.clear();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
-        self.checkpoints_by_key.len()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.checkpoints_by_key.is_empty()
     }
 }
 

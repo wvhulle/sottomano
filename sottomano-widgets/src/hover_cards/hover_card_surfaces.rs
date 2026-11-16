@@ -77,7 +77,7 @@ enum KeyboardGrab {
 
 #[derive(Default)]
 pub struct HoverCardHost {
-    transition: HoverCardTransition,
+    pub transition: HoverCardTransition,
     deferred_switch: DeferredSwitch,
     pub hide_schedule: HideSchedule,
     pointer_over_hover_card: bool,
@@ -186,6 +186,7 @@ impl HoverCardHost {
     #[must_use]
     pub fn presence_on(&self, output: &str) -> HoverCardPresence {
         if self
+            .transition
             .placement()
             .is_some_and(|placement| placement.output == output)
         {
@@ -197,7 +198,7 @@ impl HoverCardHost {
 
     #[must_use]
     pub fn hover_effect(&self, target: &HoverTarget, output: &str) -> HoverEffect {
-        if self.shown_retention() == CardRetention::UntilDismissed
+        if self.transition.shown_retention() == CardRetention::UntilDismissed
             && self.presence_on(output) == HoverCardPresence::OnThisOutput
             && self.target() != Some(target)
         {
@@ -235,11 +236,6 @@ impl HoverCardHost {
                 .anchored_widget_liveness(&current.placement.output, &current.target),
             None => WidgetLiveness::Alive,
         }
-    }
-
-    #[must_use]
-    pub fn shown_retention(&self) -> CardRetention {
-        self.transition.shown_retention()
     }
 
     fn occupy(&mut self, parent: &PanelEdge, target: HoverTarget, retention: CardRetention) {
@@ -305,16 +301,6 @@ impl HoverCardHost {
         if self.transition.current().is_some() {
             self.transition.hide(departing, now);
         }
-    }
-
-    #[must_use]
-    pub fn placement(&self) -> Option<&PanelEdge> {
-        self.transition.placement()
-    }
-
-    #[must_use]
-    pub fn hiding_since(&self) -> Option<Instant> {
-        self.transition.hiding_since()
     }
 
     pub fn reconcile_with_panels(
@@ -646,7 +632,10 @@ mod tests {
         host.open_until_dismissed(&top_edge(), workspace_card());
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
-        assert_eq!(host.shown_retention(), CardRetention::UntilDismissed);
+        assert_eq!(
+            host.transition.shown_retention(),
+            CardRetention::UntilDismissed
+        );
         assert_eq!(host.hide_schedule, HideSchedule::Unscheduled);
     }
 
@@ -655,7 +644,10 @@ mod tests {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
         host.open(&top_edge(), workspace_card());
-        assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);
+        assert_ne!(
+            host.transition.shown_retention(),
+            CardRetention::UntilDismissed
+        );
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), None);
     }
@@ -970,6 +962,9 @@ mod tests {
         host.open_until_dismissed(&top_edge(), workspace_card());
         host.dismiss(None, now);
         assert_eq!(host.target(), None);
-        assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);
+        assert_ne!(
+            host.transition.shown_retention(),
+            CardRetention::UntilDismissed
+        );
     }
 }

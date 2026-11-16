@@ -237,7 +237,7 @@ impl DesktopShell {
                 toast_requests,
                 &self.indicator_groups.toast_context(
                     &self.compositor,
-                    self.desktop_entries.get(),
+                    self.desktop_entries.entries.as_deref(),
                     &self.config,
                     self.clock,
                 ),
@@ -322,7 +322,9 @@ impl DesktopShell {
                     .surfaces
                     .get(&surface)
                     .is_some_and(|host| matches!(host.role, SurfaceRole::NotificationToasts));
-                if on_toast && self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                if on_toast
+                    && self.hover_card.transition.shown_retention() == CardRetention::UntilDismissed
+                {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()
@@ -346,7 +348,7 @@ impl DesktopShell {
                         &failure,
                         &self.indicator_groups.toast_context(
                             &self.compositor,
-                            self.desktop_entries.get(),
+                            self.desktop_entries.entries.as_deref(),
                             &self.config,
                             self.clock,
                         ),
@@ -479,6 +481,7 @@ impl DesktopShell {
     fn group_menu_orientation(&self) -> CascadeOrientation {
         let Some((placement, anchor)) = self
             .hover_card
+            .transition
             .placement()
             .zip(self.hover_card.shown_anchor())
         else {
@@ -496,6 +499,7 @@ impl DesktopShell {
 
     pub(crate) fn hovered_output(&self) -> &str {
         self.hover_card
+            .transition
             .placement()
             .map_or("", |placement| placement.output.as_str())
     }

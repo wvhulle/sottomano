@@ -179,7 +179,7 @@ enum HomeConnection {
     },
 }
 
-struct FetchedCalendar<Entry> {
+pub(super) struct FetchedCalendar<Entry> {
     href: String,
     change_tracking: ChangeTracking,
     window: EventWindow,
@@ -210,7 +210,7 @@ pub(super) struct PolledCalendarHome {
 pub(super) struct CalendarHomePoller<Entry> {
     pub(super) account: CaldavAccount,
     connection: HomeConnection,
-    fetched_calendars: HashMap<String, FetchedCalendar<Entry>>,
+    pub(super) fetched_calendars: HashMap<String, FetchedCalendar<Entry>>,
 }
 
 impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
@@ -226,10 +226,6 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
         self.fetched_calendars
             .values()
             .flat_map(|calendar| calendar.entries.iter())
-    }
-
-    pub(super) fn fetched_calendar_count(&self) -> usize {
-        self.fetched_calendars.len()
     }
 
     pub(super) async fn poll(&mut self) -> Result<PolledCalendarHome, Error> {

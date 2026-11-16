@@ -498,7 +498,7 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert!(group.group_content().is_empty());
+        assert!(group.group_content().indicators.is_empty());
         let _ = group.update(
             DockerEnginesMessage::Engine(
                 rootful_socket,
@@ -517,6 +517,6 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert!(!group.group_content().is_empty());
+        assert!(!group.group_content().indicators.is_empty());
     }
 }

@@ -847,9 +847,9 @@ mod tests {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
         let table = processes_without_conmon([]);
         sampler.measured(&[listed_step_container()], &table, Instant::now());
-        assert_eq!(sampler.checkpoints_by_id.len(), 1);
+        assert_eq!(sampler.checkpoints_by_id.checkpoints_by_key.len(), 1);
         sampler.measured(&[], &table, Instant::now());
-        assert!(sampler.checkpoints_by_id.is_empty());
+        assert!(sampler.checkpoints_by_id.checkpoints_by_key.is_empty());
     }
 
     #[tokio::test]

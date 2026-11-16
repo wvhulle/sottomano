@@ -10,7 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use corredo::transitions::MotionState;
 use iced::{Element, Subscription, Task};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
@@ -141,11 +140,6 @@ impl WindowGroup {
         window_hover_card::window_identity_body(compositor, window, clock.wall).unwrap_or_default()
     }
 
-    #[must_use]
-    pub fn inspect_hover_card(&self) -> Vec<Section> {
-        self.window_list.process_sections()
-    }
-
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
         let WindowGroupMessage::WindowList(window_list_message) = msg;
         Action::WindowList(self.window_list.update(window_list_message, clock))
@@ -169,11 +163,6 @@ impl WindowGroup {
     ) {
         self.window_list
             .observe_active_workspaces(compositor, clock, slide_duration);
-    }
-
-    #[must_use]
-    pub fn workspace_slide_motion(&self, now: Instant) -> MotionState {
-        self.window_list.workspace_slide_motion(now)
     }
 
     pub fn settle_workspace_slides(&mut self, now: Instant) {

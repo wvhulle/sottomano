@@ -246,6 +246,7 @@ impl DesktopShell {
 
     pub(crate) fn hover_card_output(&self) -> Option<&str> {
         self.hover_card
+            .transition
             .placement()
             .map(|placement| placement.output.as_str())
     }

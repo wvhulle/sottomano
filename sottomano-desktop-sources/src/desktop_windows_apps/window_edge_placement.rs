@@ -17,7 +17,7 @@ pub struct WindowEdge {
 pub struct Placement {
     workspace_by_window: HashMap<u64, u64>,
     pub focused_window: Option<u64>,
-    focused_output: Option<String>,
+    pub focused_output: Option<String>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
     viewed_layouts: HashMap<u64, CompositorWindowLayout>,
@@ -143,11 +143,6 @@ impl Placement {
             horizontal: HEdge::Center,
             output: None,
         })
-    }
-
-    #[must_use]
-    pub fn focused_output(&self) -> Option<&str> {
-        self.focused_output.as_deref()
     }
 
     #[must_use]

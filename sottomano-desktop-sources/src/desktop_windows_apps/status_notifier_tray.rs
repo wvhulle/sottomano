@@ -206,10 +206,10 @@ fn resolve_visual(
                 .find_map(|candidate_name| {
                     icon_theme_path
                         .and_then(|dir| existing_theme_icon_path(dir, &candidate_name))
-                        .or_else(|| entries.theme_icon(&candidate_name))
+                        .or_else(|| entries.theme_lookup(&candidate_name))
                 })
         })
-        .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
+        .or_else(|| entries.theme_lookup(UNIDENTIFIED_APP_ICON))
         .and_then(|path| IconSource::loaded_theme_icon(&path))
 }
 

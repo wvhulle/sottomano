@@ -108,7 +108,8 @@ impl<'a> HoverCardContent<'a> {
         let mut previous_source = SectionSource::Local;
         let section_views: Vec<Element<'static, PopupMessage>> = self
             .hover_card
-            .sections()
+            .sections
+            .iter()
             .map(|section| {
                 let source = section.source;
                 let source_row = match source {
@@ -418,7 +419,7 @@ impl<'a> HoverCardContent<'a> {
             SectionSource::Snapshot { delivery, .. } => self.in_delivery_state(delivery),
             SectionSource::Local => *self,
         };
-        let section_view = section.widget.draw(&delivered);
+        let section_view = (section.widget.draw)(&delivered);
         self.inset(
             Column::with_children(
                 self.title_rows(&section.title)
@@ -507,7 +508,11 @@ impl<'a> HoverCardContent<'a> {
             value_cell: Rc::new(move |record, position| {
                 let state = IndicatorState::from(record.level);
                 cell_view.value(
-                    record.cell(position).cloned().unwrap_or(ValueCell::Blank),
+                    record
+                        .cells
+                        .get(position)
+                        .cloned()
+                        .unwrap_or(ValueCell::Blank),
                     move |theme| state.color(theme),
                     &record.key,
                 )

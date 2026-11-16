@@ -47,14 +47,19 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     fn top(&self) -> Option<&ModelSpend> {
-        self.narrowest_to_widest.last()?.models.top()
+        self.narrowest_to_widest.last()?.models.model_spends.first()
     }
 
     fn ranked_models(&self) -> Vec<&str> {
         self.narrowest_to_widest
             .iter()
             .rev()
-            .flat_map(|span| span.models.iter().map(|spend| spend.model.as_str()))
+            .flat_map(|span| {
+                span.models
+                    .model_spends
+                    .iter()
+                    .map(|spend| spend.model.as_str())
+            })
             .fold(Vec::new(), |mut ranked, model| {
                 if !ranked.contains(&model) {
                     ranked.push(model);
@@ -72,6 +77,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             self.narrowest_to_widest.map(|span| {
                 let unlisted = usd(span
                     .models
+                    .model_spends
                     .iter()
                     .filter(|spend| !listed.contains(&spend.model.as_str()))
                     .map(|spend| *spend.cost.amount())

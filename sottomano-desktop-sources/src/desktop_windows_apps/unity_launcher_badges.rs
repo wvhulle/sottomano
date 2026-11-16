@@ -54,15 +54,10 @@ impl LauncherEntry {
 
 #[derive(Debug, Clone, Default)]
 pub struct LauncherEntries {
-    by_app: HashMap<String, LauncherEntry>,
+    pub by_app: HashMap<String, LauncherEntry>,
 }
 
-impl LauncherEntries {
-    #[must_use]
-    pub fn get(&self, app_id: &str) -> Option<&LauncherEntry> {
-        self.by_app.get(app_id)
-    }
-}
+impl LauncherEntries {}
 
 #[allow(clippy::cast_precision_loss)]
 fn number(props: &HashMap<String, OwnedValue>, key: &str) -> Option<f64> {

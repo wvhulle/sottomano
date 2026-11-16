@@ -31,7 +31,7 @@ pub enum DragWrites {
 pub struct SyncedValue {
     drag_writes: DragWrites,
     source_feedback: SourceFeedback,
-    user_request: UserRequest,
+    pub user_request: UserRequest,
     outgoing_write: OutgoingWrite,
 }
 
@@ -42,7 +42,7 @@ struct SourceFeedback {
 }
 
 #[derive(Debug, Default)]
-enum UserRequest {
+pub enum UserRequest {
     #[default]
     FollowingSource,
     DraggingTo {
@@ -80,7 +80,7 @@ impl SourceFeedback {
 }
 
 impl UserRequest {
-    fn requested_value(&self) -> Option<f32> {
+    pub fn requested_value(&self) -> Option<f32> {
         match self {
             Self::FollowingSource => None,
             Self::DraggingTo { requested_value } | Self::AwaitingArrival { requested_value } => {
@@ -113,11 +113,6 @@ impl SyncedValue {
         self.user_request
             .requested_value()
             .unwrap_or(self.source_feedback.reported_value)
-    }
-
-    #[must_use]
-    pub fn requested_value(&self) -> Option<f32> {
-        self.user_request.requested_value()
     }
 
     #[must_use]

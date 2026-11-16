@@ -129,6 +129,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
 
     fn requested_position(&self) -> Option<Duration> {
         self.synced_position
+            .user_request
             .requested_value()
             .map(Duration::from_secs_f32)
     }

@@ -264,7 +264,7 @@ impl<'a> GroupMenuView<'a> {
             {
                 return member
                     .pinned_from(topic)
-                    .view(config, panel_position, clock)
+                    .view_events(config, panel_position, clock)
                     .into_iter()
                     .collect();
             }

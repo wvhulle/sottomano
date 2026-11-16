@@ -54,6 +54,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         || state
             .indicator_groups
             .window_group
+            .window_list
             .workspace_slide_motion(state.clock.instant)
             == MotionState::Moving
     {
@@ -61,7 +62,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let hover_card_fade = if state.hover_card.hiding_since().is_some() {
+    let hover_card_fade = if state.hover_card.transition.hiding_since().is_some() {
         every(state.config.overlay_surfaces.surface_morph_duration)
             .map(|_| Message::HoverCardFadeElapsed)
     } else {
@@ -105,7 +106,9 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state
             .typing_under_cards
             .subscription(
-                if !state.notifications.live.is_empty() || state.hover_card.placement().is_some() {
+                if !state.notifications.live.is_empty()
+                    || state.hover_card.transition.placement().is_some()
+                {
                     CardVisibility::Shown
                 } else {
                     CardVisibility::Hidden

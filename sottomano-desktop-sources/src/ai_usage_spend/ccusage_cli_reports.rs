@@ -350,7 +350,8 @@ mod tests {
                 .today
                 .usage
                 .models
-                .top()
+                .model_spends
+                .first()
                 .map(|top| top.model.as_str()),
             Some("claude-sonnet-5")
         );

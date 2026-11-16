@@ -1,0 +1,85 @@
+id: field-passthrough
+language: rust
+severity: error
+message: A method that only forwards its parameters to a field or to another method is a passthrough.
+note: Remove the method and call the target directly; give a forwarded field the visibility the method had. Trait methods are exempt.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+  - corredo/src/**/*.rs
+rule:
+  kind: function_item
+  any:
+    - all:
+        - has:
+            field: parameters
+            any:
+                - pattern: { context: "fn f(&self) {}", selector: parameters }
+                - pattern: { context: "fn f(&mut self) {}", selector: parameters }
+                - pattern: { context: "fn f(self) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ self.$FIELD.$METHOD() }"
+              - pattern: "{ (self.$FIELD)() }"
+              - pattern: "{ self.$METHOD() }"
+    - all:
+        - has:
+            field: parameters
+            any:
+                - pattern: { context: "fn f(&self, $A: $TA) {}", selector: parameters }
+                - pattern: { context: "fn f(&mut self, $A: $TA) {}", selector: parameters }
+                - pattern: { context: "fn f(self, $A: $TA) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ self.$FIELD.$METHOD($A) }"
+              - pattern: "{ (self.$FIELD)($A) }"
+              - pattern: "{ self.$METHOD($A) }"
+    - all:
+        - has:
+            field: parameters
+            any:
+                - pattern: { context: "fn f(&self, $A: $TA, $B: $TB) {}", selector: parameters }
+                - pattern: { context: "fn f(&mut self, $A: $TA, $B: $TB) {}", selector: parameters }
+                - pattern: { context: "fn f(self, $A: $TA, $B: $TB) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ self.$FIELD.$METHOD($A, $B) }"
+              - pattern: "{ (self.$FIELD)($A, $B) }"
+              - pattern: "{ self.$METHOD($A, $B) }"
+    - all:
+        - has:
+            field: parameters
+            any:
+                - pattern: { context: "fn f(&self, $A: $TA, $B: $TB, $C: $TC) {}", selector: parameters }
+                - pattern: { context: "fn f(&mut self, $A: $TA, $B: $TB, $C: $TC) {}", selector: parameters }
+                - pattern: { context: "fn f(self, $A: $TA, $B: $TB, $C: $TC) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ self.$FIELD.$METHOD($A, $B, $C) }"
+              - pattern: "{ (self.$FIELD)($A, $B, $C) }"
+              - pattern: "{ self.$METHOD($A, $B, $C) }"
+  not:
+    any:
+      - inside:
+          kind: impl_item
+          has:
+            field: trait
+            any:
+              - kind: type_identifier
+              - kind: scoped_type_identifier
+              - kind: generic_type
+          stopBy: end
+      - inside:
+          kind: mod_item
+          has:
+            field: name
+            pattern: tests
+          stopBy: end

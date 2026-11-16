@@ -92,7 +92,7 @@ pub(super) fn wired_slow_jobs_indicator<'a>(
 }
 
 pub(super) fn slow_jobs_panel_visibility(jobs: &SlowJobs) -> PanelVisibility {
-    if jobs.is_empty() {
+    if jobs.jobs.is_empty() {
         PanelVisibility::Hidden
     } else {
         PanelVisibility::Shown

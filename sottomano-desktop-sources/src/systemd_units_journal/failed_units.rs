@@ -47,11 +47,6 @@ pub struct FailedUnits {
 
 impl FailedUnits {
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.units.is_empty()
-    }
-
-    #[must_use]
     pub fn follow_log_args(&self) -> Vec<String> {
         self.scope
             .follow_units_log_args(self.units.iter().map(|unit| unit.name.as_str()))

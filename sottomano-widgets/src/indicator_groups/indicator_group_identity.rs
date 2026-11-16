@@ -143,11 +143,6 @@ impl IndicatorGroupFamily {
             IndicatorGroupFamily::WireguardTunnels => "WireGuard",
         }
     }
-
-    #[must_use]
-    pub fn stored_name(self) -> &'static str {
-        self.into()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -258,7 +253,7 @@ mod tests {
     #[test]
     fn a_family_stores_a_name_independent_of_its_title() {
         assert_eq!(
-            IndicatorGroupFamily::SessionFocus.stored_name(),
+            <&'static str>::from(IndicatorGroupFamily::SessionFocus),
             "session_focus"
         );
         assert_eq!(IndicatorGroupFamily::SessionFocus.title(), "Focus session");

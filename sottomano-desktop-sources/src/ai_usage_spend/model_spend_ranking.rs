@@ -10,24 +10,10 @@ pub struct ModelSpend {
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ModelRanking {
-    model_spends: Vec<ModelSpend>,
+    pub model_spends: Vec<ModelSpend>,
 }
 
 impl ModelRanking {
-    #[must_use]
-    pub fn top(&self) -> Option<&ModelSpend> {
-        self.model_spends.first()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.model_spends.is_empty()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &ModelSpend> {
-        self.model_spends.iter()
-    }
-
     #[must_use]
     pub fn total(&self) -> Money {
         usd(self

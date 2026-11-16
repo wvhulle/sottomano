@@ -34,7 +34,7 @@ pub fn window_icon<'a, Message: 'a>(
     side: f32,
     opacity: f32,
 ) -> Option<Element<'a, Message>> {
-    if let Some(favicon) = favicon_key.and_then(|key| favicons.get(key)) {
+    if let Some(favicon) = favicon_key.and_then(|key| favicons.cached.get(key)) {
         return Some(favicon.view(side, opacity));
     }
     Some(icon?.view(side, opacity))
@@ -49,7 +49,7 @@ pub fn resolved_window_icon<'a>(
         .icon_candidates()
         .into_iter()
         .find_map(|candidate| match candidate {
-            IconCandidate::Theme(name) => icons.theme_icon(&name),
-            IconCandidate::AppId(app_id) => icons.app_icon(&app_id),
+            IconCandidate::Theme(name) => icons.theme_icons.get(&name),
+            IconCandidate::AppId(app_id) => icons.app_icons.get(&app_id),
         })
 }
