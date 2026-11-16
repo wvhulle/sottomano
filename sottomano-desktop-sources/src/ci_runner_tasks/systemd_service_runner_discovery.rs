@@ -10,8 +10,8 @@ use crate::{
     },
 };
 
-const WOODPECKER_AGENT_PROGRAM: &str = "woodpecker-agent";
-const FORGEJO_RUNNER_PROGRAM: &str = "forgejo-runner";
+pub(crate) const WOODPECKER_AGENT_PROGRAM: &str = "woodpecker-agent";
+pub(crate) const FORGEJO_RUNNER_PROGRAM: &str = "forgejo-runner";
 const FORGEJO_DAEMON_SUBCOMMAND: [&str; 1] = ["daemon"];
 const DOCKER_HOST_VARIABLE: &str = "DOCKER_HOST";
 const DOCKER_DEFAULT_SOCKET: &str = "/var/run/docker.sock";

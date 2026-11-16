@@ -19,7 +19,7 @@ use crate::{
 };
 
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
-const PROGRAM_NAME: &str = "llama-server";
+pub(crate) const LLAMA_SERVER_PROGRAM: &str = "llama-server";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8080";
 
@@ -32,7 +32,7 @@ pub struct LlamaServerUnit {
 impl LlamaServerUnit {
     #[must_use]
     pub fn discovered(scope: SystemdUnitScope, command: &ServiceCommand) -> Option<Self> {
-        (command.program_name() == Some(PROGRAM_NAME)).then(|| Self {
+        (command.program_name() == Some(LLAMA_SERVER_PROGRAM)).then(|| Self {
             unit: ScopedSystemdUnit {
                 scope,
                 unit_name: command.unit.clone(),

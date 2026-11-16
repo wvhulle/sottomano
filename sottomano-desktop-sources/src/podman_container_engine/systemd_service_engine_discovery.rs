@@ -9,7 +9,7 @@ use crate::systemd_units_journal::{
     service_commands::{ServiceAccount, ServiceCommand},
 };
 
-const PODMAN_PROGRAM: &str = "podman";
+pub(crate) const PODMAN_PROGRAM: &str = "podman";
 const SERVICE_SUBCOMMAND: [&str; 2] = ["system", "service"];
 const UNIX_SCHEME: &str = "unix:";
 const ROOTFUL_DEFAULT_SOCKET: &str = "/run/podman/podman.sock";

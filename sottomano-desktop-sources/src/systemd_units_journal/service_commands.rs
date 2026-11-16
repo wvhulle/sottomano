@@ -7,11 +7,24 @@ use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 use super::{ManagerProxy, ServiceProxy, SystemdUnitScope};
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::ChangeTriggerStreams,
+    ai_usage_spend::llama_server_slots::LLAMA_SERVER_PROGRAM,
+    ci_runner_tasks::systemd_service_runner_discovery::{
+        FORGEJO_RUNNER_PROGRAM, WOODPECKER_AGENT_PROGRAM,
+    },
+    podman_container_engine::systemd_service_engine_discovery::PODMAN_PROGRAM,
     system_protocol_clients::{dbus_desktop_buses::OnBus, protocol_peer_reconnects::subscribed},
 };
 
 const SERVICE_SUFFIX: &str = ".service";
+
+const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
+
+const DISCOVERED_PROGRAMS: [&str; 4] = [
+    WOODPECKER_AGENT_PROGRAM,
+    FORGEJO_RUNNER_PROGRAM,
+    PODMAN_PROGRAM,
+    LLAMA_SERVER_PROGRAM,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ServiceAccount {
@@ -115,6 +128,50 @@ impl SnapshotSource for ServiceCommands {
     }
 }
 
+enum ServiceUnitChange {
+    JobFinished { unit: String },
+    Disappeared { unit: String },
+    ReloadFinished,
+}
+
+struct TrackedServices {
+    manager: ManagerProxy<'static>,
+    commands: BTreeMap<String, ServiceCommand>,
+}
+
+impl TrackedServices {
+    async fn apply(&mut self, change: ServiceUnitChange) -> zbus::Result<()> {
+        match change {
+            ServiceUnitChange::JobFinished { unit } => {
+                let unit_path = match self.manager.get_unit(&unit).await {
+                    Err(zbus::Error::MethodError(error_name, ..))
+                        if error_name.as_str() == NO_SUCH_UNIT =>
+                    {
+                        self.commands.remove(&unit);
+                        return Ok(());
+                    }
+                    found => found?,
+                };
+                match service_command(&self.manager, unit.clone(), unit_path).await {
+                    Some(command) => self.commands.insert(unit, command),
+                    None => self.commands.remove(&unit),
+                };
+            }
+            ServiceUnitChange::Disappeared { unit } => {
+                self.commands.remove(&unit);
+            }
+            ServiceUnitChange::ReloadFinished => {
+                self.commands = all_service_commands(&self.manager).await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn listed(&self) -> Vec<ServiceCommand> {
+        self.commands.values().cloned().collect()
+    }
+}
+
 async fn watch_service_commands(
     connection: zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<ServiceCommand>>> + Send> {
@@ -123,31 +180,57 @@ async fn watch_service_commands(
         .build()
         .await?;
     manager.ensure_subscribed().await?;
-    let added_units = manager
-        .receive_unit_new()
+    let jobs_finished = manager
+        .receive_job_removed()
         .await?
-        .map(|added| added.args().map(|added_unit| added_unit.id));
-    let removed_units = manager
-        .receive_unit_removed()
-        .await?
-        .map(|removed| removed.args().map(|removed_unit| removed_unit.id));
-    let service_changes = stream::select(added_units, removed_units).filter_map(|unit_id| {
-        ready(match unit_id {
-            Ok(unit_id) if unit_id.ends_with(SERVICE_SUFFIX) => Some(Ok(())),
+        .filter_map(|removed_job| {
+            ready(match removed_job.args() {
+                Ok(finished_job) if finished_job.unit.ends_with(SERVICE_SUFFIX) => {
+                    Some(Ok(ServiceUnitChange::JobFinished {
+                        unit: finished_job.unit,
+                    }))
+                }
+                Ok(_) => None,
+                Err(signal_failure) => Some(Err(signal_failure)),
+            })
+        });
+    let disappeared = manager.receive_unit_removed().await?.filter_map(|removed| {
+        ready(match removed.args() {
+            Ok(removed_unit) if removed_unit.id.ends_with(SERVICE_SUFFIX) => {
+                Some(Ok(ServiceUnitChange::Disappeared {
+                    unit: removed_unit.id,
+                }))
+            }
             Ok(_) => None,
             Err(signal_failure) => Some(Err(signal_failure)),
         })
     });
-    let reloads = manager.receive_reloading().await?.map(|_| Ok(()));
-    Ok(stream::select(service_changes, reloads)
-        .triggered_rereads(move || {
-            let manager = manager.clone();
-            async move {
-                all_service_commands(&manager)
-                    .await
-                    .map(|services| services.into_values().collect())
-            }
+    let reloads_finished = manager.receive_reloading().await?.filter_map(|reloading| {
+        ready(match reloading.args() {
+            Ok(reload) if reload.active => None,
+            Ok(_) => Some(Ok(ServiceUnitChange::ReloadFinished)),
+            Err(signal_failure) => Some(Err(signal_failure)),
         })
+    });
+    let service_changes =
+        stream::select(stream::select(jobs_finished, disappeared), reloads_finished).boxed();
+    let tracked = TrackedServices {
+        commands: all_service_commands(&manager).await?,
+        manager,
+    };
+    let first_listing = tracked.listed();
+    let followed = stream::unfold(
+        (tracked, service_changes),
+        |(mut tracked, mut service_changes)| async move {
+            let applied = match service_changes.next().await? {
+                Ok(change) => tracked.apply(change).await.map(|()| tracked.listed()),
+                Err(signal_failure) => Err(signal_failure),
+            };
+            Some((applied, (tracked, service_changes)))
+        },
+    );
+    Ok(stream::once(ready(Ok(first_listing)))
+        .chain(followed)
         .distinct_until_changed())
 }
 
@@ -193,6 +276,11 @@ async fn service_command(
         })
         .ok()?;
     let (program, argv, ..) = exec_start.into_iter().next()?;
+    let program = PathBuf::from(program);
+    let program_name = program.file_name()?.to_str()?;
+    if !DISCOVERED_PROGRAMS.contains(&program_name) {
+        return None;
+    }
     let environment = service
         .environment()
         .await
@@ -208,7 +296,7 @@ async fn service_command(
     });
     Some(ServiceCommand {
         unit,
-        program: PathBuf::from(program),
+        program,
         arguments: argv.into_iter().skip(1).collect(),
         environment: environment_assignments(environment),
         account: ServiceAccount::from(account),
