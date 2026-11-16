@@ -24,7 +24,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ZoneTime(pub Tz);
+pub struct ZoneTime {
+    pub time_zone: Tz,
+}
 
 impl SnapshotSource for ZoneTime {
     type Error = Infallible;
@@ -33,13 +35,14 @@ impl SnapshotSource for ZoneTime {
     const NAME: &'static str = "Zone time";
 
     fn delivery_stream(zone: Tz) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(TICK).boundary_aligned_deliveries(move || ZoneTime(zone))
+        PeriodicPolling::every(TICK)
+            .boundary_aligned_deliveries(move || ZoneTime { time_zone: zone })
     }
 }
 
 impl ZoneTime {
     fn there(self, clock: Clock) -> DateTime<Tz> {
-        clock.utc().with_timezone(&self.0)
+        clock.utc().with_timezone(&self.time_zone)
     }
 
     fn seconds_ahead_of_local(self, clock: Clock) -> i32 {
@@ -63,7 +66,7 @@ impl ZoneTime {
 impl ZoneTime {
     pub(super) fn indicator(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
         GroupIndicator::glyph_only(
-            city_name(self.0),
+            city_name(self.time_zone),
             Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
             IndicatorState::Idle,
         )
@@ -82,7 +85,7 @@ impl ZoneTime {
         vec![Section::new(
             "Time zone",
             dictionary_table([
-                LabeledValue::new("Zone", self.0.name().to_owned()),
+                LabeledValue::new("Zone", self.time_zone.name().to_owned()),
                 LabeledValue::new("Abbreviation", there.format("%Z").to_string()),
                 LabeledValue::new("UTC offset", there.format("%:z").to_string()),
                 LabeledValue::new("Day", self.day_relative_to_local(clock).to_owned()),

@@ -180,10 +180,12 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn an_ended_subscription_is_dropped_before_resubscribing() {
-        struct SubscriptionDropCounter(Arc<AtomicUsize>);
+        struct SubscriptionDropCounter {
+            dropped_count: Arc<AtomicUsize>,
+        }
         impl Drop for SubscriptionDropCounter {
             fn drop(&mut self) {
-                self.0.fetch_add(1, Ordering::SeqCst);
+                self.dropped_count.fetch_add(1, Ordering::SeqCst);
             }
         }
 
@@ -198,7 +200,9 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push(subscription_counter.load(Ordering::SeqCst));
-            let drop_guard = SubscriptionDropCounter(subscription_counter.clone());
+            let drop_guard = SubscriptionDropCounter {
+                dropped_count: subscription_counter.clone(),
+            };
             let attempt = subscribe_count;
             async move {
                 Ok::<_, &'static str>(stream::iter([Ok(attempt)]).map(move |delivered| {

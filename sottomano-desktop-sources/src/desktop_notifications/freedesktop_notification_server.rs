@@ -194,16 +194,20 @@ pub async fn serve() -> zbus::Result<(impl Stream<Item = ServerEvent> + Send, No
         }
     }
 
-    let signals = NotificationSignals(SignalEmitter::new(&connection, PATH)?);
+    let signals = NotificationSignals {
+        signal_emitter: SignalEmitter::new(&connection, PATH)?,
+    };
     Ok((ReceiverStream::new(event_receiver), signals))
 }
 
 #[derive(Debug, Clone)]
-pub struct NotificationSignals(SignalEmitter<'static>);
+pub struct NotificationSignals {
+    signal_emitter: SignalEmitter<'static>,
+}
 
 impl NotificationSignals {
     pub async fn emit_outbound_signal(&self, outbound: Outbound) {
-        let signal_emitter = &self.0;
+        let signal_emitter = &self.signal_emitter;
         let emitted = match outbound {
             Outbound::ActivationToken { id, token } => {
                 NotificationServer::activation_token(signal_emitter, id, &token).await

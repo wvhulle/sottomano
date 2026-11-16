@@ -109,9 +109,12 @@ fn device_identity_entries(
 
 impl From<&DriveHealth> for Section {
     fn from(drive: &DriveHealth) -> Self {
-        let vendor_logo = drive
-            .pci_vendor
-            .and_then(|vendor| PciVendorId(vendor).vendor_logo());
+        let vendor_logo = drive.pci_vendor.and_then(|vendor| {
+            PciVendorId {
+                vendor_code: vendor,
+            }
+            .vendor_logo()
+        });
         Section::hardware_identity(device_identity_entries(&drive.identity, vendor_logo))
     }
 }

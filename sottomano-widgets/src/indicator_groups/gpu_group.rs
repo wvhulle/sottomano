@@ -116,7 +116,7 @@ impl GpuDevice {
 }
 
 fn gpu_group_identity(bus: &PciBusId) -> IndicatorGroupIdentity {
-    IndicatorGroupIdentity::durable(IndicatorGroupFamily::Gpu, bus.0.clone())
+    IndicatorGroupIdentity::durable(IndicatorGroupFamily::Gpu, bus.bus_address.clone())
 }
 
 const GPU_LOAD_GLYPH: Phosphor = Phosphor::GraphicsCard(Weight::Regular);
@@ -540,7 +540,11 @@ mod tests {
 
     #[test]
     fn each_gpu_has_its_own_identity() {
-        let on_bus = |bus: &str| gpu_group_identity(&PciBusId(bus.to_owned()));
+        let on_bus = |bus: &str| {
+            gpu_group_identity(&PciBusId {
+                bus_address: bus.to_owned(),
+            })
+        };
         assert_ne!(on_bus("0000:03:00.0"), on_bus("0000:0b:00.0"));
     }
 

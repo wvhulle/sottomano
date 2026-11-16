@@ -246,21 +246,25 @@ fn build_item(
 }
 
 #[derive(Clone)]
-struct TrayOwnerLookup(DBusProxy<'static>);
+struct TrayOwnerLookup {
+    dbus_proxy: DBusProxy<'static>,
+}
 
 impl TrayOwnerLookup {
     async fn connect() -> zbus::Result<Self> {
         let session_bus = zbus::Connection::session().await?;
-        Ok(Self(DBusProxy::new(&session_bus).await?))
+        Ok(Self {
+            dbus_proxy: DBusProxy::new(&session_bus).await?,
+        })
     }
 
     fn session_bus(&self) -> zbus::Connection {
-        self.0.inner().connection().clone()
+        self.dbus_proxy.inner().connection().clone()
     }
 
     async fn owner_of(&self, address: &str) -> OwnerProcess {
         match BusName::try_from(address) {
-            Ok(bus_name) => OwnerProcess::query_bus_owner(&self.0, bus_name).await,
+            Ok(bus_name) => OwnerProcess::query_bus_owner(&self.dbus_proxy, bus_name).await,
             Err(_) => OwnerProcess::Unidentified,
         }
     }

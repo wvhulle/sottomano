@@ -50,11 +50,13 @@ impl OomKiller {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NotAnOomKill(MessageId);
+pub struct NotAnOomKill {
+    message_id: MessageId,
+}
 
 impl Display for NotAnOomKill {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "message id {} reports no oom kill", self.0)
+        write!(f, "message id {} reports no oom kill", self.message_id)
     }
 }
 
@@ -65,7 +67,7 @@ impl TryFrom<MessageId> for OomKiller {
         Self::ALL
             .into_iter()
             .find(|killer| killer.message_id() == message_id)
-            .ok_or(NotAnOomKill(message_id))
+            .ok_or(NotAnOomKill { message_id })
     }
 }
 

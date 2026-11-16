@@ -51,18 +51,20 @@ impl CalendarEntryQuery for OpenTask {
     }
 }
 
-struct OpenTaskPoller(CalendarHomePoller<OpenTask>);
+struct OpenTaskPoller {
+    home_poller: CalendarHomePoller<OpenTask>,
+}
 
 impl AgendaSnapshotPolling for OpenTaskPoller {
     type Snapshot = OpenTaskList;
 
     async fn polled_snapshot(&mut self) -> Result<OpenTaskList, Error> {
-        let polled_home = self.0.poll().await?;
-        let mut tasks: Vec<OpenTask> = self.0.fetched_entries().cloned().collect();
+        let polled_home = self.home_poller.poll().await?;
+        let mut tasks: Vec<OpenTask> = self.home_poller.fetched_entries().cloned().collect();
         tasks.sort_by(OpenTask::earliest_due_first);
         Ok(OpenTaskList {
             tasks,
-            task_list_count: self.0.fetched_calendar_count(),
+            task_list_count: self.home_poller.fetched_calendar_count(),
             provider: polled_home.provider,
         })
     }
@@ -77,8 +79,8 @@ impl SnapshotSource for OpenTaskList {
     fn delivery_stream(
         account: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        push_or_poll_deliveries(account, |account| {
-            OpenTaskPoller(CalendarHomePoller::new(account))
+        push_or_poll_deliveries(account, |account| OpenTaskPoller {
+            home_poller: CalendarHomePoller::new(account),
         })
     }
 }

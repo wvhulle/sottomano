@@ -387,7 +387,7 @@ impl WaydroidContainerGroup {
         if self
             .probe
             .get()
-            .is_some_and(|probe| probe.0 == Availability::Available)
+            .is_some_and(|probe| probe.container_availability == Availability::Available)
         {
             IndicatorState::On
         } else {

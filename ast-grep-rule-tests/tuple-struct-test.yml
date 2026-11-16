@@ -1,0 +1,9 @@
+id: tuple-struct
+valid:
+  - "struct BusAddress { bus_address: String }"
+  - "struct Marker;"
+  - "enum Edge { Idled(u32), Resumed }"
+invalid:
+  - "struct BusAddress(String);"
+  - "pub struct VendorCode(pub u16);"
+  - "struct Borrowed<'a>(&'a str);"

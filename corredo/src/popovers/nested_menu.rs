@@ -1,4 +1,4 @@
-use std::{iter::once, time::Duration};
+use std::{cell::Cell, iter::once, rc::Rc, time::Duration};
 
 use iced::{
     Border, Element, Length, Theme,
@@ -12,8 +12,8 @@ use crate::{
     orientation::Axis,
     popovers::{
         CascadeOrientation, NestedMenuLayout, NestedMenuMetrics, NestedMenuRowContent,
-        NestedMenuRowEmphasis, NestedMenuRowLook, NotchRowAnchor, ResolvedPanelTop,
-        RowHoverReaction, SubmenuConnector, anchor_marker, nested_menu_row, notched_panel,
+        NestedMenuRowEmphasis, NestedMenuRowLook, NotchRowAnchor, RowHoverReaction,
+        SubmenuConnector, anchor_marker, nested_menu_row, notched_panel,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
     theming::{
@@ -249,7 +249,7 @@ impl MenuChrome {
         role: SatelliteRole,
         content: Element<'a, Message>,
         row: NotchRowAnchor,
-        panel_top: ResolvedPanelTop,
+        panel_top: Rc<Cell<f32>>,
     ) -> NestedMenuSatellite<'a, Message> {
         let frame = match role {
             SatelliteRole::ItemList => self.style.list_frame,
@@ -341,7 +341,7 @@ impl MenuChrome {
             .collect();
         let item_list_offset_px = item_list_scroll.offset_px;
         let item_list = self.scrolled_list(rows, item_list_scroll);
-        let list_top = ResolvedPanelTop::default();
+        let list_top = Rc::new(Cell::new(0.0));
         let item_satellite = self.satellite(
             SatelliteRole::ItemList,
             item_list,
@@ -356,7 +356,7 @@ impl MenuChrome {
                     panel_top: list_top,
                     row_offset: self.rows_offset(position) - item_list_offset_px,
                 },
-                ResolvedPanelTop::default(),
+                Rc::default(),
             )
         });
         once(item_satellite).chain(card_satellite).collect()
@@ -435,7 +435,7 @@ impl MenuChrome {
                     SatelliteRole::Beside,
                     card,
                     NotchRowAnchor::FromPrimaryTop(self.rows_offset(rows_above) - list_offset_px),
-                    ResolvedPanelTop::default(),
+                    Rc::default(),
                 )
             })
             .into_iter()

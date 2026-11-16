@@ -45,11 +45,8 @@ pub struct BatteryTimeIndicator {
     previous_sample_at: Option<Instant>,
 }
 
-#[derive(Debug, Clone)]
-pub struct CurveLoaded(Box<ChargeCurve>);
-
 impl BatteryTimeIndicator {
-    pub fn learn(&mut self, battery: &Battery, now: Instant) -> Task<CurveLoaded> {
+    pub fn learn(&mut self, battery: &Battery, now: Instant) -> Task<Box<ChargeCurve>> {
         let Some(curve) = &self.curve else {
             return self.start_loading(&battery.serial);
         };
@@ -73,16 +70,16 @@ impl BatteryTimeIndicator {
         .discard()
     }
 
-    pub fn loaded(&mut self, CurveLoaded(curve): CurveLoaded) {
+    pub fn loaded(&mut self, curve: Box<ChargeCurve>) {
         self.curve = Some(*curve);
     }
 
-    fn start_loading(&mut self, serial: &str) -> Task<CurveLoaded> {
+    fn start_loading(&mut self, serial: &str) -> Task<Box<ChargeCurve>> {
         if self.load_started || serial.is_empty() {
             return Task::none();
         }
         self.load_started = true;
-        Task::future(sqlite_charge_power_curve::load(serial.to_string())).map(CurveLoaded)
+        Task::future(sqlite_charge_power_curve::load(serial.to_string()))
     }
 
     pub(super) fn time_for(

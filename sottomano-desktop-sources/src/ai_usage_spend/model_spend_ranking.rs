@@ -9,31 +9,37 @@ pub struct ModelSpend {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ModelRanking(Vec<ModelSpend>);
+pub struct ModelRanking {
+    model_spends: Vec<ModelSpend>,
+}
 
 impl ModelRanking {
     #[must_use]
     pub fn top(&self) -> Option<&ModelSpend> {
-        self.0.first()
+        self.model_spends.first()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.model_spends.is_empty()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ModelSpend> {
-        self.0.iter()
+        self.model_spends.iter()
     }
 
     #[must_use]
     pub fn total(&self) -> Money {
-        usd(self.0.iter().map(|spend| *spend.cost.amount()).sum())
+        usd(self
+            .model_spends
+            .iter()
+            .map(|spend| *spend.cost.amount())
+            .sum())
     }
 
     #[must_use]
     pub fn cost_of(&self, model: &str) -> Option<Money> {
-        self.0
+        self.model_spends
             .iter()
             .find(|spend| spend.model == model)
             .map(|spend| spend.cost)
@@ -57,13 +63,19 @@ impl FromIterator<ModelSpend> for ModelRanking {
                 merged
             });
         merged.sort_by(|a, b| b.cost.amount().cmp(a.cost.amount()));
-        Self(merged)
+        Self {
+            model_spends: merged,
+        }
     }
 }
 
 impl Display for ModelRanking {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let names: Vec<&str> = self.0.iter().map(|spend| spend.model.as_str()).collect();
+        let names: Vec<&str> = self
+            .model_spends
+            .iter()
+            .map(|spend| spend.model.as_str())
+            .collect();
         write!(f, "{}", names.join(", "))
     }
 }

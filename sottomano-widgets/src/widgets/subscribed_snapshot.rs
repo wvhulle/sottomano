@@ -261,7 +261,9 @@ mod tests {
     };
 
     #[derive(Debug, Clone, PartialEq)]
-    struct CountedSnapshot(u32);
+    struct CountedSnapshot {
+        snapshot_count: u32,
+    }
 
     #[derive(Debug, Clone)]
     struct CountingFailure;
@@ -342,7 +344,10 @@ mod tests {
     fn an_unchanged_snapshot_keeps_its_poll_period_and_moves_its_delivery_time() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(
+            polled_delivery(Ok(CountedSnapshot { snapshot_count: 1 })),
+            timeline.at(10),
+        );
         latest.receive(SnapshotDelivery::SnapshotUnchanged, timeline.at(13));
         assert_eq!(
             delivered_at(&latest),
@@ -359,9 +364,12 @@ mod tests {
     fn a_failed_fetch_keeps_the_held_snapshot_and_marks_it_failed() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(
+            polled_delivery(Ok(CountedSnapshot { snapshot_count: 1 })),
+            timeline.at(10),
+        );
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
-        assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
+        assert_eq!(latest.get(), Some(&CountedSnapshot { snapshot_count: 1 }));
         assert_eq!(shown_state(&latest), Some(IndicatorState::Failed));
     }
 
@@ -371,9 +379,12 @@ mod tests {
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(10));
         assert!(latest.failure().is_some());
-        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(13));
+        latest.receive(
+            polled_delivery(Ok(CountedSnapshot { snapshot_count: 2 })),
+            timeline.at(13),
+        );
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(16));
-        assert_eq!(latest.get(), Some(&CountedSnapshot(2)));
+        assert_eq!(latest.get(), Some(&CountedSnapshot { snapshot_count: 2 }));
         assert!(latest.failure().is_none());
     }
 
@@ -381,7 +392,7 @@ mod tests {
     fn a_command_before_any_delivery_changes_nothing() {
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.apply_command(CommandOutcome::Applied {
-            expected_snapshot: CountedSnapshot(5),
+            expected_snapshot: CountedSnapshot { snapshot_count: 5 },
         });
         assert!(latest.awaits_first_delivery());
     }
@@ -390,7 +401,10 @@ mod tests {
     fn a_refused_command_drops_the_assumed_snapshot_and_shows_its_failure() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(
+            polled_delivery(Ok(CountedSnapshot { snapshot_count: 1 })),
+            timeline.at(10),
+        );
         latest.apply_command(CommandOutcome::Refused {
             refusal: CountingFailure,
         });
@@ -402,7 +416,10 @@ mod tests {
     fn a_vanished_source_drops_its_snapshot_and_awaits_again() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(
+            polled_delivery(Ok(CountedSnapshot { snapshot_count: 1 })),
+            timeline.at(10),
+        );
         latest.receive(SnapshotDelivery::SourceUnavailable, timeline.at(11));
         assert!(latest.awaits_first_delivery());
         assert_eq!(shown_state(&latest), None);

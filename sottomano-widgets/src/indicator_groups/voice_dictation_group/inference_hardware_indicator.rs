@@ -12,74 +12,66 @@ use crate::{
     },
 };
 
-pub struct InferenceHardware<'a>(pub &'a DictationEngine);
-
-impl InferenceHardware<'_> {
-    fn inference_device(&self) -> InferenceDevice {
-        let backend = self.0.compute_device.as_str();
-        let device_name = self.0.compute_device_name.as_str();
-        let mentions = |vendor_words: &[&str]| {
-            vendor_words
-                .iter()
-                .any(|vendor_word| device_name.contains(vendor_word))
-        };
-        if backend.starts_with("CUDA") || mentions(&["NVIDIA", "GeForce"]) {
-            InferenceDevice::NvidiaGpu
-        } else if backend.starts_with("Metal") {
-            InferenceDevice::AppleGpu
-        } else if mentions(&["AMD", "Radeon"]) {
-            InferenceDevice::AmdGpu
-        } else if mentions(&["Intel"]) {
-            InferenceDevice::IntelGpu
-        } else if device_name.is_empty() {
-            InferenceDevice::Processor
-        } else {
-            InferenceDevice::OtherGpu
-        }
-    }
-
-    fn hardware_rows(&self) -> impl Iterator<Item = LabeledValue> {
-        let engine = self.0;
-        [
-            non_empty(&engine.compute_device)
-                .map(|compute_device| LabeledValue::new("Device", compute_device)),
-            non_empty(&engine.compute_device_name)
-                .map(|gpu_name| LabeledValue::new("GPU", gpu_name)),
-            Some(engine.available_accelerators.join(", "))
-                .filter(|joined| !joined.is_empty())
-                .map(|accelerator_list| LabeledValue::new("Accelerators", accelerator_list)),
-        ]
-        .into_iter()
-        .flatten()
+fn inference_device_of(engine: &DictationEngine) -> InferenceDevice {
+    let backend = engine.compute_device.as_str();
+    let device_name = engine.compute_device_name.as_str();
+    let mentions = |vendor_words: &[&str]| {
+        vendor_words
+            .iter()
+            .any(|vendor_word| device_name.contains(vendor_word))
+    };
+    if backend.starts_with("CUDA") || mentions(&["NVIDIA", "GeForce"]) {
+        InferenceDevice::NvidiaGpu
+    } else if backend.starts_with("Metal") {
+        InferenceDevice::AppleGpu
+    } else if mentions(&["AMD", "Radeon"]) {
+        InferenceDevice::AmdGpu
+    } else if mentions(&["Intel"]) {
+        InferenceDevice::IntelGpu
+    } else if device_name.is_empty() {
+        InferenceDevice::Processor
+    } else {
+        InferenceDevice::OtherGpu
     }
 }
 
-impl<'a> InferenceHardware<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
-        GroupIndicator::glyph_only(
-            "Inference hardware",
-            self.device_glyph(),
-            IndicatorState::On,
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
+fn inference_hardware_rows(engine: &DictationEngine) -> impl Iterator<Item = LabeledValue> {
+    [
+        non_empty(&engine.compute_device)
+            .map(|compute_device| LabeledValue::new("Device", compute_device)),
+        non_empty(&engine.compute_device_name).map(|gpu_name| LabeledValue::new("GPU", gpu_name)),
+        Some(engine.available_accelerators.join(", "))
+            .filter(|joined| !joined.is_empty())
+            .map(|accelerator_list| LabeledValue::new("Accelerators", accelerator_list)),
+    ]
+    .into_iter()
+    .flatten()
+}
 
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Devices",
-            dictionary_table(self.hardware_rows()),
-        )]
-    }
+pub fn inference_hardware_indicator(engine: &DictationEngine) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        "Inference hardware",
+        inference_device_glyph(engine),
+        IndicatorState::On,
+    )
+    .with_hover_card(Box::new(move |_| inference_hardware_hover_card(engine)))
+}
 
-    fn device_glyph(&self) -> IconGlyph {
-        match self.inference_device() {
-            InferenceDevice::NvidiaGpu => SimpleIcon::NVIDIA.into(),
-            InferenceDevice::AppleGpu => SimpleIcon::Apple.into(),
-            InferenceDevice::AmdGpu => SimpleIcon::AMD.into(),
-            InferenceDevice::IntelGpu => SimpleIcon::Intel.into(),
-            InferenceDevice::OtherGpu => Phosphor::GraphicsCard(Weight::Regular).into(),
-            InferenceDevice::Processor => Phosphor::Cpu(Weight::Regular).into(),
-        }
+pub fn inference_hardware_hover_card(engine: &DictationEngine) -> Vec<Section> {
+    vec![Section::new(
+        "Devices",
+        dictionary_table(inference_hardware_rows(engine)),
+    )]
+}
+
+fn inference_device_glyph(engine: &DictationEngine) -> IconGlyph {
+    match inference_device_of(engine) {
+        InferenceDevice::NvidiaGpu => SimpleIcon::NVIDIA.into(),
+        InferenceDevice::AppleGpu => SimpleIcon::Apple.into(),
+        InferenceDevice::AmdGpu => SimpleIcon::AMD.into(),
+        InferenceDevice::IntelGpu => SimpleIcon::Intel.into(),
+        InferenceDevice::OtherGpu => Phosphor::GraphicsCard(Weight::Regular).into(),
+        InferenceDevice::Processor => Phosphor::Cpu(Weight::Regular).into(),
     }
 }
 
@@ -112,8 +104,7 @@ mod tests {
             available_accelerators: vec!["CUDA".to_owned(), "Vulkan".to_owned()],
             ..engine_on("CUDA0", "NVIDIA GeForce RTX 4090")
         };
-        let rows: Vec<(ValueCell, ValueCell)> = InferenceHardware(&engine)
-            .hardware_rows()
+        let rows: Vec<(ValueCell, ValueCell)> = inference_hardware_rows(&engine)
             .map(|row| (row.key.clone(), row.value().clone()))
             .collect();
         assert_eq!(
@@ -131,7 +122,7 @@ mod tests {
     #[test]
     fn hardware_icon_follows_the_backend_and_gpu_vendor() {
         let icon_on = |compute_device, compute_device_name| {
-            InferenceHardware(&engine_on(compute_device, compute_device_name)).device_glyph()
+            inference_device_glyph(&engine_on(compute_device, compute_device_name))
         };
         assert_eq!(icon_on("CUDA0", "RTX 4090"), SimpleIcon::NVIDIA.into());
         assert_eq!(

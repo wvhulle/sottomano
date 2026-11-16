@@ -102,11 +102,13 @@ pub enum Presence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnknownPresence(pub String);
+pub struct UnknownPresence {
+    pub presence_name: String,
+}
 
 impl fmt::Display for UnknownPresence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unknown presence state {}", self.0)
+        write!(f, "unknown presence state {}", self.presence_name)
     }
 }
 
@@ -119,7 +121,9 @@ impl FromStr for Presence {
             "idle" => Ok(Presence::Idle),
             "asleep" => Ok(Presence::Asleep),
             "screen_off" => Ok(Presence::ScreenOff),
-            _ => Err(UnknownPresence(stored.to_owned())),
+            _ => Err(UnknownPresence {
+                presence_name: stored.to_owned(),
+            }),
         }
     }
 }

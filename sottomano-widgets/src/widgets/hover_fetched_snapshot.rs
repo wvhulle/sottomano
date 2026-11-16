@@ -272,7 +272,9 @@ mod tests {
     };
 
     #[derive(Debug, Clone, PartialEq)]
-    struct CountedSnapshot(u32);
+    struct CountedSnapshot {
+        snapshot_count: u32,
+    }
 
     #[derive(Debug, Clone)]
     struct CountingFailure;
@@ -318,7 +320,9 @@ mod tests {
 
     fn polled_snapshot(count: u32) -> SnapshotDelivery<CountedSnapshot> {
         SnapshotDelivery::fixture_delivered(
-            Ok(CountedSnapshot(count)),
+            Ok(CountedSnapshot {
+                snapshot_count: count,
+            }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(POLL_PERIOD)),
         )
     }
@@ -370,7 +374,7 @@ mod tests {
         hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(60));
-        assert_eq!(hover.sample(), Some(&CountedSnapshot(4)));
+        assert_eq!(hover.sample(), Some(&CountedSnapshot { snapshot_count: 4 }));
         assert_eq!(
             delivery_state(&hover),
             SourceDelivery::Delivered(DeliveryStamp {
@@ -388,7 +392,7 @@ mod tests {
         hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
         hovered_at(&mut hover, 1, timeline.at(601));
-        assert_eq!(hover.sample(), Some(&CountedSnapshot(4)));
+        assert_eq!(hover.sample(), Some(&CountedSnapshot { snapshot_count: 4 }));
         assert_eq!(delivery_state(&hover), SourceDelivery::Loading);
     }
 

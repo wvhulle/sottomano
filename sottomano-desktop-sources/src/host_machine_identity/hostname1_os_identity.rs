@@ -128,7 +128,7 @@ async fn identity_changes(
                     .chassis()
                     .await?
                     .parse()
-                    .inspect_err(|UnknownChassis(chassis_name)| {
+                    .inspect_err(|UnknownChassis { chassis_name }| {
                         if !chassis_name.is_empty() {
                             tracing::warn!("os identity: unknown chassis {chassis_name:?}");
                         }
@@ -208,7 +208,9 @@ pub enum Chassis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnknownChassis(pub String);
+pub struct UnknownChassis {
+    pub chassis_name: String,
+}
 
 impl FromStr for Chassis {
     type Err = UnknownChassis;
@@ -225,7 +227,9 @@ impl FromStr for Chassis {
             "embedded" => Ok(Chassis::Embedded),
             "vm" => Ok(Chassis::VirtualMachine),
             "container" => Ok(Chassis::Container),
-            _ => Err(UnknownChassis(chassis.to_owned())),
+            _ => Err(UnknownChassis {
+                chassis_name: chassis.to_owned(),
+            }),
         }
     }
 }

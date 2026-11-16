@@ -215,17 +215,19 @@ pub fn decode_record<Record: DeserializeOwned>(
     Record::deserialize(MapDeserializer::<_, RecordDecodeError>::new(
         record
             .into_iter()
-            .map(|(name, value)| (name, JournalFieldValue(value))),
+            .map(|(name, value)| (name, JournalFieldValue { field_text: value })),
     ))
 }
 
-struct JournalFieldValue(String);
+struct JournalFieldValue {
+    field_text: String,
+}
 
 impl JournalFieldValue {
     fn parsed<Number: FromStr>(self) -> Result<Number, RecordDecodeError> {
-        self.0
-            .parse()
-            .map_err(|_| RecordDecodeError::invalid_value(Unexpected::Str(&self.0), &"a number"))
+        self.field_text.parse().map_err(|_| {
+            RecordDecodeError::invalid_value(Unexpected::Str(&self.field_text), &"a number")
+        })
     }
 }
 
@@ -251,7 +253,7 @@ impl<'de> Deserializer<'de> for JournalFieldValue {
     type Error = RecordDecodeError;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_string(self.0)
+        visitor.visit_string(self.field_text)
     }
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -264,7 +266,7 @@ impl<'de> Deserializer<'de> for JournalFieldValue {
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        visitor.visit_enum(self.0.into_deserializer())
+        visitor.visit_enum(self.field_text.into_deserializer())
     }
 
     deserialize_parsed_numbers! {
@@ -297,7 +299,9 @@ mod tests {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
-    struct Stamped(SystemTime);
+    struct Stamped {
+        stamped_at: SystemTime,
+    }
 
     impl JournalEvent for Stamped {
         type Record = ();
@@ -310,11 +314,11 @@ mod tests {
         }
 
         fn admit((): (), at: SystemTime) -> Option<Self> {
-            Some(Self(at))
+            Some(Self { stamped_at: at })
         }
 
         fn at(&self) -> SystemTime {
-            self.0
+            self.stamped_at
         }
     }
 
@@ -323,11 +327,25 @@ mod tests {
         let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
         let minutes = |count: u64| start + Duration::from_secs(count * 60);
         let mut window = EventWindow {
-            events: [0, 10, 30].map(|at| Stamped(minutes(at))).into(),
+            events: [0, 10, 30]
+                .map(|at| Stamped {
+                    stamped_at: minutes(at),
+                })
+                .into(),
         };
         let now = minutes(65);
         assert_eq!(window.drop_expired(now), StateChange::Changed);
-        assert_eq!(window.events, [Stamped(minutes(10)), Stamped(minutes(30))]);
+        assert_eq!(
+            window.events,
+            [
+                Stamped {
+                    stamped_at: minutes(10)
+                },
+                Stamped {
+                    stamped_at: minutes(30)
+                }
+            ]
+        );
         assert_eq!(
             window.time_until_next_expiry(now),
             Some(Duration::from_mins(5))

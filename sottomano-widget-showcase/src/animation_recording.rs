@@ -214,18 +214,24 @@ impl<'session> DemoRecorder<'session> {
     fn perform(&mut self, step: &Step) -> Vec<CapturedFrame> {
         match step {
             Step::Hover(target) => {
-                let pointer = self.locate(HoveredWidget(target.clone()));
+                let pointer = self.locate(HoveredWidget {
+                    hover_target: target.clone(),
+                });
                 self.point_at(pointer);
                 self.capture_during(self.hover_hold_for(target))
             }
             Step::Press(target) => {
-                let pointer = self.locate(HoveredWidget(target.clone()));
+                let pointer = self.locate(HoveredWidget {
+                    hover_target: target.clone(),
+                });
                 self.press_at(pointer)
             }
             Step::HoverFace(group) => self.perform(&Step::Hover(self.face_target(group))),
             Step::PressFace(group) => self.perform(&Step::Press(self.face_target(group))),
             Step::PressPin(entry) => {
-                let pointer = self.locate(MenuPinWidget(entry.clone()));
+                let pointer = self.locate(MenuPinWidget {
+                    menu_pin: entry.clone(),
+                });
                 self.press_at(pointer)
             }
             Step::HoverText(shown) => {
@@ -248,7 +254,9 @@ impl<'session> DemoRecorder<'session> {
                 self.capture_during(*hold)
             }
             Step::DragFace { group, by } => {
-                let grabbed = self.locate(HoveredWidget(self.face_target(group)));
+                let grabbed = self.locate(HoveredWidget {
+                    hover_target: self.face_target(group),
+                });
                 self.point_at(grabbed);
                 let lead = self.capture_during(PRESS_LEAD);
                 self.interact(Mouse::Press {

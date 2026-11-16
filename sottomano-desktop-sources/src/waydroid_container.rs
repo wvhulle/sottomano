@@ -61,7 +61,9 @@ impl WaydroidState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WaydroidProbe(pub Availability);
+pub struct WaydroidProbe {
+    pub container_availability: Availability,
+}
 
 impl SnapshotSource for WaydroidProbe {
     type Error = Infallible;
@@ -73,9 +75,13 @@ impl SnapshotSource for WaydroidProbe {
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries((), |()| {
-            ready(Ok(
-                path_present(waydroid_payload_cgroup()).map(|presence| Ok(WaydroidProbe(presence)))
-            ))
+            ready(Ok(path_present(waydroid_payload_cgroup()).map(
+                |presence| {
+                    Ok(WaydroidProbe {
+                        container_availability: presence,
+                    })
+                },
+            )))
         })
     }
 }

@@ -350,10 +350,11 @@ impl IncusInstancesGroup {
     }
 
     fn probe_availability(&self, instance_daemon: InstanceDaemon) -> Option<Availability> {
-        self.probes
-            .get(&instance_daemon)?
-            .get()
-            .map(|InstanceDaemonProbe(availability)| *availability)
+        self.probes.get(&instance_daemon)?.get().map(
+            |InstanceDaemonProbe {
+                 daemon_availability: availability,
+             }| *availability,
+        )
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {

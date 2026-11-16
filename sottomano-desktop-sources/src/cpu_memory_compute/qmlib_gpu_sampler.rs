@@ -76,7 +76,7 @@ impl DrmGpuWorker {
         let (opened_sender, opened_receiver) = mpsc::sync_channel(1);
         let worker_bus = bus.clone();
         thread::Builder::new()
-            .name(format!("gpu {}", bus.0))
+            .name(format!("gpu {}", bus.bus_address))
             .spawn(move || match GpuSampleWorker::open(worker_bus, vendor) {
                 Ok(worker) => {
                     let _ = opened_sender.send(Ok(()));
@@ -154,7 +154,9 @@ fn listed_gpus() -> Vec<ListedGpu> {
         .filter(|device| device.has_driver())
         .filter_map(|device| {
             Some(ListedGpu {
-                bus: PciBusId(device.pci_dev.clone()),
+                bus: PciBusId {
+                    bus_address: device.pci_dev.clone(),
+                },
                 model: GpuModel {
                     vendor: gpu_vendor_of_pci_id(&device.vendor_id)?,
                     names: GpuNames::split_database_name(&device.device),
@@ -200,10 +202,11 @@ struct ClientSample {
 
 impl GpuSampleWorker {
     fn open(bus: PciBusId, vendor: GpuVendor) -> Result<Self, Error> {
-        let mut devices =
-            catch_unwind(|| DrmDevices::find_devices(&vec![bus.0.as_str()], &HashMap::new()))
-                .map_err(|_| Error::Panicked)?
-                .map_err(qmlib_failure)?;
+        let mut devices = catch_unwind(|| {
+            DrmDevices::find_devices(&vec![bus.bus_address.as_str()], &HashMap::new())
+        })
+        .map_err(|_| Error::Panicked)?
+        .map_err(qmlib_failure)?;
         devices
             .set_clients_pid_tree(SCAN_EVERY_PROCESS)
             .map_err(qmlib_failure)?;
@@ -252,7 +255,7 @@ impl GpuSampleWorker {
 
     fn device(&self) -> Result<&DrmDeviceInfo, Error> {
         self.devices
-            .device_info(&self.bus.0)
+            .device_info(&self.bus.bus_address)
             .ok_or(Error::DeviceVanished)
     }
 

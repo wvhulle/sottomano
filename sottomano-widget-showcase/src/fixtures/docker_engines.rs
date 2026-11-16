@@ -49,7 +49,9 @@ fn delivered(socket_path: &str, listing: EngineListing) -> DockerEnginesMessage 
     DockerEnginesMessage::Engine(
         PathBuf::from(socket_path),
         SnapshotDelivery::fixture_delivered(
-            Ok(DockerEngineReadout(listing)),
+            Ok(DockerEngineReadout {
+                engine_listing: listing,
+            }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         ),
     )

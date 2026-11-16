@@ -9,13 +9,14 @@ mod sqlite_charge_power_curve;
 mod sqlite_power_draw_regression;
 
 use battery_charge_gauge::{battery_hover_card, battery_indicator};
-use battery_time_indicator::{BatteryTime, BatteryTimeIndicator, CurveLoaded};
+use battery_time_indicator::{BatteryTime, BatteryTimeIndicator};
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileInteraction, PowerProfileMessage};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
+        battery_time_forecast::ChargeCurve,
         cpu_tuning_platform_profile::CpuTuning,
         upower_battery_state::{Battery, ChargerSupply},
     },
@@ -78,7 +79,7 @@ pub enum PowerMessage {
     Battery(SnapshotDelivery<Battery>),
     ChargerFetched(SnapshotDelivery<ChargerSupply>),
     CpuTuningFetched(SnapshotDelivery<CpuTuning>),
-    ChargeCurveLoaded(CurveLoaded),
+    ChargeCurveLoaded(Box<ChargeCurve>),
     PowerProfile(PowerProfileMessage),
 }
 

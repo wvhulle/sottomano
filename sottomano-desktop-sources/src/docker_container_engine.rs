@@ -297,7 +297,9 @@ impl DockerEngineSampler {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DockerEngineProbe(pub Availability);
+pub struct DockerEngineProbe {
+    pub engine_availability: Availability,
+}
 
 impl SnapshotSource for DockerEngineProbe {
     type Error = Infallible;
@@ -307,9 +309,11 @@ impl SnapshotSource for DockerEngineProbe {
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(socket_path, |socket_path| {
-            ready(Ok(
-                path_present(socket_path).map(|presence| Ok(DockerEngineProbe(presence)))
-            ))
+            ready(Ok(path_present(socket_path).map(|presence| {
+                Ok(DockerEngineProbe {
+                    engine_availability: presence,
+                })
+            })))
         })
     }
 }
@@ -395,7 +399,9 @@ async fn listed_docker_names(socket_path: &Path) -> Result<DockerEngineListing, 
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DockerEngineReadout(pub EngineListing);
+pub struct DockerEngineReadout {
+    pub engine_listing: EngineListing,
+}
 
 impl SnapshotSource for DockerEngineReadout {
     type Error = EngineReadError;
@@ -416,12 +422,21 @@ impl SnapshotSource for DockerEngineReadout {
                     PeriodicPolling::every(DOCKER_POLL_PERIOD),
                     move || {
                         let sampler = sampler.clone();
-                        async move { sampler.lock().await.sample().await.map(DockerEngineReadout) }
+                        async move {
+                            sampler
+                                .lock()
+                                .await
+                                .sample()
+                                .await
+                                .map(|engine_listing| DockerEngineReadout { engine_listing })
+                        }
                     },
                     |delivered: &Result<Self, EngineReadError>| {
                         delivered.as_ref().map_or(
                             SamplingNeed::KeepSampling,
-                            |DockerEngineReadout(listing)| listing.sampling_need(),
+                            |DockerEngineReadout {
+                                 engine_listing: listing,
+                             }| listing.sampling_need(),
                         )
                     },
                 )

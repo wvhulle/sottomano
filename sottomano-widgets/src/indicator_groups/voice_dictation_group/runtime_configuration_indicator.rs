@@ -12,54 +12,45 @@ use crate::{
     },
 };
 
-pub struct RuntimeConfiguration<'a>(pub &'a DictationEngine);
-
-impl RuntimeConfiguration<'_> {
-    fn configuration_rows(&self) -> impl Iterator<Item = LabeledValue> {
-        let engine = self.0;
-        [
-            Some(engine.inference_threads)
-                .filter(|threads| *threads > 0)
-                .map(Quantity::count)
-                .map(|thread_count| LabeledValue::new("Threads", thread_count)),
-            Some(LabeledValue::new(
-                "Flash attention",
-                if engine.flash_attention { "on" } else { "off" },
-            )),
-            Some(engine.retranscribe_interval_secs)
-                .filter(|interval_secs| interval_secs.is_finite() && *interval_secs > 0.0)
-                .map(|interval_secs| ValueCell::Duration(Duration::from_secs_f64(interval_secs)))
-                .map(|retranscribe_interval| {
-                    LabeledValue::new("Re-transcribe every", retranscribe_interval)
-                }),
-            Some(engine.sample_rate_hz)
-                .filter(|sample_rate| *sample_rate > 0)
-                .map(|sample_rate| {
-                    Quantity::measured(f64::from(sample_rate), DisplayUnit::Hertz, 0)
-                })
-                .map(|sample_rate| LabeledValue::new("Sample rate", sample_rate)),
-        ]
-        .into_iter()
-        .flatten()
-    }
+fn runtime_configuration_rows(engine: &DictationEngine) -> impl Iterator<Item = LabeledValue> {
+    [
+        Some(engine.inference_threads)
+            .filter(|threads| *threads > 0)
+            .map(Quantity::count)
+            .map(|thread_count| LabeledValue::new("Threads", thread_count)),
+        Some(LabeledValue::new(
+            "Flash attention",
+            if engine.flash_attention { "on" } else { "off" },
+        )),
+        Some(engine.retranscribe_interval_secs)
+            .filter(|interval_secs| interval_secs.is_finite() && *interval_secs > 0.0)
+            .map(|interval_secs| ValueCell::Duration(Duration::from_secs_f64(interval_secs)))
+            .map(|retranscribe_interval| {
+                LabeledValue::new("Re-transcribe every", retranscribe_interval)
+            }),
+        Some(engine.sample_rate_hz)
+            .filter(|sample_rate| *sample_rate > 0)
+            .map(|sample_rate| Quantity::measured(f64::from(sample_rate), DisplayUnit::Hertz, 0))
+            .map(|sample_rate| LabeledValue::new("Sample rate", sample_rate)),
+    ]
+    .into_iter()
+    .flatten()
 }
 
-impl<'a> RuntimeConfiguration<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
-        GroupIndicator::glyph_only(
-            "Runtime configuration",
-            Phosphor::SlidersHorizontal(Weight::Regular).into(),
-            IndicatorState::On,
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
+pub fn runtime_configuration_indicator(engine: &DictationEngine) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(
+        "Runtime configuration",
+        Phosphor::SlidersHorizontal(Weight::Regular).into(),
+        IndicatorState::On,
+    )
+    .with_hover_card(Box::new(move |_| runtime_configuration_hover_card(engine)))
+}
 
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Settings",
-            dictionary_table(self.configuration_rows()),
-        )]
-    }
+pub fn runtime_configuration_hover_card(engine: &DictationEngine) -> Vec<Section> {
+    vec![Section::new(
+        "Settings",
+        dictionary_table(runtime_configuration_rows(engine)),
+    )]
 }
 
 #[cfg(test)]
@@ -73,8 +64,7 @@ mod tests {
             sample_rate_hz: 16_000,
             ..DictationEngine::default()
         };
-        let keys: Vec<ValueCell> = RuntimeConfiguration(&engine)
-            .configuration_rows()
+        let keys: Vec<ValueCell> = runtime_configuration_rows(&engine)
             .map(|row| row.key.clone())
             .collect();
         assert_eq!(
@@ -92,8 +82,7 @@ mod tests {
             retranscribe_interval_secs: 0.5,
             ..DictationEngine::default()
         };
-        let values: Vec<ValueCell> = RuntimeConfiguration(&engine)
-            .configuration_rows()
+        let values: Vec<ValueCell> = runtime_configuration_rows(&engine)
             .map(|row| row.value().clone())
             .collect();
         assert_eq!(

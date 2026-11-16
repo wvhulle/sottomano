@@ -31,14 +31,11 @@ enum NotchSide {
     Right,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ResolvedPanelTop(Rc<Cell<f32>>);
-
 #[derive(Debug, Clone)]
 pub enum NotchRowAnchor {
     FromPrimaryTop(f32),
     WithinPanel {
-        panel_top: ResolvedPanelTop,
+        panel_top: Rc<Cell<f32>>,
         row_offset: f32,
     },
 }
@@ -50,7 +47,7 @@ impl NotchRowAnchor {
             NotchRowAnchor::WithinPanel {
                 panel_top,
                 row_offset,
-            } => panel_top.0.get() + row_offset,
+            } => panel_top.get() + row_offset,
         }
     }
 }
@@ -93,7 +90,7 @@ struct NotchPlacement {
     side: NotchSide,
     growth: PopupGrowth,
     row: NotchRowAnchor,
-    panel_top: ResolvedPanelTop,
+    panel_top: Rc<Cell<f32>>,
     row_height: f32,
     gap_to_parent: f32,
     submenu_connector: SubmenuConnector,
@@ -135,7 +132,7 @@ pub fn notched_panel<'a, Message: 'a>(
             },
             growth: orientation.growth,
             row,
-            panel_top: ResolvedPanelTop::default(),
+            panel_top: Rc::default(),
             row_height: 0.0,
             gap_to_parent: 0.0,
             submenu_connector: SubmenuConnector::default(),
@@ -193,7 +190,7 @@ impl<'a, Message: 'a> NotchedPanel<'a, Message> {
     }
 
     #[must_use]
-    pub fn publishes_top(self, panel_top: ResolvedPanelTop) -> Self {
+    pub fn publishes_top(self, panel_top: Rc<Cell<f32>>) -> Self {
         Self {
             placement: NotchPlacement {
                 panel_top,
@@ -341,7 +338,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
                 .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, &content_limits);
         let target = self.panel_target(content.size(), screen_room);
-        self.placement.panel_top.0.set(target.y);
+        self.placement.panel_top.set(target.y);
         let node_size = Size::new(
             target.width + self.placement.gap_to_parent,
             target.y + target.height,

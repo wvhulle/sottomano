@@ -192,7 +192,6 @@ impl MemoryBoardGroup {
             let machine = &hardware.machine;
             hardware
                 .memory
-                .0
                 .iter()
                 .enumerate()
                 .map(move |(slot_index, slot_module)| {

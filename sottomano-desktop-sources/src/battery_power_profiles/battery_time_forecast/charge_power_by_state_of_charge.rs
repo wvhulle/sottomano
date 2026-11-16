@@ -82,11 +82,10 @@ impl ChargeCurve {
         }
     }
 
-    pub(super) fn learned(&self) -> Option<LearnedCurve> {
+    pub(super) fn learned(&self) -> Option<Vec<Power>> {
         (0..CHARGE_BINS)
             .map(|bin| self.nearest_learned(bin))
-            .collect::<Option<Vec<_>>>()
-            .map(LearnedCurve)
+            .collect()
     }
 
     fn nearest_learned(&self, bin: usize) -> Option<Power> {
@@ -97,14 +96,6 @@ impl ChargeCurve {
                     .or_else(|| self.bins.get(bin + distance).copied().flatten())
             })
             .map(|learned| Power::new::<watt>(learned.mean_w))
-    }
-}
-
-pub(super) struct LearnedCurve(Vec<Power>);
-
-impl LearnedCurve {
-    pub(super) fn power_at(&self, state_of_charge: Ratio) -> Power {
-        self.0[bin_of(state_of_charge)]
     }
 }
 
@@ -151,7 +142,7 @@ mod tests {
         })
         .learned()
         .expect("learned");
-        let watts_at = |fraction| curve.power_at(ratio_of(fraction)).get::<watt>();
+        let watts_at = |fraction| curve[bin_of(ratio_of(fraction))].get::<watt>();
         assert!((watts_at(0.5) - 30.0).abs() < 0.5, "{}", watts_at(0.5));
         assert!((watts_at(0.9) - 10.0).abs() < 0.5, "{}", watts_at(0.9));
     }
@@ -166,10 +157,7 @@ mod tests {
             )
             .learned()
             .expect("learned");
-        assert_eq!(
-            curve.power_at(ratio_of(0.9)),
-            curve.power_at(ratio_of(0.52))
-        );
+        assert_eq!(curve[bin_of(ratio_of(0.9))], curve[bin_of(ratio_of(0.52))]);
     }
 
     #[test]

@@ -7,8 +7,7 @@ use sottomano_desktop_sources::{
         hostname1_os_identity::MachineInfo,
         udev_hardware_identity::{
             CacheInstances, CacheKind, CacheLevel, CachePosition, CpuArchitecture, CpuCoreCounts,
-            CpuIdentity, CpuModel, CpuVendor, HostHardware, MemoryModule, MemoryModules,
-            MemorySlotModule,
+            CpuIdentity, CpuModel, CpuVendor, HostHardware, MemoryModule, MemorySlotModule,
         },
     },
 };
@@ -90,7 +89,7 @@ fn ryzen_workstation() -> HostHardware {
                 ],
             }],
         },
-        memory: MemoryModules(vec![
+        memory: vec![
             MemorySlotModule {
                 locator: "DIMM_A1".to_owned(),
                 module: MemoryModule {
@@ -111,7 +110,7 @@ fn ryzen_workstation() -> HostHardware {
                     size: ByteSize::gib(32),
                 },
             },
-        ]),
+        ],
         machine: MachineInfo {
             board_pci_vendor: Some(MSI_PCI_VENDOR),
             hardware_vendor: Some("Micro-Star International Co., Ltd.".to_owned()),

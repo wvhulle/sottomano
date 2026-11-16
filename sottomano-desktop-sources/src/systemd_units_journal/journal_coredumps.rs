@@ -72,11 +72,13 @@ impl Display for CoreDumpingSignal {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NotACoreDumpingSignal(c_int);
+pub struct NotACoreDumpingSignal {
+    signal_number: c_int,
+}
 
 impl Display for NotACoreDumpingSignal {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "signal {} does not dump core", self.0)
+        write!(f, "signal {} does not dump core", self.signal_number)
     }
 }
 
@@ -95,7 +97,9 @@ impl TryFrom<c_int> for CoreDumpingSignal {
             libc::SIGSYS => Ok(CoreDumpingSignal::BadSyscall),
             libc::SIGXCPU => Ok(CoreDumpingSignal::CpuLimit),
             libc::SIGXFSZ => Ok(CoreDumpingSignal::FileSizeLimit),
-            _ => Err(NotACoreDumpingSignal(number)),
+            _ => Err(NotACoreDumpingSignal {
+                signal_number: number,
+            }),
         }
     }
 }

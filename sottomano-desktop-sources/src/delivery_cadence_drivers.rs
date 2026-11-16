@@ -484,7 +484,9 @@ mod tests {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
-    struct CountedSnapshot(u32);
+    struct CountedSnapshot {
+        snapshot_count: u32,
+    }
 
     #[derive(Debug, Clone)]
     struct NeverFails;
@@ -532,7 +534,7 @@ mod tests {
     async fn polled_deliveries_carry_their_period_and_repeats_arrive_unchanged() {
         let polling = PeriodicPolling::every(Duration::from_secs(3));
         let deliveries: Vec<_> = polling
-            .poll_deliveries(|| ready(Ok(CountedSnapshot(7))))
+            .poll_deliveries(|| ready(Ok(CountedSnapshot { snapshot_count: 7 })))
             .take(2)
             .collect()
             .await;
@@ -627,7 +629,7 @@ mod tests {
         let recheck = PeriodicPolling::every(Duration::from_mins(15));
         let mut deliveries = Box::pin(
             recheck.triggered_deliveries(stream::pending::<Result<(), NeverFails>>(), || {
-                ready(Ok(CountedSnapshot(1)))
+                ready(Ok(CountedSnapshot { snapshot_count: 1 }))
             }),
         );
         let first = deliveries.next().await.unwrap();

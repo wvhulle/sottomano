@@ -237,7 +237,7 @@ impl DockerEnginesGroup {
                 .probes
                 .get(&engine.socket_path)
                 .and_then(|probe| probe.get())
-                .is_some_and(|probe| probe.0 == Availability::Available);
+                .is_some_and(|probe| probe.engine_availability == Availability::Available);
             if !present {
                 return None;
             }
@@ -247,10 +247,11 @@ impl DockerEnginesGroup {
     }
 
     fn readout_of(&self, engine: &DockerEngineSocket) -> Option<&EngineListing> {
-        self.readouts
-            .get(&engine.socket_path)?
-            .get()
-            .map(|DockerEngineReadout(listing)| listing)
+        self.readouts.get(&engine.socket_path)?.get().map(
+            |DockerEngineReadout {
+                 engine_listing: listing,
+             }| listing,
+        )
     }
 
     fn readout_failure(&self, engine: &DockerEngineSocket) -> Option<&EngineReadError> {
@@ -448,7 +449,7 @@ mod tests {
         engine_read: Result<EngineListing, EngineReadError>,
     ) -> SnapshotDelivery<DockerEngineReadout> {
         SnapshotDelivery::fixture_delivered(
-            engine_read.map(DockerEngineReadout),
+            engine_read.map(|engine_listing| DockerEngineReadout { engine_listing }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )
     }

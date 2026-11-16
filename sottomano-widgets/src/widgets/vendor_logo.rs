@@ -37,11 +37,13 @@ impl VendorLogo for GpuVendor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PciVendorId(pub u16);
+pub struct PciVendorId {
+    pub vendor_code: u16,
+}
 
 impl VendorLogo for PciVendorId {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
-        match self.0 {
+        match self.vendor_code {
             0x8086 => Some(SimpleIcon::Intel),
             0x1002 | 0x1022 => Some(SimpleIcon::AMD),
             0x10de => Some(SimpleIcon::NVIDIA),
@@ -67,11 +69,13 @@ impl VendorLogo for PciVendorId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UsbVendorId(pub u16);
+pub struct UsbVendorId {
+    pub vendor_code: u16,
+}
 
 impl VendorLogo for UsbVendorId {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
-        match self.0 {
+        match self.vendor_code {
             0x8087 => Some(SimpleIcon::Intel),
             0x05ac => Some(SimpleIcon::Apple),
             0x04e8 => Some(SimpleIcon::Samsung),
@@ -98,17 +102,25 @@ impl VendorLogo for UsbVendorId {
 impl VendorLogo for BusId {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
         match *self {
-            BusId::Pci { vendor, .. } => PciVendorId(vendor).vendor_logo(),
-            BusId::Usb { vendor, .. } => UsbVendorId(vendor).vendor_logo(),
+            BusId::Pci { vendor, .. } => PciVendorId {
+                vendor_code: vendor,
+            }
+            .vendor_logo(),
+            BusId::Usb { vendor, .. } => UsbVendorId {
+                vendor_code: vendor,
+            }
+            .vendor_logo(),
         }
     }
 }
 
-pub struct DistributionIds<'a>(pub &'a [String]);
+pub struct DistributionIds<'a> {
+    pub distribution_names: &'a [String],
+}
 
 impl VendorLogo for DistributionIds<'_> {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
-        self.0
+        self.distribution_names
             .iter()
             .find_map(|distribution_id| distribution_logo(distribution_id))
     }
@@ -144,11 +156,13 @@ fn distribution_logo(distribution_id: &str) -> Option<SimpleIcon> {
     }
 }
 
-pub struct PnpManufacturerName<'a>(pub &'a str);
+pub struct PnpManufacturerName<'a> {
+    pub manufacturer_name: &'a str,
+}
 
 impl VendorLogo for PnpManufacturerName<'_> {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
-        match self.0 {
+        match self.manufacturer_name {
             "Dell Inc." => Some(SimpleIcon::Dell),
             "Samsung Electric Company" | "Samsung Display Corp." => Some(SimpleIcon::Samsung),
             "LG Electronics" | "LG Display" => Some(SimpleIcon::LG),
@@ -189,14 +203,23 @@ mod tests {
     fn distribution_falls_back_to_related_ids() {
         let derivative_ids = ["zorin".to_owned(), "ubuntu".to_owned(), "debian".to_owned()];
         assert_eq!(
-            DistributionIds(&derivative_ids).vendor_logo(),
+            DistributionIds {
+                distribution_names: &derivative_ids
+            }
+            .vendor_logo(),
             Some(SimpleIcon::Ubuntu)
         );
     }
 
     #[test]
     fn unknown_distribution_has_no_logo() {
-        assert_eq!(DistributionIds(&["hurd".to_owned()]).vendor_logo(), None);
+        assert_eq!(
+            DistributionIds {
+                distribution_names: &["hurd".to_owned()]
+            }
+            .vendor_logo(),
+            None
+        );
     }
 
     #[test]

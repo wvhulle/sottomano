@@ -5,7 +5,9 @@ use sottomano_widgets::{
     hover_cards::{HoverTarget, IndicatorKey},
 };
 
-pub struct HoveredWidget(pub HoverTarget);
+pub struct HoveredWidget {
+    pub hover_target: HoverTarget,
+}
 
 impl Selector for HoveredWidget {
     type Output = Rectangle;
@@ -14,22 +16,24 @@ impl Selector for HoveredWidget {
         let Candidate::Custom { bounds, state, .. } = candidate else {
             return None;
         };
-        let marks_hovered_row = match &self.0 {
+        let marks_hovered_row = match &self.hover_target {
             HoverTarget::Indicator(indicator_key) => {
                 state.downcast_ref::<IndicatorKey>() == Some(indicator_key)
             }
             _ => false,
         };
-        (marks_hovered_row || state.downcast_ref::<HoverTarget>() == Some(&self.0))
+        (marks_hovered_row || state.downcast_ref::<HoverTarget>() == Some(&self.hover_target))
             .then_some(bounds)
     }
 
     fn description(&self) -> String {
-        format!("the hover area of {:?}", self.0)
+        format!("the hover area of {:?}", self.hover_target)
     }
 }
 
-pub struct MenuPinWidget(pub GroupMenuPin);
+pub struct MenuPinWidget {
+    pub menu_pin: GroupMenuPin,
+}
 
 impl Selector for MenuPinWidget {
     type Output = Rectangle;
@@ -38,11 +42,11 @@ impl Selector for MenuPinWidget {
         let Candidate::Custom { bounds, state, .. } = candidate else {
             return None;
         };
-        (state.downcast_ref::<GroupMenuPin>() == Some(&self.0)).then_some(bounds)
+        (state.downcast_ref::<GroupMenuPin>() == Some(&self.menu_pin)).then_some(bounds)
     }
 
     fn description(&self) -> String {
-        format!("the menu pin of {:?}", self.0)
+        format!("the menu pin of {:?}", self.menu_pin)
     }
 }
 

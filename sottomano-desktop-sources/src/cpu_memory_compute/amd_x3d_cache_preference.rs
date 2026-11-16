@@ -19,11 +19,13 @@ pub enum X3dCachePreference {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnknownX3dMode(pub String);
+pub struct UnknownX3dMode {
+    pub mode_name: String,
+}
 
 impl fmt::Display for UnknownX3dMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unknown X3D mode {}", self.0)
+        write!(f, "unknown X3D mode {}", self.mode_name)
     }
 }
 
@@ -34,7 +36,9 @@ impl FromStr for X3dCachePreference {
         match mode {
             "cache" => Ok(X3dCachePreference::Cache),
             "frequency" => Ok(X3dCachePreference::Frequency),
-            _ => Err(UnknownX3dMode(mode.to_owned())),
+            _ => Err(UnknownX3dMode {
+                mode_name: mode.to_owned(),
+            }),
         }
     }
 }

@@ -59,9 +59,15 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         voice_dictation_group::{
             dictation_phase_indicator::press_does,
-            inference_hardware_indicator::InferenceHardware,
-            runtime_configuration_indicator::RuntimeConfiguration,
-            speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
+            inference_hardware_indicator::{
+                inference_hardware_hover_card, inference_hardware_indicator,
+            },
+            runtime_configuration_indicator::{
+                runtime_configuration_hover_card, runtime_configuration_indicator,
+            },
+            speech_runtime_sections::{
+                idle_runtime_glyph, speech_runtime_glyph, speech_runtime_sections,
+            },
         },
     },
     widgets::{
@@ -293,7 +299,7 @@ impl VoiceDictationGroup {
         let runtime_sections = self
             .engine
             .sections_described_by(|sample| match &sample.engine {
-                EngineState::SpeechModelReady(engine) => SpeechRuntime(engine).sections(),
+                EngineState::SpeechModelReady(engine) => speech_runtime_sections(engine),
                 EngineState::LoadingSpeechModel | EngineState::SpeechModelUnavailable(_) => {
                     Vec::new()
                 }
@@ -470,7 +476,7 @@ impl VoiceDictationGroup {
         let dictation = self.dictation.get();
         let runtime_glyph = self
             .loaded_engine()
-            .map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
+            .map_or_else(idle_runtime_glyph, speech_runtime_glyph);
         let runtime_readiness = dictation.map_or(ServiceReadiness::NotYetServing, |_| {
             ServiceReadiness::Serving
         });
@@ -500,20 +506,18 @@ impl VoiceDictationGroup {
     fn push_loaded_engine_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(loaded) = self.loaded_engine() {
             rows.push(
-                RuntimeConfiguration(loaded)
-                    .indicator()
+                runtime_configuration_indicator(loaded)
                     .with_hover_card(Box::new(move |_| {
                         self.engine
-                            .hover_card_with(RuntimeConfiguration(loaded).hover_card())
+                            .hover_card_with(runtime_configuration_hover_card(loaded))
                     }))
                     .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
             );
             rows.push(
-                InferenceHardware(loaded)
-                    .indicator()
+                inference_hardware_indicator(loaded)
                     .with_hover_card(Box::new(move |_| {
                         self.engine
-                            .hover_card_with(InferenceHardware(loaded).hover_card())
+                            .hover_card_with(inference_hardware_hover_card(loaded))
                     }))
                     .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine)),
             );

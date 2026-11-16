@@ -130,7 +130,9 @@ fn db_path() -> Option<PathBuf> {
     Some(state.join("sottomano/state.db"))
 }
 
-pub struct Columns(HashMap<String, usize>);
+pub struct Columns {
+    index_by_name: HashMap<String, usize>,
+}
 
 pub async fn singleton_row<Read>(
     connection: &turso::Connection,
@@ -147,25 +149,26 @@ pub async fn singleton_row<Read>(
 
 impl From<&turso::Rows> for Columns {
     fn from(rows: &turso::Rows) -> Self {
-        Self(
-            rows.column_names()
+        Self {
+            index_by_name: rows
+                .column_names()
                 .into_iter()
                 .enumerate()
                 .map(|(index, name)| (name.to_lowercase(), index))
                 .collect(),
-        )
+        }
     }
 }
 
 impl Columns {
     fn value(&self, row: &turso::Row, name: &str) -> Result<turso::Value, StoreError> {
-        let index =
-            self.0
-                .get(&name.to_lowercase())
-                .copied()
-                .ok_or_else(|| ColumnError::Missing {
-                    name: name.to_owned(),
-                })?;
+        let index = self
+            .index_by_name
+            .get(&name.to_lowercase())
+            .copied()
+            .ok_or_else(|| ColumnError::Missing {
+                name: name.to_owned(),
+            })?;
         Ok(row.get_value(index)?)
     }
 

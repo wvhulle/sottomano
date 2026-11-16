@@ -78,7 +78,9 @@ impl Profile {
 }
 
 #[derive(Debug)]
-pub struct UnknownProfile(pub String);
+pub struct UnknownProfile {
+    pub profile_name: String,
+}
 
 impl FromStr for Profile {
     type Err = UnknownProfile;
@@ -88,7 +90,9 @@ impl FromStr for Profile {
             "power-saver" => Ok(Profile::PowerSaver),
             "balanced" => Ok(Profile::Balanced),
             "performance" => Ok(Profile::Performance),
-            _ => Err(UnknownProfile(name.to_owned())),
+            _ => Err(UnknownProfile {
+                profile_name: name.to_owned(),
+            }),
         }
     }
 }
@@ -241,11 +245,11 @@ async fn status_changes(
 
 async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, BusReadError> {
     let active = daemon.active_profile().await?;
-    let active = active
-        .parse::<Profile>()
-        .map_err(|UnknownProfile(active)| {
-            BusReadError::UnexpectedReply(format!("unknown power profile {active:?}"))
-        })?;
+    let active = active.parse::<Profile>().map_err(
+        |UnknownProfile {
+             profile_name: active,
+         }| { BusReadError::UnexpectedReply(format!("unknown power profile {active:?}")) },
+    )?;
     let holds = daemon.active_profile_holds().await?;
     let degraded = daemon.performance_degraded().await?;
     Ok(ProfileStatus {

@@ -5,7 +5,7 @@ use uom::si::f64::{Energy, Power};
 use crate::battery_power_profiles::{
     battery_time_forecast::{
         Estimate,
-        charge_power_by_state_of_charge::{ChargeCurve, LearnedCurve},
+        charge_power_by_state_of_charge::{ChargeCurve, bin_of},
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
     upower_battery_state::{Battery, ChargeStatus},
@@ -13,16 +13,15 @@ use crate::battery_power_profiles::{
 
 struct Charging<'a> {
     battery: &'a Battery,
-    curve: LearnedCurve,
+    power_by_charge: Vec<Power>,
     typical_now: Power,
     deviation_now: Power,
 }
 
 impl Charging<'_> {
     fn power_after(&self, scenario: Scenario, elapsed: Duration, filled: Energy) -> Power {
-        let accepted = self
-            .curve
-            .power_at((self.battery.energy + filled) / self.battery.energy_full);
+        let accepted =
+            self.power_by_charge[bin_of((self.battery.energy + filled) / self.battery.energy_full)];
         let deviation = scenario.deviation_after(self.deviation_now, elapsed);
         if deviation < Power::default() {
             accepted.min(self.typical_now + deviation)
@@ -38,8 +37,8 @@ pub fn time_until_full(battery: &Battery, curve: &ChargeCurve) -> Option<Estimat
     if to_fill <= Energy::default() {
         return None;
     }
-    let curve = curve.learned()?;
-    let typical_now = curve.power_at(battery.energy / battery.energy_full);
+    let power_by_charge = curve.learned()?;
+    let typical_now = power_by_charge[bin_of(battery.energy / battery.energy_full)];
     let charging = Charging {
         battery,
         deviation_now: if battery.status == ChargeStatus::Charging
@@ -50,7 +49,7 @@ pub fn time_until_full(battery: &Battery, curve: &ChargeCurve) -> Option<Estimat
             Power::default()
         },
         typical_now,
-        curve,
+        power_by_charge,
     };
     estimate(|scenario| {
         time_to_move(to_fill, |elapsed, filled| {

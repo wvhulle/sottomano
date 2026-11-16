@@ -74,7 +74,7 @@ fn fading_animation(is_fading: bool, fade_duration: Duration) -> Animation<bool>
 }
 
 fn input_edge_signals(idle_delay: &Duration) -> impl Stream<Item = TypingSignal> + Send + use<> {
-    input_idle_edges(*idle_delay).map(|edge| TypingSignal::InputEdge(edge.0))
+    input_idle_edges(*idle_delay).map(TypingSignal::InputEdge)
 }
 
 #[must_use]

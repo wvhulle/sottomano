@@ -173,11 +173,8 @@ impl From<&PauseBlocker> for TableRecord<1> {
     }
 }
 
-struct SecretMemoryHolderRecord<'a>(&'a PauseBlocker);
-
-impl From<SecretMemoryHolderRecord<'_>> for TableRecord<2> {
-    fn from(secret_memory_holder_record: SecretMemoryHolderRecord<'_>) -> Self {
-        let SecretMemoryHolderRecord(blocker) = secret_memory_holder_record;
+impl From<&PauseBlocker> for TableRecord<2> {
+    fn from(blocker: &PauseBlocker) -> Self {
         let (pid_text, window_text) = blocker.holder_process.map_or_else(
             || (String::new(), String::new()),
             |process| {
@@ -275,7 +272,7 @@ pub(super) fn blocker_sections<'a>(
                         ColumnHeading::titled("PID"),
                         ColumnHeading::titled("Window").align_x(Horizontal::Left),
                     ],
-                    rows.map(SecretMemoryHolderRecord),
+                    rows,
                 )
             } else {
                 headed_table(

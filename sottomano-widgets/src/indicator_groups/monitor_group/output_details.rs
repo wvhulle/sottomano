@@ -64,7 +64,14 @@ impl<'a> ConnectedOutput<'a> {
 impl ConnectedOutput<'_> {
     pub fn hardware_entries(&self) -> Vec<LabeledValue> {
         let make = self.info.make.as_deref().map(|make| {
-            LabeledValue::logo_prefixed("Make", PnpManufacturerName(make).vendor_logo(), make)
+            LabeledValue::logo_prefixed(
+                "Make",
+                PnpManufacturerName {
+                    manufacturer_name: make,
+                }
+                .vendor_logo(),
+                make,
+            )
         });
         make.into_iter()
             .chain(

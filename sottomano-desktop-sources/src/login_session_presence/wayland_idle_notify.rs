@@ -16,17 +16,6 @@ pub enum IdleEdge {
     Resumed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InputIdleEdge(pub IdleEdge);
-
-impl InputIdleEdge {
-    #[cfg(any(test, feature = "test-support"))]
-    #[must_use]
-    pub fn simulated(edge: IdleEdge) -> Self {
-        Self(edge)
-    }
-}
-
 pub trait CountedActivity: sealed_activity::Sealed {
     const NOTIFIER_VERSION: u32;
 
@@ -203,7 +192,7 @@ fn notification_cb<Tag: Copy>(
     state.edges.push(TaggedEdge { tag: *tag, edge });
 }
 
-pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + Send {
+pub fn input_idle_edges(after: Duration) -> impl Stream<Item = IdleEdge> + Send {
     subscribed(after, |after| async move {
         Ok::<_, WaylandProtocolError>(connected_input_idle_edges(after).await?.map(Ok))
     })
@@ -219,10 +208,10 @@ pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + 
 
 async fn connected_input_idle_edges(
     after: Duration,
-) -> Result<impl Stream<Item = InputIdleEdge> + Send, WaylandProtocolError> {
+) -> Result<impl Stream<Item = IdleEdge> + Send, WaylandProtocolError> {
     let mut notifier = IdleNotifier::<(), InputOnly>::connect().await?;
     notifier.arm(&[IdleTrigger { after, tag: () }]);
-    let freshly_armed_notification_is_not_idle = stream::iter([InputIdleEdge(IdleEdge::Resumed)]);
+    let freshly_armed_notification_is_not_idle = stream::iter([IdleEdge::Resumed]);
     let reported_edges = stream::unfold(notifier, async |mut notifier| {
         let edges = notifier
             .edges()
@@ -231,7 +220,7 @@ async fn connected_input_idle_edges(
             .ok()?;
         let edges = stream::iter(edges.into_iter().map(|tagged| {
             tracing::debug!(edge = ?tagged.edge, "compositor sent input idle edge");
-            InputIdleEdge(tagged.edge)
+            tagged.edge
         }));
         Some((edges, notifier))
     })

@@ -18,34 +18,30 @@ pub fn idle_runtime_glyph() -> IconGlyph {
     Phosphor::Engine(Weight::Regular).into()
 }
 
-pub struct SpeechRuntime<'a>(pub &'a DictationEngine);
-
-impl SpeechRuntime<'_> {
-    #[must_use]
-    pub fn glyph(&self) -> IconGlyph {
-        if self.0.inference_runtime == ONNX_RUNTIME_NAME {
-            SimpleIcon::ONNX.into()
-        } else {
-            idle_runtime_glyph()
-        }
+#[must_use]
+pub fn speech_runtime_glyph(engine: &DictationEngine) -> IconGlyph {
+    if engine.inference_runtime == ONNX_RUNTIME_NAME {
+        SimpleIcon::ONNX.into()
+    } else {
+        idle_runtime_glyph()
     }
+}
 
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Inference runtime",
-            dictionary_table(
-                [
-                    non_empty(&self.0.inference_runtime)
-                        .map(|inference_runtime| LabeledValue::new("Runtime", inference_runtime)),
-                    non_empty(&self.0.inference_runtime_version)
-                        .map(|runtime_version| LabeledValue::new("Version", runtime_version)),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        )]
-    }
+#[must_use]
+pub fn speech_runtime_sections(engine: &DictationEngine) -> Vec<Section> {
+    vec![Section::new(
+        "Inference runtime",
+        dictionary_table(
+            [
+                non_empty(&engine.inference_runtime)
+                    .map(|inference_runtime| LabeledValue::new("Runtime", inference_runtime)),
+                non_empty(&engine.inference_runtime_version)
+                    .map(|runtime_version| LabeledValue::new("Version", runtime_version)),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    )]
 }
 
 #[cfg(test)]
@@ -62,11 +58,11 @@ mod tests {
     #[test]
     fn onnx_runtime_shows_the_onnx_logo_and_whisper_the_engine_glyph() {
         assert_eq!(
-            SpeechRuntime(&engine_running("ONNX Runtime")).glyph(),
+            speech_runtime_glyph(&engine_running("ONNX Runtime")),
             SimpleIcon::ONNX.into()
         );
         assert_eq!(
-            SpeechRuntime(&engine_running("whisper.cpp")).glyph(),
+            speech_runtime_glyph(&engine_running("whisper.cpp")),
             idle_runtime_glyph()
         );
     }

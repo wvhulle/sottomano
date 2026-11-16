@@ -42,11 +42,15 @@ impl NiriConfigFile {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConfiguredWorkspaces(Vec<String>);
+pub struct ConfiguredWorkspaces {
+    workspace_names: Vec<String>,
+}
 
 impl FromIterator<String> for ConfiguredWorkspaces {
     fn from_iter<I: IntoIterator<Item = String>>(names: I) -> Self {
-        Self(names.into_iter().collect())
+        Self {
+            workspace_names: names.into_iter().collect(),
+        }
     }
 }
 
@@ -65,19 +69,19 @@ pub enum ConfiguredOrderStatus {
 impl ConfiguredWorkspaces {
     fn declared_in(text: &str) -> Result<Self, KdlError> {
         let document = parse_niri_kdl(text)?;
-        Ok(Self(
-            document
+        Ok(Self {
+            workspace_names: document
                 .nodes()
                 .iter()
                 .filter(|node| node.name().value() == "workspace")
                 .filter_map(|node| node.entries().first()?.value().as_string())
                 .map(str::to_owned)
                 .collect(),
-        ))
+        })
     }
 
     fn present_on<'s>(&'s self, live: &[WorkspaceIndicator]) -> Vec<&'s str> {
-        self.0
+        self.workspace_names
             .iter()
             .map(String::as_str)
             .filter(|name| live.iter().any(|p| p.name.as_deref() == Some(*name)))

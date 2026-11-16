@@ -222,7 +222,9 @@ fn region_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
 }
 
 #[derive(Default)]
-struct LastWidth(Option<f32>);
+struct LastWidth {
+    measured_width: Option<f32>,
+}
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_, Message> {
     fn tag(&self) -> tree::Tag {
@@ -322,8 +324,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
             .map(|rect| rect.width)
             .fold(0.0, f32::max);
         let last = tree.state.downcast_mut::<LastWidth>();
-        if last.0 != Some(width) {
-            last.0 = Some(width);
+        if last.measured_width != Some(width) {
+            last.measured_width = Some(width);
             shell.publish(on_width_change(width));
         }
     }

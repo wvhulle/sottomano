@@ -46,7 +46,9 @@ pub enum Urgency {
 }
 
 #[derive(Debug)]
-pub struct UnknownUrgencyCode(pub u32);
+pub struct UnknownUrgencyCode {
+    pub urgency_code: u32,
+}
 
 impl TryFrom<u32> for Urgency {
     type Error = UnknownUrgencyCode;
@@ -57,7 +59,7 @@ impl TryFrom<u32> for Urgency {
             2 => Ok(Urgency::Medium),
             3 => Ok(Urgency::High),
             4 => Ok(Urgency::Critical),
-            _ => Err(UnknownUrgencyCode(code)),
+            _ => Err(UnknownUrgencyCode { urgency_code: code }),
         }
     }
 }

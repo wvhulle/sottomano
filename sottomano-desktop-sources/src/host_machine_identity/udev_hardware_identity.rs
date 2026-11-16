@@ -67,17 +67,19 @@ pub fn sysfs_attribute(path: impl AsRef<Path>) -> Option<String> {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct UdevProperties(HashMap<String, String>);
+pub struct UdevProperties {
+    properties_by_key: HashMap<String, String>,
+}
 
 impl UdevProperties {
     fn parse(database_entry: &str) -> Self {
-        Self(
-            database_entry
+        Self {
+            properties_by_key: database_entry
                 .lines()
                 .filter_map(|line| line.strip_prefix("E:")?.split_once('='))
                 .map(|(key, value)| (key.to_owned(), value.to_owned()))
                 .collect(),
-        )
+        }
     }
 
     fn read(entry: &str) -> Self {
@@ -104,7 +106,7 @@ impl UdevProperties {
 
     #[must_use]
     pub fn value(&self, key: &str) -> Option<String> {
-        reported(self.0.get(key)?)
+        reported(self.properties_by_key.get(key)?)
     }
 
     fn vendor(&self) -> Option<String> {
@@ -302,7 +304,7 @@ impl Adapter {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HostHardware {
     pub cpu: CpuModel,
-    pub memory: MemoryModules,
+    pub memory: Vec<MemorySlotModule>,
     pub machine: MachineInfo,
 }
 
@@ -350,7 +352,7 @@ impl HostHardware {
         blocking_poll(move || {
             Ok(HostHardware {
                 cpu: CpuModel::current(),
-                memory: MemoryModules::current(),
+                memory: memory_modules(&UdevProperties::dmi()),
                 machine,
             })
         })
@@ -718,25 +720,11 @@ pub struct MemorySlotModule {
     pub module: MemoryModule,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MemoryModules(pub Vec<MemorySlotModule>);
-
-impl MemoryModules {
-    #[must_use]
-    pub fn current() -> Self {
-        Self::from(&UdevProperties::dmi())
-    }
-}
-
-impl From<&UdevProperties> for MemoryModules {
-    fn from(properties: &UdevProperties) -> Self {
-        Self(
-            (0..)
-                .map_while(|slot| MemorySlot::read(properties, slot))
-                .filter_map(MemorySlot::populated)
-                .collect(),
-        )
-    }
+fn memory_modules(properties: &UdevProperties) -> Vec<MemorySlotModule> {
+    (0..)
+        .map_while(|slot| MemorySlot::read(properties, slot))
+        .filter_map(MemorySlot::populated)
+        .collect()
 }
 
 enum MemorySlot {
@@ -747,7 +735,7 @@ enum MemorySlot {
 impl MemorySlot {
     fn read(properties: &UdevProperties, slot: usize) -> Option<Self> {
         let key = |field: &str| format!("MEMORY_DEVICE_{slot}_{field}");
-        let locator = properties.0.get(&key("LOCATOR"))?;
+        let locator = properties.properties_by_key.get(&key("LOCATOR"))?;
         let Some(size) = properties
             .value(&key("SIZE"))
             .and_then(|bytes| {
@@ -928,7 +916,7 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
 
     #[test]
     fn populated_slots_are_kept_per_locator_and_empty_slots_skipped() {
-        let modules = MemoryModules::from(&UdevProperties::parse(SOLDERED_LPDDR5));
+        let modules = memory_modules(&UdevProperties::parse(SOLDERED_LPDDR5));
         let samsung_lpddr5 = MemorySlotModule {
             locator: "Controller0-ChannelA".to_owned(),
             module: MemoryModule {
@@ -939,9 +927,9 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
                 size: ByteSize::gib(4),
             },
         };
-        assert_eq!(modules.0.len(), 2);
-        assert_eq!(modules.0[0], samsung_lpddr5);
-        assert_eq!(modules.0[1].locator, "Controller0-ChannelB");
+        assert_eq!(modules.len(), 2);
+        assert_eq!(modules[0], samsung_lpddr5);
+        assert_eq!(modules[1].locator, "Controller0-ChannelB");
     }
 
     #[test]

@@ -29,7 +29,9 @@ const GLOBAL_ADDRESS_SCOPE: &str = "global";
 const LOOPBACK_INTERFACE: &str = "lo";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstanceDaemonProbe(pub Availability);
+pub struct InstanceDaemonProbe {
+    pub daemon_availability: Availability,
+}
 
 impl SnapshotSource for InstanceDaemonProbe {
     type Error = Infallible;
@@ -41,8 +43,13 @@ impl SnapshotSource for InstanceDaemonProbe {
         instance_daemon: InstanceDaemon,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(instance_daemon, |instance_daemon| {
-            ready(Ok(path_present(instance_daemon.socket_path())
-                .map(|presence| Ok(InstanceDaemonProbe(presence)))))
+            ready(Ok(path_present(instance_daemon.socket_path()).map(
+                |presence| {
+                    Ok(InstanceDaemonProbe {
+                        daemon_availability: presence,
+                    })
+                },
+            )))
         })
     }
 }

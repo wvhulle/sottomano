@@ -26,7 +26,9 @@ use crate::{
 const PCI_DEVICES: &str = "/sys/bus/pci/devices";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PciBusId(pub String);
+pub struct PciBusId {
+    pub bus_address: String,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuModel {
@@ -139,7 +141,7 @@ impl SnapshotSource for GpuRuntimePower {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries(move || {
             let status = Path::new(PCI_DEVICES)
-                .join(&inputs.0)
+                .join(&inputs.bus_address)
                 .join("power/runtime_status");
             Ok(match read_trimmed(status).as_deref() {
                 Some("suspended" | "suspending") => GpuRuntimePower::Asleep,

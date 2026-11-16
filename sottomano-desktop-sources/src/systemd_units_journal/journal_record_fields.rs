@@ -12,16 +12,32 @@ use crate::systemd_units_journal::SystemdUnitScope;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
-pub struct MessageId(u128);
+pub struct MessageId {
+    message_uuid: u128,
+}
 
 impl MessageId {
-    pub const COREDUMP: Self = Self(0xfc2e_22bc_6ee6_47b6_b907_29ab_34a2_50b1);
-    pub const KERNEL_OOM_KILL: Self = Self(0xfe6f_aa94_e777_4663_a0da_5271_7891_d8ef);
-    pub const OOMD_KILL: Self = Self(0xd989_611b_15e4_4c9d_bf31_e3c8_1256_e4ed);
-    pub const SHUTDOWN: Self = Self(0x9826_8866_d1d5_4a49_9c4e_9892_1d93_bc40);
-    pub const STARTUP_FINISHED: Self = Self(0xb07a_249c_d024_414a_82dd_00cd_1813_78ff);
-    pub const UNIT_STOPPING: Self = Self(0xde5b_426a_63be_47a7_b6ac_3eaa_c82e_2f6f);
-    pub const UNIT_STOPPED: Self = Self(0x9d1a_aa27_d601_40bd_9636_5438_aad2_0286);
+    pub const COREDUMP: Self = Self {
+        message_uuid: 0xfc2e_22bc_6ee6_47b6_b907_29ab_34a2_50b1,
+    };
+    pub const KERNEL_OOM_KILL: Self = Self {
+        message_uuid: 0xfe6f_aa94_e777_4663_a0da_5271_7891_d8ef,
+    };
+    pub const OOMD_KILL: Self = Self {
+        message_uuid: 0xd989_611b_15e4_4c9d_bf31_e3c8_1256_e4ed,
+    };
+    pub const SHUTDOWN: Self = Self {
+        message_uuid: 0x9826_8866_d1d5_4a49_9c4e_9892_1d93_bc40,
+    };
+    pub const STARTUP_FINISHED: Self = Self {
+        message_uuid: 0xb07a_249c_d024_414a_82dd_00cd_1813_78ff,
+    };
+    pub const UNIT_STOPPING: Self = Self {
+        message_uuid: 0xde5b_426a_63be_47a7_b6ac_3eaa_c82e_2f6f,
+    };
+    pub const UNIT_STOPPED: Self = Self {
+        message_uuid: 0x9d1a_aa27_d601_40bd_9636_5438_aad2_0286,
+    };
 
     const HEX_DIGITS: usize = 32;
 
@@ -38,19 +54,26 @@ impl MessageId {
 
 impl Display for MessageId {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "{:0width$x}", self.0, width = Self::HEX_DIGITS)
+        write!(
+            f,
+            "{:0width$x}",
+            self.message_uuid,
+            width = Self::HEX_DIGITS
+        )
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MalformedMessageId(String);
+pub struct MalformedMessageId {
+    message_text: String,
+}
 
 impl Display for MalformedMessageId {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
             "message id {:?} is not {} hex digits",
-            self.0,
+            self.message_text,
             MessageId::HEX_DIGITS
         )
     }
@@ -60,12 +83,14 @@ impl FromStr for MessageId {
     type Err = MalformedMessageId;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let malformed = || MalformedMessageId(text.to_owned());
+        let malformed = || MalformedMessageId {
+            message_text: text.to_owned(),
+        };
         if text.len() != Self::HEX_DIGITS || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(malformed());
         }
         u128::from_str_radix(text, 16)
-            .map(Self)
+            .map(|message_uuid| Self { message_uuid })
             .map_err(|_| malformed())
     }
 }
@@ -168,11 +193,13 @@ impl JournalPriority {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UnknownSyslogLevel(u8);
+pub struct UnknownSyslogLevel {
+    level_number: u8,
+}
 
 impl Display for UnknownSyslogLevel {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "syslog level {} is beyond debug", self.0)
+        write!(f, "syslog level {} is beyond debug", self.level_number)
     }
 }
 
@@ -183,7 +210,9 @@ impl TryFrom<u8> for JournalPriority {
         Self::MOST_URGENT_FIRST
             .get(usize::from(level))
             .copied()
-            .ok_or(UnknownSyslogLevel(level))
+            .ok_or(UnknownSyslogLevel {
+                level_number: level,
+            })
     }
 }
 

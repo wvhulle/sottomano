@@ -24,12 +24,14 @@ pub struct KernelFace<'a> {
 
 impl<'a> KernelFace<'a> {
     pub fn indicator(self) -> GroupIndicator<'a> {
-        let glyph = DistributionIds(&self.system.distribution_ids)
-            .vendor_logo()
-            .map_or_else(
-                || Phosphor::LinuxLogo(Weight::Regular).into(),
-                IconGlyph::from,
-            );
+        let glyph = DistributionIds {
+            distribution_names: &self.system.distribution_ids,
+        }
+        .vendor_logo()
+        .map_or_else(
+            || Phosphor::LinuxLogo(Weight::Regular).into(),
+            IconGlyph::from,
+        );
         let label_text = self.system.kernel.clone();
         let label = if label_text.is_empty() {
             ReadoutLabel::Unlabeled

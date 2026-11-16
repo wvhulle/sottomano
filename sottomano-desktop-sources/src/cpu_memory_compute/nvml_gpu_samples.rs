@@ -64,7 +64,7 @@ pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
                     })
                     .ok()
             })
-            .map(PciBusId)
+            .map(|bus_address| PciBusId { bus_address })
             .collect();
         if buses.is_empty() {
             return Vec::new();
@@ -78,7 +78,10 @@ pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
                     |_init_failure| unmanaged_model(&bus),
                     |nvml| {
                         read_model(nvml, &bus).unwrap_or_else(|model_failure| {
-                            tracing::warn!("nvml: cannot read model of {}: {model_failure}", bus.0);
+                            tracing::warn!(
+                                "nvml: cannot read model of {}: {model_failure}",
+                                bus.bus_address
+                            );
                             unmanaged_model(&bus)
                         })
                     },
@@ -133,7 +136,7 @@ fn celsius(degrees: u32) -> ThermodynamicTemperature {
 }
 
 fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
-    let database_name = Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.0))?
+    let database_name = Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.bus_address))?
         .identity
         .model?;
     Some(GpuNames::split_database_name(&database_name))
@@ -162,7 +165,7 @@ fn unmanaged_model(bus: &PciBusId) -> GpuModel {
 }
 
 fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
-    let device = nvml.device_by_pci_bus_id(bus.0.as_str())?;
+    let device = nvml.device_by_pci_bus_id(bus.bus_address.as_str())?;
     let product = device.name()?;
     Ok(GpuModel {
         vendor: GpuVendor::Nvidia,
@@ -289,7 +292,14 @@ async fn read_device<T: Send + 'static>(
     device: NvmlDevice,
     read: fn(&Device) -> Result<T, Error>,
 ) -> Result<T, Error> {
-    blocking_poll(move || read(&device.nvml.device_by_pci_bus_id(device.bus.0.as_str())?)).await
+    blocking_poll(move || {
+        read(
+            &device
+                .nvml
+                .device_by_pci_bus_id(device.bus.bus_address.as_str())?,
+        )
+    })
+    .await
 }
 
 fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
