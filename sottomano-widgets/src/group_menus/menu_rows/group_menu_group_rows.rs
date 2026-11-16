@@ -9,18 +9,20 @@ use iced::mouse::ScrollDelta;
 use sottomano_toml_config::Config;
 
 use crate::{
+    clock::Clock,
     group_items::{
-        group_item::{MenuParts, RowScroll},
+        group_item::{GroupItem, RowScroll},
         group_item_gestures::GroupItemGesture,
     },
     group_menus::{
         group_menu_state::{GroupMenuPin, GroupMenuState, ItemPin, PanelPin, PanelPinDuration},
         group_menu_view::GroupMenuMessenger,
-        menu_rows::menu_row::{MenuRowContent, menu_row_content},
+        menu_rows::menu_row::menu_row_content,
     },
     hover_cards::{InstrumentKey, marked_by_menu_pin},
     widget_groups::{
-        widget_group_content::{GroupEvent, GroupMenuItemRow},
+        group_summary::GroupSummary,
+        widget_group_content::GroupEvent,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -33,8 +35,8 @@ use crate::{
 pub(crate) struct GroupMenuGroupRow<'a, M> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
-    pub face: MenuParts<'a, M>,
-    pub items: Vec<GroupMenuItemRow<'a, M>>,
+    pub summary: GroupSummary<'a, M>,
+    pub items: Vec<GroupItem<'a, M>>,
 }
 
 pub(crate) fn one_row_per_identity<'a, M>(
@@ -59,6 +61,7 @@ pub(crate) struct GroupMenuRowContext<'p, M> {
     pub presentation: NestedMenuPresentation,
     pub menu: &'p GroupMenuMessenger<M>,
     pub group_menus: &'p GroupMenuState,
+    pub clock: Clock,
 }
 
 const fn accordion_caret(emphasis: NestedMenuRowEmphasis) -> Phosphor {
@@ -88,7 +91,7 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, M>,
     entry_identity: &WidgetGroupIdentity,
     group_title: &WidgetGroupTitle,
-    face: MenuParts<'a, M>,
+    summary: &GroupSummary<'a, M>,
     emphasis: NestedMenuRowEmphasis,
 ) -> NestedMenuRow<'a, M> {
     let icon_size = layout.config.theme.font.icon_size_px;
@@ -127,12 +130,11 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     };
     let content = menu_row_content(
         layout.config,
-        MenuRowContent {
-            leading,
-            parts: face,
-            name: group_title.to_string().into(),
-            trailing,
-        },
+        leading,
+        summary.menu_icon(layout.config),
+        group_title.to_string().into(),
+        summary.menu_value(layout.config, layout.clock),
+        trailing,
     );
     let group_identity = entry_identity.clone();
     let (press, hover_reaction) = match layout.presentation.layout {
@@ -167,10 +169,21 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
 
 pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, M>,
-    item: GroupMenuItemRow<'a, M>,
+    group_identity: &WidgetGroupIdentity,
+    item: &GroupItem<'a, M>,
     beside: BesideRow<'a, M>,
 ) -> NestedMenuItem<'a, InstrumentKey, M> {
-    let emphasis = item.row_emphasis(layout.group_menus.inspected_instrument(layout.menu.topic));
+    let emphasis = item.row_emphasis(
+        group_identity,
+        layout.group_menus.inspected_instrument(layout.menu.topic),
+    );
+    let instrument = item.instrument_key(group_identity);
+    let item_pin = layout.group_menus.item_pin(
+        layout.menu.topic,
+        group_identity,
+        item,
+        layout.config.group_menus.alert_promotion_severity,
+    );
     let pin_button = |entry, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
         glyph_button(
             Phosphor::PushPin(pin_weight),
@@ -179,7 +192,7 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
             layout.menu.toggle_pin(entry),
         )
     };
-    let item_pin = match item.pin {
+    let item_pin = match item_pin {
         ItemPin::Unpinnable => None,
         ItemPin::Pinned(PanelPin {
             entry,
@@ -203,26 +216,26 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     };
     let content = menu_row_content(
         layout.config,
-        MenuRowContent {
-            leading: Vec::new(),
-            parts: item.parts,
-            name: item.name,
-            trailing: item_pin.into_iter().collect(),
-        },
+        Vec::new(),
+        item.menu_icon(layout.config),
+        item.item_in_group_name(),
+        item.menu_row_value(layout.config, layout.clock),
+        item_pin.into_iter().collect(),
     );
-    let press = match item.gestures.left {
+    let gestures = item.gestures();
+    let press = match gestures.left {
         GroupItemGesture::Performs { message, .. } => {
             RowGesture::Publishes(M::from(GroupEvent::Group(message)))
         }
         GroupItemGesture::Inert => RowGesture::Inert,
     };
-    let right_pressed = match item.gestures.right {
+    let right_pressed = match gestures.right {
         GroupItemGesture::Performs { message, .. } => {
             RowGesture::Publishes(M::from(GroupEvent::Group(message)))
         }
         GroupItemGesture::Inert => RowGesture::Inert,
     };
-    let scrolled = match item.row_scroll {
+    let scrolled = match item.row_scroll() {
         RowScroll::AdjustsValue(adjust_by_scroll) => RowGesture::Publishes(Box::new(move |delta| {
             M::from(GroupEvent::Group(adjust_by_scroll(delta)))
         })
@@ -230,13 +243,13 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         RowScroll::Inert => RowGesture::Inert,
     };
     NestedMenuItem {
-        key: item.instrument.clone(),
+        key: instrument.clone(),
         row: NestedMenuRow {
             content,
             emphasis,
             press,
             hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(M::from(layout.menu.inspect_row(item.instrument))),
+            entered: RowGesture::Publishes(M::from(layout.menu.inspect_row(instrument))),
             right_pressed,
             scrolled,
         },
@@ -246,22 +259,21 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Space;
-
     use super::{GroupMenuGroupRow, WidgetGroupIdentity, one_row_per_identity};
     use crate::{
-        group_items::group_item::MenuParts,
-        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
+        group_items::reading_display_state::ReadingDisplayState,
+        widget_groups::{
+            group_summary::GroupSummary,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
+        },
+        widgets::icon_glyph::IconGlyph,
     };
 
     fn row_of(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'static, ()> {
         GroupMenuGroupRow {
             group_identity,
             group_title: WidgetGroupTitle::Named(title.to_owned().into()),
-            face: MenuParts {
-                icon: Space::new().into(),
-                value: Space::new().into(),
-            },
+            summary: GroupSummary::glyph(IconGlyph::default(), ReadingDisplayState::Idle),
             items: Vec::new(),
         }
     }

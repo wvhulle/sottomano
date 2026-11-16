@@ -8,7 +8,7 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::{GroupItem, GroupItemValue, MenuParts},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
         slider_control::ShownReading,
         source_reading::{GroupItemIcon, reading_value},
@@ -98,14 +98,14 @@ impl<'a, M: Clone + 'a> GroupSummary<'a, M> {
         .into()
     }
 
-    pub(crate) fn menu_parts(&self, config: &'a Config, clock: Clock) -> MenuParts<'a, M> {
-        let instrument_parts = self.instrument.menu_parts(config, clock);
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
+        self.instrument.menu_icon(config)
+    }
+
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
         match self.value {
-            SummaryValue::Hidden => instrument_parts,
-            SummaryValue::Shown(_) => MenuParts {
-                icon: instrument_parts.icon,
-                value: self.collapsing_value(config, 0.0),
-            },
+            SummaryValue::Hidden => self.instrument.menu_value(config, clock),
+            SummaryValue::Shown(_) => self.collapsing_value(config, 0.0),
         }
     }
 

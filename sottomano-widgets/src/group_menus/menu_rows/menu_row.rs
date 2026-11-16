@@ -4,17 +4,7 @@ use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent};
 use iced::{Element, widget::text::Wrapping};
 use sottomano_toml_config::Config;
 
-use crate::{
-    group_items::group_item::MenuParts, widget_groups::widget_group_content::GroupEvent,
-    widgets::text::panel_text,
-};
-
-pub(crate) struct MenuRowContent<'a, M> {
-    pub leading: Vec<Element<'a, GroupEvent<M>>>,
-    pub parts: MenuParts<'a, M>,
-    pub name: Cow<'static, str>,
-    pub trailing: Vec<Element<'a, GroupEvent<M>>>,
-}
+use crate::{widget_groups::widget_group_content::GroupEvent, widgets::text::panel_text};
 
 pub(crate) fn menu_metrics(config: &Config) -> NestedMenuMetrics {
     NestedMenuMetrics {
@@ -31,21 +21,19 @@ pub(crate) fn menu_row_height(config: &Config) -> f32 {
 
 pub(crate) fn menu_row_content<'a, M: From<GroupEvent<M>> + 'a>(
     config: &Config,
-    content: MenuRowContent<'a, M>,
+    leading: Vec<Element<'a, GroupEvent<M>>>,
+    icon: Element<'a, GroupEvent<M>>,
+    name: Cow<'static, str>,
+    value: Element<'a, GroupEvent<M>>,
+    trailing: Vec<Element<'a, GroupEvent<M>>>,
 ) -> NestedMenuRowContent<'a, M> {
-    let MenuRowContent {
-        leading,
-        parts,
-        name,
-        trailing,
-    } = content;
     let lifted = |element: Element<'a, GroupEvent<M>>| element.map(M::from);
     NestedMenuRowContent {
         leading: leading.into_iter().map(lifted).collect(),
-        icon: lifted(parts.icon),
+        icon: lifted(icon),
         label: Element::from(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
             .map(M::from),
-        value: lifted(parts.value),
+        value: lifted(value),
         trailing: trailing.into_iter().map(lifted).collect(),
     }
 }

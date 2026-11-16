@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::identity, iter::once, rc::Rc};
 
 use chrono::Locale;
 use corredo::{
-    popovers::NestedMenuOpenTrigger,
+    popovers::{NestedMenuOpenTrigger, NestedMenuRowEmphasis},
     press_actions::flat_button,
     theming::{secondary_text_color, text_color},
     value_controls::SwitchResponse,
@@ -64,11 +64,6 @@ pub(crate) enum ItemPlacement {
     Panel,
     Table,
     Menu,
-}
-
-pub(crate) struct MenuParts<'a, M> {
-    pub icon: Element<'a, GroupEvent<M>>,
-    pub value: Element<'a, GroupEvent<M>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -646,20 +641,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self.gestures.clone()
     }
 
-    pub(crate) fn menu_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent<M>> {
+        face_icon(config, &self.face, 1.0).unwrap_or_else(|| Space::new().into())
+    }
+
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
         let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
-        MenuParts {
-            icon: face_icon(config, &self.face, 1.0).unwrap_or_else(empty),
-            value: match &self.value {
-                RowValueControl::RowReadout(readout) => {
-                    reading_value(config, &self.face, readout, 1.0).unwrap_or_else(empty)
-                }
-                RowValueControl::Slider { draw, .. } => draw(1.0, clock, ItemPlacement::Menu),
-                RowValueControl::Drawn(value) => value.view(1.0).unwrap_or_else(empty),
-            },
+        match &self.value {
+            RowValueControl::RowReadout(readout) => {
+                reading_value(config, &self.face, readout, 1.0).unwrap_or_else(empty)
+            }
+            RowValueControl::Slider { draw, .. } => draw(1.0, clock, ItemPlacement::Menu),
+            RowValueControl::Drawn(value) => value.view(1.0).unwrap_or_else(empty),
         }
     }
 
@@ -688,14 +684,22 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .into()
     }
 
-    pub(crate) fn item_row_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
+    pub(crate) fn menu_row_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
-        let parts = self.menu_parts(config, clock);
-        MenuParts {
-            icon: parts.icon,
-            value: self.with_switch_indicator(config, parts.value, 1.0),
+        self.with_switch_indicator(config, self.menu_value(config, clock), 1.0)
+    }
+
+    pub(crate) fn row_emphasis(
+        &self,
+        group: &WidgetGroupIdentity,
+        inspected_instrument: Option<&InstrumentKey>,
+    ) -> NestedMenuRowEmphasis {
+        if inspected_instrument == Some(&self.instrument_key(group)) {
+            NestedMenuRowEmphasis::Selected
+        } else {
+            NestedMenuRowEmphasis::Plain
         }
     }
 

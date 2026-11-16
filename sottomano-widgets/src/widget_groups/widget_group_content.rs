@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     iter::once,
     rc::Rc,
@@ -9,7 +8,7 @@ use chrono::Locale;
 use corredo::{
     gauges::activity_line,
     orientation::Axis,
-    popovers::{NestedMenuOpenTrigger, NestedMenuRowEmphasis},
+    popovers::NestedMenuOpenTrigger,
     press_actions::flat_button,
     theming::{primary_color, secondary_text_color, text_color},
     transitions::{expand_transition, reveal},
@@ -26,8 +25,7 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
         aligned_quantity::ItemAlignment,
-        group_item::{GroupItem, MenuParts, RowHoverCard, RowScroll},
-        group_item_gestures::GroupItemGestures,
+        group_item::{GroupItem, RowHoverCard},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
     group_menus::{
@@ -218,28 +216,6 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
                 requests
             },
         )
-    }
-}
-
-pub(crate) struct GroupMenuItemRow<'a, M> {
-    pub name: Cow<'static, str>,
-    pub pin: ItemPin,
-    pub instrument: InstrumentKey,
-    pub gestures: GroupItemGestures<M>,
-    pub row_scroll: RowScroll<'a, M>,
-    pub parts: MenuParts<'a, M>,
-}
-
-impl<M> GroupMenuItemRow<'_, M> {
-    pub(crate) fn row_emphasis(
-        &self,
-        inspected_instrument: Option<&InstrumentKey>,
-    ) -> NestedMenuRowEmphasis {
-        if inspected_instrument == Some(&self.instrument) {
-            NestedMenuRowEmphasis::Selected
-        } else {
-            NestedMenuRowEmphasis::Plain
-        }
     }
 }
 
@@ -567,8 +543,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         self,
         config: &'a Config,
         clock: Clock,
-        group_menus: &GroupMenuState,
-        menu: GroupMenuTopic,
+        _group_menus: &GroupMenuState,
+        _menu: GroupMenuTopic,
         mut sections: MenuSections<'a, M>,
     ) -> MenuSections<'a, M> {
         let WidgetGroupContent {
@@ -578,42 +554,28 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             items,
             ..
         } = self;
-        let summary_visibility = summary.shown_value();
-        let face = summary.menu_parts(config, clock);
-        let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
-            if let ItemAlignment::Aligned(quantity) = item.alignment() {
-                aligned.insert(quantity, item.table_cell_view(config, clock));
-            }
-            aligned
-        });
-        let item_rows: Vec<_> = items
+        let (item_rows, aligned_items): (Vec<_>, Vec<_>) = items
+            .into_iter()
+            .partition(|item| item.alignment() == ItemAlignment::Unaligned);
+        let aligned = aligned_items
             .iter()
-            .filter(|item| item.alignment() == ItemAlignment::Unaligned)
-            .map(|item| GroupMenuItemRow {
-                name: item.item_in_group_name(),
-                pin: group_menus.item_pin(
-                    menu,
-                    &group_identity,
-                    item,
-                    config.group_menus.alert_promotion_severity,
-                ),
-                instrument: item.instrument_key(&group_identity),
-                gestures: item.gestures(),
-                row_scroll: item.row_scroll(),
-                parts: item.item_row_parts(config, clock),
-            })
-            .collect();
+            .fold(BTreeMap::new(), |mut aligned, item| {
+                if let ItemAlignment::Aligned(quantity) = item.alignment() {
+                    aligned.insert(quantity, item.table_cell_view(config, clock));
+                }
+                aligned
+            });
         if !aligned.is_empty() {
             sections.table_columns.push(QuantityTableColumn {
                 group_title: group_title.clone(),
                 aligned,
             });
         }
-        if !item_rows.is_empty() || summary_visibility == SummaryVisibility::WithReading {
+        if !item_rows.is_empty() || summary.shown_value() == SummaryVisibility::WithReading {
             sections.group_rows.push(GroupMenuGroupRow {
                 group_identity,
                 group_title,
-                face,
+                summary,
                 items: item_rows,
             });
         }

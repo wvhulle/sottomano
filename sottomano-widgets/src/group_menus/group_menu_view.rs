@@ -342,6 +342,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             presentation,
             menu: &messenger,
             group_menus,
+            clock: card.clock,
         };
         let menu_groups = nested_menu_groups(&row_context, group_rows, card);
         let list_frame = appearance.frame;
@@ -435,24 +436,25 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                 row_context,
                 &entry.group_identity,
                 &entry.group_title,
-                entry.face,
+                &entry.summary,
                 emphasis,
             );
             let items = entry
                 .items
                 .into_iter()
                 .map(|item| {
-                    let beside = match item.row_emphasis(inspected_instrument) {
-                        NestedMenuRowEmphasis::Selected => card
-                            .view(row_context.config)
-                            .map_or(BesideRow::Nothing, |card_view| {
-                                BesideRow::Card(card_view.map(M::from))
-                            }),
-                        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
-                            BesideRow::Nothing
-                        }
-                    };
-                    item_entry(row_context, item, beside)
+                    let beside =
+                        match item.row_emphasis(&entry.group_identity, inspected_instrument) {
+                            NestedMenuRowEmphasis::Selected => card
+                                .view(row_context.config)
+                                .map_or(BesideRow::Nothing, |card_view| {
+                                    BesideRow::Card(card_view.map(M::from))
+                                }),
+                            NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
+                                BesideRow::Nothing
+                            }
+                        };
+                    item_entry(row_context, &entry.group_identity, &item, beside)
                 })
                 .collect();
             NestedMenuGroup {
