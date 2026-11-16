@@ -19,7 +19,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
@@ -56,18 +56,25 @@ impl JournalScopeGroup {
     }
 }
 
-impl IntoTableRecord<2> for &KernelOccurrence {
-    fn into_table_record(self) -> TableRecord<2> {
-        let message: String = self.message.chars().take(MESSAGE_CAP).collect();
+impl From<&KernelOccurrence> for TableRecord<2> {
+    fn from(kernel_occurrence: &KernelOccurrence) -> Self {
+        let message: String = kernel_occurrence
+            .message
+            .chars()
+            .take(MESSAGE_CAP)
+            .collect();
         let at = ValueCell::Time {
-            at: self.latest.into(),
+            at: kernel_occurrence.latest.into(),
             format: LocalizedTimeFormat::TimeOfDay,
         };
         TableRecord::with_cells(
             at,
-            [ValueCell::Hint(self.count.to_string()), message.into()],
+            [
+                ValueCell::Hint(kernel_occurrence.count.to_string()),
+                message.into(),
+            ],
         )
-        .level(self.severity)
+        .level(kernel_occurrence.severity)
     }
 }
 
@@ -144,7 +151,7 @@ fn kernel_message_table(occurrences: &[KernelOccurrence]) -> SectionTable {
                 .rev()
                 .take(HOVER_CARD_ROWS)
                 .rev()
-                .map(IntoTableRecord::into_table_record),
+                .map(TableRecord::from),
         ),
     )
 }

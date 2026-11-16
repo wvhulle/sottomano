@@ -25,7 +25,7 @@ use crate::{
         event_date_cell, event_time_cell, linked_title, nextcloud_app_link,
     },
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -49,35 +49,41 @@ impl TaskRow<'_> {
     }
 }
 
-impl IntoTableRecord<5> for &TaskRow<'_> {
-    fn into_table_record(self) -> TableRecord<5> {
-        let details_link = self
+impl From<&TaskRow<'_>> for TableRecord<5> {
+    fn from(task_row: &TaskRow<'_>) -> Self {
+        let details_link = task_row
             .provider
             .nextcloud_web_root()
-            .and_then(|nextcloud| nextcloud.task_details(self.task));
+            .and_then(|nextcloud| nextcloud.task_details(task_row.task));
         let title = match details_link {
-            Some(url) => linked_title(&self.task.summary, url),
-            None => self.task.summary.as_str().into(),
+            Some(url) => linked_title(&task_row.task.summary, url),
+            None => task_row.task.summary.as_str().into(),
         };
         TableRecord::with_cells(
             title,
             [
-                self.task
+                task_row
+                    .task
                     .deadline
                     .due_moment()
                     .map_or(ValueCell::Blank, event_date_cell),
-                self.task
+                task_row
+                    .task
                     .deadline
                     .due_moment()
                     .map_or(ValueCell::Blank, event_time_cell),
-                self.task.priority.band().map_or(ValueCell::Blank, |band| {
-                    ValueCell::Hint(band.name().to_owned())
-                }),
-                progress_cell(self.task),
-                ValueCell::Hint(self.task.calendar.clone()),
+                task_row
+                    .task
+                    .priority
+                    .band()
+                    .map_or(ValueCell::Blank, |band| {
+                        ValueCell::Hint(band.name().to_owned())
+                    }),
+                progress_cell(task_row.task),
+                ValueCell::Hint(task_row.task.calendar.clone()),
             ],
         )
-        .level(task_severity(self.task, self.now))
+        .level(task_severity(task_row.task, task_row.now))
     }
 }
 

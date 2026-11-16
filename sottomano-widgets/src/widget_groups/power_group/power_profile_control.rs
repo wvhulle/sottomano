@@ -29,7 +29,7 @@ use crate::{
         sqlite_power_draw_regression,
     },
     widgets::{
-        keyed_record_table::{IntoTableRecord, TableRecord},
+        keyed_record_table::TableRecord,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -341,8 +341,8 @@ impl ProfileLife {
     }
 }
 
-impl IntoTableRecord<3> for ProfileLife {
-    fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::with_cells(self.title(), self.forecast.cells())
+impl From<ProfileLife> for TableRecord<3> {
+    fn from(profile_life: ProfileLife) -> Self {
+        TableRecord::with_cells(profile_life.title(), profile_life.forecast.cells())
     }
 }

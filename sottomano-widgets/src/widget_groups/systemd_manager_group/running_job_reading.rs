@@ -22,7 +22,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingToast, definition_list, moment_text},
         phosphor::{Phosphor, Weight},
@@ -30,14 +30,14 @@ use crate::{
     },
 };
 
-impl IntoTableRecord<2> for &SlowJob {
-    fn into_table_record(self) -> TableRecord<2> {
+impl From<&SlowJob> for TableRecord<2> {
+    fn from(slow_job: &SlowJob) -> Self {
         TableRecord::with_cells(
-            self.unit.clone(),
+            slow_job.unit.clone(),
             [
-                self.job_type.clone().into(),
+                slow_job.job_type.clone().into(),
                 ValueCell::Time {
-                    at: self.started_at.into(),
+                    at: slow_job.started_at.into(),
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
             ],

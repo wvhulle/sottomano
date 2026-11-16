@@ -11,7 +11,7 @@ use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::{
     hover_cards::hover_card_body::{SectionTable, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         value_cells::ValueCell,
     },
@@ -81,19 +81,22 @@ impl PhysicalCoreClock {
     }
 }
 
-impl IntoTableRecord<4> for PhysicalCoreClock {
-    fn into_table_record(self) -> TableRecord<4> {
-        let level = self.level();
+impl From<PhysicalCoreClock> for TableRecord<4> {
+    fn from(physical_core_clock: PhysicalCoreClock) -> Self {
+        let level = physical_core_clock.level();
         TableRecord::with_cells(
-            format!("Core {}", self.first_thread),
+            format!("Core {}", physical_core_clock.first_thread),
             [
-                Quantity::clock_gigahertz(self.clock).into(),
-                self.busy
+                Quantity::clock_gigahertz(physical_core_clock.clock).into(),
+                physical_core_clock
+                    .busy
                     .map_or(ValueCell::Blank, |busy| Quantity::share(busy).into()),
-                self.distinct_cap.map_or(ValueCell::Blank, |cap| {
-                    Quantity::clock_gigahertz(cap).into()
-                }),
-                causes_text(&self.own_causes).map_or(ValueCell::Blank, Into::into),
+                physical_core_clock
+                    .distinct_cap
+                    .map_or(ValueCell::Blank, |cap| {
+                        Quantity::clock_gigahertz(cap).into()
+                    }),
+                causes_text(&physical_core_clock.own_causes).map_or(ValueCell::Blank, Into::into),
             ],
         )
         .level(level)

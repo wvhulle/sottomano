@@ -19,27 +19,27 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };
 
-impl IntoTableRecord<2> for &OomKillEntry {
-    fn into_table_record(self) -> TableRecord<2> {
-        let killer = match self.killer {
+impl From<&OomKillEntry> for TableRecord<2> {
+    fn from(oom_kill_entry: &OomKillEntry) -> Self {
+        let killer = match oom_kill_entry.killer {
             OomKiller::Kernel => "kernel",
             OomKiller::Oomd => "systemd-oomd",
         };
         TableRecord::with_cells(
             ValueCell::Time {
-                at: self.at.into(),
+                at: oom_kill_entry.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,
             },
-            [self.unit.name().into(), killer.into()],
+            [oom_kill_entry.unit.name().into(), killer.into()],
         )
-        .level(self.severity)
+        .level(oom_kill_entry.severity)
     }
 }
 

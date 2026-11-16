@@ -31,7 +31,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingToast, OngoingToastActionButton, definition_list, moment_text},
         phosphor::Weight,
@@ -246,19 +246,21 @@ fn failed_unit_table(units: &[FailedUnitInfo]) -> SectionTable {
     )
 }
 
-impl IntoTableRecord<2> for &FailedUnitInfo {
-    fn into_table_record(self) -> TableRecord<2> {
-        let reason = self
+impl From<&FailedUnitInfo> for TableRecord<2> {
+    fn from(failed_unit_info: &FailedUnitInfo) -> Self {
+        let reason = failed_unit_info
             .service_outcome
             .as_ref()
             .map_or(ValueCell::Blank, |outcome| {
                 service_outcome_reason(outcome).into()
             });
-        let failed = self.at.map_or(ValueCell::Blank, |at| ValueCell::Time {
-            at: at.into(),
-            format: LocalizedTimeFormat::DateAndTime,
-        });
-        TableRecord::with_cells(self.name.clone(), [reason, failed])
+        let failed = failed_unit_info
+            .at
+            .map_or(ValueCell::Blank, |at| ValueCell::Time {
+                at: at.into(),
+                format: LocalizedTimeFormat::DateAndTime,
+            });
+        TableRecord::with_cells(failed_unit_info.name.clone(), [reason, failed])
             .level(UNIT_FAILURE_PRIORITY.severity())
     }
 }

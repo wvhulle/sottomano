@@ -8,16 +8,6 @@ pub type TableColumns = generic_table::TableColumns<'static>;
 pub type RecordCells = generic_table::RecordCells<ValueCell, Severity>;
 pub type KeyedTableRow = TableRow<ValueCell, Severity>;
 
-pub trait IntoTableRecord<const COLUMNS: usize> {
-    fn into_table_record(self) -> TableRecord<COLUMNS>;
-}
-
-impl<const COLUMNS: usize> IntoTableRecord<COLUMNS> for TableRecord<COLUMNS> {
-    fn into_table_record(self) -> TableRecord<COLUMNS> {
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableRecord<const COLUMNS: usize> {
     key: ValueCell,
@@ -64,23 +54,23 @@ impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
 }
 
 pub(crate) fn record_cells<const COLUMNS: usize>(
-    records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
+    records: impl IntoIterator<Item: Into<TableRecord<COLUMNS>>>,
 ) -> impl Iterator<Item = RecordCells> {
     records
         .into_iter()
-        .map(|record| RecordCells::from(record.into_table_record()))
+        .map(|record| RecordCells::from(record.into()))
 }
 
 pub fn column_record_table<const COLUMNS: usize>(
     columns: TableColumns,
-    records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
+    records: impl IntoIterator<Item: Into<TableRecord<COLUMNS>>>,
 ) -> GroupedTable<'static, ValueCell, Severity> {
     GroupedTable::new(columns, record_cells(records))
 }
 
 pub fn grouped_record_table<const COLUMNS: usize>(
     columns: TableColumns,
-    groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
+    groups: impl IntoIterator<Item: IntoIterator<Item: Into<TableRecord<COLUMNS>>>>,
 ) -> GroupedTable<'static, ValueCell, Severity> {
     GroupedTable::grouped(
         columns,
@@ -104,15 +94,18 @@ mod tests {
         moons: u32,
     }
 
-    impl IntoTableRecord<2> for &Planet {
-        fn into_table_record(self) -> TableRecord<2> {
-            let level = if self.moons == 0 {
+    impl From<&Planet> for TableRecord<2> {
+        fn from(planet: &Planet) -> Self {
+            let level = if planet.moons == 0 {
                 Severity::Warning
             } else {
                 Severity::Normal
             };
-            TableRecord::with_cells(self.name, [self.moons.to_string().into(), ValueCell::Blank])
-                .level(level)
+            TableRecord::with_cells(
+                planet.name,
+                [planet.moons.to_string().into(), ValueCell::Blank],
+            )
+            .level(level)
         }
     }
 

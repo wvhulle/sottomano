@@ -17,30 +17,31 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };
 
-impl IntoTableRecord<4> for &CoredumpEntry {
-    fn into_table_record(self) -> TableRecord<4> {
+impl From<&CoredumpEntry> for TableRecord<4> {
+    fn from(coredump_entry: &CoredumpEntry) -> Self {
         TableRecord::with_cells(
             ValueCell::Time {
-                at: self.at.into(),
+                at: coredump_entry.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,
             },
             [
-                self.command.clone().into(),
-                self.signal.to_string().into(),
-                self.pid.to_string().into(),
-                self.unit
+                coredump_entry.command.clone().into(),
+                coredump_entry.signal.to_string().into(),
+                coredump_entry.pid.to_string().into(),
+                coredump_entry
+                    .unit
                     .as_ref()
                     .map_or(ValueCell::Blank, |unit| unit.name().into()),
             ],
         )
-        .level(self.severity)
+        .level(coredump_entry.severity)
     }
 }
 

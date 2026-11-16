@@ -25,7 +25,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -48,26 +48,26 @@ impl EventRow<'_> {
     }
 }
 
-impl IntoTableRecord<4> for &EventRow<'_> {
-    fn into_table_record(self) -> TableRecord<4> {
-        let details_link = self
+impl From<&EventRow<'_>> for TableRecord<4> {
+    fn from(event_row: &EventRow<'_>) -> Self {
+        let details_link = event_row
             .provider
             .nextcloud_web_root()
-            .and_then(|nextcloud| nextcloud.event_details(self.event));
+            .and_then(|nextcloud| nextcloud.event_details(event_row.event));
         let title = match details_link {
-            Some(url) => linked_title(&self.event.summary, url),
-            None => self.event.summary.as_str().into(),
+            Some(url) => linked_title(&event_row.event.summary, url),
+            None => event_row.event.summary.as_str().into(),
         };
         TableRecord::with_cells(
             title,
             [
-                event_date_cell(self.event.start),
-                event_time_cell(self.event.start),
-                ValueCell::Hint(self.event.calendar.clone()),
-                if self.event.location.is_empty() {
+                event_date_cell(event_row.event.start),
+                event_time_cell(event_row.event.start),
+                ValueCell::Hint(event_row.event.calendar.clone()),
+                if event_row.event.location.is_empty() {
                     ValueCell::Blank
                 } else {
-                    ValueCell::from(self.event.location.clone())
+                    ValueCell::from(event_row.event.location.clone())
                 },
             ],
         )

@@ -18,7 +18,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
@@ -78,18 +78,18 @@ fn transferred_bytes_cell(byte_count: u64) -> ValueCell {
     Quantity::size(ByteSize::b(byte_count)).into()
 }
 
-impl IntoTableRecord<7> for &Peer {
-    fn into_table_record(self) -> TableRecord<7> {
+impl From<&Peer> for TableRecord<7> {
+    fn from(peer: &Peer) -> Self {
         TableRecord::with_cells(
-            self.name.as_str(),
+            peer.name.as_str(),
             [
-                self.ip.as_str().into(),
-                self.os.as_str().into(),
-                self.tags.join(", ").into(),
-                peer_path_text(&self.path).into(),
-                relay_region_cell(&self.path),
-                transferred_bytes_cell(self.received_bytes),
-                transferred_bytes_cell(self.sent_bytes),
+                peer.ip.as_str().into(),
+                peer.os.as_str().into(),
+                peer.tags.join(", ").into(),
+                peer_path_text(&peer.path).into(),
+                relay_region_cell(&peer.path),
+                transferred_bytes_cell(peer.received_bytes),
+                transferred_bytes_cell(peer.sent_bytes),
             ],
         )
     }

@@ -14,16 +14,16 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };
 
-impl IntoTableRecord<2> for &UnitStop {
-    fn into_table_record(self) -> TableRecord<2> {
-        let cells = match &self.outcome {
+impl From<&UnitStop> for TableRecord<2> {
+    fn from(unit_stop: &UnitStop) -> Self {
+        let cells = match &unit_stop.outcome {
             StopOutcome::Unfinished => ["did not finish".into(), ValueCell::Blank],
             StopOutcome::Finished {
                 duration,
@@ -38,7 +38,7 @@ impl IntoTableRecord<2> for &UnitStop {
                 },
             ],
         };
-        TableRecord::with_cells(self.unit.name(), cells).level(self.outcome.severity())
+        TableRecord::with_cells(unit_stop.unit.name(), cells).level(unit_stop.outcome.severity())
     }
 }
 

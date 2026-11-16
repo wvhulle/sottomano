@@ -16,7 +16,7 @@ use crate::{
     hover_cards::{PopupMessage, PressAction, hover_card_content::HoverCardContent},
     widgets::{
         keyed_record_table::{
-            ColumnHeading, IntoTableRecord, TableColumns, column_record_table, grouped_record_table,
+            ColumnHeading, TableColumns, TableRecord, column_record_table, grouped_record_table,
         },
         value_cells::{LabeledValue, ValueCell},
     },
@@ -215,14 +215,14 @@ pub fn dictionary_table(entries: impl IntoIterator<Item = LabeledValue>) -> Sect
 
 pub fn headed_table<const COLUMNS: usize>(
     headings: [ColumnHeading; COLUMNS],
-    records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
+    records: impl IntoIterator<Item: Into<TableRecord<COLUMNS>>>,
 ) -> SectionTable {
     column_record_table(TableColumns::Headed(headings.into()), records)
 }
 
 pub fn headed_grouped_table<const COLUMNS: usize>(
     headings: [ColumnHeading; COLUMNS],
-    groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
+    groups: impl IntoIterator<Item: IntoIterator<Item: Into<TableRecord<COLUMNS>>>>,
 ) -> SectionTable {
     grouped_record_table(TableColumns::Headed(headings.into()), groups)
 }

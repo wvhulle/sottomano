@@ -36,7 +36,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
@@ -202,18 +202,21 @@ fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> ValueCell
     }
 }
 
-impl IntoTableRecord<3> for &RainTimelineRow<'_> {
-    fn into_table_record(self) -> TableRecord<3> {
+impl From<&RainTimelineRow<'_>> for TableRecord<3> {
+    fn from(rain_timeline_row: &RainTimelineRow<'_>) -> Self {
         let time = ValueCell::Time {
-            at: self.reading.starts_at(),
+            at: rain_timeline_row.reading.starts_at(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
         TableRecord::with_cells(
             time,
             [
-                rain_amount_cell(self.reading.intensity(), self.scale),
-                ValueCell::IconGlyph(self.glyph()),
-                self.precipitation_type_cell(),
+                rain_amount_cell(
+                    rain_timeline_row.reading.intensity(),
+                    rain_timeline_row.scale,
+                ),
+                ValueCell::IconGlyph(rain_timeline_row.glyph()),
+                rain_timeline_row.precipitation_type_cell(),
             ],
         )
     }
@@ -929,7 +932,7 @@ mod tests {
         timeline
             .iter()
             .map(|row| {
-                RecordCells::from(row.into_table_record())
+                RecordCells::from(TableRecord::<3>::from(row))
                     .cell(2)
                     .cloned()
                     .unwrap()
@@ -943,14 +946,11 @@ mod tests {
         let rain = radar_frames(clock, &[2.0, 0.0]);
         let scale = default_scale();
         let row = |frame| {
-            RecordCells::from(
-                (&RainTimelineRow {
-                    reading: RainRateReading::RadarFrame(frame),
-                    type_marker: PrecipitationTypeMarker::Unmarked,
-                    scale,
-                })
-                    .into_table_record(),
-            )
+            RecordCells::from(TableRecord::<3>::from(&RainTimelineRow {
+                reading: RainRateReading::RadarFrame(frame),
+                type_marker: PrecipitationTypeMarker::Unmarked,
+                scale,
+            }))
         };
         let wet = row(&rain.forecast[0]);
         assert_eq!(

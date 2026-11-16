@@ -26,7 +26,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{IntoTableRecord, TableRecord},
+        keyed_record_table::TableRecord,
         localized_quantities::Quantity,
         ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
@@ -155,9 +155,9 @@ impl Countdown {
     }
 }
 
-impl IntoTableRecord<3> for Countdown {
-    fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::with_cells(self.key(), self.forecast().cells())
+impl From<Countdown> for TableRecord<3> {
+    fn from(countdown: Countdown) -> Self {
+        TableRecord::with_cells(countdown.key(), countdown.forecast().cells())
     }
 }
 

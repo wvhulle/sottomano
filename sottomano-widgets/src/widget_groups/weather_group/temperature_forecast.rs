@@ -17,7 +17,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         value_cells::{LabeledValue, ValueCell},
@@ -86,19 +86,24 @@ const HOURLY_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::titled("Sky").align_x(Horizontal::Left),
 ];
 
-impl IntoTableRecord<3> for &HourlyTemperature {
-    fn into_table_record(self) -> TableRecord<3> {
+impl From<&HourlyTemperature> for TableRecord<3> {
+    fn from(hourly_temperature: &HourlyTemperature) -> Self {
         TableRecord::with_cells(
             ValueCell::Time {
-                at: self.time,
+                at: hourly_temperature.time,
                 format: LocalizedTimeFormat::HourOfDay,
             },
             [
-                weather_temperature(self.temp).into(),
-                self.condition.map_or(ValueCell::Blank, |condition| {
-                    ValueCell::IconGlyph(WeatherIcon::Sky(condition, self.daylight).into())
-                }),
-                self.condition
+                weather_temperature(hourly_temperature.temp).into(),
+                hourly_temperature
+                    .condition
+                    .map_or(ValueCell::Blank, |condition| {
+                        ValueCell::IconGlyph(
+                            WeatherIcon::Sky(condition, hourly_temperature.daylight).into(),
+                        )
+                    }),
+                hourly_temperature
+                    .condition
                     .map_or(ValueCell::Blank, |condition| condition.to_string().into()),
             ],
         )

@@ -18,7 +18,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
             OngoingToastActionButton, ReadingAlerts, StateToast, ToastBody, ToastProgress,
@@ -126,28 +126,32 @@ pub(super) fn firmware_upgrades_reading_row(upgrades: &[FirmwareUpgrade]) -> Rea
     }
 }
 
-impl IntoTableRecord<6> for &FirmwareUpgrade {
-    fn into_table_record(self) -> TableRecord<6> {
+impl From<&FirmwareUpgrade> for TableRecord<6> {
+    fn from(firmware_upgrade: &FirmwareUpgrade) -> Self {
         TableRecord::with_cells(
-            self.device.clone(),
+            firmware_upgrade.device.clone(),
             [
-                self.vendor
+                firmware_upgrade
+                    .vendor
                     .clone()
                     .map_or(ValueCell::Blank, ValueCell::from),
-                self.current_version.clone().into(),
-                self.offered_version.clone().into(),
-                self.offered_released
+                firmware_upgrade.current_version.clone().into(),
+                firmware_upgrade.offered_version.clone().into(),
+                firmware_upgrade
+                    .offered_released
                     .map_or(ValueCell::Blank, |at| ValueCell::Time {
                         at,
                         format: LocalizedTimeFormat::Date,
                     }),
-                self.urgency
+                firmware_upgrade
+                    .urgency
                     .map_or(ValueCell::Blank, |urgency| urgency.title().into()),
-                self.summary
+                firmware_upgrade
+                    .summary
                     .clone()
                     .map_or(ValueCell::Blank, ValueCell::from),
             ],
         )
-        .level(self.severity())
+        .level(firmware_upgrade.severity())
     }
 }

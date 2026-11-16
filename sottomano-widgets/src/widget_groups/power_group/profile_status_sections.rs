@@ -6,7 +6,7 @@ use sottomano_desktop_sources::battery_power_profiles::power_profiles_daemon::{
 use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         value_cells::LabeledValue,
     },
 };
@@ -16,11 +16,14 @@ const HOLD_HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::titled("Reason").align_x(Horizontal::Left),
 ];
 
-impl IntoTableRecord<2> for &ProfileHold {
-    fn into_table_record(self) -> TableRecord<2> {
+impl From<&ProfileHold> for TableRecord<2> {
+    fn from(profile_hold: &ProfileHold) -> Self {
         TableRecord::with_cells(
-            self.application_id.clone(),
-            [self.profile.title().into(), self.reason.clone().into()],
+            profile_hold.application_id.clone(),
+            [
+                profile_hold.profile.title().into(),
+                profile_hold.reason.clone().into(),
+            ],
         )
     }
 }

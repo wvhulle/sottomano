@@ -19,7 +19,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
@@ -145,19 +145,22 @@ struct GrantedAccessRow<'access> {
     access: &'access GrantedAccess,
 }
 
-impl IntoTableRecord<1> for GrantedAccessRow<'_> {
-    fn into_table_record(self) -> TableRecord<1> {
-        TableRecord::with_cells(self.row_name, [self.access.ports_text().into()])
+impl From<GrantedAccessRow<'_>> for TableRecord<1> {
+    fn from(granted_access_row: GrantedAccessRow<'_>) -> Self {
+        TableRecord::with_cells(
+            granted_access_row.row_name,
+            [granted_access_row.access.ports_text().into()],
+        )
     }
 }
 
-impl IntoTableRecord<2> for GrantedAccessRow<'_> {
-    fn into_table_record(self) -> TableRecord<2> {
+impl From<GrantedAccessRow<'_>> for TableRecord<2> {
+    fn from(granted_access_row: GrantedAccessRow<'_>) -> Self {
         TableRecord::with_cells(
-            self.row_name,
+            granted_access_row.row_name,
             [
-                self.access.ports_text().into(),
-                self.access.sources_text().into(),
+                granted_access_row.access.ports_text().into(),
+                granted_access_row.access.sources_text().into(),
             ],
         )
     }
@@ -269,27 +272,27 @@ pub fn tailscale_inbound_access_sections(
     .collect()
 }
 
-impl IntoTableRecord<3> for &PolicyRule {
-    fn into_table_record(self) -> TableRecord<3> {
+impl From<&PolicyRule> for TableRecord<3> {
+    fn from(policy_rule: &PolicyRule) -> Self {
         TableRecord::with_cells(
-            self.sources.join(", "),
+            policy_rule.sources.join(", "),
             [
-                self.destinations.join(", ").into(),
-                self.permissions.join(", ").into(),
-                self.routed_via.join(", ").into(),
+                policy_rule.destinations.join(", ").into(),
+                policy_rule.permissions.join(", ").into(),
+                policy_rule.routed_via.join(", ").into(),
             ],
         )
     }
 }
 
-impl IntoTableRecord<3> for &PolicySshRule {
-    fn into_table_record(self) -> TableRecord<3> {
+impl From<&PolicySshRule> for TableRecord<3> {
+    fn from(policy_ssh_rule: &PolicySshRule) -> Self {
         TableRecord::with_cells(
-            self.sources.join(", "),
+            policy_ssh_rule.sources.join(", "),
             [
-                self.destinations.join(", ").into(),
-                self.login_users.join(", ").into(),
-                match self.action {
+                policy_ssh_rule.destinations.join(", ").into(),
+                policy_ssh_rule.login_users.join(", ").into(),
+                match policy_ssh_rule.action {
                     PolicySshAction::Accept => "accept",
                     PolicySshAction::Check => "check",
                     PolicySshAction::Unrecognized => "unrecognized",

@@ -21,7 +21,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
@@ -63,21 +63,25 @@ impl JournalScopeGroup {
     }
 }
 
-impl IntoTableRecord<3> for &UnitErrors {
-    fn into_table_record(self) -> TableRecord<3> {
-        let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
+impl From<&UnitErrors> for TableRecord<3> {
+    fn from(unit_errors: &UnitErrors) -> Self {
+        let message: String = unit_errors
+            .latest_message
+            .chars()
+            .take(MESSAGE_CAP)
+            .collect();
         TableRecord::with_cells(
-            self.unit.name(),
+            unit_errors.unit.name(),
             [
                 ValueCell::Time {
-                    at: self.latest.into(),
+                    at: unit_errors.latest.into(),
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
-                ValueCell::Hint(self.count.to_string()),
+                ValueCell::Hint(unit_errors.count.to_string()),
                 message.into(),
             ],
         )
-        .level(self.severity)
+        .level(unit_errors.severity)
     }
 }
 

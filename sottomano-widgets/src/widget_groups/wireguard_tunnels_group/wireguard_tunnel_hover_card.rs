@@ -19,7 +19,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -95,15 +95,15 @@ fn peer_label(peer: &Peer) -> String {
     }
 }
 
-impl IntoTableRecord<4> for &Peer {
-    fn into_table_record(self) -> TableRecord<4> {
+impl From<&Peer> for TableRecord<4> {
+    fn from(peer: &Peer) -> Self {
         let [received, sent] =
-            transfer_cells(self.traffic).unwrap_or([ValueCell::Blank, ValueCell::Blank]);
+            transfer_cells(peer.traffic).unwrap_or([ValueCell::Blank, ValueCell::Blank]);
         TableRecord::with_cells(
-            peer_label(self),
+            peer_label(peer),
             [
-                endpoint_cell(&self.endpoint).unwrap_or(ValueCell::Blank),
-                handshake_cell(self.traffic).unwrap_or(ValueCell::Blank),
+                endpoint_cell(&peer.endpoint).unwrap_or(ValueCell::Blank),
+                handshake_cell(peer.traffic).unwrap_or(ValueCell::Blank),
                 received,
                 sent,
             ],

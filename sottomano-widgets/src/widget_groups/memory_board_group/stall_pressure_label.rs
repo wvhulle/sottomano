@@ -13,7 +13,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
     },
@@ -33,14 +33,14 @@ struct StalledTasksRow {
     averages: StallAverages,
 }
 
-impl IntoTableRecord<3> for StalledTasksRow {
-    fn into_table_record(self) -> TableRecord<3> {
+impl From<StalledTasksRow> for TableRecord<3> {
+    fn from(stalled_tasks_row: StalledTasksRow) -> Self {
         TableRecord::with_cells(
-            self.stalled_tasks,
+            stalled_tasks_row.stalled_tasks,
             [
-                Quantity::share(self.averages.last_10_seconds).into(),
-                Quantity::share(self.averages.last_minute).into(),
-                Quantity::share(self.averages.last_5_minutes).into(),
+                Quantity::share(stalled_tasks_row.averages.last_10_seconds).into(),
+                Quantity::share(stalled_tasks_row.averages.last_minute).into(),
+                Quantity::share(stalled_tasks_row.averages.last_5_minutes).into(),
             ],
         )
     }

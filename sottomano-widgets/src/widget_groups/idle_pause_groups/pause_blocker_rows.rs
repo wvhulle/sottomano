@@ -23,7 +23,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         idle::ActionTrigger,
-        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        keyed_record_table::{ColumnHeading, TableRecord},
         ongoing_toast::moment_text,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -166,17 +166,20 @@ impl PauseBlocker {
     }
 }
 
-impl IntoTableRecord<1> for &PauseBlocker {
-    fn into_table_record(self) -> TableRecord<1> {
-        TableRecord::with_cells(self.holder.clone(), [self.why.clone().into()])
+impl From<&PauseBlocker> for TableRecord<1> {
+    fn from(pause_blocker: &PauseBlocker) -> Self {
+        TableRecord::with_cells(
+            pause_blocker.holder.clone(),
+            [pause_blocker.why.clone().into()],
+        )
     }
 }
 
 struct SecretMemoryHolderRecord<'a>(&'a PauseBlocker);
 
-impl IntoTableRecord<2> for SecretMemoryHolderRecord<'_> {
-    fn into_table_record(self) -> TableRecord<2> {
-        let SecretMemoryHolderRecord(blocker) = self;
+impl From<SecretMemoryHolderRecord<'_>> for TableRecord<2> {
+    fn from(secret_memory_holder_record: SecretMemoryHolderRecord<'_>) -> Self {
+        let SecretMemoryHolderRecord(blocker) = secret_memory_holder_record;
         let (pid_text, window_text) = blocker.holder_process.map_or_else(
             || (String::new(), String::new()),
             |process| {
