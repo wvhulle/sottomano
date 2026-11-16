@@ -22,7 +22,7 @@ use crate::{
         },
         widget_group_identity::WidgetGroupFamily,
         wireguard_tunnels_group::wireguard_tunnel_hover_card::{
-            tunnel_address_sections, tunnel_hover_card, wireguard_tunnel_item,
+            tunnel_address_sections, tunnel_hover_card, wireguard_tunnel_indicator,
         },
     },
     widgets::{
@@ -151,7 +151,7 @@ impl WireguardTunnelsGroup {
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
             self.listed_tunnels().map(move |tunnel| {
-                wireguard_tunnel_item(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
+                wireguard_tunnel_indicator(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
                     .with_hover_card(Box::new(move |_| {
                         let mut sections =
                             self.wireguard.hover_card_with(tunnel_hover_card(tunnel));

@@ -753,7 +753,7 @@ mod tests {
                 showcased_group
                     .group_contents(&config, clock)
                     .iter()
-                    .map(|group| (demo.name.to_owned(), group.clashing_item_names()))
+                    .map(|group| (demo.name.to_owned(), group.clashing_indicator_names()))
                     .filter(|(_, clashing_names)| !clashing_names.is_empty())
                     .collect::<Vec<_>>()
             })
@@ -773,7 +773,13 @@ mod tests {
                     .group_contents(&config, clock)
                     .iter()
                     .flat_map(|group| group.card_title_clashes(clock))
-                    .map(|clash| (demo.name.to_owned(), clash.item_name, clash.clashing_title))
+                    .map(|clash| {
+                        (
+                            demo.name.to_owned(),
+                            clash.indicator_name,
+                            clash.clashing_title,
+                        )
+                    })
                     .collect::<Vec<_>>()
             })
             .collect();

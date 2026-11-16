@@ -100,7 +100,7 @@ impl ClockGroup {
     ) -> Subscription<ClockMessage> {
         let demand = demand.expanded_when(self.expansion.state());
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<ZoneTime>(*zone)
                     .with(*zone)
                     .map(|(zone, sample)| ClockMessage::Zone(zone, sample)),
@@ -142,19 +142,19 @@ impl ClockGroup {
         let group_summary = match &self.time {
             SubscribedSnapshot::SnapshotHeld { .. } => GroupSummary::summarising(
                 Phosphor::Watch(Weight::Regular).into(),
-                self.local_time_item(LocalTime::indicator(clock, locale)),
+                self.local_time_indicator(LocalTime::indicator(clock, locale)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Watch(Weight::Regular).into(),
-                    self.local_time_item(
+                    self.local_time_indicator(
                         troubled_snapshot.shown_over(LocalTime::indicator(clock, locale), clock),
                     ),
                 )
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Watch(Weight::Regular).into(),
-                self.local_time_item(placeholder.indicator(LOCAL_TIME_GLYPH.into())),
+                self.local_time_indicator(placeholder.indicator(LOCAL_TIME_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Watch(Weight::Regular).into(),
@@ -167,42 +167,44 @@ impl ClockGroup {
         let mut rows = Vec::new();
         match &self.date {
             SubscribedSnapshot::SnapshotHeld { .. } => {
-                let date_row = LocalDate::indicator(clock, locale);
-                if date_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.local_date_item(date_row));
+                let date_indicator = LocalDate::indicator(clock, locale);
+                if date_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.local_date_indicator(date_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let date_row =
+                let date_indicator =
                     troubled_snapshot.shown_over(LocalDate::indicator(clock, locale), clock);
-                if date_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.local_date_item(date_row));
+                if date_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.local_date_indicator(date_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.local_date_item(placeholder.indicator(LOCAL_DATE_GLYPH.into())));
+                rows.push(
+                    self.local_date_indicator(placeholder.indicator(LOCAL_DATE_GLYPH.into())),
+                );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         for (zone, zone_time) in &self.zone_times {
             match zone_time {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let zone_row = held_snapshot.indicator(clock, locale);
-                    if zone_row.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(Self::zone_time_item(*zone, zone_time, zone_row));
+                    let zone_indicator = held_snapshot.indicator(clock, locale);
+                    if zone_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
                     }
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let zone_row = troubled_snapshot.shown_over(
+                    let zone_indicator = troubled_snapshot.shown_over(
                         troubled_snapshot.held_snapshot.indicator(clock, locale),
                         clock,
                     );
-                    if zone_row.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(Self::zone_time_item(*zone, zone_time, zone_row));
+                    if zone_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
-                    rows.push(Self::zone_time_item(
+                    rows.push(Self::zone_time_indicator(
                         *zone,
                         zone_time,
                         placeholder.indicator(ZONE_TIME_GLYPH.into()),
@@ -221,8 +223,11 @@ impl ClockGroup {
         )
     }
 
-    fn local_time_item<'a>(&'a self, time_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        time_row
+    fn local_time_indicator<'a>(
+        &'a self,
+        time_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        time_indicator
             .with_hover_card(Box::new(|card_clock| {
                 self.time
                     .sections_described_by(|_| LocalTime::hover_card(card_clock))
@@ -230,8 +235,11 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
     }
 
-    fn local_date_item<'a>(&'a self, date_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        date_row
+    fn local_date_indicator<'a>(
+        &'a self,
+        date_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        date_indicator
             .with_hover_card(Box::new(|card_clock| {
                 self.date
                     .sections_described_by(|_| LocalDate::hover_card(card_clock))
@@ -239,12 +247,12 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
     }
 
-    fn zone_time_item<'a>(
+    fn zone_time_indicator<'a>(
         zone: Tz,
         zone_time: &'a SubscribedSnapshot<ZoneTime>,
-        zone_row: GroupIndicator<'a>,
+        zone_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        zone_row
+        zone_indicator
             .with_hover_card(Box::new(|card_clock| {
                 zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))
             }))

@@ -157,54 +157,56 @@ impl CaldavGroup {
         let mut rows = Vec::new();
         match &self.upcoming_events {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let events_row = upcoming_events_indicator(held_snapshot, clock, locale);
-                if events_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.upcoming_events_item(events_row));
+                let events_indicator = upcoming_events_indicator(held_snapshot, clock, locale);
+                if events_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_upcoming_events_indicator(events_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let events_row = troubled_snapshot.shown_over(
+                let events_indicator = troubled_snapshot.shown_over(
                     upcoming_events_indicator(&troubled_snapshot.held_snapshot, clock, locale),
                     clock,
                 );
-                if events_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.upcoming_events_item(events_row));
+                if events_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_upcoming_events_indicator(events_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.upcoming_events_item(
+                rows.push(self.wired_upcoming_events_indicator(
                     placeholder.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot => {
                 if self.account(config).is_some() {
-                    rows.push(self.upcoming_events_item(
-                        SnapshotPlaceholder::<UpcomingEventList>::awaiting_row(
-                            UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                        ),
-                    ));
+                    rows.push(self.wired_upcoming_events_indicator(SnapshotPlaceholder::<
+                        UpcomingEventList,
+                    >::awaiting_indicator(
+                        UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+                    )));
                 }
             }
             SubscribedSnapshot::SourceUnavailable => {}
         }
         match &self.open_tasks {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let tasks_row = open_tasks_indicator(held_snapshot, clock);
-                if tasks_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.open_tasks_item(tasks_row));
+                let tasks_indicator = open_tasks_indicator(held_snapshot, clock);
+                if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_open_tasks_indicator(tasks_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let tasks_row = troubled_snapshot.shown_over(
+                let tasks_indicator = troubled_snapshot.shown_over(
                     open_tasks_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if tasks_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.open_tasks_item(tasks_row));
+                if tasks_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_open_tasks_indicator(tasks_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.open_tasks_item(placeholder.indicator(OPEN_TASKS_GLYPH.into())));
+                rows.push(
+                    self.wired_open_tasks_indicator(placeholder.indicator(OPEN_TASKS_GLYPH.into())),
+                );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -217,15 +219,21 @@ impl CaldavGroup {
         )
     }
 
-    fn upcoming_events_item<'a>(&'a self, events_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        events_row.with_hover_card(Box::new(move |card_clock| {
+    fn wired_upcoming_events_indicator<'a>(
+        &'a self,
+        events_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        events_indicator.with_hover_card(Box::new(move |card_clock| {
             self.upcoming_events
                 .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
         }))
     }
 
-    fn open_tasks_item<'a>(&'a self, tasks_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        tasks_row.with_hover_card(Box::new(move |card_clock| {
+    fn wired_open_tasks_indicator<'a>(
+        &'a self,
+        tasks_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        tasks_indicator.with_hover_card(Box::new(move |card_clock| {
             self.open_tasks
                 .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))
         }))

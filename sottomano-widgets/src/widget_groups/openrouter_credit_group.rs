@@ -210,12 +210,12 @@ impl OpenRouterCreditGroup {
         let group_summary = match &self.spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
-                self.spend_item(spend_indicator(held_snapshot, clock)),
+                self.wired_spend_indicator(spend_indicator(held_snapshot, clock)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     SimpleIcon::OpenRouter.into(),
-                    self.spend_item(troubled_snapshot.shown_over(
+                    self.wired_spend_indicator(troubled_snapshot.shown_over(
                         spend_indicator(&troubled_snapshot.held_snapshot, clock),
                         clock,
                     )),
@@ -223,7 +223,9 @@ impl OpenRouterCreditGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::OpenRouter.into(),
-                self.spend_item(placeholder.indicator(Phosphor::Coins(Weight::Regular).into())),
+                self.wired_spend_indicator(
+                    placeholder.indicator(Phosphor::Coins(Weight::Regular).into()),
+                ),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
                 GroupSummary::glyph(SimpleIcon::OpenRouter.into(), IndicatorState::Pending)
@@ -235,22 +237,22 @@ impl OpenRouterCreditGroup {
         let mut rows = Vec::new();
         match &self.strict_budget {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let budget_row = strict_budget_indicator(held_snapshot);
-                if budget_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.strict_budget_item(budget_row));
+                let budget_indicator = strict_budget_indicator(held_snapshot);
+                if budget_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_strict_budget_indicator(budget_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let budget_row = troubled_snapshot.shown_over(
+                let budget_indicator = troubled_snapshot.shown_over(
                     strict_budget_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if budget_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.strict_budget_item(budget_row));
+                if budget_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_strict_budget_indicator(budget_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.strict_budget_item(
+                rows.push(self.wired_strict_budget_indicator(
                     placeholder.indicator(OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH),
                 ));
             }
@@ -258,22 +260,22 @@ impl OpenRouterCreditGroup {
         }
         match &self.model_rankings {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let rankings_row = best_models_indicator(held_snapshot);
-                if rankings_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.model_rankings_item(rankings_row));
+                let rankings_indicator = best_models_indicator(held_snapshot);
+                if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.model_rankings_indicator(rankings_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let rankings_row = troubled_snapshot.shown_over(
+                let rankings_indicator = troubled_snapshot.shown_over(
                     best_models_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if rankings_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.model_rankings_item(rankings_row));
+                if rankings_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.model_rankings_indicator(rankings_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.model_rankings_item(
+                rows.push(self.model_rankings_indicator(
                     placeholder.indicator(OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH),
                 ));
             }
@@ -282,7 +284,7 @@ impl OpenRouterCreditGroup {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 ranking
-                    .most_used_model_row()
+                    .most_used_model_indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.spend.hover_card_with(ranking.hover_card())
                     }))
@@ -290,7 +292,7 @@ impl OpenRouterCreditGroup {
             );
             rows.push(
                 ranking
-                    .most_used_spend_row()
+                    .most_used_spend_indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.spend.hover_card_with(ranking.top_model_share())
                     }))
@@ -306,7 +308,7 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    fn spend_item<'a>(&'a self, spend_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn wired_spend_indicator<'a>(&'a self, spend_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
         spend_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.spend
@@ -315,8 +317,11 @@ impl OpenRouterCreditGroup {
             .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
     }
 
-    fn strict_budget_item<'a>(&'a self, budget_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        budget_row
+    fn wired_strict_budget_indicator<'a>(
+        &'a self,
+        budget_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        budget_indicator
             .with_hover_card(Box::new(move |_| {
                 self.strict_budget
                     .sections_described_by(strict_budget_hover_card)
@@ -326,8 +331,11 @@ impl OpenRouterCreditGroup {
             ))
     }
 
-    fn model_rankings_item<'a>(&'a self, rankings_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        rankings_row
+    fn model_rankings_indicator<'a>(
+        &'a self,
+        rankings_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        rankings_indicator
             .with_hover_card(Box::new(move |_| {
                 self.model_rankings
                     .sections_described_by(best_models_hover_card)

@@ -289,12 +289,12 @@ impl CompositorStylingGroup {
 
     fn with_unwritable_rules_warning<'a>(
         &'a self,
-        styling_item: GroupIndicator<'a>,
+        styling_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
         if self.rules_file.unwritable().is_none() {
-            return styling_item;
+            return styling_indicator;
         }
-        styling_item.with_hover_card(Box::new(move |_| {
+        styling_indicator.with_hover_card(Box::new(move |_| {
             self.rules_file
                 .unwritable()
                 .map(|unwritable| {
@@ -364,7 +364,7 @@ impl CompositorStylingGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
-        let styling_items = [
+        let styling_indicators = [
             (
                 StylingControl::WindowCornerRadius,
                 GroupIndicator::slider(
@@ -401,12 +401,14 @@ impl CompositorStylingGroup {
             ),
             &self.expansion,
             CompositorStylingMessage::Expansion,
-            styling_items
+            styling_indicators
                 .into_iter()
                 .filter(|(control, _)| {
                     self.control_support(*control) == CompositorFeatureSupport::Available
                 })
-                .map(|(_, styling_item)| self.with_unwritable_rules_warning(styling_item)),
+                .map(|(_, styling_indicator)| {
+                    self.with_unwritable_rules_warning(styling_indicator)
+                }),
         )
     }
 }

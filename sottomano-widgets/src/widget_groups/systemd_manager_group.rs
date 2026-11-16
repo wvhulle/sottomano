@@ -11,10 +11,13 @@ mod running_job_indicator;
 
 use boot_timeline_indicator::{StartupUnits, boot_timeline_hover_card, boot_timeline_indicator};
 use failed_unit_log::{
-    failed_units_hover_card, failed_units_item, failed_units_panel_visibility, failed_units_state,
+    failed_units_hover_card, failed_units_panel_visibility, failed_units_state,
+    wired_failed_units_indicator,
 };
 use last_shutdown_indicator::{last_shutdown_hover_card, last_shutdown_indicator};
-use running_job_indicator::{slow_jobs_hover_card, slow_jobs_item, slow_jobs_panel_visibility};
+use running_job_indicator::{
+    slow_jobs_hover_card, slow_jobs_panel_visibility, wired_slow_jobs_indicator,
+};
 use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -79,7 +82,7 @@ fn slow_jobs_entry<'a>(
     config: &'a Config,
     clock: Clock,
 ) -> GroupIndicator<'a> {
-    slow_jobs_item(jobs, config, clock).with_hover_card(Box::new(move |_| {
+    wired_slow_jobs_indicator(jobs, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(slow_jobs_hover_card)
     }))
 }
@@ -90,7 +93,7 @@ fn failed_units_entry<'a>(
     config: &'a Config,
     clock: Clock,
 ) -> GroupIndicator<'a> {
-    failed_units_item(failed, config, clock).with_hover_card(Box::new(move |_| {
+    wired_failed_units_indicator(failed, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(failed_units_hover_card)
     }))
 }
@@ -287,10 +290,12 @@ impl SystemdManagerGroup {
         }
         match &self.last_shutdown {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                rows.push(self.last_shutdown_item(held_snapshot, config));
+                rows.push(self.wired_last_shutdown_indicator(held_snapshot, config));
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                rows.push(self.last_shutdown_item(&troubled_snapshot.held_snapshot, config));
+                rows.push(
+                    self.wired_last_shutdown_indicator(&troubled_snapshot.held_snapshot, config),
+                );
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(placeholder.indicator(LAST_SHUTDOWN_GLYPH.into()));
@@ -306,7 +311,7 @@ impl SystemdManagerGroup {
         )
     }
 
-    fn last_shutdown_item<'a>(
+    fn wired_last_shutdown_indicator<'a>(
         &'a self,
         last_shutdown: &'a LastShutdown,
         config: &'a Config,

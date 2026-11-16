@@ -18,7 +18,7 @@ use crate::{
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
-            ContainerFamilyMessage, FamilyRow, RowPower,
+            ContainerFamilyMessage, FamilyIndicator, RowPower,
         },
         process_usage_cells::approximate_memory_text,
         widget_group_identity::WidgetGroupFamily,
@@ -34,11 +34,11 @@ fn sandbox_icon() -> IconGlyph {
     IconGlyph::SimpleIcon(SimpleIcon::Flatpak)
 }
 
-pub struct FlatpakSandboxListingRow<'a> {
+pub struct FlatpakSandboxListingIndicator<'a> {
     listing: &'a FlatpakSandboxListing,
 }
 
-impl<'a> FlatpakSandboxListingRow<'a> {
+impl<'a> FlatpakSandboxListingIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             format!(
@@ -67,11 +67,11 @@ impl<'a> FlatpakSandboxListingRow<'a> {
     }
 }
 
-pub struct FlatpakSandboxRow<'a> {
+pub struct FlatpakSandboxIndicator<'a> {
     sandbox: &'a FlatpakSandbox,
 }
 
-impl<'a> FlatpakSandboxRow<'a> {
+impl<'a> FlatpakSandboxIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.sandbox.memory_in_use {
             Some(memory_in_use) => ReadoutLabel::Labeled(approximate_memory_text(memory_in_use)),
@@ -158,23 +158,25 @@ impl ContainerFamily for FlatpakFamily {
         probe.running_count
     }
 
-    fn listing_rows(listings: &FamilyListings<FlatpakSandboxListing>) -> Vec<FamilyRow<'_, Self>> {
+    fn listing_indicators(
+        listings: &FamilyListings<FlatpakSandboxListing>,
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .listings
             .iter()
-            .map(|listing| FamilyRow {
-                indicator: FlatpakSandboxListingRow { listing }.indicator(),
+            .map(|listing| FamilyIndicator {
+                indicator: FlatpakSandboxListingIndicator { listing }.indicator(),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &FamilyDetails<FlatpakSandbox>) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_indicators(detail: &FamilyDetails<FlatpakSandbox>) -> Vec<FamilyIndicator<'_, Self>> {
         detail
             .details
             .iter()
-            .map(|sandbox| FamilyRow {
-                indicator: FlatpakSandboxRow { sandbox }.indicator(),
+            .map(|sandbox| FamilyIndicator {
+                indicator: FlatpakSandboxIndicator { sandbox }.indicator(),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()

@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-pub(super) struct VolumeIdentityRow<'a> {
+pub(super) struct VolumeIdentityIndicator<'a> {
     pub usage: &'a FilesystemUsage,
 }
 
@@ -28,7 +28,7 @@ fn property_title(kind: VolumePropertyKind) -> &'static str {
     }
 }
 
-impl<'a> VolumeIdentityRow<'a> {
+impl<'a> VolumeIdentityIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let volume = &self.usage.volume;
         let fs_type = &self.usage.mount.fs_type;

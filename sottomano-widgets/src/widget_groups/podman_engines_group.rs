@@ -22,9 +22,10 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
-        engine_container_rows::{
-            EngineContainerInteraction, EngineContainers, RunningContainerRow, StoppedContainerRow,
-            container_switch_task, engine_failure_label, rows_ending_in_hidden_count,
+        engine_container_indicators::{
+            EngineContainerInteraction, EngineContainers, RunningContainerIndicator,
+            StoppedContainerIndicator, container_switch_task, engine_failure_label,
+            indicators_ending_in_hidden_count,
         },
         group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
@@ -41,12 +42,12 @@ use crate::{
     },
 };
 
-struct UnreadableEngineRow<'a> {
+struct UnreadableEngineIndicator<'a> {
     engine: &'a DiscoveredPodmanEngine,
     read_failure: &'a EngineReadError,
 }
 
-impl<'a> UnreadableEngineRow<'a> {
+impl<'a> UnreadableEngineIndicator<'a> {
     fn hover_card(&self) -> Vec<Section> {
         vec![
             Section::new(
@@ -165,7 +166,7 @@ impl PodmanEnginesGroup {
         }
     }
 
-    fn running_container_rows<'a>(
+    fn running_container_indicators<'a>(
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
         sample: &'a SubscribedSnapshot<EngineListing>,
@@ -176,7 +177,7 @@ impl PodmanEnginesGroup {
             listing,
         };
         engine_containers
-            .running_rows(|request| {
+            .running_indicators(|request| {
                 WidgetGroupInteraction::PodmanEngines(EngineContainerInteraction::SwitchContainer(
                     request,
                 ))
@@ -186,7 +187,7 @@ impl PodmanEnginesGroup {
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |clock| {
                     sample.hover_card_with(
-                        RunningContainerRow {
+                        RunningContainerIndicator {
                             container,
                             owner: &engine.owner,
                         }
@@ -197,7 +198,7 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn stopped_container_rows<'a>(
+    fn stopped_container_indicators<'a>(
         engine: &'a DiscoveredPodmanEngine,
         listing: &'a EngineListing,
         sample: &'a SubscribedSnapshot<EngineListing>,
@@ -208,7 +209,7 @@ impl PodmanEnginesGroup {
             listing,
         };
         engine_containers
-            .stopped_rows(|request| {
+            .stopped_indicators(|request| {
                 WidgetGroupInteraction::PodmanEngines(EngineContainerInteraction::SwitchContainer(
                     request,
                 ))
@@ -218,7 +219,7 @@ impl PodmanEnginesGroup {
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |_| {
                     sample.hover_card_with(
-                        StoppedContainerRow {
+                        StoppedContainerIndicator {
                             container,
                             owner: &engine.owner,
                         }
@@ -229,20 +230,22 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupIndicator<'_>> {
-        let mut failure_rows = Vec::new();
-        let mut running_rows = Vec::new();
-        let mut stopped_rows = Vec::new();
+    fn container_indicators(&self) -> Vec<GroupIndicator<'_>> {
+        let mut failure_indicators = Vec::new();
+        let mut running_indicators = Vec::new();
+        let mut stopped_indicators = Vec::new();
         for engine in &self.engines {
             let Some(sample) = self.readouts.get(&engine.socket_path) else {
                 continue;
             };
             if let Some(listing) = sample.get() {
-                running_rows.extend(Self::running_container_rows(engine, listing, sample));
-                stopped_rows.extend(Self::stopped_container_rows(engine, listing, sample));
+                running_indicators
+                    .extend(Self::running_container_indicators(engine, listing, sample));
+                stopped_indicators
+                    .extend(Self::stopped_container_indicators(engine, listing, sample));
             } else if let Some(read_failure) = sample.fetch_failure() {
-                failure_rows.push(
-                    UnreadableEngineRow {
+                failure_indicators.push(
+                    UnreadableEngineIndicator {
                         engine,
                         read_failure,
                     }
@@ -250,9 +253,9 @@ impl PodmanEnginesGroup {
                 );
             }
         }
-        running_rows.extend(stopped_rows);
-        failure_rows.extend(rows_ending_in_hidden_count(running_rows));
-        failure_rows
+        running_indicators.extend(stopped_indicators);
+        failure_indicators.extend(indicators_ending_in_hidden_count(running_indicators));
+        failure_indicators
     }
 
     #[must_use]
@@ -269,7 +272,7 @@ impl PodmanEnginesGroup {
                     expansion,
                 ))
             },
-            self.container_rows(),
+            self.container_indicators(),
         )
     }
 }
@@ -333,7 +336,7 @@ mod tests {
             ),
             Clock::real(),
         );
-        let rows = group.container_rows();
+        let rows = group.container_indicators();
         assert_eq!(rows.len(), 12);
         assert_eq!(
             rows.last().map(GroupIndicator::press_actions),

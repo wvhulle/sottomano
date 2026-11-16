@@ -15,11 +15,11 @@ use crate::{
     },
 };
 
-pub(super) struct Ext4LifetimeWritesRow {
+pub(super) struct Ext4LifetimeWritesIndicator {
     pub counters: Ext4Counters,
 }
 
-impl Ext4LifetimeWritesRow {
+impl Ext4LifetimeWritesIndicator {
     pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             "Writes",

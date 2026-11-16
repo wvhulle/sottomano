@@ -248,11 +248,17 @@ mod tests {
                 ModelLoadError::ModelLoaderStoppedWithoutResult,
             ),
         };
-        let loading_row = notulist_engine_indicator(&loading);
-        let unavailable_row = notulist_engine_indicator(&unavailable);
-        assert_eq!(loading_row.panel_visibility(), PanelVisibility::Hidden);
-        assert_eq!(unavailable_row.panel_visibility(), PanelVisibility::Shown);
-        assert_eq!(unavailable_row.shown_state(), IndicatorState::Failed);
+        let loading_indicator = notulist_engine_indicator(&loading);
+        let unavailable_indicator = notulist_engine_indicator(&unavailable);
+        assert_eq!(
+            loading_indicator.panel_visibility(),
+            PanelVisibility::Hidden
+        );
+        assert_eq!(
+            unavailable_indicator.panel_visibility(),
+            PanelVisibility::Shown
+        );
+        assert_eq!(unavailable_indicator.shown_state(), IndicatorState::Failed);
     }
 
     #[test]

@@ -116,7 +116,7 @@ mod tests {
 
     use super::*;
 
-    fn row_keys(activity: &PipelineActivity) -> Vec<ValueCell> {
+    fn indicator_keys(activity: &PipelineActivity) -> Vec<ValueCell> {
         stage_rows(activity).map(|row| row.key().clone()).collect()
     }
 
@@ -130,7 +130,7 @@ mod tests {
             stage: PipelineStage::Capturing,
             last_tick: None,
         };
-        assert_eq!(row_keys(&activity), cells(&["Stage"]));
+        assert_eq!(indicator_keys(&activity), cells(&["Stage"]));
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod tests {
             last_tick: Some(report.clone()),
         };
         assert_eq!(
-            row_keys(&activity),
+            indicator_keys(&activity),
             cells(&["Stage", "Language", "Decode time", "Audio length"])
         );
     }
@@ -159,6 +159,6 @@ mod tests {
             stage: PipelineStage::Gating,
             last_tick: Some(report),
         };
-        assert_eq!(row_keys(&activity), cells(&["Stage", "Gate"]));
+        assert_eq!(indicator_keys(&activity), cells(&["Stage", "Gate"]));
     }
 }

@@ -12,7 +12,7 @@ use crate::{
 pub enum FixedPanelGroup<'a> {
     Empty,
     Shown {
-        item: Box<GroupIndicator<'a>>,
+        indicator: Box<GroupIndicator<'a>>,
         hover_target: HoverTarget,
     },
 }
@@ -29,12 +29,13 @@ impl<'a> FixedPanelGroup<'a> {
     #[must_use]
     pub fn hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
         match self {
-            FixedPanelGroup::Shown { item, hover_target } if hover_target == target => {
-                Some(RowHoverCard {
-                    sections: item.card_with_actions(clock),
-                    header: CardHeader::Unheaded,
-                })
-            }
+            FixedPanelGroup::Shown {
+                indicator,
+                hover_target,
+            } if hover_target == target => Some(RowHoverCard {
+                sections: indicator.card_with_actions(clock),
+                header: CardHeader::Unheaded,
+            }),
             FixedPanelGroup::Shown { .. } | FixedPanelGroup::Empty => None,
         }
     }
@@ -48,12 +49,16 @@ impl<'a> FixedPanelGroup<'a> {
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
     ) -> Option<Element<'a, GroupEvent>> {
-        let FixedPanelGroup::Shown { item, hover_target } = self else {
+        let FixedPanelGroup::Shown {
+            indicator,
+            hover_target,
+        } = self
+        else {
             return None;
         };
-        let item = item.opening_card_on(open_trigger);
+        let indicator = indicator.opening_card_on(open_trigger);
         Some(fixed_view(
-            &item,
+            &indicator,
             hover_target,
             Severity::default(),
             handle_indicator,

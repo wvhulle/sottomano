@@ -10,7 +10,7 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Appearance,
             self.settings_groups()
-                .map(WidgetGroupContent::only_aligned_items),
+                .map(WidgetGroupContent::only_aligned_indicators),
         )
     }
 }

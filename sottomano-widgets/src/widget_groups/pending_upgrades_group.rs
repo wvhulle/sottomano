@@ -95,7 +95,7 @@ impl PendingUpgradesGroup {
             .firmware
             .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
         {
-            rows.push(self.firmware_upgrade_item(upgrades, config));
+            rows.push(self.firmware_upgrade_indicator(upgrades, config));
         }
         if let Some(placeholder) = self.firmware.failure() {
             rows.push(

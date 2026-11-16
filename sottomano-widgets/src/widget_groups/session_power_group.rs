@@ -171,7 +171,7 @@ impl SessionPowerGroup {
             return FixedPanelGroup::Empty;
         }
         FixedPanelGroup::Shown {
-            item: Box::new(GroupIndicator::composed(
+            indicator: Box::new(GroupIndicator::composed(
                 "Session",
                 IndicatorIcon::IconGlyph {
                     glyph: Phosphor::Power(Weight::Regular).into(),

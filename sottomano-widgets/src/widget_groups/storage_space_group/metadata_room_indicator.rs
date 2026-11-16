@@ -79,28 +79,28 @@ impl From<&BtrfsSpace> for MetadataPressure {
     }
 }
 
-pub(super) enum MetadataRoomRow<'a> {
+pub(super) enum MetadataRoomIndicator<'a> {
     Btrfs(&'a BtrfsSpace),
     Bcachefs(&'a BcachefsSpace),
 }
 
-impl MetadataRoomRow<'_> {
+impl MetadataRoomIndicator<'_> {
     fn pressure(&self) -> MetadataPressure {
         match self {
-            MetadataRoomRow::Btrfs(space) => MetadataPressure::from(*space),
-            MetadataRoomRow::Bcachefs(space) => MetadataPressure::from(*space),
+            MetadataRoomIndicator::Btrfs(space) => MetadataPressure::from(*space),
+            MetadataRoomIndicator::Bcachefs(space) => MetadataPressure::from(*space),
         }
     }
 
     fn room(&self) -> ByteSize {
         match self {
-            MetadataRoomRow::Btrfs(space) => space.unallocated,
-            MetadataRoomRow::Bcachefs(space) => space.metadata_headroom(),
+            MetadataRoomIndicator::Btrfs(space) => space.unallocated,
+            MetadataRoomIndicator::Bcachefs(space) => space.metadata_headroom(),
         }
     }
 }
 
-impl<'a> MetadataRoomRow<'a> {
+impl<'a> MetadataRoomIndicator<'a> {
     pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
         let label = Quantity::size(self.room()).localized_text(locale);
         GroupIndicator::glyph_only(
@@ -128,7 +128,7 @@ impl<'a> MetadataRoomRow<'a> {
     pub(super) fn hover_card(&self) -> Vec<Section> {
         let pressure = self.pressure();
         match self {
-            MetadataRoomRow::Btrfs(space) => {
+            MetadataRoomIndicator::Btrfs(space) => {
                 let reclaim_hint = (pressure > MetadataPressure::Comfortable)
                     .then(|| LabeledValue::new("Reclaim with", BTRFS_RECLAIM_COMMAND));
                 vec![Section::new(
@@ -158,7 +158,7 @@ impl<'a> MetadataRoomRow<'a> {
                     ),
                 )]
             }
-            MetadataRoomRow::Bcachefs(space) => vec![Section::new(
+            MetadataRoomIndicator::Bcachefs(space) => vec![Section::new(
                 "Space",
                 dictionary_table([
                     LabeledValue::new(

@@ -24,7 +24,7 @@ use crate::{
         },
         indicator_gestures::{IndicatorGesture, IndicatorGestures},
         indicator_state::IndicatorState,
-        item_toggle_switch::item_toggle_switch,
+        indicator_toggle_switch::indicator_toggle_switch,
         slider_control::{ControlMessage, SliderControl, SliderShownIndicator},
         toggle_control::{IconToggle, SwitchPosition},
     },
@@ -530,8 +530,8 @@ impl<'a> GroupIndicator<'a> {
 
     #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
-        let gesture_action = |gesture, item_gesture: &IndicatorGesture| {
-            item_gesture
+        let gesture_action = |gesture, indicator_gesture: &IndicatorGesture| {
+            indicator_gesture
                 .description()
                 .map(|description| PressAction::new(gesture, description))
         };
@@ -713,10 +713,10 @@ impl<'a> GroupIndicator<'a> {
         let power_indicator = match self.power_control {
             IndicatorPowerControl::Absent => return switched_content,
             IndicatorPowerControl::Switch(switch_position) => {
-                item_toggle_switch(config, switch_position, SwitchResponse::Pressable, opacity)
+                indicator_toggle_switch(config, switch_position, SwitchResponse::Pressable, opacity)
             }
             IndicatorPowerControl::InertSwitch(switch_position) => {
-                item_toggle_switch(config, switch_position, SwitchResponse::Inert, opacity)
+                indicator_toggle_switch(config, switch_position, SwitchResponse::Inert, opacity)
             }
             IndicatorPowerControl::StopGlyph => IconGlyph::from(Phosphor::Stop(Weight::Fill))
                 .view(config.theme.font.icon_size_px, move |theme| {
@@ -851,20 +851,21 @@ mod tests {
         )
     }
 
-    fn left_action(item: &GroupIndicator<'_>) -> Option<Cow<'static, str>> {
-        item.press_actions()
+    fn left_action(indicator: &GroupIndicator<'_>) -> Option<Cow<'static, str>> {
+        indicator
+            .press_actions()
             .into_iter()
             .find(|action| action.gesture == MouseGesture::LeftClick)
             .map(|action| action.does)
     }
 
     #[test]
-    fn composed_item_reports_its_identity_name() {
+    fn composed_indicator_reports_its_identity_name() {
         assert_eq!(composed_row().indicator_name(), "Composed row");
     }
 
     #[test]
-    fn items_without_a_press_have_inert_gestures() {
+    fn indicators_without_a_press_have_inert_gestures() {
         let gestures = composed_row().gestures();
         assert!(matches!(gestures.left, IndicatorGesture::Inert));
         assert!(matches!(gestures.right, IndicatorGesture::Inert));
@@ -872,30 +873,30 @@ mod tests {
 
     #[test]
     fn every_listed_gesture_has_a_handler() {
-        let item = composed_row()
+        let indicator = composed_row()
             .on_press("left action", CompositorStylingMessage::ToggleXray)
             .on_right_press("right action", CompositorStylingMessage::ToggleXray);
         assert_eq!(
-            item.press_actions(),
+            indicator.press_actions(),
             vec![
                 PressAction::new(MouseGesture::LeftClick, "left action"),
                 PressAction::new(MouseGesture::RightClick, "right action"),
             ]
         );
         assert!(matches!(
-            item.gestures().right,
+            indicator.gestures().right,
             IndicatorGesture::Performs { .. }
         ));
     }
 
     #[test]
     fn declared_buttons_join_the_row_actions() {
-        let item = composed_row().with_button_actions([PressAction::new(
+        let indicator = composed_row().with_button_actions([PressAction::new(
             MouseGesture::LeftClick,
             "Next: skip to the next track",
         )]);
         assert_eq!(
-            item.press_actions(),
+            indicator.press_actions(),
             vec![PressAction::new(
                 MouseGesture::LeftClick,
                 "Next: skip to the next track"
@@ -904,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn a_composed_item_shares_the_pin_of_the_indicator_it_replaces_under_the_same_name() {
+    fn a_composed_indicator_shares_the_pin_of_the_indicator_it_replaces_under_the_same_name() {
         let sample: GroupIndicator<'static> = named_test_indicator("Lyrics");
         let composed: GroupIndicator<'static> = GroupIndicator::composed_pinnable(
             "Lyrics",
@@ -929,7 +930,7 @@ mod tests {
     }
 
     #[test]
-    fn an_item_with_only_a_press_action_shows_no_switch() {
+    fn an_indicator_with_only_a_press_action_shows_no_switch() {
         let launcher_row = composed_row().on_press("launch", CompositorStylingMessage::ToggleXray);
         assert_eq!(launcher_row.power_control, IndicatorPowerControl::Absent);
     }
@@ -937,11 +938,11 @@ mod tests {
     #[test]
     fn a_toggle_shows_a_switch_in_its_current_position() {
         let indicator_of = |switch_position| {
-            let item: GroupIndicator<'static> = GroupIndicator::toggle(
+            let indicator: GroupIndicator<'static> = GroupIndicator::toggle(
                 toggle_in_position(switch_position),
                 CompositorStylingMessage::ToggleXray,
             );
-            item.power_control
+            indicator.power_control
         };
         assert_eq!(
             indicator_of(SwitchPosition::On),
@@ -955,12 +956,12 @@ mod tests {
 
     #[test]
     fn a_switch_press_lists_the_same_gesture_as_a_plain_press() {
-        let item = composed_row().on_switch_press(
+        let indicator = composed_row().on_switch_press(
             SwitchPosition::On,
             "turn off",
             CompositorStylingMessage::ToggleXray,
         );
-        assert_eq!(left_action(&item).as_deref(), Some("turn off"));
+        assert_eq!(left_action(&indicator).as_deref(), Some("turn off"));
     }
 
     fn offset_slider() -> SliderControl {
@@ -1026,11 +1027,12 @@ mod tests {
     fn events_from_pointing_at_pinned_slider(slider_pointing: SliderPointing) -> Vec<GroupEvent> {
         let config = Config::default();
         let slider = offset_slider();
-        let item = GroupIndicator::slider(&slider, &config, CompositorStylingMessage::CornerRadius);
+        let indicator =
+            GroupIndicator::slider(&slider, &config, CompositorStylingMessage::CornerRadius);
         let mut panel = Simulator::with_size(
             Settings::default(),
             Size::new(200.0, 100.0),
-            item.view(&config, 1.0, Clock::real(), pinned_slider_target()),
+            indicator.view(&config, 1.0, Clock::real(), pinned_slider_target()),
         );
         let inside_slider = Point::new(5.0, 5.0);
         panel.point_at(inside_slider);

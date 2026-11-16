@@ -41,7 +41,7 @@ impl GroupSourceDemand {
         }
     }
 
-    pub fn while_rows_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+    pub fn while_indicators_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         match self.surface {
             GroupSurface::AllRows => subscription,
             GroupSurface::SummaryOnly | GroupSurface::Hidden => Subscription::none(),

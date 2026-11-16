@@ -163,9 +163,9 @@ mod tests {
     #[test]
     fn a_nearly_full_swap_warns_without_a_toast() {
         let nearly_full = swap_with(31, ByteSize::b(0));
-        let nearly_full_row = swap_activity_indicator(&nearly_full, Locale::default());
-        assert_eq!(nearly_full_row.shown_state(), IndicatorState::Warning);
-        assert_eq!(indicator_toast_severity(&nearly_full_row), None);
+        let nearly_full_indicator = swap_activity_indicator(&nearly_full, Locale::default());
+        assert_eq!(nearly_full_indicator.shown_state(), IndicatorState::Warning);
+        assert_eq!(indicator_toast_severity(&nearly_full_indicator), None);
     }
 
     #[test]

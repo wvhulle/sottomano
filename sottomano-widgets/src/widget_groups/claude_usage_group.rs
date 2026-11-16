@@ -304,7 +304,10 @@ impl ClaudeUsageGroup {
         )
     }
 
-    fn enterprise_spend_item<'a>(&'a self, spend_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn enterprise_spend_indicator<'a>(
+        &'a self,
+        spend_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
         spend_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
@@ -325,8 +328,11 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_periods_item<'a>(&'a self, periods_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        periods_row
+    fn ccusage_periods_indicator<'a>(
+        &'a self,
+        periods_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        periods_indicator
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_periods.sections_described_by(|snapshot| {
                     claude_ccusage_periods_hover_card(snapshot, card_clock)
@@ -337,8 +343,11 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_block_item<'a>(&'a self, block_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        block_row
+    fn ccusage_block_indicator<'a>(
+        &'a self,
+        block_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        block_indicator
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_block.sections_described_by(|snapshot| {
                     claude_ccusage_block_hover_card(snapshot, card_clock)
@@ -349,7 +358,10 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn usage_windows_item<'a>(&'a self, windows_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn usage_windows_indicator<'a>(
+        &'a self,
+        windows_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
         windows_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.usage_windows.sections_described_by(|snapshot| {
@@ -364,11 +376,11 @@ impl ClaudeUsageGroup {
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
         let group_summary = self.usage_windows_summary(clock);
         let mut rows = Vec::new();
-        self.push_enterprise_spend_rows(&mut rows, clock);
-        self.push_ccusage_periods_rows(&mut rows, clock);
-        self.push_ccusage_block_rows(&mut rows, clock);
-        self.push_model_ranking_rows(&mut rows);
-        self.push_billed_ranking_rows(&mut rows);
+        self.push_enterprise_spend_indicators(&mut rows, clock);
+        self.push_ccusage_periods_indicators(&mut rows, clock);
+        self.push_ccusage_block_indicators(&mut rows, clock);
+        self.push_model_ranking_indicators(&mut rows);
+        self.push_billed_ranking_indicators(&mut rows);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
             group_summary,
@@ -382,12 +394,12 @@ impl ClaudeUsageGroup {
         match &self.usage_windows {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 SimpleIcon::Claude.into(),
-                self.usage_windows_item(claude_usage_windows_indicator(held_snapshot, clock)),
+                self.usage_windows_indicator(claude_usage_windows_indicator(held_snapshot, clock)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     SimpleIcon::Claude.into(),
-                    self.usage_windows_item(troubled_snapshot.shown_over(
+                    self.usage_windows_indicator(troubled_snapshot.shown_over(
                         claude_usage_windows_indicator(&troubled_snapshot.held_snapshot, clock),
                         clock,
                     )),
@@ -395,7 +407,7 @@ impl ClaudeUsageGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 SimpleIcon::Claude.into(),
-                self.usage_windows_item(
+                self.usage_windows_indicator(
                     placeholder.indicator(Phosphor::Gauge(Weight::Regular).into()),
                 ),
             ),
@@ -408,12 +420,16 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_enterprise_spend_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
+    fn push_enterprise_spend_indicators<'a>(
+        &'a self,
+        rows: &mut Vec<GroupIndicator<'a>>,
+        clock: Clock,
+    ) {
         match &self.enterprise_spend {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let spend_row = claude_enterprise_indicator(held_snapshot, clock);
                 if spend_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.enterprise_spend_item(spend_row));
+                    rows.push(self.enterprise_spend_indicator(spend_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
@@ -422,11 +438,11 @@ impl ClaudeUsageGroup {
                     clock,
                 );
                 if spend_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.enterprise_spend_item(spend_row));
+                    rows.push(self.enterprise_spend_indicator(spend_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.enterprise_spend_item(
+                rows.push(self.enterprise_spend_indicator(
                     placeholder.indicator(CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH),
                 ));
             }
@@ -434,25 +450,29 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_periods_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
+    fn push_ccusage_periods_indicators<'a>(
+        &'a self,
+        rows: &mut Vec<GroupIndicator<'a>>,
+        clock: Clock,
+    ) {
         match &self.ccusage_periods {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let periods_row = claude_ccusage_periods_indicator(held_snapshot, clock);
-                if periods_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_periods_item(periods_row));
+                let periods_indicator = claude_ccusage_periods_indicator(held_snapshot, clock);
+                if periods_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.ccusage_periods_indicator(periods_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let periods_row = troubled_snapshot.shown_over(
+                let periods_indicator = troubled_snapshot.shown_over(
                     claude_ccusage_periods_indicator(&troubled_snapshot.held_snapshot, clock),
                     clock,
                 );
-                if periods_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_periods_item(periods_row));
+                if periods_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.ccusage_periods_indicator(periods_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.ccusage_periods_item(
+                rows.push(self.ccusage_periods_indicator(
                     placeholder.indicator(CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH),
                 ));
             }
@@ -460,25 +480,29 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_block_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
+    fn push_ccusage_block_indicators<'a>(
+        &'a self,
+        rows: &mut Vec<GroupIndicator<'a>>,
+        clock: Clock,
+    ) {
         match &self.ccusage_block {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let block_row = claude_ccusage_block_indicator(held_snapshot);
-                if block_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_block_item(block_row));
+                let block_indicator = claude_ccusage_block_indicator(held_snapshot);
+                if block_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.ccusage_block_indicator(block_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let block_row = troubled_snapshot.shown_over(
+                let block_indicator = troubled_snapshot.shown_over(
                     claude_ccusage_block_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if block_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.ccusage_block_item(block_row));
+                if block_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.ccusage_block_indicator(block_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.ccusage_block_item(
+                rows.push(self.ccusage_block_indicator(
                     placeholder.indicator(CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH),
                 ));
             }
@@ -486,11 +510,11 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_model_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_model_ranking_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 ranking
-                    .most_used_model_row()
+                    .most_used_model_indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.ccusage_models.hover_card_with(ranking.hover_card())
                     }))
@@ -501,11 +525,11 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_billed_ranking_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_billed_ranking_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(billed_ranking) = self.billed_model_ranking() {
             rows.push(
                 billed_ranking
-                    .most_used_spend_row()
+                    .most_used_spend_indicator()
                     .with_hover_card(Box::new(move |_| {
                         self.ccusage_models
                             .hover_card_with(billed_ranking.top_model_share())

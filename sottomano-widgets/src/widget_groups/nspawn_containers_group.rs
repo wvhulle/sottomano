@@ -49,12 +49,12 @@ fn preferred_address(ip_addresses: &[IpAddr]) -> Option<&IpAddr> {
         .or_else(|| ip_addresses.first())
 }
 
-struct NspawnContainerRow<'a> {
+struct NspawnContainerIndicator<'a> {
     container: &'a NspawnContainer,
     switched_activity: Option<UnitActivity>,
 }
 
-impl NspawnContainerRow<'_> {
+impl NspawnContainerIndicator<'_> {
     fn shown_activity(&self) -> UnitActivity {
         self.switched_activity.unwrap_or(self.container.activity)
     }
@@ -107,7 +107,7 @@ impl NspawnContainerRow<'_> {
     }
 }
 
-impl<'a> NspawnContainerRow<'a> {
+impl<'a> NspawnContainerIndicator<'a> {
     fn label(&self) -> Option<String> {
         match self.shown_activity() {
             UnitActivity::Running => self
@@ -285,8 +285,11 @@ impl NspawnContainersGroup {
         }
     }
 
-    fn container_row<'a>(&'a self, container: &'a NspawnContainer) -> NspawnContainerRow<'a> {
-        NspawnContainerRow {
+    fn container_indicator<'a>(
+        &'a self,
+        container: &'a NspawnContainer,
+    ) -> NspawnContainerIndicator<'a> {
+        NspawnContainerIndicator {
             container,
             switched_activity: self
                 .service_switches
@@ -303,11 +306,11 @@ impl NspawnContainersGroup {
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
             let row = self
-                .container_row(container)
+                .container_indicator(container)
                 .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.listing
-                        .hover_card_with(self.container_row(container).hover_card(clock))
+                        .hover_card_with(self.container_indicator(container).hover_card(clock))
                 }));
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(
@@ -372,7 +375,7 @@ mod tests {
     #[test]
     fn a_running_container_is_labelled_with_its_ipv4_address() {
         let container = running_container(SystemTime::UNIX_EPOCH);
-        let row = NspawnContainerRow {
+        let row = NspawnContainerIndicator {
             container: &container,
             switched_activity: None,
         };
@@ -382,7 +385,7 @@ mod tests {
     #[test]
     fn a_pending_switch_overrides_the_listed_activity() {
         let container = running_container(SystemTime::UNIX_EPOCH);
-        let row = NspawnContainerRow {
+        let row = NspawnContainerIndicator {
             container: &container,
             switched_activity: Some(UnitActivity::Stopping),
         };
@@ -399,7 +402,7 @@ mod tests {
             activity: UnitActivity::Stopped,
             registration: ContainerRegistration::Unregistered,
         };
-        let row = NspawnContainerRow {
+        let row = NspawnContainerIndicator {
             container: &container,
             switched_activity: None,
         };
@@ -412,7 +415,7 @@ mod tests {
         let started_at = SystemTime::UNIX_EPOCH;
         let clock = clock_at_wall(started_at + Duration::from_mins(90));
         let container = running_container(started_at);
-        let row = NspawnContainerRow {
+        let row = NspawnContainerIndicator {
             container: &container,
             switched_activity: None,
         };

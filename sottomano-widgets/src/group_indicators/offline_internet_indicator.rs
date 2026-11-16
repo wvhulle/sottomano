@@ -89,7 +89,7 @@ impl<S: SnapshotSource> SnapshotPlaceholder<S> {
     }
 
     #[must_use]
-    pub fn awaiting_row<'r>(fallback_icon: IconGlyph) -> GroupIndicator<'r>
+    pub fn awaiting_indicator<'r>(fallback_icon: IconGlyph) -> GroupIndicator<'r>
     where
         S: 'r,
     {

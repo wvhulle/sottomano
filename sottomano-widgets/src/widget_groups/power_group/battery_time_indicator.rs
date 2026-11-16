@@ -284,7 +284,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn row_key_names_the_direction() {
+    fn indicator_key_names_the_direction() {
         let until_full = Countdown::UntilFull {
             charge_limit: Ratio::new::<percent>(80.0),
             forecast: Forecast::Unavailable(Unforecastable::NoChargeHistory),

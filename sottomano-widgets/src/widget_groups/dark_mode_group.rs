@@ -342,9 +342,9 @@ impl DarkModeGroup {
         let mut rows = Vec::new();
         match self.mode_toggle.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let mode_row = dark_mode_indicator(held_snapshot);
-                if mode_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.mode_toggle_item(mode_row).on_switch_press(
+                let mode_indicator = dark_mode_indicator(held_snapshot);
+                if mode_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.mode_toggle_indicator(mode_indicator).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
                         DarkModeInteraction::ModeTogglePressed,
@@ -353,10 +353,10 @@ impl DarkModeGroup {
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let mode_row =
+                let mode_indicator =
                     troubled_snapshot.shown_over(dark_mode_indicator(held_snapshot), clock);
-                if mode_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.mode_toggle_item(mode_row).on_switch_press(
+                if mode_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.mode_toggle_indicator(mode_indicator).on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
                         DarkModeInteraction::ModeTogglePressed,
@@ -364,7 +364,9 @@ impl DarkModeGroup {
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.mode_toggle_item(placeholder.indicator(DARK_MODE_GLYPH.into())));
+                rows.push(
+                    self.mode_toggle_indicator(placeholder.indicator(DARK_MODE_GLYPH.into())),
+                );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -394,8 +396,11 @@ impl DarkModeGroup {
         )
     }
 
-    fn mode_toggle_item<'a>(&'a self, mode_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        mode_row
+    fn mode_toggle_indicator<'a>(
+        &'a self,
+        mode_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        mode_indicator
             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }

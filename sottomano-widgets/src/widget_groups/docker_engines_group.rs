@@ -25,10 +25,11 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
-        engine_container_rows::{
+        engine_container_indicators::{
             EngineContainerAddress, EngineContainerInteraction, EngineContainers,
-            RunningContainerRow, StoppedContainerRow, container_switch_task, engine_container_name,
-            engine_failure_label, rows_ending_in_hidden_count, with_container_switch,
+            RunningContainerIndicator, StoppedContainerIndicator, container_switch_task,
+            engine_container_name, engine_failure_label, indicators_ending_in_hidden_count,
+            with_container_switch,
         },
         group_summary::GroupSummary,
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
@@ -44,12 +45,12 @@ use crate::{
     },
 };
 
-struct UnreadableEngineRow<'a> {
+struct UnreadableEngineIndicator<'a> {
     engine: &'a DockerEngineSocket,
     read_failure: &'a EngineReadError,
 }
 
-impl<'a> UnreadableEngineRow<'a> {
+impl<'a> UnreadableEngineIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.engine.owner.to_string(),
@@ -81,12 +82,12 @@ impl<'a> UnreadableEngineRow<'a> {
     }
 }
 
-struct ListedContainerRow<'a> {
+struct ListedContainerIndicator<'a> {
     engine: &'a DockerEngineSocket,
     listed: &'a DockerContainerListing,
 }
 
-impl<'a> ListedContainerRow<'a> {
+impl<'a> ListedContainerIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.listed.container_name, &self.engine.owner),
@@ -171,7 +172,7 @@ impl DockerEnginesGroup {
                         DockerEnginesMessage::Listing(socket_path, delivery)
                     }),
                 demand
-                    .while_rows_shown(
+                    .while_indicators_shown(
                         snapshot_subscription::<DockerEngineReadout>(socket_path.clone())
                             .with(socket_path),
                     )
@@ -261,7 +262,7 @@ impl DockerEnginesGroup {
         self.listings.get(&engine.socket_path)?.get()
     }
 
-    fn running_container_rows<'a>(
+    fn running_container_indicators<'a>(
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
@@ -272,7 +273,7 @@ impl DockerEnginesGroup {
             listing,
         };
         engine_containers
-            .running_rows(|request| {
+            .running_indicators(|request| {
                 WidgetGroupInteraction::DockerEngines(EngineContainerInteraction::SwitchContainer(
                     request,
                 ))
@@ -282,7 +283,7 @@ impl DockerEnginesGroup {
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |clock| {
                     engine_readout.hover_card_with(
-                        RunningContainerRow {
+                        RunningContainerIndicator {
                             container,
                             owner: &engine.owner,
                         }
@@ -293,7 +294,7 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn stopped_container_rows<'a>(
+    fn stopped_container_indicators<'a>(
         engine: &'a DockerEngineSocket,
         listing: &'a EngineListing,
         engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
@@ -304,7 +305,7 @@ impl DockerEnginesGroup {
             listing,
         };
         engine_containers
-            .stopped_rows(|request| {
+            .stopped_indicators(|request| {
                 WidgetGroupInteraction::DockerEngines(EngineContainerInteraction::SwitchContainer(
                     request,
                 ))
@@ -314,7 +315,7 @@ impl DockerEnginesGroup {
             .map(|(row, container)| {
                 row.with_hover_card(Box::new(move |_| {
                     engine_readout.hover_card_with(
-                        StoppedContainerRow {
+                        StoppedContainerIndicator {
                             container,
                             owner: &engine.owner,
                         }
@@ -339,11 +340,11 @@ impl DockerEnginesGroup {
                     expansion,
                 ))
             },
-            self.container_rows(),
+            self.container_indicators(),
         )
     }
 
-    fn listed_rows<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupIndicator<'a>> {
+    fn listed_indicators<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupIndicator<'a>> {
         let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
             return Vec::new();
         };
@@ -357,7 +358,7 @@ impl DockerEnginesGroup {
                     container_id: Cow::Owned(listed.id.clone()),
                 };
                 with_container_switch(
-                    ListedContainerRow { engine, listed }.indicator(),
+                    ListedContainerIndicator { engine, listed }.indicator(),
                     listed.run_state,
                     target,
                     |request| {
@@ -368,45 +369,45 @@ impl DockerEnginesGroup {
                 )
                 .with_hover_card(Box::new(move |_| {
                     engine_listings
-                        .hover_card_with(ListedContainerRow { engine, listed }.hover_card())
+                        .hover_card_with(ListedContainerIndicator { engine, listed }.hover_card())
                 }))
             })
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupIndicator<'_>> {
-        let mut failure_rows = Vec::new();
-        let mut running_rows = Vec::new();
-        let mut stopped_rows = Vec::new();
+    fn container_indicators(&self) -> Vec<GroupIndicator<'_>> {
+        let mut failure_indicators = Vec::new();
+        let mut running_indicators = Vec::new();
+        let mut stopped_indicators = Vec::new();
         for engine in &self.engines {
             if let Some(engine_readout) = self.readouts.get(&engine.socket_path)
                 && let Some(listing) = self.readout_of(engine)
             {
-                running_rows.extend(Self::running_container_rows(
+                running_indicators.extend(Self::running_container_indicators(
                     engine,
                     listing,
                     engine_readout,
                 ));
-                stopped_rows.extend(Self::stopped_container_rows(
+                stopped_indicators.extend(Self::stopped_container_indicators(
                     engine,
                     listing,
                     engine_readout,
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
-                failure_rows.push(
-                    UnreadableEngineRow {
+                failure_indicators.push(
+                    UnreadableEngineIndicator {
                         engine,
                         read_failure,
                     }
                     .indicator(),
                 );
             } else {
-                running_rows.extend(self.listed_rows(engine));
+                running_indicators.extend(self.listed_indicators(engine));
             }
         }
-        running_rows.extend(stopped_rows);
-        failure_rows.extend(rows_ending_in_hidden_count(running_rows));
-        failure_rows
+        running_indicators.extend(stopped_indicators);
+        failure_indicators.extend(indicators_ending_in_hidden_count(running_indicators));
+        failure_indicators
     }
 }
 
@@ -462,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn a_denied_docker_socket_shows_a_failure_row() {
+    fn a_denied_docker_socket_shows_a_failure_indicator() {
         let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
         let mut group = rootful_engine_group();
         let _ = group.update(
@@ -472,21 +473,21 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert_eq!(group.container_rows().len(), 1);
-        let failure_row = HoverTarget::Indicator(IndicatorKey {
+        assert_eq!(group.container_indicators().len(), 1);
+        let failure_indicator = HoverTarget::Indicator(IndicatorKey {
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::DockerEngines),
-            name: group.container_rows()[0].indicator_name(),
+            name: group.container_indicators()[0].indicator_name(),
         });
         assert!(
             group
                 .group_content()
-                .hover_card(&failure_row, Clock::real())
+                .hover_card(&failure_indicator, Clock::real())
                 .is_some_and(|card| !card.sections.is_empty())
         );
     }
 
     #[test]
-    fn a_missing_docker_socket_shows_no_row() {
+    fn a_missing_docker_socket_shows_no_indicator() {
         let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
         let mut group = rootful_engine_group();
         let _ = group.update(

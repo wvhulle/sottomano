@@ -32,12 +32,12 @@ fn lan_access_entry(exit_node_choices: &ExitNodeChoices) -> LabeledValue {
     )
 }
 
-pub(super) struct ExitNodeChoiceRow<'a> {
+pub(super) struct ExitNodeChoiceIndicator<'a> {
     pub(super) exit_node_option: &'a ExitNodeOption,
     pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
-impl<'a> ExitNodeChoiceRow<'a> {
+impl<'a> ExitNodeChoiceIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let label = match self
             .exit_node_choices
@@ -97,11 +97,11 @@ impl<'a> ExitNodeChoiceRow<'a> {
     }
 }
 
-pub(super) struct ExitNodeLanAccessRow<'a> {
+pub(super) struct ExitNodeLanAccessIndicator<'a> {
     pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
-impl<'a> ExitNodeLanAccessRow<'a> {
+impl<'a> ExitNodeLanAccessIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             "LAN while exiting",

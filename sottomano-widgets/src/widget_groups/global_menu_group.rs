@@ -357,7 +357,7 @@ impl GlobalMenuGroup {
         let submenu_preparation = match &self.focused_menu_bar {
             FocusedMenuBar::Shown(shown_menu_bar) => match &shown_menu_bar.activation_route {
                 MenuActivationRoute::DbusMenu(location) => {
-                    source_demand.while_rows_shown(Subscription::run_with(
+                    source_demand.while_indicators_shown(Subscription::run_with(
                         SubmenuPreparation {
                             buses: buses.clone(),
                             location: location.clone(),

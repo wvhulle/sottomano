@@ -83,7 +83,10 @@ impl UnitSwitchIndicator {
         }
     }
 
-    pub fn switch_item<'a>(self, pressed: impl Into<WidgetGroupInteraction>) -> GroupIndicator<'a> {
+    pub fn wired_switch_indicator<'a>(
+        self,
+        pressed: impl Into<WidgetGroupInteraction>,
+    ) -> GroupIndicator<'a> {
         let switch_position = self.toggle.switch_position;
         let press_does = self.toggle.press_does();
         self.indicator()

@@ -5,7 +5,7 @@ use sottomano_toml_config::Config;
 use crate::group_indicators::toggle_control::SwitchPosition;
 
 #[must_use]
-pub fn item_toggle_switch<'a, Message: 'a>(
+pub fn indicator_toggle_switch<'a, Message: 'a>(
     config: &Config,
     switch_position: SwitchPosition,
     response: SwitchResponse,

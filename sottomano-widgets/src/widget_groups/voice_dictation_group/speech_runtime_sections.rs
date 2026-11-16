@@ -1,6 +1,6 @@
 use notulist_client::DictationEngine;
 
-use super::speech_model_item::non_empty;
+use super::speech_model_indicator::non_empty;
 use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{

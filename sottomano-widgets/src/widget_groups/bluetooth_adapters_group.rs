@@ -207,7 +207,7 @@ impl BluetoothAdaptersGroup {
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
-        let power_item = power_switch
+        let wired_power_indicator = power_switch
             .indicator()
             .on_switch_press(
                 &adapter.power,
@@ -219,7 +219,7 @@ impl BluetoothAdaptersGroup {
                     .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
             }));
         let siblings = adapter.power.connected_devices();
-        let device_items: Vec<GroupIndicator<'a>> = siblings
+        let device_indicators: Vec<GroupIndicator<'a>> = siblings
             .iter()
             .map(|device| {
                 let input_reports = report_timing_for(&device.address)
@@ -256,7 +256,7 @@ impl BluetoothAdaptersGroup {
                 controller_name: controller_name.clone(),
                 expansion,
             },
-            [power_item].into_iter().chain(device_items),
+            [wired_power_indicator].into_iter().chain(device_indicators),
         ))
     }
 
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn each_of_several_adapters_gets_its_own_row_title() {
+    fn each_of_several_adapters_gets_its_own_indicator_title() {
         assert_ne!(
             adapter_group_title(one_of_several("hci0")),
             adapter_group_title(one_of_several("hci1"))

@@ -92,7 +92,7 @@ impl WifiAdaptersGroup {
         let demand = demand.expanded_when(adapter_expansion);
         Subscription::batch([
             snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(WifiAdaptersMessage::GatewayLatencies),
             ),

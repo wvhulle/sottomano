@@ -135,11 +135,11 @@ mod tests {
     #[test]
     fn ram_toast_lists_used_and_available_memory() {
         let nearly_full = memory_at(95);
-        let toast_row = memory_indicator(&nearly_full, Locale::en_US);
+        let toast_indicator = memory_indicator(&nearly_full, Locale::en_US);
         let StateToast::NotifyFromSeverity {
             body: ToastBody::Text(toast_body),
             ..
-        } = toast_row.alerts().state_toast.clone()
+        } = toast_indicator.alerts().state_toast.clone()
         else {
             panic!("a nearly full RAM has a toast with a body");
         };

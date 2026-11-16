@@ -89,7 +89,7 @@ impl EthernetPortsGroup {
         let demand = demand.expanded_when(port_expansion);
         Subscription::batch([
             snapshot_subscription::<Ethernet>(buses.clone()).map(EthernetPortsMessage::Snapshot),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(EthernetPortsMessage::GatewayLatencies),
             ),

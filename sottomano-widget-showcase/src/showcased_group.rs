@@ -197,10 +197,10 @@ impl ShowcasedShellSettings {
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
-                .map(WidgetGroupContent::only_aligned_items)
+                .map(WidgetGroupContent::only_aligned_indicators)
                 .into(),
             ShownSettingItems::Remaining => inert_settings
-                .map(WidgetGroupContent::only_unaligned_items)
+                .map(WidgetGroupContent::only_unaligned_indicators)
                 .into(),
         }
     }
@@ -944,12 +944,12 @@ impl ShowcasedGroup {
         config: &Config,
         clock: Clock,
     ) -> Option<HoverCard> {
-        let row_card = self
+        let indicator_card = self
             .group_contents(config, clock)
             .iter()
             .find_map(|group| group.hover_card(target, clock));
-        if let Some(row_card) = row_card {
-            return HoverCard::new(row_card.sections, row_card.header);
+        if let Some(indicator_card) = indicator_card {
+            return HoverCard::new(indicator_card.sections, indicator_card.header);
         }
         let standalone_sections = match self {
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {

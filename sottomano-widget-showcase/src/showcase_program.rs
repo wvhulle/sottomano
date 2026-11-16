@@ -420,7 +420,7 @@ impl ShowcaseState {
         let inspected_sections = self
             .group_menus
             .inspected_indicator(kind)
-            .map(|indicator_key| group_menu.row_hover_card(indicator_key, self.clock))
+            .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
             .unwrap_or_default();
         let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation = CascadeOrientation::toward_room(

@@ -42,12 +42,12 @@ fn bound_text(memory_bound: MemoryBound) -> String {
     }
 }
 
-struct LimitedCgroupRow<'a> {
+struct LimitedCgroupIndicator<'a> {
     cgroup: &'a LimitedCgroup,
     killed_this_session: bool,
 }
 
-impl LimitedCgroupRow<'_> {
+impl LimitedCgroupIndicator<'_> {
     fn detail_entries(&self) -> Vec<LabeledValue> {
         let memory = &self.cgroup.memory;
         let mut detail_entries = vec![
@@ -89,7 +89,7 @@ impl LimitedCgroupRow<'_> {
     }
 }
 
-impl<'a> LimitedCgroupRow<'a> {
+impl<'a> LimitedCgroupIndicator<'a> {
     fn state(&self) -> IndicatorState {
         let memory = &self.cgroup.memory;
         if self.killed_this_session {
@@ -209,8 +209,8 @@ impl CgroupMemoryLimitsGroup {
             .unwrap_or_default()
     }
 
-    fn cgroup_row<'a>(&self, cgroup: &'a LimitedCgroup) -> LimitedCgroupRow<'a> {
-        LimitedCgroupRow {
+    fn cgroup_indicator<'a>(&self, cgroup: &'a LimitedCgroup) -> LimitedCgroupIndicator<'a> {
+        LimitedCgroupIndicator {
             cgroup,
             killed_this_session: self
                 .first_seen_oom_kills
@@ -221,11 +221,11 @@ impl CgroupMemoryLimitsGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
-            self.cgroup_row(cgroup)
+            self.cgroup_indicator(cgroup)
                 .indicator()
                 .with_hover_card(Box::new(move |_| {
                     self.listing
-                        .hover_card_with(self.cgroup_row(cgroup).hover_card())
+                        .hover_card_with(self.cgroup_indicator(cgroup).hover_card())
                 }))
                 .on_press(
                     CGTOP_PRESS_HINT,
@@ -256,7 +256,7 @@ impl CgroupMemoryLimitsGroup {
     fn state(&self) -> IndicatorState {
         self.listed_cgroups()
             .iter()
-            .map(|cgroup| self.cgroup_row(cgroup).state().severity())
+            .map(|cgroup| self.cgroup_indicator(cgroup).state().severity())
             .max()
             .unwrap_or_default()
             .into()
@@ -310,9 +310,9 @@ mod tests {
     }
 
     #[test]
-    fn a_row_labels_usage_against_its_hard_cap() {
+    fn an_indicator_labels_usage_against_its_hard_cap() {
         let cgroup = capped_cgroup(ByteSize::gib(6), 0);
-        let row = LimitedCgroupRow {
+        let row = LimitedCgroupIndicator {
             cgroup: &cgroup,
             killed_this_session: false,
         };
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn usage_above_the_throttle_mark_warns() {
         let cgroup = capped_cgroup(ByteSize::gib(11), 0);
-        let row = LimitedCgroupRow {
+        let row = LimitedCgroupIndicator {
             cgroup: &cgroup,
             killed_this_session: false,
         };

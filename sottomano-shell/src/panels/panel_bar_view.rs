@@ -31,7 +31,7 @@ impl DesktopShell {
         output: &'a str,
     ) -> Element<'a, ShellInteraction> {
         let position = composition.position;
-        let zone_row = |zone| {
+        let zone_indicator = |zone| {
             self.panel_zone_row(
                 position,
                 composition
@@ -41,9 +41,9 @@ impl DesktopShell {
             )
         };
         let panel_zone_rows = row![
-            zone_row(PanelZone::Start),
-            container(zone_row(PanelZone::Center)).center_x(Length::Fill),
-            zone_row(PanelZone::End),
+            zone_indicator(PanelZone::Start),
+            container(zone_indicator(PanelZone::Center)).center_x(Length::Fill),
+            zone_indicator(PanelZone::End),
         ]
         .spacing(self.config.theme.spacing.group_gap)
         .height(Length::Fill)

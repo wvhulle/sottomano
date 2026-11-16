@@ -45,7 +45,7 @@ impl From<&SlowJob> for TableRecord<2> {
     }
 }
 
-pub(super) fn slow_jobs_item<'a>(
+pub(super) fn wired_slow_jobs_indicator<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,

@@ -280,7 +280,7 @@ mod tests {
             SubscribedSnapshot::AwaitingFirstSnapshot
         ));
         assert_eq!(
-            SnapshotPlaceholder::<UpcomingEventList>::awaiting_row(
+            SnapshotPlaceholder::<UpcomingEventList>::awaiting_indicator(
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH
             )
             .shown_state(),
@@ -297,16 +297,16 @@ mod tests {
     #[test]
     fn a_pending_indicator_draws_no_label_until_its_data_arrives() {
         let pending_events = event_placeholder(PlaceholderCause::AwaitingFirstSnapshot);
-        let pending_row = pending_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        let pending_indicator = pending_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
         assert_eq!(
-            pending_row
+            pending_indicator
                 .shown_readout()
                 .expect("a readout indicator")
                 .label,
             ReadoutLabel::Unlabeled
         );
-        assert_eq!(pending_row.shown_state(), IndicatorState::Pending);
-        let card_titles: Vec<String> = pending_row
+        assert_eq!(pending_indicator.shown_state(), IndicatorState::Pending);
+        let card_titles: Vec<String> = pending_indicator
             .hover_card(Clock::real())
             .iter()
             .map(|section| section.title().text().to_owned())
@@ -319,15 +319,15 @@ mod tests {
         let offline_events = event_placeholder(PlaceholderCause::Troubled(
             SnapshotTrouble::Offline(InternetUnreachable::NoConnection),
         ));
-        let offline_row = offline_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        let offline_indicator = offline_events.indicator(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
         assert_eq!(
-            offline_row
+            offline_indicator
                 .shown_readout()
                 .expect("a readout indicator")
                 .label,
             ReadoutLabel::Unlabeled
         );
-        assert_eq!(offline_row.shown_state(), IndicatorState::Offline);
+        assert_eq!(offline_indicator.shown_state(), IndicatorState::Offline);
     }
 
     #[test]

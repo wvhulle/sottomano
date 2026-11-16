@@ -95,12 +95,12 @@ pub(crate) fn engine_container_name(
     }
 }
 
-pub(crate) struct RunningContainerRow<'a> {
+pub(crate) struct RunningContainerIndicator<'a> {
     pub(crate) container: &'a RunningContainer,
     pub(crate) owner: &'a EngineOwner,
 }
 
-impl<'a> RunningContainerRow<'a> {
+impl<'a> RunningContainerIndicator<'a> {
     pub(crate) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.container.container_name, self.owner),
@@ -137,12 +137,12 @@ impl<'a> RunningContainerRow<'a> {
     }
 }
 
-pub(crate) struct StoppedContainerRow<'a> {
+pub(crate) struct StoppedContainerIndicator<'a> {
     pub(crate) container: &'a StoppedContainer,
     pub(crate) owner: &'a EngineOwner,
 }
 
-impl<'a> StoppedContainerRow<'a> {
+impl<'a> StoppedContainerIndicator<'a> {
     pub(crate) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.container.container_name, self.owner),
@@ -171,11 +171,11 @@ impl<'a> StoppedContainerRow<'a> {
     }
 }
 
-pub(crate) struct HiddenContainersRow {
+pub(crate) struct HiddenContainersIndicator {
     pub(crate) hidden_count: usize,
 }
 
-impl HiddenContainersRow {
+impl HiddenContainersIndicator {
     pub(crate) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             format!("{} more", self.hidden_count),
@@ -210,7 +210,7 @@ impl<'a> EngineContainers<'a> {
         }
     }
 
-    pub(crate) fn running_rows<Message: Into<WidgetGroupInteraction>>(
+    pub(crate) fn running_indicators<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
     ) -> Vec<GroupIndicator<'a>> {
@@ -221,7 +221,7 @@ impl<'a> EngineContainers<'a> {
             .iter()
             .map(|container| {
                 with_container_switch(
-                    RunningContainerRow { container, owner }.indicator(),
+                    RunningContainerIndicator { container, owner }.indicator(),
                     ContainerRunState::Running,
                     self.container_address(&container.id),
                     switched,
@@ -230,7 +230,7 @@ impl<'a> EngineContainers<'a> {
             .collect()
     }
 
-    pub(crate) fn stopped_rows<Message: Into<WidgetGroupInteraction>>(
+    pub(crate) fn stopped_indicators<Message: Into<WidgetGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
     ) -> Vec<GroupIndicator<'a>> {
@@ -240,7 +240,7 @@ impl<'a> EngineContainers<'a> {
             .iter()
             .map(|container| {
                 with_container_switch(
-                    StoppedContainerRow { container, owner }.indicator(),
+                    StoppedContainerIndicator { container, owner }.indicator(),
                     ContainerRunState::Stopped,
                     self.container_address(&container.id),
                     switched,
@@ -276,26 +276,26 @@ pub(crate) fn with_container_switch<Message: Into<WidgetGroupInteraction>>(
     }
 }
 
-pub(crate) fn rows_ending_in_hidden_count(
+pub(crate) fn indicators_ending_in_hidden_count(
     mut rows: Vec<GroupIndicator<'_>>,
 ) -> Vec<GroupIndicator<'_>> {
     if rows.len() <= SHOWN_CONTAINER_ROWS {
         return rows;
     }
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
-    rows.push(HiddenContainersRow { hidden_count }.indicator());
+    rows.push(HiddenContainersIndicator { hidden_count }.indicator());
     rows
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::HiddenContainersRow;
+    use super::HiddenContainersIndicator;
 
     #[test]
-    fn the_hidden_row_counts_what_it_replaces() {
-        let hidden = HiddenContainersRow { hidden_count: 4 };
-        let hidden_row = hidden.indicator();
-        assert_eq!(hidden_row.face().name, "4 more");
+    fn the_hidden_indicator_counts_what_it_replaces() {
+        let hidden = HiddenContainersIndicator { hidden_count: 4 };
+        let hidden_indicator = hidden.indicator();
+        assert_eq!(hidden_indicator.face().name, "4 more");
     }
 }

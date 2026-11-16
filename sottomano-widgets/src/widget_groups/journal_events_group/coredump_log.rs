@@ -45,12 +45,12 @@ impl From<&CoredumpEntry> for TableRecord<4> {
 pub(super) const COREDUMP_LOG_GLYPH: Phosphor = Phosphor::Bug(Weight::Regular);
 
 impl JournalScopeGroup {
-    pub(super) fn coredump_log_item<'a>(
+    pub(super) fn wired_coredump_log_indicator<'a>(
         &'a self,
         config: &Config,
-        coredump_row: GroupIndicator<'a>,
+        coredump_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        coredump_row
+        coredump_indicator
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(

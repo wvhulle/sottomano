@@ -249,7 +249,10 @@ impl SidebarSettingsGroup {
             ),
         ];
         if self.workspaces_placement == WorkspacesPlacement::Sidebar {
-            rows.extend(self.layer.items(config, SidebarSettingsMessage::Appearance));
+            rows.extend(
+                self.layer
+                    .indicators(config, SidebarSettingsMessage::Appearance),
+            );
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SidebarSettings,

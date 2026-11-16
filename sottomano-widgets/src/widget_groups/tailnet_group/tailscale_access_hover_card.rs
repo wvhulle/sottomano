@@ -29,11 +29,11 @@ use crate::{
 const NO_TAGS_TEXT: &str = "none";
 
 #[derive(Clone, Copy)]
-pub(super) struct OwnNodeRow<'a> {
+pub(super) struct OwnNodeIndicator<'a> {
     tailnet: &'a Tailnet,
 }
 
-impl<'a> OwnNodeRow<'a> {
+impl<'a> OwnNodeIndicator<'a> {
     pub(super) fn running_own_node(tailscale: &'a Tailscale) -> Option<Self> {
         match tailscale {
             Tailscale::Running(tailnet) => Some(Self { tailnet }),
@@ -49,7 +49,7 @@ impl<'a> OwnNodeRow<'a> {
     }
 }
 
-impl<'a> OwnNodeRow<'a> {
+impl<'a> OwnNodeIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             "This machine",
@@ -81,9 +81,9 @@ impl<'a> OwnNodeRow<'a> {
     }
 }
 
-pub(super) struct InboundAccessRow;
+pub(super) struct InboundAccessIndicator;
 
-impl InboundAccessRow {
+impl InboundAccessIndicator {
     pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             "Reachable from",
@@ -94,9 +94,9 @@ impl InboundAccessRow {
     }
 }
 
-pub(super) struct PolicyFileRow;
+pub(super) struct PolicyFileIndicator;
 
-impl PolicyFileRow {
+impl PolicyFileIndicator {
     pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             "Policy file",

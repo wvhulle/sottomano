@@ -38,11 +38,11 @@ use crate::{
         group_summary::GroupSummary,
         tailnet_group::{
             tailscale_access_hover_card::{
-                InboundAccessRow, OwnNodeRow, PolicyFileRow, tailscale_inbound_access_sections,
-                tailscale_policy_file_sections,
+                InboundAccessIndicator, OwnNodeIndicator, PolicyFileIndicator,
+                tailscale_inbound_access_sections, tailscale_policy_file_sections,
             },
-            tailscale_exit_node_hover_card::{ExitNodeChoiceRow, ExitNodeLanAccessRow},
-            tailscale_exit_offer_hover_card::ExitOfferRow,
+            tailscale_exit_node_hover_card::{ExitNodeChoiceIndicator, ExitNodeLanAccessIndicator},
+            tailscale_exit_offer_hover_card::ExitOfferIndicator,
             tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_indicator},
         },
         widget_group_content::{
@@ -287,7 +287,10 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_item<'a>(&'a self, membership_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn membership_indicator<'a>(
+        &'a self,
+        membership_row: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
         membership_row
             .on_right_press(
                 "open the Tailscale admin console",
@@ -299,19 +302,19 @@ impl TailnetGroup {
             }))
     }
 
-    fn membership_switch_item<'a>(
+    fn membership_switch_indicator<'a>(
         &'a self,
         membership_row: GroupIndicator<'a>,
         tailscale: &Tailscale,
     ) -> GroupIndicator<'a> {
-        let membership_item = self.membership_item(membership_row);
+        let membership_indicator = self.membership_indicator(membership_row);
         match tailscale.switch() {
-            TailscaleSwitch::Up => membership_item.on_switch_press(
+            TailscaleSwitch::Up => membership_indicator.on_switch_press(
                 SwitchPosition::Off,
                 "turn Tailscale on",
                 TailnetInteraction::SwitchTailscale(TailscaleSwitch::Up),
             ),
-            TailscaleSwitch::Down => membership_item.on_switch_press(
+            TailscaleSwitch::Down => membership_indicator.on_switch_press(
                 SwitchPosition::On,
                 "turn Tailscale off",
                 TailnetInteraction::SwitchTailscale(TailscaleSwitch::Down),
@@ -326,8 +329,8 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(&self) -> GroupIndicator<'_> {
-        PolicyFileRow::indicator()
+    fn policy_file_indicator(&self) -> GroupIndicator<'_> {
+        PolicyFileIndicator::indicator()
             .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
             .fetching_on_hover(
                 TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
@@ -335,8 +338,8 @@ impl TailnetGroup {
             )
     }
 
-    fn inbound_access_item(&self) -> GroupIndicator<'_> {
-        InboundAccessRow::indicator()
+    fn inbound_access_indicator(&self) -> GroupIndicator<'_> {
+        InboundAccessIndicator::indicator()
             .with_hover_card(Box::new(move |_| {
                 self.inbound_access
                     .sections_described_by(tailscale_inbound_access_sections)
@@ -347,23 +350,24 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_offer_item(tailnet: &Tailnet) -> GroupIndicator<'_> {
-        let item = ExitOfferRow { tailnet }.indicator();
+    fn exit_offer_indicator(tailnet: &Tailnet) -> GroupIndicator<'_> {
+        let indicator = ExitOfferIndicator { tailnet }.indicator();
         match tailnet.offer_control() {
-            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
-                .on_switch_press(
+            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => {
+                indicator.on_switch_press(
                     SwitchPosition::On,
                     "stop offering this machine as an exit node",
                     TailnetInteraction::SwitchExitOffer(exit_offer_switch),
-                ),
+                )
+            }
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StartOffering) => {
-                item.on_switch_press(
+                indicator.on_switch_press(
                     SwitchPosition::Off,
                     "offer this machine as an exit node",
                     TailnetInteraction::SwitchExitOffer(exit_offer_switch),
                 )
             }
-            ExitOfferControl::BlockedByExitNodeInUse => item,
+            ExitOfferControl::BlockedByExitNodeInUse => indicator,
         }
     }
 
@@ -374,30 +378,31 @@ impl TailnetGroup {
         }
     }
 
-    fn exit_node_choice_item<'a>(
+    fn exit_node_choice_indicator<'a>(
         exit_node_option: &'a ExitNodeOption,
         exit_node_choices: &'a ExitNodeChoices,
     ) -> GroupIndicator<'a> {
-        let exit_node_item = ExitNodeChoiceRow {
+        let exit_node_indicator = ExitNodeChoiceIndicator {
             exit_node_option,
             exit_node_choices,
         }
         .indicator();
         match exit_node_choices.control_for_option(exit_node_option) {
-            ExitNodeControl::Switchable(exit_routing_switch) => exit_node_item.on_switch_press(
-                exit_node_option.node_use,
-                match exit_node_option.node_use {
-                    ExitNodeUse::InUse => "stop using the exit node",
-                    ExitNodeUse::Unused => "use the exit node",
-                },
-                TailnetInteraction::SwitchExitRouting(exit_routing_switch),
-            ),
-            ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => exit_node_item,
+            ExitNodeControl::Switchable(exit_routing_switch) => exit_node_indicator
+                .on_switch_press(
+                    exit_node_option.node_use,
+                    match exit_node_option.node_use {
+                        ExitNodeUse::InUse => "stop using the exit node",
+                        ExitNodeUse::Unused => "use the exit node",
+                    },
+                    TailnetInteraction::SwitchExitRouting(exit_routing_switch),
+                ),
+            ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => exit_node_indicator,
         }
     }
 
-    fn exit_node_lan_access_item(exit_node_choices: &ExitNodeChoices) -> GroupIndicator<'_> {
-        ExitNodeLanAccessRow { exit_node_choices }
+    fn exit_node_lan_access_indicator(exit_node_choices: &ExitNodeChoices) -> GroupIndicator<'_> {
+        ExitNodeLanAccessIndicator { exit_node_choices }
             .indicator()
             .on_switch_press(
                 exit_node_choices.lan_access,
@@ -409,39 +414,38 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_node_choice_items(&self) -> Vec<GroupIndicator<'_>> {
+    fn exit_node_choice_indicators(&self) -> Vec<GroupIndicator<'_>> {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
-        let mut exit_node_items: Vec<_> = exit_node_choices
+        let mut exit_node_indicators: Vec<_> = exit_node_choices
             .options
             .iter()
             .map(|exit_node_option| {
-                Self::exit_node_choice_item(exit_node_option, exit_node_choices).with_hover_card(
-                    Box::new(move |_| {
+                Self::exit_node_choice_indicator(exit_node_option, exit_node_choices)
+                    .with_hover_card(Box::new(move |_| {
                         self.tailscale_exit_nodes.hover_card_with(
-                            ExitNodeChoiceRow {
+                            ExitNodeChoiceIndicator {
                                 exit_node_option,
                                 exit_node_choices,
                             }
                             .hover_card(),
                         )
-                    }),
-                )
+                    }))
             })
             .collect();
         if !exit_node_choices.options.is_empty() {
-            exit_node_items.push(
-                Self::exit_node_lan_access_item(exit_node_choices).with_hover_card(Box::new(
+            exit_node_indicators.push(
+                Self::exit_node_lan_access_indicator(exit_node_choices).with_hover_card(Box::new(
                     move |_| {
                         self.tailscale_exit_nodes.hover_card_with(
-                            ExitNodeLanAccessRow { exit_node_choices }.hover_card(),
+                            ExitNodeLanAccessIndicator { exit_node_choices }.hover_card(),
                         )
                     },
                 )),
             );
         }
-        exit_node_items
+        exit_node_indicators
     }
 
     pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_> {
@@ -450,7 +454,7 @@ impl TailnetGroup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let membership_row = tailscale_indicator(held_snapshot, clock);
                 if membership_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.membership_switch_item(membership_row, held_snapshot));
+                    rows.push(self.membership_switch_indicator(membership_row, held_snapshot));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
@@ -458,34 +462,45 @@ impl TailnetGroup {
                 let membership_row =
                     troubled_snapshot.shown_over(tailscale_indicator(held_snapshot, clock), clock);
                 if membership_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.membership_switch_item(membership_row, held_snapshot));
+                    rows.push(self.membership_switch_indicator(membership_row, held_snapshot));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.membership_item(placeholder.indicator(TAILNET_MEMBERSHIP_GLYPH.into())),
+                    self.membership_indicator(
+                        placeholder.indicator(TAILNET_MEMBERSHIP_GLYPH.into()),
+                    ),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
-        if let Some(own_node_row) = self.tailscale.get().and_then(OwnNodeRow::running_own_node) {
-            rows.push(own_node_row.indicator().with_hover_card(Box::new(move |_| {
-                self.tailscale.hover_card_with(own_node_row.hover_card())
-            })));
+        if let Some(own_node_indicator) = self
+            .tailscale
+            .get()
+            .and_then(OwnNodeIndicator::running_own_node)
+        {
+            rows.push(
+                own_node_indicator
+                    .indicator()
+                    .with_hover_card(Box::new(move |_| {
+                        self.tailscale
+                            .hover_card_with(own_node_indicator.hover_card())
+                    })),
+            );
         }
         if let Some(tailnet) = self.running_tailnet() {
-            rows.push(self.inbound_access_item());
+            rows.push(self.inbound_access_indicator());
             if matches!(self.policy_file_access, PolicyFileAccess::ApiToken { .. }) {
-                rows.push(self.policy_file_item());
+                rows.push(self.policy_file_indicator());
             }
             rows.push(
-                Self::exit_offer_item(tailnet).with_hover_card(Box::new(move |_| {
+                Self::exit_offer_indicator(tailnet).with_hover_card(Box::new(move |_| {
                     self.tailscale
-                        .hover_card_with(ExitOfferRow { tailnet }.hover_card())
+                        .hover_card_with(ExitOfferIndicator { tailnet }.hover_card())
                 })),
             );
         }
-        rows.extend(self.exit_node_choice_items());
+        rows.extend(self.exit_node_choice_indicators());
         if let Some(failure_indicator) = self.tailscale_exit_nodes.failure() {
             rows.push(
                 failure_indicator
@@ -501,8 +516,9 @@ impl TailnetGroup {
             GroupSummary::glyph(SimpleIcon::Tailscale.into(), IndicatorState::Idle),
             &self.expansion,
             TailnetInteraction::Expansion,
-            rows.into_iter()
-                .map(|tailnet_item| tailnet_item.refreshed_by(TailnetInteraction::Refresh)),
+            rows.into_iter().map(|tailnet_indicator| {
+                tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
+            }),
         )
     }
 }
@@ -543,10 +559,10 @@ mod tests {
     }
 
     #[test]
-    fn the_offer_row_is_inert_while_an_exit_node_is_in_use() {
+    fn the_offer_indicator_is_inert_while_an_exit_node_is_in_use() {
         let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
         assert!(matches!(
-            TailnetGroup::exit_offer_item(&tailnet).gestures().left,
+            TailnetGroup::exit_offer_indicator(&tailnet).gestures().left,
             IndicatorGesture::Inert
         ));
     }
@@ -565,7 +581,7 @@ mod tests {
         running_group
     }
 
-    fn lists_policy_file_row(tailnet_group: &TailnetGroup) -> bool {
+    fn lists_policy_file_indicator(tailnet_group: &TailnetGroup) -> bool {
         tailnet_group
             .group_content(Clock::real())
             .indicator_keys()
@@ -574,19 +590,19 @@ mod tests {
     }
 
     #[test]
-    fn the_policy_file_row_needs_an_api_token() {
+    fn the_policy_file_indicator_needs_an_api_token() {
         let without_token = group_running_tailnet(TailnetGroup::without_policy_file());
-        assert!(!lists_policy_file_row(&without_token));
+        assert!(!lists_policy_file_indicator(&without_token));
         let with_token =
             group_running_tailnet(TailnetGroup::with_policy_file(PathBuf::from("token")));
-        assert!(lists_policy_file_row(&with_token));
+        assert!(lists_policy_file_indicator(&with_token));
     }
 
     #[test]
     fn an_approved_offer_can_be_stopped() {
         let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
         assert!(matches!(
-            TailnetGroup::exit_offer_item(&tailnet).gestures().left,
+            TailnetGroup::exit_offer_indicator(&tailnet).gestures().left,
             IndicatorGesture::Performs {
                 message: WidgetGroupInteraction::Tailnet(TailnetInteraction::SwitchExitOffer(
                     ExitOfferSwitch::StopOffering
@@ -614,9 +630,9 @@ mod tests {
     }
 
     #[test]
-    fn an_online_exit_node_row_can_be_pressed() {
+    fn an_online_exit_node_indicator_can_be_pressed() {
         assert!(!matches!(
-            TailnetGroup::exit_node_choice_item(
+            TailnetGroup::exit_node_choice_indicator(
                 &reachable_exit_node(ExitNodeReachability::Online),
                 &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )
@@ -627,9 +643,9 @@ mod tests {
     }
 
     #[test]
-    fn an_exit_node_row_is_inert_while_this_machine_advertises() {
+    fn an_exit_node_indicator_is_inert_while_this_machine_advertises() {
         assert!(matches!(
-            TailnetGroup::exit_node_choice_item(
+            TailnetGroup::exit_node_choice_indicator(
                 &reachable_exit_node(ExitNodeReachability::Online),
                 &exit_node_choices_while(ExitNodeOffer::Approved)
             )
@@ -640,9 +656,9 @@ mod tests {
     }
 
     #[test]
-    fn an_offline_exit_node_row_is_inert() {
+    fn an_offline_exit_node_indicator_is_inert() {
         assert!(matches!(
-            TailnetGroup::exit_node_choice_item(
+            TailnetGroup::exit_node_choice_indicator(
                 &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
                 &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )

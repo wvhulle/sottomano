@@ -73,7 +73,7 @@ use self::{
         TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
         track_lyrics_indicator,
     },
-    track_face::{player_item, track_item},
+    track_face::{track_indicator, wired_player_indicator},
     track_hover_card::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
@@ -464,7 +464,7 @@ impl MediaGroup {
     }
 }
 
-fn session_buttons_item<'a>(
+fn session_buttons_indicator<'a>(
     config: &'a Config,
     media: &'a Media,
     session: &'a PlayerSession,
@@ -487,7 +487,7 @@ struct PlayerCards<'a> {
     lyrics: DescribeCard<'a>,
 }
 
-fn seek_position_item<'a>(
+fn seek_position_indicator<'a>(
     config: &'a Config,
     clock: Clock,
     media: &'a Media,
@@ -515,7 +515,7 @@ fn seek_position_item<'a>(
     ])
 }
 
-fn transport_controls_item<'a>(config: &'a Config, media: &'a Media) -> GroupIndicator<'a> {
+fn transport_controls_indicator<'a>(config: &'a Config, media: &'a Media) -> GroupIndicator<'a> {
     let bus = media.bus.as_str();
     let press_actions =
         TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
@@ -553,10 +553,10 @@ fn player_group<'a>(
         });
     let group_summary = GroupSummary::summarising(
         Phosphor::MusicNotes(Weight::Regular).into(),
-        player_item(config, media, gauge_fraction).with_hover_card(cards.player),
+        wired_player_indicator(config, media, gauge_fraction).with_hover_card(cards.player),
     );
     let mut rows = vec![
-        track_item(
+        track_indicator(
             config,
             media,
             session.cover_art.as_ref().map(|art| &art.handle),
@@ -572,18 +572,18 @@ fn player_group<'a>(
         } else {
             match lyrics_snapshot {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                    let lyrics_row = track_lyrics_indicator(held_snapshot);
-                    if lyrics_row.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(lyrics_row.with_hover_card(cards.lyrics));
+                    let lyrics_indicator = track_lyrics_indicator(held_snapshot);
+                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                    let lyrics_row = troubled_snapshot.shown_over(
+                    let lyrics_indicator = troubled_snapshot.shown_over(
                         track_lyrics_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     );
-                    if lyrics_row.panel_visibility() == PanelVisibility::Shown {
-                        rows.push(lyrics_row.with_hover_card(cards.lyrics));
+                    if lyrics_indicator.panel_visibility() == PanelVisibility::Shown {
+                        rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
                     }
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => {
@@ -599,11 +599,11 @@ fn player_group<'a>(
         }
     }
     if seek_availability == SeekAvailability::Seekable {
-        rows.push(seek_position_item(config, clock, media, session));
+        rows.push(seek_position_indicator(config, clock, media, session));
     }
-    rows.push(transport_controls_item(config, media));
+    rows.push(transport_controls_indicator(config, media));
     if (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit {
-        rows.push(session_buttons_item(config, media, session));
+        rows.push(session_buttons_indicator(config, media, session));
     }
     WidgetGroupContent::expandable_instance(
         player_group_identity(media, bus),

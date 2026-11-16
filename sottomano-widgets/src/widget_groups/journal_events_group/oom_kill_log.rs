@@ -43,12 +43,12 @@ impl From<&OomKillEntry> for TableRecord<2> {
 pub(super) const OOM_KILL_LOG_GLYPH: Phosphor = Phosphor::Memory(Weight::Regular);
 
 impl JournalScopeGroup {
-    pub(super) fn oom_kill_log_item<'a>(
+    pub(super) fn wired_oom_kill_log_indicator<'a>(
         &'a self,
         config: &Config,
-        oom_kill_row: GroupIndicator<'a>,
+        oom_kill_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        oom_kill_row
+        oom_kill_indicator
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(

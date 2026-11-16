@@ -74,11 +74,11 @@ impl<'a> ShownWaydroid<'a> {
     }
 }
 
-struct WaydroidContainerRow<'a> {
+struct WaydroidContainerIndicator<'a> {
     shown: ShownWaydroid<'a>,
 }
 
-impl<'a> WaydroidContainerRow<'a> {
+impl<'a> WaydroidContainerIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
@@ -123,11 +123,11 @@ impl<'a> WaydroidContainerRow<'a> {
     }
 }
 
-struct WaydroidSessionRow<'a> {
+struct WaydroidSessionIndicator<'a> {
     state: &'a WaydroidState,
 }
 
-impl<'a> WaydroidSessionRow<'a> {
+impl<'a> WaydroidSessionIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
@@ -240,10 +240,10 @@ impl WaydroidContainerGroup {
                 .while_summary_shown(snapshot_subscription::<WaydroidListing>(buses.clone()))
                 .map(WaydroidContainerMessage::Listing),
             demand
-                .while_rows_shown(snapshot_subscription::<WaydroidReadout>(buses.clone()))
+                .while_indicators_shown(snapshot_subscription::<WaydroidReadout>(buses.clone()))
                 .map(WaydroidContainerMessage::Readout),
             demand
-                .while_rows_shown(self.container_switch.subscription(buses))
+                .while_indicators_shown(self.container_switch.subscription(buses))
                 .map(WaydroidContainerMessage::ContainerSwitch),
         ])
     }
@@ -314,7 +314,7 @@ impl WaydroidContainerGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
-        let rows = self.waydroid_rows();
+        let rows = self.waydroid_indicators();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
             GroupSummary::glyph(
@@ -327,11 +327,11 @@ impl WaydroidContainerGroup {
         )
     }
 
-    fn container_row<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupIndicator<'a> {
-        let row = WaydroidContainerRow { shown }
+    fn container_indicator<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupIndicator<'a> {
+        let row = WaydroidContainerIndicator { shown }
             .indicator()
             .with_hover_card(Box::new(move |_| {
-                self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
+                self.stamped_card(shown, WaydroidContainerIndicator { shown }.hover_card())
             }));
         match self.container_switch.activity() {
             Some(_) => self
@@ -344,40 +344,41 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_rows(&self) -> Vec<GroupIndicator<'_>> {
+    fn waydroid_indicators(&self) -> Vec<GroupIndicator<'_>> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };
-        let container_row = self.container_row(shown);
+        let container_indicator = self.container_indicator(shown);
         if shown.container() == ContainerRunState::Stopped {
-            return vec![container_row];
+            return vec![container_indicator];
         }
-        let session_row = WaydroidSessionRow {
+        let session_indicator = WaydroidSessionIndicator {
             state: shown.state(),
         }
         .indicator()
         .with_hover_card(Box::new(move |_| {
             self.stamped_card(
                 shown,
-                WaydroidSessionRow {
+                WaydroidSessionIndicator {
                     state: shown.state(),
                 }
                 .hover_card(),
             )
         }));
-        let session_row = match shown.state() {
-            WaydroidState::Session { .. } => session_row.on_switch_press(
+        let session_indicator = match shown.state() {
+            WaydroidState::Session { .. } => session_indicator.on_switch_press(
                 SwitchPosition::On,
                 STOP_SESSION_HINT,
                 WaydroidContainerInteraction::StopSession,
             ),
-            WaydroidState::ContainerOnly | WaydroidState::Absent => session_row.on_switch_press(
-                SwitchPosition::Off,
-                START_SESSION_HINT,
-                WaydroidContainerInteraction::StartSession,
-            ),
+            WaydroidState::ContainerOnly | WaydroidState::Absent => session_indicator
+                .on_switch_press(
+                    SwitchPosition::Off,
+                    START_SESSION_HINT,
+                    WaydroidContainerInteraction::StartSession,
+                ),
         };
-        vec![container_row, session_row]
+        vec![container_indicator, session_indicator]
     }
 }
 

@@ -217,7 +217,7 @@ impl DesktopShell {
 
     fn hovered_row_fetch(&self) -> HoverFetch {
         self.hovered_indicator_target()
-            .and_then(|target| self.hovered_row_requests(&target))
+            .and_then(|target| self.hovered_indicator_requests(&target))
             .map_or(HoverFetch::NothingToFetch, |requests| requests.hover_fetch)
     }
 
@@ -235,7 +235,7 @@ impl DesktopShell {
     pub fn refresh_hovered_indicator(&mut self) -> Task<Message> {
         let refreshed = match self
             .hovered_indicator_target()
-            .and_then(|target| self.hovered_row_requests(&target))
+            .and_then(|target| self.hovered_indicator_requests(&target))
             .map_or(IndicatorRefresh::Unrefreshable, |requests| requests.refresh)
         {
             IndicatorRefresh::Refreshes(refresh) => self.dispatch_message(Message::from(refresh)),

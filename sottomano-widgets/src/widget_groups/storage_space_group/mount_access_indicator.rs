@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-pub(super) struct MountAccessRow<'a> {
+pub(super) struct MountAccessIndicator<'a> {
     pub usage: &'a FilesystemUsage,
 }
 
@@ -26,7 +26,7 @@ fn access_text(access: MountAccess) -> &'static str {
     }
 }
 
-impl<'a> MountAccessRow<'a> {
+impl<'a> MountAccessIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             "Mount",

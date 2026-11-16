@@ -20,11 +20,11 @@ use crate::{
 const FREE_INODES_WARN_SHARE: f64 = 0.1;
 const FREE_INODES_CRITICAL_SHARE: f64 = 0.02;
 
-pub(super) struct InodeUsageRow {
+pub(super) struct InodeUsageIndicator {
     pub inodes: InodeCount,
 }
 
-impl InodeUsageRow {
+impl InodeUsageIndicator {
     fn free_share(&self) -> f64 {
         if self.inodes.total == 0 {
             return 1.0;
@@ -48,7 +48,7 @@ impl InodeUsageRow {
     }
 }
 
-impl InodeUsageRow {
+impl InodeUsageIndicator {
     pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let label = format!(
             "{} free",
@@ -94,7 +94,7 @@ mod tests {
     use super::*;
 
     fn severity_with(total: u64, free: u64) -> Severity {
-        InodeUsageRow {
+        InodeUsageIndicator {
             inodes: InodeCount { total, free },
         }
         .severity()

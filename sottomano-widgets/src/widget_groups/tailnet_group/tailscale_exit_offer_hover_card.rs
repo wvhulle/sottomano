@@ -26,11 +26,11 @@ pub(super) fn exit_offer_text(exit_offer: ExitNodeOffer) -> &'static str {
     }
 }
 
-pub(super) struct ExitOfferRow<'a> {
+pub(super) struct ExitOfferIndicator<'a> {
     pub(super) tailnet: &'a Tailnet,
 }
 
-impl<'a> ExitOfferRow<'a> {
+impl<'a> ExitOfferIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.tailnet.offer_control() {
             ExitOfferControl::Switchable(_) => ReadoutLabel::Unlabeled,

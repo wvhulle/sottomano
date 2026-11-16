@@ -331,7 +331,7 @@ impl GpuGroup {
                 SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                     GroupSummary::summarising(
                         Phosphor::CubeTransparent(Weight::Regular).into(),
-                        self.gpu_load_item(
+                        self.wired_gpu_load_indicator(
                             bus,
                             device,
                             snapshot,
@@ -342,7 +342,7 @@ impl GpuGroup {
                 SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                     GroupSummary::summarising(
                         Phosphor::CubeTransparent(Weight::Regular).into(),
-                        self.gpu_load_item(
+                        self.wired_gpu_load_indicator(
                             bus,
                             device,
                             snapshot,
@@ -355,7 +355,7 @@ impl GpuGroup {
                 }
                 SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                     Phosphor::CubeTransparent(Weight::Regular).into(),
-                    self.gpu_load_item(
+                    self.wired_gpu_load_indicator(
                         bus,
                         device,
                         snapshot,
@@ -391,14 +391,14 @@ impl GpuGroup {
             .sections_described_by(|_| vec![Section::from(&device.model)])
     }
 
-    fn gpu_load_item<'a>(
+    fn wired_gpu_load_indicator<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
         snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
-        load_row: GroupIndicator<'a>,
+        load_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        load_row
+        load_indicator
             .with_hover_card(Box::new(move |_| {
                 snapshot
                     .sections_described_by(gpu_load_hover_card)
@@ -409,7 +409,7 @@ impl GpuGroup {
             .refreshed_by(GpuInteraction::Refresh(bus.clone()))
     }
 
-    fn device_items<'a>(
+    fn device_indicators<'a>(
         &'a self,
         bus: &'a PciBusId,
         device: &'a GpuDevice,
@@ -497,7 +497,7 @@ impl GpuGroup {
                     self.device_summary(bus, device, clock),
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    self.device_items(bus, device),
+                    self.device_indicators(bus, device),
                 )
             })
     }

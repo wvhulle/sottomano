@@ -34,7 +34,7 @@ impl From<&GroupIndicator<'_>> for HoveredRowRequests {
 }
 
 impl DesktopShell {
-    fn row_hover_card(&self, target: &HoverTarget) -> Option<RowHoverCard> {
+    fn indicator_hover_card(&self, target: &HoverTarget) -> Option<RowHoverCard> {
         let output = self.hovered_output();
         all_panel_entries().find_map(|entry| match entry {
             PanelZoneEntry::Menu(topic) => self
@@ -51,7 +51,10 @@ impl DesktopShell {
     }
 
     #[must_use]
-    pub(crate) fn hovered_row_requests(&self, target: &HoverTarget) -> Option<HoveredRowRequests> {
+    pub(crate) fn hovered_indicator_requests(
+        &self,
+        target: &HoverTarget,
+    ) -> Option<HoveredRowRequests> {
         let output = self.hovered_output();
         all_panel_entries().find_map(|entry| match entry {
             PanelZoneEntry::Menu(topic) => self
@@ -70,8 +73,8 @@ impl DesktopShell {
 
     #[must_use]
     pub fn described_hover_card(&self, target: &HoverTarget) -> Option<HoverCard> {
-        match self.row_hover_card(target) {
-            Some(row_card) => HoverCard::new(row_card.sections, row_card.header),
+        match self.indicator_hover_card(target) {
+            Some(indicator_card) => HoverCard::new(indicator_card.sections, indicator_card.header),
             None => HoverCard::new(self.standalone_hover_card(target), CardHeader::Unheaded),
         }
     }

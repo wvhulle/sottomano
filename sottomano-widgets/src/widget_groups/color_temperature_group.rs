@@ -267,7 +267,7 @@ impl ColorTemperatureGroup {
         if let Some(switch_indicator) = self.auto.switch_indicator(ServiceReadiness::Serving) {
             rows.push(
                 switch_indicator
-                    .switch_item(ColorTemperatureInteraction::AutoPressed)
+                    .wired_switch_indicator(ColorTemperatureInteraction::AutoPressed)
                     .with_hover_card(Box::new(move |_| {
                         self.auto.hover_card(ServiceReadiness::Serving)
                     }))

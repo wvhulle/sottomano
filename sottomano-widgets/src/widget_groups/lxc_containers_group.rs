@@ -16,7 +16,7 @@ use crate::{
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
-            ContainerFamilyMessage, FamilyRow, RowPower,
+            ContainerFamilyMessage, FamilyIndicator, RowPower,
         },
         process_usage_cells::approximate_memory_text,
         widget_group_identity::WidgetGroupFamily,
@@ -28,11 +28,11 @@ use crate::{
     },
 };
 
-pub struct LxcContainerListingRow<'a> {
+pub struct LxcContainerListingIndicator<'a> {
     listing: &'a LxcContainerListing,
 }
 
-impl<'a> LxcContainerListingRow<'a> {
+impl<'a> LxcContainerListingIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let listing = self.listing;
         GroupIndicator::glyph_only(
@@ -54,11 +54,11 @@ impl<'a> LxcContainerListingRow<'a> {
     }
 }
 
-pub struct LxcContainerRow<'a> {
+pub struct LxcContainerIndicator<'a> {
     container: &'a LxcContainer,
 }
 
-impl<'a> LxcContainerRow<'a> {
+impl<'a> LxcContainerIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let container = self.container;
         let label = match container.listing.run_state {
@@ -134,23 +134,25 @@ impl ContainerFamily for LxcFamily {
         probe.running_count
     }
 
-    fn listing_rows(listings: &FamilyListings<LxcContainerListing>) -> Vec<FamilyRow<'_, Self>> {
+    fn listing_indicators(
+        listings: &FamilyListings<LxcContainerListing>,
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .listings
             .iter()
-            .map(|listing| FamilyRow {
-                indicator: LxcContainerListingRow { listing }.indicator(),
+            .map(|listing| FamilyIndicator {
+                indicator: LxcContainerListingIndicator { listing }.indicator(),
                 power: container_power(listing),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &FamilyDetails<LxcContainer>) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_indicators(detail: &FamilyDetails<LxcContainer>) -> Vec<FamilyIndicator<'_, Self>> {
         detail
             .details
             .iter()
-            .map(|container| FamilyRow {
-                indicator: LxcContainerRow { container }.indicator(),
+            .map(|container| FamilyIndicator {
+                indicator: LxcContainerIndicator { container }.indicator(),
                 power: container_power(&container.listing),
             })
             .collect()

@@ -98,11 +98,11 @@ fn qmp_socket_text(machine: &RunningVirtualMachine) -> Option<String> {
     }
 }
 
-struct VirtualMachineRow<'a> {
+struct VirtualMachineIndicator<'a> {
     machine: &'a RunningVirtualMachine,
 }
 
-impl VirtualMachineRow<'_> {
+impl VirtualMachineIndicator<'_> {
     fn configuration_entries(&self, clock: Clock) -> Vec<LabeledValue> {
         let machine = self.machine;
         let mut entries = vec![LabeledValue::new(
@@ -150,11 +150,11 @@ impl VirtualMachineRow<'_> {
     }
 }
 
-struct InactiveDomainRow<'a> {
+struct InactiveDomainIndicator<'a> {
     domain_name: &'a str,
 }
 
-impl<'a> InactiveDomainRow<'a> {
+impl<'a> InactiveDomainIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.domain_name.to_owned(),
@@ -183,7 +183,7 @@ impl<'a> InactiveDomainRow<'a> {
     }
 }
 
-impl<'a> VirtualMachineRow<'a> {
+impl<'a> VirtualMachineIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let machine = self.machine;
         let name = match &machine.launch_context {
@@ -348,11 +348,11 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.machines.as_slice())
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
-            let row = VirtualMachineRow { machine }
+            let row = VirtualMachineIndicator { machine }
                 .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.readout
-                        .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
+                        .hover_card_with(VirtualMachineIndicator { machine }.hover_card(clock))
                 }));
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(
@@ -379,12 +379,12 @@ impl VirtualMachinesGroup {
             .get()
             .map(|readout| readout.inactive_domains.as_slice())
             .unwrap_or_default();
-        let inactive_rows = inactive_domains.iter().map(|domain_name| {
-            InactiveDomainRow { domain_name }
+        let inactive_indicators = inactive_domains.iter().map(|domain_name| {
+            InactiveDomainIndicator { domain_name }
                 .indicator()
                 .with_hover_card(Box::new(|_| {
                     self.readout
-                        .hover_card_with(InactiveDomainRow::hover_card())
+                        .hover_card_with(InactiveDomainIndicator::hover_card())
                 }))
                 .on_switch_press(
                     SwitchPosition::Off,
@@ -400,7 +400,7 @@ impl VirtualMachinesGroup {
             ),
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
-            rows.chain(inactive_rows),
+            rows.chain(inactive_indicators),
         )
     }
 }

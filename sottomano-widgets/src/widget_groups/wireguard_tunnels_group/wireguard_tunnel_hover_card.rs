@@ -26,23 +26,23 @@ use crate::{
     },
 };
 
-pub(super) fn wireguard_tunnel_item<Message: Into<WidgetGroupInteraction>>(
+pub(super) fn wireguard_tunnel_indicator<Message: Into<WidgetGroupInteraction>>(
     tunnel: &Tunnel,
     on_switch: fn(NmConnectionSwitch) -> Message,
 ) -> GroupIndicator<'_> {
-    let item = tunnel_indicator(tunnel);
+    let indicator = tunnel_indicator(tunnel);
     match tunnel.switch() {
-        Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
+        Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => indicator.on_switch_press(
             SwitchPosition::Off,
             "connect the tunnel",
             on_switch(wireguard_switch),
         ),
-        Some(wireguard_switch @ NmConnectionSwitch::Disconnect(_)) => item.on_switch_press(
+        Some(wireguard_switch @ NmConnectionSwitch::Disconnect(_)) => indicator.on_switch_press(
             SwitchPosition::On,
             "disconnect the tunnel",
             on_switch(wireguard_switch),
         ),
-        None => item,
+        None => indicator,
     }
 }
 

@@ -515,7 +515,7 @@ impl DesktopShell {
             .widget_groups
             .group_menus
             .inspected_indicator(*topic)
-            .map(|indicator_key| group_menu.row_hover_card(indicator_key, self.clock))
+            .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
             .unwrap_or_default();
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()

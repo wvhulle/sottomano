@@ -280,31 +280,37 @@ impl MonitorGroup {
             .collect();
         match self.clight.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let brightness_row = auto_brightness_indicator(held_snapshot);
-                if brightness_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
-                        held_snapshot.switch_position(),
-                        held_snapshot.press_action_text(),
-                        MonitorInteraction::AutoBrightnessPressed,
-                    ));
+                let brightness_indicator = auto_brightness_indicator(held_snapshot);
+                if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(
+                        self.wired_auto_brightness_indicator(brightness_indicator)
+                            .on_switch_press(
+                                held_snapshot.switch_position(),
+                                held_snapshot.press_action_text(),
+                                MonitorInteraction::AutoBrightnessPressed,
+                            ),
+                    );
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let brightness_row =
+                let brightness_indicator =
                     troubled_snapshot.shown_over(auto_brightness_indicator(held_snapshot), clock);
-                if brightness_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.auto_brightness_item(brightness_row).on_switch_press(
-                        held_snapshot.switch_position(),
-                        held_snapshot.press_action_text(),
-                        MonitorInteraction::AutoBrightnessPressed,
-                    ));
+                if brightness_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(
+                        self.wired_auto_brightness_indicator(brightness_indicator)
+                            .on_switch_press(
+                                held_snapshot.switch_position(),
+                                held_snapshot.press_action_text(),
+                                MonitorInteraction::AutoBrightnessPressed,
+                            ),
+                    );
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.auto_brightness_item(placeholder.indicator(AUTO_BRIGHTNESS_GLYPH.into())),
-                );
+                rows.push(self.wired_auto_brightness_indicator(
+                    placeholder.indicator(AUTO_BRIGHTNESS_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -321,11 +327,11 @@ impl MonitorGroup {
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 
-    fn auto_brightness_item<'a>(
+    fn wired_auto_brightness_indicator<'a>(
         &'a self,
-        brightness_row: GroupIndicator<'a>,
+        brightness_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        brightness_row
+        brightness_indicator
             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
                 MonitorSource::AutoBrightness,

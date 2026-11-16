@@ -254,10 +254,13 @@ impl LlamaServerGroup {
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerInteraction::User, move || self.model_sections())
-                .chain(self.system.items(LlamaServerInteraction::System, move || {
-                    self.model_sections()
-                })),
+                .indicators(LlamaServerInteraction::User, move || self.model_sections())
+                .chain(
+                    self.system
+                        .indicators(LlamaServerInteraction::System, move || {
+                            self.model_sections()
+                        }),
+                ),
         )
     }
 }

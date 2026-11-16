@@ -32,7 +32,7 @@ pub enum RowPower<PowerRequest> {
     Stoppable(PowerRequest),
 }
 
-pub struct FamilyRow<'a, Family: ContainerFamily> {
+pub struct FamilyIndicator<'a, Family: ContainerFamily> {
     pub indicator: GroupIndicator<'a>,
     pub power: RowPower<Family::PowerRequest>,
 }
@@ -52,11 +52,11 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 
     fn running_count(probe: &Self::Probe) -> usize;
 
-    fn listing_rows(listings: &Self::Listings) -> Vec<FamilyRow<'_, Self>>;
+    fn listing_indicators(listings: &Self::Listings) -> Vec<FamilyIndicator<'_, Self>>;
 
-    fn detail_rows(detail: &Self::Detail) -> Vec<FamilyRow<'_, Self>>;
+    fn detail_indicators(detail: &Self::Detail) -> Vec<FamilyIndicator<'_, Self>>;
 
-    fn stopped_rows(_listings: &Self::Listings) -> Vec<FamilyRow<'_, Self>> {
+    fn stopped_indicators(_listings: &Self::Listings) -> Vec<FamilyIndicator<'_, Self>> {
         Vec::new()
     }
 
@@ -126,7 +126,7 @@ where
                 .while_summary_shown(snapshot_subscription::<Family::Listings>(()))
                 .map(ContainerFamilyMessage::Listings),
             demand
-                .while_rows_shown(snapshot_subscription::<Family::Detail>(()))
+                .while_indicators_shown(snapshot_subscription::<Family::Detail>(()))
                 .map(ContainerFamilyMessage::Detail),
         ])
     }
@@ -165,44 +165,44 @@ where
         }
     }
 
-    fn detail_rows(&self) -> Vec<FamilyRow<'_, Family>> {
+    fn detail_indicators(&self) -> Vec<FamilyIndicator<'_, Family>> {
         self.detail
             .get()
-            .map(|detail| Family::detail_rows(detail))
+            .map(|detail| Family::detail_indicators(detail))
             .unwrap_or_default()
     }
 
-    fn listing_rows(&self) -> Vec<FamilyRow<'_, Family>> {
+    fn listing_indicators(&self) -> Vec<FamilyIndicator<'_, Family>> {
         self.listings
             .get()
-            .map(|listings| Family::listing_rows(listings))
+            .map(|listings| Family::listing_indicators(listings))
             .unwrap_or_default()
     }
 
-    fn stopped_rows(&self) -> Vec<FamilyRow<'_, Family>> {
+    fn stopped_indicators(&self) -> Vec<FamilyIndicator<'_, Family>> {
         self.listings
             .get()
-            .map(|listings| Family::stopped_rows(listings))
+            .map(|listings| Family::stopped_indicators(listings))
             .unwrap_or_default()
     }
 
     fn group_rows(&self) -> Vec<GroupIndicator<'_>> {
-        let detail_rows = self.detail_rows();
-        let mut group_rows: Vec<GroupIndicator<'_>> = if detail_rows.is_empty() {
-            self.listing_rows()
+        let detail_indicators = self.detail_indicators();
+        let mut group_rows: Vec<GroupIndicator<'_>> = if detail_indicators.is_empty() {
+            self.listing_indicators()
                 .into_iter()
-                .map(|row| switchable_item(stamped_by_source(&self.listings, row)))
+                .map(|row| switchable_indicator(stamped_by_source(&self.listings, row)))
                 .collect()
         } else {
-            detail_rows
+            detail_indicators
                 .into_iter()
-                .map(|row| switchable_item(stamped_by_source(&self.detail, row)))
+                .map(|row| switchable_indicator(stamped_by_source(&self.detail, row)))
                 .collect()
         };
         group_rows.extend(
-            self.stopped_rows()
+            self.stopped_indicators()
                 .into_iter()
-                .map(|row| switchable_item(stamped_by_source(&self.listings, row))),
+                .map(|row| switchable_indicator(stamped_by_source(&self.listings, row))),
         );
         group_rows
     }
@@ -233,33 +233,35 @@ fn refused_power_change<Family: ContainerFamily>(
 
 fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
     source: &'a SubscribedSnapshot<Source>,
-    row: FamilyRow<'a, Family>,
-) -> FamilyRow<'a, Family> {
-    FamilyRow {
-        indicator: row.indicator.wrap_hover_card(|row_card| {
-            Box::new(move |clock| source.hover_card_with(row_card(clock)))
+    row: FamilyIndicator<'a, Family>,
+) -> FamilyIndicator<'a, Family> {
+    FamilyIndicator {
+        indicator: row.indicator.wrap_hover_card(|indicator_card| {
+            Box::new(move |clock| source.hover_card_with(indicator_card(clock)))
         }),
         ..row
     }
 }
 
-fn switchable_item<Family: ContainerFamily>(row: FamilyRow<'_, Family>) -> GroupIndicator<'_>
+fn switchable_indicator<Family: ContainerFamily>(
+    row: FamilyIndicator<'_, Family>,
+) -> GroupIndicator<'_>
 where
     ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
 {
-    let item = row.indicator;
+    let indicator = row.indicator;
     match row.power {
-        RowPower::SwitchedOn(request) => item.on_switch_press(
+        RowPower::SwitchedOn(request) => indicator.on_switch_press(
             SwitchPosition::On,
             Family::STOP_HINT,
             ContainerFamilyInteraction::<Family>::Stop(request),
         ),
-        RowPower::SwitchedOff(request) => item.on_switch_press(
+        RowPower::SwitchedOff(request) => indicator.on_switch_press(
             SwitchPosition::Off,
             Family::START_HINT,
             ContainerFamilyInteraction::<Family>::Start(request),
         ),
-        RowPower::Stoppable(request) => item.on_stop_press(
+        RowPower::Stoppable(request) => indicator.on_stop_press(
             Family::STOP_HINT,
             ContainerFamilyInteraction::<Family>::Stop(request),
         ),
@@ -315,14 +317,14 @@ mod tests {
     where
         ContainerFamilyInteraction<Family>: Into<WidgetGroupInteraction>,
     {
-        let indicator = HoverTarget::Indicator(IndicatorKey {
+        let hover_target = HoverTarget::Indicator(IndicatorKey {
             group: WidgetGroupIdentity::sole(Family::FAMILY),
             name: row_name.into(),
         });
         group
             .group_content()
-            .hover_card(&indicator, clock)
-            .map(|row_card| row_card.sections)
+            .hover_card(&hover_target, clock)
+            .map(|indicator_card| indicator_card.sections)
             .unwrap_or_default()
     }
 
@@ -367,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn detail_replaces_listings_once_it_has_rows() {
+    fn detail_replaces_listings_once_it_has_indicators() {
         let clock = Clock::real();
         let mut group = group_with_listing(clock);
         let _ = group.update(
@@ -393,7 +395,7 @@ mod tests {
                 },
             ],
         };
-        let presses: Vec<String> = LxcFamily::listing_rows(&listings)
+        let presses: Vec<String> = LxcFamily::listing_indicators(&listings)
             .into_iter()
             .map(|row| match row.power {
                 RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),

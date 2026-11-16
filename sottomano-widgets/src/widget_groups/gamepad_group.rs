@@ -312,11 +312,11 @@ impl GamepadGroup {
         let session_expansion = self.expansions.combined_state();
         let demand = demand.expanded_when(session_expansion);
         Subscription::batch([
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<Wifi>(buses.clone())
                     .map(|delivery| GamepadMessage::Wifi(Box::new(delivery))),
             ),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<Ethernet>(buses.clone())
                     .map(|delivery| GamepadMessage::Ethernet(Box::new(delivery))),
             ),
@@ -616,10 +616,12 @@ impl GamepadGroup {
     }
 
     fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_>> {
-        let failure_row = self.controller_discovery_failure_indicator()?.indicator();
-        let group_title = WidgetGroupTitle::Named(failure_row.indicator_name());
-        let group_summary =
-            GroupSummary::summarising(Phosphor::Joystick(Weight::Regular).into(), failure_row);
+        let failure_indicator = self.controller_discovery_failure_indicator()?.indicator();
+        let group_title = WidgetGroupTitle::Named(failure_indicator.indicator_name());
+        let group_summary = GroupSummary::summarising(
+            Phosphor::Joystick(Weight::Regular).into(),
+            failure_indicator,
+        );
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
             group_title,
@@ -661,13 +663,13 @@ impl GamepadGroup {
             }
         }
         if let Some(cable_role) = usb_cable_role(link.transport) {
-            let cable_item = UsbCableIndicator { role: cable_role }.indicator();
+            let cable_indicator = UsbCableIndicator { role: cable_role }.indicator();
             rows.push(match cable_role {
-                UsbCableRole::ChargingOnly => cable_item.on_press(
+                UsbCableRole::ChargingOnly => cable_indicator.on_press(
                     "disconnect Bluetooth so the cable can take over",
                     GamepadInteraction::DisconnectBluetooth { slot },
                 ),
-                UsbCableRole::InputAndCharging => cable_item,
+                UsbCableRole::InputAndCharging => cable_indicator,
             });
         }
         let group_summary = group_summary;

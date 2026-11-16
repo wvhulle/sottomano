@@ -21,12 +21,12 @@ use crate::{
     },
 };
 
-pub(super) struct SubvolumeUsageRow<'a> {
+pub(super) struct SubvolumeUsageIndicator<'a> {
     pub subvolume: &'a BcachefsSubvolume,
     pub pool_total: ByteSize,
 }
 
-impl SubvolumeUsageRow<'_> {
+impl SubvolumeUsageIndicator<'_> {
     fn pool_share(&self) -> Ratio {
         if self.pool_total == ByteSize::default() {
             return percent_fill(0);
@@ -37,7 +37,7 @@ impl SubvolumeUsageRow<'_> {
     }
 }
 
-impl<'a> SubvolumeUsageRow<'a> {
+impl<'a> SubvolumeUsageIndicator<'a> {
     pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.subvolume.path.display().to_string(),
@@ -118,7 +118,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn row_has_no_gauge_that_would_replace_its_label() {
+    fn indicator_has_no_gauge_that_would_replace_its_label() {
         let subvolume = BcachefsSubvolume {
             path: PathBuf::from("/home"),
             used: ByteSize::gib(1),
@@ -126,7 +126,7 @@ mod tests {
             snapshot_count: 0,
             mounts: Vec::new(),
         };
-        let row = SubvolumeUsageRow {
+        let row = SubvolumeUsageIndicator {
             subvolume: &subvolume,
             pool_total: ByteSize::gib(4),
         };
@@ -147,7 +147,7 @@ mod tests {
             snapshot_count: 0,
             mounts: Vec::new(),
         };
-        SubvolumeUsageRow {
+        SubvolumeUsageIndicator {
             subvolume: &subvolume,
             pool_total,
         }

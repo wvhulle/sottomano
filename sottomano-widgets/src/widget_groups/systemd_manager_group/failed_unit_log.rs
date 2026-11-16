@@ -36,7 +36,7 @@ use crate::{
     },
 };
 
-pub(super) fn failed_units_item<'a>(
+pub(super) fn wired_failed_units_indicator<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,

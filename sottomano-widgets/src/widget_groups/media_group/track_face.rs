@@ -32,7 +32,7 @@ fn playback_state(media: &Media) -> IndicatorState {
     }
 }
 
-pub(super) fn track_item<'a>(
+pub(super) fn track_indicator<'a>(
     config: &'a Config,
     media: &'a Media,
     cover_art: Option<&IconHandle>,
@@ -73,7 +73,7 @@ pub(super) fn track_item<'a>(
     }
 }
 
-pub(super) fn player_item<'a>(
+pub(super) fn wired_player_indicator<'a>(
     config: &'a Config,
     media: &'a Media,
     gauge_fraction: Option<Ratio>,

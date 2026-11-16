@@ -129,7 +129,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     #[must_use]
-    pub fn most_used_model_row(self) -> GroupIndicator<'a> {
+    pub fn most_used_model_indicator(self) -> GroupIndicator<'a> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend.model.clone()),
             None => ReadoutLabel::Unlabeled,
@@ -148,7 +148,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     #[must_use]
-    pub fn most_used_spend_row(self) -> GroupIndicator<'a> {
+    pub fn most_used_spend_indicator(self) -> GroupIndicator<'a> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend_text(&spend.cost)),
             None => ReadoutLabel::Unlabeled,

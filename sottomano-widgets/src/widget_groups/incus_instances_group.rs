@@ -27,7 +27,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        engine_container_rows::engine_failure_label,
+        engine_container_indicators::engine_failure_label,
         group_summary::GroupSummary,
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
@@ -97,12 +97,12 @@ fn daemon_instance_name(
     }
 }
 
-struct IncusInstanceRow<'a> {
+struct IncusInstanceIndicator<'a> {
     instance_daemon: InstanceDaemon,
     instance: &'a DaemonInstance,
 }
 
-impl<'a> IncusInstanceRow<'a> {
+impl<'a> IncusInstanceIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = if self.instance.listing.run_state == ContainerRunState::Stopped {
             Some(self.instance.listing.status_text.to_lowercase())
@@ -157,12 +157,12 @@ impl<'a> IncusInstanceRow<'a> {
     }
 }
 
-struct IncusInstanceListingRow<'a> {
+struct IncusInstanceListingIndicator<'a> {
     instance_daemon: InstanceDaemon,
     listing: &'a DaemonInstanceListing,
 }
 
-impl<'a> IncusInstanceListingRow<'a> {
+impl<'a> IncusInstanceListingIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             daemon_instance_name(
@@ -194,12 +194,12 @@ impl<'a> IncusInstanceListingRow<'a> {
     }
 }
 
-struct UnreadableDaemonRow<'a> {
+struct UnreadableDaemonIndicator<'a> {
     instance_daemon: InstanceDaemon,
     read_failure: &'a EngineReadError,
 }
 
-impl<'a> UnreadableDaemonRow<'a> {
+impl<'a> UnreadableDaemonIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.instance_daemon.product_name(),
@@ -282,7 +282,7 @@ impl IncusInstancesGroup {
                             IncusInstancesMessage::Listings(instance_daemon, delivery)
                         }),
                 ),
-                demand.while_rows_shown(
+                demand.while_indicators_shown(
                     snapshot_subscription::<FamilyDetails<DaemonInstance>>(instance_daemon)
                         .with(instance_daemon)
                         .map(|(instance_daemon, delivery)| {
@@ -360,7 +360,7 @@ impl IncusInstancesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
         let rows = WATCHED_DAEMONS
             .into_iter()
-            .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
+            .flat_map(|instance_daemon| self.daemon_indicators(instance_daemon));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
             GroupSummary::glyph(
@@ -379,7 +379,7 @@ impl IncusInstancesGroup {
         )
     }
 
-    fn daemon_rows(&self, instance_daemon: InstanceDaemon) -> Vec<GroupIndicator<'_>> {
+    fn daemon_indicators(&self, instance_daemon: InstanceDaemon) -> Vec<GroupIndicator<'_>> {
         if let Some(detail_indicator) = self.details.get(&instance_daemon)
             && let Some(instances) = detail_indicator.get()
         {
@@ -387,7 +387,7 @@ impl IncusInstancesGroup {
                 .details
                 .iter()
                 .map(|instance| {
-                    let row = IncusInstanceRow {
+                    let row = IncusInstanceIndicator {
                         instance_daemon,
                         instance,
                     }
@@ -395,7 +395,7 @@ impl IncusInstancesGroup {
                     instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
                         Box::new(move |_| {
                             detail_indicator.hover_card_with(
-                                IncusInstanceRow {
+                                IncusInstanceIndicator {
                                     instance_daemon,
                                     instance,
                                 }
@@ -411,7 +411,7 @@ impl IncusInstancesGroup {
         };
         if let Some(read_failure) = listing_indicator.fetch_failure() {
             return vec![
-                UnreadableDaemonRow {
+                UnreadableDaemonIndicator {
                     instance_daemon,
                     read_failure,
                 }
@@ -424,7 +424,7 @@ impl IncusInstancesGroup {
             .unwrap_or_default()
             .iter()
             .map(|listing| {
-                let row = IncusInstanceListingRow {
+                let row = IncusInstanceListingIndicator {
                     instance_daemon,
                     listing,
                 }
@@ -432,7 +432,7 @@ impl IncusInstancesGroup {
                 instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
                     move |_| {
                         listing_indicator.hover_card_with(
-                            IncusInstanceListingRow {
+                            IncusInstanceListingIndicator {
                                 instance_daemon,
                                 listing,
                             }

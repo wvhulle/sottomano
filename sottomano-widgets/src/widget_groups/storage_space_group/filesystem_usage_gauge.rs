@@ -68,9 +68,9 @@ pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage) -> Vec<Sectio
     )]
 }
 
-pub(super) struct SnapshotDeletionRow;
+pub(super) struct SnapshotDeletionIndicator;
 
-impl SnapshotDeletionRow {
+impl SnapshotDeletionIndicator {
     pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             "Snapshot deletion",

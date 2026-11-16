@@ -408,7 +408,10 @@ impl PanelSettingsGroup {
                 ),
             ]
             .into_iter()
-            .chain(self.layer.items(config, PanelSettingsMessage::Appearance)),
+            .chain(
+                self.layer
+                    .indicators(config, PanelSettingsMessage::Appearance),
+            ),
         )
     }
 }

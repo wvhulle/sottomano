@@ -18,11 +18,11 @@ use crate::{
 
 const WRITABLE_MEMBER_STATE: &str = "rw";
 
-pub(super) struct BcachefsMemberRow<'a> {
+pub(super) struct BcachefsMemberIndicator<'a> {
     pub device: &'a BcachefsDeviceSpace,
 }
 
-impl BcachefsMemberRow<'_> {
+impl BcachefsMemberIndicator<'_> {
     fn writable_severity(&self) -> Severity {
         if self.device.state == WRITABLE_MEMBER_STATE {
             Severity::Normal
@@ -43,7 +43,7 @@ impl BcachefsMemberRow<'_> {
     }
 }
 
-impl<'a> BcachefsMemberRow<'a> {
+impl<'a> BcachefsMemberIndicator<'a> {
     pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.device.partition.clone(),

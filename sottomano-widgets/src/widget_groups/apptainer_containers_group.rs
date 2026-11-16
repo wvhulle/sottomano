@@ -20,7 +20,7 @@ use crate::{
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
-            ContainerFamilyMessage, FamilyRow, RowPower,
+            ContainerFamilyMessage, FamilyIndicator, RowPower,
         },
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
@@ -32,11 +32,11 @@ use crate::{
     },
 };
 
-pub struct ApptainerContainerListingRow<'a> {
+pub struct ApptainerContainerListingIndicator<'a> {
     listing: &'a ApptainerContainerListing,
 }
 
-impl<'a> ApptainerContainerListingRow<'a> {
+impl<'a> ApptainerContainerListingIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let name = format!(
             "{} pid {}",
@@ -64,11 +64,11 @@ impl<'a> ApptainerContainerListingRow<'a> {
     }
 }
 
-pub struct ApptainerContainerRow<'a> {
+pub struct ApptainerContainerIndicator<'a> {
     container: &'a ApptainerContainer,
 }
 
-impl<'a> ApptainerContainerRow<'a> {
+impl<'a> ApptainerContainerIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let container = self.container;
         let name = format!(
@@ -141,25 +141,27 @@ impl ContainerFamily for ApptainerFamily {
         probe.running_count
     }
 
-    fn listing_rows(
+    fn listing_indicators(
         listings: &FamilyListings<ApptainerContainerListing>,
-    ) -> Vec<FamilyRow<'_, Self>> {
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .listings
             .iter()
-            .map(|listing| FamilyRow {
-                indicator: ApptainerContainerListingRow { listing }.indicator(),
+            .map(|listing| FamilyIndicator {
+                indicator: ApptainerContainerListingIndicator { listing }.indicator(),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &FamilyDetails<ApptainerContainer>) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_indicators(
+        detail: &FamilyDetails<ApptainerContainer>,
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         detail
             .details
             .iter()
-            .map(|container| FamilyRow {
-                indicator: ApptainerContainerRow { container }.indicator(),
+            .map(|container| FamilyIndicator {
+                indicator: ApptainerContainerIndicator { container }.indicator(),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()

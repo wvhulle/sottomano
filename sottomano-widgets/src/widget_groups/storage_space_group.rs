@@ -1,14 +1,14 @@
 use chrono::Locale;
-mod compression_setting_row;
-mod ext4_error_count_row;
-mod ext4_lifetime_writes_row;
-mod filesystem_property_rows;
+mod compression_setting_indicator;
+mod ext4_error_count_indicator;
+mod ext4_lifetime_writes_indicator;
+mod filesystem_property_indicators;
 mod filesystem_usage_gauge;
-mod inode_usage_row;
-mod metadata_room_row;
-mod mount_access_row;
-mod subvolume_usage_row;
-mod volume_identity_row;
+mod inode_usage_indicator;
+mod metadata_room_indicator;
+mod mount_access_indicator;
+mod subvolume_usage_indicator;
+mod volume_identity_indicator;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -25,12 +25,12 @@ use sottomano_desktop_sources::{
     },
 };
 
-pub use self::filesystem_property_rows::FilesystemProperty;
+pub use self::filesystem_property_indicators::FilesystemProperty;
 use self::{
     filesystem_usage_gauge::{
-        SnapshotDeletionRow, filesystem_usage_hover_card, filesystem_usage_indicator,
+        SnapshotDeletionIndicator, filesystem_usage_hover_card, filesystem_usage_indicator,
     },
-    subvolume_usage_row::{SubvolumeUsageRow, subvolume_usage_hover_card},
+    subvolume_usage_indicator::{SubvolumeUsageIndicator, subvolume_usage_hover_card},
 };
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -253,7 +253,7 @@ impl StorageSpaceGroup {
         Task::none()
     }
 
-    fn property_items(
+    fn property_indicators(
         filesystem: &MountedFilesystem,
         locale: Locale,
     ) -> impl Iterator<Item = GroupIndicator<'_>> {
@@ -267,9 +267,13 @@ impl StorageSpaceGroup {
                     Some(
                         row.group_indicator(locale)
                             .with_hover_card(Box::new(move |_| {
-                                card_property.row(usage).map_or_else(Vec::new, |card_row| {
-                                    filesystem.usage.hover_card_with(card_row.hover_card())
-                                })
+                                card_property
+                                    .row(usage)
+                                    .map_or_else(Vec::new, |card_indicator| {
+                                        filesystem
+                                            .usage
+                                            .hover_card_with(card_indicator.hover_card())
+                                    })
                             }))
                             .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
                                 primary_mount_point.to_path_buf(),
@@ -279,7 +283,7 @@ impl StorageSpaceGroup {
         })
     }
 
-    fn subvolume_items(
+    fn subvolume_indicators(
         filesystem: &MountedFilesystem,
         locale: Locale,
     ) -> impl Iterator<Item = GroupIndicator<'_>> {
@@ -291,14 +295,14 @@ impl StorageSpaceGroup {
             .into_iter()
             .flat_map(move |(usage, subvolume_usage)| {
                 subvolume_usage.subvolumes.iter().map(move |subvolume| {
-                    SubvolumeUsageRow {
+                    SubvolumeUsageIndicator {
                         subvolume,
                         pool_total: usage.total,
                     }
                     .indicator(locale)
                     .with_hover_card(Box::new(move |_| {
                         filesystem.subvolume_usage.hover_card_with(
-                            SubvolumeUsageRow {
+                            SubvolumeUsageIndicator {
                                 subvolume,
                                 pool_total: usage.total,
                             }
@@ -321,12 +325,15 @@ impl StorageSpaceGroup {
         let group_summary = match &filesystem.usage {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                Self::filesystem_usage_item(filesystem, filesystem_usage_indicator(held_snapshot)),
+                Self::wired_filesystem_usage_indicator(
+                    filesystem,
+                    filesystem_usage_indicator(held_snapshot),
+                ),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Archive(Weight::Regular).into(),
-                    Self::filesystem_usage_item(
+                    Self::wired_filesystem_usage_indicator(
                         filesystem,
                         troubled_snapshot.shown_over(
                             filesystem_usage_indicator(&troubled_snapshot.held_snapshot),
@@ -337,7 +344,7 @@ impl StorageSpaceGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                Self::filesystem_usage_item(
+                Self::wired_filesystem_usage_indicator(
                     filesystem,
                     placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into()),
                 ),
@@ -352,10 +359,10 @@ impl StorageSpaceGroup {
             ),
         };
         let mut rows = Vec::new();
-        rows.extend(Self::property_items(filesystem, locale));
-        rows.extend(Self::subvolume_items(filesystem, locale));
+        rows.extend(Self::property_indicators(filesystem, locale));
+        rows.extend(Self::subvolume_indicators(filesystem, locale));
         if let Some(failure) = filesystem.subvolume_usage.failure() {
-            rows.push(Self::subvolume_failure_item(
+            rows.push(Self::subvolume_failure_indicator(
                 filesystem,
                 failure.indicator(SUBVOLUME_USAGE_GLYPH.into()),
             ));
@@ -364,7 +371,7 @@ impl StorageSpaceGroup {
             && let Filesystem::Bcachefs(space) = &usage.filesystem
             && space.snapshot_deletion == SnapshotDeletion::Running
         {
-            rows.push(Self::snapshot_deletion_item(filesystem));
+            rows.push(Self::snapshot_deletion_indicator(filesystem));
         }
         let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
@@ -383,11 +390,11 @@ impl StorageSpaceGroup {
         )
     }
 
-    fn filesystem_usage_item<'a>(
+    fn wired_filesystem_usage_indicator<'a>(
         filesystem: &'a MountedFilesystem,
-        usage_row: GroupIndicator<'a>,
+        usage_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        usage_row
+        usage_indicator
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
@@ -398,11 +405,11 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn subvolume_failure_item<'a>(
+    fn subvolume_failure_indicator<'a>(
         filesystem: &'a MountedFilesystem,
-        failure_row: GroupIndicator<'a>,
+        failure_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        failure_row
+        failure_indicator
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .subvolume_usage
@@ -413,19 +420,19 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn snapshot_deletion_item(filesystem: &MountedFilesystem) -> GroupIndicator<'_> {
-        SnapshotDeletionRow::indicator()
+    fn snapshot_deletion_indicator(filesystem: &MountedFilesystem) -> GroupIndicator<'_> {
+        SnapshotDeletionIndicator::indicator()
             .with_hover_card(Box::new(move |_| {
                 filesystem
                     .usage
-                    .hover_card_with(SnapshotDeletionRow::hover_card())
+                    .hover_card_with(SnapshotDeletionIndicator::hover_card())
             }))
             .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
                 filesystem.mount.primary_mount_point().to_path_buf(),
             )))
     }
 
-    fn discovery_item<'a>(&'a self, discovery_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn discovery_indicator<'a>(&'a self, discovery_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
         discovery_row
             .with_hover_card(Box::new(move |_| {
                 self.discovery
@@ -446,12 +453,12 @@ impl StorageSpaceGroup {
         let group_summary = match &self.discovery {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_item(block_filesystem_discovery_indicator(held_snapshot)),
+                self.discovery_indicator(block_filesystem_discovery_indicator(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Archive(Weight::Regular).into(),
-                    self.discovery_item(troubled_snapshot.shown_over(
+                    self.discovery_indicator(troubled_snapshot.shown_over(
                         block_filesystem_discovery_indicator(&troubled_snapshot.held_snapshot),
                         clock,
                     )),
@@ -459,7 +466,7 @@ impl StorageSpaceGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Archive(Weight::Regular).into(),
-                self.discovery_item(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into())),
+                self.discovery_indicator(placeholder.indicator(FILESYSTEM_USAGE_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Archive(Weight::Regular).into(),
@@ -487,7 +494,7 @@ mod tests {
     use super::mount_group_title;
 
     #[test]
-    fn each_filesystem_gets_its_own_row_titled_by_its_mount_point() {
+    fn each_filesystem_gets_its_own_indicator_titled_by_its_mount_point() {
         assert_eq!(
             mount_group_title(Path::new("/home")).to_string(),
             "Filesystem /home"

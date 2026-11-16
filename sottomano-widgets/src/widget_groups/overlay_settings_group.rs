@@ -162,7 +162,10 @@ impl OverlaySettingsGroup {
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
             )]
             .into_iter()
-            .chain(self.layer.items(config, OverlaySettingsMessage::Appearance)),
+            .chain(
+                self.layer
+                    .indicators(config, OverlaySettingsMessage::Appearance),
+            ),
         )
     }
 }

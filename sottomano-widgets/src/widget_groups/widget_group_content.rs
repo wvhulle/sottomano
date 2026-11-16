@@ -225,7 +225,7 @@ impl FromIterator<GroupToastRequests> for GroupToastRequests {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CardTitleClash {
-    pub item_name: String,
+    pub indicator_name: String,
     pub clashing_title: String,
 }
 
@@ -236,7 +236,7 @@ pub struct WidgetGroupContent<'a> {
     on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> WidgetGroupInteraction + 'a>,
     summary: GroupSummary<'a>,
     scroll_does: Option<&'static str>,
-    items: Vec<GroupIndicator<'a>>,
+    indicators: Vec<GroupIndicator<'a>>,
     panel_pin: PanelPinOrigin,
 }
 
@@ -246,7 +246,7 @@ impl<'a> WidgetGroupContent<'a> {
         summary: GroupSummary<'a>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
-        items: impl IntoIterator<Item = GroupIndicator<'a>>,
+        indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
     ) -> Self {
         Self::expandable_instance(
             WidgetGroupIdentity::sole(family),
@@ -254,7 +254,7 @@ impl<'a> WidgetGroupContent<'a> {
             summary,
             expansion,
             on_expansion,
-            items,
+            indicators,
         )
     }
 
@@ -264,7 +264,7 @@ impl<'a> WidgetGroupContent<'a> {
         summary: GroupSummary<'a>,
         expansion: &'a WidgetGroupExpansion,
         on_expansion: impl Fn(WidgetGroupExpansionMessage) -> Interaction + 'a,
-        items: impl IntoIterator<Item = GroupIndicator<'a>>,
+        indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
     ) -> Self {
         Self {
             group_identity,
@@ -273,7 +273,7 @@ impl<'a> WidgetGroupContent<'a> {
             on_expansion: Rc::new(move |message| on_expansion(message).into()),
             summary,
             scroll_does: None,
-            items: items.into_iter().collect(),
+            indicators: indicators.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
         }
     }
@@ -282,10 +282,11 @@ impl<'a> WidgetGroupContent<'a> {
     pub fn card_title_clashes(&self, clock: Clock) -> Vec<CardTitleClash> {
         let group_title = self.group_title.to_string();
         self.rows()
-            .flat_map(|item| {
-                let item_name = item.indicator_name().into_owned();
+            .flat_map(|indicator| {
+                let indicator_name = indicator.indicator_name().into_owned();
                 let group_title = group_title.clone();
-                item.hover_card(clock)
+                indicator
+                    .hover_card(clock)
                     .into_iter()
                     .map(|section| {
                         let source_name = match section.source() {
@@ -296,12 +297,12 @@ impl<'a> WidgetGroupContent<'a> {
                     })
                     .filter(|(section_title, source_name)| {
                         section_title.is_empty()
-                            || *section_title == item_name
+                            || *section_title == indicator_name
                             || *section_title == group_title
                             || section_title == source_name
                     })
                     .map(|(section_title, _)| CardTitleClash {
-                        item_name: item_name.clone(),
+                        indicator_name: indicator_name.clone(),
                         clashing_title: section_title,
                     })
                     .collect::<Vec<_>>()
@@ -310,13 +311,15 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn clashing_item_names(&self) -> Vec<String> {
+    pub fn clashing_indicator_names(&self) -> Vec<String> {
         let group_title = self.group_title.to_string();
         let mut seen_names = BTreeSet::new();
         self.rows()
-            .filter(|item| item.menu_pin(&self.group_identity).is_some())
-            .map(|item| item.indicator_name().into_owned())
-            .filter(|item_name| *item_name == group_title || !seen_names.insert(item_name.clone()))
+            .filter(|indicator| indicator.menu_pin(&self.group_identity).is_some())
+            .map(|indicator| indicator.indicator_name().into_owned())
+            .filter(|indicator_name| {
+                *indicator_name == group_title || !seen_names.insert(indicator_name.clone())
+            })
             .collect()
     }
 
@@ -326,8 +329,10 @@ impl<'a> WidgetGroupContent<'a> {
         promotion_severity: Severity,
     ) -> Vec<PanelRaise> {
         self.rows()
-            .filter(|item| item.alert_promotion(promotion_severity) == AlertPromotion::Promoted)
-            .filter_map(|item| item.menu_pin(&self.group_identity))
+            .filter(|indicator| {
+                indicator.alert_promotion(promotion_severity) == AlertPromotion::Promoted
+            })
+            .filter_map(|indicator| indicator.menu_pin(&self.group_identity))
             .map(|entry| PanelRaise { menu, entry })
             .collect()
     }
@@ -353,17 +358,21 @@ impl<'a> WidgetGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn only_aligned_items(self) -> Self {
-        self.retaining_items(|alignment| alignment != IndicatorAlignment::Unaligned)
+    pub fn only_aligned_indicators(self) -> Self {
+        self.retaining_indicators(|alignment| alignment != IndicatorAlignment::Unaligned)
     }
 
     #[must_use]
-    pub fn only_unaligned_items(self) -> Self {
-        self.retaining_items(|alignment| alignment == IndicatorAlignment::Unaligned)
+    pub fn only_unaligned_indicators(self) -> Self {
+        self.retaining_indicators(|alignment| alignment == IndicatorAlignment::Unaligned)
     }
 
-    fn retaining_items(mut self, keeps_alignment: impl Fn(IndicatorAlignment) -> bool) -> Self {
-        self.items.retain(|item| keeps_alignment(item.alignment()));
+    fn retaining_indicators(
+        mut self,
+        keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
+    ) -> Self {
+        self.indicators
+            .retain(|indicator| keeps_alignment(indicator.alignment()));
         self
     }
 
@@ -371,12 +380,17 @@ impl<'a> WidgetGroupContent<'a> {
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
         self.rows()
-            .map(|item| item.toast_requests(&self.group_identity, expand.clone(), locale, clock))
+            .map(|indicator| {
+                indicator.toast_requests(&self.group_identity, expand.clone(), locale, clock)
+            })
             .collect()
     }
 
     fn rows(&self) -> impl Iterator<Item = &GroupIndicator<'a>> {
-        self.summary.summarised_row().into_iter().chain(&self.items)
+        self.summary
+            .summarised_indicator()
+            .into_iter()
+            .chain(&self.indicators)
     }
 
     pub(crate) fn highest_alert_severity(&self) -> Severity {
@@ -392,13 +406,13 @@ impl<'a> WidgetGroupContent<'a> {
             return None;
         }
         self.rows()
-            .find(|item| item.indicator_name() == indicator_key.name)
+            .find(|indicator| indicator.indicator_name() == indicator_key.name)
     }
 
     #[must_use]
     pub fn indicator_keys(&self) -> Vec<IndicatorKey> {
         self.rows()
-            .map(|item| item.indicator_key(&self.group_identity))
+            .map(|indicator| indicator.indicator_key(&self.group_identity))
             .collect()
     }
 
@@ -406,7 +420,7 @@ impl<'a> WidgetGroupContent<'a> {
     pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'a>> {
         match target.summarised_group() {
             Some(group_identity) if *group_identity == self.group_identity => {
-                self.summary.summarised_row()
+                self.summary.summarised_indicator()
             }
             Some(_) => None,
             None => target
@@ -486,7 +500,7 @@ impl<'a> WidgetGroupContent<'a> {
         self.group_title.clone()
     }
 
-    pub(crate) fn panel_item_views(
+    pub(crate) fn panel_indicator_views(
         self,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
@@ -496,16 +510,19 @@ impl<'a> WidgetGroupContent<'a> {
     ) -> Vec<Element<'a, GroupEvent>> {
         let promotion_severity = config.group_menus.alert_promotion_severity;
         self.rows()
-            .filter_map(|item| {
-                let IndicatorPin::Pinned(panel_pin) =
-                    group_menus.item_pin(menu, &self.group_identity, item, promotion_severity)
-                else {
+            .filter_map(|indicator| {
+                let IndicatorPin::Pinned(panel_pin) = group_menus.indicator_pin(
+                    menu,
+                    &self.group_identity,
+                    indicator,
+                    promotion_severity,
+                ) else {
                     return None;
                 };
                 Some(fixed_view(
-                    item,
+                    indicator,
                     HoverTarget::PinnedOnPanel(Box::new(panel_pin)),
-                    item.shown_alert_severity().unwrap_or_default(),
+                    indicator.shown_alert_severity().unwrap_or_default(),
                     MenuHandleIndicator::default(),
                     config,
                     panel_position,
@@ -527,17 +544,17 @@ impl<'a> WidgetGroupContent<'a> {
             group_identity,
             group_title,
             summary,
-            items,
+            indicators,
             ..
         } = self;
-        let (item_rows, aligned_items): (Vec<_>, Vec<_>) = items
+        let (item_rows, aligned_indicators): (Vec<_>, Vec<_>) = indicators
             .into_iter()
-            .partition(|item| item.alignment() == IndicatorAlignment::Unaligned);
-        let aligned = aligned_items
+            .partition(|indicator| indicator.alignment() == IndicatorAlignment::Unaligned);
+        let aligned = aligned_indicators
             .iter()
-            .fold(BTreeMap::new(), |mut aligned, item| {
-                if let IndicatorAlignment::Aligned(quantity) = item.alignment() {
-                    aligned.insert(quantity, item.table_cell_view(config, clock));
+            .fold(BTreeMap::new(), |mut aligned, indicator| {
+                if let IndicatorAlignment::Aligned(quantity) = indicator.alignment() {
+                    aligned.insert(quantity, indicator.table_cell_view(config, clock));
                 }
                 aligned
             });
@@ -547,12 +564,12 @@ impl<'a> WidgetGroupContent<'a> {
                 aligned,
             });
         }
-        if !item_rows.is_empty() || summary.summarised_row().is_some() {
+        if !item_rows.is_empty() || summary.summarised_indicator().is_some() {
             sections.group_rows.push(GroupMenuGroupRow {
                 group_identity,
                 group_title,
                 summary,
-                items: item_rows,
+                indicators: item_rows,
             });
         }
         sections
@@ -584,7 +601,7 @@ impl<'a> WidgetGroupContent<'a> {
             on_expansion,
             summary,
             scroll_does,
-            items,
+            indicators,
             panel_pin,
             ..
         } = self;
@@ -627,10 +644,13 @@ impl<'a> WidgetGroupContent<'a> {
                     revealed_content(
                         config,
                         reveal,
-                        items_row(
+                        indicators_row(
                             config,
                             &group_identity,
-                            summary.summarised_row().into_iter().chain(&items),
+                            summary
+                                .summarised_indicator()
+                                .into_iter()
+                                .chain(&indicators),
                             reveal,
                             clock,
                         ),
@@ -650,7 +670,7 @@ impl<'a> WidgetGroupContent<'a> {
 }
 
 pub(crate) fn fixed_view<'a>(
-    item: &GroupIndicator<'a>,
+    indicator: &GroupIndicator<'a>,
     hover_target: HoverTarget,
     highest_alert_severity: Severity,
     handle_indicator: MenuHandleIndicator,
@@ -658,15 +678,15 @@ pub(crate) fn fixed_view<'a>(
     panel_position: Position,
     clock: Clock,
 ) -> Element<'a, GroupEvent> {
-    let row = Row::with_children([item.view(config, 1.0, clock, hover_target)])
+    let row = Row::with_children([indicator.view(config, 1.0, clock, hover_target)])
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
-    let indicator = edge_indicator(
+    let edge_indicator_view = edge_indicator(
         highest_alert_severity,
         handle_indicator,
         handle_indicator.settled_reveal(),
     );
-    PanelSlot::new(row.into(), indicator).view(panel_position)
+    PanelSlot::new(row.into(), edge_indicator_view).view(panel_position)
 }
 
 pub(crate) fn edge_indicator<'a, Message: 'a>(
@@ -711,19 +731,19 @@ pub(crate) fn edge_indicator<'a, Message: 'a>(
     }
 }
 
-fn items_row<'r, 'a: 'r>(
+fn indicators_row<'r, 'a: 'r>(
     config: &Config,
     group_identity: &WidgetGroupIdentity,
     rows: impl IntoIterator<Item = &'r GroupIndicator<'a>>,
     reveal: f32,
     clock: Clock,
 ) -> Element<'a, GroupEvent> {
-    Row::with_children(rows.into_iter().map(|item| {
-        item.view(
+    Row::with_children(rows.into_iter().map(|indicator| {
+        indicator.view(
             config,
             reveal,
             clock,
-            HoverTarget::Indicator(item.indicator_key(group_identity)),
+            HoverTarget::Indicator(indicator.indicator_key(group_identity)),
         )
     }))
     .spacing(config.theme.spacing.item_gap)
@@ -763,7 +783,9 @@ mod tests {
         widgets::icon_glyph::IconGlyph,
     };
 
-    fn shown_state_row<'indicator>(shown_state: IndicatorState) -> GroupIndicator<'indicator> {
+    fn shown_state_indicator<'indicator>(
+        shown_state: IndicatorState,
+    ) -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only("Shown state reading", IconGlyph::default(), shown_state)
             .with_hover_card(Box::new(|_| Vec::new()))
     }
@@ -777,12 +799,12 @@ mod tests {
             GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
             expansion,
             ClockInteraction::Expansion,
-            [shown_state_row(shown_state)],
+            [shown_state_indicator(shown_state)],
         )
     }
 
     #[test]
-    fn a_critical_item_rises_onto_the_panel_without_a_toast() {
+    fn a_critical_indicator_rises_onto_the_panel_without_a_toast() {
         let expansion = WidgetGroupExpansion::default();
         let group = group_showing(&expansion, IndicatorState::Critical);
         assert_eq!(
@@ -798,7 +820,7 @@ mod tests {
     }
 
     #[test]
-    fn a_warning_item_stays_in_its_menu_below_a_critical_threshold() {
+    fn a_warning_indicator_stays_in_its_menu_below_a_critical_threshold() {
         let expansion = WidgetGroupExpansion::default();
         let group = group_showing(&expansion, IndicatorState::Warning);
         assert_eq!(
@@ -809,7 +831,7 @@ mod tests {
     }
 
     #[test]
-    fn an_item_card_lists_the_current_press() {
+    fn an_indicator_card_lists_the_current_press() {
         let expansion = WidgetGroupExpansion::default();
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
@@ -817,7 +839,7 @@ mod tests {
                 GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
                 &expansion,
                 ClockInteraction::Expansion,
-                [shown_state_row(IndicatorState::Idle).on_press(
+                [shown_state_indicator(IndicatorState::Idle).on_press(
                     description,
                     ClockInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
                 )],

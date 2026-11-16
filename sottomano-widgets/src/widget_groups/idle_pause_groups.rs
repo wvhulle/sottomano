@@ -1,5 +1,5 @@
 use crate::group_indicators::indicator_state::IndicatorState;
-mod pause_blocker_rows;
+mod pause_blocker_indicators;
 mod sqlite_idle_timeouts;
 
 use std::{convert::identity, time::Duration};
@@ -22,9 +22,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use self::pause_blocker_rows::{
-    NextSleepStateRow, PauseBlocker, PauseFacts, ScheduledShutdownRow, blocker_sections,
-    pause_blockers, pause_title, sleep_state_sections,
+use self::pause_blocker_indicators::{
+    NextSleepStateIndicator, PauseBlocker, PauseFacts, ScheduledShutdownIndicator,
+    blocker_sections, pause_blockers, pause_title, sleep_state_sections,
 };
 pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
@@ -34,7 +34,7 @@ use crate::{
     hover_cards::hover_card_body::Section,
     widget_groups::{
         group_summary::GroupSummary,
-        idle_pause_groups::pause_blocker_rows::TimerArming,
+        idle_pause_groups::pause_blocker_indicators::TimerArming,
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -409,7 +409,7 @@ impl IdlePauseGroups {
                 && let Some(state) = obstacles.sleep_state_that_runs()
             {
                 rows.push(
-                    NextSleepStateRow { state }
+                    NextSleepStateIndicator { state }
                         .indicator()
                         .with_hover_card(Box::new(move |card_clock| {
                             self.pause_sections(IdleAction::Sleep, card_clock)
@@ -420,7 +420,7 @@ impl IdlePauseGroups {
                 && let Some(shutdown) = obstacles.scheduled_shutdown.as_ref()
             {
                 rows.push(
-                    ScheduledShutdownRow { shutdown }
+                    ScheduledShutdownIndicator { shutdown }
                         .indicator(clock, locale)
                         .with_hover_card(Box::new(move |card_clock| {
                             self.pause_sections(IdleAction::PowerOff, card_clock)

@@ -3,7 +3,7 @@ use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_dictation::NotulistDictation,
 };
 
-use super::speech_model_item::model_load_error_rows;
+use super::speech_model_indicator::model_load_error_rows;
 use crate::{
     group_indicators::{
         group_indicator::GroupIndicator, indicator_state::IndicatorState,
@@ -70,7 +70,7 @@ pub fn notulist_dictation_indicator(dictation: &NotulistDictation) -> GroupIndic
 }
 
 pub fn notulist_dictation_hover_card(dictation: &NotulistDictation) -> Vec<Section> {
-    let phase_row = LabeledValue::new("Dictation", phase_text(&dictation.phase));
+    let phase_indicator = LabeledValue::new("Dictation", phase_text(&dictation.phase));
     let error_rows = match &dictation.phase {
         DictationPhase::StoppedByError(dictation_error) => dictation_error_rows(dictation_error),
         DictationPhase::LoadingModel
@@ -80,12 +80,12 @@ pub fn notulist_dictation_hover_card(dictation: &NotulistDictation) -> Vec<Secti
     };
     vec![Section::new(
         "Status",
-        dictionary_table([phase_row].into_iter().chain(error_rows)),
+        dictionary_table([phase_indicator].into_iter().chain(error_rows)),
     )]
 }
 
 fn dictation_error_rows(dictation_error: &DictationError) -> Vec<LabeledValue> {
-    let problem_row = LabeledValue::new("Problem", dictation_error.kind().short_label());
+    let problem_indicator = LabeledValue::new("Problem", dictation_error.kind().short_label());
     let field_rows = match dictation_error {
         DictationError::MicrophoneCouldNotOpen(open_error) => {
             microphone_open_error_rows(open_error)
@@ -99,13 +99,13 @@ fn dictation_error_rows(dictation_error: &DictationError) -> Vec<LabeledValue> {
         DictationError::MicrophoneDeliveredSilence(MicrophoneSilence::NoSamplesDelivered)
         | DictationError::TranscriptionPassInterrupted(_) => Vec::new(),
         DictationError::SpeechModelUnavailable(load_error) => {
-            return [problem_row]
+            return [problem_indicator]
                 .into_iter()
                 .chain(model_load_error_rows(load_error))
                 .collect();
         }
     };
-    [problem_row]
+    [problem_indicator]
         .into_iter()
         .chain(field_rows)
         .chain([LabeledValue::new("Details", dictation_error.to_string())])

@@ -163,12 +163,12 @@ impl ComputeGroup {
             demand.while_summary_shown(
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
             ),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
             ),
             snapshot_subscription::<Temperature>(sensor.clone())
                 .map(ComputeMessage::CpuTemperature),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
             ),
             ToggleControl::<X3dCachePreference>::subscription(())
@@ -254,11 +254,11 @@ impl ComputeGroup {
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = self.cpu_load_summary(clock);
         let mut rows = Vec::new();
-        self.push_cpu_clock_rows(&mut rows, clock);
-        self.push_cpu_temperature_rows(&mut rows, clock, locale);
-        self.push_cpu_power_draw_rows(&mut rows);
-        self.push_cpu_model_rows(&mut rows);
-        self.push_x3d_cache_preference_rows(&mut rows, clock);
+        self.push_cpu_clock_indicators(&mut rows, clock);
+        self.push_cpu_temperature_indicators(&mut rows, clock, locale);
+        self.push_cpu_power_draw_indicators(&mut rows);
+        self.push_cpu_model_indicators(&mut rows);
+        self.push_x3d_cache_preference_indicators(&mut rows, clock);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
             group_summary,
@@ -272,12 +272,12 @@ impl ComputeGroup {
         match &self.cpu_load {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Circuitry(Weight::Regular).into(),
-                self.cpu_load_item(cpu_usage_indicator(held_snapshot)),
+                self.cpu_load_indicator(cpu_usage_indicator(held_snapshot)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Circuitry(Weight::Regular).into(),
-                    self.cpu_load_item(
+                    self.cpu_load_indicator(
                         troubled_snapshot.shown_over(
                             cpu_usage_indicator(&troubled_snapshot.held_snapshot),
                             clock,
@@ -287,7 +287,7 @@ impl ComputeGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Circuitry(Weight::Regular).into(),
-                self.cpu_load_item(placeholder.indicator(CPU_LOAD_GLYPH.into())),
+                self.cpu_load_indicator(placeholder.indicator(CPU_LOAD_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Circuitry(Weight::Regular).into(),
@@ -300,44 +300,46 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_clock_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
+    fn push_cpu_clock_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
         match &self.cpu_clock {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let clock_row = cpu_clock_indicator(held_snapshot);
-                if clock_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_clock_item(clock_row));
+                let clock_indicator = cpu_clock_indicator(held_snapshot);
+                if clock_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_cpu_clock_indicator(clock_indicator));
                 }
-                let limits_row = ClockLimitCauses {
+                let limits_indicator = ClockLimitCauses {
                     clock: held_snapshot,
                 }
                 .indicator();
-                if limits_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_clock_limits_item(limits_row));
+                if limits_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_limits_indicator(limits_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let clock_row =
+                let clock_indicator =
                     troubled_snapshot.shown_over(cpu_clock_indicator(held_snapshot), clock);
-                if clock_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_clock_item(clock_row));
+                if clock_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_cpu_clock_indicator(clock_indicator));
                 }
-                let limits_row = ClockLimitCauses {
+                let limits_indicator = ClockLimitCauses {
                     clock: held_snapshot,
                 }
                 .indicator();
-                if limits_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_clock_limits_item(limits_row));
+                if limits_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.cpu_clock_limits_indicator(limits_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.cpu_clock_item(placeholder.indicator(CPU_CLOCK_GLYPH.into())));
+                rows.push(
+                    self.wired_cpu_clock_indicator(placeholder.indicator(CPU_CLOCK_GLYPH.into())),
+                );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_cpu_temperature_rows<'a>(
+    fn push_cpu_temperature_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -347,7 +349,7 @@ impl ComputeGroup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let temperature_row = temperature_indicator(held_snapshot, clock, locale);
                 if temperature_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_temperature_item(temperature_row));
+                    rows.push(self.cpu_temperature_indicator(temperature_row));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
@@ -356,47 +358,49 @@ impl ComputeGroup {
                     clock,
                 );
                 if temperature_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.cpu_temperature_item(temperature_row));
+                    rows.push(self.cpu_temperature_indicator(temperature_row));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.cpu_temperature_item(placeholder.indicator(CPU_TEMPERATURE_GLYPH.into())),
-                );
+                rows.push(self.cpu_temperature_indicator(
+                    placeholder.indicator(CPU_TEMPERATURE_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_cpu_power_draw_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_cpu_power_draw_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(power) = self.cpu_power_draw.get() {
-            let power_row = cpu_power_indicator(power);
-            if power_row.panel_visibility() == PanelVisibility::Shown {
-                rows.push(self.cpu_power_draw_item(power_row));
+            let power_indicator = cpu_power_indicator(power);
+            if power_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(self.cpu_power_draw_indicator(power_indicator));
             }
         }
     }
 
-    fn push_cpu_model_rows<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_cpu_model_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
         if let Some(hardware) = self.host_hardware.get() {
-            let model_row = cpu_model_indicator(&hardware.cpu);
-            if model_row.panel_visibility() == PanelVisibility::Shown {
-                rows.push(model_row.with_hover_card(Box::new(move |_| self.cpu_model_card())));
+            let model_indicator = cpu_model_indicator(&hardware.cpu);
+            if model_indicator.panel_visibility() == PanelVisibility::Shown {
+                rows.push(
+                    model_indicator.with_hover_card(Box::new(move |_| self.cpu_model_card())),
+                );
             }
         }
     }
 
-    fn push_x3d_cache_preference_rows<'a>(
+    fn push_x3d_cache_preference_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
     ) {
         match self.x3d_cache_preference.subscribed_indicator() {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let preference_row = x3d_cache_preference_indicator(held_snapshot);
-                if preference_row.panel_visibility() == PanelVisibility::Shown {
+                let preference_indicator = x3d_cache_preference_indicator(held_snapshot);
+                if preference_indicator.panel_visibility() == PanelVisibility::Shown {
                     rows.push(
-                        self.x3d_cache_preference_item(preference_row)
+                        self.wired_x3d_cache_preference_indicator(preference_indicator)
                             .on_switch_press(
                                 held_snapshot.switch_position(),
                                 held_snapshot.press_action_text(),
@@ -407,11 +411,11 @@ impl ComputeGroup {
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
-                let preference_row = troubled_snapshot
+                let preference_indicator = troubled_snapshot
                     .shown_over(x3d_cache_preference_indicator(held_snapshot), clock);
-                if preference_row.panel_visibility() == PanelVisibility::Shown {
+                if preference_indicator.panel_visibility() == PanelVisibility::Shown {
                     rows.push(
-                        self.x3d_cache_preference_item(preference_row)
+                        self.wired_x3d_cache_preference_indicator(preference_indicator)
                             .on_switch_press(
                                 held_snapshot.switch_position(),
                                 held_snapshot.press_action_text(),
@@ -421,7 +425,7 @@ impl ComputeGroup {
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.x3d_cache_preference_item(
+                rows.push(self.wired_x3d_cache_preference_indicator(
                     placeholder.indicator(X3D_CACHE_PREFERENCE_GLYPH.into()),
                 ));
             }
@@ -429,8 +433,8 @@ impl ComputeGroup {
         }
     }
 
-    fn cpu_load_item<'a>(&'a self, load_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        load_row
+    fn cpu_load_indicator<'a>(&'a self, load_indicator: GroupIndicator<'a>) -> GroupIndicator<'a> {
+        load_indicator
             .with_hover_card(Box::new(move |_| self.cpu_load_card()))
             .fetching_on_hover(
                 ComputeInteraction::StartCpuLoadFetches,
@@ -439,8 +443,11 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
     }
 
-    fn cpu_clock_item<'a>(&'a self, clock_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        clock_row
+    fn wired_cpu_clock_indicator<'a>(
+        &'a self,
+        clock_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        clock_indicator
             .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
             .fetching_on_hover(
                 ComputeInteraction::StartCpuClockFetch,
@@ -449,13 +456,16 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_clock_limits_item<'a>(&'a self, limits_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        limits_row
+    fn cpu_clock_limits_indicator<'a>(
+        &'a self,
+        limits_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        limits_indicator
             .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_temperature_item<'a>(
+    fn cpu_temperature_indicator<'a>(
         &'a self,
         temperature_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
@@ -468,8 +478,11 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
     }
 
-    fn cpu_power_draw_item<'a>(&'a self, power_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        power_row
+    fn cpu_power_draw_indicator<'a>(
+        &'a self,
+        power_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        power_indicator
             .with_hover_card(Box::new(move |_| {
                 self.cpu_power_draw
                     .sections_described_by(cpu_power_hover_card)
@@ -477,11 +490,11 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
     }
 
-    fn x3d_cache_preference_item<'a>(
+    fn wired_x3d_cache_preference_indicator<'a>(
         &'a self,
-        preference_row: GroupIndicator<'a>,
+        preference_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        preference_row
+        preference_indicator
             .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
             .refreshed_by(ComputeInteraction::Refresh(
                 ComputeSource::X3dCachePreference,
@@ -639,7 +652,7 @@ mod tests {
     }
 
     #[test]
-    fn expanding_on_the_panel_runs_every_source_and_collapsing_stops_the_rows() {
+    fn expanding_on_the_panel_runs_every_source_and_collapsing_stops_the_indicators() {
         let mut group = ComputeGroup::default();
         let _ = group.interact(
             super::ComputeInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),

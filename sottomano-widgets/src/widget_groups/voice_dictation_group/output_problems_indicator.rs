@@ -106,12 +106,12 @@ mod tests {
                 ),
             ],
         };
-        let discarded_row = notulist_output_problems_indicator(&discarded);
-        let blocked_row = notulist_output_problems_indicator(&blocked);
-        assert_eq!(discarded_row.shown_state(), IndicatorState::Warning);
-        assert_eq!(blocked_row.shown_state(), IndicatorState::Failed);
+        let discarded_indicator = notulist_output_problems_indicator(&discarded);
+        let blocked_indicator = notulist_output_problems_indicator(&blocked);
+        assert_eq!(discarded_indicator.shown_state(), IndicatorState::Warning);
+        assert_eq!(blocked_indicator.shown_state(), IndicatorState::Failed);
         assert_eq!(
-            blocked_row
+            blocked_indicator
                 .shown_readout()
                 .expect("a readout indicator")
                 .badge,

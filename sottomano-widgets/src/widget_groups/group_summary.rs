@@ -40,7 +40,7 @@ impl<'a> GroupSummary<'a> {
         }
     }
 
-    pub(crate) fn summarised_row(&self) -> Option<&GroupIndicator<'a>> {
+    pub(crate) fn summarised_indicator(&self) -> Option<&GroupIndicator<'a>> {
         match self {
             GroupSummary::Glyph { .. } => None,
             GroupSummary::Row { row, .. } => Some(row),

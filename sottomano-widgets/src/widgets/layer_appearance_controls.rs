@@ -331,7 +331,7 @@ impl LayerAppearanceControls {
         )
     }
 
-    pub fn items<'a, M: Into<WidgetGroupInteraction> + 'a>(
+    pub fn indicators<'a, M: Into<WidgetGroupInteraction> + 'a>(
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,

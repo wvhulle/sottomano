@@ -66,10 +66,10 @@ impl JournalScopeGroup {
     ) -> WidgetGroupContent<'a> {
         let unit_scope = self.unit_scope;
         let mut rows = Vec::new();
-        self.push_kernel_log_rows(&mut rows, clock, config);
-        self.push_service_errors_rows(&mut rows, config);
-        self.push_coredump_log_rows(&mut rows, clock, config);
-        self.push_oom_kill_log_rows(&mut rows, clock, config);
+        self.push_kernel_log_indicators(&mut rows, clock, config);
+        self.push_service_errors_indicators(&mut rows, config);
+        self.push_coredump_log_indicators(&mut rows, clock, config);
+        self.push_oom_kill_log_indicators(&mut rows, clock, config);
         WidgetGroupContent::expandable(
             self.family(),
             GroupSummary::glyph(self.icon(), self.state(clock)),
@@ -81,7 +81,7 @@ impl JournalScopeGroup {
         )
     }
 
-    fn push_kernel_log_rows<'a>(
+    fn push_kernel_log_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -89,30 +89,31 @@ impl JournalScopeGroup {
     ) {
         match &self.kernel {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let kernel_row = kernel_log_indicator(held_snapshot);
-                if kernel_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.kernel_log_item(config, kernel_row));
+                let kernel_indicator = kernel_log_indicator(held_snapshot);
+                if kernel_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_kernel_log_indicator(config, kernel_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let kernel_row = troubled_snapshot.shown_over(
+                let kernel_indicator = troubled_snapshot.shown_over(
                     kernel_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if kernel_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.kernel_log_item(config, kernel_row));
+                if kernel_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_kernel_log_indicator(config, kernel_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.kernel_log_item(config, placeholder.indicator(KERNEL_LOG_GLYPH.into())),
-                );
+                rows.push(self.wired_kernel_log_indicator(
+                    config,
+                    placeholder.indicator(KERNEL_LOG_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_service_errors_rows<'a>(
+    fn push_service_errors_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         config: &'a Config,
@@ -121,38 +122,44 @@ impl JournalScopeGroup {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
                 let service_errors_row = service_errors_indicator(held_snapshot);
                 if service_errors_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.service_errors_item(service_errors_row).on_press(
-                        TerminalCommand::JOURNAL_PRESS_HINT,
-                        JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                            config,
-                            held_snapshot.follow_log_args(),
-                        )),
-                    ));
+                    rows.push(
+                        self.wired_service_errors_indicator(service_errors_row)
+                            .on_press(
+                                TerminalCommand::JOURNAL_PRESS_HINT,
+                                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                                    config,
+                                    held_snapshot.follow_log_args(),
+                                )),
+                            ),
+                    );
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 let held_snapshot = &troubled_snapshot.held_snapshot;
                 let service_errors_row = service_errors_indicator(held_snapshot);
                 if service_errors_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.service_errors_item(service_errors_row).on_press(
-                        TerminalCommand::JOURNAL_PRESS_HINT,
-                        JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                            config,
-                            held_snapshot.follow_log_args(),
-                        )),
-                    ));
+                    rows.push(
+                        self.wired_service_errors_indicator(service_errors_row)
+                            .on_press(
+                                TerminalCommand::JOURNAL_PRESS_HINT,
+                                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                                    config,
+                                    held_snapshot.follow_log_args(),
+                                )),
+                            ),
+                    );
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.service_errors_item(placeholder.indicator(SERVICE_ERRORS_GLYPH.into())),
-                );
+                rows.push(self.wired_service_errors_indicator(
+                    placeholder.indicator(SERVICE_ERRORS_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_coredump_log_rows<'a>(
+    fn push_coredump_log_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -160,33 +167,31 @@ impl JournalScopeGroup {
     ) {
         match &self.coredumps {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let coredump_row = coredump_log_indicator(held_snapshot);
-                if coredump_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.coredump_log_item(config, coredump_row));
+                let coredump_indicator = coredump_log_indicator(held_snapshot);
+                if coredump_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_coredump_log_indicator(config, coredump_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let coredump_row = troubled_snapshot.shown_over(
+                let coredump_indicator = troubled_snapshot.shown_over(
                     coredump_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if coredump_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.coredump_log_item(config, coredump_row));
+                if coredump_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_coredump_log_indicator(config, coredump_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.coredump_log_item(
-                        config,
-                        placeholder.indicator(COREDUMP_LOG_GLYPH.into()),
-                    ),
-                );
+                rows.push(self.wired_coredump_log_indicator(
+                    config,
+                    placeholder.indicator(COREDUMP_LOG_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_oom_kill_log_rows<'a>(
+    fn push_oom_kill_log_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -194,27 +199,25 @@ impl JournalScopeGroup {
     ) {
         match &self.oom_kills {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let oom_kill_row = oom_kill_log_indicator(held_snapshot);
-                if oom_kill_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.oom_kill_log_item(config, oom_kill_row));
+                let oom_kill_indicator = oom_kill_log_indicator(held_snapshot);
+                if oom_kill_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_oom_kill_log_indicator(config, oom_kill_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let oom_kill_row = troubled_snapshot.shown_over(
+                let oom_kill_indicator = troubled_snapshot.shown_over(
                     oom_kill_log_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if oom_kill_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.oom_kill_log_item(config, oom_kill_row));
+                if oom_kill_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_oom_kill_log_indicator(config, oom_kill_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.oom_kill_log_item(
-                        config,
-                        placeholder.indicator(OOM_KILL_LOG_GLYPH.into()),
-                    ),
-                );
+                rows.push(self.wired_oom_kill_log_indicator(
+                    config,
+                    placeholder.indicator(OOM_KILL_LOG_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }

@@ -39,7 +39,7 @@ pub(crate) struct GroupMenuGroupRow<'a> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
     pub summary: GroupSummary<'a>,
-    pub items: Vec<GroupIndicator<'a>>,
+    pub indicators: Vec<GroupIndicator<'a>>,
 }
 
 pub(crate) fn one_row_per_identity<'a>(
@@ -51,7 +51,7 @@ pub(crate) fn one_row_per_identity<'a>(
             .find(|existing: &&mut GroupMenuGroupRow<'a>| {
                 existing.group_identity == row.group_identity
             }) {
-            Some(existing) => existing.items.extend(row.items),
+            Some(existing) => existing.indicators.extend(row.indicators),
             None => merged.push(row),
         }
         merged
@@ -170,21 +170,21 @@ pub(crate) fn group_header<'a>(
     }
 }
 
-pub(crate) fn item_entry<'a>(
+pub(crate) fn indicator_entry<'a>(
     layout: &GroupMenuRowContext<'_>,
     group_identity: &WidgetGroupIdentity,
-    item: &GroupIndicator<'a>,
+    indicator: &GroupIndicator<'a>,
     beside: BesideRow<'a, GroupEvent>,
 ) -> NestedMenuItem<'a, IndicatorKey, GroupEvent> {
-    let emphasis = item.row_emphasis(
+    let emphasis = indicator.row_emphasis(
         group_identity,
         layout.group_menus.inspected_indicator(layout.menu.topic),
     );
-    let indicator = item.indicator_key(group_identity);
-    let item_pin = layout.group_menus.item_pin(
+    let indicator_key = indicator.indicator_key(group_identity);
+    let indicator_pin = layout.group_menus.indicator_pin(
         layout.menu.topic,
         group_identity,
-        item,
+        indicator,
         layout.config.group_menus.alert_promotion_severity,
     );
     let pin_button = |entry, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
@@ -195,7 +195,7 @@ pub(crate) fn item_entry<'a>(
             layout.menu.toggle_pin(entry),
         )
     };
-    let item_pin = match item_pin {
+    let indicator_pin = match indicator_pin {
         IndicatorPin::Unpinnable => None,
         IndicatorPin::Pinned(PanelPin {
             entry,
@@ -220,12 +220,12 @@ pub(crate) fn item_entry<'a>(
     let content = menu_row_content(
         layout.config,
         Vec::new(),
-        item.menu_icon(layout.config),
-        item.indicator_name(),
-        item.menu_row_value(layout.config, layout.clock),
-        item_pin.into_iter().collect(),
+        indicator.menu_icon(layout.config),
+        indicator.indicator_name(),
+        indicator.menu_row_value(layout.config, layout.clock),
+        indicator_pin.into_iter().collect(),
     );
-    let gestures = item.gestures();
+    let gestures = indicator.gestures();
     let press = match gestures.left {
         IndicatorGesture::Performs { message, .. } => {
             RowGesture::Publishes(GroupEvent::Interaction(message))
@@ -238,7 +238,7 @@ pub(crate) fn item_entry<'a>(
         }
         IndicatorGesture::Inert => RowGesture::Inert,
     };
-    let scrolled = match item.row_scroll() {
+    let scrolled = match indicator.row_scroll() {
         RowScroll::AdjustsValue(adjust_by_scroll) => RowGesture::Publishes(Box::new(move |delta| {
             GroupEvent::Interaction(adjust_by_scroll(delta))
         })
@@ -246,13 +246,13 @@ pub(crate) fn item_entry<'a>(
         RowScroll::Inert => RowGesture::Inert,
     };
     NestedMenuItem {
-        key: indicator.clone(),
+        key: indicator_key.clone(),
         row: NestedMenuRow {
             content,
             emphasis,
             press,
             hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(layout.menu.inspect_row(indicator)),
+            entered: RowGesture::Publishes(layout.menu.inspect_row(indicator_key)),
             right_pressed,
             scrolled,
         },
@@ -277,7 +277,7 @@ mod tests {
             group_identity,
             group_title: WidgetGroupTitle::Named(title.to_owned().into()),
             summary: GroupSummary::glyph(IconGlyph::default(), IndicatorState::Idle),
-            items: Vec::new(),
+            indicators: Vec::new(),
         }
     }
 

@@ -17,11 +17,11 @@ use crate::{
 
 const ERROR_MOMENT_FORMAT: &str = "%Y-%m-%d %H:%M UTC";
 
-pub(super) struct Ext4ErrorCountRow {
+pub(super) struct Ext4ErrorCountIndicator {
     pub recorded_errors: RecordedErrors,
 }
 
-impl Ext4ErrorCountRow {
+impl Ext4ErrorCountIndicator {
     pub(super) fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let state = match self.recorded_errors {
             RecordedErrors::Clean => Severity::Normal,

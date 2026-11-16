@@ -89,11 +89,11 @@ fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
     }
 }
 
-pub(super) struct CiRunnerFailureRow<'a> {
+pub(super) struct CiRunnerFailureIndicator<'a> {
     pub watched: WatchedCiRunner<'a>,
 }
 
-impl<'a> CiRunnerFailureRow<'a> {
+impl<'a> CiRunnerFailureIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.watched.runner_label.to_owned(),
@@ -125,7 +125,7 @@ impl<'a> CiRunnerFailureRow<'a> {
     }
 }
 
-fn task_row_name(task: &CiTask) -> String {
+fn task_indicator_name(task: &CiTask) -> String {
     match task.repository.short_name() {
         Some(short_name) => format!("{short_name} {}", task.run_label),
         None => format!("task {}", task.run_label),
@@ -162,15 +162,15 @@ fn web_log_entry(web_log: &TaskWebLog) -> Option<LabeledValue> {
     }
 }
 
-pub(super) struct CiTaskRow<'a> {
+pub(super) struct CiTaskIndicator<'a> {
     pub kind: CiRunnerKind,
     pub task: &'a CiTask,
 }
 
-impl<'a> CiTaskRow<'a> {
+impl<'a> CiTaskIndicator<'a> {
     pub(super) fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
-            task_row_name(self.task),
+            task_indicator_name(self.task),
             self.kind.runner_icon(),
             IndicatorState::Live,
         )
@@ -268,19 +268,19 @@ mod tests {
     }
 
     #[test]
-    fn the_row_shows_the_short_repo_and_the_card_the_full_one() {
+    fn the_indicator_shows_the_short_repo_and_the_card_the_full_one() {
         let named = task(
             TaskRepository::Named("wvhulle/sottomano".to_owned()),
             "#185",
         );
-        assert_eq!(task_row_name(&named), "sottomano #185");
+        assert_eq!(task_indicator_name(&named), "sottomano #185");
         assert_eq!(task_full_name(&named), "wvhulle/sottomano #185");
     }
 
     #[test]
     fn an_unmatched_task_is_named_by_its_id() {
         let unmatched = task(TaskRepository::NotYetKnown, "11282424");
-        assert_eq!(task_row_name(&unmatched), "task 11282424");
+        assert_eq!(task_indicator_name(&unmatched), "task 11282424");
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn a_denied_engine_is_explained_on_the_row() {
+    fn a_denied_engine_is_explained_on_the_indicator() {
         assert_eq!(
             access_failure_text(&RunnerAccess::EngineUnreadable(
                 EngineReadError::SocketDenied
@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_failing_runner_gets_its_own_row() {
+    fn only_a_failing_runner_gets_its_own_indicator() {
         let healthy_runner = runner_with(1, RunnerAccess::Complete);
         let denied_runner = runner_with(
             0,
@@ -331,8 +331,8 @@ mod tests {
             runner_label: "codeberg",
             runner,
         };
-        assert!(CiRunnerFailureRow::failing_runner(watched(&healthy_runner)).is_none());
-        assert!(CiRunnerFailureRow::failing_runner(watched(&denied_runner)).is_some());
+        assert!(CiRunnerFailureIndicator::failing_runner(watched(&healthy_runner)).is_none());
+        assert!(CiRunnerFailureIndicator::failing_runner(watched(&denied_runner)).is_some());
     }
 
     #[test]

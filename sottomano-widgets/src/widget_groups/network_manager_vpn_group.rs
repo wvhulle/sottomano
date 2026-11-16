@@ -118,7 +118,10 @@ impl NetworkManagerVpnGroup {
             .map_or(&[][..], |vpns| &vpns.connections)
     }
 
-    fn vpn_connection_item<'a>(&'a self, vpn_connection: &'a VpnConnection) -> GroupIndicator<'a> {
+    fn wired_vpn_connection_indicator<'a>(
+        &'a self,
+        vpn_connection: &'a VpnConnection,
+    ) -> GroupIndicator<'a> {
         let vpn_switch = vpn_connection.switch();
         vpn_connection_indicator(vpn_connection)
             .on_switch_press(
@@ -152,7 +155,7 @@ impl NetworkManagerVpnGroup {
             NetworkManagerVpnInteraction::Expansion,
             self.vpn_connections()
                 .iter()
-                .map(move |vpn_connection| self.vpn_connection_item(vpn_connection)),
+                .map(move |vpn_connection| self.wired_vpn_connection_indicator(vpn_connection)),
         )
     }
 }

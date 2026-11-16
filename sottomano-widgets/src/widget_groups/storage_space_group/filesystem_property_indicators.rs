@@ -4,10 +4,12 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 };
 
 use super::{
-    compression_setting_row::CompressionSettingRow, ext4_error_count_row::Ext4ErrorCountRow,
-    ext4_lifetime_writes_row::Ext4LifetimeWritesRow, inode_usage_row::InodeUsageRow,
-    metadata_room_row::MetadataRoomRow, mount_access_row::MountAccessRow,
-    volume_identity_row::VolumeIdentityRow,
+    compression_setting_indicator::CompressionSettingIndicator,
+    ext4_error_count_indicator::Ext4ErrorCountIndicator,
+    ext4_lifetime_writes_indicator::Ext4LifetimeWritesIndicator,
+    inode_usage_indicator::InodeUsageIndicator, metadata_room_indicator::MetadataRoomIndicator,
+    mount_access_indicator::MountAccessIndicator,
+    volume_identity_indicator::VolumeIdentityIndicator,
 };
 use crate::{
     group_indicators::group_indicator::GroupIndicator, hover_cards::hover_card_body::Section,
@@ -42,87 +44,96 @@ impl FilesystemProperty {
             .collect()
     }
 
-    pub(super) fn row<'a>(&self, usage: &'a FilesystemUsage) -> Option<FilesystemPropertyRow<'a>> {
+    pub(super) fn row<'a>(
+        &self,
+        usage: &'a FilesystemUsage,
+    ) -> Option<FilesystemPropertyIndicator<'a>> {
         match (self, &usage.filesystem) {
             (FilesystemProperty::Mount, _) => {
-                Some(FilesystemPropertyRow::Mount(MountAccessRow { usage }))
+                Some(FilesystemPropertyIndicator::Mount(MountAccessIndicator {
+                    usage,
+                }))
             }
-            (FilesystemProperty::Volume, _) if !usage.volume.properties.is_empty() => {
-                Some(FilesystemPropertyRow::Volume(VolumeIdentityRow { usage }))
-            }
+            (FilesystemProperty::Volume, _) if !usage.volume.properties.is_empty() => Some(
+                FilesystemPropertyIndicator::Volume(VolumeIdentityIndicator { usage }),
+            ),
             (
                 FilesystemProperty::Inodes,
                 Filesystem::Ext4 { inodes, .. } | Filesystem::Xfs { inodes },
-            ) if inodes.total > 0 => Some(FilesystemPropertyRow::Inodes(InodeUsageRow {
-                inodes: *inodes,
-            })),
+            ) if inodes.total > 0 => {
+                Some(FilesystemPropertyIndicator::Inodes(InodeUsageIndicator {
+                    inodes: *inodes,
+                }))
+            }
             (FilesystemProperty::MetadataRoom, Filesystem::Btrfs(space)) => Some(
-                FilesystemPropertyRow::MetadataRoom(MetadataRoomRow::Btrfs(space)),
+                FilesystemPropertyIndicator::MetadataRoom(MetadataRoomIndicator::Btrfs(space)),
             ),
             (FilesystemProperty::MetadataRoom, Filesystem::Bcachefs(space)) => Some(
-                FilesystemPropertyRow::MetadataRoom(MetadataRoomRow::Bcachefs(space)),
+                FilesystemPropertyIndicator::MetadataRoom(MetadataRoomIndicator::Bcachefs(space)),
             ),
             (FilesystemProperty::Compression, Filesystem::Btrfs(space)) => {
-                enabled_compression(CompressionSettingRow::Btrfs(&space.compression))
+                enabled_compression(CompressionSettingIndicator::Btrfs(&space.compression))
             }
             (FilesystemProperty::Compression, Filesystem::Bcachefs(space)) => {
-                enabled_compression(CompressionSettingRow::Bcachefs(space))
+                enabled_compression(CompressionSettingIndicator::Bcachefs(space))
             }
-            (FilesystemProperty::Ext4Errors, Filesystem::Ext4 { counters, .. }) => {
-                Some(FilesystemPropertyRow::Ext4Errors(Ext4ErrorCountRow {
+            (FilesystemProperty::Ext4Errors, Filesystem::Ext4 { counters, .. }) => Some(
+                FilesystemPropertyIndicator::Ext4Errors(Ext4ErrorCountIndicator {
                     recorded_errors: counters.recorded_errors,
-                }))
-            }
-            (FilesystemProperty::Ext4Writes, Filesystem::Ext4 { counters, .. }) => {
-                Some(FilesystemPropertyRow::Ext4Writes(Ext4LifetimeWritesRow {
+                }),
+            ),
+            (FilesystemProperty::Ext4Writes, Filesystem::Ext4 { counters, .. }) => Some(
+                FilesystemPropertyIndicator::Ext4Writes(Ext4LifetimeWritesIndicator {
                     counters: *counters,
-                }))
-            }
+                }),
+            ),
             _ => None,
         }
     }
 }
 
 fn enabled_compression(
-    compression_row: CompressionSettingRow<'_>,
-) -> Option<FilesystemPropertyRow<'_>> {
-    compression_row
+    compression_indicator: CompressionSettingIndicator<'_>,
+) -> Option<FilesystemPropertyIndicator<'_>> {
+    compression_indicator
         .is_enabled()
-        .then_some(FilesystemPropertyRow::Compression(compression_row))
+        .then_some(FilesystemPropertyIndicator::Compression(
+            compression_indicator,
+        ))
 }
 
-pub(super) enum FilesystemPropertyRow<'a> {
-    Mount(MountAccessRow<'a>),
-    Volume(VolumeIdentityRow<'a>),
-    Inodes(InodeUsageRow),
-    MetadataRoom(MetadataRoomRow<'a>),
-    Compression(CompressionSettingRow<'a>),
-    Ext4Errors(Ext4ErrorCountRow),
-    Ext4Writes(Ext4LifetimeWritesRow),
+pub(super) enum FilesystemPropertyIndicator<'a> {
+    Mount(MountAccessIndicator<'a>),
+    Volume(VolumeIdentityIndicator<'a>),
+    Inodes(InodeUsageIndicator),
+    MetadataRoom(MetadataRoomIndicator<'a>),
+    Compression(CompressionSettingIndicator<'a>),
+    Ext4Errors(Ext4ErrorCountIndicator),
+    Ext4Writes(Ext4LifetimeWritesIndicator),
 }
 
-impl<'a> FilesystemPropertyRow<'a> {
+impl<'a> FilesystemPropertyIndicator<'a> {
     pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'a> {
         match self {
-            FilesystemPropertyRow::Mount(row) => row.indicator(),
-            FilesystemPropertyRow::Volume(row) => row.indicator(),
-            FilesystemPropertyRow::Inodes(row) => row.indicator(locale),
-            FilesystemPropertyRow::MetadataRoom(row) => row.indicator(locale),
-            FilesystemPropertyRow::Compression(row) => row.indicator(locale),
-            FilesystemPropertyRow::Ext4Errors(row) => row.indicator(locale),
-            FilesystemPropertyRow::Ext4Writes(row) => row.indicator(locale),
+            FilesystemPropertyIndicator::Mount(row) => row.indicator(),
+            FilesystemPropertyIndicator::Volume(row) => row.indicator(),
+            FilesystemPropertyIndicator::Inodes(row) => row.indicator(locale),
+            FilesystemPropertyIndicator::MetadataRoom(row) => row.indicator(locale),
+            FilesystemPropertyIndicator::Compression(row) => row.indicator(locale),
+            FilesystemPropertyIndicator::Ext4Errors(row) => row.indicator(locale),
+            FilesystemPropertyIndicator::Ext4Writes(row) => row.indicator(locale),
         }
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
         match self {
-            FilesystemPropertyRow::Mount(row) => row.hover_card(),
-            FilesystemPropertyRow::Volume(row) => row.hover_card(),
-            FilesystemPropertyRow::Inodes(row) => row.hover_card(),
-            FilesystemPropertyRow::MetadataRoom(row) => row.hover_card(),
-            FilesystemPropertyRow::Compression(row) => row.hover_card(),
-            FilesystemPropertyRow::Ext4Errors(row) => row.hover_card(),
-            FilesystemPropertyRow::Ext4Writes(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Mount(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Volume(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Inodes(row) => row.hover_card(),
+            FilesystemPropertyIndicator::MetadataRoom(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Compression(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Ext4Errors(row) => row.hover_card(),
+            FilesystemPropertyIndicator::Ext4Writes(row) => row.hover_card(),
         }
     }
 }
@@ -251,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn every_filesystem_kind_fills_its_group_with_several_rows() {
+    fn every_filesystem_kind_fills_its_group_with_several_indicators() {
         every_filesystem_kind().iter().for_each(|usage| {
             assert!(
                 !FilesystemProperty::listed_for(usage).is_empty(),
@@ -289,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn btrfs_without_compression_hides_the_compression_row() {
+    fn btrfs_without_compression_hides_the_compression_indicator() {
         let btrfs = &every_filesystem_kind()[3];
         assert!(!FilesystemProperty::listed_for(btrfs).contains(&FilesystemProperty::Compression));
     }

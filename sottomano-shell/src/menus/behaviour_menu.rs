@@ -12,7 +12,7 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Behaviour,
             self.settings_groups()
-                .map(WidgetGroupContent::only_unaligned_items)
+                .map(WidgetGroupContent::only_unaligned_indicators)
                 .into_iter()
                 .chain(once(
                     self.widget_groups

@@ -20,16 +20,18 @@ use crate::{
 
 const BCACHEFS_NO_COMPRESSION: &str = "none";
 
-pub(super) enum CompressionSettingRow<'a> {
+pub(super) enum CompressionSettingIndicator<'a> {
     Btrfs(&'a Compression),
     Bcachefs(&'a BcachefsSpace),
 }
 
-impl CompressionSettingRow<'_> {
+impl CompressionSettingIndicator<'_> {
     pub(super) fn is_enabled(&self) -> bool {
         match self {
-            CompressionSettingRow::Btrfs(compression) => **compression != Compression::Disabled,
-            CompressionSettingRow::Bcachefs(space) => {
+            CompressionSettingIndicator::Btrfs(compression) => {
+                **compression != Compression::Disabled
+            }
+            CompressionSettingIndicator::Bcachefs(space) => {
                 space.compression != BCACHEFS_NO_COMPRESSION
                     || space.background_compression != BCACHEFS_NO_COMPRESSION
             }
@@ -38,14 +40,14 @@ impl CompressionSettingRow<'_> {
 
     fn algorithm_text(&self) -> String {
         match self {
-            CompressionSettingRow::Btrfs(compression) => compression.to_string(),
-            CompressionSettingRow::Bcachefs(space)
+            CompressionSettingIndicator::Btrfs(compression) => compression.to_string(),
+            CompressionSettingIndicator::Bcachefs(space)
                 if space.background_compression == space.compression
                     || space.background_compression == BCACHEFS_NO_COMPRESSION =>
             {
                 space.compression.clone()
             }
-            CompressionSettingRow::Bcachefs(space) => format!(
+            CompressionSettingIndicator::Bcachefs(space) => format!(
                 "{}, {} in background",
                 space.compression, space.background_compression
             ),
@@ -59,11 +61,11 @@ fn compression_ratio(space: &BcachefsSpace) -> Option<f64> {
         .then(|| extents.uncompressed.as_u64() as f64 / extents.compressed.as_u64() as f64)
 }
 
-impl<'a> CompressionSettingRow<'a> {
+impl<'a> CompressionSettingIndicator<'a> {
     pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
         let ratio = match self {
-            CompressionSettingRow::Bcachefs(space) => compression_ratio(space),
-            CompressionSettingRow::Btrfs(_) => None,
+            CompressionSettingIndicator::Bcachefs(space) => compression_ratio(space),
+            CompressionSettingIndicator::Btrfs(_) => None,
         };
         let label = match ratio {
             Some(ratio) => format!(
@@ -89,7 +91,7 @@ impl<'a> CompressionSettingRow<'a> {
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
         let compressed_sizes = match self {
-            CompressionSettingRow::Bcachefs(space)
+            CompressionSettingIndicator::Bcachefs(space)
                 if space.compressed_extents.compressed > ByteSize::default() =>
             {
                 vec![
@@ -103,7 +105,9 @@ impl<'a> CompressionSettingRow<'a> {
                     ),
                 ]
             }
-            CompressionSettingRow::Bcachefs(_) | CompressionSettingRow::Btrfs(_) => Vec::new(),
+            CompressionSettingIndicator::Bcachefs(_) | CompressionSettingIndicator::Btrfs(_) => {
+                Vec::new()
+            }
         };
         vec![Section::new(
             "Setting",

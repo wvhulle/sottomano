@@ -818,12 +818,12 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let rain_item: GroupIndicator<'_> = RainForecast {
+        let rain_indicator: GroupIndicator<'_> = RainForecast {
             sources: RainSources::Radar(&rain),
             alerts: &DEFAULT_RAIN_ALERTS,
         }
         .indicator(clock, Locale::default());
-        let toast = rain_item
+        let toast = rain_indicator
             .toast_requests(
                 &WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
                 WeatherInteraction::RefreshLocation.into(),
@@ -892,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn radar_rows_read_intensity_or_dry_without_a_model_type() {
+    fn radar_indicators_read_intensity_or_dry_without_a_model_type() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[2.0, 0.0]);
         let scale = default_scale();

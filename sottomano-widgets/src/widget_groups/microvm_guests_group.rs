@@ -53,12 +53,12 @@ const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
     },
 };
 
-struct MicrovmUnitRow<'a> {
+struct MicrovmUnitIndicator<'a> {
     unit: &'a MicrovmUnit,
     activity: UnitActivity,
 }
 
-impl<'a> MicrovmUnitRow<'a> {
+impl<'a> MicrovmUnitIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let state = match self.activity {
             UnitActivity::Running => IndicatorState::On,
@@ -89,11 +89,11 @@ impl<'a> MicrovmUnitRow<'a> {
     }
 }
 
-struct MicrovmGuestListingRow<'a> {
+struct MicrovmGuestListingIndicator<'a> {
     listing: &'a MicrovmGuestListing,
 }
 
-impl<'a> MicrovmGuestListingRow<'a> {
+impl<'a> MicrovmGuestListingIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.listing.machine_name.clone(),
@@ -119,11 +119,11 @@ impl<'a> MicrovmGuestListingRow<'a> {
     }
 }
 
-struct MicrovmGuestRow<'a> {
+struct MicrovmGuestIndicator<'a> {
     machine: &'a MicrovmGuest,
 }
 
-impl MicrovmGuestRow<'_> {
+impl MicrovmGuestIndicator<'_> {
     fn detail_entries(&self, clock: Clock) -> Vec<LabeledValue> {
         let machine = self.machine;
         let mut detail_entries = vec![
@@ -154,7 +154,7 @@ impl MicrovmGuestRow<'_> {
     }
 }
 
-impl<'a> MicrovmGuestRow<'a> {
+impl<'a> MicrovmGuestIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
             self.machine.listing.machine_name.clone(),
@@ -229,7 +229,7 @@ impl MicrovmGuestsGroup {
             demand
                 .while_summary_shown(snapshot_subscription::<MicrovmUnits>(buses.clone()))
                 .map(MicrovmGuestsMessage::Units),
-            demand.while_rows_shown(unit_switch_subscriptions),
+            demand.while_indicators_shown(unit_switch_subscriptions),
             snapshot_subscription::<MicrovmProbe>(()).map(MicrovmGuestsMessage::Probe),
             demand
                 .while_summary_shown(
@@ -237,7 +237,7 @@ impl MicrovmGuestsGroup {
                 )
                 .map(MicrovmGuestsMessage::Listings),
             demand
-                .while_rows_shown(snapshot_subscription::<FamilyDetails<MicrovmGuest>>(()))
+                .while_indicators_shown(snapshot_subscription::<FamilyDetails<MicrovmGuest>>(()))
                 .map(MicrovmGuestsMessage::Machines),
         ])
     }
@@ -359,7 +359,7 @@ impl MicrovmGuestsGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_> {
-        let rows = self.machine_rows();
+        let rows = self.machine_indicators();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
             GroupSummary::glyph(
@@ -372,23 +372,23 @@ impl MicrovmGuestsGroup {
         )
     }
 
-    fn machine_rows(&self) -> Vec<GroupIndicator<'_>> {
+    fn machine_indicators(&self) -> Vec<GroupIndicator<'_>> {
         let units = self.unit_listing();
         let mut rows: Vec<GroupIndicator<'_>> =
             units.iter().map(|unit| self.unit_row(unit)).collect();
-        rows.extend(self.unmanaged_guest_rows(units));
+        rows.extend(self.unmanaged_guest_indicators(units));
         rows
     }
 
     fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupIndicator<'a> {
         let row = match self.running_guest_of(unit) {
-            Some(machine) => MicrovmGuestRow { machine }
+            Some(machine) => MicrovmGuestIndicator { machine }
                 .indicator()
                 .with_hover_card(Box::new(move |clock| {
                     self.detail
-                        .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                        .hover_card_with(MicrovmGuestIndicator { machine }.hover_card(clock))
                 })),
-            None => MicrovmUnitRow {
+            None => MicrovmUnitIndicator {
                 unit,
                 activity: self.unit_activity(unit),
             }
@@ -396,7 +396,7 @@ impl MicrovmGuestsGroup {
             .with_hover_card(Box::new(move |_| {
                 let activity = self.unit_activity(unit);
                 self.units
-                    .hover_card_with(MicrovmUnitRow { unit, activity }.hover_card())
+                    .hover_card_with(MicrovmUnitIndicator { unit, activity }.hover_card())
             })),
         };
         match self.unit_switches.get(&unit.instance_name) {
@@ -408,7 +408,10 @@ impl MicrovmGuestsGroup {
         }
     }
 
-    fn unmanaged_guest_rows<'a>(&'a self, units: &'a [MicrovmUnit]) -> Vec<GroupIndicator<'a>> {
+    fn unmanaged_guest_indicators<'a>(
+        &'a self,
+        units: &'a [MicrovmUnit],
+    ) -> Vec<GroupIndicator<'a>> {
         let managed_by_unit = |unit_name: Option<&str>| {
             units
                 .iter()
@@ -420,11 +423,12 @@ impl MicrovmGuestsGroup {
                 .iter()
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
-                    let row = MicrovmGuestRow { machine }
+                    let row = MicrovmGuestIndicator { machine }
                         .indicator()
                         .with_hover_card(Box::new(move |clock| {
-                            self.detail
-                                .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                            self.detail.hover_card_with(
+                                MicrovmGuestIndicator { machine }.hover_card(clock),
+                            )
                         }));
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
@@ -451,11 +455,11 @@ impl MicrovmGuestsGroup {
                             .any(|unit| unit.instance_name == listing.machine_name)
                     })
                     .map(|listing| {
-                        MicrovmGuestListingRow { listing }
+                        MicrovmGuestListingIndicator { listing }
                             .indicator()
                             .with_hover_card(Box::new(move |_| {
                                 self.listings
-                                    .hover_card_with(MicrovmGuestListingRow::hover_card())
+                                    .hover_card_with(MicrovmGuestListingIndicator::hover_card())
                             }))
                     })
                     .collect()

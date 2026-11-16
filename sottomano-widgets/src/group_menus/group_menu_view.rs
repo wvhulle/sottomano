@@ -26,7 +26,7 @@ use crate::{
         },
         menu_rows::{
             group_menu_group_rows::{
-                GroupMenuGroupRow, GroupMenuRowContext, group_header, item_entry,
+                GroupMenuGroupRow, GroupMenuRowContext, group_header, indicator_entry,
                 one_row_per_identity,
             },
             menu_row::{menu_metrics, menu_row_height},
@@ -119,7 +119,7 @@ impl GroupMenuMessenger {
         move |scrolled_px| menu_event(GroupMenuMessage::MenuScrolled { menu, scrolled_px })
     }
 
-    pub(crate) fn item_list_scroll_message(&self) -> impl Fn(f32) -> GroupEvent + use<> {
+    pub(crate) fn indicator_list_scroll_message(&self) -> impl Fn(f32) -> GroupEvent + use<> {
         let menu = self.topic;
         move |scrolled_px| menu_event(GroupMenuMessage::ItemListScrolled { menu, scrolled_px })
     }
@@ -181,9 +181,9 @@ impl<'a> GroupMenuView<'a> {
     }
 
     #[must_use]
-    pub fn row_hover_card(&self, indicator_key: &IndicatorKey, clock: Clock) -> Vec<Section> {
+    pub fn indicator_hover_card(&self, indicator_key: &IndicatorKey, clock: Clock) -> Vec<Section> {
         self.indicator(indicator_key)
-            .map(|item| item.card_with_actions(clock))
+            .map(|indicator| indicator.card_with_actions(clock))
             .unwrap_or_default()
     }
 
@@ -239,12 +239,12 @@ impl<'a> GroupMenuView<'a> {
             HoverTarget::GroupMenu(self.messenger.topic),
             GroupEvent::from,
         );
-        let indicator = edge_indicator(
+        let edge_indicator_view = edge_indicator(
             highest_alert_severity,
             handle_indicator,
             handle_indicator.settled_reveal(),
         );
-        PanelSlot::new(handle, indicator).view(panel_position)
+        PanelSlot::new(handle, edge_indicator_view).view(panel_position)
     }
 
     pub fn panel_views(
@@ -268,7 +268,7 @@ impl<'a> GroupMenuView<'a> {
                     .into_iter()
                     .collect();
             }
-            member.panel_item_views(group_menus, topic, config, panel_position, clock)
+            member.panel_indicator_views(group_menus, topic, config, panel_position, clock)
         }))
     }
 
@@ -321,7 +321,7 @@ impl<'a> GroupMenuView<'a> {
         let fade_extent_px = config.group_menus.scroll_fade_rows * menu_row_height(config);
         let scrolled_px = group_menus.scrolled_px(topic);
         let list_scroll_message = messenger.scroll_message();
-        let item_list_scroll_message = messenger.item_list_scroll_message();
+        let indicator_list_scroll_message = messenger.indicator_list_scroll_message();
         let satellite_blur = SatelliteBlur {
             item_list: appearance.backdrop_blur,
             beside: card.card_appearance.backdrop_blur,
@@ -332,7 +332,7 @@ impl<'a> GroupMenuView<'a> {
             orientation,
             menu_metrics(config),
             list_scroll_message,
-            item_list_scroll_message,
+            indicator_list_scroll_message,
         )
         .style(NestedMenuStyle {
             list_frame,
@@ -411,30 +411,30 @@ fn nested_menu_groups<'a>(
                 &entry.summary,
                 emphasis,
             );
-            let items = entry
+            let indicators = entry
                 .summary
-                .summarised_row()
+                .summarised_indicator()
                 .into_iter()
-                .chain(&entry.items)
-                .map(|item| {
-                    let beside = match item.row_emphasis(&entry.group_identity, inspected_indicator)
-                    {
-                        NestedMenuRowEmphasis::Selected => card
-                            .view(row_context.config)
-                            .map_or(BesideRow::Nothing, |card_view| {
-                                BesideRow::Card(card_view.map(GroupEvent::Popup))
-                            }),
-                        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
-                            BesideRow::Nothing
-                        }
-                    };
-                    item_entry(row_context, &entry.group_identity, item, beside)
+                .chain(&entry.indicators)
+                .map(|indicator| {
+                    let beside =
+                        match indicator.row_emphasis(&entry.group_identity, inspected_indicator) {
+                            NestedMenuRowEmphasis::Selected => card
+                                .view(row_context.config)
+                                .map_or(BesideRow::Nothing, |card_view| {
+                                    BesideRow::Card(card_view.map(GroupEvent::Popup))
+                                }),
+                            NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
+                                BesideRow::Nothing
+                            }
+                        };
+                    indicator_entry(row_context, &entry.group_identity, indicator, beside)
                 })
                 .collect();
             NestedMenuGroup {
                 header,
                 expansion_state,
-                items,
+                items: indicators,
             }
         })
         .collect()
@@ -540,7 +540,7 @@ mod tests {
     }
 
     impl<'a> GroupMenuCascadeSurfaces<'a, GroupEvent> {
-        fn first_item_list(self) -> Element<'a, GroupEvent> {
+        fn first_indicator_list(self) -> Element<'a, GroupEvent> {
             self.satellites
                 .into_iter()
                 .next()
@@ -612,16 +612,16 @@ mod tests {
             .visible_bounds()
             .expect("the group row is visible")
             .y;
-        let item_top = primary
+        let indicator_top = primary
             .find("Smoke item")
             .ok()
             .and_then(|found| found.visible_bounds())
             .map(|bounds| bounds.y);
-        (header_top, item_top)
+        (header_top, indicator_top)
     }
 
     #[test]
-    fn a_glyph_summarised_group_without_items_stays_in_the_menu() {
+    fn a_glyph_summarised_group_without_indicators_stays_in_the_menu() {
         let group_menus = opened_menu_state(every_presentation()[0]);
         let expansion = WidgetGroupExpansion::default();
         let empty_group = WidgetGroupContent::expandable(
@@ -663,11 +663,11 @@ mod tests {
             for direction in [CascadeDirection::Rightward, CascadeDirection::Leftward] {
                 for growth in [PopupGrowth::Downward, PopupGrowth::Upward] {
                     let orientation = CascadeOrientation { direction, growth };
-                    let (header_top, item_top) = row_tops(&group_menus, orientation, clock);
+                    let (header_top, indicator_top) = row_tops(&group_menus, orientation, clock);
                     match presentation.layout {
-                        NestedMenuLayout::Cascading => assert_eq!(item_top, None),
+                        NestedMenuLayout::Cascading => assert_eq!(indicator_top, None),
                         NestedMenuLayout::Accordion => {
-                            assert!(item_top.is_some_and(|item| item > header_top));
+                            assert!(indicator_top.is_some_and(|indicator| indicator > header_top));
                         }
                     }
                 }
@@ -675,7 +675,7 @@ mod tests {
         }
     }
 
-    fn long_item_list_row_top(
+    fn long_indicator_list_row_top(
         screen_height: f32,
         item_list_scrolled_px: f32,
         row_name: &str,
@@ -720,7 +720,7 @@ mod tests {
                     growth: PopupGrowth::Downward,
                 },
             );
-        let item_list = surfaces.first_item_list();
+        let item_list = surfaces.first_indicator_list();
         Simulator::with_size(
             Settings::default(),
             Size::new(600.0, screen_height),
@@ -733,20 +733,21 @@ mod tests {
     }
 
     #[test]
-    fn an_item_list_that_fits_the_screen_never_scrolls() {
+    fn an_indicator_list_that_fits_the_screen_never_scrolls() {
         let row_pitch = menu_row_height(&Config::default());
         let screen_height = row_pitch * 40.0;
-        let unscrolled = long_item_list_row_top(screen_height, 0.0, "Row 0");
-        let scrolled_past_the_end = long_item_list_row_top(screen_height, f32::MAX, "Row 0");
+        let unscrolled = long_indicator_list_row_top(screen_height, 0.0, "Row 0");
+        let scrolled_past_the_end = long_indicator_list_row_top(screen_height, f32::MAX, "Row 0");
         assert!((scrolled_past_the_end - unscrolled).abs() < 1.0);
     }
 
     #[test]
-    fn an_item_list_taller_than_the_screen_scrolls_to_its_last_rows() {
+    fn an_indicator_list_taller_than_the_screen_scrolls_to_its_last_rows() {
         let row_pitch = menu_row_height(&Config::default());
         let screen_height = row_pitch * 10.0;
-        let first_row_top = long_item_list_row_top(screen_height, 0.0, "Row 0");
-        let first_row_of_the_last_page = long_item_list_row_top(screen_height, f32::MAX, "Row 30");
+        let first_row_top = long_indicator_list_row_top(screen_height, 0.0, "Row 0");
+        let first_row_of_the_last_page =
+            long_indicator_list_row_top(screen_height, f32::MAX, "Row 30");
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
@@ -857,7 +858,7 @@ mod tests {
                     growth: PopupGrowth::Downward,
                 },
             );
-        let item_list = surfaces.first_item_list();
+        let item_list = surfaces.first_indicator_list();
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
         let pointer = pointer_target(&mut simulator);
@@ -1018,7 +1019,7 @@ mod tests {
     }
 
     #[test]
-    fn a_pinned_composed_item_draws_its_value_on_the_panel() {
+    fn a_pinned_composed_indicator_draws_its_value_on_the_panel() {
         let config = Config::default();
         let clock = Clock::real();
         let mut group_menus = GroupMenuState::default();

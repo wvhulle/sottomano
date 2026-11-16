@@ -19,7 +19,7 @@ use crate::{
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
-            ContainerFamilyMessage, FamilyRow, RowPower,
+            ContainerFamilyMessage, FamilyIndicator, RowPower,
         },
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
@@ -31,11 +31,11 @@ use crate::{
     },
 };
 
-pub struct VmwareMachineListingRow<'a> {
+pub struct VmwareMachineListingIndicator<'a> {
     listing: &'a VmwareMachineListing,
 }
 
-impl<'a> VmwareMachineListingRow<'a> {
+impl<'a> VmwareMachineListingIndicator<'a> {
     #[must_use]
     pub fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
@@ -63,11 +63,11 @@ impl<'a> VmwareMachineListingRow<'a> {
     }
 }
 
-pub struct VmwareMachineRow<'a> {
+pub struct VmwareMachineIndicator<'a> {
     machine: &'a VmwareMachine,
 }
 
-impl<'a> VmwareMachineRow<'a> {
+impl<'a> VmwareMachineIndicator<'a> {
     #[must_use]
     pub fn indicator(self) -> GroupIndicator<'a> {
         GroupIndicator::glyph_only(
@@ -136,23 +136,25 @@ impl ContainerFamily for VmwareFamily {
         probe.running_count
     }
 
-    fn listing_rows(listings: &FamilyListings<VmwareMachineListing>) -> Vec<FamilyRow<'_, Self>> {
+    fn listing_indicators(
+        listings: &FamilyListings<VmwareMachineListing>,
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .listings
             .iter()
-            .map(|listing| FamilyRow {
-                indicator: VmwareMachineListingRow { listing }.indicator(),
+            .map(|listing| FamilyIndicator {
+                indicator: VmwareMachineListingIndicator { listing }.indicator(),
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &FamilyDetails<VmwareMachine>) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_indicators(detail: &FamilyDetails<VmwareMachine>) -> Vec<FamilyIndicator<'_, Self>> {
         detail
             .details
             .iter()
-            .map(|machine| FamilyRow {
-                indicator: VmwareMachineRow { machine }.indicator(),
+            .map(|machine| FamilyIndicator {
+                indicator: VmwareMachineIndicator { machine }.indicator(),
                 power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })
             .collect()

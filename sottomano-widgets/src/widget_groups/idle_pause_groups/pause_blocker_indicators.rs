@@ -198,11 +198,11 @@ impl From<SecretMemoryHolderRecord<'_>> for TableRecord<2> {
     }
 }
 
-pub(super) struct NextSleepStateRow {
+pub(super) struct NextSleepStateIndicator {
     pub state: SleepState,
 }
 
-impl NextSleepStateRow {
+impl NextSleepStateIndicator {
     pub(super) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             self.state.title(),
@@ -218,11 +218,11 @@ impl NextSleepStateRow {
     }
 }
 
-pub(super) struct ScheduledShutdownRow<'a> {
+pub(super) struct ScheduledShutdownIndicator<'a> {
     pub shutdown: &'a ScheduledShutdown,
 }
 
-impl ScheduledShutdownRow<'_> {
+impl ScheduledShutdownIndicator<'_> {
     pub(super) fn indicator<'indicator>(
         self,
         clock: Clock,
@@ -610,7 +610,9 @@ mod tests {
     };
     use crate::{
         group_indicators::indicator_state::IndicatorState,
-        widget_groups::idle_pause_groups::pause_blocker_rows::{IdleActionBlocking, TimerArming},
+        widget_groups::idle_pause_groups::pause_blocker_indicators::{
+            IdleActionBlocking, TimerArming,
+        },
         widgets::idle::ActionTrigger,
     };
 

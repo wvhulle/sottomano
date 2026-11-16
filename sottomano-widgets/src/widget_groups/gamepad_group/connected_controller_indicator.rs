@@ -59,7 +59,7 @@ impl ControllerMarking<'_> {
         }
     }
 
-    fn player_rows(self) -> impl Iterator<Item = LabeledValue> {
+    fn player_indicators(self) -> impl Iterator<Item = LabeledValue> {
         let lit_player = match self {
             ControllerMarking::PlayerLights(lit_player) => Some(lit_player),
             ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
@@ -206,7 +206,7 @@ impl ConnectedControllerIndicator<'_> {
         );
         Section::new(
             "Identity",
-            dictionary_table(named.into_iter().chain(self.marking.player_rows())),
+            dictionary_table(named.into_iter().chain(self.marking.player_indicators())),
         )
     }
 

@@ -7,7 +7,7 @@ mod ci_runner_watches;
 use std::borrow::Cow;
 
 pub use ci_run_indicators::CiRunnerKind;
-use ci_run_indicators::{CiRunnerFailureRow, CiTaskRow, WatchedCiRunner};
+use ci_run_indicators::{CiRunnerFailureIndicator, CiTaskIndicator, WatchedCiRunner};
 pub use ci_runner_watches::{CiRunnerSnapshot, CiRunnerWatches};
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
@@ -216,11 +216,11 @@ impl CiRunsGroup {
         let mut rows = Vec::new();
         for watched in watched_runners {
             let reference = CiRunnerReference::from(&watched);
-            if let Some(failure_row) = CiRunnerFailureRow::failing_runner(watched) {
-                rows.push(self.runner_failure_item(failure_row, reference.clone()));
+            if let Some(failure_indicator) = CiRunnerFailureIndicator::failing_runner(watched) {
+                rows.push(self.runner_failure_indicator(failure_indicator, reference.clone()));
             }
             rows.extend(watched.runner.tasks.iter().map(|task| {
-                self.ci_task_item(watched.kind, task, reference.clone(), clock, locale)
+                self.ci_task_indicator(watched.kind, task, reference.clone(), clock, locale)
             }));
         }
         WidgetGroupContent::expandable_instance(
@@ -236,20 +236,22 @@ impl CiRunsGroup {
         )
     }
 
-    fn runner_failure_item<'a>(
+    fn runner_failure_indicator<'a>(
         &'a self,
-        failure_row: CiRunnerFailureRow<'a>,
+        failure_indicator: CiRunnerFailureIndicator<'a>,
         failure_reference: CiRunnerReference,
     ) -> GroupIndicator<'a> {
-        failure_row.indicator().with_hover_card(Box::new(move |_| {
-            self.runner_hover_card(&failure_reference, |watched_runner| {
-                CiRunnerFailureRow::failing_runner(watched_runner)
-                    .map(|failing_row| failing_row.hover_card())
-            })
-        }))
+        failure_indicator
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.runner_hover_card(&failure_reference, |watched_runner| {
+                    CiRunnerFailureIndicator::failing_runner(watched_runner)
+                        .map(|failing_indicator| failing_indicator.hover_card())
+                })
+            }))
     }
 
-    fn ci_task_item<'a>(
+    fn ci_task_indicator<'a>(
         &'a self,
         runner_kind: CiRunnerKind,
         task: &'a CiTask,
@@ -257,7 +259,7 @@ impl CiRunsGroup {
         clock: Clock,
         locale: Locale,
     ) -> GroupIndicator<'a> {
-        let task_item = CiTaskRow {
+        let task_indicator = CiTaskIndicator {
             kind: runner_kind,
             task,
         }
@@ -265,7 +267,7 @@ impl CiRunsGroup {
         .with_hover_card(Box::new(move |_| {
             self.runner_hover_card(&task_reference, |watched_runner| {
                 Some(
-                    CiTaskRow {
+                    CiTaskIndicator {
                         kind: watched_runner.kind,
                         task,
                     }
@@ -274,8 +276,8 @@ impl CiRunsGroup {
             })
         }));
         match &task.stop_control {
-            TaskStopControl::NoContainerNow => task_item,
-            stop_control @ TaskStopControl::StopContainers { .. } => task_item.on_right_press(
+            TaskStopControl::NoContainerNow => task_indicator,
+            stop_control @ TaskStopControl::StopContainers { .. } => task_indicator.on_right_press(
                 CANCEL_RUN_HINT,
                 CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
             ),

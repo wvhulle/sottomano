@@ -275,7 +275,7 @@ impl ScopedLlamaServers {
             .clone()
     }
 
-    pub fn items<'a>(
+    pub fn indicators<'a>(
         &'a self,
         lift: fn(ScopedServersInteraction) -> LlamaServerInteraction,
         model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
@@ -342,7 +342,9 @@ impl ScopedLlamaServers {
             {
                 rows.push(
                     switch_indicator
-                        .switch_item(lift(ScopedServersInteraction::SwitchPressed(unit.clone())))
+                        .wired_switch_indicator(lift(ScopedServersInteraction::SwitchPressed(
+                            unit.clone(),
+                        )))
                         .with_hover_card(Box::new(move |_| samples.switch_hover_card())),
                 );
             }

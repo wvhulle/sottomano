@@ -67,12 +67,13 @@ impl GroupMenuState {
     #[must_use]
     pub fn settings_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a> {
         let presentation = self.presentation();
-        let accordion_only_item = (presentation.layout == NestedMenuLayout::Accordion).then(|| {
-            GroupIndicator::toggle(
-                keep_one_group_open_toggle(presentation),
-                GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
-            )
-        });
+        let accordion_only_indicator =
+            (presentation.layout == NestedMenuLayout::Accordion).then(|| {
+                GroupIndicator::toggle(
+                    keep_one_group_open_toggle(presentation),
+                    GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
+                )
+            });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GroupMenuSettings,
             GroupSummary::glyph(
@@ -98,8 +99,8 @@ impl GroupMenuState {
                 ),
             ]
             .into_iter()
-            .chain(accordion_only_item)
-            .chain(self.layer.items(config, GroupMenuMessage::Appearance)),
+            .chain(accordion_only_indicator)
+            .chain(self.layer.indicators(config, GroupMenuMessage::Appearance)),
         )
     }
 }

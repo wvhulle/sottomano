@@ -28,12 +28,12 @@ const HOVER_CARD_ROWS: usize = 15;
 pub(super) const KERNEL_LOG_GLYPH: Phosphor = Phosphor::LinuxLogo(Weight::Regular);
 
 impl JournalScopeGroup {
-    pub(super) fn kernel_log_item<'a>(
+    pub(super) fn wired_kernel_log_indicator<'a>(
         &'a self,
         config: &Config,
-        kernel_row: GroupIndicator<'a>,
+        kernel_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        kernel_row
+        kernel_indicator
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(

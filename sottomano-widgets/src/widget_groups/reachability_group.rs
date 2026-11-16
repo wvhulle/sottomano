@@ -109,7 +109,7 @@ impl ReachabilityGroup {
                 snapshot_subscription::<UplinkConnectivity>(buses.clone())
                     .map(ReachabilityMessage::Connectivity),
             ),
-            demand.while_rows_shown(
+            demand.while_indicators_shown(
                 snapshot_subscription::<InternetLatency>(config.latency_target)
                     .map(ReachabilityMessage::Latency),
             ),
@@ -229,53 +229,51 @@ impl ReachabilityGroup {
         let mut rows = Vec::new();
         match &self.throughput {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let interface_row = interface_throughput_indicator(held_snapshot);
-                if interface_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.interface_throughput_item(interface_row));
+                let interface_indicator = interface_throughput_indicator(held_snapshot);
+                if interface_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_interface_throughput_indicator(interface_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let interface_row = troubled_snapshot.shown_over(
+                let interface_indicator = troubled_snapshot.shown_over(
                     interface_throughput_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if interface_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.interface_throughput_item(interface_row));
+                if interface_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_interface_throughput_indicator(interface_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(self.interface_throughput_item(
+                rows.push(self.wired_interface_throughput_indicator(
                     placeholder.indicator(INTERFACE_THROUGHPUT_GLYPH.into()),
                 ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
         if let Some(samples) = self.throughput.get() {
-            rows.push(self.direction_throughput_item(&samples.down));
-            rows.push(self.direction_throughput_item(&samples.up));
+            rows.push(self.direction_throughput_indicator(&samples.down));
+            rows.push(self.direction_throughput_indicator(&samples.up));
         }
         match &self.latency {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let latency_row = internet_latency_indicator(held_snapshot);
-                if latency_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.internet_latency_item(latency_row));
+                let latency_indicator = internet_latency_indicator(held_snapshot);
+                if latency_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_internet_latency_indicator(latency_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let latency_row = troubled_snapshot.shown_over(
+                let latency_indicator = troubled_snapshot.shown_over(
                     internet_latency_indicator(&troubled_snapshot.held_snapshot),
                     clock,
                 );
-                if latency_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.internet_latency_item(latency_row));
+                if latency_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_internet_latency_indicator(latency_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.internet_latency_item(
-                        placeholder.indicator(INTERNET_LATENCY_GLYPH.into()),
-                    ),
-                );
+                rows.push(self.wired_internet_latency_indicator(
+                    placeholder.indicator(INTERNET_LATENCY_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
@@ -288,11 +286,11 @@ impl ReachabilityGroup {
         )
     }
 
-    fn interface_throughput_item<'a>(
+    fn wired_interface_throughput_indicator<'a>(
         &'a self,
-        interface_row: GroupIndicator<'a>,
+        interface_indicator: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {
-        interface_row
+        interface_indicator
             .with_hover_card(Box::new(move |_| {
                 self.throughput
                     .sections_described_by(interface_throughput_hover_card)
@@ -302,7 +300,7 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn direction_throughput_item<'a>(
+    fn direction_throughput_indicator<'a>(
         &'a self,
         direction_throughput: &'a Throughput,
     ) -> GroupIndicator<'a> {
@@ -315,8 +313,11 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn internet_latency_item<'a>(&'a self, latency_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        latency_row
+    fn wired_internet_latency_indicator<'a>(
+        &'a self,
+        latency_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        latency_indicator
             .with_hover_card(Box::new(move |_| {
                 self.latency
                     .sections_described_by(internet_latency_hover_card)

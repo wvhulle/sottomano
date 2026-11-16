@@ -28,7 +28,7 @@ use crate::{
 pub const LABEL: &str = "Firmware upgrades";
 
 impl PendingUpgradesGroup {
-    pub(super) fn firmware_upgrade_item<'a>(
+    pub(super) fn firmware_upgrade_indicator<'a>(
         &'a self,
         upgrades: &'a [FirmwareUpgrade],
         config: &Config,

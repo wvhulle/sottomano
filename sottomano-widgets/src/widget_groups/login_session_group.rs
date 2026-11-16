@@ -201,7 +201,7 @@ impl LoginSessionGroup {
         }
     }
 
-    fn identity_items<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupIndicator<'a>; 6] {
+    fn identity_indicators<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupIndicator<'a>; 6] {
         [
             SeatFace {
                 seat: &identity.seat,
@@ -310,7 +310,7 @@ impl LoginSessionGroup {
             );
         }
         if let Some(identity) = self.identity.get() {
-            rows.extend(self.identity_items(identity));
+            rows.extend(self.identity_indicators(identity));
         }
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,

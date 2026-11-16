@@ -319,20 +319,20 @@ impl GroupMenuState {
         }))
     }
 
-    pub(crate) fn item_pin(
+    pub(crate) fn indicator_pin(
         &self,
         menu: GroupMenuTopic,
         group: &WidgetGroupIdentity,
-        item: &GroupIndicator<'_>,
+        indicator: &GroupIndicator<'_>,
         promotion_severity: Severity,
     ) -> IndicatorPin {
-        let Some(entry) = item.menu_pin(group) else {
+        let Some(entry) = indicator.menu_pin(group) else {
             return IndicatorPin::Unpinnable;
         };
         match self.panel_pin(
             menu,
             entry.clone(),
-            item.alert_promotion(promotion_severity),
+            indicator.alert_promotion(promotion_severity),
         ) {
             PanelPinOrigin::Pinned(pin) => IndicatorPin::Pinned(*pin),
             PanelPinOrigin::Unpinned => IndicatorPin::Unpinned(entry),
@@ -380,11 +380,11 @@ impl GroupMenuState {
             StoredGroupMenuPin::Group { group_family, .. } => group_family == stored_family,
             StoredGroupMenuPin::Item { .. } => false,
         });
-        let item_on_panel = panel_pins.any(|pin| match pin {
+        let indicator_on_panel = panel_pins.any(|pin| match pin {
             StoredGroupMenuPin::Item { group_family, .. } => group_family == stored_family,
             StoredGroupMenuPin::Group { .. } => false,
         });
-        let surface = if menu_open || item_on_panel {
+        let surface = if menu_open || indicator_on_panel {
             GroupSurface::AllRows
         } else if group_on_panel {
             GroupSurface::SummaryOnly
@@ -619,7 +619,7 @@ mod tests {
 
     const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
 
-    fn gpu_load_item() -> GroupMenuPin {
+    fn wired_gpu_load_indicator() -> GroupMenuPin {
         GroupMenuPin::Item(IndicatorKey {
             group: GPU_GROUP,
             name: "gpu_load".into(),
@@ -694,14 +694,18 @@ mod tests {
     }
 
     #[test]
-    fn pinning_an_item_leaves_its_group_unpinned() {
+    fn pinning_an_indicator_leaves_its_group_unpinned() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
+        let _ = group_menus.update(toggle_in_hardware(wired_gpu_load_indicator()));
         assert_eq!(
-            quiet_pin(&group_menus, GroupMenuTopic::Hardware, gpu_load_item()),
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                wired_gpu_load_indicator()
+            ),
             pinned_for(
                 GroupMenuTopic::Hardware,
-                gpu_load_item(),
+                wired_gpu_load_indicator(),
                 PanelPinDuration::Permanent
             )
         );
@@ -727,7 +731,7 @@ mod tests {
         );
     }
 
-    fn alerting_gpu_item() -> PanelRaise {
+    fn alerting_gpu_indicator() -> PanelRaise {
         PanelRaise {
             menu: GroupMenuTopic::Hardware,
             entry: alerting_gpu_pin(),
@@ -742,14 +746,22 @@ mod tests {
     }
 
     #[test]
-    fn a_dismissed_alert_pin_stays_dismissed_while_its_item_keeps_alerting() {
+    fn a_dismissed_alert_pin_stays_dismissed_while_its_indicator_keeps_alerting() {
         let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        group_menus.track_source_demand(
+            None,
+            vec![alerting_gpu_indicator()],
+            Clock::real().instant,
+        );
         let _ = group_menus.update(GroupMenuMessage::DismissAlertPin {
             menu: GroupMenuTopic::Hardware,
             entry: alerting_gpu_pin(),
         });
-        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        group_menus.track_source_demand(
+            None,
+            vec![alerting_gpu_indicator()],
+            Clock::real().instant,
+        );
         assert_eq!(
             group_menus.panel_pin(
                 GroupMenuTopic::Hardware,
@@ -763,13 +775,21 @@ mod tests {
     #[test]
     fn a_dismissed_alert_pin_rises_again_after_its_alert_ends() {
         let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        group_menus.track_source_demand(
+            None,
+            vec![alerting_gpu_indicator()],
+            Clock::real().instant,
+        );
         let _ = group_menus.update(GroupMenuMessage::DismissAlertPin {
             menu: GroupMenuTopic::Hardware,
             entry: alerting_gpu_pin(),
         });
         group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
-        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        group_menus.track_source_demand(
+            None,
+            vec![alerting_gpu_indicator()],
+            Clock::real().instant,
+        );
         assert_eq!(
             group_menus.panel_pin(
                 GroupMenuTopic::Hardware,
@@ -785,26 +805,26 @@ mod tests {
     }
 
     #[test]
-    fn pinning_one_sibling_item_leaves_the_other() {
-        let sibling_item = |indicator_name: &str| {
+    fn pinning_one_sibling_indicator_leaves_the_other() {
+        let sibling_indicator = |indicator_name: &str| {
             GroupMenuPin::Item(IndicatorKey {
                 group: GPU_GROUP,
                 name: indicator_name.to_owned().into(),
             })
         };
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(sibling_item(
+        let _ = group_menus.update(toggle_in_hardware(sibling_indicator(
             "WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })",
         )));
         assert_eq!(
             quiet_pin(
                 &group_menus,
                 GroupMenuTopic::Hardware,
-                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
+                sibling_indicator("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
             ),
             pinned_for(
                 GroupMenuTopic::Hardware,
-                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })"),
+                sibling_indicator("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })"),
                 PanelPinDuration::Permanent
             )
         );
@@ -812,16 +832,16 @@ mod tests {
             quiet_pin(
                 &group_menus,
                 GroupMenuTopic::Hardware,
-                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
+                sibling_indicator("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
             ),
             PanelPinOrigin::Unpinned
         );
     }
 
     #[test]
-    fn pinned_item_demand_is_limited_to_its_own_family() {
+    fn pinned_indicator_demand_is_limited_to_its_own_family() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
+        let _ = group_menus.update(toggle_in_hardware(wired_gpu_load_indicator()));
         assert_ne!(
             gpu_demand(&group_menus),
             group_menus.source_demand(WidgetGroupFamily::Compute)

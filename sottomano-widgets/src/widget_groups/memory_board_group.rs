@@ -189,7 +189,7 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn slot_items(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
+    fn slot_indicators(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
             hardware
@@ -216,7 +216,7 @@ impl MemoryBoardGroup {
         })
     }
 
-    fn temperature_items(&self) -> impl Iterator<Item = GroupIndicator<'_>> {
+    fn temperature_indicators(&self) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.module_temperatures
             .get()
             .into_iter()
@@ -243,11 +243,11 @@ impl MemoryBoardGroup {
     pub fn group_content(&self, clock: Clock, locale: Locale) -> WidgetGroupContent<'_> {
         let group_summary = self.memory_usage_summary(clock, locale);
         let mut rows = Vec::new();
-        self.push_memory_growth_rows(&mut rows, clock, locale);
-        self.push_stall_pressure_rows(&mut rows, clock, locale);
-        self.push_swap_activity_rows(&mut rows, clock, locale);
-        rows.extend(self.slot_items(locale));
-        rows.extend(self.temperature_items());
+        self.push_memory_growth_indicators(&mut rows, clock, locale);
+        self.push_stall_pressure_indicators(&mut rows, clock, locale);
+        self.push_swap_activity_indicators(&mut rows, clock, locale);
+        rows.extend(self.slot_indicators(locale));
+        rows.extend(self.temperature_indicators());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             group_summary,
@@ -261,12 +261,12 @@ impl MemoryBoardGroup {
         match &self.memory {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => GroupSummary::summarising(
                 Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_item(memory_indicator(held_snapshot, locale)),
+                self.memory_usage_indicator(memory_indicator(held_snapshot, locale)),
             ),
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
                 GroupSummary::summarising(
                     Phosphor::Database(Weight::Regular).into(),
-                    self.memory_usage_item(troubled_snapshot.shown_over(
+                    self.memory_usage_indicator(troubled_snapshot.shown_over(
                         memory_indicator(&troubled_snapshot.held_snapshot, locale),
                         clock,
                     )),
@@ -274,7 +274,7 @@ impl MemoryBoardGroup {
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => GroupSummary::summarising(
                 Phosphor::Database(Weight::Regular).into(),
-                self.memory_usage_item(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
+                self.memory_usage_indicator(placeholder.indicator(MEMORY_USAGE_GLYPH.into())),
             ),
             SubscribedSnapshot::AwaitingFirstSnapshot => GroupSummary::glyph(
                 Phosphor::Database(Weight::Regular).into(),
@@ -287,7 +287,7 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn push_memory_growth_rows<'a>(
+    fn push_memory_growth_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -295,30 +295,30 @@ impl MemoryBoardGroup {
     ) {
         match &self.memory_growth {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let growth_row = memory_growth_indicator(held_snapshot, locale);
-                if growth_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.memory_growth_item(growth_row));
+                let growth_indicator = memory_growth_indicator(held_snapshot, locale);
+                if growth_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_memory_growth_indicator(growth_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let growth_row = troubled_snapshot.shown_over(
+                let growth_indicator = troubled_snapshot.shown_over(
                     memory_growth_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if growth_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.memory_growth_item(growth_row));
+                if growth_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_memory_growth_indicator(growth_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.memory_growth_item(placeholder.indicator(MEMORY_GROWTH_GLYPH.into())),
-                );
+                rows.push(self.wired_memory_growth_indicator(
+                    placeholder.indicator(MEMORY_GROWTH_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_stall_pressure_rows<'a>(
+    fn push_stall_pressure_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -326,30 +326,32 @@ impl MemoryBoardGroup {
     ) {
         match &self.stall_pressure {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let pressure_row = memory_stall_indicator(held_snapshot, locale);
-                if pressure_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.stall_pressure_item(pressure_row));
+                let pressure_indicator = memory_stall_indicator(held_snapshot, locale);
+                if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.stall_pressure_indicator(pressure_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let pressure_row = troubled_snapshot.shown_over(
+                let pressure_indicator = troubled_snapshot.shown_over(
                     memory_stall_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if pressure_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.stall_pressure_item(pressure_row));
+                if pressure_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.stall_pressure_indicator(pressure_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
                 rows.push(
-                    self.stall_pressure_item(placeholder.indicator(STALL_PRESSURE_GLYPH.into())),
+                    self.stall_pressure_indicator(
+                        placeholder.indicator(STALL_PRESSURE_GLYPH.into()),
+                    ),
                 );
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn push_swap_activity_rows<'a>(
+    fn push_swap_activity_indicators<'a>(
         &'a self,
         rows: &mut Vec<GroupIndicator<'a>>,
         clock: Clock,
@@ -357,31 +359,34 @@ impl MemoryBoardGroup {
     ) {
         match &self.swap_activity {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                let swap_row = swap_activity_indicator(held_snapshot, locale);
-                if swap_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.swap_activity_item(swap_row));
+                let swap_indicator = swap_activity_indicator(held_snapshot, locale);
+                if swap_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_swap_activity_indicator(swap_indicator));
                 }
             }
             SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                let swap_row = troubled_snapshot.shown_over(
+                let swap_indicator = troubled_snapshot.shown_over(
                     swap_activity_indicator(&troubled_snapshot.held_snapshot, locale),
                     clock,
                 );
-                if swap_row.panel_visibility() == PanelVisibility::Shown {
-                    rows.push(self.swap_activity_item(swap_row));
+                if swap_indicator.panel_visibility() == PanelVisibility::Shown {
+                    rows.push(self.wired_swap_activity_indicator(swap_indicator));
                 }
             }
             SubscribedSnapshot::NoSnapshot { placeholder } => {
-                rows.push(
-                    self.swap_activity_item(placeholder.indicator(SWAP_ACTIVITY_GLYPH.into())),
-                );
+                rows.push(self.wired_swap_activity_indicator(
+                    placeholder.indicator(SWAP_ACTIVITY_GLYPH.into()),
+                ));
             }
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {}
         }
     }
 
-    fn memory_usage_item<'a>(&'a self, usage_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        usage_row
+    fn memory_usage_indicator<'a>(
+        &'a self,
+        usage_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        usage_indicator
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.memory.sections_described_by(memory_hover_card);
                 sections.extend(
@@ -397,8 +402,11 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
     }
 
-    fn memory_growth_item<'a>(&'a self, growth_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        growth_row
+    fn wired_memory_growth_indicator<'a>(
+        &'a self,
+        growth_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        growth_indicator
             .with_hover_card(Box::new(move |_| {
                 self.memory_growth
                     .sections_described_by(memory_growth_hover_card)
@@ -406,8 +414,11 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
     }
 
-    fn stall_pressure_item<'a>(&'a self, pressure_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        pressure_row
+    fn stall_pressure_indicator<'a>(
+        &'a self,
+        pressure_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        pressure_indicator
             .with_hover_card(Box::new(move |_| {
                 self.stall_pressure
                     .sections_described_by(memory_stall_hover_card)
@@ -415,8 +426,11 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
     }
 
-    fn swap_activity_item<'a>(&'a self, swap_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
-        swap_row
+    fn wired_swap_activity_indicator<'a>(
+        &'a self,
+        swap_indicator: GroupIndicator<'a>,
+    ) -> GroupIndicator<'a> {
+        swap_indicator
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
                     .swap_activity

@@ -23,7 +23,7 @@ use crate::{
 pub(super) const SERVICE_ERRORS_GLYPH: Phosphor = Phosphor::WarningCircle(Weight::Regular);
 
 impl JournalScopeGroup {
-    pub(super) fn service_errors_item<'a>(
+    pub(super) fn wired_service_errors_indicator<'a>(
         &'a self,
         service_errors_row: GroupIndicator<'a>,
     ) -> GroupIndicator<'a> {

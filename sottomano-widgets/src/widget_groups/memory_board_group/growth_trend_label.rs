@@ -72,9 +72,9 @@ pub fn memory_growth_indicator(growth: &MemoryGrowth, locale: Locale) -> GroupIn
 }
 
 fn growth_toast_body(growth: &MemoryGrowth, locale: Locale) -> Option<String> {
-    let exhaustion_row = near_exhaustion(growth)
+    let exhaustion_indicator = near_exhaustion(growth)
         .map(|remaining| ("Full in".to_owned(), duration_text(remaining, locale)));
-    let body_rows: Vec<(String, String)> = exhaustion_row
+    let body_rows: Vec<(String, String)> = exhaustion_indicator
         .into_iter()
         .chain(
             growth
@@ -84,11 +84,9 @@ fn growth_toast_body(growth: &MemoryGrowth, locale: Locale) -> Option<String> {
         )
         .collect();
     (!body_rows.is_empty()).then(|| {
-        definition_list(
-            body_rows
-                .iter()
-                .map(|(row_key, row_value)| (row_key.as_str(), row_value.clone())),
-        )
+        definition_list(body_rows.iter().map(|(indicator_key, indicator_value)| {
+            (indicator_key.as_str(), indicator_value.clone())
+        }))
     })
 }
 
@@ -151,10 +149,10 @@ mod tests {
     #[test]
     fn a_steady_ram_is_quiet() {
         let steady = growth_towards(None, Severity::Normal);
-        let steady_row = memory_growth_indicator(&steady, Locale::en_US);
-        assert_eq!(steady_row.shown_state(), IndicatorState::Idle);
+        let steady_indicator = memory_growth_indicator(&steady, Locale::en_US);
+        assert_eq!(steady_indicator.shown_state(), IndicatorState::Idle);
         assert_eq!(
-            steady_row
+            steady_indicator
                 .shown_readout()
                 .expect("a readout indicator")
                 .label,

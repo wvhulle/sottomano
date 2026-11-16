@@ -22,7 +22,7 @@ use crate::{
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
-            ContainerFamilyMessage, FamilyRow, RowPower,
+            ContainerFamilyMessage, FamilyIndicator, RowPower,
         },
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
@@ -30,28 +30,28 @@ use crate::{
     widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon, value_cells::LabeledValue},
 };
 
-pub enum VirtualBoxListedRow<'a> {
+pub enum VirtualBoxListedIndicator<'a> {
     Running(&'a VirtualBoxMachineListing),
     Stopped(&'a RegisteredVirtualBoxMachine),
 }
 
-impl VirtualBoxListedRow<'_> {
+impl VirtualBoxListedIndicator<'_> {
     const fn run_state(&self) -> ContainerRunState {
         match self {
-            VirtualBoxListedRow::Running(_) => ContainerRunState::Running,
-            VirtualBoxListedRow::Stopped(_) => ContainerRunState::Stopped,
+            VirtualBoxListedIndicator::Running(_) => ContainerRunState::Running,
+            VirtualBoxListedIndicator::Stopped(_) => ContainerRunState::Stopped,
         }
     }
 }
 
-impl<'a> VirtualBoxListedRow<'a> {
+impl<'a> VirtualBoxListedIndicator<'a> {
     #[must_use]
     pub fn indicator(self) -> GroupIndicator<'a> {
         let name = match &self {
-            VirtualBoxListedRow::Running(listing) => {
+            VirtualBoxListedIndicator::Running(listing) => {
                 format!("{} pid {}", listing.machine_name, listing.pid)
             }
-            VirtualBoxListedRow::Stopped(machine) => {
+            VirtualBoxListedIndicator::Stopped(machine) => {
                 format!("{} {}", machine.machine_name, machine.machine_uuid)
             }
         };
@@ -72,11 +72,11 @@ impl<'a> VirtualBoxListedRow<'a> {
     pub fn hover_card(&self) -> Vec<Section> {
         let state_entry = LabeledValue::new("State", self.run_state().label());
         let identity_entries = match self {
-            VirtualBoxListedRow::Running(listing) => vec![
+            VirtualBoxListedIndicator::Running(listing) => vec![
                 LabeledValue::new("Machine", listing.machine_reference.clone()),
                 LabeledValue::new("PID", listing.pid.to_string()),
             ],
-            VirtualBoxListedRow::Stopped(machine) => {
+            VirtualBoxListedIndicator::Stopped(machine) => {
                 vec![LabeledValue::new("UUID", machine.machine_uuid.clone())]
             }
         };
@@ -87,11 +87,11 @@ impl<'a> VirtualBoxListedRow<'a> {
     }
 }
 
-pub struct VirtualBoxMachineRow<'a> {
+pub struct VirtualBoxMachineIndicator<'a> {
     machine: &'a VirtualBoxMachine,
 }
 
-impl<'a> VirtualBoxMachineRow<'a> {
+impl<'a> VirtualBoxMachineIndicator<'a> {
     #[must_use]
     pub fn indicator(self) -> GroupIndicator<'a> {
         let name = format!(
@@ -171,34 +171,36 @@ impl ContainerFamily for VirtualBoxFamily {
         probe.running_count
     }
 
-    fn listing_rows(listings: &VirtualBoxMachineListings) -> Vec<FamilyRow<'_, Self>> {
+    fn listing_indicators(listings: &VirtualBoxMachineListings) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .listings
             .iter()
-            .map(|listing| FamilyRow {
-                indicator: VirtualBoxListedRow::Running(listing).indicator(),
+            .map(|listing| FamilyIndicator {
+                indicator: VirtualBoxListedIndicator::Running(listing).indicator(),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &FamilyDetails<VirtualBoxMachine>) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_indicators(
+        detail: &FamilyDetails<VirtualBoxMachine>,
+    ) -> Vec<FamilyIndicator<'_, Self>> {
         detail
             .details
             .iter()
-            .map(|machine| FamilyRow {
-                indicator: VirtualBoxMachineRow { machine }.indicator(),
+            .map(|machine| FamilyIndicator {
+                indicator: VirtualBoxMachineIndicator { machine }.indicator(),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
             .collect()
     }
 
-    fn stopped_rows(listings: &VirtualBoxMachineListings) -> Vec<FamilyRow<'_, Self>> {
+    fn stopped_indicators(listings: &VirtualBoxMachineListings) -> Vec<FamilyIndicator<'_, Self>> {
         listings
             .stopped_machines
             .iter()
-            .map(|machine| FamilyRow {
-                indicator: VirtualBoxListedRow::Stopped(machine).indicator(),
+            .map(|machine| FamilyIndicator {
+                indicator: VirtualBoxListedIndicator::Stopped(machine).indicator(),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })
             .collect()
