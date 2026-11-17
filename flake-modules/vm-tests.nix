@@ -21,7 +21,6 @@ in
           ../vm-tests/shared/common.nix
           ../vm-tests/shared/${compositorName}-session.nix
         ];
-        _module.args.sottomanoPackage = self'.packages.sottomano;
         networking.hostName = "sottomano-${compositorName}";
       };
 
@@ -31,6 +30,7 @@ in
           name = "sottomano-${compositor}-${scenario}";
           enableOCR = true;
           nodes.machine = machineForCompositor compositor;
+          node.specialArgs.sottomanoPackage = self'.packages.sottomano;
           testScript = ''
             COMPOSITOR = "${compositor}"
           ''

@@ -10,10 +10,7 @@
         runtimeInputs = [ pkgs.ast-grep ];
         text = ''
           ast-grep test --skip-snapshot-tests
-          ast-grep scan --error \
-            corredo/src corredo/examples corredo/tests \
-            sottomano-desktop-sources/src sottomano-widgets/src sottomano-shell/src \
-            sottomano-widget-showcase/src sottomano-desktop-sinks/src sottomano-toml-config/src
+          ast-grep scan --error
         '';
       };
     in

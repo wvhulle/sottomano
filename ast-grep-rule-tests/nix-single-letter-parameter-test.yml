@@ -1,0 +1,12 @@
+id: nix-single-letter-parameter
+valid:
+  - "base16Palette: base16Palette.base00"
+  - "_: { }"
+  - "{ config, lib, ... }: config"
+  - "let compositorName = \"niri\"; in compositorName"
+  - "{ x = 1; }"
+  - "base16Palette: base16Palette.x"
+invalid:
+  - "p: p.base00"
+  - "{ a, lib, ... }: a"
+  - "let n = 1; in n"

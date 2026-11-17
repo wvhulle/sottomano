@@ -1,0 +1,9 @@
+id: nix-module-args
+valid:
+  - "{ node.specialArgs.sottomanoPackage = self'.packages.sottomano; }"
+  - "{ options.sottomano.cargoBuild = lib.mkOption { type = lib.types.lazyAttrsOf lib.types.raw; }; }"
+  - "{ _module.argsLike = 1; }"
+invalid:
+  - "{ _module.args.sottomanoPackage = self'.packages.sottomano; }"
+  - "{ _module.args = { pkgs = import nixpkgs { }; }; }"
+  - "{ config._module.args.rustBuild = { }; }"

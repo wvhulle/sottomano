@@ -1,0 +1,9 @@
+id: nix-system-indexed-self
+valid:
+  - "self'.packages.sottomano"
+  - "self.nixosModules.default"
+  - "config.packages.default"
+invalid:
+  - "self.packages.${system}.default"
+  - "self.packages.${pkgs.stdenv.hostPlatform.system}.default"
+  - "self.checks.${system}.cargo-test"

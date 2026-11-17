@@ -41,11 +41,11 @@
         fileset = lib.fileset.union cargoWorkspaceFileset ../.clippy.toml;
       };
 
-      runtimeDlopenLibraries = with pkgs; [
-        wayland
-        libxkbcommon
-        libGL
-        vulkan-loader
+      runtimeDlopenLibraries = [
+        pkgs.wayland
+        pkgs.libxkbcommon
+        pkgs.libGL
+        pkgs.vulkan-loader
       ];
 
       allocatorEnv = {
@@ -85,14 +85,12 @@
           pkgs.autoAddDriverRunpath
           pkgs.rustPlatform.bindgenHook
         ];
-        buildInputs =
-          runtimeDlopenLibraries
-          ++ (with pkgs; [
-            systemd
-            pipewire
-            openssl
-            libvirt
-          ]);
+        buildInputs = runtimeDlopenLibraries ++ [
+          pkgs.systemd
+          pkgs.pipewire
+          pkgs.openssl
+          pkgs.libvirt
+        ];
       };
 
       shellArgs = commonArgs // {
@@ -195,24 +193,23 @@
             lib.mapAttrsToList (name: value: "--set-default ${name} ${lib.escapeShellArg value}") allocatorEnv
           );
 
-          runtimeDeps =
-            (with pkgs; [
-              fontconfig
-              iproute2
-              networkmanager
-              modemmanager
-              bluez
-              inxi
-              wireplumber
-              pipewire
-              openssl
-              wireguard-tools
-              tailscale
-              xdg-utils
-              wl-clipboard
-              systemd
-            ])
-            ++ [ inputs'.umbra.packages.default ];
+          runtimeDeps = [
+            pkgs.fontconfig
+            pkgs.iproute2
+            pkgs.networkmanager
+            pkgs.modemmanager
+            pkgs.bluez
+            pkgs.inxi
+            pkgs.wireplumber
+            pkgs.pipewire
+            pkgs.openssl
+            pkgs.wireguard-tools
+            pkgs.tailscale
+            pkgs.xdg-utils
+            pkgs.wl-clipboard
+            pkgs.systemd
+            inputs'.umbra.packages.default
+          ];
 
           gsettingsRuntime = {
             binPath = "${pkgs.glib.bin}/bin";

@@ -1,0 +1,26 @@
+id: nix-builtin-fetchers
+language: nix
+severity: error
+message: Sources fetched at evaluation time or a second nixpkgs instance bypass the flake inputs.
+note: "Pin the source as a flake input (with `flake = false` for a plain source tree) so flake.lock records it, and take `pkgs` from flake-parts instead of importing nixpkgs again."
+files:
+  - flake.nix
+  - flake-modules/**/*.nix
+  - vm-tests/**/*.nix
+rule:
+  any:
+    - pattern: builtins.fetchTarball
+    - pattern: builtins.fetchGit
+    - pattern: builtins.fetchurl
+    - pattern: builtins.fetchTree
+    - pattern: import inputs.nixpkgs
+    - pattern: fetchTarball
+      not:
+        inside:
+          pattern: builtins.$FETCHER
+          stopBy: end
+    - pattern: fetchGit
+      not:
+        inside:
+          pattern: builtins.$FETCHER
+          stopBy: end

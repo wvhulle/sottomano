@@ -35,16 +35,16 @@ in
             else
               cfg.package;
 
-          modeToPalette = p: {
-            background = p.base00;
-            background_weak = p.base02;
-            background_strong = p.base03;
-            text = p.base05;
-            secondary = p.base04;
-            primary = p.base0C;
-            success = p.base0B;
-            warning = p.base0A;
-            danger = p.base08;
+          modeToPalette = base16Palette: {
+            background = base16Palette.base00;
+            background_weak = base16Palette.base02;
+            background_strong = base16Palette.base03;
+            text = base16Palette.base05;
+            secondary = base16Palette.base04;
+            primary = base16Palette.base0C;
+            success = base16Palette.base0B;
+            warning = base16Palette.base0A;
+            danger = base16Palette.base08;
           };
 
           variantToml =

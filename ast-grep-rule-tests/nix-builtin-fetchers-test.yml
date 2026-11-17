@@ -1,0 +1,14 @@
+id: nix-builtin-fetchers
+valid:
+  - "{ phosphor = inputs.phosphor-core; }"
+  - "pkgs.fetchurl { url = \"https://example.org/a.tar.gz\"; hash = \"sha256-AAAA\"; }"
+  - "pkgs.fetchFromGitHub { owner = \"owner\"; repo = \"repo\"; rev = \"v1\"; hash = \"sha256-AAAA\"; }"
+  - "inputs.rust-overlay.lib.mkRustBin { } pkgs"
+invalid:
+  - "builtins.fetchTarball { url = \"https://example.org/a.tar.gz\"; }"
+  - "builtins.fetchGit { url = \"https://example.org/repo.git\"; }"
+  - "builtins.fetchurl \"https://example.org/a\""
+  - "builtins.fetchTree { type = \"github\"; owner = \"owner\"; repo = \"repo\"; }"
+  - "fetchTarball \"https://example.org/a.tar.gz\""
+  - "fetchGit ./."
+  - "import inputs.nixpkgs { inherit system; overlays = [ ]; }"

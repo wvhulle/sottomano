@@ -1,0 +1,26 @@
+id: nix-single-letter-parameter
+language: nix
+severity: error
+message: A single-letter name says nothing about the value it holds.
+note: "Name it after what it is, as in base16Palette or compositorName. A parameter that is deliberately unused is written _."
+files:
+  - flake.nix
+  - flake-modules/**/*.nix
+  - vm-tests/**/*.nix
+rule:
+  kind: identifier
+  regex: ^[a-zA-Z]$
+  any:
+    - inside:
+        kind: function_expression
+        field: universal
+    - inside:
+        kind: formal
+    - inside:
+        kind: attrpath
+        inside:
+          kind: binding
+          inside:
+            kind: binding_set
+            inside:
+              kind: let_expression
