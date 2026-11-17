@@ -76,7 +76,7 @@ Every container in the Docker engines on this computer, one row each: the system
 
 Pressing the switch on a running container stops it, giving it ten seconds to exit, and on a stopped one starts it. An engine whose socket this user may not open gets one row with a warning.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/docker_engines_rootful.webp" width="828" alt="Opening the Docker containers group from the Virtualization menu and hovering a container in the system engine">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/docker_engines_rootful.webp" width="819" alt="Opening the Docker containers group from the Virtualization menu and hovering a container in the system engine">
 
 ## Virtualization: Apptainer containers
 
@@ -90,7 +90,7 @@ Waydroid as two rows: its container, and the Android session inside it, which is
 
 Pressing the container's switch starts or stops `waydroid-container.service`, which needs your user in the system module's `containerControllers`. Before Sottomano has read the service's state, the container row shows a muted switch. Pressing the session's switch starts the session with `waydroid session start`, or stops it with `waydroid session stop`.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/waydroid_container_session.webp" width="750" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/waydroid_container_session.webp" width="710" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
 
 ## Virtualization: Flatpak apps
 

@@ -12,7 +12,7 @@ Hovering a workspace shows its windows.
 
 The rocket before the window list opens the installed applications. The first group ranks apps by launches on the current workspace, or across all workspaces on an unnamed one. An app with an open window has a button on the right of its row that focuses its most recently used window.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/app_launcher_frequent.webp" width="1002" alt="Frequently launched apps with a hover card and open window buttons">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/app_launcher_frequent.webp" width="858" alt="Frequently launched apps with a hover card and open window buttons">
 
 ## Applications: Categories
 
