@@ -38,6 +38,7 @@ use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY,
     demo_script::{Demo, GroupShown, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget, MenuPinWidget},
+    recording_still::{encode_still, still_path},
     showcase_message::ShowcaseMessage,
     showcase_program::{HOVER_FETCH_LATENCY, ShowcaseProgram},
 };
@@ -621,6 +622,7 @@ impl RecordingSession {
             .flat_map(|step| recorder.perform(step))
             .collect();
         let closing = recorder.press_away();
+        let final_scripted_position = (opening.len() + scripted.len()).saturating_sub(1);
         let frames: Vec<CapturedFrame> =
             opening.into_iter().chain(scripted).chain(closing).collect();
         let crop = ContentCrop::around_content(
@@ -634,5 +636,11 @@ impl RecordingSession {
         fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
         let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
         encode_animation(&frames, &crop, &animation);
+        encode_still(
+            &crop.crop(&frames[final_scripted_position]),
+            u32::from(crop.size.width),
+            u32::from(crop.size.height),
+            &still_path(output_root, demo.name),
+        );
     }
 }

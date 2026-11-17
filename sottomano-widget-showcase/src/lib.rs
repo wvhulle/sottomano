@@ -4,6 +4,7 @@ pub mod demo_script;
 mod fixtures;
 mod frosted_backdrop;
 mod hovered_widget;
+mod recording_still;
 mod scripted_frames;
 pub mod showcase_message;
 pub mod showcase_program;
