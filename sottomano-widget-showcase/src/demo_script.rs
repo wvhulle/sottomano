@@ -22,11 +22,10 @@ use crate::{
     fixtures::{
         app_launcher, appearance_presets, apptainer_containers, audio, caldav,
         cgroup_memory_limits, ci_runner_tasks, claude_usage, compute, desktop_session,
-        docker_engines, flatpak_sandboxes, gamepad, group_menu_members, idle_lock, incus_instances,
-        login_session, lxc_containers, media, memory_board, microvm_guests, notification_toasts,
-        nspawn_containers, podman_engines, shell_settings, tailnet, unchanging, virtual_machines,
+        flatpak_sandboxes, gamepad, group_menu_members, idle_lock, login_session, lxc_containers,
+        microvm_guests, notification_toasts, shell_settings, tailnet, unchanging,
         virtualbox_machines, vmware_machines, voice_dictation, wallpaper, waydroid_container,
-        weather, wireguard_tunnels,
+        weather,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -99,6 +98,118 @@ const fn indicator_row(family: IndicatorGroupFamily, row_name: &'static str) -> 
 
 pub const DEMOS: &[Demo] = &[
     Demo {
+        name: "tour_hardware",
+        group: group_menu_members::hardware_group_menu,
+        live: group_menu_members::hardware_menu_live,
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressText("Compute"),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU load")),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU model")),
+            Step::PressText("Memory"),
+            Step::Hover(indicator_row(IndicatorGroupFamily::MemoryBoard, "RAM")),
+        ],
+    },
+    Demo {
+        name: "tour_network",
+        group: group_menu_members::network_group_menu,
+        live: |_| unchanging(),
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::InMenu(GroupMenuTopic::Network),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
+            Step::PressText("Tailscale"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Tailnet,
+                "Reachable from",
+            )),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Tailnet,
+                "Exit via home-server",
+            )),
+            Step::PressText("WireGuard"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::WireguardTunnels,
+                "wg-home",
+            )),
+        ],
+    },
+    Demo {
+        name: "tour_weather",
+        group: weather::group,
+        live: |_| unchanging(),
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
+            Step::PressText("Weather"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Weather,
+                "Temperature forecast",
+            )),
+            Step::Hover(indicator_row(IndicatorGroupFamily::Weather, "Rain")),
+        ],
+    },
+    Demo {
+        name: "tour_media",
+        group: group_menu_members::media_group_menu,
+        live: audio::live,
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::InMenu(GroupMenuTopic::Media),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
+            Step::PressText("Spotify"),
+            Step::Hover(instance_row(
+                IndicatorGroupIdentity {
+                    family: IndicatorGroupFamily::Media,
+                    instance: IndicatorGroupInstance::Session {
+                        durable: Cow::Borrowed("Spotify"),
+                        session: Cow::Borrowed("org.mpris.MediaPlayer2.spotify"),
+                    },
+                },
+                "Track",
+            )),
+            Step::PressText("Audio"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::Audio,
+                "Microphone volume",
+            )),
+            Step::PressText("Voice dictation"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::VoiceDictation,
+                "Speech model",
+            )),
+        ],
+    },
+    Demo {
+        name: "tour_virtualization",
+        group: group_menu_members::virtualization_group_menu,
+        live: |_| unchanging(),
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("QEMU machines"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::VirtualMachines,
+                "sample-vm-slow-services from bootvine pid 4100",
+            )),
+            Step::PressText("Incus instances"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::IncusInstances,
+                "build-box",
+            )),
+            Step::PressText("Podman containers"),
+            Step::PressText("Docker containers"),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::DockerEngines,
+                "postgres as root",
+            )),
+        ],
+    },
+    Demo {
         name: "app_launcher_frequent",
         group: |_| app_launcher::group(),
         live: |_| unchanging(),
@@ -129,42 +240,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "compute_cpu",
-        group: compute::group,
-        live: compute::live,
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU load")),
-        ],
-    },
-    Demo {
-        name: "compute_model",
-        group: compute::group,
-        live: compute::live,
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::Hover(indicator_row(IndicatorGroupFamily::Compute, "CPU model")),
-        ],
-    },
-    Demo {
-        name: "memory_board_memory",
-        group: memory_board::group,
-        live: memory_board::live,
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Memory"),
-            Step::Hover(indicator_row(IndicatorGroupFamily::MemoryBoard, "RAM")),
-        ],
-    },
-    Demo {
         name: "tailnet_exit_node",
         group: tailnet::group,
         live: |_| unchanging(),
@@ -176,36 +251,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(indicator_row(
                 IndicatorGroupFamily::Tailnet,
                 "Exit via home-server",
-            )),
-        ],
-    },
-    Demo {
-        name: "wireguard_tunnels",
-        group: wireguard_tunnels::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Network),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
-            Step::PressText("WireGuard"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::WireguardTunnels,
-                "wg-home",
-            )),
-        ],
-    },
-    Demo {
-        name: "tailnet_access",
-        group: tailnet::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Network),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
-            Step::PressText("Tailscale"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::Tailnet,
-                "Reachable from",
             )),
         ],
     },
@@ -225,44 +270,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "weather_precipitation",
-        group: weather::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
-            Step::PressText("Weather"),
-            Step::Hover(indicator_row(IndicatorGroupFamily::Weather, "Rain")),
-        ],
-    },
-    Demo {
-        name: "podman_engines",
-        group: podman_engines::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("Podman containers"),
-        ],
-    },
-    Demo {
-        name: "virtual_machines",
-        group: virtual_machines::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("QEMU machines"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::VirtualMachines,
-                "sample-vm-slow-services from bootvine pid 4100",
-            )),
-        ],
-    },
-    Demo {
         name: "microvm_guests_cloud_hypervisor",
         group: microvm_guests::group,
         live: |_| unchanging(),
@@ -274,36 +281,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(indicator_row(
                 IndicatorGroupFamily::MicrovmGuests,
                 "ci-builder",
-            )),
-        ],
-    },
-    Demo {
-        name: "nspawn_containers",
-        group: nspawn_containers::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("nspawn containers"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::NspawnContainers,
-                "arr-proton",
-            )),
-        ],
-    },
-    Demo {
-        name: "incus_instances_container",
-        group: incus_instances::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("Incus instances"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::IncusInstances,
-                "build-box",
             )),
         ],
     },
@@ -395,21 +372,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "docker_engines_rootful",
-        group: docker_engines::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("Docker containers"),
-            Step::Hover(indicator_row(
-                IndicatorGroupFamily::DockerEngines,
-                "postgres as root",
-            )),
-        ],
-    },
-    Demo {
         name: "cgroup_memory_limits_ci_runners",
         group: cgroup_memory_limits::group,
         live: |_| unchanging(),
@@ -468,27 +430,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "media_track",
-        group: media::group,
-        live: |_| unchanging(),
-        backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Media),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
-            Step::PressText("Spotify"),
-            Step::Hover(instance_row(
-                IndicatorGroupIdentity {
-                    family: IndicatorGroupFamily::Media,
-                    instance: IndicatorGroupInstance::Session {
-                        durable: Cow::Borrowed("Spotify"),
-                        session: Cow::Borrowed("org.mpris.MediaPlayer2.spotify"),
-                    },
-                },
-                "Track",
-            )),
-        ],
-    },
-    Demo {
         name: "idle_screen_off",
         group: idle_lock::group,
         live: |_| unchanging(),
@@ -524,7 +465,7 @@ pub const DEMOS: &[Demo] = &[
                 IndicatorGroupFamily::AppearancePresets,
                 "Clear dark",
             )),
-            Step::RestFor(Duration::from_millis(1200)),
+            Step::RestFor(Duration::from_millis(600)),
         ],
     },
     Demo {
@@ -720,7 +661,7 @@ pub const DEMOS: &[Demo] = &[
             Step::PressPin(GroupMenuPin::Group(IndicatorGroupIdentity::sole(
                 IndicatorGroupFamily::MemoryBoard,
             ))),
-            Step::RestFor(Duration::from_millis(1500)),
+            Step::RestFor(Duration::from_millis(750)),
         ],
     },
     Demo {

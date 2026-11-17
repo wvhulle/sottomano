@@ -45,12 +45,12 @@ use crate::{
 pub(crate) const CANVAS: Size = Size::new(1280.0, 1080.0);
 pub(crate) const PHOTO_CANVAS: Size = Size::new(1000.0, 320.0);
 const SCALE_FACTOR: f32 = 2.0;
-const REST_HOLD: Duration = Duration::from_millis(500);
-const HOVER_HOLD: Duration = Duration::from_millis(2000);
-const PRESS_LEAD: Duration = Duration::from_millis(300);
-const PRESS_HOLD: Duration = Duration::from_millis(900);
+const REST_HOLD: Duration = Duration::from_millis(250);
+const HOVER_HOLD: Duration = Duration::from_millis(1000);
+const PRESS_LEAD: Duration = Duration::from_millis(150);
+const PRESS_HOLD: Duration = Duration::from_millis(450);
 const DRAG_MOVES: u16 = 16;
-const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
+const DRAG_MOVE_HOLD: Duration = Duration::from_millis(40);
 pub(crate) const FRAME_INTERVAL: Duration = Duration::from_millis(20);
 const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
 const LOSSLESS_EFFORT: f32 = 75.0;

@@ -53,7 +53,7 @@ mod showcase_hover_cards;
 mod showcase_surfaces;
 
 pub(crate) const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
-pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(1400);
+pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(700);
 
 #[must_use]
 pub fn booting_clock() -> Clock {
