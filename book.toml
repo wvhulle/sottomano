@@ -13,7 +13,7 @@ command = "mdbook-mermaid"
 [output.html]
 site-url = "/"
 git-repository-url = "https://codeberg.org/wvhulle/sottomano"
-edit-url-template = "https://codeberg.org/wvhulle/sottomano/_edit/main/docs/{path}"
+edit-url-template = "https://codeberg.org/wvhulle/sottomano/_edit/main/{path}"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 theme = "docs/theme"
