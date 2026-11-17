@@ -11,6 +11,9 @@ use sottomano_desktop_sources::{
         cpu_core_loads::{CoreLoad, CpuCoreLoads, CpuUsage, LoadSplit},
         cpu_power_draw::{CpuPower, PowerZone},
         cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, TemperatureSample},
+        intel_thermal_throttle_counters::{
+            CoreThrottledTime, ThermalThrottleActivity, ThrottledTime,
+        },
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -259,6 +262,21 @@ fn cpu_clock(tick: u32) -> CpuClock {
             })
             .collect(),
         limit_causes: Vec::new(),
+        thermal_throttle_activity: ThermalThrottleActivity::Throttling {
+            package: ThrottledTime {
+                throttled: Duration::from_millis(5400),
+                share_of_window: Ratio::new::<percent>(18.0),
+            },
+            throttled_cores: [2, 3]
+                .map(|cpu| CoreThrottledTime {
+                    cpu,
+                    throttled_time: ThrottledTime {
+                        throttled: Duration::from_millis(1200),
+                        share_of_window: Ratio::new::<percent>(4.0),
+                    },
+                })
+                .into(),
+        },
         topology: dual_chiplet_topology(),
     }
 }

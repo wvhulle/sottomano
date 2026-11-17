@@ -12,7 +12,7 @@ pub mod cpu_topology;
 pub mod hwmon_temperature_sensors;
 mod intel_hybrid_core_designs;
 mod intel_pstate_no_turbo;
-mod intel_thermal_throttle_counters;
+pub mod intel_thermal_throttle_counters;
 pub mod kernel_frequency_limit_causes;
 pub mod memory_growth_trend;
 pub mod memory_module_temperatures;

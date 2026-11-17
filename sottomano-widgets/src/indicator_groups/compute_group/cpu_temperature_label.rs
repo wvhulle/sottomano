@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{iter::once, time::Duration};
 
 use chrono::{DateTime, Locale, Utc};
 use quick_xml::escape::escape;
@@ -6,6 +6,7 @@ use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::{
         cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
+        intel_thermal_throttle_counters::{ThermalThrottleActivity, ThrottledTime},
         temperature_thresholds::celsius_text,
     },
 };
@@ -18,7 +19,7 @@ use uom::si::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreSample},
+    core_grid_sections::{CoreGridSection, PerCoreSample, cpu_ranges},
 };
 use crate::{
     clock::Clock,
@@ -28,15 +29,17 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{
-        Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
+        Section, SectionTitle, dictionary_table, headed_table,
+        hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         ongoing_toast::{
             IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
         phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -181,6 +184,65 @@ pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> 
         ),
     );
     vec![summary, threshold_section]
+}
+
+struct ThrottleScopeRow {
+    scope: &'static str,
+    cpus: String,
+    throttled_time: ThrottledTime,
+}
+
+impl From<ThrottleScopeRow> for TableRecord<3> {
+    fn from(row: ThrottleScopeRow) -> Self {
+        TableRecord::with_cells(
+            row.scope,
+            [
+                row.cpus.into(),
+                ValueCell::duration(row.throttled_time.throttled),
+                Quantity::share(row.throttled_time.share_of_window).into(),
+            ],
+        )
+        .level(Severity::Warning)
+    }
+}
+
+pub(super) fn hardware_throttling_sections(activity: &ThermalThrottleActivity) -> Vec<Section> {
+    let ThermalThrottleActivity::Throttling {
+        package,
+        throttled_cores,
+    } = activity
+    else {
+        return Vec::new();
+    };
+    let package_row = ThrottleScopeRow {
+        scope: "Package",
+        cpus: "all".to_owned(),
+        throttled_time: *package,
+    };
+    let core_row = throttled_cores
+        .iter()
+        .map(|core| core.throttled_time)
+        .max_by_key(|throttled_time| throttled_time.throttled)
+        .map(|longest| ThrottleScopeRow {
+            scope: "Core",
+            cpus: cpu_ranges(throttled_cores.iter().map(|core| core.cpu)),
+            throttled_time: longest,
+        });
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Hardware throttling",
+            "Time in the recent window during which the CPU slowed its own clock because it ran \
+             hot, and that time as a share of the window.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("CPUs"),
+                ColumnHeading::titled("Throttled"),
+                ColumnHeading::titled("Share"),
+            ],
+            once(package_row).chain(core_row),
+        ),
+    )]
 }
 
 impl ChipletLiveState<'_> {

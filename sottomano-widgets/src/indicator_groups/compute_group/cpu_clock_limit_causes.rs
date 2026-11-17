@@ -26,20 +26,12 @@ pub(super) fn cause_text(cause: FrequencyLimitCause) -> String {
         FrequencyLimitCause::KernelThermalCooling { level, deepest } => {
             format!("kernel cooling {level}/{deepest}")
         }
-        FrequencyLimitCause::CoreThermalThrottle { events } => {
-            format!("core thermal throttle ×{events}")
-        }
-        FrequencyLimitCause::PackageThermalThrottle { events } => {
-            format!("package thermal throttle ×{events}")
-        }
     }
 }
 
 pub(super) fn cause_level(cause: FrequencyLimitCause) -> Severity {
     match cause {
-        FrequencyLimitCause::KernelThermalCooling { .. }
-        | FrequencyLimitCause::CoreThermalThrottle { .. }
-        | FrequencyLimitCause::PackageThermalThrottle { .. } => Severity::Critical,
+        FrequencyLimitCause::KernelThermalCooling { .. } => Severity::Critical,
         FrequencyLimitCause::BoostDisabled | FrequencyLimitCause::PolicyCap => Severity::Warning,
     }
 }
@@ -146,7 +138,8 @@ impl<'a> ClockLimitCauses<'a> {
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::cpu_memory_compute::{
-        cpu_topology::CpuTopology, kernel_frequency_limit_causes::CoreLimitCauses,
+        cpu_topology::CpuTopology, intel_thermal_throttle_counters::ThermalThrottleActivity,
+        kernel_frequency_limit_causes::CoreLimitCauses,
     };
 
     use super::*;
@@ -160,6 +153,7 @@ mod tests {
                 .zip(0..)
                 .map(|(causes, core)| CoreLimitCauses { core, causes })
                 .collect(),
+            thermal_throttle_activity: ThermalThrottleActivity::Quiet,
             topology: CpuTopology::default(),
         }
     }

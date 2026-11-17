@@ -7,7 +7,7 @@ use uom::si::f64::Frequency;
 use super::{
     CPU_FREQ, core_freqs,
     cpu_topology::CpuTopology,
-    intel_thermal_throttle_counters::ThrottleBaseline,
+    intel_thermal_throttle_counters::{ThermalThrottleActivity, ThrottleBaseline},
     kernel_frequency_limit_causes::{CoreLimitCauses, FrequencyLimitCause, core_limit_causes},
 };
 use crate::{
@@ -17,6 +17,8 @@ use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
+
+const CLOCK_POLLING_PERIOD: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FrequencyBand {
@@ -60,6 +62,7 @@ pub struct CoreFreq {
 pub struct CpuClock {
     pub cores: Vec<CoreFreq>,
     pub limit_causes: Vec<CoreLimitCauses>,
+    pub thermal_throttle_activity: ThermalThrottleActivity,
     pub topology: CpuTopology,
 }
 
@@ -94,14 +97,7 @@ impl CpuClock {
             .limit_causes
             .iter()
             .flat_map(|core| &core.causes)
-            .any(|cause| {
-                matches!(
-                    cause,
-                    FrequencyLimitCause::KernelThermalCooling { .. }
-                        | FrequencyLimitCause::CoreThermalThrottle { .. }
-                        | FrequencyLimitCause::PackageThermalThrottle { .. }
-                )
-            })
+            .any(|cause| matches!(cause, FrequencyLimitCause::KernelThermalCooling { .. }))
         {
             ClockLimitKind::Thermal
         } else {
@@ -169,7 +165,7 @@ impl SnapshotSource for CpuClock {
         };
         stream::once(exposed).while_available(
             move || {
-                PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
+                PeriodicPolling::every(CLOCK_POLLING_PERIOD).blocking_poll_deliveries_after_setup(
                     blocking_poll(|| {
                         Ok(ClockProbe {
                             topology: CpuTopology::detect(),
@@ -190,7 +186,10 @@ fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, FileReadError> {
         return Err(FileReadError::Unreadable(CPU_FREQ.to_owned()));
     }
     Ok(CpuClock {
-        limit_causes: core_limit_causes(&cores, &probe.throttle_baseline),
+        limit_causes: core_limit_causes(&cores),
+        thermal_throttle_activity: probe
+            .throttle_baseline
+            .activity_over_window(cores.iter().map(|core| core.core)),
         cores,
         topology: probe.topology,
     })
@@ -243,6 +242,7 @@ mod tests {
                     causes: vec![FrequencyLimitCause::BoostDisabled],
                 },
             ],
+            thermal_throttle_activity: ThermalThrottleActivity::Quiet,
             topology: CpuTopology::default(),
         };
         assert_eq!(

@@ -17,7 +17,9 @@ use cpu_clock_limit_causes::ClockLimitCauses;
 use cpu_load_gauge::{cpu_usage_hover_card, cpu_usage_indicator};
 use cpu_model_identity::{cpu_model_hover_card, cpu_model_indicator, cpu_model_panel_visibility};
 use cpu_power_draw_label::{cpu_power_hover_card, cpu_power_indicator};
-use cpu_temperature_label::{temperature_hover_card, temperature_indicator};
+use cpu_temperature_label::{
+    hardware_throttling_sections, temperature_hover_card, temperature_indicator,
+};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -478,6 +480,9 @@ impl ComputeGroup {
         let mut sections = self
             .cpu_temperature
             .sections_described_by(temperature_hover_card);
+        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+            hardware_throttling_sections(&cpu_clock.thermal_throttle_activity)
+        }));
         sections.extend(
             self.core_temperatures
                 .sections_described_by(|temperatures| live.core_temperature_sections(temperatures)),
