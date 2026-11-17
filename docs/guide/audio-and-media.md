@@ -1,18 +1,32 @@
 # Audio and media
 
+<div class="beside">
+<div class="beside-text">
+
 What is playing, and the speaker and microphone it plays through.
+
+</div>
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_media.webp" width="1272" alt="Opening the Media menu, hovering the playing track, the microphone volume and the speech model">
+
+</div>
 
 ## Media: Track
 
 The playing track from any MPRIS player, with where to find it.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/media_track.webp" width="944" alt="Hovering the playing track">
-
 ## Audio: Volume
+
+<div class="beside">
+<div class="beside-text">
 
 Clicking the speaker opens a slider in place; dragging sets the level.
 
+</div>
+
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/audio_volume.webp" width="218" alt="Opening the volume slider and dragging it">
+
+</div>
 
 ## Audio: Other readings
 

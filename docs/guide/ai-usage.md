@@ -4,9 +4,16 @@ Subscription windows, the current billing block and spend against the monthly bu
 
 ## AI usage: Usage windows
 
+<div class="beside">
+<div class="beside-text">
+
 How much of each subscription window is used, and where it is heading by reset.
 
+</div>
+
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_windows.webp" width="818" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
+
+</div>
 
 ## AI usage: Other readings
 

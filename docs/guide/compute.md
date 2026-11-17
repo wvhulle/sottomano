@@ -1,26 +1,36 @@
 # Compute
 
+<div class="beside">
+<div class="beside-text">
+
 The machine's processor: load, clock, temperature, power and the cache layout of each chiplet.
 
-<table>
-<tr><th>In its menu</th><th>Pinned in the bar</th></tr>
-<tr>
-<td width="50%" valign="top"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu.webp" alt="Opening the compute group from the Hardware menu" width="100%"></td>
-<td width="50%" valign="top"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu_pinned.webp" alt="The compute group pinned in the panel, then expanded" width="100%"></td>
-</tr>
-</table>
+</div>
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_hardware.webp" width="1256" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
+
+</div>
 
 ## Compute: CPU
 
 Pressing the compute row in the Hardware menu opens load, temperature, power and model.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu.webp" width="1256" alt="Opening the compute group from the Hardware menu from the CPU reading">
-
 ## Compute: Model
 
 The CPU model with its vendor logo, microarchitecture and caches.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_model.webp" width="1070" alt="Hovering the CPU model in the compute group">
+## Compute: Pinned in the bar
+
+<div class="beside">
+<div class="beside-text">
+
+The same group pinned in the panel, then expanded.
+
+</div>
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu_pinned.webp" width="676" alt="The compute group pinned in the panel, then expanded">
+
+</div>
 
 ## Compute: Other readings
 

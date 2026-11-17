@@ -4,6 +4,11 @@
     let
       inherit (pkgs) lib;
       inherit (config.sottomano) cargoBuild;
+      fontSubsetter = pkgs.python3.withPackages (pythonPackages: [
+        pythonPackages.fonttools
+        pythonPackages.brotli
+      ]);
+      latinUnicodes = "U+0000-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2190-21FF,U+2212,U+2215,U+2500-259F";
 
       showcaseRecordings = cargoBuild.craneLib.mkCargoDerivation (
         cargoBuild.showcaseArgs
@@ -39,6 +44,7 @@
         nativeBuildInputs = [
           pkgs.mdbook
           pkgs.mdbook-mermaid
+          fontSubsetter
         ];
         nativeInstallCheckInputs = [ pkgs.lychee ];
 
@@ -62,7 +68,14 @@
         installPhase = ''
           runHook preInstall
           mv site $out
-          rm $out/theme/favicon.svg
+          rm $out/theme/favicon.svg $out/theme/index.hbs
+          mkdir -p $out/docs/theme/fonts
+          pyftsubset "${pkgs.lilex}/share/fonts/truetype/Lilex[wght].ttf" \
+            --unicodes="${latinUnicodes}" --layout-features='*' --flavor=woff2 \
+            --output-file=$out/docs/theme/fonts/lilex-variable.woff2
+          pyftsubset "${pkgs.lilex}/share/fonts/truetype/Lilex-Italic.ttf" \
+            --unicodes="${latinUnicodes}" --layout-features='*' --flavor=woff2 \
+            --output-file=$out/docs/theme/fonts/lilex-italic.woff2
           cp -r ${showcaseRecordings}/recordings $out/recordings
           cp logo.svg $out/logo.svg
           runHook postInstall

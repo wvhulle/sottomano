@@ -1,12 +1,19 @@
 # Weather
 
+<div class="beside">
+<div class="beside-text">
+
 Conditions where you are, from the location fix to rain and pollen.
+
+</div>
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_weather.webp" width="884" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
+
+</div>
 
 ## Weather: Rain
 
 Rain in the coming hours on one timeline, split by hour. Each stretch of time comes from the most trusted source that covers it: radar nowcasts (Buienradar, every five minutes) rank above forecast models (Open-Meteo, every quarter-hour), and the model takes over where the radar ends or has no coverage. Within the radar's range the model only adds the precipitation type, and only where both see rain.
-
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_precipitation.webp" width="884" alt="Hovering the rain item in the weather group">
 
 ## Weather: Other readings
 

@@ -4,15 +4,29 @@ The smaller top-panel groups: tunnels, dictation, the agenda and game controller
 
 ## Agenda: Events and tasks
 
+<div class="beside">
+<div class="beside-text">
+
 Upcoming events and open tasks over CalDAV, overdue tasks in red.
+
+</div>
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/caldav_agenda.webp" width="1177" alt="Opening the Agenda menu and hovering its events and tasks">
 
+</div>
+
 ## Game controller: Bindings
+
+<div class="beside">
+<div class="beside-text">
 
 The controller drawn with every bound button labelled in place.
 
+</div>
+
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/gamepad_controller.webp" width="1279" alt="Hovering the game controller to see its bindings drawn on the controller">
+
+</div>
 
 ## Other readings
 

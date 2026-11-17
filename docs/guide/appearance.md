@@ -10,8 +10,15 @@ Hover cards stay blurred in every look.
 
 ## Looks: Switching
 
+<div class="beside">
+<div class="beside-text">
+
 Pressing a look applies it at once; its icon lights up while it is in use.
 
+</div>
+
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="1000" alt="Opening the Behaviour menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
+
+</div>
 
 This recording is drawn over a photo by Anastase Maragos on Unsplash. The recordings are rendered offscreen, without a compositor, so the showcase blurs the photo itself in the regions that the panels, menus and hover cards ask the compositor to blur.
