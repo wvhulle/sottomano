@@ -4,3 +4,10 @@ rustc-ice-*
 recordings/
 /mermaid.min.js
 /mermaid-init.js
+/.nix-built-paths/
+/*.webp
+/*.gif
+/*.mp4
+/*.webm
+/*.mkv
+*.nar.zst
