@@ -1,7 +1,7 @@
 use std::{convert::Infallible, time::Duration};
 
 use chrono::{DateTime, Datelike, LocalResult, Locale, NaiveTime, Offset, TimeZone, Utc};
-use iced::futures::{Stream, stream};
+use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use tokio::time::sleep;
 
@@ -30,10 +30,13 @@ impl SnapshotSource for LocalDate {
     const NAME: &'static str = "Local date";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::unfold((), |()| async {
-            sleep(until_next_midnight(&Clock::real().local())).await;
-            Some((SnapshotDelivery::live_push(Ok(LocalDate)), ()))
-        })
+        stream::once(async { SnapshotDelivery::live_push(Ok(LocalDate)) }).chain(stream::unfold(
+            (),
+            |()| async {
+                sleep(until_next_midnight(&Clock::real().local())).await;
+                Some((SnapshotDelivery::live_push(Ok(LocalDate)), ()))
+            },
+        ))
     }
 }
 
