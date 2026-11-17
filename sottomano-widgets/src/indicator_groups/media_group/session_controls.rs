@@ -3,8 +3,13 @@ use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 use sottomano_toml_config::Config;
 
+use super::{PlayerInteraction, PlayerSession, lifted_to_player};
 use crate::{
-    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::{IndicatorState, IndicatorStateTint},
+    },
     hover_cards::{MouseGesture, PressAction},
     indicator_groups::media_group::confirm_button::configured_confirm_button,
     widgets::{
@@ -52,12 +57,20 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         self.media.capabilities.stop && self.media.status != Status::Stopped
     }
 
+    fn offers_quit(&self) -> bool {
+        self.media.capabilities.quit
+    }
+
+    fn offers_any_button(&self) -> bool {
+        self.offers_stop() || self.offers_quit()
+    }
+
     #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
         let stop_action = self
             .offers_stop()
             .then(|| PressAction::new(MouseGesture::LeftClick, "Stop: stop playback"));
-        let quit_action = self.media.capabilities.quit.then(|| {
+        let quit_action = self.offers_quit().then(|| {
             PressAction::new(
                 MouseGesture::LeftClick,
                 match self.quit_button.stage {
@@ -92,7 +105,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     where
         Message: 'a,
     {
-        self.media.capabilities.quit.then(|| {
+        self.offers_quit().then(|| {
             configured_confirm_button(
                 self.quit_button,
                 self.config,
@@ -112,4 +125,46 @@ impl<'a, Message: 'a + Clone> From<SessionControls<'_, Message>> for Element<'a,
             .align_y(Alignment::Center)
             .into()
     }
+}
+
+pub(super) fn session_buttons_indicator<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    session: &'a PlayerSession,
+) -> Option<GroupIndicator<'a>> {
+    let full_controls = session_controls(config, media, session, 1.0);
+    if !full_controls.offers_any_button() {
+        return None;
+    }
+    let bus = media.bus.as_str();
+    Some(
+        GroupIndicator::composed(
+            "Session",
+            IndicatorIcon::Absent,
+            IndicatorValue::drawn(move |reveal| {
+                lifted_to_player(bus, session_controls(config, media, session, reveal).into())
+            }),
+            Box::new(|_| Vec::new()),
+        )
+        .with_button_actions(full_controls.press_actions()),
+    )
+}
+
+fn session_controls<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    session: &'a PlayerSession,
+    reveal: f32,
+) -> SessionControls<'a, PlayerInteraction> {
+    SessionControls::new(
+        config,
+        media,
+        &session.quit_button,
+        reveal,
+        SessionMessages {
+            command: PlayerInteraction::Command,
+            quit: PlayerInteraction::Quit,
+            cancel_quit: PlayerInteraction::CancelQuit,
+        },
+    )
 }

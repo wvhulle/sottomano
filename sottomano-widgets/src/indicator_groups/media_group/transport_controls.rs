@@ -4,8 +4,13 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{
 };
 use sottomano_toml_config::Config;
 
+use super::{PlayerInteraction, lifted_to_player};
 use crate::{
-    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::{IndicatorState, IndicatorStateTint},
+    },
     hover_cards::{MouseGesture, PressAction},
     widgets::{
         glyph_button,
@@ -213,4 +218,25 @@ impl<'a, Message: 'a + Clone> From<TransportControls<'_, Message>> for Element<'
             .align_y(Alignment::Center)
             .into()
     }
+}
+
+pub(super) fn transport_controls_indicator<'a>(
+    config: &'a Config,
+    media: &'a Media,
+) -> GroupIndicator<'a> {
+    let bus = media.bus.as_str();
+    let press_actions =
+        TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
+    GroupIndicator::composed(
+        "Playback",
+        IndicatorIcon::Absent,
+        IndicatorValue::drawn(move |reveal| {
+            lifted_to_player(
+                bus,
+                TransportControls::new(config, media, reveal, PlayerInteraction::Command).into(),
+            )
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions(press_actions)
 }

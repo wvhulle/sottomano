@@ -1,13 +1,21 @@
 use corredo::theming::LINE_HEIGHT;
-use iced::widget::{rich_text, span, text::Span};
+use iced::{
+    Task,
+    widget::{rich_text, span, text::Span},
+};
 use sottomano_desktop_sources::{
-    media_playback_audio::mpris_players::{Command, Media, Status},
+    media_playback_audio::{
+        mpris_players,
+        mpris_players::{Command, Media, Status},
+    },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_toml_config::Config;
 use uom::si::f64::Ratio;
 
-use super::{PlayerInteraction, RAISE_PLAYER_HINT, player_interaction};
+use super::{
+    MediaMessage, PlayerInteraction, PlayerSession, RAISE_PLAYER_HINT, player_interaction,
+};
 use crate::{
     group_indicators::{
         gauge::Gauge,
@@ -15,12 +23,15 @@ use crate::{
         indicator_drawing::{IndicatorIcon, ReadoutGauge},
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
         text::font_faces_of,
+        value_cells::LabeledValue,
     },
 };
 
@@ -119,4 +130,63 @@ pub(super) fn wired_player_indicator<'a>(
 pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {
     let title = media.title.as_ref().unwrap_or(&media.identity);
     vec![span(title.clone()).font(font_faces_of(&config.theme.font).regular)]
+}
+
+pub(super) fn player_hover_card(
+    player_snapshot: &SubscribedSnapshot<Media>,
+    media: &Media,
+) -> Vec<Section> {
+    player_snapshot.hover_card_with(vec![Section::new(
+        "Status",
+        dictionary_table([
+            LabeledValue::new("Player", media.identity.clone()),
+            LabeledValue::new("State", media.status.label()),
+        ]),
+    )])
+}
+
+pub(super) fn cover_art_load(media: &Media, session: &PlayerSession) -> Option<Task<MediaMessage>> {
+    let url = media
+        .art_url
+        .clone()
+        .filter(|_| session.cover_art.is_none())?;
+    let bus = media.bus.clone();
+    let loading = {
+        let url = url.clone();
+        async move { mpris_players::load_art(&url).await }
+    };
+    Some(Task::perform(loading, move |pixels| {
+        MediaMessage::ArtLoaded {
+            bus: bus.clone(),
+            url: url.clone(),
+            handle: pixels.as_ref().map(IconHandle::from),
+        }
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_desktop_sources::media_playback_audio::mpris_players::Status;
+
+    use super::*;
+    use crate::indicator_groups::media_group::test_players::titled_player;
+
+    #[test]
+    fn a_spotify_handle_shows_the_spotify_glyph() {
+        let spotify = titled_player("Spotify", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&spotify, None).face.icon,
+            IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
+        ));
+    }
+
+    #[test]
+    fn an_unbranded_player_handle_shows_music_notes() {
+        let unbranded = titled_player("Unbranded test player", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&unbranded, None).face.icon,
+            IndicatorIcon::IconGlyph { glyph, .. }
+                if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
+        ));
+    }
 }

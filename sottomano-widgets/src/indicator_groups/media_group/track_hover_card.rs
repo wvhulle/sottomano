@@ -7,11 +7,13 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
+    clock::Clock,
     desktop_index::DesktopIndex,
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -176,6 +178,19 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
             })
     });
     Section::new("Search", dictionary_table(links))
+}
+
+pub(super) fn track_hover_card(
+    player_snapshot: &SubscribedSnapshot<Media>,
+    media: &Media,
+    index: &DesktopIndex,
+    clock: Clock,
+) -> Vec<Section> {
+    player_snapshot.hover_card_with(vec![
+        track_section(media, index),
+        playback_section(media, clock.instant),
+        search_section(media, index),
+    ])
 }
 
 #[cfg(test)]

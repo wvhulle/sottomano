@@ -1,24 +1,21 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     iter,
     time::{Duration, Instant},
 };
 
 use corredo::{
     press_actions::{ConfirmButton, ConfirmPolicy, ConfirmPress},
-    transitions::ExpansionState,
     value_controls::SeekMessage,
 };
-use iced::{Element, Subscription, Task, time::every, widget::Row};
-use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
+use iced::{Element, Subscription, Task, time::every};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    desktop_windows_apps::window_edge_placement::WindowOwner,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
-        mpris_players::{self, Command, Media, Progress, Status},
+        mpris_players::{Command, Media, PlayerBusOwner, PlayerBusOwners, Progress, Status},
     },
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus, OwnerProcess},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::{
     Config,
@@ -29,55 +26,41 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     desktop_index::DesktopIndex,
-    group_indicators::{
-        group_indicator::{DescribeCard, GroupIndicator, IndicatorValue, PanelVisibility},
-        indicator_drawing::IndicatorIcon,
-        indicator_state::IndicatorState,
-    },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        MouseGesture, PressAction,
-        hover_card_body::{Section, dictionary_table},
-    },
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
             IndicatorGroupExpansionMessage,
         },
-        indicator_group_identity::{
-            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
-            IndicatorGroupTitle,
-        },
-        media_group::seek_bar::SeekAvailability,
+        indicator_group_identity::IndicatorGroupTitle,
     },
     widgets::{
         app_window_focus::AppWindowFocus,
         icon_handle::IconHandle,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
     },
 };
 
 pub mod confirm_button;
 pub mod karaoke_lyric_line;
+mod player_commands;
+mod player_failure_group;
+mod player_group;
 mod seek_bar;
 mod session_controls;
 mod synced_lyrics_view;
+#[cfg(test)]
+mod test_players;
 mod track_face;
 mod track_hover_card;
 mod transport_controls;
 
 use self::{
-    seek_bar::SeekBar,
-    session_controls::{SessionControls, SessionMessages},
-    synced_lyrics_view::{
-        TRACK_LYRICS_FALLBACK_GLYPH, current_lyric_line, lyrics_section, singing_line,
-        track_lyrics_indicator,
-    },
-    track_face::{player_headline_indicator, track_indicator, wired_player_indicator},
-    track_hover_card::{playback_section, search_section, track_section},
-    transport_controls::TransportControls,
+    player_commands::{raise, raise_by_mpris, send},
+    player_failure_group::player_failure_group,
+    player_group::player_group,
+    seek_bar::{SeekBar, seek_by},
+    track_face::cover_art_load,
 };
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
@@ -93,7 +76,8 @@ enum PlaybackPace {
 
 #[derive(Default)]
 pub struct MediaGroup {
-    players: SubscribedSnapshot<Vec<Media>>,
+    player_owners: SubscribedSnapshot<PlayerBusOwners>,
+    player_snapshots: BTreeMap<String, SubscribedSnapshot<Media>>,
     sessions: HashMap<String, PlayerSession>,
     lyrics_snapshots: HashMap<LyricsQuery, SubscribedSnapshot<TrackLyrics>>,
 }
@@ -123,7 +107,15 @@ struct CoverArt {
 
 #[derive(Debug)]
 pub enum MediaMessage {
-    Sample(SnapshotDelivery<Vec<Media>>),
+    PlayerOwners(SnapshotDelivery<PlayerBusOwners>),
+    PlayerSample {
+        bus: String,
+        delivery: Box<SnapshotDelivery<Media>>,
+    },
+    CommandRefused {
+        bus: String,
+        refusal: Box<zbus::Error>,
+    },
     LyricsIndicator {
         query: LyricsQuery,
         delivery: SnapshotDelivery<TrackLyrics>,
@@ -160,16 +152,6 @@ pub enum Action {
     FocusAppWindow(AppWindowFocus<MediaMessage>),
 }
 
-fn player_group_identity(media: &Media, bus: &str) -> IndicatorGroupIdentity {
-    IndicatorGroupIdentity {
-        family: IndicatorGroupFamily::Media,
-        instance: IndicatorGroupInstance::Session {
-            durable: media.identity.clone().into(),
-            session: bus.to_owned().into(),
-        },
-    }
-}
-
 fn player_interaction(bus: &str, interaction: PlayerInteraction) -> MediaInteraction {
     MediaInteraction::Player {
         bus: bus.to_owned(),
@@ -201,7 +183,22 @@ impl MediaGroup {
         lyrics_config: &MediaLyricsConfig,
         demand: &GroupSourceDemand,
     ) -> Subscription<MediaMessage> {
-        let samples = snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Sample);
+        let owner_samples =
+            snapshot_subscription::<PlayerBusOwners>(buses.clone()).map(MediaMessage::PlayerOwners);
+        let player_samples: Vec<Subscription<MediaMessage>> = self
+            .listed_player_owners()
+            .map(|player| {
+                snapshot_subscription::<Media>(OnBus {
+                    buses: buses.clone(),
+                    inputs: player.clone(),
+                })
+                .with(player.bus.clone())
+                .map(|(bus, delivery)| MediaMessage::PlayerSample {
+                    bus,
+                    delivery: Box::new(delivery),
+                })
+            })
+            .collect();
         let lyrics_lookups = self
             .unfetched_lyrics_queries()
             .filter(|_| lyrics_config.lrclib_lookup == LrclibLookup::Enabled)
@@ -224,7 +221,8 @@ impl MediaGroup {
         }
         .map(|tick| demand.while_headline_shown(tick));
         Subscription::batch(
-            iter::once(samples)
+            iter::once(owner_samples)
+                .chain(player_samples)
                 .chain(lyrics_lookups)
                 .chain(progress_tick),
         )
@@ -267,12 +265,21 @@ impl MediaGroup {
         self.lyrics_snapshots.get(&media.lyrics_query()?)
     }
 
+    fn listed_player_owners(&self) -> impl Iterator<Item = &PlayerBusOwner> {
+        self.player_owners
+            .get()
+            .into_iter()
+            .flat_map(|player_owners| &player_owners.listed_players)
+    }
+
     fn all_players(&self) -> impl Iterator<Item = &Media> {
-        self.players.get().into_iter().flatten()
+        self.player_snapshots
+            .values()
+            .filter_map(SubscribedSnapshot::get)
     }
 
     fn player(&self, bus: &str) -> Option<&Media> {
-        self.all_players().find(|media| media.bus == bus)
+        self.player_snapshots.get(bus)?.get()
     }
 
     fn titled_players(&self) -> Vec<&Media> {
@@ -303,10 +310,22 @@ impl MediaGroup {
                     .receive(delivery, clock);
             }
             MediaMessage::ProgressAdvanced => {}
-            MediaMessage::Sample(delivery) => {
-                self.players.receive(delivery, clock);
+            MediaMessage::PlayerOwners(delivery) => {
+                self.player_owners.receive(delivery, clock);
+                self.follow_player_owners(clock.instant);
+            }
+            MediaMessage::PlayerSample { bus, delivery } => {
+                let Some(player_snapshot) = self.player_snapshots.get_mut(&bus) else {
+                    return Action::Run(Task::none());
+                };
+                player_snapshot.receive(*delivery, clock);
                 self.follow_players(clock.instant);
                 return Action::Run(self.art_loads());
+            }
+            MediaMessage::CommandRefused { bus, refusal } => {
+                if let Some(player_snapshot) = self.player_snapshots.get_mut(&bus) {
+                    player_snapshot.apply_command(CommandOutcome::Refused { refusal: *refusal });
+                }
             }
             MediaMessage::ArtLoaded { bus, url, handle } => {
                 let still_shown = self
@@ -333,16 +352,32 @@ impl MediaGroup {
         self.update_player(&bus, player_interaction, clock)
     }
 
+    fn follow_player_owners(&mut self, now: Instant) {
+        let listed_buses: Vec<String> = self
+            .listed_player_owners()
+            .map(|player| player.bus.clone())
+            .collect();
+        self.player_snapshots
+            .retain(|bus, _| listed_buses.contains(bus));
+        for bus in listed_buses {
+            self.player_snapshots.entry(bus).or_default();
+        }
+        self.follow_players(now);
+    }
+
     fn follow_players(&mut self, now: Instant) {
-        let players: Vec<Media> = self.all_players().cloned().collect();
+        let player_snapshots = &self.player_snapshots;
         self.sessions
-            .retain(|bus, _| players.iter().any(|media| &media.bus == bus));
+            .retain(|bus, _| player_snapshots.contains_key(bus));
         let current_queries: Vec<LyricsQuery> =
-            players.iter().filter_map(Media::lyrics_query).collect();
+            self.all_players().filter_map(Media::lyrics_query).collect();
         self.lyrics_snapshots
             .retain(|query, _| current_queries.contains(query));
-        for media in &players {
-            let session = self.sessions.entry(media.bus.clone()).or_default();
+        for (bus, player_snapshot) in &self.player_snapshots {
+            let session = self.sessions.entry(bus.clone()).or_default();
+            let Some(media) = player_snapshot.get() else {
+                continue;
+            };
             session.seek_bar.player_reported(media, now);
             if session
                 .cover_art
@@ -384,57 +419,13 @@ impl MediaGroup {
     }
 
     fn art_loads(&self) -> Task<MediaMessage> {
-        Task::batch(self.all_players().filter_map(|media| {
-            let shown = self
-                .sessions
-                .get(&media.bus)
-                .and_then(|session| session.cover_art.as_ref());
-            let url = media.art_url.clone().filter(|_| shown.is_none())?;
-            let bus = media.bus.clone();
-            let loading = {
-                let url = url.clone();
-                async move { mpris_players::load_art(&url).await }
-            };
-            Some(Task::perform(loading, move |pixels| {
-                MediaMessage::ArtLoaded {
-                    bus: bus.clone(),
-                    url: url.clone(),
-                    handle: pixels.as_ref().map(IconHandle::from),
-                }
-            }))
-        }))
-    }
-
-    fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Vec<Section> {
-        let Some(lyrics_snapshot) = self.lyrics_of(media) else {
-            return Vec::new();
-        };
-        let Some(track_lyrics) = lyrics_snapshot.get() else {
-            return lyrics_snapshot
-                .sections_described_by(|snapshot| vec![lyrics_section(snapshot, Duration::ZERO)]);
-        };
-        let Some(played) = media.progress.played(media.status, clock.instant) else {
-            return Vec::new();
-        };
-        lyrics_snapshot.hover_card_with(vec![lyrics_section(track_lyrics, played)])
-    }
-
-    fn player_hover_card(&self, media: &Media) -> Vec<Section> {
-        self.players.hover_card_with(vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("Player", media.identity.clone()),
-                LabeledValue::new("State", media.status.label()),
-            ]),
-        )])
-    }
-
-    fn track_hover_card(&self, media: &Media, index: &DesktopIndex, clock: Clock) -> Vec<Section> {
-        self.players.hover_card_with(vec![
-            track_section(media, index),
-            playback_section(media, clock.instant),
-            search_section(media, index),
-        ])
+        Task::batch(
+            self.player_snapshots
+                .iter()
+                .filter_map(|(bus, player_snapshot)| {
+                    cover_art_load(player_snapshot.get()?, self.sessions.get(bus)?)
+                }),
+        )
     }
 
     pub fn group_contents<'a>(
@@ -443,269 +434,133 @@ impl MediaGroup {
         index: &'a DesktopIndex,
         clock: Clock,
     ) -> impl Iterator<Item = IndicatorGroupContent<'a>> {
-        self.titled_players().into_iter().filter_map(move |media| {
-            let session = self.sessions.get(&media.bus)?;
-            let group_title = self.group_title_of(media);
-            Some(player_group(
-                config,
-                clock,
-                group_title,
-                media,
-                session,
-                self.lyrics_of(media),
-                PlayerCards {
-                    headline: Box::new(move |_| self.player_hover_card(media)),
-                    player: Box::new(move |_| self.player_hover_card(media)),
-                    track: Box::new(move |card_clock| {
-                        self.track_hover_card(media, index, card_clock)
-                    }),
-                    lyrics: Box::new(move |card_clock| self.lyrics_hover_card(media, card_clock)),
-                },
-            ))
-        })
+        self.player_snapshots
+            .iter()
+            .filter_map(move |(bus, player_snapshot)| {
+                let session = self.sessions.get(bus)?;
+                if let Some(read_failure) = player_snapshot.failure() {
+                    return Some(player_failure_group(bus, read_failure, session));
+                }
+                let media = player_snapshot
+                    .get()
+                    .filter(|media| media.title.is_some())?;
+                player_group(
+                    config,
+                    clock,
+                    self.group_title_of(media),
+                    player_snapshot,
+                    session,
+                    self.lyrics_of(media),
+                    index,
+                )
+            })
     }
-}
-
-fn session_buttons_indicator<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    session: &'a PlayerSession,
-) -> GroupIndicator<'a> {
-    let bus = media.bus.as_str();
-    GroupIndicator::composed(
-        "Session",
-        IndicatorIcon::Absent,
-        IndicatorValue::drawn(move |reveal| {
-            lifted_to_player(bus, session_controls(config, media, session, reveal).into())
-        }),
-        Box::new(|_| Vec::new()),
-    )
-    .with_button_actions(session_controls(config, media, session, 1.0).press_actions())
-}
-
-struct PlayerCards<'a> {
-    headline: DescribeCard<'a>,
-    player: DescribeCard<'a>,
-    track: DescribeCard<'a>,
-    lyrics: DescribeCard<'a>,
-}
-
-fn seek_position_indicator<'a>(
-    config: &'a Config,
-    clock: Clock,
-    media: &'a Media,
-    session: &'a PlayerSession,
-) -> GroupIndicator<'a> {
-    let bus = media.bus.as_str();
-    GroupIndicator::composed(
-        "Position",
-        IndicatorIcon::IconGlyph {
-            glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
-            state: IndicatorState::Idle,
-        },
-        IndicatorValue::drawn(move |_| {
-            let bar = session
-                .seek_bar
-                .view(config, media, clock.instant)
-                .map_or_else(|| Row::new().into(), |bar| bar.map(PlayerInteraction::Seek));
-            lifted_to_player(bus, bar)
-        }),
-        Box::new(|_| Vec::new()),
-    )
-    .with_button_actions([
-        PressAction::new(MouseGesture::LeftClick, "Seek bar: jump to this point"),
-        PressAction::new(MouseGesture::Scroll, "Seek bar: seek"),
-    ])
-}
-
-fn transport_controls_indicator<'a>(config: &'a Config, media: &'a Media) -> GroupIndicator<'a> {
-    let bus = media.bus.as_str();
-    let press_actions =
-        TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
-    GroupIndicator::composed(
-        "Playback",
-        IndicatorIcon::Absent,
-        IndicatorValue::drawn(move |reveal| {
-            lifted_to_player(
-                bus,
-                TransportControls::new(config, media, reveal, PlayerInteraction::Command).into(),
-            )
-        }),
-        Box::new(|_| Vec::new()),
-    )
-    .with_button_actions(press_actions)
-}
-
-fn player_group<'a>(
-    config: &'a Config,
-    clock: Clock,
-    group_title: IndicatorGroupTitle,
-    media: &'a Media,
-    session: &'a PlayerSession,
-    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
-    cards: PlayerCards<'a>,
-) -> IndicatorGroupContent<'a> {
-    let bus = media.bus.as_str();
-    let seek_availability = SeekBar::seek_availability(media, clock.instant);
-    let gauge_fraction = media
-        .progress
-        .fraction(media.status, clock.instant)
-        .filter(|_| {
-            !(seek_availability == SeekAvailability::Seekable
-                && session.expansion.state == ExpansionState::Expanded)
-        });
-    let headline_indicator =
-        player_headline_indicator(media, gauge_fraction).with_hover_card(cards.headline);
-    let mut rows = vec![
-        wired_player_indicator(config, media, gauge_fraction).with_hover_card(cards.player),
-        track_indicator(
-            config,
-            media,
-            session.cover_art.as_ref().map(|art| &art.handle),
-        )
-        .with_hover_card(cards.track),
-    ];
-    if let Some(lyrics_snapshot) = lyrics_snapshot {
-        if let Some(timed_line) = singing_line(lyrics_snapshot, media, clock.instant) {
-            rows.push(
-                current_lyric_line(config, media, timed_line, clock.instant)
-                    .with_hover_card(cards.lyrics),
-            );
-        } else if !lyrics_snapshot.awaits_first_delivery() {
-            let lyrics_indicator = lyrics_snapshot.indicator(
-                |held_snapshot| track_lyrics_indicator(held_snapshot),
-                TRACK_LYRICS_FALLBACK_GLYPH,
-            );
-            if lyrics_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(lyrics_indicator.with_hover_card(cards.lyrics));
-            }
-        }
-    }
-    if seek_availability == SeekAvailability::Seekable {
-        rows.push(seek_position_indicator(config, clock, media, session));
-    }
-    rows.push(transport_controls_indicator(config, media));
-    if (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit {
-        rows.push(session_buttons_indicator(config, media, session));
-    }
-    IndicatorGroupContent::expandable_instance(
-        player_group_identity(media, bus),
-        group_title,
-        headline_indicator,
-        &session.expansion,
-        move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
-        rows,
-    )
-    .forwards_scroll(
-        (seek_availability == SeekAvailability::Seekable).then_some("seek in the track"),
-    )
-}
-
-fn session_controls<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    session: &'a PlayerSession,
-    reveal: f32,
-) -> SessionControls<'a, PlayerInteraction> {
-    SessionControls::new(
-        config,
-        media,
-        &session.quit_button,
-        reveal,
-        SessionMessages {
-            command: PlayerInteraction::Command,
-            quit: PlayerInteraction::Quit,
-            cancel_quit: PlayerInteraction::CancelQuit,
-        },
-    )
-}
-
-fn seek_by(
-    session: &mut PlayerSession,
-    media: &Media,
-    message: SeekMessage,
-    now: Instant,
-) -> Task<MediaMessage> {
-    let Some(command) = session.seek_bar.update(message, media, now) else {
-        return Task::none();
-    };
-    let bus = media.bus.clone();
-    Task::future(mpris_player_commands::control(bus.clone(), command)).then(move |dispatched| {
-        match dispatched {
-            Ok(()) => Task::none(),
-            Err(bus_failure) => {
-                tracing::warn!("mpris {bus}: seeking: {bus_failure}");
-                Task::done(player_fallback_message(
-                    &bus,
-                    PlayerInteraction::Seek(SeekMessage::Rejected),
-                ))
-            }
-        }
-    })
-}
-
-fn raise(media: &Media) -> Action {
-    let OwnerProcess::Identified(pid) = media.owner else {
-        return Action::Run(raise_by_mpris(media));
-    };
-    Action::FocusAppWindow(AppWindowFocus {
-        owner: WindowOwner::Process(pid),
-        unmatched: player_fallback_message(&media.bus, PlayerInteraction::RaiseByMpris),
-    })
-}
-
-fn raise_by_mpris(media: &Media) -> Task<MediaMessage> {
-    if media.capabilities.raise {
-        send(media, Command::Raise)
-    } else {
-        Task::none()
-    }
-}
-
-fn send(media: &Media, command: Command) -> Task<MediaMessage> {
-    let bus = media.bus.clone();
-    Task::future(async move {
-        if let Err(bus_failure) = mpris_player_commands::control(bus.clone(), command).await {
-            tracing::warn!("mpris {bus}: {bus_failure}");
-        }
-    })
-    .discard()
 }
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::{
-        media_playback_audio::mpris_players::{Capabilities, PlayerSetting, SeekMode},
-        system_protocol_clients::http_json_client,
-    };
+    use corredo::transitions::ExpansionState;
+    use sottomano_desktop_sources::system_protocol_clients::http_json_client;
 
-    use super::*;
-    use crate::widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon};
+    use super::{test_players::titled_player, *};
 
-    fn titled_player(bus: &str, status: Status) -> Media {
-        Media {
-            bus: bus.to_owned(),
-            owner: OwnerProcess::Unidentified,
-            identity: bus.to_owned(),
-            desktop_entry: None,
-            title: Some("track".to_owned()),
-            artists: Vec::new(),
-            album: None,
-            url: None,
-            status,
-            progress: Progress::Untimed,
-            art_url: None,
-            capabilities: Capabilities::default(),
-            queue_order: PlayerSetting::Uncontrollable,
-            loop_mode: PlayerSetting::Uncontrollable,
-            seek_mode: SeekMode::Relative,
+    fn reported(group: &mut MediaGroup, players: Vec<Media>, clock: Clock) {
+        let player_owners = players
+            .iter()
+            .enumerate()
+            .map(|(position, media)| PlayerBusOwner {
+                bus: media.bus.clone(),
+                owner: format!(":1.{position}"),
+            })
+            .collect();
+        let _ = group.update(
+            MediaMessage::PlayerOwners(SnapshotDelivery::live_push(Ok(PlayerBusOwners {
+                listed_players: player_owners,
+            }))),
+            clock,
+        );
+        for media in players {
+            let _ = group.update(
+                MediaMessage::PlayerSample {
+                    bus: media.bus.clone(),
+                    delivery: Box::new(SnapshotDelivery::live_push(Ok(media))),
+                },
+                clock,
+            );
         }
     }
 
-    fn reported(group: &mut MediaGroup, players: Vec<Media>, clock: Clock) {
-        let _ = group.update(
-            MediaMessage::Sample(SnapshotDelivery::live_push(Ok(players))),
+    #[test]
+    fn a_player_whose_first_read_fails_shows_its_failure_in_place() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        reported(
+            &mut group,
+            vec![titled_player(
+                "org.mpris.MediaPlayer2.spotify",
+                Status::Playing,
+            )],
             clock,
+        );
+        let _ = group.update(
+            MediaMessage::PlayerOwners(SnapshotDelivery::live_push(Ok(PlayerBusOwners {
+                listed_players: vec![
+                    PlayerBusOwner {
+                        bus: "org.mpris.MediaPlayer2.ShairportSync".to_owned(),
+                        owner: ":1.7".to_owned(),
+                    },
+                    PlayerBusOwner {
+                        bus: "org.mpris.MediaPlayer2.spotify".to_owned(),
+                        owner: ":1.0".to_owned(),
+                    },
+                ],
+            }))),
+            clock,
+        );
+        let _ = group.update(
+            MediaMessage::PlayerSample {
+                bus: "org.mpris.MediaPlayer2.ShairportSync".to_owned(),
+                delivery: Box::new(SnapshotDelivery::live_push(Err(zbus::Error::Failure(
+                    "no reply".to_owned(),
+                )))),
+            },
+            clock,
+        );
+        let config = Config::default();
+        let index = DesktopIndex::default();
+        let group_titles: Vec<String> = group
+            .group_contents(&config, &index, clock)
+            .map(|group_content| group_content.group_title.to_string())
+            .collect();
+        assert_eq!(
+            group_titles,
+            ["ShairportSync", "org.mpris.MediaPlayer2.spotify"]
+        );
+    }
+
+    #[test]
+    fn a_refused_command_shows_in_place_of_the_player() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        reported(
+            &mut group,
+            vec![titled_player(
+                "org.mpris.MediaPlayer2.spotify",
+                Status::Playing,
+            )],
+            clock,
+        );
+        let _ = group.update(
+            MediaMessage::CommandRefused {
+                bus: "org.mpris.MediaPlayer2.spotify".to_owned(),
+                refusal: Box::new(zbus::Error::Failure("not playing".to_owned())),
+            },
+            clock,
+        );
+        assert!(
+            group.player_snapshots["org.mpris.MediaPlayer2.spotify"]
+                .failure()
+                .is_some()
         );
     }
 
@@ -859,24 +714,5 @@ mod tests {
                 .lyrics_of(&low_tide)
                 .is_some_and(|lyrics_snapshot| lyrics_snapshot.failure().is_some())
         );
-    }
-
-    #[test]
-    fn a_spotify_handle_shows_the_spotify_glyph() {
-        let spotify = titled_player("Spotify", Status::Playing);
-        assert!(matches!(
-            player_headline_indicator(&spotify, None).face.icon,
-            IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
-        ));
-    }
-
-    #[test]
-    fn an_unbranded_player_handle_shows_music_notes() {
-        let unbranded = titled_player("Unbranded test player", Status::Playing);
-        assert!(matches!(
-            player_headline_indicator(&unbranded, None).face.icon,
-            IndicatorIcon::IconGlyph { glyph, .. }
-                if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
-        ));
     }
 }

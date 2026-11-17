@@ -12,8 +12,9 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
+    clock::Clock,
     group_indicators::{
-        group_indicator::{GroupIndicator, IndicatorValue},
+        group_indicator::{DescribeCard, GroupIndicator, IndicatorValue, PanelVisibility},
         indicator_drawing::IndicatorIcon,
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
@@ -158,6 +159,45 @@ pub(super) fn current_lyric_line<'a>(
         .into()
     });
     GroupIndicator::composed_pinnable("Lyrics", icon, value, Box::new(|_| Vec::new()))
+}
+
+pub(super) fn lyrics_row<'a>(
+    config: &'a Config,
+    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
+    media: &'a Media,
+    now: Instant,
+) -> Option<GroupIndicator<'a>> {
+    let lyrics_card: DescribeCard<'a> =
+        Box::new(move |card_clock| lyrics_hover_card(lyrics_snapshot, media, card_clock));
+    if let Some(timed_line) = singing_line(lyrics_snapshot, media, now) {
+        return Some(
+            current_lyric_line(config, media, timed_line, now).with_hover_card(lyrics_card),
+        );
+    }
+    if lyrics_snapshot.awaits_first_delivery() {
+        return None;
+    }
+    let lyrics_indicator = lyrics_snapshot.indicator(
+        |held_snapshot| track_lyrics_indicator(held_snapshot),
+        TRACK_LYRICS_FALLBACK_GLYPH,
+    );
+    (lyrics_indicator.panel_visibility == PanelVisibility::Shown)
+        .then(|| lyrics_indicator.with_hover_card(lyrics_card))
+}
+
+fn lyrics_hover_card(
+    lyrics_snapshot: &SubscribedSnapshot<TrackLyrics>,
+    media: &Media,
+    clock: Clock,
+) -> Vec<Section> {
+    let Some(track_lyrics) = lyrics_snapshot.get() else {
+        return lyrics_snapshot
+            .sections_described_by(|snapshot| vec![lyrics_section(snapshot, Duration::ZERO)]);
+    };
+    let Some(played) = media.progress.played(media.status, clock.instant) else {
+        return Vec::new();
+    };
+    lyrics_snapshot.hover_card_with(vec![lyrics_section(track_lyrics, played)])
 }
 
 #[cfg(test)]

@@ -26,7 +26,7 @@ use crate::{
     media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
     system_protocol_clients::{
         dbus_change_signals::signal_messages,
-        dbus_desktop_buses::{DesktopBuses, OwnerProcess, Properties, prop, text_prop},
+        dbus_desktop_buses::{DesktopBuses, OnBus, OwnerProcess, Properties, prop, text_prop},
         protocol_peer_reconnects::subscribed,
     },
 };
@@ -491,25 +491,46 @@ async fn read_media(
     })
 }
 
-async fn mpris_names(dbus: &DBusProxy<'_>) -> zbus::Result<Vec<String>> {
-    Ok(dbus
-        .list_names()
-        .await?
-        .into_iter()
-        .map(|name| name.to_string())
-        .filter(|name| name.starts_with(PREFIX) && name != PLAYERCTLD)
-        .collect())
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlayerBusOwner {
+    pub bus: String,
+    pub owner: String,
 }
 
-async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>) -> zbus::Result<Vec<Media>> {
-    let mut players = Vec::new();
-    for bus in mpris_names(dbus).await? {
-        match read_media(connection, dbus, &bus).await {
-            Ok(media) => players.push(media),
-            Err(e) => tracing::debug!("mpris {bus}: {e}"),
+#[must_use]
+pub fn mpris_player_name(bus: &str) -> &str {
+    bus.strip_prefix(PREFIX)
+        .expect("player buses are listed by their MPRIS prefix")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PlayerBusOwners {
+    pub listed_players: Vec<PlayerBusOwner>,
+}
+
+async fn listed_player_owners(dbus: &DBusProxy<'_>) -> zbus::Result<PlayerBusOwners> {
+    let mut player_owners = Vec::new();
+    for name in dbus.list_names().await? {
+        let bus = name.to_string();
+        if !bus.starts_with(PREFIX) || bus == PLAYERCTLD {
+            continue;
+        }
+        match dbus.get_name_owner(name.into()).await {
+            Ok(owner) => player_owners.push(PlayerBusOwner {
+                bus,
+                owner: owner.to_string(),
+            }),
+            Err(owner_lookup_failure) => {
+                tracing::debug!(
+                    "mpris {bus}: left before its owner was looked up: {owner_lookup_failure}"
+                );
+            }
         }
     }
-    Ok(players)
+    player_owners.sort();
+    Ok(PlayerBusOwners {
+        listed_players: player_owners,
+    })
 }
 
 pub async fn load_art(url: &str) -> Option<RgbaImage> {
@@ -547,32 +568,22 @@ pub async fn load_art(url: &str) -> Option<RgbaImage> {
     None
 }
 
-impl SnapshotSource for Vec<Media> {
+impl SnapshotSource for PlayerBusOwners {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Media players";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        subscribed(buses.session, connect).map(SnapshotDelivery::live_push)
+        subscribed(buses.session, connect_player_owners).map(SnapshotDelivery::live_push)
     }
 }
 
-async fn connect(
+async fn connect_player_owners(
     connection: Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<Media>>>> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<PlayerBusOwners>>> {
     let dbus = DBusProxy::new(&connection).await?;
-    let properties = signals(
-        &connection,
-        "org.freedesktop.DBus.Properties",
-        "PropertiesChanged",
-    )
-    .await?
-    .map(|message| message.map(drop));
-    let seeks = signals(&connection, PLAYER_INTERFACE, "Seeked")
-        .await?
-        .map(|message| message.map(drop));
-    let owners = dbus
+    let ownership_changes = dbus
         .receive_name_owner_changed()
         .await?
         .filter(|signal| {
@@ -582,27 +593,70 @@ async fn connect(
                     .is_ok_and(|args| args.name().as_str().starts_with(PREFIX)),
             )
         })
-        .map(|_| Ok(()));
-    Ok(
-        select(select(properties, seeks), owners).triggered_rereads(move || {
-            let connection = connection.clone();
-            let dbus = dbus.clone();
-            async move { read_all(&connection, &dbus).await }
-        }),
-    )
+        .map(|_| Ok::<(), zbus::Error>(()));
+    Ok(ownership_changes.triggered_rereads(move || {
+        let dbus = dbus.clone();
+        async move { listed_player_owners(&dbus).await }
+    }))
 }
 
-async fn signals(
+impl SnapshotSource for Media {
+    type Error = zbus::Error;
+    type StreamInputs = OnBus<PlayerBusOwner>;
+
+    const NAME: &'static str = "Media player";
+
+    fn delivery_stream(
+        OnBus {
+            buses,
+            inputs: player,
+        }: Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        subscribed(buses.session, move |connection| {
+            connect_player(connection, player.clone())
+        })
+        .map(SnapshotDelivery::live_push)
+    }
+}
+
+async fn connect_player(
+    connection: Connection,
+    player: PlayerBusOwner,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Media>>> {
+    let dbus = DBusProxy::new(&connection).await?;
+    let properties = player_signals(
+        &connection,
+        &player.owner,
+        "org.freedesktop.DBus.Properties",
+        "PropertiesChanged",
+    )
+    .await?
+    .map(|message| message.map(drop));
+    let seeks = player_signals(&connection, &player.owner, PLAYER_INTERFACE, "Seeked")
+        .await?
+        .map(|message| message.map(drop));
+    Ok(select(properties, seeks).triggered_rereads(move || {
+        let connection = connection.clone();
+        let dbus = dbus.clone();
+        let bus = player.bus.clone();
+        async move { read_media(&connection, &dbus, &bus).await }
+    }))
+}
+
+async fn player_signals(
     connection: &Connection,
+    owner: &str,
     interface: &'static str,
     member: &'static str,
 ) -> zbus::Result<MessageStream> {
     let rule = MatchRule::builder()
         .msg_type(Type::Signal)
+        .sender(owner)?
         .path(PATH)?
         .interface(interface)?
         .member(member)?
-        .build();
+        .build()
+        .into_owned();
     signal_messages(connection, rule).await
 }
 

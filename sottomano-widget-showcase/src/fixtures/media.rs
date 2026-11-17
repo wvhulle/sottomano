@@ -6,7 +6,8 @@ use sottomano_desktop_sources::{
     media_playback_audio::{
         lrclib_synced_lyrics::TrackLyrics,
         mpris_players::{
-            Capabilities, LoopMode, Media, PlayerSetting, Progress, QueueOrder, SeekMode, Status,
+            Capabilities, LoopMode, Media, PlayerBusOwner, PlayerBusOwners, PlayerSetting,
+            Progress, QueueOrder, SeekMode, Status,
         },
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -23,13 +24,30 @@ pub const SPOTIFY_BUS: &str = "org.mpris.MediaPlayer2.spotify";
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MediaGroup::default();
+    let showcased_players = [now_playing(clock), paused_video(clock)];
+    let player_owners = showcased_players
+        .iter()
+        .enumerate()
+        .map(|(position, media)| PlayerBusOwner {
+            bus: media.bus.clone(),
+            owner: format!(":1.{position}"),
+        })
+        .collect();
     let _ = group.update(
-        MediaMessage::Sample(SnapshotDelivery::live_push(Ok(vec![
-            now_playing(clock),
-            paused_video(clock),
-        ]))),
+        MediaMessage::PlayerOwners(SnapshotDelivery::live_push(Ok(PlayerBusOwners {
+            listed_players: player_owners,
+        }))),
         clock,
     );
+    for media in showcased_players {
+        let _ = group.update(
+            MediaMessage::PlayerSample {
+                bus: media.bus.clone(),
+                delivery: Box::new(SnapshotDelivery::live_push(Ok(media))),
+            },
+            clock,
+        );
+    }
     if let Some(query) = now_playing(clock).lyrics_query() {
         let _ = group.update(
             MediaMessage::LyricsIndicator {

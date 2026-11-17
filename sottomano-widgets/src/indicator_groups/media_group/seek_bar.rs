@@ -1,11 +1,26 @@
 use std::time::{Duration, Instant};
 
 use corredo::value_controls::{PlaybackTimeline, SeekBar as PlaybackSeekBar, SeekMessage};
-use iced::Element;
+use iced::{Element, Task, widget::Row};
+use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, Media, SeekMode, micros,
 };
 use sottomano_toml_config::Config;
+
+use super::{
+    MediaMessage, PlayerInteraction, PlayerSession, lifted_to_player, player_fallback_message,
+};
+use crate::{
+    clock::Clock,
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
+        indicator_state::IndicatorState,
+    },
+    hover_cards::{MouseGesture, PressAction},
+    widgets::phosphor::{Phosphor, Weight},
+};
 
 #[derive(Debug, Default)]
 pub struct SeekBar {
@@ -71,6 +86,58 @@ fn seek_to(media: &Media, target: Duration, now: Instant) -> Option<Command> {
 pub enum SeekAvailability {
     Seekable,
     Fixed,
+}
+
+pub(super) fn seek_position_indicator<'a>(
+    config: &'a Config,
+    clock: Clock,
+    media: &'a Media,
+    session: &'a PlayerSession,
+) -> GroupIndicator<'a> {
+    let bus = media.bus.as_str();
+    GroupIndicator::composed(
+        "Position",
+        IndicatorIcon::IconGlyph {
+            glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
+            state: IndicatorState::Idle,
+        },
+        IndicatorValue::drawn(move |_| {
+            let bar = session
+                .seek_bar
+                .view(config, media, clock.instant)
+                .map_or_else(|| Row::new().into(), |bar| bar.map(PlayerInteraction::Seek));
+            lifted_to_player(bus, bar)
+        }),
+        Box::new(|_| Vec::new()),
+    )
+    .with_button_actions([
+        PressAction::new(MouseGesture::LeftClick, "Seek bar: jump to this point"),
+        PressAction::new(MouseGesture::Scroll, "Seek bar: seek"),
+    ])
+}
+
+pub(super) fn seek_by(
+    session: &mut PlayerSession,
+    media: &Media,
+    message: SeekMessage,
+    now: Instant,
+) -> Task<MediaMessage> {
+    let Some(command) = session.seek_bar.update(message, media, now) else {
+        return Task::none();
+    };
+    let bus = media.bus.clone();
+    Task::future(mpris_player_commands::control(bus.clone(), command)).then(move |dispatched| {
+        match dispatched {
+            Ok(()) => Task::none(),
+            Err(bus_failure) => {
+                tracing::warn!("mpris {bus}: seeking: {bus_failure}");
+                Task::done(player_fallback_message(
+                    &bus,
+                    PlayerInteraction::Seek(SeekMessage::Rejected),
+                ))
+            }
+        }
+    })
 }
 
 #[cfg(test)]
