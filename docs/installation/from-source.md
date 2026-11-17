@@ -8,17 +8,16 @@ manager: [Ubuntu](ubuntu.md#build-headers) or
 
 ```bash
 git clone https://codeberg.org/wvhulle/sottomano && cd sottomano
-eval "$(cargo xtask fetch-icon-svgs)"
+eval "$(nix run .#icon-svg-exports)"
 cargo install --locked --path sottomano-shell
 ```
 
-`cargo xtask fetch-icon-svgs` clones the three icon sets the icon crates embed
-SVGs from — phosphor, simple-icons and weather-icons — into
-`~/.cache/sottomano/icon-sets/`, each at the revision the flake pins, and
-prints the `PHOSPHOR_SVG`, `SIMPLE_ICONS_SVG` and `WEATHER_ICONS_SVG` exports
-the build reads (a Nix build does this itself). The phosphor and simple-icons
-revisions come from `flake.nix`; the weather-icons version comes from the
-nixpkgs the flake pins, so that one needs `nix eval --inputs-from .`.
+The icon crates embed SVGs from three icon sets — phosphor, simple-icons and
+weather-icons — and read their directories from `PHOSPHOR_SVG`,
+`SIMPLE_ICONS_SVG` and `WEATHER_ICONS_SVG`. `nix run .#icon-svg-exports`
+fetches the sets at the revisions the flake pins and prints those exports, so
+this step needs [Nix](nix.md#on-other-distributions) with flakes enabled; a Nix build
+and `nix develop` set the variables themselves.
 
 To compile in only your compositor, add
 `--no-default-features --features niri,libvirt-domains` (or `sway`, `hyprland`)

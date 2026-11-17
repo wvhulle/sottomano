@@ -11,3 +11,4 @@ recordings/
 /*.webm
 /*.mkv
 *.nar.zst
+/.pre-commit-config.yaml

@@ -14,8 +14,7 @@ variables:
       experimental-features = nix-command flakes
       max-jobs = 1
       cores = 2
-      extra-substituters = https://wvhulle.cachix.org
-      extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+      accept-flake-config = true
   - &after_dependency_step
     - status: [success, failure]
 
@@ -25,7 +24,7 @@ steps:
     depends_on: []
     environment: *nix_config
     commands:
-      - nix run --quiet .#build-unless-cached -- .#packages.x86_64-linux.workspace-dependencies
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu build-unless-cached .#packages.x86_64-linux.cargo-dependencies
 
   - name: run-test-suite
     image: nixos/nix:latest
@@ -33,8 +32,8 @@ steps:
     when: *after_dependency_step
     environment: *nix_config
     commands:
-      - nix run --quiet .#import-exported-paths
-      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.tests
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu import-exported-paths
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu build-and-export-paths .#checks.x86_64-linux.cargo-test
 
   - name: lint-with-clippy
     image: nixos/nix:latest
@@ -42,8 +41,8 @@ steps:
     when: *after_dependency_step
     environment: *nix_config
     commands:
-      - nix run --quiet .#import-exported-paths
-      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.clippy
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu import-exported-paths
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu build-and-export-paths .#checks.x86_64-linux.cargo-clippy
 
   - name: upload-builds-to-cachix
     image: nixos/nix:latest
@@ -56,14 +55,14 @@ steps:
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix run --quiet .#upload-exported-paths
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu upload-exported-paths
 
   - name: run-pre-commit-hooks
     image: nixos/nix:latest
     depends_on: []
     environment: *nix_config
     commands:
-      - nix run --quiet .#run-pre-commit-hooks
+      - nix build --quiet --no-link --print-build-logs .#checks.x86_64-linux.pre-commit
 
   - name: check-commit-messages
     image: nixos/nix:latest
@@ -72,4 +71,4 @@ steps:
       - event: pull_request
     environment: *nix_config
     commands:
-      - nix run --quiet .#check-commit-messages -- --fetch-target-branch FETCH_HEAD..HEAD
+      - nix develop --quiet .#ci --command ci/release-tasks.nu check-commit-messages --fetch-target-branch FETCH_HEAD..HEAD

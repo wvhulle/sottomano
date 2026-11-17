@@ -12,8 +12,12 @@ Work inside the Nix devshell (`nix develop`).
 - `cargo r` for a debug run.
 - `cargo clippy --workspace --all-targets` before committing. The workspace
   warns on clippy pedantic plus `absolute_paths`.
-- `treefmt` formats Rust (rustfmt, nightly for the options in
-  `.rustfmt.toml`) and Nix (nixfmt), as configured in `treefmt.toml`.
+- `nix fmt` (or `treefmt` in the devshell) formats Rust (rustfmt, nightly for
+  the options in `.rustfmt.toml`) and Nix (nixfmt), as configured in
+  `flake-modules/formatting.nix`.
+- Entering the devshell installs the git pre-commit hook defined in
+  `flake-modules/git-hooks.nix`: treefmt and the ast-grep rules. CI runs the
+  same hooks as `nix build .#checks.x86_64-linux.pre-commit`.
 - `cargo xtask update-config-docs` regenerates the full default config in
   `docs/configuration.md`; with `--check` it only reports whether it is stale.
 
@@ -105,9 +109,11 @@ SOTTOMANO_TRACE_FILTER=error,sottomano_shell=trace,sottomano_widgets=debug \
 ## CI
 
 Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy and
-format) on pull requests and on `main`. It also checks pull request commits
-against Conventional Commits
-(locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
+the pre-commit hooks) on pull requests and on `main`. Its steps run the Nushell
+scripts in `ci/` inside the `ci` devshell (`ci-cargo` adds the Rust toolchain
+and release-plz), so any step runs locally the same way. It also checks pull
+request commits against Conventional Commits (locally:
+`nix develop .#ci --command ci/release-tasks.nu check-commit-messages main..HEAD`). After
 checks pass on `main`, the recordings pipeline re-renders the tour, force-pushes
 it as the single commit of the orphan `recordings` branch and opens a pull
 request when the embed widths changed. The config docs pipeline does the same
@@ -127,7 +133,7 @@ flowchart LR
   end
 
   subgraph recordings_pipeline ["recordings pipeline"]
-    render_recordings["render the tour<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
+    render_recordings["render the tour<br>nix build .#showcase-recordings<br>cargo xtask update-recording-embeds"]
     push_orphan_recordings["replace the single commit<br>of the recordings branch"]
     push_recordings_branch["force-push resized embeds<br>to Codeberg"]
     open_recordings_pull_request["open, update or close<br>the pull request"]
@@ -162,8 +168,9 @@ own commits.
 
 `vm-tests/` boots a NixOS VM per compositor (niri, sway, Hyprland) and scenario,
 runs sottomano in a real session there and checks it through the compositor's
-IPC and OCR of the screen. Each check is a flake check named
-`vm-<compositor>-<scenario>`:
+IPC and OCR of the screen. Every directory in `vm-tests/` with a `check.py` is
+a scenario that runs once per compositor; the flake check `vm-<compositor>`
+runs all scenarios of that compositor:
 
 - `panel-mapped`: the bar starts and maps its panel.
 - `styling-rules`: the bar writes the running compositor's rule file and the
@@ -172,8 +179,9 @@ IPC and OCR of the screen. Each check is a flake check named
   each workspace switch.
 
 ```bash
-nix build .#checks.x86_64-linux.vm-sway-workspace-follow
-nix run .#checks.x86_64-linux.vm-sway-workspace-follow.driverInteractive
+nix build .#checks.x86_64-linux.vm-sway
+nix build .#vm-tests.sway.workspace-follow
+nix run .#vm-tests.sway.workspace-follow.driverInteractive
 ```
 
 The VMs need KVM and render in software. The niri in the VMs is patched to
@@ -189,7 +197,7 @@ labelled `nix` with KVM.
 
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
-`nix build .#readme-recordings` renders them all the way CI does. Its source is
+`nix build .#showcase-recordings` renders them all the way CI does. Its source is
 only the crates the showcase links, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
@@ -261,7 +269,7 @@ the pin of a menu row only changes the showcase's in-memory state.
 ### Reproducibility
 
 Rendering twice gives identical files, which
-`nix build .#readme-recordings --rebuild` verifies after a first build. Time is
+`nix build .#showcase-recordings --rebuild` verifies after a first build. Time is
 data: every preset boots with a clock whose wall time is the fixed showcase
 epoch, and the recorder advances that clock one frame interval per captured frame
 and sends it as a message. The frame also rewrites the redraw instant iced hands
@@ -318,10 +326,10 @@ sottomano input.
 
 The build rewrites the Codeberg recording and logo URLs and the absolute
 `https://sottomano.work/` links to site paths, and links `recordings/` to the
-output of `.#readme-recordings`, so the pages and their recordings come from the
+output of `.#showcase-recordings`, so the pages and their recordings come from the
 same commit. It then checks every link offline with lychee, heading anchors
 included, and fails on a missing page, anchor or recording. Building the site
-therefore needs `.#readme-recordings`: from the binary cache, or rendered on
+therefore needs `.#showcase-recordings`: from the binary cache, or rendered on
 the spot.
 
 ## Upstream docs

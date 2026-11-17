@@ -11,8 +11,7 @@ jobs:
         experimental-features = nix-command flakes
         extra-system-features = kvm nixos-test
         max-jobs = 1
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+        accept-flake-config = true
     steps:
       - name: Clone the commit
         run: |
@@ -25,22 +24,10 @@ jobs:
         run: test -r /dev/kvm -a -w /dev/kvm
 
       - name: niri session
-        run: >-
-          nix build --quiet --no-link --print-build-logs
-          .#checks.x86_64-linux.vm-niri-panel-mapped
-          .#checks.x86_64-linux.vm-niri-styling-rules
-          .#checks.x86_64-linux.vm-niri-workspace-follow
+        run: nix build --quiet --no-link --print-build-logs .#checks.x86_64-linux.vm-niri
 
       - name: sway session
-        run: >-
-          nix build --quiet --no-link --print-build-logs
-          .#checks.x86_64-linux.vm-sway-panel-mapped
-          .#checks.x86_64-linux.vm-sway-styling-rules
-          .#checks.x86_64-linux.vm-sway-workspace-follow
+        run: nix build --quiet --no-link --print-build-logs .#checks.x86_64-linux.vm-sway
 
       - name: Hyprland session
-        run: >-
-          nix build --quiet --no-link --print-build-logs
-          .#checks.x86_64-linux.vm-hyprland-panel-mapped
-          .#checks.x86_64-linux.vm-hyprland-styling-rules
-          .#checks.x86_64-linux.vm-hyprland-workspace-follow
+        run: nix build --quiet --no-link --print-build-logs .#checks.x86_64-linux.vm-hyprland

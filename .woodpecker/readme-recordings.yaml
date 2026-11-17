@@ -20,11 +20,10 @@ steps:
     environment:
       NIX_CONFIG: |
         experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+        accept-flake-config = true
     commands:
-      - nix run --quiet .#build-and-export-paths -- .#readme-recordings
-      - nix run --quiet .#copy-build-output -- result .
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu build-and-export-paths .#showcase-recordings
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu copy-build-output result .
       - nix develop --quiet --command cargo xtask update-recording-embeds
 
   - name: build-documentation-site
@@ -32,11 +31,10 @@ steps:
     environment:
       NIX_CONFIG: |
         experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+        accept-flake-config = true
     commands:
-      - nix run --quiet .#import-exported-paths
-      - nix run --quiet .#build-and-export-paths -- .#documentation-site
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu import-exported-paths
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu build-and-export-paths .#documentation-site
 
   - name: upload-readme-recordings-to-cachix
     image: nixos/nix:latest
@@ -45,20 +43,18 @@ steps:
     environment:
       NIX_CONFIG: |
         experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+        accept-flake-config = true
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix run --quiet .#upload-exported-paths
+      - nix develop --quiet .#ci --command ci/nix-built-paths.nu upload-exported-paths
 
   - name: push-recordings-orphan-branch
     image: nixos/nix:latest
     environment:
       NIX_CONFIG: |
         experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+        accept-flake-config = true
       CODEBERG_TOKEN:
         from_secret: bot_token
     commands:
