@@ -4,8 +4,8 @@ use corredo::{
     gauges::FillGauge,
     orientation::Axis,
     popovers::{
-        ContextMenuLine, ContextMenuRow, ContextMenuTrailing, PopupVisibility, RowGesture,
-        context_menu, popup_trigger,
+        MenuItem, MenuRow, MenuRowContent, NestedMenuAction, NestedMenuPresentation,
+        NestedMenuState, PopupVisibility, nested_menu, popup_trigger,
     },
     press_actions::flash_on_press_text,
     selection_scroll::selection_following_scroll,
@@ -22,24 +22,27 @@ use iced_test::Simulator;
 #[derive(Debug, Clone, PartialEq)]
 enum GalleryMessage {
     Pressed,
+    MenuChanged(NestedMenuAction<u32>),
     Slid(f32),
     DayToggled(Weekday),
 }
 
 const WINDOW_SIZE: Size = Size::new(600.0, 400.0);
 
-fn plain_context_menu<'a>() -> Element<'a, GalleryMessage> {
-    context_menu([ContextMenuLine::Row(ContextMenuRow {
-        leading: None,
-        label: Some("menu entry".to_owned()),
-        trailing: ContextMenuTrailing::Submenu { open: false },
-        depth: 0,
-        press: RowGesture::Publishes(GalleryMessage::Pressed),
-    })])
+fn plain_context_menu(menu_state: &NestedMenuState<u32>) -> Element<'static, GalleryMessage> {
+    nested_menu(
+        [MenuItem::new(
+            MenuRow::new(MenuRowContent::new("menu entry")).on_press(GalleryMessage::Pressed),
+        )
+        .into()],
+        menu_state,
+        NestedMenuPresentation::default(),
+        GalleryMessage::MenuChanged,
+    )
     .into()
 }
 
-fn gallery<'a>() -> Element<'a, GalleryMessage> {
+fn gallery(menu_state: &NestedMenuState<u32>) -> Element<'static, GalleryMessage> {
     column![
         animated_text("animated label"),
         flash_on_press_text(text("pressable label"), (), |()| GalleryMessage::Pressed),
@@ -47,7 +50,7 @@ fn gallery<'a>() -> Element<'a, GalleryMessage> {
         toggle_switch(TogglePosition::On),
         FillGauge::new(0.5, primary_color, 16.0),
         weekday_picker(WeekdaySet::EMPTY, GalleryMessage::DayToggled),
-        plain_context_menu(),
+        plain_context_menu(menu_state),
         selection_following_scroll(text("scrolled label"), Axis::Vertical),
         popup_trigger(
             text("trigger label"),
@@ -60,7 +63,9 @@ fn gallery<'a>() -> Element<'a, GalleryMessage> {
 
 #[test]
 fn every_widget_lays_out_and_renders_with_only_its_essential_arguments() {
-    let mut simulator = Simulator::with_size(Settings::default(), WINDOW_SIZE, gallery());
+    let menu_state = NestedMenuState::default();
+    let mut simulator =
+        Simulator::with_size(Settings::default(), WINDOW_SIZE, gallery(&menu_state));
     for label in [
         "animated label",
         "pressable label",
@@ -76,8 +81,12 @@ fn every_widget_lays_out_and_renders_with_only_its_essential_arguments() {
 
 #[test]
 fn a_default_context_menu_entry_publishes_its_message() {
-    let mut simulator =
-        Simulator::with_size(Settings::default(), WINDOW_SIZE, plain_context_menu());
+    let menu_state = NestedMenuState::default();
+    let mut simulator = Simulator::with_size(
+        Settings::default(),
+        WINDOW_SIZE,
+        plain_context_menu(&menu_state),
+    );
     let entry: Point = simulator
         .find("menu entry")
         .expect("the entry is on screen")

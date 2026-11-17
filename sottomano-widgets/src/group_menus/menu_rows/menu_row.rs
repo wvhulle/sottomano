@@ -1,38 +1,62 @@
-use std::borrow::Cow;
-
-use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent};
-use iced::{Element, widget::text::Wrapping};
+use corredo::{
+    popovers::{CaretPointing, MenuRowMetrics, NestedMenuStyle, SubmenuConnector},
+    theming::FrameStyle,
+};
+use iced::{Color, Element, Theme};
 use sottomano_toml_config::Config;
 
-use crate::{indicator_groups::indicator_group_content::GroupEvent, widgets::text::panel_text};
+use crate::{
+    hover_cards::hover_card_surfaces::SWITCH_INTENT,
+    widgets::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        text::text_face_of,
+    },
+};
 
-pub(crate) fn menu_metrics(config: &Config) -> NestedMenuMetrics {
-    NestedMenuMetrics {
+pub(crate) fn menu_metrics(config: &Config) -> MenuRowMetrics {
+    MenuRowMetrics {
+        face: text_face_of(&config.theme.font),
         row_height_px: config.desktop_panels.height + config.theme.spacing.item_gap,
         icon_slot_px: config.desktop_panels.height,
         item_spacing_px: config.theme.spacing.group_gap,
         side_inset_px: config.theme.spacing.surface_inset,
+        indent_step_px: config.theme.font.icon_size_px,
     }
 }
 
-pub(crate) fn menu_row_height(config: &Config) -> f32 {
-    menu_metrics(config).row_height_px
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MenuFrames {
+    pub list_frame: FrameStyle,
+    pub beside_frame: FrameStyle,
 }
 
-pub(crate) fn menu_row_content<'a>(
+pub(crate) fn menu_style(
     config: &Config,
-    leading: Vec<Element<'a, GroupEvent>>,
-    icon: Element<'a, GroupEvent>,
-    name: Cow<'static, str>,
-    value: Element<'a, GroupEvent>,
-    trailing: Vec<Element<'a, GroupEvent>>,
-) -> NestedMenuRowContent<'a, GroupEvent> {
-    let lifted = |element: Element<'a, GroupEvent>| element;
-    NestedMenuRowContent {
-        leading: leading.into_iter().map(lifted).collect(),
-        icon: lifted(icon),
-        label: Element::from(panel_text(&config.theme.font, name).wrapping(Wrapping::None)),
-        value: lifted(value),
-        trailing: trailing.into_iter().map(lifted).collect(),
+    frames: MenuFrames,
+    submenu_connector: SubmenuConnector,
+) -> NestedMenuStyle {
+    NestedMenuStyle {
+        list_frame: frames.list_frame,
+        beside_frame: frames.beside_frame,
+        morph: config.overlay_surfaces.surface_morph_duration,
+        gap_to_parent_px: config.theme.spacing.item_gap,
+        submenu_connector,
+        fade_extent_px: config.group_menus.scroll_fade_rows * menu_metrics(config).row_height_px,
+        reveal_delay: SWITCH_INTENT,
+    }
+}
+
+pub(crate) fn phosphor_caret<'a, Message: 'a>(
+    config: &Config,
+) -> impl Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'a, Message> + 'a {
+    let icon_size_px = config.theme.font.icon_size_px;
+    move |pointing, color| {
+        let caret = match pointing {
+            CaretPointing::Rightward => Phosphor::CaretRight(Weight::Regular),
+            CaretPointing::Leftward => Phosphor::CaretLeft(Weight::Regular),
+            CaretPointing::Downward => Phosphor::CaretDown(Weight::Regular),
+        };
+        IconGlyph::from(caret).view(icon_size_px, color)
     }
 }

@@ -1,11 +1,4 @@
-use corredo::{
-    popovers::{
-        BesideRow, CascadeDirection, NestedMenuItem, NestedMenuLayout, NestedMenuPresentation,
-        NestedMenuRow, NestedMenuRowEmphasis, RowGesture, RowHoverReaction, SatelliteReach,
-    },
-    theming::{primary_weak_text_color, secondary_text_color, text_color},
-};
-use iced::mouse::ScrollDelta;
+use corredo::popovers::{MenuItem, MenuRow, MenuRowContent, MenuRowEmphasis, anchor_marker};
 use sottomano_toml_config::Config;
 
 use crate::{
@@ -16,20 +9,17 @@ use crate::{
     },
     group_menus::{
         group_menu_state::{
-            GroupMenuMessage, GroupMenuPin, GroupMenuState, IndicatorPin, PanelPin,
-            PanelPinDuration,
+            GroupMenuPin, GroupMenuState, IndicatorPin, PanelPin, PanelPinDuration,
         },
-        group_menu_view::{GroupMenuMessenger, menu_event},
-        menu_rows::menu_row::menu_row_content,
+        group_menu_view::GroupMenuMessenger,
     },
-    hover_cards::{IndicatorKey, marked_by_menu_pin},
+    hover_cards::marked_by_menu_pin,
     indicator_groups::{
         indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     },
     widgets::{
         glyph_button,
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
 };
@@ -59,34 +49,9 @@ pub(crate) fn one_row_per_identity<'a>(
 
 pub(crate) struct GroupMenuRowContext<'p> {
     pub config: &'p Config,
-    pub direction: CascadeDirection,
-    pub presentation: NestedMenuPresentation,
     pub menu: &'p GroupMenuMessenger,
     pub group_menus: &'p GroupMenuState,
     pub clock: Clock,
-}
-
-const fn accordion_caret(emphasis: NestedMenuRowEmphasis) -> Phosphor {
-    match emphasis {
-        NestedMenuRowEmphasis::Plain => Phosphor::CaretRight(Weight::Regular),
-        NestedMenuRowEmphasis::Opened | NestedMenuRowEmphasis::Selected => {
-            Phosphor::CaretDown(Weight::Regular)
-        }
-    }
-}
-
-fn trailing_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
-    match emphasis {
-        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => secondary_text_color,
-        NestedMenuRowEmphasis::Selected => primary_weak_text_color,
-    }
-}
-
-fn pinned_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
-    match emphasis {
-        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => text_color,
-        NestedMenuRowEmphasis::Selected => primary_weak_text_color,
-    }
 }
 
 pub(crate) fn group_header<'a>(
@@ -94,90 +59,35 @@ pub(crate) fn group_header<'a>(
     entry_identity: &IndicatorGroupIdentity,
     group_title: &IndicatorGroupTitle,
     headline_indicator: &GroupIndicator<'a>,
-    emphasis: NestedMenuRowEmphasis,
-) -> NestedMenuRow<'a, GroupEvent> {
-    let icon_size = layout.config.theme.font.icon_size_px;
+    emphasis: MenuRowEmphasis,
+) -> MenuRowContent<'a, GroupEvent> {
     let pinned_entry = GroupMenuPin::Group(entry_identity.clone());
     let pin = marked_by_menu_pin(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
-            icon_size,
-            trailing_glyph_color(emphasis),
+            layout.config.theme.font.icon_size_px,
+            emphasis.secondary_glyph_color(),
             layout.menu.toggle_pin(pinned_entry.clone()),
         ),
         pinned_entry,
     );
-    let caret_color = trailing_glyph_color(emphasis);
-    let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
-        (NestedMenuLayout::Accordion, _) => (
-            Vec::new(),
-            vec![
-                pin,
-                IconGlyph::from(accordion_caret(emphasis)).view(icon_size, caret_color),
-            ],
-        ),
-        (NestedMenuLayout::Cascading, CascadeDirection::Rightward) => (
-            Vec::new(),
-            vec![
-                pin,
-                IconGlyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
-            ],
-        ),
-        (NestedMenuLayout::Cascading, CascadeDirection::Leftward) => (
-            vec![
-                IconGlyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
-            ],
-            vec![pin],
-        ),
-    };
-    let content = menu_row_content(
-        layout.config,
-        leading,
-        headline_indicator.menu_icon(layout.config),
-        group_title.to_string().into(),
-        headline_indicator.menu_value(layout.config, layout.clock),
-        trailing,
-    );
-    let group_identity = entry_identity.clone();
-    let (press, hover_reaction) = match layout.presentation.layout {
-        NestedMenuLayout::Cascading => (
-            layout.menu.reveal_group(group_identity.clone()),
-            RowHoverReaction::Reveals {
-                reveal: layout.menu.reveal_group(group_identity.clone()),
-                defer_reveal: layout.menu.intend_group_reveal(group_identity.clone()),
-                cancel_reveal: menu_event(GroupMenuMessage::CancelRevealIntent { group_identity }),
-                satellite_reach: if layout.group_menus.open_groups(layout.menu.topic).is_empty() {
-                    SatelliteReach::Closed
-                } else {
-                    SatelliteReach::Open(layout.direction)
-                },
-            },
-        ),
-        NestedMenuLayout::Accordion => (
-            layout.menu.toggle_group(group_identity),
-            RowHoverReaction::Highlights,
-        ),
-    };
-    NestedMenuRow {
-        content,
-        emphasis,
-        press: RowGesture::Publishes(press),
-        hover_reaction,
-        entered: RowGesture::Inert,
-        right_pressed: RowGesture::Inert,
-        scrolled: RowGesture::Inert,
-    }
+    MenuRowContent::new(group_title.to_string())
+        .icon(headline_indicator.menu_icon(layout.config))
+        .value(headline_indicator.menu_value(layout.config, layout.clock))
+        .trailing([pin])
 }
 
 pub(crate) fn indicator_entry<'a>(
     layout: &GroupMenuRowContext<'_>,
     group_identity: &IndicatorGroupIdentity,
     indicator: &GroupIndicator<'a>,
-    beside: BesideRow<'a, GroupEvent>,
-) -> NestedMenuItem<'a, IndicatorKey, GroupEvent> {
+) -> MenuItem<'a, GroupEvent> {
     let emphasis = indicator.row_emphasis(
         group_identity,
-        layout.group_menus.inspected_indicator(layout.menu.topic),
+        layout
+            .group_menus
+            .inspection
+            .inspected_indicator(layout.menu.topic),
     );
     let indicator_key = indicator.indicator_key(group_identity);
     let indicator_pin = layout.group_menus.indicator_pin(
@@ -194,69 +104,51 @@ pub(crate) fn indicator_entry<'a>(
             layout.menu.toggle_pin(entry),
         )
     };
-    let indicator_pin = match indicator_pin {
-        IndicatorPin::Unpinnable => None,
+    let indicator_pins = match indicator_pin {
+        IndicatorPin::Unpinnable => Vec::new(),
         IndicatorPin::Pinned(PanelPin {
             entry,
             duration: PanelPinDuration::Permanent,
             ..
-        }) => Some(pin_button(
-            entry,
-            Weight::Fill,
-            pinned_glyph_color(emphasis),
-        )),
+        }) => vec![pin_button(entry, Weight::Fill, emphasis.text_color())],
         IndicatorPin::Unpinned(entry)
         | IndicatorPin::Pinned(PanelPin {
             entry,
             duration: PanelPinDuration::UntilAlertEnds,
             ..
-        }) => Some(pin_button(
+        }) => vec![pin_button(
             entry,
             Weight::Regular,
-            trailing_glyph_color(emphasis),
-        )),
+            emphasis.secondary_glyph_color(),
+        )],
     };
-    let content = menu_row_content(
-        layout.config,
-        Vec::new(),
-        indicator.menu_icon(layout.config),
-        indicator.indicator_name(),
-        indicator.menu_row_value(layout.config, layout.clock),
-        indicator_pin.into_iter().collect(),
-    );
+    let content = MenuRowContent::new(indicator.indicator_name())
+        .icon(indicator.menu_icon(layout.config))
+        .value(indicator.menu_row_value(layout.config, layout.clock))
+        .trailing(indicator_pins);
     let gestures = indicator.gestures.clone();
-    let press = match gestures.left {
+    let row = MenuRow::new(content)
+        .emphasis(emphasis)
+        .on_enter(layout.menu.inspect_row(indicator_key.clone()));
+    let row = match gestures.left {
         IndicatorGesture::Performs { message, .. } => {
-            RowGesture::Publishes(GroupEvent::Interaction(message))
+            row.on_press(GroupEvent::Interaction(message))
         }
-        IndicatorGesture::Inert => RowGesture::Inert,
+        IndicatorGesture::Inert => row,
     };
-    let right_pressed = match gestures.right {
+    let row = match gestures.right {
         IndicatorGesture::Performs { message, .. } => {
-            RowGesture::Publishes(GroupEvent::Interaction(message))
+            row.on_right_press(GroupEvent::Interaction(message))
         }
-        IndicatorGesture::Inert => RowGesture::Inert,
+        IndicatorGesture::Inert => row,
     };
-    let scrolled = match indicator.row_scroll() {
-        RowScroll::AdjustsValue(adjust_by_scroll) => RowGesture::Publishes(Box::new(move |delta| {
-            GroupEvent::Interaction(adjust_by_scroll(delta))
-        })
-            as Box<dyn Fn(ScrollDelta) -> GroupEvent + 'a>),
-        RowScroll::Inert => RowGesture::Inert,
+    let row = match indicator.row_scroll() {
+        RowScroll::AdjustsValue(adjust_by_scroll) => {
+            row.on_scroll(move |delta| GroupEvent::Interaction(adjust_by_scroll(delta)))
+        }
+        RowScroll::Inert => row,
     };
-    NestedMenuItem {
-        key: indicator_key.clone(),
-        row: NestedMenuRow {
-            content,
-            emphasis,
-            press,
-            hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(layout.menu.inspect_row(indicator_key)),
-            right_pressed,
-            scrolled,
-        },
-        beside,
-    }
+    MenuItem::new(row).wrapped(move |element| anchor_marker(element, indicator_key))
 }
 
 #[cfg(test)]

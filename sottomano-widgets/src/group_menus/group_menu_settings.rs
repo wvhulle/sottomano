@@ -108,7 +108,7 @@ impl GroupMenuState {
 
 #[cfg(test)]
 mod tests {
-    use corredo::popovers::{NestedMenuLayout, OpenGroupLimit};
+    use corredo::popovers::{NestedMenuAction, NestedMenuLayout, OpenGroupLimit};
 
     use super::{GroupMenuMessage, GroupMenuState, NestedMenuPresentation};
 
@@ -126,20 +126,34 @@ mod tests {
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(several_open));
-        for family in [IndicatorGroupFamily::Gpu, IndicatorGroupFamily::Compute] {
-            let _ = group_menus.update(GroupMenuMessage::ToggleMenuGroup {
-                menu: GroupMenuTopic::Hardware,
-                group_identity: IndicatorGroupIdentity::sole(family),
-            });
-        }
-        assert_eq!(group_menus.open_groups(GroupMenuTopic::Hardware).len(), 2);
+        let _ = group_menus.update(GroupMenuMessage::Menu {
+            menu: GroupMenuTopic::Hardware,
+            action: NestedMenuAction::Opened(
+                [IndicatorGroupFamily::Gpu, IndicatorGroupFamily::Compute]
+                    .map(IndicatorGroupIdentity::sole)
+                    .to_vec(),
+            ),
+        });
+        assert_eq!(
+            group_menus
+                .inspection
+                .open_groups(GroupMenuTopic::Hardware)
+                .len(),
+            2
+        );
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(
             NestedMenuPresentation {
                 accordion_open_limit: OpenGroupLimit::One,
                 ..several_open
             },
         ));
-        assert_eq!(group_menus.open_groups(GroupMenuTopic::Hardware).len(), 1);
+        assert_eq!(
+            group_menus
+                .inspection
+                .open_groups(GroupMenuTopic::Hardware)
+                .len(),
+            1
+        );
     }
 
     #[test]

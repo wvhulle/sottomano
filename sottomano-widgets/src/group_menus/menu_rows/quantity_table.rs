@@ -11,7 +11,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     group_indicators::aligned_quantity::AlignedQuantity,
-    group_menus::menu_rows::menu_row::menu_row_height,
+    group_menus::menu_rows::menu_row::menu_metrics,
     indicator_groups::{
         indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupTitle,
     },
@@ -34,7 +34,7 @@ pub(crate) fn quantity_table<'a>(
     let spacing = &config.theme.spacing;
     let quantity_rows =
         aligned_quantity_rows(members.iter().map(|member| member.aligned.keys().copied()));
-    let row_height = menu_row_height(config);
+    let row_height = menu_metrics(config).row_height_px;
     let table_cell = |content: Element<'a, GroupEvent>| -> Element<'a, GroupEvent> {
         container(content).center_y(row_height).into()
     };

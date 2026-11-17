@@ -1,10 +1,16 @@
 use std::{iter::once, time::Duration};
 
 use corredo::{
-    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuTrailing, RowGesture},
-    theming::text_color,
+    popovers::{
+        MenuEntry, MenuItem, MenuRow, MenuRowContent, NestedMenuAction, NestedMenuPresentation,
+        NestedMenuState, SubmenuConnector, nested_menu,
+    },
+    theming::{FrameStyle, background_strong_color, text_color},
 };
-use iced::{Element, Task, border::Radius};
+use iced::{
+    Element, Task,
+    widget::{Space, text},
+};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::login_session_presence::{
     logind_action_permissions::{self, Permissions},
@@ -20,16 +26,17 @@ use crate::{
         indicator_drawing::IndicatorIcon,
         indicator_state::IndicatorState,
     },
+    group_menus::menu_rows::menu_row::{MenuFrames, menu_metrics, menu_style},
     hover_cards::HoverTarget,
     indicator_groups::{
         fixed_panel_group::FixedPanelGroup,
         idle_pause_groups::{ScheduledAfterIdle, Timeouts},
     },
     widgets::{
-        context_menu::context_menu,
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
+        text::text_face_of,
     },
 };
 
@@ -43,28 +50,39 @@ struct SessionMenuEntry {
 }
 
 impl SessionMenuEntry {
-    fn menu_row<'a>(self, config: &Config) -> ContextMenuLine<'a, SessionMessage> {
-        let note = match self.idle {
-            ScheduledAfterIdle::After(after) => ContextMenuTrailing::Note(format!(
+    fn menu_entry<'a>(self, config: &Config) -> MenuEntry<'a, SessionAction, SessionMessage> {
+        let idle_note = |note: String| -> Element<'a, SessionMessage> {
+            text_face_of(&config.theme.font)
+                .text(note)
+                .size(config.theme.font.small_text_size_px)
+                .style(|theme| text::Style {
+                    color: Some(background_strong_color(theme)),
+                })
+                .into()
+        };
+        let value = match self.idle {
+            ScheduledAfterIdle::After(after) => idle_note(format!(
                 "after {} idle",
                 duration_text(after, config.calendar.locale)
             )),
-            ScheduledAfterIdle::Disabled => ContextMenuTrailing::Note("idle: disabled".to_owned()),
+            ScheduledAfterIdle::Disabled => idle_note("idle: disabled".to_owned()),
             ScheduledAfterIdle::Never if self.needs_authorisation => {
-                ContextMenuTrailing::Note("asks for authorisation".to_owned())
+                idle_note("asks for authorisation".to_owned())
             }
-            ScheduledAfterIdle::Never => ContextMenuTrailing::Nothing,
+            ScheduledAfterIdle::Never => Space::new().into(),
         };
-        ContextMenuLine::Row(ContextMenuRow {
-            leading: Some(
-                IconGlyph::from(session_action_icon(self.action))
-                    .view(config.theme.font.icon_size_px, text_color),
-            ),
-            label: Some(self.action.verb().to_owned()),
-            trailing: note,
-            depth: 0,
-            press: RowGesture::Publishes(SessionMessage::Press(self.action)),
-        })
+        MenuItem::new(
+            MenuRow::new(
+                MenuRowContent::new(self.action.verb())
+                    .icon(
+                        IconGlyph::from(session_action_icon(self.action))
+                            .view(config.theme.font.icon_size_px, text_color),
+                    )
+                    .value(value),
+            )
+            .on_press(SessionMessage::Press(self.action)),
+        )
+        .into()
     }
 }
 
@@ -96,12 +114,14 @@ pub fn session_action_icon(action: SessionAction) -> Phosphor {
 #[derive(Default)]
 pub struct SessionPowerGroup {
     permissions: Permissions,
+    menu_state: NestedMenuState<SessionAction>,
 }
 
 #[derive(Debug, Clone)]
 pub enum SessionMessage {
     PermissionsLoaded(Permissions),
     Press(SessionAction),
+    Menu(NestedMenuAction<SessionAction>),
 }
 
 pub enum Action {
@@ -123,6 +143,10 @@ impl SessionPowerGroup {
                 self.permissions = permissions;
                 Action::Run(Task::none())
             }
+            SessionMessage::Menu(action) => {
+                self.menu_state.perform(action);
+                Action::Run(Task::none())
+            }
             SessionMessage::Press(action) => Action::Performed(logged_failure_task(
                 format!("session action {action:?}"),
                 async move {
@@ -137,10 +161,10 @@ impl SessionPowerGroup {
     pub fn menu_panel<'a>(
         &self,
         config: &'a Config,
-        popup_corners: Radius,
+        list_frame: FrameStyle,
         timeouts: Timeouts,
     ) -> Element<'a, SessionMessage> {
-        let lines = self
+        let entries = self
             .permissions
             .allowed
             .iter()
@@ -155,14 +179,28 @@ impl SessionPowerGroup {
                 *previous_family = Some(family);
                 Some(
                     divider
-                        .then_some(ContextMenuLine::Divider)
+                        .then_some(MenuEntry::Divider)
                         .into_iter()
-                        .chain(once(entry.menu_row(config))),
+                        .chain(once(entry.menu_entry(config))),
                 )
             })
-            .flatten()
-            .collect::<Vec<_>>();
-        context_menu(config, popup_corners, lines)
+            .flatten();
+        nested_menu(
+            entries,
+            &self.menu_state,
+            NestedMenuPresentation::default(),
+            SessionMessage::Menu,
+        )
+        .metrics(menu_metrics(config))
+        .style(menu_style(
+            config,
+            MenuFrames {
+                list_frame,
+                beside_frame: list_frame,
+            },
+            SubmenuConnector::Hidden,
+        ))
+        .into()
     }
 
     #[must_use]

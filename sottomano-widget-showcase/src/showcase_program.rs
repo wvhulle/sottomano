@@ -3,59 +3,38 @@ use std::{
     time::{Duration, Instant},
 };
 
-use corredo::{popovers::CascadeOrientation, theming::text_color};
+use corredo::theming::text_color;
 use iced::{
-    Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Rectangle, Settings, Subscription, Task, Theme,
     advanced::widget::operate,
     alignment::Vertical,
     executor,
     theme::Style,
     time::every,
-    widget::{Column, Row, container, stack},
+    widget::{container, stack},
     window,
 };
 use iced_controller_diagram::ControllerArtwork;
 use iced_exwlshell::SurfaceRegionsCollector;
 use iced_test::program::{Preset, Program};
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
-    screen_brightness_color::solar_switch_schedule::ColorMode,
-};
+use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
-    group_menus::{
-        cascading_layout::popup_growth::growth_away_from,
-        group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
-        group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
-    },
-    hover_cards::{
-        AnchorEvent, HoverCardHost, HoverCardMessage, HoverTarget, PointerPresence, PopupMessage,
-        anchored_popup::PopupAppearances,
-        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, HoverEffect},
-        hover_card_transition::CardRetention,
-        laid_out_anchors::WidgetLiveness,
-    },
+    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState},
+    hover_cards::{HoverCardHost, HoverTarget, PopupMessage},
     indicator_groups::{
         appearance_presets_group::AppearancePresetsMessage,
         indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
-        quiet_schedule_group::quiet_window::QuietPhase,
     },
-    layer_surfaces::PanelEdge,
-    notification_toasts::{
-        NotificationLayer, NotificationSettings, ToastContext, ToastSurfaceStyle,
-    },
+    notification_toasts::{NotificationLayer, NotificationSettings},
     toast_messages::NotificationMessage,
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
         favicon::Favicons,
-        shell_layer_appearance::ShellLayer,
         text::{font_faces_of, point_generic_font_families_at},
-        typing_under_cards::CardBackgroundFade,
-        window_icon::WindowAssets,
     },
 };
 
@@ -67,8 +46,11 @@ use crate::{
     frosted_backdrop::{FrostedBackdrop, frosted_rows_of},
     scripted_frames::scripted_frames,
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
-    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, recorded_look},
+    showcased_group::{ShowcasedGroup, recorded_look},
 };
+
+mod showcase_hover_cards;
+mod showcase_surfaces;
 
 pub(crate) const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
 pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(1400);
@@ -284,314 +266,6 @@ impl ShowcaseState {
         }
         let _menu_task = self.group_menus.update(message);
         Task::none()
-    }
-
-    fn update_hover_card(&mut self, hover_card: HoverCardMessage) -> Task<ShowcaseMessage> {
-        match hover_card {
-            HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor)) => {
-                let _hide_due = self.hover_card.remember_anchor(
-                    SHOWCASE_OUTPUT,
-                    widget_anchor,
-                    self.clock.instant,
-                );
-                Task::none()
-            }
-            HoverCardMessage::Anchor(AnchorEvent::Entered { target }) => {
-                if self.hover_card.transition.shown_retention() != CardRetention::UntilDismissed {
-                    self.open_hover_card(target);
-                }
-                Task::none()
-            }
-            HoverCardMessage::Anchor(AnchorEvent::HandlePointed { target, pointing }) => {
-                self.hover_card
-                    .set_handle_pointing(SHOWCASE_OUTPUT, &target, pointing);
-                if pointing == PointerPresence::PointedAt
-                    && (self.hover_card.hover_effect(&target, SHOWCASE_OUTPUT)
-                        == HoverEffect::SwitchesMenu)
-                {
-                    self.open_hover_card_until_dismissed(target);
-                }
-                Task::none()
-            }
-            HoverCardMessage::Anchor(AnchorEvent::HandlePressed { target }) => {
-                self.hover_card.set_handle_pointing(
-                    SHOWCASE_OUTPUT,
-                    &target,
-                    PointerPresence::PointedAt,
-                );
-                if self.hover_card.target() == Some(&target) {
-                    self.close_held_open_card();
-                } else {
-                    self.open_hover_card_until_dismissed(target);
-                }
-                Task::none()
-            }
-            HoverCardMessage::ShownWidgetDropped => Task::done(ShowcaseMessage::from(
-                ShowcaseInteraction::from(HoverCardMessage::ConfirmShownWidgetDropped),
-            )),
-            HoverCardMessage::ConfirmShownWidgetDropped => {
-                if self.hover_card.shown_widget_liveness() == WidgetLiveness::Dropped {
-                    self.dismiss_hover_card();
-                }
-                Task::none()
-            }
-            HoverCardMessage::DismissHeldOpen => {
-                if self.hover_card.transition.shown_retention() == CardRetention::UntilDismissed {
-                    self.close_held_open_card();
-                }
-                Task::none()
-            }
-            message => {
-                let _hide_due = self.hover_card.update(message, self.clock.instant);
-                Task::none()
-            }
-        }
-    }
-
-    fn open_hover_card(&mut self, target: HoverTarget) {
-        if self.hover_card.target() != Some(&target) {
-            let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
-        }
-        self.schedule_hover_replies(&target);
-        let panel_edge = self.panel_edge();
-        self.hover_card.open(&panel_edge, target);
-    }
-
-    fn open_hover_card_until_dismissed(&mut self, target: HoverTarget) {
-        if self.hover_card.target() != Some(&target) {
-            let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
-        }
-        self.schedule_hover_replies(&target);
-        let panel_edge = self.panel_edge();
-        self.hover_card.open_until_dismissed(&panel_edge, target);
-    }
-
-    fn close_held_open_card(&mut self) {
-        let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
-        self.dismiss_hover_card();
-    }
-
-    fn dismiss_hover_card(&mut self) {
-        let departing = self
-            .hover_card
-            .departure(|target| self.hover_content(target));
-        self.hover_card.dismiss(departing, self.clock.instant);
-    }
-
-    fn schedule_hover_replies(&mut self, target: &HoverTarget) {
-        let due = self.clock.instant + HOVER_FETCH_LATENCY;
-        self.pending_hover_replies = self
-            .group
-            .start_hovered_fetch(target, &self.config, self.clock)
-            .into_iter()
-            .map(|reply| PendingHoverReply { due, reply })
-            .collect();
-    }
-
-    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_> {
-        GroupMenuView::new(
-            kind,
-            &self.group_menus,
-            self.group.group_contents(&self.config, self.clock),
-        )
-    }
-
-    fn strip_groups(&self) -> Vec<Element<'_, ShowcaseInteraction>> {
-        match self.demo.shown {
-            GroupShown::InMenu(kind)
-            | GroupShown::InMenuPresented { menu: kind, .. }
-            | GroupShown::PinnedFrom { menu: kind, .. } => self
-                .group_menu(kind)
-                .panel_views(
-                    &self.config,
-                    self.group.position(),
-                    self.hover_card
-                        .handle_indicator(&HoverTarget::GroupMenu(kind), SHOWCASE_OUTPUT),
-                    self.clock,
-                )
-                .map(|element| element.map(ShowcaseInteraction::from))
-                .collect(),
-            GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
-        }
-    }
-
-    fn menu_cascade(&self, kind: GroupMenuTopic) -> Option<HoverContent<'_, ShowcaseInteraction>> {
-        let group_menu = self.group_menu(kind);
-        let inspected_sections = self
-            .group_menus
-            .inspected_indicator(kind)
-            .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
-            .unwrap_or_default();
-        let anchor = self.hover_card.shown_anchor().unwrap_or_default();
-        let orientation = CascadeOrientation::toward_room(
-            anchor,
-            growth_away_from(self.group.position()),
-            self.demo.backdrop.canvas().width,
-        );
-        let surfaces = group_menu.surfaces(
-            &self.config,
-            &self.appearance.menus,
-            &InspectionCard {
-                sections: &inspected_sections,
-                card_appearance: self.appearance.overlays,
-                assets: self.window_assets(),
-                clock: self.clock,
-            },
-            orientation,
-        );
-        let GroupMenuCascadeSurfaces {
-            primary,
-            satellites,
-        } = surfaces?;
-        Some(HoverContent::GroupMenu {
-            primary: primary.map(ShowcaseInteraction::from),
-            satellites: satellites
-                .into_iter()
-                .map(|satellite| satellite.map(ShowcaseInteraction::from))
-                .collect(),
-            orientation,
-        })
-    }
-
-    fn window_assets(&self) -> WindowAssets<'_> {
-        WindowAssets {
-            entries: &self.desktop_entries,
-            favicons: &self.favicons,
-            controller_artwork: &self.controller_artwork,
-        }
-    }
-
-    fn advance_frame(&mut self, frame: Clock) -> Task<ShowcaseMessage> {
-        let elapsed = frame
-            .instant
-            .checked_duration_since(self.booted_at.instant)
-            .expect("animation frames start after the showcase booted");
-        let clock = self.booted_at.advanced(elapsed);
-        self.clock = clock;
-        let mut tasks = Vec::new();
-        if sample(clock) > self.delivered_sample {
-            self.delivered_sample = sample(clock);
-            for fixture_message in (self.demo.live)(clock) {
-                tasks.push(self.route_message(fixture_message));
-            }
-        }
-        let (due_replies, waiting_replies) = self
-            .pending_hover_replies
-            .drain(..)
-            .partition(|pending| pending.due <= clock.instant);
-        self.pending_hover_replies = waiting_replies;
-        for pending in due_replies {
-            tasks.push(self.route_message(pending.reply));
-        }
-        if self.hover_card.hide_schedule.elapsed_by(clock.instant) {
-            tasks.push(self.route_message(ShowcaseMessage::HoverCardHideElapsed));
-        }
-        if self
-            .notifications
-            .next_expiry()
-            .is_some_and(|due| due <= clock.instant)
-        {
-            tasks.push(self.route_message(ShowcaseMessage::Notification(
-                NotificationMessage::ExpiryDue,
-            )));
-        }
-        Task::batch(tasks)
-    }
-
-    fn toast_layer(&self) -> Element<'_, ShowcaseInteraction> {
-        Element::from(self.notifications.anchored_toasts(
-            SHOWCASE_OUTPUT,
-            &self.config,
-            &self.theme,
-            ToastSurfaceStyle {
-                overlay_appearance: self.appearance.overlays,
-                panel_clearance: Padding::ZERO,
-                background_fade: CardBackgroundFade::Resting,
-            },
-            self.clock,
-        ))
-        .map(ShowcaseInteraction::Notification)
-    }
-
-    fn update_notification(&mut self, message: NotificationMessage) -> Task<ShowcaseMessage> {
-        let unplaced = CompositorWindowState::default();
-        let context = ToastContext::new(
-            self.group.compositor().unwrap_or(&unplaced),
-            self.desktop_entries.entries.as_deref(),
-            &self.config,
-            self.notification_settings,
-            QuietPhase::Inactive,
-            self.clock,
-        );
-        self.notifications
-            .update(message, &context, &|_| None)
-            .map(ShowcaseMessage::from)
-    }
-
-    fn hover_content(&self, target: &HoverTarget) -> Option<HoverContent<'_, ShowcaseInteraction>> {
-        if let HoverTarget::GroupMenu(kind) = target {
-            return self.menu_cascade(*kind);
-        }
-        self.group
-            .described_hover_card(target, &self.config, self.clock)
-            .map(HoverContent::Described)
-    }
-
-    fn panel_edge(&self) -> PanelEdge {
-        PanelEdge {
-            output: SHOWCASE_OUTPUT.to_owned(),
-            position: self.group.position(),
-        }
-    }
-
-    fn group_strip(&self) -> Element<'_, ShowcaseInteraction> {
-        let panel = &self.config.desktop_panels;
-        let position = self.group.position();
-        let layer = self.appearance.layer(ShellLayer::from(position));
-        let frame_style = layer.frame;
-        let outlined_sides =
-            outlined_sides_inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
-        let framed = self.strip_groups().into_iter().map(|group| {
-            let content = match position {
-                Position::Left => container(group),
-                Position::Top | Position::Bottom => {
-                    container(container(group).padding([0.0, self.config.theme.spacing.item_gap]))
-                        .height(Length::Fixed(panel.height))
-                        .align_y(Vertical::Center)
-                        .padding([0.0, layer.frame_corner_inset()])
-                }
-            };
-            panel_frame(content, frame_style)
-                .outlined_sides(outlined_sides)
-                .backdrop_blur(layer.backdrop_blur)
-                .into()
-        });
-        match position {
-            Position::Left => Column::with_children(framed)
-                .spacing(self.config.theme.spacing.item_gap)
-                .into(),
-            Position::Top | Position::Bottom => Row::with_children(framed)
-                .spacing(self.config.theme.spacing.item_gap)
-                .into(),
-        }
-    }
-
-    fn hover_card_layer(&self) -> Element<'_, ShowcaseInteraction> {
-        self.hover_card.view(
-            SHOWCASE_OUTPUT,
-            &self.config,
-            HoverCardSurfaceStyle {
-                popup: PopupAppearances {
-                    overlay: self.appearance.overlays,
-                    menu: self.appearance.menus,
-                    background_fade: CardBackgroundFade::Resting,
-                },
-                float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
-            },
-            self.window_assets(),
-            |target: &HoverTarget| self.hover_content(target),
-            self.clock,
-        )
     }
 }
 

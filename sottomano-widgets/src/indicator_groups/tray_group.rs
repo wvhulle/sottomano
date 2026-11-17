@@ -1,9 +1,11 @@
-use std::collections::HashSet;
-
-use corredo::{gauges::activity_line, orientation::Axis, theming::primary_color};
+use corredo::{
+    gauges::activity_line,
+    orientation::Axis,
+    popovers::{NestedMenuAction, NestedMenuState},
+    theming::primary_color,
+};
 use iced::{
     Alignment, Element, Task,
-    border::Radius,
     widget::{Column, container, mouse_area},
 };
 use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activation::{
@@ -47,8 +49,6 @@ use crate::{
     layer_surfaces::ActivationTokenOutcome,
     widgets::{
         app_window_focus::AppWindowFocus,
-        application_menu_lines::ApplicationMenuLines,
-        context_menu::context_menu,
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
@@ -57,12 +57,17 @@ use crate::{
     },
 };
 
+mod tray_menu_surfaces;
+pub use tray_menu_surfaces::TrayMenuLook;
+#[cfg(test)]
+mod tray_group_tests;
+
 #[derive(Default)]
 pub struct TrayGroup {
     items: SubscribedSnapshot<Vec<TrayItem>>,
     pixmap_handles: PixmapHandles,
     host: Option<TrayHost>,
-    open_submenus: HashSet<i32>,
+    menu_state: NestedMenuState<i32>,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -85,7 +90,7 @@ pub enum TrayMessage {
         menu_path: String,
         id: i32,
     },
-    ToggleSubmenu(i32),
+    Menu(NestedMenuAction<i32>),
 }
 
 pub enum Action {
@@ -176,17 +181,15 @@ impl TrayGroup {
                 menu_path,
                 id,
             } => {
-                self.open_submenus.clear();
+                self.menu_state.close();
                 Action::MenuItemActivated(TrayCommand::MenuClick {
                     address,
                     menu_path,
                     id,
                 })
             }
-            TrayMessage::ToggleSubmenu(id) => {
-                if !self.open_submenus.remove(&id) {
-                    self.open_submenus.insert(id);
-                }
+            TrayMessage::Menu(action) => {
+                self.menu_state.perform(action);
                 Action::None
             }
         }
@@ -203,35 +206,8 @@ impl TrayGroup {
         }]
     }
 
-    #[must_use]
-    pub fn menu_panel_named<'a>(
-        &'a self,
-        item_name: &str,
-        config: &'a Config,
-        popup_corners: Radius,
-    ) -> Option<Element<'a, TrayMessage>> {
-        let item = self
-            .items
-            .get()
-            .into_iter()
-            .flatten()
-            .find(|item| item.name() == item_name && !item.menu.is_empty())?;
-        let menu_path = item.menu_path.clone()?;
-        let item_address = item.address.clone();
-        let on_activate = move |id| TrayMessage::MenuItemClicked {
-            address: item_address.clone(),
-            menu_path: menu_path.clone(),
-            id,
-        };
-        let lines = ApplicationMenuLines {
-            config,
-            pixmap_handles: &self.pixmap_handles,
-            open: &self.open_submenus,
-            on_activate: &on_activate,
-            on_toggle: &TrayMessage::ToggleSubmenu,
-        }
-        .lines(&item.menu);
-        Some(context_menu(config, popup_corners, lines))
+    pub fn close_menu(&mut self) {
+        self.menu_state.close();
     }
 
     fn command(&self, command: TrayCommand, token: ActivationTokenOutcome) -> Task<TrayMessage> {
@@ -403,158 +379,4 @@ fn item_view<'a>(
         clickable = clickable.on_right_press(GroupEvent::from(message));
     }
     clickable.into()
-}
-
-#[cfg(test)]
-mod tests {
-    use corredo::{orientation::Axis, transitions::reveal};
-    use iced::{
-        Settings, Size,
-        widget::{row, text},
-    };
-    use iced_test::Simulator;
-    use sottomano_desktop_sources::{
-        desktop_windows_apps::{
-            status_notifier_tray::{Status, TrayItem},
-            window_edge_placement::WindowOwner,
-        },
-        system_protocol_clients::dbus_desktop_buses::OwnerProcess,
-    };
-    use sottomano_toml_config::{
-        Config,
-        indicator_groups::tray::{ClickAction, TrayRule},
-    };
-
-    use super::{TrayItemWindow, TrayMessage, click_hint, click_message, item_view};
-    use crate::widgets::icon_handle::PixmapHandles;
-
-    const PANEL_WIDTH: f32 = 800.0;
-    const MARKER_AFTER_ITEM: &str = "marker after the tray item";
-
-    fn item_needing_attention() -> TrayItem {
-        TrayItem {
-            address: ":1.4167".to_owned(),
-            owner: OwnerProcess::Identified(4167),
-            id: "chat".to_owned(),
-            title: None,
-            status: Status::NeedsAttention,
-            tooltip: None,
-            menu_path: None,
-            icon: None,
-            menu: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn an_item_needing_attention_keeps_a_finite_width_while_revealed() {
-        let config = Config::default();
-        let pixmap_handles = PixmapHandles::default();
-        let item = item_needing_attention();
-        let revealed = reveal(
-            item_view(
-                &config,
-                &pixmap_handles,
-                &item,
-                &TrayItemWindow::NotOpen,
-                1.0,
-            ),
-            1.0,
-            Axis::Horizontal,
-        );
-        let mut simulator = Simulator::with_size(
-            Settings::default(),
-            Size::new(PANEL_WIDTH, 40.0),
-            row![revealed, text(MARKER_AFTER_ITEM)],
-        );
-        let marker = simulator
-            .find(MARKER_AFTER_ITEM)
-            .expect("the marker is laid out")
-            .bounds();
-        assert!(
-            marker.x.is_finite() && marker.x < PANEL_WIDTH,
-            "the tray item pushed the marker to x = {}",
-            marker.x
-        );
-    }
-
-    fn every_window_matches(_owner: &WindowOwner) -> bool {
-        true
-    }
-
-    fn no_window_matches(_owner: &WindowOwner) -> bool {
-        false
-    }
-
-    #[test]
-    fn item_without_override_is_matched_by_its_process() {
-        let item = item_needing_attention();
-        assert_eq!(
-            TrayItemWindow::resolve(&TrayRule::default(), &item, &every_window_matches),
-            TrayItemWindow::Open(WindowOwner::Process(4167))
-        );
-    }
-
-    #[test]
-    fn window_app_id_overrides_the_process() {
-        let item = item_needing_attention();
-        let overriding_rule = TrayRule {
-            window_app_id: Some("signal".to_owned()),
-            ..TrayRule::default()
-        };
-        assert_eq!(
-            TrayItemWindow::resolve(&overriding_rule, &item, &every_window_matches),
-            TrayItemWindow::Open(WindowOwner::App("signal".to_owned()))
-        );
-    }
-
-    #[test]
-    fn item_with_unidentified_process_has_no_open_window() {
-        let item = TrayItem {
-            owner: OwnerProcess::Unidentified,
-            ..item_needing_attention()
-        };
-        assert_eq!(
-            TrayItemWindow::resolve(&TrayRule::default(), &item, &every_window_matches),
-            TrayItemWindow::NotOpen
-        );
-    }
-
-    #[test]
-    fn item_without_matching_window_has_no_open_window() {
-        let item = item_needing_attention();
-        assert_eq!(
-            TrayItemWindow::resolve(&TrayRule::default(), &item, &no_window_matches),
-            TrayItemWindow::NotOpen
-        );
-    }
-
-    #[test]
-    fn focus_click_on_open_window_focuses_it() {
-        let item = item_needing_attention();
-        let item_window = TrayItemWindow::Open(WindowOwner::Process(4167));
-        assert!(matches!(
-            click_message(ClickAction::FocusAppWindow, &item_window, &item),
-            Some(TrayMessage::FocusWindow {
-                owner: WindowOwner::Process(4167),
-                ..
-            })
-        ));
-        assert_eq!(
-            click_hint(ClickAction::FocusAppWindow, &item_window),
-            "focus its window"
-        );
-    }
-
-    #[test]
-    fn focus_click_without_open_window_activates() {
-        let item = item_needing_attention();
-        assert!(matches!(
-            click_message(ClickAction::FocusAppWindow, &TrayItemWindow::NotOpen, &item),
-            Some(TrayMessage::Activate(_))
-        ));
-        assert_eq!(
-            click_hint(ClickAction::FocusAppWindow, &TrayItemWindow::NotOpen),
-            "activate"
-        );
-    }
 }

@@ -48,14 +48,9 @@ pub(crate) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
 
 fn menu_rescan_need(menu_message: &GroupMenuMessage) -> AlertRescanNeed {
     match menu_message {
-        GroupMenuMessage::InspectRow { .. }
-        | GroupMenuMessage::IntendRevealMenuGroup { .. }
-        | GroupMenuMessage::CancelRevealIntent { .. }
-        | GroupMenuMessage::RevealIntentElapsed
-        | GroupMenuMessage::RevealMenuGroup { .. }
-        | GroupMenuMessage::ToggleMenuGroup { .. }
-        | GroupMenuMessage::MenuScrolled { .. }
-        | GroupMenuMessage::ItemListScrolled { .. } => AlertRescanNeed::Skips,
+        GroupMenuMessage::InspectRow { .. } | GroupMenuMessage::Menu { .. } => {
+            AlertRescanNeed::Skips
+        }
         _ => AlertRescanNeed::Rescans,
     }
 }

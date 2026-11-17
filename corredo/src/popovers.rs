@@ -5,11 +5,6 @@ pub use anchored_popup::{
 };
 mod popup_trigger;
 pub use popup_trigger::{PopupTrigger, PopupVisibility, popup_trigger};
-mod context_menu;
-pub use context_menu::{
-    ContextMenu, ContextMenuLine, ContextMenuMetrics, ContextMenuRow, ContextMenuTrailing,
-    context_menu,
-};
 mod popup_cascade;
 pub use popup_cascade::{CascadeDirection, CascadeOrientation, PopupGrowth};
 mod popup_connector;
@@ -18,24 +13,21 @@ mod rectangle_morph;
 pub use rectangle_morph::{RectangleMorph, interpolated_rectangle};
 mod nested_menu_state;
 pub use nested_menu_state::{
-    NestedMenuInspection, NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation,
-    OpenGroupLimit, OpenNestedMenuRows, SubmenuConnector,
+    NestedMenuAction, NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation,
+    NestedMenuState, OpenGroupLimit, SubmenuConnector,
 };
-mod nested_menu_row;
-pub use nested_menu_row::{
-    NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis, NestedMenuRowLook,
-    RowHoverReaction, SatelliteReach, nested_menu_row, nested_menu_row_text_color,
-};
+mod menu_row;
+pub use menu_row::{MenuRow, MenuRowContent, MenuRowEmphasis, MenuRowMetrics};
 mod cascade_row;
 pub use cascade_row::{CascadeRow, cascade_row};
 mod notched_panel;
 pub use notched_panel::{
-    NotchRowAnchor, NotchedPanel, NotchedPanelRegions, PanelNesting, notched_panel,
+    NotchRowAnchor, NotchedPanel, NotchedPanelRegions, SatelliteRole, notched_panel,
 };
 mod nested_menu;
 pub use nested_menu::{
-    BesideRow, NestedMenu, NestedMenuGroup, NestedMenuItem, NestedMenuRow, NestedMenuSatellite,
-    NestedMenuStyle, NestedMenuSurfaces, RowGesture, SatelliteRole, nested_menu,
+    CaretPointing, MenuEntry, MenuItem, MenuSubmenu, NestedMenu, NestedMenuStyle,
+    NestedMenuSurfaces, nested_menu, submenu_header_emphasis,
 };
 mod anchor_marker;
 pub use anchor_marker::anchor_marker;

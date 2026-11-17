@@ -4,8 +4,8 @@ use corredo::{
     data_tables::text_grouped_table,
     gauges::FillGauge,
     popovers::{
-        ContextMenuLine, ContextMenuRow, ContextMenuTrailing, PopupVisibility, RowGesture,
-        context_menu, popup_trigger,
+        MenuEntry, MenuItem, MenuRow, MenuRowContent, MenuSubmenu, NestedMenuAction,
+        NestedMenuPresentation, NestedMenuState, PopupVisibility, nested_menu, popup_trigger,
     },
     press_actions::flash_on_press_text,
     theming::primary_color,
@@ -16,7 +16,7 @@ use iced::{
     widget::{button, column, mouse_area, text},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum GalleryMessage {
     Slid(f32),
     SwitchToggled,
@@ -24,6 +24,7 @@ enum GalleryMessage {
     PopupToggled,
     PopupDismissed,
     MenuEntryPressed,
+    MenuChanged(NestedMenuAction<&'static str>),
     TextPressed,
 }
 
@@ -34,6 +35,7 @@ struct WidgetGallery {
     chosen_days: WeekdaySet,
     popup_visibility: PopupVisibility,
     menu_presses: u32,
+    menu_state: NestedMenuState<&'static str>,
     text_presses: u32,
 }
 
@@ -45,6 +47,7 @@ impl Default for WidgetGallery {
             chosen_days: WeekdaySet::EMPTY,
             popup_visibility: PopupVisibility::Closed,
             menu_presses: 0,
+            menu_state: NestedMenuState::default(),
             text_presses: 0,
         }
     }
@@ -74,7 +77,11 @@ impl WidgetGallery {
                 };
             }
             GalleryMessage::PopupDismissed => self.popup_visibility = PopupVisibility::Closed,
-            GalleryMessage::MenuEntryPressed => self.menu_presses += 1,
+            GalleryMessage::MenuEntryPressed => {
+                self.menu_presses += 1;
+                self.menu_state.close();
+            }
+            GalleryMessage::MenuChanged(action) => self.menu_state.perform(action),
             GalleryMessage::TextPressed => self.text_presses += 1,
         }
     }
@@ -87,13 +94,42 @@ impl WidgetGallery {
                 ("Mars".to_owned(), vec!["2".to_owned()]),
             ],
         );
-        let menu = context_menu([ContextMenuLine::Row(ContextMenuRow {
-            leading: None,
-            label: Some(format!("Pressed {} times", self.menu_presses)),
-            trailing: ContextMenuTrailing::Nothing,
-            depth: 0,
-            press: RowGesture::Publishes(GalleryMessage::MenuEntryPressed),
-        })]);
+        let moon_item = |moon: &'static str| -> MenuEntry<'_, &'static str, GalleryMessage> {
+            MenuItem::new(
+                MenuRow::new(MenuRowContent::new(moon)).on_press(GalleryMessage::MenuEntryPressed),
+            )
+            .into()
+        };
+        let menu = nested_menu(
+            [
+                MenuItem::new(
+                    MenuRow::new(MenuRowContent::new(format!(
+                        "Pressed {} times",
+                        self.menu_presses
+                    )))
+                    .on_press(GalleryMessage::MenuEntryPressed),
+                )
+                .into(),
+                MenuEntry::Divider,
+                MenuSubmenu::new(
+                    "planets",
+                    MenuRowContent::new("Planets"),
+                    [
+                        moon_item("Earth"),
+                        MenuSubmenu::new(
+                            "jupiter",
+                            MenuRowContent::new("Jupiter"),
+                            [moon_item("Io"), moon_item("Europa")],
+                        )
+                        .into(),
+                    ],
+                )
+                .into(),
+            ],
+            &self.menu_state,
+            NestedMenuPresentation::default(),
+            GalleryMessage::MenuChanged,
+        );
         column![
             animated_text(format!("Slider at {:.0}", self.slider_value))
                 .identified_by(&"slider label"),
@@ -106,7 +142,7 @@ impl WidgetGallery {
                 (),
                 |()| GalleryMessage::TextPressed
             ),
-            menu,
+            Element::from(menu),
             table,
             popup_trigger(
                 button(text("Toggle popup")).on_press(GalleryMessage::PopupToggled),

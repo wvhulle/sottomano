@@ -207,6 +207,7 @@ impl DesktopShell {
             Some(HoverTarget::GroupMenu(topic)) => Some(
                 self.indicator_groups
                     .group_menus
+                    .inspection
                     .inspected_indicator(*topic)
                     .cloned()
                     .map_or(HoverTarget::GroupMenu(*topic), HoverTarget::Indicator),

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
+use corredo::popovers::NestedMenuAction;
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
     AppCategory, LaunchableApp, OpenAppWindows,
 };
@@ -245,12 +246,13 @@ fn long_utility_app(app_id: &str) -> LaunchableApp {
 }
 
 pub fn scrolled_item_list() -> Vec<ShowcaseMessage> {
-    vec![ShowcaseMessage::GroupMenuState(
-        GroupMenuMessage::ItemListScrolled {
-            menu: GroupMenuTopic::Applications,
+    vec![ShowcaseMessage::GroupMenuState(GroupMenuMessage::Menu {
+        menu: GroupMenuTopic::Applications,
+        action: NestedMenuAction::Scrolled {
+            depth: 1,
             scrolled_px: SCROLLED_PAST_FIRST_ROWS_PX,
         },
-    )]
+    })]
 }
 
 fn launchable_app(app: &CatalogApp) -> LaunchableApp {
