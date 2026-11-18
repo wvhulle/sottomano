@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use virt::{
     connect::Connect,
     domain::Domain,
-    error::Error as VirtError,
+    error::{Error as VirtError, clear_error_callback},
     sys::{
         VIR_CONNECT_LIST_DOMAINS_INACTIVE, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PMSUSPENDED,
         VIR_DOMAIN_RUNNING, VIR_DOMAIN_SHUTDOWN, virDomainState,
@@ -32,6 +32,7 @@ fn run_state_of_domain_state(domain_state: virDomainState) -> GuestRunState {
 pub fn with_system_connection<T>(
     use_connection: impl FnOnce(&Connect) -> T,
 ) -> Result<T, VirtError> {
+    clear_error_callback();
     let mut connection = Connect::open(Some(LIBVIRT_SYSTEM_URI))?;
     let outcome = use_connection(&connection);
     let _ = connection.close();
