@@ -63,7 +63,10 @@ pub struct InspectionCard<'c, 'a> {
 impl InspectionCard<'_, '_> {
     pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
         let hover_card = HoverCard::new(self.sections.to_vec(), CardHeader::Unheaded)?;
-        Some(HoverCardContent::new(&hover_card, config, self.assets, self.clock).view())
+        Some(
+            HoverCardContent::new(&hover_card, config, self.assets, self.clock)
+                .view(self.card_appearance.frame),
+        )
     }
 }
 

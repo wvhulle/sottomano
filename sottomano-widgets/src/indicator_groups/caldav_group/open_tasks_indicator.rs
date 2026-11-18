@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Local, NaiveDate};
-use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
     caldav_tasks_events::{
@@ -49,7 +48,7 @@ impl TaskRow<'_> {
     }
 }
 
-impl From<&TaskRow<'_>> for TableRecord<5> {
+impl From<&TaskRow<'_>> for TableRecord<4> {
     fn from(task_row: &TaskRow<'_>) -> Self {
         let details_link = task_row
             .provider
@@ -80,7 +79,6 @@ impl From<&TaskRow<'_>> for TableRecord<5> {
                         ValueCell::Hint(band.name().to_owned())
                     }),
                 progress_cell(task_row.task),
-                ValueCell::Hint(task_row.task.calendar.clone()),
             ],
         )
         .level(task_severity(task_row.task, task_row.now))
@@ -169,7 +167,6 @@ pub(crate) fn open_tasks_hover_card(open_tasks: &OpenTaskList, clock: Clock) -> 
                     ColumnHeading::titled("Time"),
                     ColumnHeading::titled("Priority"),
                     ColumnHeading::titled("Progress"),
-                    ColumnHeading::titled("List").align_x(Horizontal::Left),
                 ],
                 rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
             )

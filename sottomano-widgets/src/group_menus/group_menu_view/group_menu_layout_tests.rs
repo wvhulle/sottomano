@@ -21,7 +21,8 @@ use crate::{
         menu_rows::menu_row::menu_metrics,
     },
     hover_cards::{
-        IndicatorKey, MouseGesture, PopupMessage, PressAction, hover_card_body::Section,
+        IndicatorKey, MouseGesture, PopupMessage, PressAction,
+        hover_card_body::{Section, SectionWidget},
     },
     indicator_groups::{
         clock_group::ClockInteraction,
@@ -337,4 +338,33 @@ fn an_actions_only_card_is_shown_in_a_menu() {
 #[test]
 fn a_card_without_sections_stays_hidden() {
     assert!(inspection_card_view(Vec::new()).is_none());
+}
+
+#[test]
+fn a_card_taller_than_the_screen_keeps_its_rows_apart() {
+    let tall_sections = (0..40)
+        .map(|position| {
+            Section::new(
+                format!("Deadline {position}"),
+                SectionWidget::paragraph(format!("task {position}")),
+            )
+        })
+        .collect();
+    let card = inspection_card_view(tall_sections).expect("a card with sections is shown");
+    let mut simulator = Simulator::with_size(Settings::default(), Size::new(600.0, 300.0), card);
+    let title_tops: Vec<f32> = (0..40)
+        .map(|position| {
+            simulator
+                .find(format!("Deadline {position}"))
+                .expect("the title is laid out")
+                .bounds()
+                .y
+        })
+        .collect();
+    let line_height = menu_metrics(&Config::default()).row_height_px / 2.0;
+    assert!(
+        title_tops
+            .windows(2)
+            .all(|neighbours| neighbours[1] - neighbours[0] >= line_height)
+    );
 }

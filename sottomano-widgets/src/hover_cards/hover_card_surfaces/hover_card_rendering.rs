@@ -70,8 +70,11 @@ impl HoverCardHost {
         clock: Clock,
     ) -> Element<'a, Message> {
         let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
-            Element::from(HoverCardContent::new(hover_card, config, assets, clock).view())
-                .map(Message::from)
+            Element::from(
+                HoverCardContent::new(hover_card, config, assets, clock)
+                    .view(surface_style.popup.overlay.frame),
+            )
+            .map(Message::from)
         };
         let render = |content: HoverContent<'a, Message>| match content {
             HoverContent::Described(hover_card) => Rendered::framed(describe(&hover_card)),

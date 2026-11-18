@@ -259,6 +259,26 @@ impl<'a, Message: Clone + 'a, ShownIdentity: Clone + PartialEq + 'static>
     }
 }
 
+fn over_notched_panel(panel: Layout<'_>, point: Point) -> bool {
+    let node = panel.bounds();
+    let mut children = panel.children();
+    let over_surface_with_gap = children.next().is_some_and(|surface| {
+        let surface_bounds = surface.bounds();
+        Rectangle::new(
+            Point::new(node.x, surface_bounds.y),
+            Size::new(node.width, surface_bounds.height),
+        )
+        .contains(point)
+    });
+    over_surface_with_gap
+        || children.any(|beside_wrapper| {
+            beside_wrapper
+                .children()
+                .next()
+                .is_some_and(|beside_panel| over_notched_panel(beside_panel, point))
+        })
+}
+
 impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdentity> {
     fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
@@ -426,17 +446,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
                         && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
                 })
                 .flat_map(|(_, cascade)| cascade.children().skip(1))
-                .any(|satellite| {
-                    let node = satellite.bounds();
-                    satellite.children().any(|surface| {
-                        let surface_bounds = surface.bounds();
-                        Rectangle::new(
-                            Point::new(node.x, surface_bounds.y),
-                            Size::new(node.width, surface_bounds.height),
-                        )
-                        .contains(point)
-                    })
-                });
+                .any(|satellite| over_notched_panel(satellite, point));
         if over_popup {
             PointerPlacement::OverPopup
         } else {
@@ -505,7 +515,15 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let surface = limits.max();
-        let rendering_limits = Limits::new(Size::ZERO, surface);
+        let room_along_docking = match self.side {
+            Edge::Bottom => surface.height - self.dock_line(),
+            Edge::Top => self.dock_line(),
+            Edge::Left | Edge::Right => surface.height,
+        } - 2.0 * self.gap_px;
+        let rendering_limits = Limits::new(
+            Size::ZERO,
+            Size::new(surface.width, room_along_docking.max(0.0)),
+        );
         let natural_nodes: Vec<Node> = self
             .renderings
             .iter_mut()

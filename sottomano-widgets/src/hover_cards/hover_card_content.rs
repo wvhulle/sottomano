@@ -8,11 +8,13 @@ use corredo::{
     changing_text::{TextPresence, TransitionStyle, TransitioningText},
     data_tables::GroupedTableStyle,
     gauges::CountdownDial,
+    orientation::Axis,
     press_actions::flash_on_press_text,
+    selection_scroll::ScrollEdgeFade,
     theming::{
-        LINE_HEIGHT, OUTLINE_WIDTH_PX, background_strong_color, danger_color, primary_color,
-        primary_shades, primary_weak_color, secondary_text_color, success_color, success_shades,
-        text_color,
+        FrameStyle, LINE_HEIGHT, OUTLINE_WIDTH_PX, background_strong_color, danger_color,
+        primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
+        success_shades, text_color,
     },
     width_layout::equal_width_column,
 };
@@ -33,7 +35,10 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     group_indicators::indicator_state::IndicatorState,
-    group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
+    group_menus::{
+        group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
+        menu_rows::menu_row::menu_metrics,
+    },
     hover_cards::{
         CardHeader, PopupMessage, PressAction,
         core_grid::CoreCellGrid,
@@ -48,6 +53,7 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
+        configured_scroll::configured_scroll,
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -103,7 +109,7 @@ impl<'a> HoverCardContent<'a> {
     }
 
     #[must_use]
-    pub fn view(self) -> Element<'static, PopupMessage> {
+    pub fn view(self, frame: FrameStyle) -> Element<'static, PopupMessage> {
         let title_rows = self.card_header_rows();
         let mut previous_source = SectionSource::Local;
         let section_views: Vec<Element<'static, PopupMessage>> = self
@@ -128,7 +134,15 @@ impl<'a> HoverCardContent<'a> {
         let content = equal_width_column(section_views)
             .spacing(self.config.theme.spacing.group_gap)
             .into();
-        self.shell_below_title(title_rows, content)
+        let scroll_fade_extent_px =
+            self.config.group_menus.scroll_fade_rows * menu_metrics(self.config).row_height_px;
+        configured_scroll(
+            self.shell_below_title(title_rows, content),
+            Axis::Vertical,
+            self.config,
+        )
+        .edge_fade(ScrollEdgeFade::within_frame(frame, scroll_fade_extent_px))
+        .into()
     }
 
     fn shell_below_title(
@@ -480,7 +494,7 @@ impl<'a> HoverCardContent<'a> {
             prose_font: self.config.theme.font.clone(),
             max_width: VALUE_COLUMN_WIDTH_PX,
             glyph_gap: self.config.theme.spacing.item_gap,
-            wrapping: Wrapping::default(),
+            wrapping: Wrapping::WordOrGlyph,
             locale: self.config.calendar.locale,
             now: self.clock.utc(),
             flash: success_shades,
