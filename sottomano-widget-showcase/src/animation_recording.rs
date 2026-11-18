@@ -622,7 +622,9 @@ impl RecordingSession {
             .flat_map(|step| recorder.perform(step))
             .collect();
         let closing = recorder.press_away();
-        let final_scripted_position = (opening.len() + scripted.len()).saturating_sub(1);
+        let final_scripted_position = (opening.len() + scripted.len())
+            .checked_sub(1)
+            .expect("the opening rest captures at least one frame");
         let frames: Vec<CapturedFrame> =
             opening.into_iter().chain(scripted).chain(closing).collect();
         let crop = ContentCrop::around_content(
