@@ -6,8 +6,11 @@ use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::
 };
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::{
-        AppLaunchUsage, AppLauncherMenu, AppLauncherMessage, FrequentApp, FrequentAppScope,
-        OutputFrequentApps, WorkspaceWindowPresence,
+        AppLauncherMenu, AppLauncherMessage,
+        app_ranking::{
+            AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps,
+            WorkspaceWindowPresence,
+        },
     },
     desktop_index::DesktopIndex,
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,

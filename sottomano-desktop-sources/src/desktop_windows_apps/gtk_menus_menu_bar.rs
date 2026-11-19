@@ -18,7 +18,9 @@ pub mod gtk_actions_proxy;
 
 use self::gtk_actions_proxy::{GtkActionDescription, gtk_actions_proxy};
 use crate::desktop_windows_apps::{
-    application_menu_nodes::{MenuKind, MenuNode, label_without_mnemonics},
+    application_menu_nodes::{
+        MenuKind, MenuNode, ToggleCheck, ToggleMark, label_without_mnemonics,
+    },
     dbusmenu_menu_bar_layout::introspected_node,
 };
 
@@ -345,10 +347,24 @@ fn toggle_kind(action_state: &OwnedValue, action_target: &GtkActionTarget) -> Me
         unboxed_state => unboxed_state,
     };
     match (action_state, action_target) {
-        (Value::Bool(checked), GtkActionTarget::Untargeted) => MenuKind::Toggle(*checked),
+        (Value::Bool(checked), GtkActionTarget::Untargeted) => MenuKind::Toggle {
+            mark: ToggleMark::Checkbox,
+            check: if *checked {
+                ToggleCheck::Checked
+            } else {
+                ToggleCheck::Unchecked
+            },
+        },
         (current_state, GtkActionTarget::Targeted(target_value)) => {
             let target_value: &Value<'_> = target_value;
-            MenuKind::Toggle(current_state == target_value)
+            MenuKind::Toggle {
+                mark: ToggleMark::Radio,
+                check: if current_state == target_value {
+                    ToggleCheck::Checked
+                } else {
+                    ToggleCheck::Unchecked
+                },
+            }
         }
         (_, GtkActionTarget::Untargeted) => MenuKind::Standard,
     }

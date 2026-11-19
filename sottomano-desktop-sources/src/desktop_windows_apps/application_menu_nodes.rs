@@ -34,11 +34,26 @@ impl MenuNode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToggleMark {
+    Checkbox,
+    Radio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToggleCheck {
+    Checked,
+    Unchecked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuKind {
     Standard,
     Separator,
     Submenu,
-    Toggle(bool),
+    Toggle {
+        mark: ToggleMark,
+        check: ToggleCheck,
+    },
 }
 
 fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
@@ -90,10 +105,22 @@ pub fn visible_menu_node(menu_item: &MenuItem, entries: &DesktopEntries) -> Opti
         MenuKind::Separator
     } else if !children.is_empty() || menu_item.children_display.as_deref() == Some("submenu") {
         MenuKind::Submenu
-    } else if menu_item.toggle_type != ToggleType::CannotBeToggled {
-        MenuKind::Toggle(menu_item.toggle_state == ToggleState::On)
     } else {
-        MenuKind::Standard
+        let check = match menu_item.toggle_state {
+            ToggleState::On => ToggleCheck::Checked,
+            ToggleState::Off | ToggleState::Indeterminate => ToggleCheck::Unchecked,
+        };
+        match menu_item.toggle_type {
+            ToggleType::Checkmark => MenuKind::Toggle {
+                mark: ToggleMark::Checkbox,
+                check,
+            },
+            ToggleType::Radio => MenuKind::Toggle {
+                mark: ToggleMark::Radio,
+                check,
+            },
+            ToggleType::CannotBeToggled => MenuKind::Standard,
+        }
     };
     Some(MenuNode {
         id: menu_item.id,
@@ -159,5 +186,41 @@ mod tests {
     fn mnemonic_underscores_are_dropped_and_doubled_ones_kept() {
         assert_eq!(label_without_mnemonics("_File"), "File");
         assert_eq!(label_without_mnemonics("snake__case"), "snake_case");
+    }
+
+    fn toggle_item_kind(toggle_type: ToggleType, toggle_state: ToggleState) -> MenuKind {
+        let toggle_item = MenuItem {
+            label: Some("Trim Margins".to_owned()),
+            visible: true,
+            enabled: true,
+            toggle_type,
+            toggle_state,
+            ..MenuItem::default()
+        };
+        visible_menu_node(&toggle_item, &DesktopEntries::default())
+            .expect("a visible item becomes a node")
+            .kind
+    }
+
+    #[test]
+    fn checkable_items_keep_their_mark_and_state() {
+        assert_eq!(
+            toggle_item_kind(ToggleType::Checkmark, ToggleState::Off),
+            MenuKind::Toggle {
+                mark: ToggleMark::Checkbox,
+                check: ToggleCheck::Unchecked
+            }
+        );
+        assert_eq!(
+            toggle_item_kind(ToggleType::Radio, ToggleState::On),
+            MenuKind::Toggle {
+                mark: ToggleMark::Radio,
+                check: ToggleCheck::Checked
+            }
+        );
+        assert_eq!(
+            toggle_item_kind(ToggleType::CannotBeToggled, ToggleState::On),
+            MenuKind::Standard
+        );
     }
 }

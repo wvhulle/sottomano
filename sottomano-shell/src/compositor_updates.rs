@@ -16,7 +16,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    cascading_menus::app_launcher_menu::{
+    cascading_menus::app_launcher_menu::app_ranking::{
         AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
     },
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,

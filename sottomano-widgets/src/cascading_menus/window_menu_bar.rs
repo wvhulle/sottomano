@@ -1,3 +1,4 @@
+pub mod menu_bar_switch;
 pub mod top_menu_glyphs;
 
 use corredo::{
@@ -31,102 +32,17 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use self::top_menu_glyphs::top_menu_glyph;
+use self::{menu_bar_switch::WindowMenuBarUse, top_menu_glyphs::top_menu_glyph};
 use crate::{
     background_work::logged_failure_task,
-    cascading_menus::menu_node_entries::menu_node_entries,
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        indicator_state::IndicatorState,
-        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
-    },
+    cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
     group_menus::group_menu_state::MenuTopicPresence,
-    hover_cards::hover_card_body::{Section, SectionWidget},
     indicator_groups::{
-        indicator_group_content::{
-            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-        },
-        indicator_group_identity::IndicatorGroupFamily,
-        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+        indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
+        sqlite_singleton_flag,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        icon_handle::PixmapHandles,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::{icon_glyph::IconGlyph, icon_handle::PixmapHandles},
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowMenuBarUse {
-    Enabled,
-    Disabled,
-}
-
-impl WindowMenuBarUse {
-    #[must_use]
-    pub const fn toggled(self) -> Self {
-        match self {
-            WindowMenuBarUse::Enabled => WindowMenuBarUse::Disabled,
-            WindowMenuBarUse::Disabled => WindowMenuBarUse::Enabled,
-        }
-    }
-}
-
-impl SingletonFlagState for WindowMenuBarUse {
-    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowMenuBarUse;
-    const STORED_AS_SET: Self = WindowMenuBarUse::Enabled;
-    const STORED_AS_CLEARED: Self = WindowMenuBarUse::Disabled;
-}
-
-impl From<WindowMenuBarUse> for SwitchPosition {
-    fn from(window_menu_bar_use: WindowMenuBarUse) -> Self {
-        match window_menu_bar_use {
-            WindowMenuBarUse::Enabled => SwitchPosition::On,
-            WindowMenuBarUse::Disabled => SwitchPosition::Off,
-        }
-    }
-}
-
-fn window_menu_bar_use_toggle(window_menu_bar_use: WindowMenuBarUse) -> IconToggle {
-    IconToggle::new(
-        "Global application menu",
-        Phosphor::AppWindow(Weight::Regular),
-        window_menu_bar_use,
-        SwitchPresses {
-            turning_on: "show the focused window's menus in a panel menu; Qt apps started \
-                         afterwards hide their own menu bar",
-            turning_off: "leave menus inside their windows",
-        },
-    )
-}
-
-struct MenuLookupFailureIndicator<'failure> {
-    lookup_failure: &'failure X11MenuLookupError,
-}
-
-impl<'failure> MenuLookupFailureIndicator<'failure> {
-    fn indicator(self) -> GroupIndicator<'failure> {
-        GroupIndicator::glyph_only(
-            "Menu lookup",
-            Phosphor::Warning(Weight::Regular).into(),
-            IndicatorState::Failed,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled("failed".to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Error",
-            SectionWidget::paragraph(self.lookup_failure.to_string()),
-        )]
-    }
-}
 
 pub struct WindowMenuBar {
     pub window_menu_bar_use: WindowMenuBarUse,
@@ -197,7 +113,10 @@ impl WindowMenuBarRequest {
 pub enum Action {
     None,
     Run(Task<WindowMenuBarMessage>),
-    Activate(WindowMenuBarRequest),
+    Activate {
+        request: WindowMenuBarRequest,
+        dismissal: PressDismissal,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -360,8 +279,11 @@ impl WindowMenuBar {
                 Action::None
             }
             WindowMenuBarInteraction::ItemPressed(item_id) => {
-                self.menu_state.close();
-                self.item_activation(item_id)
+                let dismissal = press_dismissal(self.top_menus(), item_id);
+                if dismissal == PressDismissal::ClosesMenu {
+                    self.menu_state.close();
+                }
+                self.item_activation(item_id, dismissal)
             }
         }
     }
@@ -378,52 +300,32 @@ impl WindowMenuBar {
         self.focused_menu_bar = focused_menu_bar;
     }
 
-    fn item_activation(&self, item_id: i32) -> Action {
+    fn item_activation(&self, item_id: i32, dismissal: PressDismissal) -> Action {
         let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
             return Action::None;
         };
         match &shown_menu_bar.activation_route {
-            MenuActivationRoute::DbusMenu(location) => {
-                Action::Activate(WindowMenuBarRequest::ClickDbusMenuItem {
+            MenuActivationRoute::DbusMenu(location) => Action::Activate {
+                request: WindowMenuBarRequest::ClickDbusMenuItem {
                     location: location.clone(),
                     item_id,
-                })
-            }
+                },
+                dismissal,
+            },
             MenuActivationRoute::GtkActions {
                 action_groups,
                 activations,
             } => match activations.get(&item_id) {
-                Some(activation) => Action::Activate(WindowMenuBarRequest::ActivateGtkAction {
-                    action_groups: action_groups.clone(),
-                    activation: activation.clone(),
-                }),
+                Some(activation) => Action::Activate {
+                    request: WindowMenuBarRequest::ActivateGtkAction {
+                        action_groups: action_groups.clone(),
+                        activation: activation.clone(),
+                    },
+                    dismissal,
+                },
                 None => Action::None,
             },
         }
-    }
-
-    pub fn switch_content(&self) -> IndicatorGroupContent<'_> {
-        let mut rows = vec![GroupIndicator::toggle(
-            window_menu_bar_use_toggle(self.window_menu_bar_use),
-            WindowMenuBarInteraction::ToggleUse,
-        )];
-        if let Some(lookup_failure) = self.lookup_failure() {
-            rows.push(MenuLookupFailureIndicator { lookup_failure }.indicator());
-        }
-        IndicatorGroupContent::expandable(
-            IndicatorGroupFamily::WindowMenuBarSwitch,
-            GroupIndicator::glyph_only(
-                IndicatorGroupFamily::WindowMenuBarSwitch.title(),
-                Phosphor::CursorClick(Weight::Regular).into(),
-                match self.lookup_failure() {
-                    Some(_) => IndicatorState::Failed,
-                    None => IndicatorState::Idle,
-                },
-            ),
-            &self.switch_expansion,
-            WindowMenuBarInteraction::SwitchExpansion,
-            rows,
-        )
     }
 
     #[must_use]
@@ -455,212 +357,4 @@ impl WindowMenuBar {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use sottomano_desktop_sources::desktop_windows_apps::{
-        application_menu_nodes::MenuKind,
-        focused_window_menu_bar::{FocusedWindowOwner, MenuBarMatch, ShownMenuBar},
-        gtk_menus_menu_bar::{
-            ApplicationActionPath, GtkActionScope, GtkActionTarget, WindowActionPath,
-        },
-    };
-    use zbus::{names::OwnedBusName, zvariant::OwnedObjectPath};
-
-    use super::*;
-
-    const FILE_MENU_ID: i32 = 1;
-    const QUIT_ITEM_ID: i32 = 2;
-    const RECENT_MENU_ID: i32 = 3;
-    const RECENT_FILE_ID: i32 = 4;
-    const SEPARATOR_ID: i32 = 5;
-    const PRINT_ITEM_ID: i32 = 6;
-
-    fn menu_node(id: i32, label: &str, kind: MenuKind, children: Vec<MenuNode>) -> MenuNode {
-        MenuNode {
-            id,
-            label: Some(label.to_owned()),
-            enabled: true,
-            kind,
-            icon: None,
-            children,
-        }
-    }
-
-    fn file_menu() -> Vec<MenuNode> {
-        vec![menu_node(
-            FILE_MENU_ID,
-            "File",
-            MenuKind::Submenu,
-            vec![
-                menu_node(
-                    RECENT_MENU_ID,
-                    "Recent",
-                    MenuKind::Submenu,
-                    vec![menu_node(
-                        RECENT_FILE_ID,
-                        "notes.txt",
-                        MenuKind::Standard,
-                        Vec::new(),
-                    )],
-                ),
-                MenuNode {
-                    label: None,
-                    ..menu_node(SEPARATOR_ID, "", MenuKind::Separator, Vec::new())
-                },
-                MenuNode {
-                    enabled: false,
-                    ..menu_node(PRINT_ITEM_ID, "Print", MenuKind::Standard, Vec::new())
-                },
-                menu_node(QUIT_ITEM_ID, "Quit", MenuKind::Standard, Vec::new()),
-            ],
-        )]
-    }
-
-    fn qt_menu_bar_location() -> DbusMenuLocation {
-        DbusMenuLocation {
-            bus_name: OwnedBusName::try_from(":1.40").expect("bus name"),
-            menu_path: OwnedObjectPath::try_from("/MenuBar/1").expect("object path"),
-        }
-    }
-
-    fn enabled_group_showing(activation_route: MenuActivationRoute) -> WindowMenuBar {
-        let mut group = WindowMenuBar::default();
-        let _ = group.update(WindowMenuBarMessage::UseLoaded(WindowMenuBarUse::Enabled));
-        group.observe_focused_window(FocusedWindowIdentity::Window {
-            window_id: 3,
-            owner: FocusedWindowOwner::ProcessAndApp {
-                process_id: 40,
-                app_id: "org.example.Editor".to_owned(),
-            },
-        });
-        let _ = group.update(WindowMenuBarMessage::MenuBarChanged(FocusedMenuBar::Shown(
-            ShownMenuBar {
-                top_menus: file_menu(),
-                activation_route,
-                menu_bar_match: MenuBarMatch::ExactWindow,
-            },
-        )));
-        group
-    }
-
-    fn gtk_quit_route() -> MenuActivationRoute {
-        MenuActivationRoute::GtkActions {
-            action_groups: GtkActionGroups {
-                bus_name: OwnedBusName::try_from("org.example.Editor").expect("bus name"),
-                application_actions: ApplicationActionPath::Exported(
-                    OwnedObjectPath::try_from("/org/example/Editor").expect("object path"),
-                ),
-                window_actions: WindowActionPath::Unresolved,
-            },
-            activations: HashMap::from([(
-                QUIT_ITEM_ID,
-                GtkMenuActivation {
-                    scope: GtkActionScope::Application,
-                    action_name: "quit".to_owned(),
-                    action_target: GtkActionTarget::Untargeted,
-                },
-            )]),
-        }
-    }
-
-    #[test]
-    fn each_labelled_top_menu_becomes_a_submenu() {
-        let group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let top_menu_entries = group.menu_entries(&Config::default());
-        assert_eq!(top_menu_entries.len(), 1);
-        assert!(matches!(top_menu_entries[0], MenuEntry::Submenu(_)));
-        assert!(group.shows_top_menus());
-    }
-
-    #[test]
-    fn submenu_children_keep_their_nesting_and_separators() {
-        let group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let file_children = menu_node_entries(
-            &file_menu()[0].children,
-            &Config::default(),
-            &group.pixmap_handles,
-            &WindowMenuBarInteraction::ItemPressed,
-        );
-        assert!(matches!(
-            file_children.as_slice(),
-            [
-                MenuEntry::Submenu(_),
-                MenuEntry::Divider,
-                MenuEntry::Item(_),
-                MenuEntry::Item(_)
-            ]
-        ));
-    }
-
-    #[test]
-    fn switched_off_group_shows_nothing() {
-        let mut group =
-            enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let _ = group.interact(WindowMenuBarInteraction::ToggleUse);
-        assert_eq!(group.window_menu_bar_use, WindowMenuBarUse::Disabled);
-        assert!(group.menu_entries(&Config::default()).is_empty());
-        assert!(!group.shows_top_menus());
-    }
-
-    #[test]
-    fn pressing_an_entry_closes_the_open_submenus() {
-        let mut group =
-            enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let _ = group.interact(WindowMenuBarInteraction::Menu(NestedMenuAction::Opened(
-            vec![FILE_MENU_ID, RECENT_MENU_ID],
-        )));
-        let _ = group.interact(WindowMenuBarInteraction::ItemPressed(RECENT_FILE_ID));
-        assert!(group.menu_state.open_submenus.is_empty());
-    }
-
-    #[test]
-    fn group_starts_switched_off() {
-        assert_eq!(
-            WindowMenuBar::default().window_menu_bar_use,
-            WindowMenuBarUse::Disabled
-        );
-    }
-
-    #[test]
-    fn pressing_a_qt_entry_clicks_it_by_id() {
-        let mut group =
-            enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        assert!(matches!(
-            group.interact(WindowMenuBarInteraction::ItemPressed(QUIT_ITEM_ID)),
-            Action::Activate(WindowMenuBarRequest::ClickDbusMenuItem {
-                item_id: QUIT_ITEM_ID,
-                ..
-            })
-        ));
-    }
-
-    #[test]
-    fn pressing_a_gtk_entry_activates_its_action() {
-        let mut group = enabled_group_showing(gtk_quit_route());
-        let Action::Activate(WindowMenuBarRequest::ActivateGtkAction { activation, .. }) =
-            group.interact(WindowMenuBarInteraction::ItemPressed(QUIT_ITEM_ID))
-        else {
-            panic!("the quit entry activates a gtk action");
-        };
-        assert_eq!(activation.action_name, "quit");
-    }
-
-    #[test]
-    fn menu_bar_survives_the_panel_taking_keyboard_focus() {
-        let mut group = enabled_group_showing(gtk_quit_route());
-        group.observe_focused_window(FocusedWindowIdentity::NoFocusedWindow);
-        assert!(group.shows_top_menus());
-        assert_eq!(group.menu_entries(&Config::default()).len(), 1);
-    }
-
-    #[test]
-    fn focus_change_drops_the_previous_menu_bar() {
-        let mut group = enabled_group_showing(gtk_quit_route());
-        group.observe_focused_window(FocusedWindowIdentity::Window {
-            window_id: 9,
-            owner: FocusedWindowOwner::ProcessOnly { process_id: 9 },
-        });
-        assert!(group.menu_entries(&Config::default()).is_empty());
-    }
-}
+mod window_menu_bar_tests;

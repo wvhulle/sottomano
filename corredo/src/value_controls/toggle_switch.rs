@@ -78,10 +78,7 @@ fn switch_style(
     response: SwitchResponse,
     opacity: f32,
 ) -> toggler::Style {
-    let knob_color = match response {
-        SwitchResponse::Pressable => text_color(theme),
-        SwitchResponse::Inert => secondary_text_color(theme),
-    };
+    let knob_color = knob_color(theme, response);
     toggler::Style {
         background: track_color(theme, toggle_position, response)
             .scale_alpha(opacity)
@@ -96,7 +93,18 @@ fn switch_style(
     }
 }
 
-fn track_color(theme: &Theme, toggle_position: TogglePosition, response: SwitchResponse) -> Color {
+pub(super) fn knob_color(theme: &Theme, response: SwitchResponse) -> Color {
+    match response {
+        SwitchResponse::Pressable => text_color(theme),
+        SwitchResponse::Inert => secondary_text_color(theme),
+    }
+}
+
+pub(super) fn track_color(
+    theme: &Theme,
+    toggle_position: TogglePosition,
+    response: SwitchResponse,
+) -> Color {
     match response {
         SwitchResponse::Pressable => match toggle_position {
             TogglePosition::On => primary_color(theme),

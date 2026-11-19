@@ -17,6 +17,7 @@ use sottomano_widgets::{
     background_work::{compositor_request, logged_failure_task},
     cascading_menus::{
         app_launcher_menu::{self, AppLauncherMessage},
+        menu_node_entries::PressDismissal,
         window_menu_bar::{
             self, WindowMenuBarInteraction, WindowMenuBarMessage, WindowMenuBarRequest,
         },
@@ -214,9 +215,14 @@ impl DesktopShell {
             tray_group::Action::SendWithActivationToken(command) => {
                 self.send_tray_command_with_activation_token(command)
             }
-            tray_group::Action::MenuItemActivated(command) => {
+            tray_group::Action::MenuItemActivated { command, dismissal } => {
                 let menu_click = self.send_tray_command_with_activation_token(command);
-                Task::batch([self.dismiss_hover_card(), menu_click])
+                match dismissal {
+                    PressDismissal::ClosesMenu => {
+                        Task::batch([self.dismiss_hover_card(), menu_click])
+                    }
+                    PressDismissal::KeepsMenuOpen => menu_click,
+                }
             }
             tray_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Tray)
@@ -241,10 +247,15 @@ impl DesktopShell {
         match action {
             window_menu_bar::Action::None => Task::none(),
             window_menu_bar::Action::Run(task) => task.map(Message::WindowMenuBar),
-            window_menu_bar::Action::Activate(request) => Task::batch([
-                self.dismiss_hover_card(),
-                self.send_window_menu_bar_request(request),
-            ]),
+            window_menu_bar::Action::Activate { request, dismissal } => {
+                let activation = self.send_window_menu_bar_request(request);
+                match dismissal {
+                    PressDismissal::ClosesMenu => {
+                        Task::batch([self.dismiss_hover_card(), activation])
+                    }
+                    PressDismissal::KeepsMenuOpen => activation,
+                }
+            }
         }
     }
 

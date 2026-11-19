@@ -5,6 +5,8 @@ pub use expanding_slider::{
 };
 mod inline_slider;
 pub use inline_slider::{InlineSlider, SliderAccents, inline_slider};
+mod radio_mark;
+pub use radio_mark::{RadioMark, radio_mark};
 mod seek_bar;
 pub use seek_bar::{PlaybackTimeline, SeekBar, SeekMessage};
 mod synced_value;

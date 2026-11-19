@@ -29,7 +29,7 @@ use sottomano_toml_config::{
 
 use crate::{
     background_work::logged_failure_task,
-    cascading_menus::menu_node_entries::menu_node_entries,
+    cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
     clock::Clock,
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
@@ -96,7 +96,10 @@ pub enum Action {
     None,
     Run(Task<TrayMessage>),
     SendWithActivationToken(TrayCommand),
-    MenuItemActivated(TrayCommand),
+    MenuItemActivated {
+        command: TrayCommand,
+        dismissal: PressDismissal,
+    },
     FocusAppWindow(AppWindowFocus<TrayMessage>),
 }
 
@@ -180,12 +183,26 @@ impl TrayGroup {
                 menu_path,
                 id,
             } => {
-                self.menu_state.close();
-                Action::MenuItemActivated(TrayCommand::MenuClick {
-                    address,
-                    menu_path,
-                    id,
-                })
+                let dismissal = self
+                    .items
+                    .get()
+                    .into_iter()
+                    .flatten()
+                    .find(|item| item.address == address)
+                    .map_or(PressDismissal::ClosesMenu, |item| {
+                        press_dismissal(&item.menu, id)
+                    });
+                if dismissal == PressDismissal::ClosesMenu {
+                    self.menu_state.close();
+                }
+                Action::MenuItemActivated {
+                    command: TrayCommand::MenuClick {
+                        address,
+                        menu_path,
+                        id,
+                    },
+                    dismissal,
+                }
             }
             TrayMessage::Menu(action) => {
                 self.menu_state.perform(action);
