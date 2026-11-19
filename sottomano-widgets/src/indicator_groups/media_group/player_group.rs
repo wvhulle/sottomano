@@ -7,11 +7,11 @@ use sottomano_toml_config::Config;
 use super::{
     PlayerInteraction, PlayerSession, player_interaction,
     seek_bar::{SeekAvailability, SeekBar, seek_position_indicator},
-    session_controls::session_buttons_indicator,
+    session_controls::session_button_indicators,
     synced_lyrics_view::lyrics_row,
     track_face::{player_headline_indicator, player_hover_card, track_indicator},
     track_hover_card::track_hover_card,
-    transport_controls::transport_controls_indicator,
+    transport_controls::transport_button_indicators,
 };
 use crate::{
     clock::Clock,
@@ -81,8 +81,8 @@ pub(super) fn player_group<'a>(
     if seek_availability == SeekAvailability::Seekable {
         rows.push(seek_position_indicator(config, clock, media, session));
     }
-    rows.push(transport_controls_indicator(config, media));
-    rows.extend(session_buttons_indicator(config, media, session));
+    rows.extend(transport_button_indicators(media));
+    rows.extend(session_button_indicators(config, media, session));
     Some(
         IndicatorGroupContent::expandable_instance(
             player_group_identity(media, bus),

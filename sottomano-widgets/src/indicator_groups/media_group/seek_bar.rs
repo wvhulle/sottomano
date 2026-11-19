@@ -111,8 +111,8 @@ pub(super) fn seek_position_indicator<'a>(
         Box::new(|_| Vec::new()),
     )
     .with_button_actions([
-        PressAction::new(MouseGesture::LeftClick, "Seek bar: jump to this point"),
-        PressAction::new(MouseGesture::Scroll, "Seek bar: seek"),
+        PressAction::new(MouseGesture::LeftClick, "jump to this point"),
+        PressAction::new(MouseGesture::Scroll, "seek"),
     ])
 }
 
