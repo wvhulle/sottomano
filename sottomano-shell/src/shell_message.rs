@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
     delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::{
         app_launch_history::Launch,
-        desktop_entry_app_icons::{DesktopEntries, IconTheme},
+        desktop_entries::{DesktopEntries, IconTheme},
         firefox_favicon_lookup::RawFavicon,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
@@ -24,10 +24,10 @@ use sottomano_widgets::{
     cascading_menus::{
         app_launcher_menu::AppLauncherMessage, window_menu_bar::WindowMenuBarMessage,
     },
-    desktop_index::ResolvedIcons,
     desktop_panels::panel_slot_drag::DragMessage,
     group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{HoverCardMessage, PopupMessage},
+    icon_catalog::drawable_icon_catalog::ResolvedIcons,
     indicator_groups::{
         apptainer_containers_group::ApptainerContainersMessage, audio_group::AudioMessage,
         bluetooth_adapters_group::BluetoothMessage, caldav_group::CaldavMessage,

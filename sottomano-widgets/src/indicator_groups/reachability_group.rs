@@ -34,6 +34,7 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
@@ -47,9 +48,7 @@ use crate::{
         },
     },
     widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        localized_quantities::Quantity, subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };

@@ -39,6 +39,10 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
@@ -50,8 +54,6 @@ use crate::{
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         most_used_model::{ModelSpendRanking, RankedSpan},
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
 };

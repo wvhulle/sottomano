@@ -1,7 +1,7 @@
 use iced_controller_diagram::ControllerModel;
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
 
-use crate::widgets::{
+use crate::glyph_icons::{
     icon_glyph::IconGlyph,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,

@@ -8,14 +8,11 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::InformationRate;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     indicator_groups::echo_probe_window_rows::probe_window_section,
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

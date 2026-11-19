@@ -2,7 +2,7 @@ use corredo::theming::tinted_svg_icon;
 use iced::{Color, Element, Theme};
 pub use sottomano_phosphor_icons::{Phosphor, Weight};
 
-use crate::widgets::icon_glyph::IconGlyph;
+use crate::glyph_icons::icon_glyph::IconGlyph;
 
 const INK_FRACTION: f32 = 208.0 / 256.0;
 

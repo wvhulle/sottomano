@@ -2,17 +2,14 @@ use sottomano_desktop_sources::cpu_memory_compute::temperature_thresholds::celsi
 use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::Section,
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 #[derive(Clone)]

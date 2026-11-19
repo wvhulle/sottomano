@@ -36,6 +36,7 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
         indicator_group_content::{
@@ -48,9 +49,7 @@ use crate::{
         },
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 

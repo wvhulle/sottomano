@@ -22,15 +22,17 @@ use iced::{
 };
 use sottomano_toml_config::theme::font::ResolvedFont;
 
-use crate::widgets::{
-    icon_glyph::IconGlyph,
-    keyed_record_table::TableRecord,
-    localized_durations::{
-        LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
+use crate::{
+    glyph_icons::icon_glyph::IconGlyph,
+    widgets::{
+        keyed_record_table::TableRecord,
+        localized_durations::{
+            LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
+        },
+        localized_quantities::Quantity,
+        localized_time::LocalizedTimeFormat,
+        text::{font_faces_of, panel_text, text_face_of},
     },
-    localized_quantities::Quantity,
-    localized_time::LocalizedTimeFormat,
-    text::{font_faces_of, panel_text, text_face_of},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

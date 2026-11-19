@@ -21,6 +21,7 @@ use self::modem_signal_indicator::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
         indicator_group_content::{
@@ -31,11 +32,7 @@ use crate::{
         },
         interface_address_sections::{AddressFamily, InterfaceAddressIndicator},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
-    },
+    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
 #[derive(Debug)]

@@ -3,16 +3,13 @@ use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::RecordedErrors
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 const ERROR_MOMENT_FORMAT: &str = "%Y-%m-%d %H:%M UTC";

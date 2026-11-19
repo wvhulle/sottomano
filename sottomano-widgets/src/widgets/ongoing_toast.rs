@@ -13,12 +13,12 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::indicator_state::IndicatorState,
     hover_cards::IndicatorKey,
     widgets::{
         amount_text::percent_text,
         announced_level::{AnnouncedLevel, LevelToastRequest},
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
     },

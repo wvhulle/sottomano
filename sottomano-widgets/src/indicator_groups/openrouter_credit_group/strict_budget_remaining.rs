@@ -8,19 +8,17 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{
-        amount_text::spend_text,
-        icon_glyph::IconGlyph,
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{amount_text::spend_text, localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 pub(crate) const OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH: IconGlyph =

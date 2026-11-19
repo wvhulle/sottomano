@@ -14,6 +14,10 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
@@ -22,8 +26,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
         subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         value_cells::LabeledValue,
     },

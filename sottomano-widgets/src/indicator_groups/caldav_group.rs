@@ -32,6 +32,11 @@ use sottomano_toml_config::{SecretPaths, indicator_groups::caldav_account::Calda
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -39,12 +44,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const OPEN_TASKS_GLYPH: Phosphor = Phosphor::ListChecks(Weight::Regular);

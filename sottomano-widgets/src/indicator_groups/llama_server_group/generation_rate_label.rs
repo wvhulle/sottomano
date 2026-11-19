@@ -1,6 +1,7 @@
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -9,7 +10,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

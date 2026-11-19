@@ -1,11 +1,11 @@
 use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

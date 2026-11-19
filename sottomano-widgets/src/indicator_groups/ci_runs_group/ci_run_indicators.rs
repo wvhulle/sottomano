@@ -10,6 +10,11 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -18,10 +23,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     indicator_groups::process_usage_cells::{approximate_memory_text, cpu_share_quantity},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };

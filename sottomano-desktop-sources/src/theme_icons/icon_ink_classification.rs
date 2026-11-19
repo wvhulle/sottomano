@@ -2,9 +2,9 @@ use std::{path::Path, sync::Arc};
 
 use image::RgbaImage;
 
-use crate::desktop_windows_apps::{
-    application_menu_nodes::SYMBOLIC_ICON_SUFFIX,
-    icon_whitespace_trim::{IconFile, IconTrim, IconTrimError, read_icon_file},
+use crate::{
+    desktop_windows_apps::application_menu_nodes::SYMBOLIC_ICON_SUFFIX,
+    theme_icons::icon_file_loading::{IconFile, IconTrim, IconTrimError, read_icon_file},
 };
 
 #[derive(Debug, Clone, PartialEq)]

@@ -4,13 +4,13 @@ use sottomano_desktop_sources::login_session_presence::idle_session_actions::Idl
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

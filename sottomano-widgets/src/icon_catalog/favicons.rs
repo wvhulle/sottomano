@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::firefox_favicon_lookup::{self, RawFavicon},
 };
 
-use crate::widgets::icon_handle::IconHandle;
+use crate::icon_catalog::icon_handle::IconHandle;
 
 #[derive(Default)]
 pub struct Favicons {

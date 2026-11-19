@@ -1,16 +1,14 @@
 use sottomano_desktop_sources::login_session_presence::logind_session_facts::SessionIdentity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 pub struct AccountFace<'a> {

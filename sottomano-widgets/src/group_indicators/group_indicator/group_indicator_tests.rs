@@ -6,6 +6,7 @@ use iced_test::Simulator;
 
 use super::*;
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::named_test_indicator,
         indicator_gestures::IndicatorGesture,
@@ -20,7 +21,6 @@ use crate::{
         compositor_styling_group::CompositorStylingMessage,
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 fn composed_row<'indicator>() -> GroupIndicator<'indicator> {

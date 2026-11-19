@@ -4,6 +4,10 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -11,10 +15,8 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

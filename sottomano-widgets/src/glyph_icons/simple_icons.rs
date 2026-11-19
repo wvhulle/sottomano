@@ -1,7 +1,7 @@
 use iced::{Color, Element, Theme, widget::svg};
 pub use sottomano_simple_icons::SimpleIcon;
 
-use crate::widgets::icon_glyph::IconGlyph;
+use crate::glyph_icons::icon_glyph::IconGlyph;
 
 #[must_use]
 pub fn view_simple_icon<'a, Message: 'a>(

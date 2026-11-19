@@ -4,16 +4,14 @@ use sottomano_desktop_sources::network_connectivity::tailscale_status::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 const USE_BLOCKS_OFFERING_TEXT: &str = "stop using the exit node first";

@@ -3,12 +3,10 @@ use sottomano_desktop_sources::screen_brightness_color::clightd_backlight::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::monitor_group::output_details::ConnectedOutput,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 pub fn face(backlight: &Backlight) -> Phosphor {

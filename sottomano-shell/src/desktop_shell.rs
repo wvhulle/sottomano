@@ -24,23 +24,23 @@ use sottomano_desktop_sources::{
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
     },
     desktop_windows_apps::{
-        app_launch_history::LaunchTracker, desktop_entry_app_icons::IconTheme,
-        desktop_entry_changes, workspace_window_snapshot,
+        app_launch_history::LaunchTracker, desktop_entries::IconTheme, desktop_entry_changes,
+        workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
-    desktop_index::DesktopIndex,
     group_indicators::group_indicator::HoverFetch,
     group_menus::group_menu_state::{GroupMenuMessage, OpenGroupMenu},
     hover_cards::HoverCardHost,
+    icon_catalog::{drawable_icon_catalog::DesktopIndex, favicons::Favicons},
     load_tally::{WorkKind, WorkMeasurement, record_update, record_view},
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widgets::{
-        configured_theme::configured_theme, favicon::Favicons,
-        text::point_generic_font_families_at, typing_under_cards::TypingUnderCards,
+        configured_theme::configured_theme, text::point_generic_font_families_at,
+        typing_under_cards::TypingUnderCards,
     },
 };
 

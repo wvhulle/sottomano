@@ -25,6 +25,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{
+    glyph_icons::{icon_glyph::IconGlyph, phosphor::Phosphor},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{
@@ -39,9 +40,7 @@ use crate::{
     },
     widgets::{
         announced_level::{LevelAnnouncement, LevelChangeOrigin},
-        icon_glyph::IconGlyph,
         ongoing_toast::{IndicatorAlerts, LevelNotice},
-        phosphor::Phosphor,
         slider_look::slider_look,
         text::{panel_text, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},

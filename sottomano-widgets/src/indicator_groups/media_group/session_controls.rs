@@ -4,6 +4,7 @@ use sottomano_toml_config::Config;
 
 use super::{PlayerInteraction, PlayerSession, lifted_to_player, player_interaction};
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
@@ -11,7 +12,6 @@ use crate::{
     },
     hover_cards::{MouseGesture, PressAction},
     indicator_groups::media_group::confirm_button::configured_confirm_button,
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 fn stop_indicator(media: &Media) -> Option<GroupIndicator<'_>> {

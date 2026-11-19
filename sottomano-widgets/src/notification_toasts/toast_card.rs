@@ -15,21 +15,19 @@ use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
     },
-    desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, icon_whitespace_trim::IconTrim,
-        theme_icon_sources::theme_icon_source,
-    },
+    desktop_windows_apps::desktop_entries::DesktopEntries,
+    theme_icons::{icon_file_loading::IconTrim, icon_ink_classification::theme_icon_source},
 };
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};
 use crate::{
+    glyph_icons::icon_glyph::IconGlyph,
     hover_cards::PointerPresence,
+    icon_catalog::icon_handle::IconHandle,
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
-        icon_glyph::IconGlyph,
-        icon_handle::IconHandle,
         localized_durations::relative_moment_text,
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,

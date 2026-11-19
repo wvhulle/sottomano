@@ -15,7 +15,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     desktop_windows_apps::{
         application_menu_nodes::{MenuIconLookup, MenuNode, visible_menu_node},
-        desktop_entry_app_icons::DesktopEntries,
+        desktop_entries::DesktopEntries,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };

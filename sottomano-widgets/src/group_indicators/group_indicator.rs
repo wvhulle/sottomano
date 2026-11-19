@@ -10,6 +10,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         aligned_quantity::IndicatorAlignment,
         indicator_drawing::{
@@ -24,11 +25,8 @@ use crate::{
     indicator_groups::{
         indicator_group_content::GroupEvent, indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        ongoing_toast::{
-            IndicatorAlerts, LevelNotice, OngoingToast, OngoingToastActionButton, StateToast,
-        },
+    widgets::ongoing_toast::{
+        IndicatorAlerts, LevelNotice, OngoingToast, OngoingToastActionButton, StateToast,
     },
 };
 

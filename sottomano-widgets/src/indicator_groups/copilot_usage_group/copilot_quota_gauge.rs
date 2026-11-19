@@ -8,6 +8,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -17,7 +18,6 @@ use crate::{
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::IndicatorAlerts,
-        phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
     },

@@ -16,12 +16,10 @@ use sottomano_desktop_sources::{
 
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 #[derive(Debug, Clone, PartialEq)]

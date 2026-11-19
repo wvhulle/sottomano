@@ -36,12 +36,13 @@ use self::{menu_bar_switch::WindowMenuBarUse, top_menu_glyphs::top_menu_glyph};
 use crate::{
     background_work::logged_failure_task,
     cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
+    glyph_icons::icon_glyph::IconGlyph,
     group_menus::group_menu_state::MenuTopicPresence,
+    icon_catalog::icon_handle::PixmapHandles,
     indicator_groups::{
         indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
         sqlite_singleton_flag,
     },
-    widgets::{icon_glyph::IconGlyph, icon_handle::PixmapHandles},
 };
 
 pub struct WindowMenuBar {

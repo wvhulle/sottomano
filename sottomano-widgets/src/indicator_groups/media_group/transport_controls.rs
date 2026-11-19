@@ -4,8 +4,8 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{
 
 use super::{PlayerInteraction, player_interaction};
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 struct TransportButton {

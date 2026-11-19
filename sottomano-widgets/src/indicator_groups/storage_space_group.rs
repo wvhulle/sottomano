@@ -35,6 +35,7 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -48,11 +49,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
-    },
+    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
 const BCACHEFS_FS_TYPE: &str = "bcachefs";

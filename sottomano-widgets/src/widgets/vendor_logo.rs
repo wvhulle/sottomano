@@ -3,10 +3,9 @@ use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::{BusId, CpuVendor},
 };
 
-use crate::widgets::{
-    icon_glyph::IconGlyph,
-    simple_icons::SimpleIcon,
-    value_cells::{LabeledValue, ValueCell},
+use crate::{
+    glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 pub trait VendorLogo {

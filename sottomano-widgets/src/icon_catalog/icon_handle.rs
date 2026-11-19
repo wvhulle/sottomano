@@ -6,10 +6,9 @@ use iced::{
     Color, ContentFit, Element, Length, Theme,
     widget::{image, svg},
 };
-use sottomano_desktop_sources::desktop_windows_apps::{
-    firefox_favicon_lookup::{FaviconKind, RawFavicon},
-    icon_whitespace_trim::IconFile,
-    theme_icon_sources::IconSource,
+use sottomano_desktop_sources::{
+    desktop_windows_apps::firefox_favicon_lookup::{FaviconKind, RawFavicon},
+    theme_icons::{icon_file_loading::IconFile, icon_ink_classification::IconSource},
 };
 
 impl From<RawFavicon> for IconHandle {

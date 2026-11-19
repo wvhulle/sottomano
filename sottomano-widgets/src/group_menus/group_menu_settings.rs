@@ -2,6 +2,7 @@ use corredo::popovers::{NestedMenuLayout, NestedMenuPresentation};
 use sottomano_toml_config::Config;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
@@ -12,7 +13,6 @@ use crate::{
         indicator_group_content::IndicatorGroupContent,
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 fn accordion_layout_toggle(presentation: NestedMenuPresentation) -> IconToggle {

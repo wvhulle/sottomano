@@ -5,17 +5,16 @@ use sottomano_desktop_sources::{
 
 use super::speech_model_indicator::model_load_error_rows;
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        icon_glyph::IconGlyph,
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 const fn phase_text(phase: &DictationPhase) -> &'static str {

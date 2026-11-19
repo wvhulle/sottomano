@@ -5,6 +5,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutBadge,
@@ -17,7 +18,6 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };

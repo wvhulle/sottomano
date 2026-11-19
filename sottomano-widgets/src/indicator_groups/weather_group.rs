@@ -36,6 +36,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
@@ -45,10 +46,7 @@ use crate::{
         },
         weather_group::rain_intensity::{RainForecast, RainSources},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const WEATHER_GLYPH: Phosphor = Phosphor::CloudSun(Weight::Regular);

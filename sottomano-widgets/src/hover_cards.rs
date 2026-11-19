@@ -18,12 +18,12 @@ pub use crate::hover_cards::{
     laid_out_anchors::WidgetAnchor,
 };
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPin},
     indicator_groups::{
         indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
         window_group::{WindowGroupInteraction, WindowTarget},
     },
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

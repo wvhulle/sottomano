@@ -9,6 +9,7 @@ use uom::{
 };
 
 use crate::{
+    glyph_icons::{icon_glyph::IconGlyph, weather_icons::WeatherIcon},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -16,12 +17,10 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         value_cells::{LabeledValue, ValueCell},
-        weather_icons::WeatherIcon,
     },
 };
 

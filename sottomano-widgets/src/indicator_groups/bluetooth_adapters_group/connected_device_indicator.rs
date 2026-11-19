@@ -8,6 +8,10 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
@@ -17,10 +21,8 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     indicator_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
     widgets::{
-        icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
         localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

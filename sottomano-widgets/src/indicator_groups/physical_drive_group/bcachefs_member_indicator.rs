@@ -3,17 +3,14 @@ use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::Bcachefs
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 const WRITABLE_MEMBER_STATE: &str = "rw";

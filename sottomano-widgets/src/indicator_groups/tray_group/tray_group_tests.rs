@@ -17,7 +17,7 @@ use sottomano_toml_config::{
 };
 
 use super::{TrayItemWindow, TrayMessage, click_hint, click_message, item_view};
-use crate::widgets::icon_handle::PixmapHandles;
+use crate::icon_catalog::icon_handle::PixmapHandles;
 
 const PANEL_WIDTH: f32 = 800.0;
 const MARKER_AFTER_ITEM: &str = "marker after the tray item";

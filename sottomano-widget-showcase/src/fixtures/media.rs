@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    desktop_index::DesktopIndex,
+    icon_catalog::drawable_icon_catalog::DesktopIndex,
     indicator_groups::media_group::{MediaGroup, MediaMessage},
 };
 

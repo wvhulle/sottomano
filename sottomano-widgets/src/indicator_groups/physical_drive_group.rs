@@ -29,6 +29,7 @@ use sottomano_toml_config::{Config, indicator_groups::temperature_sensors::Senso
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
@@ -42,10 +43,7 @@ use crate::{
             block_filesystem_discovery_hover_card, block_filesystem_discovery_indicator,
         },
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const HARD_DRIVES_GLYPH: Phosphor = Phosphor::HardDrives(Weight::Regular);

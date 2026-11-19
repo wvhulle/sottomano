@@ -9,12 +9,13 @@ use sottomano_toml_config::theme::palette::Palette;
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     indicator_groups::{
         compositor_styling_group::CompositorStylingMessage,
-        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+        sqlite_singleton_flag,
+        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
     },
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

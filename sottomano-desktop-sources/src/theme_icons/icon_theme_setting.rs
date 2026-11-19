@@ -6,7 +6,7 @@ use zbus::{
     zvariant::{OwnedValue, Value},
 };
 
-use crate::desktop_windows_apps::desktop_entry_app_icons::IconTheme;
+use crate::desktop_windows_apps::desktop_entries::IconTheme;
 
 const INTERFACE_SETTINGS_NAMESPACE: &str = "org.gnome.desktop.interface";
 const ICON_THEME_KEY: &str = "icon-theme";

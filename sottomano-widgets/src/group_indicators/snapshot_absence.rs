@@ -1,9 +1,9 @@
 use sottomano_desktop_sources::SnapshotSource;
 
 use crate::{
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, hover_card_source_delivery::SourceDelivery},
-    widgets::icon_glyph::IconGlyph,
 };
 
 pub enum Staleness<S: SnapshotSource> {

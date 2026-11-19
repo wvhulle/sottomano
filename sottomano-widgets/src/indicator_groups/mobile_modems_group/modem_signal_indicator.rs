@@ -5,6 +5,7 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
@@ -14,11 +15,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::interface_address_sections::{AddressFamily, signal_level},
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 pub struct ModemSignalIndicator<'a> {

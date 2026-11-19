@@ -17,6 +17,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -29,10 +30,7 @@ use crate::{
         indicator_group_interaction::IndicatorGroupInteraction,
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 const SHOWN_CONTAINER_ROWS: usize = 12;

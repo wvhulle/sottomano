@@ -1,16 +1,14 @@
 use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
 use crate::{
+    glyph_icons::{icon_glyph::IconGlyph, weather_icons::WeatherIcon},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        icon_glyph::IconGlyph, localized_quantities::Quantity, value_cells::LabeledValue,
-        weather_icons::WeatherIcon,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 pub(crate) const WIND_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::StrongWind);

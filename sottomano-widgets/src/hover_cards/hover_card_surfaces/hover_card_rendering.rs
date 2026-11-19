@@ -18,7 +18,7 @@ use crate::{
         hover_card_content::HoverCardContent,
         hover_card_transition::{CardRetention, Departed, DepartedContent, ShownTarget},
     },
-    widgets::window_icon::WindowAssets,
+    icon_catalog::window_icons::WindowAssets,
 };
 
 impl HoverCardHost {

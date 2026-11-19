@@ -9,6 +9,7 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -18,7 +19,6 @@ use crate::{
     widgets::{
         input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
         localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

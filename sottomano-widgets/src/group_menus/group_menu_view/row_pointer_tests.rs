@@ -15,6 +15,7 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue, named_test_indicator},
         indicator_drawing::IndicatorIcon,
@@ -31,7 +32,6 @@ use crate::{
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::icon_glyph::IconGlyph,
 };
 
 #[derive(Debug, Clone, PartialEq)]

@@ -7,11 +7,14 @@ use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
 use super::workspace_window_snapshot;
-use crate::desktop_windows_apps::{
-    desktop_entry_app_catalog::LaunchableApp,
-    icon_whitespace_trim::IconTrim,
-    theme_icon_sources::{IconSource, theme_icon_source},
-    window_title_labels::IconCandidate,
+use crate::{
+    desktop_windows_apps::{
+        desktop_entry_app_catalog::LaunchableApp, window_title_labels::IconCandidate,
+    },
+    theme_icons::{
+        icon_file_loading::IconTrim,
+        icon_ink_classification::{IconSource, theme_icon_source},
+    },
 };
 
 const APP_ICON_LOOKUP_PX: u16 = 48;

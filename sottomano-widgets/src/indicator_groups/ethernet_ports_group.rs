@@ -21,6 +21,7 @@ use self::port_link_indicator::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -37,9 +38,7 @@ use crate::{
         interface_group_titles::AttachmentTitles,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 

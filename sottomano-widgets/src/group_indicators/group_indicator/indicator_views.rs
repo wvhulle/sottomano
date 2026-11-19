@@ -18,6 +18,10 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         indicator_drawing::{face_icon, indicator_drawing, readout_view},
         indicator_gestures::IndicatorGesture,
@@ -27,10 +31,6 @@ use crate::{
     hover_cards::{HoverTarget, IndicatorKey, hoverable},
     indicator_groups::{
         indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupIdentity,
-    },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
     },
 };
 

@@ -20,12 +20,11 @@ use super::{
 use crate::{
     desktop_panels::panel_slot_drag::PanelSlotContext,
     group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
-    widgets::{
+    icon_catalog::{
         icon_handle::IconHandle,
-        shared_metrics::ACCENT_STROKE_PX,
-        text::font_faces_of,
-        window_icon::{WindowAssets, window_icon},
+        window_icons::{WindowAssets, window_icon},
     },
+    widgets::{shared_metrics::ACCENT_STROKE_PX, text::font_faces_of},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,7 +208,7 @@ mod tests {
     use super::{
         WindowGroupIdentity, WindowSlotPresentation, keyed_group_positions, slot_presentations,
     };
-    use crate::widgets::icon_handle::IconHandle;
+    use crate::icon_catalog::icon_handle::IconHandle;
 
     fn named_icon(icon_name: &str) -> IconHandle {
         IconHandle::at(Path::new(&format!("{icon_name}.svg")))

@@ -1,19 +1,17 @@
 use sottomano_desktop_sources::{SnapshotSource, cpu_memory_compute::pci_gpu_samples::GpuSnapshot};
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        icon_glyph::IconGlyph,
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-        vendor_logo::VendorLogo,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue, vendor_logo::VendorLogo},
 };
 
 pub(crate) const GPU_SNAPSHOT_FALLBACK_GLYPH: IconGlyph =

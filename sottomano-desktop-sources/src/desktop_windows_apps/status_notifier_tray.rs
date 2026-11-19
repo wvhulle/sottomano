@@ -26,12 +26,14 @@ use crate::{
         application_menu_nodes::{
             MenuIconLookup, MenuNode, symbolic_first_icon_names, tray_menu_nodes,
         },
-        desktop_entry_app_icons::DesktopEntries,
-        icon_whitespace_trim::IconTrim,
-        theme_icon_sources::IconSource,
+        desktop_entries::DesktopEntries,
     },
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    theme_icons::{
+        icon_file_loading::{IconTrim, trim_rgba},
+        icon_ink_classification::IconSource,
+    },
 };
 
 const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
@@ -123,7 +125,7 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
         pixel.rotate_left(1);
     }
     RgbaImage::from_raw(width, height, bytes)
-        .map(super::icon_whitespace_trim::trim_rgba)
+        .map(trim_rgba)
         .map(capped_to_side_limit)
 }
 

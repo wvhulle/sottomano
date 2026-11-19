@@ -7,6 +7,7 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -14,10 +15,7 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 const OFFERING_BLOCKS_USE_TEXT: &str = "stop offering this machine as an exit node first";

@@ -18,12 +18,11 @@ use crate::{
             PreviewTile, TileCaption, TileIcon, WorkspacePreview,
         },
     },
-    widgets::{
-        favicon::Favicons,
-        shared_metrics::OUTLINE_WIDTH_PX,
-        window_icon::{WindowAssets, window_icon},
-        window_title::WindowTitle,
+    icon_catalog::{
+        favicons::Favicons,
+        window_icons::{WindowAssets, window_icon},
     },
+    widgets::{shared_metrics::OUTLINE_WIDTH_PX, window_title::WindowTitle},
 };
 
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;

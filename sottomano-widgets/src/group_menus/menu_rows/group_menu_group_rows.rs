@@ -3,6 +3,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, RowScroll},
         indicator_gestures::IndicatorGesture,
@@ -18,10 +19,7 @@ use crate::{
         indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     },
-    widgets::{
-        glyph_button,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::glyph_button,
 };
 
 pub(crate) struct GroupMenuGroupRow<'a> {
@@ -155,9 +153,9 @@ pub(crate) fn indicator_entry<'a>(
 mod tests {
     use super::{GroupMenuGroupRow, IndicatorGroupIdentity, one_row_per_identity};
     use crate::{
+        glyph_icons::icon_glyph::IconGlyph,
         group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
         indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
-        widgets::icon_glyph::IconGlyph,
     };
 
     fn row_of<'row>(

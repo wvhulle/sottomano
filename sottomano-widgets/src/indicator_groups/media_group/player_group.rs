@@ -15,7 +15,8 @@ use super::{
 };
 use crate::{
     clock::Clock,
-    desktop_index::DesktopIndex,
+    glyph_icons::phosphor::{Phosphor, Weight},
+    icon_catalog::drawable_icon_catalog::DesktopIndex,
     indicator_groups::{
         indicator_group_content::IndicatorGroupContent,
         indicator_group_identity::{
@@ -23,10 +24,7 @@ use crate::{
             IndicatorGroupTitle,
         },
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 fn player_group_identity(media: &Media, bus: &str) -> IndicatorGroupIdentity {

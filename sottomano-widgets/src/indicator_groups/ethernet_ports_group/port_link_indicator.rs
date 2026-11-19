@@ -5,16 +5,14 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator, indicator_drawing::IdentityOrdinal,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::interface_address_sections::link_stats_section,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

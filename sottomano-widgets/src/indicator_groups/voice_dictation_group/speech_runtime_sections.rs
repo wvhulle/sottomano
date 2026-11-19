@@ -2,13 +2,13 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_indicator::non_empty;
 use crate::{
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        value_cells::LabeledValue,
     },
+    hover_cards::hover_card_body::{Section, dictionary_table},
+    widgets::value_cells::LabeledValue,
 };
 
 const ONNX_RUNTIME_NAME: &str = "ONNX Runtime";

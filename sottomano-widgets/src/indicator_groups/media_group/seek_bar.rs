@@ -13,13 +13,13 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
         indicator_state::IndicatorState,
     },
     hover_cards::{MouseGesture, PressAction},
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 #[derive(Debug, Default)]

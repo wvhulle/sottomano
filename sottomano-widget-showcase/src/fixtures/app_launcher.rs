@@ -12,9 +12,8 @@ use sottomano_widgets::{
             WorkspaceWindowPresence,
         },
     },
-    desktop_index::DesktopIndex,
+    icon_catalog::{drawable_icon_catalog::DesktopIndex, icon_handle::IconHandle},
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
-    widgets::icon_handle::IconHandle,
 };
 
 use crate::{

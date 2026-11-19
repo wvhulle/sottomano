@@ -1,17 +1,17 @@
 use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::CpuModel;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::Section,
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        vendor_logo::VendorLogo,
-    },
+    widgets::vendor_logo::VendorLogo,
 };
 
 pub(super) fn cpu_model_panel_visibility(model: &CpuModel) -> PanelVisibility {

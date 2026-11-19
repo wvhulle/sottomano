@@ -13,6 +13,10 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{DescribeCard, GroupIndicator, IndicatorValue, PanelVisibility},
         indicator_drawing::IndicatorIcon,
@@ -23,9 +27,7 @@ use crate::{
         INSTRUMENTAL_BREAK_MARK, KaraokeLyricLine, PlaybackPosition,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
-        phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::ValueCell,
     },

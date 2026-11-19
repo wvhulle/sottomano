@@ -1,7 +1,9 @@
 use chrono::{NaiveTime, TimeDelta, Timelike};
 
 use super::{CLOCK_MINUTES, CLOCK_STEP_MINUTES};
-use crate::{group_indicators::slider_control::SliderControl, widgets::weather_icons::WeatherIcon};
+use crate::{
+    glyph_icons::weather_icons::WeatherIcon, group_indicators::slider_control::SliderControl,
+};
 
 pub(super) fn new_clock_slider(name: &'static str, icon: WeatherIcon) -> SliderControl {
     SliderControl::new(name, CLOCK_MINUTES, icon)

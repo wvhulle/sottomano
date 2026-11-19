@@ -3,6 +3,10 @@ use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
 };
 
 use crate::{
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -11,8 +15,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };

@@ -11,7 +11,7 @@ use sottomano_toml_config::Config;
 use super::{GroupEvent, GroupMenuView, InspectionCard};
 use crate::{
     clock::Clock,
-    desktop_index::DesktopIndex,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue, named_test_indicator},
         indicator_drawing::IndicatorIcon,
@@ -25,15 +25,15 @@ use crate::{
         IndicatorKey, MouseGesture, PopupMessage, PressAction,
         hover_card_body::{Section, SectionWidget},
     },
+    icon_catalog::{
+        drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
+    },
     indicator_groups::{
         clock_group::ClockInteraction,
         indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
-    widgets::{
-        favicon::Favicons, icon_glyph::IconGlyph, shell_layer_appearance::ShellLayer,
-        window_icon::WindowAssets,
-    },
+    widgets::shell_layer_appearance::ShellLayer,
 };
 
 pub(super) struct MenuTestBench {

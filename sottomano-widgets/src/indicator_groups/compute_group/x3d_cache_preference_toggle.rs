@@ -10,6 +10,7 @@ use sottomano_desktop_sources::{
 
 use super::core_grid_sections::topology_facts;
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -17,10 +18,7 @@ use crate::{
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 pub(crate) fn x3d_cache_preference_indicator(

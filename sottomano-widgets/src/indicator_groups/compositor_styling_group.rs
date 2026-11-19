@@ -21,6 +21,11 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         aligned_quantity::AlignedQuantity,
         group_indicator::GroupIndicator,
@@ -38,12 +43,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 impl From<ShellBlurDepth> for SwitchPosition {

@@ -52,6 +52,7 @@ use self::{
 };
 use crate::{
     background_work::{compositor_request, logged_failure_task, snapshot_subscription},
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -70,10 +71,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    widgets::{
-        input_report_sections::MeasuredReportTiming,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::input_report_sections::MeasuredReportTiming,
 };
 
 const CONTROLLER_DISCOVERY_GROUP: &str = "controller_discovery";

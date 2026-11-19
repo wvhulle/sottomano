@@ -13,12 +13,10 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::Section,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
-    },
+    widgets::subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

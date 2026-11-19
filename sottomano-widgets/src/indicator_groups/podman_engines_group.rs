@@ -16,6 +16,11 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
         indicator_state::IndicatorState,
@@ -33,9 +38,6 @@ use crate::{
     },
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },

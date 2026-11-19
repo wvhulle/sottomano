@@ -15,6 +15,7 @@ use super::{
     core_grid_sections::{CoreGridSection, PerCoreSample},
 };
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -22,11 +23,7 @@ use crate::{
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();

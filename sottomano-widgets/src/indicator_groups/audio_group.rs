@@ -20,6 +20,7 @@ use tokio::task::spawn_blocking;
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         slider_control::{
@@ -34,11 +35,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
-    },
+    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
@@ -365,8 +362,8 @@ mod tests {
 
     use super::AudioGroup;
     use crate::{
+        glyph_icons::phosphor::{Phosphor, Weight},
         group_indicators::indicator_drawing::ReadoutGauge,
-        widgets::phosphor::{Phosphor, Weight},
     };
 
     #[test]

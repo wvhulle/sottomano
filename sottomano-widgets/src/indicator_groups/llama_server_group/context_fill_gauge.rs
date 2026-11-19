@@ -3,6 +3,7 @@ use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, S
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -12,7 +13,6 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };

@@ -10,6 +10,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -19,7 +20,6 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         ongoing_toast::IndicatorAlerts,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

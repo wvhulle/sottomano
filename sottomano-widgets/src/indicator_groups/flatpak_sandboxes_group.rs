@@ -9,6 +9,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -23,11 +24,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         process_usage_cells::approximate_memory_text,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 fn sandbox_icon() -> IconGlyph {

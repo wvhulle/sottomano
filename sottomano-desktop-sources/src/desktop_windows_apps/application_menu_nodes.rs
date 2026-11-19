@@ -5,12 +5,11 @@ use system_tray::menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu};
 
 use crate::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::{DesktopEntries, IconTheme},
-        icon_whitespace_trim::IconTrim,
+        desktop_entries::{DesktopEntries, IconTheme},
         status_notifier_tray::capped_to_side_limit,
-        theme_icon_sources::IconSource,
     },
     non_empty_text::non_empty,
+    theme_icons::{icon_file_loading::IconTrim, icon_ink_classification::IconSource},
 };
 
 pub(crate) const SYMBOLIC_ICON_SUFFIX: &str = "-symbolic";

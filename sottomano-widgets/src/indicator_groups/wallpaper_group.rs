@@ -16,6 +16,7 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -23,10 +24,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const WALLPAPER_GLYPH: Phosphor = Phosphor::Image(Weight::Regular);

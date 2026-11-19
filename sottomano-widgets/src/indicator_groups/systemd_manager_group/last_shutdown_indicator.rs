@@ -8,12 +8,12 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel},
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
-        phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
 };

@@ -21,6 +21,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator, toggle_control::SwitchPresses, unit_switch::UnitSwitchFace,
     },
@@ -31,10 +32,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        hover_fetched_snapshot::{HoverFetchedSnapshot, SnapshotFetchStage},
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::hover_fetched_snapshot::{HoverFetchedSnapshot, SnapshotFetchStage},
 };
 
 const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {

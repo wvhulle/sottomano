@@ -7,14 +7,14 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
         toggle_control::{SwitchPosition, ToggleableSource},
-    },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
     },
 };
 

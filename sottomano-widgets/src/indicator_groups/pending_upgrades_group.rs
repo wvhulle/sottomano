@@ -3,10 +3,10 @@ use std::iter;
 use iced::{Subscription, Task};
 
 use crate::{
+    glyph_icons::phosphor::Weight,
     group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutBadge},
     hover_cards::hover_card_body::dictionary_table,
     indicator_groups::indicator_group_identity::IndicatorGroupFamily,
-    widgets::phosphor::Weight,
 };
 
 mod firmware_upgrade_list;
@@ -24,6 +24,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::phosphor::Phosphor,
     group_indicators::indicator_state::IndicatorState,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -33,8 +34,8 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        localized_quantities::Quantity, phosphor::Phosphor,
-        subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
+        localized_quantities::Quantity, subscribed_snapshot::SubscribedSnapshot,
+        value_cells::LabeledValue,
     },
 };
 

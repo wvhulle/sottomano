@@ -23,6 +23,7 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -38,7 +39,6 @@ use crate::{
         ongoing_toast::{
             IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

@@ -1,4 +1,4 @@
-use crate::widgets::simple_icons::SimpleIcon;
+use crate::glyph_icons::simple_icons::SimpleIcon;
 
 #[must_use]
 pub fn program_brand_icon(program_name: &str) -> Option<SimpleIcon> {
@@ -22,7 +22,7 @@ pub fn program_brand_icon(program_name: &str) -> Option<SimpleIcon> {
 #[cfg(test)]
 mod tests {
     use super::program_brand_icon;
-    use crate::widgets::simple_icons::SimpleIcon;
+    use crate::glyph_icons::simple_icons::SimpleIcon;
 
     #[test]
     fn a_nushell_prompt_wears_the_nushell_logo() {

@@ -6,7 +6,7 @@ use sottomano_desktop_sources::desktop_notifications::notification_data::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use crate::{hover_cards::IndicatorKey, widgets::icon_glyph::IconGlyph};
+use crate::{glyph_icons::icon_glyph::IconGlyph, hover_cards::IndicatorKey};
 
 const LEVEL_TOAST_LIFETIME: Duration = Duration::from_millis(1_500);
 
@@ -121,11 +121,11 @@ mod tests {
 
     use super::*;
     use crate::{
+        glyph_icons::phosphor::{Phosphor, Weight},
         indicator_groups::{
             audio_group::ControlKind,
             indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         },
-        widgets::phosphor::{Phosphor, Weight},
     };
 
     fn count_after(reports: &[LevelChangeOrigin]) -> Option<u64> {

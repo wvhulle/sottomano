@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
-use crate::widgets::phosphor::Weight;
+use crate::glyph_icons::phosphor::Weight;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum IndicatorState {

@@ -2,6 +2,10 @@ use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::Cl
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -10,9 +14,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
         value_cells::{LabeledValue, ValueCell},
     },

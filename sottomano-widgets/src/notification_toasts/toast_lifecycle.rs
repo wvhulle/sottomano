@@ -17,10 +17,10 @@ use sottomano_toml_config::{
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
+    glyph_icons::icon_glyph::IconGlyph,
     hover_cards::IndicatorKey,
     widgets::{
         announced_level::LevelToastRequest,
-        icon_glyph::IconGlyph,
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };

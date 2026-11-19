@@ -1,11 +1,12 @@
 pub mod background_work;
 pub mod cascading_menus;
 pub mod clock;
-pub mod desktop_index;
 pub mod desktop_panels;
+pub mod glyph_icons;
 pub mod group_indicators;
 pub mod group_menus;
 pub mod hover_cards;
+pub mod icon_catalog;
 pub mod indicator_groups;
 pub mod layer_surfaces;
 pub mod load_tally;

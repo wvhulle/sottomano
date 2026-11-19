@@ -8,6 +8,7 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
     group_menus::{
         group_menu_state::{
@@ -24,6 +25,7 @@ use crate::{
         hover_card_content::HoverCardContent,
         hoverable,
     },
+    icon_catalog::window_icons::WindowAssets,
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, GroupToastRequests, IndicatorGroupContent, edge_indicator,
@@ -31,9 +33,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupIdentity,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{
-        icon_glyph::IconGlyph, shell_layer_appearance::LayerAppearance, window_icon::WindowAssets,
-    },
+    widgets::shell_layer_appearance::LayerAppearance,
 };
 
 mod group_menu_cascade;

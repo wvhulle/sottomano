@@ -8,6 +8,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -15,11 +16,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::clock_group::TICK,
-    widgets::{
-        localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_time::LocalizedTimeFormat, value_cells::LabeledValue},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

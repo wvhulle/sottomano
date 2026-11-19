@@ -30,6 +30,7 @@ pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, slider_control::ControlMessage},
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -47,7 +48,6 @@ use crate::{
             ActionTrigger, performed_idle_action_edges,
             timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
         },
-        phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
     },
 };

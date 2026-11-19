@@ -3,11 +3,11 @@ use iced::{Element, Theme};
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
-    widgets::{
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
+    group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
 };
 
 #[allow(clippy::too_many_arguments)]

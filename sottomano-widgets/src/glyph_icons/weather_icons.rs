@@ -11,7 +11,7 @@ use sottomano_desktop_sources::weather::open_meteo_temperature::{
 };
 use sottomano_weather_icons::WeatherSvg;
 
-use crate::widgets::icon_glyph::IconGlyph;
+use crate::glyph_icons::icon_glyph::IconGlyph;
 
 const INK_FRACTION: f32 = 22.0 / 30.0;
 

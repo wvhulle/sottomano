@@ -21,6 +21,7 @@ use uom::si::{f64::Power, power::watt};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::slider_control::{Action, ControlMessage, SliderControl},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     indicator_groups::power_group::{
@@ -29,9 +30,7 @@ use crate::{
         sqlite_power_draw_regression,
     },
     widgets::{
-        keyed_record_table::TableRecord,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        keyed_record_table::TableRecord, subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };

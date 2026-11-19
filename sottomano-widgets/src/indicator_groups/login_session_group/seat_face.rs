@@ -1,17 +1,17 @@
 use std::num::NonZeroU32;
 
 use crate::{
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 pub struct SeatFace<'a> {

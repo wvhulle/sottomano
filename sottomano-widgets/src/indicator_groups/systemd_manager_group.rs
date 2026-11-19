@@ -34,6 +34,7 @@ use sottomano_toml_config::{Config, indicator_groups::systemd_manager::SystemdMa
 
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -46,11 +47,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupIdentity,
         terminal_command::TerminalCommand,
     },
-    widgets::{
-        ongoing_toast::OngoingKey,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::{ongoing_toast::OngoingKey, subscribed_snapshot::SubscribedSnapshot},
 };
 
 const SLOW_JOBS_GLYPH: Phosphor = Phosphor::HourglassMedium(Weight::Regular);

@@ -7,6 +7,10 @@ use sottomano_toml_config::Config;
 
 use super::{AppLauncherMessage, AppLauncherSubmenu};
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         indicator_toggle_switch::indicator_toggle_switch,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
@@ -14,10 +18,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::GroupEvent,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
-    },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
     },
 };
 

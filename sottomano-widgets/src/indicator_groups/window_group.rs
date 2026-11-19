@@ -27,8 +27,8 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot_drag::PanelSlotContext,
     hover_cards::{HoverTarget, PressAction, hover_card_body::Section},
+    icon_catalog::window_icons::WindowAssets,
     indicator_groups::indicator_group_content::GroupEvent,
-    widgets::window_icon::WindowAssets,
 };
 
 #[derive(Default)]

@@ -3,8 +3,8 @@ use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {

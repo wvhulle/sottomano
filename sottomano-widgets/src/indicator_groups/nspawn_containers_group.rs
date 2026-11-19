@@ -11,6 +11,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::ReadoutLabel,
@@ -26,7 +27,6 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{
-        phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
     },

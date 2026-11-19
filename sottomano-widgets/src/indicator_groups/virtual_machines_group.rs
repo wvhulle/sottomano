@@ -25,6 +25,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -40,9 +41,7 @@ use crate::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
     },
     widgets::{
-        app_window_focus::AppWindowFocus,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        app_window_focus::AppWindowFocus, subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };

@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
     },
     desktop_windows_apps::{
         app_launch_history::LaunchScope,
+        desktop_entries,
         desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
-        desktop_entry_app_icons::{self},
         focused_window_menu_bar::FocusedWindowIdentity,
         workspace_window_snapshot,
     },
@@ -179,8 +179,8 @@ impl DesktopShell {
     }
 
     pub(crate) fn resolve_icons(&mut self) -> Task<Message> {
-        let app_keys = desktop_entry_app_icons::app_icon_keys(&self.window_snapshot);
-        let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.window_snapshot);
+        let app_keys = desktop_entries::app_icon_keys(&self.window_snapshot);
+        let theme_keys = desktop_entries::theme_icon_keys(&self.window_snapshot);
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)

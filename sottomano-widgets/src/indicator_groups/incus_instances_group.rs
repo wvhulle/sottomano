@@ -18,6 +18,10 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -34,12 +38,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         process_usage_cells::approximate_memory_text,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
-    },
+    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
 const WATCHED_DAEMONS: [InstanceDaemon; 2] = [InstanceDaemon::Incus, InstanceDaemon::Lxd];

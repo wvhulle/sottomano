@@ -20,6 +20,7 @@ use super::{
     diagram_anchor_mapping::{button_anchor, stick_anchor},
 };
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IdentityOrdinal, ReadoutLabel},
@@ -29,10 +30,7 @@ use crate::{
         Section, SectionWidget, dictionary_table,
         hover_card_figure_payloads::{DiagramCallout, controller_diagram_widget},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 const DIRECTION_ARROWS: &[char] = &['←', '→', '↑', '↓', ' '];

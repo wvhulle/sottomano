@@ -3,6 +3,11 @@ use sottomano_desktop_sources::{SnapshotSource, weather::situo_location_fix::Loc
 use uom::si::length::kilometer;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -10,10 +15,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };

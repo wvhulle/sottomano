@@ -24,12 +24,11 @@ use uom::{
 };
 
 use crate::{
+    glyph_icons::{icon_glyph::IconGlyph, phosphor, phosphor::Phosphor},
     hover_cards::{PopupMessage, hover_card_body::SectionWidget},
     indicator_groups::window_group::{WindowGroupInteraction, window_list::WindowListInteraction},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
-        phosphor::{self, Phosphor},
         text::{column_heading, font_faces_of, panel_text, text_face_of},
     },
 };

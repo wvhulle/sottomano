@@ -2,17 +2,16 @@ use std::time::{Duration, Instant};
 
 use reqwest::Url;
 use sottomano_desktop_sources::{
-    desktop_windows_apps::desktop_entry_app_icons::SchemeHandling,
+    desktop_windows_apps::desktop_entries::SchemeHandling,
     media_playback_audio::mpris_players::Media,
 };
 
 use crate::{
     clock::Clock,
-    desktop_index::DesktopIndex,
+    glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
     hover_cards::hover_card_body::{Section, dictionary_table},
+    icon_catalog::drawable_icon_catalog::DesktopIndex,
     widgets::{
-        icon_glyph::IconGlyph,
-        simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
     },

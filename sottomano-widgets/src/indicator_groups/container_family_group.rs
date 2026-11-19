@@ -10,6 +10,7 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
@@ -22,7 +23,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 pub enum RowPower<PowerRequest> {

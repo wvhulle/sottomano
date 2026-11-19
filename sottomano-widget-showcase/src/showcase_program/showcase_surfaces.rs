@@ -22,16 +22,14 @@ use sottomano_widgets::{
         hover_card_body::Section,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
+    icon_catalog::window_icons::WindowAssets,
     indicator_groups::{
         indicator_group_content::GroupEvent, quiet_schedule_group::quiet_window::QuietPhase,
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{ToastContext, ToastSurfaceStyle},
     toast_messages::NotificationMessage,
-    widgets::{
-        shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade,
-        window_icon::WindowAssets,
-    },
+    widgets::{shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade},
 };
 
 use super::{SHOWCASE_FLOAT_OFFSET_PX, ShowcaseState};

@@ -40,6 +40,7 @@ use x3d_cache_preference_toggle::{ChipletRoles, x3d_cache_preference_indicator};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
@@ -54,9 +55,7 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 

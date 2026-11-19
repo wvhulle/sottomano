@@ -12,14 +12,13 @@ use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_connection,
     desktop_notifications::freedesktop_notification_server,
-    desktop_windows_apps::{
-        desktop_entry_changes, firefox_favicon_lookup, icon_theme_changes::icon_theme_changes,
-    },
+    desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup},
     system_protocol_clients::{
         dbus_desktop_buses::desktop_bus_events,
         inotify_directory_changes::{WatchTarget, changes},
         protocol_peer_reconnects::subscribed,
     },
+    theme_icons::icon_theme_setting::icon_theme_changes,
 };
 use sottomano_widgets::{
     cascading_menus::menu_node_entries::menu_icon_lookup, hover_cards::HoverCardMessage,

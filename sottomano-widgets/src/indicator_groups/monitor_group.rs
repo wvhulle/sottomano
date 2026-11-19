@@ -25,6 +25,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -39,10 +40,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
-    },
+    widgets::subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
 };
 
 const AUTO_BRIGHTNESS_GLYPH: Phosphor = Phosphor::Eye(Weight::Regular);

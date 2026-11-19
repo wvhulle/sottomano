@@ -25,6 +25,10 @@ use self::{
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        weather_icons::WeatherIcon,
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
@@ -47,9 +51,7 @@ use crate::{
         idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
-        weather_icons::WeatherIcon,
     },
 };
 

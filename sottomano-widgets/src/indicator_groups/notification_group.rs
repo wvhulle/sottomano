@@ -2,6 +2,7 @@ use iced::Task;
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -15,13 +16,10 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         quiet_schedule_group::{QuietScheduleGroup, quiet_window::QuietPhase},
-        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+        sqlite_singleton_flag,
+        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
     },
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 #[derive(Debug, Clone, Copy)]

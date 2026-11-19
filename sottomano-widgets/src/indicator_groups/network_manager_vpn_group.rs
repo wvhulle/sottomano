@@ -12,6 +12,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
@@ -23,10 +24,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 mod network_manager_vpn_hover_card;

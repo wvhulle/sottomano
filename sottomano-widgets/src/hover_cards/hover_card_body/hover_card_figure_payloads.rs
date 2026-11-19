@@ -8,7 +8,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use super::SectionWidget;
-use crate::widgets::{icon_handle::IconHandle, value_cells::LabeledValue};
+use crate::{icon_catalog::icon_handle::IconHandle, widgets::value_cells::LabeledValue};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControllerCallouts {

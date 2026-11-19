@@ -27,9 +27,7 @@ use sottomano_desktop_sources::{
     desktop_notifications::{
         freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },
-    desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, window_edge_placement::Placement,
-    },
+    desktop_windows_apps::{desktop_entries::DesktopEntries, window_edge_placement::Placement},
 };
 use sottomano_toml_config::{Config, severity::Severity};
 use toast_card::ToastCard;

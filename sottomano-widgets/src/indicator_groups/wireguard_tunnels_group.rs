@@ -13,6 +13,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::simple_icons::SimpleIcon,
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
@@ -25,8 +26,7 @@ use crate::{
         },
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 

@@ -16,6 +16,11 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        weather_icons::WeatherIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -32,7 +37,6 @@ use crate::{
         },
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
         localized_quantities::Quantity,
@@ -40,9 +44,7 @@ use crate::{
         ongoing_toast::{
             IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
         },
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
-        weather_icons::WeatherIcon,
     },
 };
 

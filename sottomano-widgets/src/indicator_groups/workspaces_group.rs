@@ -25,14 +25,12 @@ use crate::{
         panel_slot::dragged_slot_content,
         panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     },
-    hover_cards::{HoverCardMessage, HoverTarget, MouseGesture, PressAction, hoverable},
-    widgets::{
-        glyph_button,
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        pointer_drag::DraggedPanelSlot,
-        text::panel_text,
     },
+    hover_cards::{HoverCardMessage, HoverTarget, MouseGesture, PressAction, hoverable},
+    widgets::{glyph_button, pointer_drag::DraggedPanelSlot, text::panel_text},
 };
 
 #[derive(Debug, Clone)]

@@ -86,7 +86,7 @@ impl ConnectedOutput<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{simple_icons::SimpleIcon, value_cells::ValueCell};
+    use crate::{glyph_icons::simple_icons::SimpleIcon, widgets::value_cells::ValueCell};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(

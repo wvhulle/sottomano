@@ -6,10 +6,10 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutGauge},
     hover_cards::hover_card_body::{Section, SectionTitle},
     indicator_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 const SCALE_START: Duration = Duration::from_millis(5);

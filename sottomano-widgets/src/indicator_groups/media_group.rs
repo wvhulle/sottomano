@@ -25,8 +25,8 @@ use sottomano_toml_config::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    desktop_index::DesktopIndex,
     group_menus::group_source_demand::GroupSourceDemand,
+    icon_catalog::{drawable_icon_catalog::DesktopIndex, icon_handle::IconHandle},
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
@@ -36,7 +36,6 @@ use crate::{
     },
     widgets::{
         app_window_focus::AppWindowFocus,
-        icon_handle::IconHandle,
         subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
     },
 };

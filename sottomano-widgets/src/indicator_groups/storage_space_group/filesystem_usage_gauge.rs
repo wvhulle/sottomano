@@ -5,6 +5,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
@@ -15,7 +16,6 @@ use crate::{
     widgets::{
         localized_quantities::Quantity,
         ongoing_toast::{StateToast, ToastBody, ToastProgress},
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

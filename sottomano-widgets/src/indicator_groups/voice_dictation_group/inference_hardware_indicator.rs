@@ -2,14 +2,14 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_indicator::non_empty;
 use crate::{
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        value_cells::LabeledValue,
     },
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    hover_cards::hover_card_body::{Section, dictionary_table},
+    widgets::value_cells::LabeledValue,
 };
 
 fn inference_device_of(engine: &DictationEngine) -> InferenceDevice {

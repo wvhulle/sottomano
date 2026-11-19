@@ -1,4 +1,4 @@
-use crate::widgets::phosphor::{Phosphor, Weight};
+use crate::glyph_icons::phosphor::{Phosphor, Weight};
 
 const TOP_MENU_KEYWORD_GLYPHS: [TopMenuKeywordGlyph; 14] = [
     TopMenuKeywordGlyph::new(&["file"], Phosphor::Folder(Weight::Regular)),

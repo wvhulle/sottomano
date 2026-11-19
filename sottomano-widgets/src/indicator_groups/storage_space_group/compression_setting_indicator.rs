@@ -5,6 +5,7 @@ use sottomano_desktop_sources::disk_storage::{
 };
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -13,7 +14,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::{Quantity, localized_decimal},
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

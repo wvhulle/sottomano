@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 pub const SUN_FOLLOW: UnitSwitchFace = UnitSwitchFace {

@@ -4,6 +4,7 @@ use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
     clock::Clock,
+    glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -13,7 +14,6 @@ use crate::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
-    widgets::icon_glyph::IconGlyph,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {
@@ -256,8 +256,8 @@ mod tests {
 
     use super::*;
     use crate::{
+        glyph_icons::icon_glyph::IconGlyph,
         group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-        widgets::icon_glyph::IconGlyph,
     };
 
     #[derive(Debug, Clone, PartialEq)]

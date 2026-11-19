@@ -25,6 +25,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -35,10 +36,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    widgets::{
-        discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
 };
 
 const CANCEL_RUN_HINT: &str = "Cancel run";

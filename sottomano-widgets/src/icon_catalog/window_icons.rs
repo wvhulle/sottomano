@@ -4,9 +4,8 @@ use sottomano_desktop_sources::desktop_windows_apps::{
     window_title_labels::IconCandidate, workspace_window_snapshot,
 };
 
-use crate::{
-    desktop_index::DesktopIndex,
-    widgets::{favicon::Favicons, icon_handle::IconHandle},
+use crate::icon_catalog::{
+    drawable_icon_catalog::DesktopIndex, favicons::Favicons, icon_handle::IconHandle,
 };
 
 #[derive(Clone, Copy)]

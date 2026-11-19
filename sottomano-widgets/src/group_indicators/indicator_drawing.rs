@@ -9,16 +9,16 @@ use sottomano_toml_config::Config;
 use uom::si::f64::Ratio;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         gauge::Gauge,
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        icon_handle::IconHandle,
-        phosphor::{Phosphor, Weight},
-        text::{font_faces_of, panel_text},
-    },
+    icon_catalog::icon_handle::IconHandle,
+    widgets::text::{font_faces_of, panel_text},
 };
 
 pub(crate) fn state_glyph_view<'a, Message: 'a>(

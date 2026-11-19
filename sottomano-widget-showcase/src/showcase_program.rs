@@ -21,9 +21,9 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::C
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
-    desktop_index::DesktopIndex,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState},
     hover_cards::{HoverCardHost, HoverTarget, PopupMessage},
+    icon_catalog::{drawable_icon_catalog::DesktopIndex, favicons::Favicons},
     indicator_groups::{
         appearance_presets_group::AppearancePresetsMessage,
         indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
@@ -33,7 +33,6 @@ use sottomano_widgets::{
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
-        favicon::Favicons,
         text::{font_faces_of, point_generic_font_families_at},
     },
 };

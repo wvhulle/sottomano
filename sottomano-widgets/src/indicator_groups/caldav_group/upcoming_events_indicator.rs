@@ -15,6 +15,11 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -24,12 +29,9 @@ use crate::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };

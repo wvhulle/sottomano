@@ -29,13 +29,14 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    desktop_index::DesktopIndex,
     hover_cards::HoverTarget,
+    icon_catalog::{
+        drawable_icon_catalog::DesktopIndex, favicons::Favicons, icon_handle::IconHandle,
+    },
     indicator_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowRowLayout, WindowTarget,
         window_list::WindowListMessage,
     },
-    widgets::{favicon::Favicons, icon_handle::IconHandle},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

@@ -21,6 +21,10 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
@@ -32,12 +36,7 @@ use crate::{
         fixed_panel_group::FixedPanelGroup,
         idle_pause_groups::{ScheduledAfterIdle, Timeouts},
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        localized_durations::duration_text,
-        phosphor::{Phosphor, Weight},
-        text::text_face_of,
-    },
+    widgets::{localized_durations::duration_text, text::text_face_of},
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);

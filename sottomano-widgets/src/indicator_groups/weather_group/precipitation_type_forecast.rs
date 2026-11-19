@@ -4,7 +4,7 @@ use sottomano_desktop_sources::weather::{
     open_meteo_temperature::SkyWetness,
 };
 
-use crate::widgets::{icon_glyph::IconGlyph, weather_icons::WeatherIcon};
+use crate::glyph_icons::{icon_glyph::IconGlyph, weather_icons::WeatherIcon};
 
 pub const MODEL_QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
 

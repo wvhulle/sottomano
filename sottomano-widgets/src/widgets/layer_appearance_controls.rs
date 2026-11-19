@@ -8,6 +8,7 @@ use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     background_work::logged_failure_task,
     desktop_panels::region_reporter::BackdropBlur,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         aligned_quantity::AlignedQuantity,
         group_indicator::GroupIndicator,
@@ -15,10 +16,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
-    },
+    widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
 };
 
 #[derive(Debug, Clone)]

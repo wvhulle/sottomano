@@ -2,7 +2,7 @@ use std::{borrow::Cow, cmp::Reverse, collections::HashMap};
 
 use freedesktop_desktop_entry::DesktopEntry;
 
-use super::desktop_entry_app_icons::DesktopEntries;
+use super::desktop_entries::DesktopEntries;
 use crate::compositor_window_ipc::compositor_window_state::CompositorWindow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -201,7 +201,7 @@ mod tests {
             compositor_test_windows::unplaced_compositor_window,
             compositor_window_state::CompositorWindow,
         },
-        desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
+        desktop_windows_apps::desktop_entries::DesktopEntries,
     };
 
     fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {

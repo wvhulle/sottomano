@@ -13,6 +13,10 @@ use uom::si::{
 };
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         gauge::percent_text,
         group_indicator::GroupIndicator,
@@ -25,11 +29,9 @@ use crate::{
         sqlite_charge_power_curve,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::TableRecord,
         localized_quantities::Quantity,
         ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
-        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };

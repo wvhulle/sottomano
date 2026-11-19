@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     compositor_window_ipc::compositor_output_facts,
     desktop_windows_apps::{
-        app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries, window_edge_placement,
+        app_launch_history::Launch, desktop_entries::DesktopEntries, window_edge_placement,
     },
     system_protocol_clients::shell_command_output::blocking::run,
 };

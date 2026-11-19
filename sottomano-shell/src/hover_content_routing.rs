@@ -14,13 +14,14 @@ use sottomano_widgets::{
         menu_rows::menu_row::{MenuAppearance, configured_nested_menu},
     },
     hover_cards::{HoverTarget, hover_card_body::Section, hover_card_surfaces::HoverContent},
+    icon_catalog::window_icons::WindowAssets,
     indicator_groups::{
         indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         indicator_group_interaction::IndicatorGroupInteraction,
         tray_group::TrayMessage,
     },
-    widgets::{typing_under_cards::CardBackgroundFade, window_icon::WindowAssets},
+    widgets::typing_under_cards::CardBackgroundFade,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};

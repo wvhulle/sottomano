@@ -3,10 +3,8 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::C
 
 use crate::{
     desktop_panels::region_reporter::BackdropBlur,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, LookComparison, ShellLayer},
-    },
+    glyph_icons::phosphor::{Phosphor, Weight},
+    widgets::shell_layer_appearance::{LayerAppearance, LookComparison, ShellLayer},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

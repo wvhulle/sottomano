@@ -20,13 +20,15 @@ use sottomano_toml_config::{
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMenu,
     clock::Clock,
-    desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
     group_indicators::group_indicator::HoverFetch,
     group_menus::group_menu_state::GroupMenuState,
     hover_cards::{
         CardHeader, HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
+    icon_catalog::{
+        drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
     },
     indicator_groups::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
@@ -74,9 +76,7 @@ use sottomano_widgets::{
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        favicon::Favicons,
         pointer_drag::DragView,
-        window_icon::WindowAssets,
     },
 };
 

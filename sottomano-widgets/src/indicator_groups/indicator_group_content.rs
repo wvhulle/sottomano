@@ -724,6 +724,7 @@ mod tests {
     use super::{IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage};
     use crate::{
         clock::Clock,
+        glyph_icons::icon_glyph::IconGlyph,
         group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, IndicatorKey, MouseGesture, PressAction},
@@ -731,7 +732,6 @@ mod tests {
             clock_group::ClockInteraction,
             indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         },
-        widgets::icon_glyph::IconGlyph,
     };
 
     fn shown_state_indicator<'indicator>(

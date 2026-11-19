@@ -1,4 +1,4 @@
-use crate::widgets::phosphor::{Phosphor, Weight};
+use crate::glyph_icons::phosphor::{Phosphor, Weight};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupMenuTopic {

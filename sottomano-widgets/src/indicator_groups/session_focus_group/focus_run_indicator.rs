@@ -5,6 +5,7 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -13,7 +14,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

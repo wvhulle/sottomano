@@ -5,6 +5,10 @@ use sottomano_desktop_sources::systemd_units_journal::{
 use sottomano_toml_config::Config;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -33,11 +37,7 @@ use crate::{
         },
         terminal_command::TerminalCommand,
     },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 pub struct JournalScopeGroup {

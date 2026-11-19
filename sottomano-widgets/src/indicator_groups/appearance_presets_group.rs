@@ -1,4 +1,5 @@
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
@@ -13,7 +14,6 @@ use crate::{
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        phosphor::{Phosphor, Weight},
         shell_layer_appearance::LookComparison,
     },
 };

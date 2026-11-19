@@ -46,6 +46,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         toggle_control::{SwitchPosition, SwitchPresses},
@@ -73,7 +74,6 @@ use crate::{
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         huggingface_hub_sections::hugging_face_model_card_sections,
-        phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
     },
 };

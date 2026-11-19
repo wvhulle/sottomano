@@ -34,6 +34,10 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::indicator_state::IndicatorState,
     group_menus::{
         group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
@@ -48,18 +52,16 @@ use crate::{
             hover_card_source_delivery::{DeliveryStamp, HoverCard, SectionSource, SourceDelivery},
         },
     },
+    icon_catalog::window_icons::WindowAssets,
     indicator_groups::{
         window_group::process_tree::{Folding, ProcessTree},
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
         configured_scroll::configured_scroll,
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
-        phosphor::{Phosphor, Weight},
         text::{column_heading, font_faces_of, panel_text, text_effects_of, text_face_of},
         value_cells::{ValueCell, ValueCellPressMessages, ValueCellView, wrapped_text},
-        window_icon::WindowAssets,
     },
 };
 

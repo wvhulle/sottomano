@@ -8,15 +8,13 @@ use sottomano_toml_config::severity::Severity;
 
 use super::core_grid_sections::cpu_ranges;
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 pub(super) fn cause_text(cause: FrequencyLimitCause) -> String {

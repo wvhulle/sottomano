@@ -48,10 +48,17 @@ use crate::{
             window_source_workspace,
         },
     },
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        program_brand_icons::program_brand_icon,
+        simple_icons::view_simple_icon,
+    },
     group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
     hover_cards::{
         HoverCardMessage, MouseGesture, PressAction, hover_card_body::Section, hoverable,
     },
+    icon_catalog::window_icons::{WindowAssets, window_icon},
     indicator_groups::window_group::{
         WindowRowLayout, WindowTarget, WindowTitleLength,
         flat_window_rows::arranged_flat_rows,
@@ -66,16 +73,11 @@ use crate::{
         DISABLED_ALPHA,
         configured_scroll::configured_scroll,
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
         pointer_drag::{
             DragView, DraggedPanelSlot, PanelSlotList, reorderable_list::reorderable_list,
         },
-        program_brand_icons::program_brand_icon,
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
-        simple_icons::view_simple_icon,
         text::font_faces_of,
-        window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
     },
 };
@@ -1076,7 +1078,6 @@ mod tests {
     };
     use crate::{
         clock::Clock,
-        desktop_index::DesktopIndex,
         desktop_panels::panel_slot_drag::{
             DragMessage, PanelSlotContext,
             pager_drag_simulation::{
@@ -1085,12 +1086,13 @@ mod tests {
                 three_workspaces_three_windows_on,
             },
         },
+        icon_catalog::{
+            drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
+        },
         indicator_groups::window_group::{WindowRowLayout, WindowTitleLength},
         widgets::{
-            favicon::Favicons,
             pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
             shell_layer_appearance::ShellLayer,
-            window_icon::WindowAssets,
         },
     };
 

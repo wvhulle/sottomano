@@ -3,7 +3,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::{DesktopEntries, IconTheme},
+        desktop_entries::{DesktopEntries, IconTheme},
         process_tree_inspection::{binary_name, launch},
     },
     non_empty_text::non_empty,

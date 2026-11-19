@@ -17,20 +17,20 @@ use super::{
     MediaMessage, PlayerInteraction, PlayerSession, RAISE_PLAYER_HINT, player_interaction,
 };
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::{IndicatorIcon, ReadoutGauge},
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
+    icon_catalog::icon_handle::IconHandle,
     widgets::{
-        icon_glyph::IconGlyph,
-        icon_handle::IconHandle,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        subscribed_snapshot::SubscribedSnapshot,
-        text::font_faces_of,
-        value_cells::LabeledValue,
+        subscribed_snapshot::SubscribedSnapshot, text::font_faces_of, value_cells::LabeledValue,
     },
 };
 

@@ -11,16 +11,15 @@ use iced::{Color, Element, Theme};
 use sottomano_toml_config::Config;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_menus::cascading_layout::menu_satellite_regions::{
         SatelliteBlur, satellite_with_regions,
     },
     hover_cards::hover_card_surfaces::SWITCH_INTENT,
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        shell_layer_appearance::LayerAppearance,
-        text::text_face_of,
-    },
+    widgets::{shell_layer_appearance::LayerAppearance, text::text_face_of},
 };
 
 pub(crate) fn menu_metrics(config: &Config) -> MenuRowMetrics {

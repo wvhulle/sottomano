@@ -1,16 +1,14 @@
 use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 
 use crate::{
+    glyph_icons::simple_icons::SimpleIcon,
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 #[derive(Debug, Clone, PartialEq)]

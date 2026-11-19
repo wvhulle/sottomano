@@ -6,13 +6,13 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
     },
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    hover_cards::hover_card_body::{Section, dictionary_table},
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue> {

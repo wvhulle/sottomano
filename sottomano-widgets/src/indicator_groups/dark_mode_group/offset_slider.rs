@@ -2,8 +2,8 @@ use chrono::TimeDelta;
 
 use super::{OFFSET_MINUTES, OFFSET_STEP_MINUTES};
 use crate::{
-    group_indicators::slider_control::SliderControl,
-    widgets::{localized_durations::signed_duration_text, weather_icons::WeatherIcon},
+    glyph_icons::weather_icons::WeatherIcon, group_indicators::slider_control::SliderControl,
+    widgets::localized_durations::signed_duration_text,
 };
 
 pub(super) fn new_offset_slider(name: &'static str, icon: WeatherIcon) -> SliderControl {

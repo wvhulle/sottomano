@@ -7,12 +7,10 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::value_cells::LabeledValue,
 };
 
 fn severity(connectivity: Connectivity) -> Severity {

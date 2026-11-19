@@ -5,12 +5,11 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    desktop_index::DesktopIndex,
     hover_cards::hover_card_body::{
         Section,
         hover_card_figure_payloads::{PreviewTile, TileCaption, TileIcon, WorkspacePreview},
     },
-    widgets::window_icon::resolved_window_icon,
+    icon_catalog::{drawable_icon_catalog::DesktopIndex, window_icons::resolved_window_icon},
 };
 
 #[must_use]

@@ -4,12 +4,13 @@ use iced::{Task, task::Handle};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
-        desktop_entry_app_icons::{self, DesktopEntries, SchemeHandling},
-        theme_icon_sources::IconSource,
+        desktop_entries,
+        desktop_entries::{DesktopEntries, SchemeHandling},
     },
+    theme_icons::icon_ink_classification::IconSource,
 };
 
-use crate::widgets::icon_handle::IconHandle;
+use crate::icon_catalog::icon_handle::IconHandle;
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedIcons {
@@ -69,10 +70,8 @@ impl DesktopIndex {
             return Task::none();
         }
         let (task, handle) = Task::future(blocking("app icons", move || ResolvedIcons {
-            app: icon_handles_by_key(desktop_entry_app_icons::resolve_app_icons(&entries, app)),
-            theme: icon_handles_by_key(desktop_entry_app_icons::resolve_theme_icons(
-                &entries, theme,
-            )),
+            app: icon_handles_by_key(desktop_entries::resolve_app_icons(&entries, app)),
+            theme: icon_handles_by_key(desktop_entries::resolve_theme_icons(&entries, theme)),
         }))
         .abortable();
         self.resolve = Some(handle.abort_on_drop());
@@ -84,9 +83,7 @@ impl DesktopIndex {
             return Task::none();
         };
         Task::future(blocking("app catalog icons", move || ResolvedIcons {
-            app: icon_handles_by_key(desktop_entry_app_icons::resolve_app_icons(
-                &entries, app_ids,
-            )),
+            app: icon_handles_by_key(desktop_entries::resolve_app_icons(&entries, app_ids)),
             theme: HashMap::new(),
         }))
     }

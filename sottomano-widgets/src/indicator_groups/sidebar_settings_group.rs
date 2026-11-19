@@ -7,6 +7,7 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
@@ -18,12 +19,12 @@ use crate::{
             IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+        sqlite_singleton_flag,
+        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
-        phosphor::{Phosphor, Weight},
         shell_layer_appearance::ShellLayer,
     },
 };

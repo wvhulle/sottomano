@@ -32,6 +32,10 @@ use crate::{
     background_work::logged_failure_task,
     cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
@@ -41,6 +45,7 @@ use crate::{
         MouseGesture, PressAction,
         hover_card_body::{Section, SectionWidget},
     },
+    icon_catalog::icon_handle::PixmapHandles,
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
@@ -50,11 +55,7 @@ use crate::{
     },
     layer_surfaces::ActivationTokenOutcome,
     widgets::{
-        app_window_focus::AppWindowFocus,
-        icon_glyph::IconGlyph,
-        icon_handle::PixmapHandles,
-        phosphor::{Phosphor, Weight},
-        shared_metrics::ACCENT_STROKE_PX,
+        app_window_focus::AppWindowFocus, shared_metrics::ACCENT_STROKE_PX,
         subscribed_snapshot::SubscribedSnapshot,
     },
 };

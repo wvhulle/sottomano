@@ -3,11 +3,9 @@ use sottomano_desktop_sources::ai_usage_spend::gguf_header_model_card::{
 };
 
 use crate::{
+    glyph_icons::simple_icons::SimpleIcon,
     hover_cards::hover_card_body::{Section, SectionTable, dictionary_table},
-    widgets::{
-        simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
-    },
+    widgets::value_cells::{LabeledValue, ValueCell},
 };
 
 fn filled_text(text: &str) -> Option<&str> {

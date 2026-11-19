@@ -7,6 +7,10 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -14,10 +18,8 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::IndicatorAlerts,
-        phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
         value_cells::LabeledValue,

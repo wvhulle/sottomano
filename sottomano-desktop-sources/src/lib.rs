@@ -34,6 +34,7 @@ pub mod secret_file_reads;
 pub mod sqlite_state_store;
 pub mod system_protocol_clients;
 pub mod systemd_units_journal;
+pub mod theme_icons;
 pub mod virtualbox_machines;
 pub mod vmware_machines;
 pub mod voice_dictation_input;

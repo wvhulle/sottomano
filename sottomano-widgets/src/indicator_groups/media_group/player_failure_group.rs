@@ -2,6 +2,10 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{Media, mpri
 
 use super::{PlayerInteraction, PlayerSession, player_interaction};
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::snapshot_absence::AbsenceCause,
     indicator_groups::{
         indicator_group_content::IndicatorGroupContent,
@@ -9,10 +13,6 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
             IndicatorGroupTitle,
         },
-    },
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
     },
 };
 

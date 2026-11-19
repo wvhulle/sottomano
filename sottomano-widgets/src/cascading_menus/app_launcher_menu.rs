@@ -23,19 +23,17 @@ use self::{
 };
 use crate::{
     background_work::logged_failure_task,
-    desktop_index::DesktopIndex,
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    indicator_groups::{
-        indicator_group_content::GroupEvent,
-        sqlite_singleton_flag::{self},
-        terminal_command::TerminalCommand,
-    },
-    widgets::{
-        glyph_button,
+    glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
     },
+    hover_cards::hover_card_body::{Section, dictionary_table},
+    icon_catalog::drawable_icon_catalog::DesktopIndex,
+    indicator_groups::{
+        indicator_group_content::GroupEvent, sqlite_singleton_flag,
+        terminal_command::TerminalCommand,
+    },
+    widgets::{glyph_button, value_cells::LabeledValue},
 };
 
 const OPTIONS_SUBMENU_TITLE: &str = "Launcher options";

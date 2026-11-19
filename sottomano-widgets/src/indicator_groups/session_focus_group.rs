@@ -27,6 +27,7 @@ use sottomano_toml_config::{Config, indicator_groups::session_focus::SessionFocu
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     hover_cards::hover_card_body::Section,
     indicator_groups::{
         indicator_group_content::{
@@ -43,10 +44,7 @@ use crate::{
             window_usage::WindowUsage,
         },
     },
-    widgets::{
-        ongoing_toast::OngoingToastActionButton,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::ongoing_toast::OngoingToastActionButton,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

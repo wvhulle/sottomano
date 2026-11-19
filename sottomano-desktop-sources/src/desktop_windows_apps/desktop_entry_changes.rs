@@ -5,7 +5,7 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     blocking_background_work::blocking,
-    desktop_windows_apps::desktop_entry_app_icons::{DesktopEntries, IconTheme},
+    desktop_windows_apps::desktop_entries::{DesktopEntries, IconTheme},
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
 

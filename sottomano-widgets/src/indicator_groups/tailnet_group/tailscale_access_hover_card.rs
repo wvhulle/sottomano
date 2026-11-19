@@ -12,6 +12,10 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 
 use crate::{
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -20,8 +24,6 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };

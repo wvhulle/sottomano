@@ -7,6 +7,7 @@ use sottomano_desktop_sources::disk_storage::{
 use uom::si::f64::Ratio;
 
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
@@ -14,11 +15,7 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{
-        localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
-    },
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 pub(super) struct SubvolumeUsageIndicator<'a> {

@@ -12,6 +12,7 @@ use uom::si::ratio::percent;
 
 use crate::{
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -20,7 +21,6 @@ use crate::{
     widgets::{
         localized_quantities::Quantity,
         ongoing_toast::IndicatorAlerts,
-        phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
     },

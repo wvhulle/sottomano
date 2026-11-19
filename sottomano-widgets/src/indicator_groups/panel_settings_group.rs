@@ -6,6 +6,7 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
@@ -17,12 +18,12 @@ use crate::{
             IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+        sqlite_singleton_flag,
+        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         window_group::{WindowRowLayout, WindowTitleLength},
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
-        phosphor::{Phosphor, Weight},
         shell_layer_appearance::ShellLayer,
     },
 };

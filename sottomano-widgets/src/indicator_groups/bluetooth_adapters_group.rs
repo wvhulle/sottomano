@@ -26,6 +26,7 @@ use self::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::GroupIndicator,
     indicator_groups::{
         indicator_group_content::{
@@ -36,9 +37,7 @@ use crate::{
         },
     },
     widgets::{
-        input_report_sections::MeasuredReportTiming,
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::SubscribedSnapshot,
+        input_report_sections::MeasuredReportTiming, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 

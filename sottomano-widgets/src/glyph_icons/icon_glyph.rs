@@ -1,6 +1,6 @@
 use iced::{Color, Element, Theme};
 
-use crate::widgets::{
+use crate::glyph_icons::{
     phosphor::{Phosphor, Weight, view_phosphor},
     simple_icons::{SimpleIcon, view_simple_icon},
     weather_icons::WeatherIcon,

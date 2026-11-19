@@ -26,6 +26,10 @@ use self::{
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        weather_icons::WeatherIcon,
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
@@ -40,11 +44,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        subscribed_snapshot::CommandOutcome,
-        weather_icons::WeatherIcon,
-    },
+    widgets::subscribed_snapshot::CommandOutcome,
 };
 
 const OFFSET_MINUTES: RangeInclusive<f32> = -120.0..=120.0;

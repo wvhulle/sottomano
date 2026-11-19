@@ -9,6 +9,10 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -18,10 +22,8 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
-        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };

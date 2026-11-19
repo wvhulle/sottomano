@@ -2,6 +2,7 @@ use sottomano_desktop_sources::desktop_windows_apps::x11_window_menu_properties:
 
 use super::{WindowMenuBar, WindowMenuBarInteraction};
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
@@ -14,7 +15,6 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
     },
-    widgets::phosphor::{Phosphor, Weight},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
