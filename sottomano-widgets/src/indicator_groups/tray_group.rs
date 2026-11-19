@@ -49,8 +49,7 @@ use crate::{
         hover_card_body::{Section, SectionWidget},
     },
     icon_catalog::{
-        drawable_icon_catalog::{DrawableIconSources, IconCatalog},
-        icon_handle::IconHandle,
+        drawable_icon_catalog::{DrawableIcon, DrawableIconSources, IconCatalog, IconFreshness},
         pixmap_handles::PixmapHandles,
     },
     indicator_groups::{
@@ -413,25 +412,25 @@ fn unidentified_tray_icon_request() -> IconRequest {
     tray_item_icon_request(UNIDENTIFIED_APP_ICON, &ItemThemePath::Unset)
 }
 
-fn tray_item_handle(
+fn tray_item_drawable(
     icon_sources: DrawableIconSources<'_>,
     tray_item_icon: &TrayItemIcon,
-) -> Option<IconHandle> {
-    let named_handle = |request: &IconRequest| {
-        icon_sources
-            .icon_catalog
-            .drawable_icon(request)
-            .map(|drawable_icon| drawable_icon.handle.clone())
-    };
-    let unidentified_handle = || named_handle(&unidentified_tray_icon_request());
+) -> Option<DrawableIcon> {
+    let catalog_drawable =
+        |request: &IconRequest| icon_sources.icon_catalog.drawable_icon(request).cloned();
+    let unidentified_drawable = || catalog_drawable(&unidentified_tray_icon_request());
     match tray_item_icon {
-        TrayItemIcon::Pixmap(pixels) => Some(icon_sources.pixmap_handles.pixmap_handle(pixels)),
+        TrayItemIcon::Pixmap(pixels) => Some(DrawableIcon {
+            handle: icon_sources.pixmap_handles.pixmap_handle(pixels),
+            design_side_px: pixels.width().max(pixels.height()) as f32,
+            freshness: IconFreshness::Current,
+        }),
         TrayItemIcon::Named {
             icon_name,
             item_theme_path,
-        } => named_handle(&tray_item_icon_request(icon_name, item_theme_path))
-            .or_else(unidentified_handle),
-        TrayItemIcon::NoIcon => unidentified_handle(),
+        } => catalog_drawable(&tray_item_icon_request(icon_name, item_theme_path))
+            .or_else(unidentified_drawable),
+        TrayItemIcon::NoIcon => unidentified_drawable(),
     }
 }
 
@@ -447,9 +446,9 @@ fn item_view<'a>(
         state: IndicatorState::Idle,
         opacity: reveal,
     };
-    let glyph: Element<'a, GroupEvent> = match tray_item_handle(icon_sources, &item.icon) {
-        Some(icon_handle) => {
-            icon_handle.view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
+    let glyph: Element<'a, GroupEvent> = match tray_item_drawable(icon_sources, &item.icon) {
+        Some(drawable_icon) => {
+            drawable_icon.view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
         }
         None => IconGlyph::from(Phosphor::Question(Weight::Regular))
             .view(side, move |theme| tint.color(theme)),

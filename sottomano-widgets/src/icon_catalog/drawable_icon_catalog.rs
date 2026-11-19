@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use iced::Task;
+use iced::{Color, Element, Task, Theme};
 use sottomano_desktop_sources::{
     desktop_windows_apps::desktop_entries::DesktopEntries,
     theme_icons::{
@@ -16,10 +16,46 @@ use sottomano_desktop_sources::{
 
 use crate::icon_catalog::{icon_handle::IconHandle, pixmap_handles::PixmapHandles};
 
-#[derive(Debug, Clone)]
+const STALE_ICON_OPACITY: f32 = 0.4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconFreshness {
+    Current,
+    Stale,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct DrawableIcon {
     pub handle: IconHandle,
     pub design_side_px: f32,
+    pub freshness: IconFreshness,
+}
+
+impl DrawableIcon {
+    fn shown_opacity(&self, opacity: f32) -> f32 {
+        match self.freshness {
+            IconFreshness::Current => opacity,
+            IconFreshness::Stale => opacity * STALE_ICON_OPACITY,
+        }
+    }
+
+    pub fn view<'a, Message: 'a>(&self, side_px: f32, opacity: f32) -> Element<'a, Message> {
+        self.handle.view(side_px, self.shown_opacity(opacity))
+    }
+
+    pub fn view_with_symbolic_tint<'a, Message: 'a>(
+        &self,
+        side_px: f32,
+        opacity: f32,
+        symbolic_tint: impl Fn(&Theme) -> Color + 'a,
+    ) -> Element<'a, Message> {
+        self.handle
+            .view_with_symbolic_tint(side_px, self.shown_opacity(opacity), symbolic_tint)
+    }
+
+    pub fn scaled_down<'a, Message: 'a>(&self, opacity: f32) -> Element<'a, Message> {
+        self.handle.scaled_down(self.shown_opacity(opacity))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -103,12 +139,27 @@ impl FromIterator<SeededIcon> for IconCatalog {
     }
 }
 
+impl CatalogIcon {
+    fn outdated(self) -> Self {
+        match self {
+            CatalogIcon::Drawable(drawable_icon) => CatalogIcon::Drawable(DrawableIcon {
+                freshness: IconFreshness::Stale,
+                ..drawable_icon
+            }),
+            CatalogIcon::Pending | CatalogIcon::Missing | CatalogIcon::Unloadable => {
+                CatalogIcon::Pending
+            }
+        }
+    }
+}
+
 impl From<ResolvedIcon> for CatalogIcon {
     fn from(resolved: ResolvedIcon) -> Self {
         match resolved {
             ResolvedIcon::Loaded(loaded_icon) => CatalogIcon::Drawable(DrawableIcon {
                 handle: IconHandle::from(&loaded_icon.drawing),
                 design_side_px: loaded_icon.design_side_px,
+                freshness: IconFreshness::Current,
             }),
             ResolvedIcon::Missing => CatalogIcon::Missing,
             ResolvedIcon::Unloadable(_) => CatalogIcon::Unloadable,
@@ -139,6 +190,11 @@ impl IconCatalog {
         self.theme_index = ThemeIndexing::Indexing {
             theme_name: theme_name.clone(),
         };
+        self.catalog_icons = self
+            .catalog_icons
+            .drain()
+            .map(|(request, catalog_icon)| (request, catalog_icon.outdated()))
+            .collect();
         let generation = self.generation;
         Task::perform(
             indexed_icon_theme(theme_name, xdg_icon_search_roots()),
@@ -242,6 +298,7 @@ impl IconCatalog {
 
 #[cfg(test)]
 mod tests {
+    use iced::widget::svg;
     use sottomano_desktop_sources::theme_icons::icon_requests::{
         app_icon_request, window_theme_icon_request,
     };
@@ -300,11 +357,19 @@ mod tests {
     }
 
     #[test]
-    fn reindexing_keeps_showing_known_icons_until_the_new_theme_resolves() {
+    fn reindexing_clears_unresolved_icons_and_dims_drawn_ones() {
         let mut catalog = indexed_catalog();
         catalog
             .catalog_icons
             .insert(window_theme_icon_request("folder"), CatalogIcon::Missing);
+        catalog.catalog_icons.insert(
+            app_icon_request("firefox"),
+            CatalogIcon::Drawable(DrawableIcon {
+                handle: IconHandle::Svg(svg::Handle::from_memory(b"<svg/>".as_slice())),
+                design_side_px: 48.0,
+                freshness: IconFreshness::Current,
+            }),
+        );
         let _ = catalog.reindex("Example-Light".to_owned());
         assert_eq!(catalog.generation, 4);
         assert!(matches!(
@@ -315,7 +380,14 @@ mod tests {
             catalog
                 .catalog_icons
                 .get(&window_theme_icon_request("folder")),
-            Some(CatalogIcon::Missing)
+            Some(CatalogIcon::Pending)
+        ));
+        assert!(matches!(
+            catalog.drawable_icon(&app_icon_request("firefox")),
+            Some(DrawableIcon {
+                freshness: IconFreshness::Stale,
+                ..
+            })
         ));
     }
 }

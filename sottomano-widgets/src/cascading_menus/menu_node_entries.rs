@@ -27,7 +27,7 @@ fn menu_row_icon<Message: 'static>(
             let drawable_icon = icon_sources
                 .icon_catalog
                 .drawable_icon(&menu_row_icon_request(icon_name, menu_icon_side_px(config)))?;
-            Some(drawable_icon.handle.view(
+            Some(drawable_icon.view(
                 crisp_icon_side_px(drawable_icon.design_side_px, target_side_px),
                 1.0,
             ))

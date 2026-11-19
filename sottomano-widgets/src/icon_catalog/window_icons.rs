@@ -9,7 +9,8 @@ use sottomano_desktop_sources::{
 };
 
 use crate::icon_catalog::{
-    drawable_icon_catalog::IconCatalog, favicons::Favicons, icon_handle::IconHandle,
+    drawable_icon_catalog::{DrawableIcon, IconCatalog},
+    favicons::Favicons,
 };
 
 #[derive(Clone, Copy)]
@@ -25,7 +26,7 @@ impl<'a> WindowAssets<'a> {
     pub fn icon_for(
         &self,
         window_entry: &workspace_window_snapshot::WinEntry,
-    ) -> Option<&'a IconHandle> {
+    ) -> Option<&'a DrawableIcon> {
         resolved_window_icon(self.icon_catalog, window_entry)
     }
 }
@@ -34,7 +35,7 @@ impl<'a> WindowAssets<'a> {
 pub fn window_icon<'a, Message: 'a>(
     favicons: &Favicons,
     favicon_key: Option<&str>,
-    icon: Option<&IconHandle>,
+    icon: Option<&DrawableIcon>,
     side: f32,
     opacity: f32,
 ) -> Option<Element<'a, Message>> {
@@ -48,7 +49,7 @@ pub fn window_icon<'a, Message: 'a>(
 pub fn resolved_window_icon<'a>(
     icon_catalog: &'a IconCatalog,
     window_entry: &workspace_window_snapshot::WinEntry,
-) -> Option<&'a IconHandle> {
+) -> Option<&'a DrawableIcon> {
     window_entry
         .icon_candidates()
         .into_iter()
@@ -59,5 +60,4 @@ pub fn resolved_window_icon<'a>(
             };
             icon_catalog.drawable_icon(&request)
         })
-        .map(|drawable_icon| &drawable_icon.handle)
 }

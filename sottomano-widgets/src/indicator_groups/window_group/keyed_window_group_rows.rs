@@ -163,7 +163,9 @@ pub(super) fn arranged_keyed_groups<'a>(
         .iter()
         .map(|window_entry| WindowGroupIdentity {
             group_key: window_entry.group_key(),
-            icon: icons.icon_for(window_entry),
+            icon: icons
+                .icon_for(window_entry)
+                .map(|drawable_icon| &drawable_icon.handle),
             favicon_key: window_entry.favicon_key(),
         })
         .collect();

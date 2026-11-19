@@ -127,7 +127,7 @@ pub fn xdg_icon_search_roots() -> IconSearchRoots {
             .map(|home| home.join(".local/share"))
     });
     let data_directories_text =
-        env::var_os("XDG_DATA_DIRS").map_or_else(|| DEFAULT_DATA_DIRECTORIES.into(), |text| text);
+        env::var_os("XDG_DATA_DIRS").unwrap_or_else(|| DEFAULT_DATA_DIRECTORIES.into());
     let data_directories: Vec<PathBuf> = env::split_paths(&data_directories_text).collect();
     IconSearchRoots {
         theme_roots: home_directory

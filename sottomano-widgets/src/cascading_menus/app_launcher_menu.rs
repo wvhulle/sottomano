@@ -290,7 +290,7 @@ impl AppLauncherMenu {
         let icon_size_px = config.theme.font.icon_size_px;
         let content = MenuRowContent::new(app.name.clone());
         let content = match icon_catalog.drawable_icon(&app_icon_request(&app.app_id)) {
-            Some(drawable_icon) => content.icon(drawable_icon.handle.view(icon_size_px, 1.0)),
+            Some(drawable_icon) => content.icon(drawable_icon.view(icon_size_px, 1.0)),
             None => content,
         };
         let content = match self.jump_button(app, config) {

@@ -8,7 +8,9 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use super::SectionWidget;
-use crate::{icon_catalog::icon_handle::IconHandle, widgets::value_cells::LabeledValue};
+use crate::{
+    icon_catalog::drawable_icon_catalog::DrawableIcon, widgets::value_cells::LabeledValue,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControllerCallouts {
@@ -71,7 +73,7 @@ impl TileCaption {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TileIcon {
     Unresolved,
-    Resolved(IconHandle),
+    Resolved(DrawableIcon),
 }
 
 #[derive(Debug, Clone, PartialEq)]

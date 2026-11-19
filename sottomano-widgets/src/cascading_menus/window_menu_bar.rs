@@ -337,6 +337,7 @@ impl WindowMenuBar {
         menu_node_icon_requests(self.top_menus(), menu_icon_side_px(config))
     }
 
+    #[must_use]
     pub fn menu_entries(
         &self,
         config: &Config,

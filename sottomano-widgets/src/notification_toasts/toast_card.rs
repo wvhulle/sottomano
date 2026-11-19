@@ -572,7 +572,7 @@ fn preview_widget<'a>(
         CardIcon::Handle(handle) => handle.scaled_down(reveal),
         CardIcon::IconGlyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
         CardIcon::Themed(request) => match icon_catalog.drawable_icon(request) {
-            Some(drawable_icon) => drawable_icon.handle.scaled_down(reveal),
+            Some(drawable_icon) => drawable_icon.scaled_down(reveal),
             None => Space::new().into(),
         },
     };
@@ -606,7 +606,7 @@ fn icon_widget<'a>(
         CardIcon::IconGlyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
         CardIcon::Themed(request) => match icon_catalog.drawable_icon(request) {
-            Some(drawable_icon) => drawable_icon.handle.view(size, reveal),
+            Some(drawable_icon) => drawable_icon.view(size, reveal),
             None => Space::new().width(size).height(size).into(),
         },
     }
