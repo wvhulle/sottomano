@@ -3,7 +3,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries,
+        desktop_entry_app_icons::{DesktopEntries, IconTheme},
         process_tree_inspection::{binary_name, launch},
     },
     non_empty_text::non_empty,
@@ -16,14 +16,14 @@ pub struct InhibitorAppNames {
 impl InhibitorAppNames {
     pub async fn load() -> Self {
         Self {
-            desktop_entries: spawn_blocking(DesktopEntries::load).await.unwrap_or_else(
-                |load_failure| {
+            desktop_entries: spawn_blocking(|| DesktopEntries::load(&IconTheme::GtkDefault))
+                .await
+                .unwrap_or_else(|load_failure| {
                     tracing::warn!(
                         "inhibitor app names: desktop entries failed to load: {load_failure}"
                     );
-                    DesktopEntries::empty()
-                },
-            ),
+                    DesktopEntries::default()
+                }),
         }
     }
 

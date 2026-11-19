@@ -14,6 +14,7 @@ use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activati
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
+        application_menu_nodes::MenuIconLookup,
         status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayUpdate},
         window_edge_placement::WindowOwner,
     },
@@ -135,8 +136,9 @@ impl TrayGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription() -> iced::Subscription<TrayMessage> {
-        iced::Subscription::run(status_notifier_tray::updates).map(TrayMessage::Update)
+    pub fn subscription(menu_icons: &MenuIconLookup) -> iced::Subscription<TrayMessage> {
+        iced::Subscription::run_with(menu_icons.clone(), status_notifier_tray::updates)
+            .map(TrayMessage::Update)
     }
 
     pub fn update(&mut self, message: TrayMessage, clock: Clock) -> Action {
@@ -247,10 +249,6 @@ impl TrayGroup {
             id,
         };
         menu_node_entries(&item.menu, config, &self.pixmap_handles, &on_activate)
-    }
-
-    pub fn close_menu(&mut self) {
-        self.menu_state.close();
     }
 
     fn command(&self, command: TrayCommand, token: ActivationTokenOutcome) -> Task<TrayMessage> {

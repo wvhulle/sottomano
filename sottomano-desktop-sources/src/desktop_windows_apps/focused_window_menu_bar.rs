@@ -7,7 +7,7 @@ use tokio::fs;
 use crate::{
     compositor_window_ipc::compositor_window_state::CompositorWindow,
     desktop_windows_apps::{
-        application_menu_nodes::MenuNode,
+        application_menu_nodes::{MenuIconLookup, MenuNode},
         appmenu_registrar_server::RegisteredMenuBar,
         dbusmenu_menu_bar_layout::{
             DbusMenuLocation, exported_menu_bars_of_process, menu_bar_layout_updates,
@@ -83,6 +83,7 @@ pub struct MenuBarQuery {
     pub buses: DesktopBuses,
     pub focused_window: FocusedWindowIdentity,
     pub registered_menu_bars: Vec<RegisteredMenuBar>,
+    pub menu_icons: MenuIconLookup,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -324,32 +325,37 @@ fn dbusmenu_menu_bar_stream(
     connection: zbus::Connection,
     location: DbusMenuLocation,
     menu_bar_match: MenuBarMatch,
+    menu_icons: MenuIconLookup,
 ) -> impl Stream<Item = FocusedMenuBar> + Send {
     let logged_location = location.clone();
-    stream::once(menu_bar_layout_updates(connection, location.clone()))
-        .map_ok(move |layout_updates| {
-            let location = location.clone();
-            layout_updates
-                .map(move |top_menus| match top_menus {
-                    Ok(top_menus) => shown_or_not_exported(ShownMenuBar {
-                        top_menus,
-                        activation_route: MenuActivationRoute::DbusMenu(location.clone()),
-                        menu_bar_match,
-                    }),
-                    Err(layout_failure) => {
-                        tracing::debug!("global menu: dbusmenu layout: {layout_failure}");
-                        FocusedMenuBar::NotExported
-                    }
-                })
-                .map(Ok::<_, zbus::Error>)
-        })
-        .try_flatten()
-        .map(move |menu_bar| {
-            menu_bar.unwrap_or_else(|connect_failure| {
-                tracing::debug!("global menu: dbusmenu {logged_location:?}: {connect_failure}");
-                FocusedMenuBar::NotExported
+    stream::once(menu_bar_layout_updates(
+        connection,
+        location.clone(),
+        menu_icons,
+    ))
+    .map_ok(move |layout_updates| {
+        let location = location.clone();
+        layout_updates
+            .map(move |top_menus| match top_menus {
+                Ok(top_menus) => shown_or_not_exported(ShownMenuBar {
+                    top_menus,
+                    activation_route: MenuActivationRoute::DbusMenu(location.clone()),
+                    menu_bar_match,
+                }),
+                Err(layout_failure) => {
+                    tracing::debug!("global menu: dbusmenu layout: {layout_failure}");
+                    FocusedMenuBar::NotExported
+                }
             })
+            .map(Ok::<_, zbus::Error>)
+    })
+    .try_flatten()
+    .map(move |menu_bar| {
+        menu_bar.unwrap_or_else(|connect_failure| {
+            tracing::debug!("global menu: dbusmenu {logged_location:?}: {connect_failure}");
+            FocusedMenuBar::NotExported
         })
+    })
 }
 
 fn gtk_menu_bar_stream(
@@ -408,6 +414,7 @@ fn candidate_menu_bars(
     connection: zbus::Connection,
     owner: &FocusedWindowOwner,
     candidate: MenuBarCandidate,
+    menu_icons: MenuIconLookup,
 ) -> BoxStream<'static, FocusedMenuBar> {
     match candidate {
         MenuBarCandidate::DbusMenu {
@@ -415,7 +422,7 @@ fn candidate_menu_bars(
             menu_bar_match,
         } => {
             tracing::debug!("global menu: {owner:?} exports {location:?} ({menu_bar_match:?})");
-            dbusmenu_menu_bar_stream(connection, location, menu_bar_match).boxed()
+            dbusmenu_menu_bar_stream(connection, location, menu_bar_match, menu_icons).boxed()
         }
         MenuBarCandidate::GtkMenus {
             source,
@@ -438,6 +445,7 @@ fn x11_window_menu_bars(
     connection: zbus::Connection,
     owner: FocusedWindowOwner,
     registered_menu_bars: Vec<RegisteredMenuBar>,
+    menu_icons: MenuIconLookup,
 ) -> BoxStream<'static, FocusedMenuBar> {
     active_x11_window_changes()
         .switch_map(move |active_window| {
@@ -451,15 +459,17 @@ fn x11_window_menu_bars(
             let connection = connection.clone();
             let owner = owner.clone();
             let registered_menu_bars = registered_menu_bars.clone();
+            let menu_icons = menu_icons.clone();
             stream::iter(lookup_failures).chain(stream::iter(active_windows).flat_map(
                 move |active_window| {
                     let connection = connection.clone();
                     let owner = owner.clone();
                     let registered_menu_bars = registered_menu_bars.clone();
+                    let menu_icons = menu_icons.clone();
                     stream::once(async move {
                         let candidate =
                             x11_menu_bar_candidate(&registered_menu_bars, active_window).await;
-                        candidate_menu_bars(connection, &owner, candidate)
+                        candidate_menu_bars(connection, &owner, candidate, menu_icons)
                     })
                     .flatten()
                 },
@@ -482,12 +492,13 @@ pub fn focused_menu_bar_updates(
                 connection,
                 owner.clone(),
                 query.registered_menu_bars.clone(),
+                query.menu_icons.clone(),
             ),
             WindowProtocol::Native => {
                 let candidate =
                     native_menu_bar_candidate(&connection, owner, &query.registered_menu_bars)
                         .await;
-                candidate_menu_bars(connection, owner, candidate)
+                candidate_menu_bars(connection, owner, candidate, query.menu_icons.clone())
             }
         }
     })

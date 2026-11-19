@@ -9,9 +9,28 @@ use freedesktop_icons::lookup;
 use super::workspace_window_snapshot;
 use crate::desktop_windows_apps::{
     desktop_entry_app_catalog::LaunchableApp,
-    icon_whitespace_trim::{TrimmedIcon, trim_icon_file},
+    icon_whitespace_trim::IconTrim,
+    theme_icon_sources::{IconSource, theme_icon_source},
     window_title_labels::IconCandidate,
 };
+
+const APP_ICON_LOOKUP_PX: u16 = 48;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum IconTheme {
+    #[default]
+    GtkDefault,
+    Named(String),
+}
+
+impl IconTheme {
+    fn resolved_name(&self) -> Option<String> {
+        match self {
+            IconTheme::GtkDefault => freedesktop_icons::default_theme_gtk(),
+            IconTheme::Named(theme_name) => Some(theme_name.clone()),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct DesktopEntries {
@@ -21,16 +40,16 @@ pub struct DesktopEntries {
 
 impl Default for DesktopEntries {
     fn default() -> Self {
-        Self::empty()
+        Self::themed(&IconTheme::GtkDefault)
     }
 }
 
 impl DesktopEntries {
     #[must_use]
-    pub fn empty() -> Self {
+    pub fn themed(icon_theme: &IconTheme) -> Self {
         Self {
             entries: Vec::new(),
-            theme: freedesktop_icons::default_theme_gtk(),
+            theme: icon_theme.resolved_name(),
         }
     }
 
@@ -43,7 +62,7 @@ impl DesktopEntries {
     }
 
     #[must_use]
-    pub fn load() -> Self {
+    pub fn load(icon_theme: &IconTheme) -> Self {
         let locales: Vec<String> = Vec::new();
         let entries = Iter::new(default_paths())
             .filter_map(|entry_path| {
@@ -59,7 +78,7 @@ impl DesktopEntries {
             .collect();
         Self {
             entries,
-            theme: freedesktop_icons::default_theme_gtk(),
+            theme: icon_theme.resolved_name(),
         }
     }
 
@@ -139,7 +158,12 @@ impl DesktopEntries {
 
     #[must_use]
     pub fn theme_lookup(&self, name: &str) -> Option<PathBuf> {
-        let mut query = lookup(name).with_size(48).with_cache();
+        self.theme_lookup_at(name, APP_ICON_LOOKUP_PX)
+    }
+
+    #[must_use]
+    pub fn theme_lookup_at(&self, name: &str, size_px: u16) -> Option<PathBuf> {
+        let mut query = lookup(name).with_size(size_px).with_cache();
         if let Some(theme) = &self.theme {
             query = query.with_theme(theme);
         }
@@ -180,32 +204,32 @@ fn icon_keys(
 pub fn resolve_app_icons(
     entries: &DesktopEntries,
     app_ids: Vec<String>,
-) -> HashMap<String, TrimmedIcon> {
-    trimmed_icons_by_key(app_ids, |app_id| entries.icon_for(app_id))
+) -> HashMap<String, IconSource> {
+    theme_icons_by_key(app_ids, |app_id| entries.icon_for(app_id))
 }
 
 #[must_use]
 pub fn resolve_theme_icons(
     entries: &DesktopEntries,
     icon_names: Vec<String>,
-) -> HashMap<String, TrimmedIcon> {
-    trimmed_icons_by_key(icon_names, |icon_name| entries.theme_lookup(icon_name))
+) -> HashMap<String, IconSource> {
+    theme_icons_by_key(icon_names, |icon_name| entries.theme_lookup(icon_name))
 }
 
-fn trimmed_icons_by_key(
+fn theme_icons_by_key(
     icon_keys: Vec<String>,
     icon_path_for_key: impl Fn(&str) -> Option<PathBuf>,
-) -> HashMap<String, TrimmedIcon> {
+) -> HashMap<String, IconSource> {
     icon_keys
         .into_iter()
         .filter_map(|icon_key| {
             let icon_path = icon_path_for_key(&icon_key)?;
-            trim_icon_file(&icon_path)
-                .inspect_err(|trim_failure| {
-                    tracing::warn!("icon for {icon_key}: {trim_failure}");
+            theme_icon_source(&icon_path, IconTrim::Trimmed)
+                .inspect_err(|load_failure| {
+                    tracing::warn!("icon for {icon_key}: {load_failure}");
                 })
                 .ok()
-                .map(|trimmed_icon| (icon_key, trimmed_icon))
+                .map(|icon_source| (icon_key, icon_source))
         })
         .collect()
 }

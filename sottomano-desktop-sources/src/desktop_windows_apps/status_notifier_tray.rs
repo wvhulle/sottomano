@@ -24,52 +24,17 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::{
         application_menu_nodes::{
-            MenuNode, SYMBOLIC_ICON_SUFFIX, symbolic_first_icon_names, tray_menu_nodes,
+            MenuIconLookup, MenuNode, symbolic_first_icon_names, tray_menu_nodes,
         },
         desktop_entry_app_icons::DesktopEntries,
-        icon_whitespace_trim::{TrimmedIcon, trim_icon_file},
+        icon_whitespace_trim::IconTrim,
+        theme_icon_sources::IconSource,
     },
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
 const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum IconSource {
-    Pixmap(Arc<RgbaImage>),
-    Themed(TrimmedIcon),
-    ThemedSymbolic(Arc<[u8]>),
-}
-
-impl IconSource {
-    pub(crate) fn pixmap(&self) -> Option<&Arc<RgbaImage>> {
-        match self {
-            Self::Pixmap(pixmap) | Self::Themed(TrimmedIcon::Raster(pixmap)) => Some(pixmap),
-            Self::Themed(TrimmedIcon::Svg(_)) | Self::ThemedSymbolic(_) => None,
-        }
-    }
-
-    pub(crate) fn loaded_theme_icon(theme_file: &Path) -> Option<Self> {
-        let trimmed_icon = trim_icon_file(theme_file)
-            .inspect_err(|trim_failure| {
-                tracing::warn!("tray icon: {trim_failure}");
-            })
-            .ok()?;
-        Some(Self::classified_theme_icon(theme_file, trimmed_icon))
-    }
-
-    fn classified_theme_icon(theme_file: &Path, trimmed_icon: TrimmedIcon) -> Self {
-        let is_symbolic_file_name = theme_file
-            .file_stem()
-            .and_then(|file_stem| file_stem.to_str())
-            .is_some_and(|file_stem| file_stem.ends_with(SYMBOLIC_ICON_SUFFIX));
-        match trimmed_icon {
-            TrimmedIcon::Svg(svg_bytes) if is_symbolic_file_name => Self::ThemedSymbolic(svg_bytes),
-            full_colour_icon => Self::Themed(full_colour_icon),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Tip {
@@ -210,7 +175,7 @@ fn resolve_visual(
                 })
         })
         .or_else(|| entries.theme_lookup(UNIDENTIFIED_APP_ICON))
-        .and_then(|path| IconSource::loaded_theme_icon(&path))
+        .and_then(|path| IconSource::logged_theme_icon(&path, IconTrim::Trimmed))
 }
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
@@ -223,7 +188,7 @@ fn build_item(
     owner: OwnerProcess,
     item: &StatusNotifierItem,
     menu: Option<&TrayMenu>,
-    entries: &DesktopEntries,
+    icon_lookup: &TrayIconLookup,
 ) -> TrayItem {
     TrayItem {
         address: address.to_string(),
@@ -237,10 +202,12 @@ fn build_item(
             item.icon_name.as_deref(),
             item.icon_pixmap.as_deref(),
             item.icon_theme_path.as_deref(),
-            entries,
+            &icon_lookup.entries,
         ),
         menu: menu
-            .map(|m| tray_menu_nodes(m, entries))
+            .map(|tray_menu| {
+                tray_menu_nodes(tray_menu, &icon_lookup.entries, icon_lookup.menu_icon_px)
+            })
             .unwrap_or_default(),
     }
 }
@@ -291,14 +258,24 @@ struct ConnectedTrayHost {
     owner_lookup: TrayOwnerLookup,
     item_events: BroadcastStream<Event>,
     listed: Vec<TrayItem>,
+    icon_lookup: TrayIconLookup,
 }
 
-async fn connect_tray_host() -> Result<ConnectedTrayHost, TrayHostError> {
+struct TrayIconLookup {
+    entries: DesktopEntries,
+    menu_icon_px: u16,
+}
+
+async fn connect_tray_host(menu_icons: MenuIconLookup) -> Result<ConnectedTrayHost, TrayHostError> {
     let client = Arc::new(Client::new().await?);
     let item_events = BroadcastStream::new(client.subscribe());
     let owner_lookup = TrayOwnerLookup::connect().await?;
     let listed_owners = owner_lookup.owners_of_listed(&client).await;
-    let listed = listed_items(&client, &DesktopEntries::empty(), &|address| {
+    let icon_lookup = TrayIconLookup {
+        entries: DesktopEntries::themed(&menu_icons.icon_theme),
+        menu_icon_px: menu_icons.size_px,
+    };
+    let listed = listed_items(&client, &icon_lookup, &|address| {
         listed_owners
             .get(address)
             .copied()
@@ -309,11 +286,12 @@ async fn connect_tray_host() -> Result<ConnectedTrayHost, TrayHostError> {
         owner_lookup,
         item_events,
         listed,
+        icon_lookup,
     })
 }
 
-pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
-    stream::once(connect_tray_host())
+pub fn updates(menu_icons: &MenuIconLookup) -> impl Stream<Item = TrayUpdate> + Send + use<> {
+    stream::once(connect_tray_host(menu_icons.clone()))
         .map_ok(|connected_host| hosted_updates(connected_host).map(Ok))
         .try_flatten()
         .map(|update| {
@@ -327,8 +305,8 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
         owner_lookup,
         item_events,
         listed,
+        icon_lookup,
     } = connected_host;
-    let entries = DesktopEntries::empty();
     let host = TrayHost {
         tray_client: client.clone(),
         session_bus: owner_lookup.session_bus(),
@@ -347,10 +325,10 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
         .buffered(OWNER_LOOKUPS_IN_FLIGHT)
         .scan(listed.clone(), move |items, (received, added_owner)| {
             match received {
-                Ok(event) => apply(items, event, added_owner, &client, &entries),
+                Ok(event) => apply(items, event, added_owner, &client, &icon_lookup),
                 Err(BroadcastStreamRecvError::Lagged(_)) => {
                     let known_items = items.clone();
-                    *items = listed_items(&client, &entries, &|address| {
+                    *items = listed_items(&client, &icon_lookup, &|address| {
                         known_items
                             .iter()
                             .find(|known_item| known_item.address == address)
@@ -365,12 +343,14 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
 
 impl SnapshotSource for Vec<TrayItem> {
     type Error = Arc<TrayHostError>;
-    type StreamInputs = ();
+    type StreamInputs = MenuIconLookup;
 
     const NAME: &'static str = "Tray";
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        updates()
+    fn delivery_stream(
+        menu_icons: MenuIconLookup,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        updates(&menu_icons)
             .filter_map(|update| {
                 ready(match update {
                     TrayUpdate::Items(items) => Some(Ok(items)),
@@ -384,7 +364,7 @@ impl SnapshotSource for Vec<TrayItem> {
 
 fn listed_items(
     client: &Client,
-    entries: &DesktopEntries,
+    icon_lookup: &TrayIconLookup,
     known_owner: &dyn Fn(&str) -> OwnerProcess,
 ) -> Vec<TrayItem> {
     client.items().lock().map_or_else(
@@ -392,7 +372,13 @@ fn listed_items(
         |map| {
             map.iter()
                 .map(|(address, (item, menu))| {
-                    build_item(address, known_owner(address), item, menu.as_ref(), entries)
+                    build_item(
+                        address,
+                        known_owner(address),
+                        item,
+                        menu.as_ref(),
+                        icon_lookup,
+                    )
                 })
                 .collect()
         },
@@ -403,7 +389,7 @@ fn find_mut<'a>(items: &'a mut [TrayItem], address: &str) -> Option<&'a mut Tray
     items.iter_mut().find(|item| item.address == address)
 }
 
-fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Vec<MenuNode> {
+fn menu_from_map(client: &Client, address: &str, icon_lookup: &TrayIconLookup) -> Vec<MenuNode> {
     client
         .items()
         .lock()
@@ -416,7 +402,7 @@ fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Ve
         .and_then(|map| {
             map.get(address)
                 .and_then(|(_, menu)| menu.as_ref())
-                .map(|menu| tray_menu_nodes(menu, entries))
+                .map(|menu| tray_menu_nodes(menu, &icon_lookup.entries, icon_lookup.menu_icon_px))
         })
         .unwrap_or_default()
 }
@@ -426,11 +412,11 @@ fn apply(
     event: Event,
     added_owner: OwnerProcess,
     client: &Client,
-    entries: &DesktopEntries,
+    icon_lookup: &TrayIconLookup,
 ) {
     match event {
         Event::Add(address, item) => {
-            let built = build_item(&address, added_owner, &item, None, entries);
+            let built = build_item(&address, added_owner, &item, None, icon_lookup);
             match find_mut(items, &address) {
                 Some(existing) => *existing = built,
                 None => items.push(built),
@@ -439,7 +425,7 @@ fn apply(
         Event::Remove(address) => items.retain(|item| item.address != address),
         Event::Update(address, update) => {
             let menu = matches!(update, UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_))
-                .then(|| menu_from_map(client, &address, entries));
+                .then(|| menu_from_map(client, &address, icon_lookup));
             let Some(item) = find_mut(items, &address) else {
                 return;
             };
@@ -448,8 +434,12 @@ fn apply(
                     icon_name,
                     icon_pixmap,
                 } => {
-                    item.icon =
-                        resolve_visual(icon_name.as_deref(), icon_pixmap.as_deref(), None, entries);
+                    item.icon = resolve_visual(
+                        icon_name.as_deref(),
+                        icon_pixmap.as_deref(),
+                        None,
+                        &icon_lookup.entries,
+                    );
                 }
                 UpdateEvent::Status(status) => item.status = status,
                 UpdateEvent::Title(title) => item.title = title.and_then(non_empty),
@@ -500,46 +490,5 @@ mod tests {
     fn pixmaps_below_the_side_limit_keep_their_largest_size() {
         let chosen = best_pixmap(&[opaque_pixmap(22), opaque_pixmap(48)]).unwrap();
         assert_eq!(chosen.dimensions(), (48, 48));
-    }
-
-    fn placeholder_svg_bytes() -> Arc<[u8]> {
-        Arc::from(&b"<svg/>"[..])
-    }
-
-    #[test]
-    fn symbolic_svg_is_tinted_by_the_panel() {
-        let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune-symbolic.svg");
-        assert_eq!(
-            IconSource::classified_theme_icon(
-                theme_file,
-                TrimmedIcon::Svg(placeholder_svg_bytes())
-            ),
-            IconSource::ThemedSymbolic(placeholder_svg_bytes())
-        );
-    }
-
-    #[test]
-    fn full_colour_svg_keeps_its_colours() {
-        let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune.svg");
-        assert_eq!(
-            IconSource::classified_theme_icon(
-                theme_file,
-                TrimmedIcon::Svg(placeholder_svg_bytes())
-            ),
-            IconSource::Themed(TrimmedIcon::Svg(placeholder_svg_bytes()))
-        );
-    }
-
-    #[test]
-    fn symbolic_png_is_not_loaded_as_svg() {
-        let theme_file = Path::new("/absent/icons/network-wireless-symbolic.png");
-        let decoded_pixels = Arc::new(RgbaImage::new(4, 4));
-        assert_eq!(
-            IconSource::classified_theme_icon(
-                theme_file,
-                TrimmedIcon::Raster(decoded_pixels.clone())
-            ),
-            IconSource::Themed(TrimmedIcon::Raster(decoded_pixels))
-        );
     }
 }

@@ -24,7 +24,8 @@ use sottomano_desktop_sources::{
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
     },
     desktop_windows_apps::{
-        app_launch_history::LaunchTracker, desktop_entry_changes, workspace_window_snapshot,
+        app_launch_history::LaunchTracker, desktop_entry_app_icons::IconTheme,
+        desktop_entry_changes, workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -72,6 +73,7 @@ pub struct DesktopShell {
     pub active_hover_fetch: HoverFetch,
     pub notifications: NotificationLayer<ShellInteraction>,
     pub desktop_entries: DesktopIndex,
+    pub icon_theme: IconTheme,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
     pub pointer_drag: ShellDrag,
@@ -107,6 +109,7 @@ impl DesktopShell {
             active_hover_fetch: HoverFetch::NothingToFetch,
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
+            icon_theme: IconTheme::GtkDefault,
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
             pointer_drag: ShellDrag::Idle,
@@ -123,7 +126,10 @@ impl DesktopShell {
         };
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
-            Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
+            Task::perform(
+                desktop_entry_changes::load(IconTheme::GtkDefault),
+                Message::DesktopEntriesLoaded,
+            ),
             Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
             shell.indicator_groups.load(clock),
             shell.read_niri_workspace_order(),
@@ -172,8 +178,8 @@ impl DesktopShell {
                 .indicator_groups
                 .group_menus
                 .update(GroupMenuMessage::Closed);
-            self.indicator_groups.tray_group.close_menu();
-            self.indicator_groups.window_menu_bar.close_menu();
+            self.indicator_groups.tray_group.menu_state.close();
+            self.indicator_groups.window_menu_bar.menu_state.close();
             self.indicator_groups.app_launcher_menu.close_menu();
         }
         let hover_indicators = if self.hovered_indicator_target() == hovered_before {

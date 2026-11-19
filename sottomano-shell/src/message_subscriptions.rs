@@ -12,7 +12,9 @@ use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_connection,
     desktop_notifications::freedesktop_notification_server,
-    desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup},
+    desktop_windows_apps::{
+        desktop_entry_changes, firefox_favicon_lookup, icon_theme_changes::icon_theme_changes,
+    },
     system_protocol_clients::{
         dbus_desktop_buses::desktop_bus_events,
         inotify_directory_changes::{WatchTarget, changes},
@@ -20,8 +22,8 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
-    widgets::typing_under_cards::CardVisibility,
+    cascading_menus::menu_node_entries::menu_icon_lookup, hover_cards::HoverCardMessage,
+    toast_messages::NotificationMessage, widgets::typing_under_cards::CardVisibility,
 };
 use wayland_client::Connection;
 
@@ -69,23 +71,34 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         Subscription::none()
     };
 
+    let menu_icons = menu_icon_lookup(state.icon_theme.clone(), &state.config);
     Subscription::batch([
         outputs(state.wayland.as_ref()),
         Subscription::run_with(state.config_file.clone(), |config_file| {
             changes(vec![WatchTarget::WrittenFile(config_file.path.clone())])
         })
         .map(Message::ConfigFileChanged),
-        state
-            .indicator_groups
-            .subscription(&state.config, state.desktop_buses.as_ref()),
+        state.indicator_groups.subscription(
+            &state.config,
+            state.desktop_buses.as_ref(),
+            &menu_icons,
+        ),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
             .desktop_buses
             .as_ref()
             .map_or_else(Subscription::none, |buses| {
-                state
-                    .indicator_groups
-                    .desktop_bus_subscription(&state.config, buses)
+                Subscription::batch([
+                    state.indicator_groups.desktop_bus_subscription(
+                        &state.config,
+                        buses,
+                        &menu_icons,
+                    ),
+                    Subscription::run_with(buses.clone(), |buses| {
+                        icon_theme_changes(&buses.session)
+                    })
+                    .map(Message::IconThemeChanged),
+                ])
             }),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, window| match event {

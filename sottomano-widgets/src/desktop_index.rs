@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         desktop_entry_app_icons::{self, DesktopEntries, SchemeHandling},
-        icon_whitespace_trim::TrimmedIcon,
+        theme_icon_sources::IconSource,
     },
 };
 
@@ -97,9 +97,9 @@ impl DesktopIndex {
     }
 }
 
-fn icon_handles_by_key(trimmed_icons: HashMap<String, TrimmedIcon>) -> HashMap<String, IconHandle> {
-    trimmed_icons
+fn icon_handles_by_key(icon_sources: HashMap<String, IconSource>) -> HashMap<String, IconHandle> {
+    icon_sources
         .into_iter()
-        .map(|(icon_key, trimmed_icon)| (icon_key, IconHandle::from(&trimmed_icon)))
+        .map(|(icon_key, icon_source)| (icon_key, IconHandle::from(&icon_source)))
         .collect()
 }

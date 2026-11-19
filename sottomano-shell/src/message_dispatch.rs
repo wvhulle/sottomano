@@ -23,8 +23,16 @@ impl DesktopShell {
             Message::AppLauncher(launcher_message) => self.update_app_launcher(launcher_message),
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
-            Message::ReloadDesktopEntries => {
-                Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded)
+            Message::ReloadDesktopEntries => Task::perform(
+                desktop_entry_changes::load(self.icon_theme.clone()),
+                Message::DesktopEntriesLoaded,
+            ),
+            Message::IconThemeChanged(icon_theme) => {
+                if icon_theme == self.icon_theme {
+                    return Task::none();
+                }
+                self.icon_theme = icon_theme;
+                Task::done(Message::ReloadDesktopEntries)
             }
             Message::IconsResolved(resolved) => {
                 self.desktop_entries.merge(resolved);

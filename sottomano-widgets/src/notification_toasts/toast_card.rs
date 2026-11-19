@@ -15,7 +15,10 @@ use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
     },
-    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
+    desktop_windows_apps::{
+        desktop_entry_app_icons::DesktopEntries, icon_whitespace_trim::IconTrim,
+        theme_icon_sources::theme_icon_source,
+    },
 };
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -109,7 +112,7 @@ impl CardImage {
 impl From<PathBuf> for CardImage {
     fn from(file: PathBuf) -> Self {
         Self::Preview {
-            icon: CardIcon::at(&file),
+            icon: CardIcon::Handle(IconHandle::at(&file)),
             file,
         }
     }
@@ -139,12 +142,6 @@ impl From<IconGlyph> for CardIcons {
     }
 }
 
-impl CardIcon {
-    fn at(path: &Path) -> Self {
-        Self::Handle(IconHandle::at(path))
-    }
-}
-
 pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
     let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
@@ -168,7 +165,10 @@ fn themed_icon(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon>
     let path = entries
         .theme_lookup(name)
         .or_else(|| entries.icon_for(name))?;
-    Some(CardIcon::at(&path))
+    let icon_source = theme_icon_source(&path, IconTrim::Trimmed)
+        .inspect_err(|load_failure| tracing::warn!("toast icon {name}: {load_failure}"))
+        .ok()?;
+    Some(CardIcon::Handle(IconHandle::from(&icon_source)))
 }
 
 fn icon_file(name: &str) -> Option<PathBuf> {

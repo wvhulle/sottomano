@@ -8,8 +8,8 @@ use iced::{
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
     firefox_favicon_lookup::{FaviconKind, RawFavicon},
-    icon_whitespace_trim::TrimmedIcon,
-    status_notifier_tray::IconSource,
+    icon_whitespace_trim::IconFile,
+    theme_icon_sources::IconSource,
 };
 
 impl From<RawFavicon> for IconHandle {
@@ -107,11 +107,18 @@ impl From<&RgbaImage> for IconHandle {
     }
 }
 
-impl From<&TrimmedIcon> for IconHandle {
-    fn from(trimmed_icon: &TrimmedIcon) -> Self {
-        match trimmed_icon {
-            TrimmedIcon::Svg(svg_bytes) => Self::Svg(svg::Handle::from_memory(svg_bytes.to_vec())),
-            TrimmedIcon::Raster(pixels) => Self::from(pixels.as_ref()),
+impl From<&IconSource> for IconHandle {
+    fn from(icon_source: &IconSource) -> Self {
+        match icon_source {
+            IconSource::Pixmap(pixels) | IconSource::Themed(IconFile::Raster(pixels)) => {
+                Self::from(pixels.as_ref())
+            }
+            IconSource::Themed(IconFile::Svg(svg_bytes)) => {
+                Self::Svg(svg::Handle::from_memory(svg_bytes.to_vec()))
+            }
+            IconSource::ThemedSymbolic(svg_bytes) => {
+                Self::SymbolicSvg(svg::Handle::from_memory(svg_bytes.to_vec()))
+            }
         }
     }
 }
@@ -160,12 +167,12 @@ impl PixmapHandles {
     #[must_use]
     pub fn icon_handle(&self, source: &IconSource) -> IconHandle {
         match source {
-            IconSource::Pixmap(pixels) | IconSource::Themed(TrimmedIcon::Raster(pixels)) => {
+            IconSource::Pixmap(pixels) | IconSource::Themed(IconFile::Raster(pixels)) => {
                 self.pixmap_handle(pixels)
             }
-            IconSource::Themed(svg_icon @ TrimmedIcon::Svg(_)) => IconHandle::from(svg_icon),
-            IconSource::ThemedSymbolic(svg_bytes) => {
-                IconHandle::SymbolicSvg(svg::Handle::from_memory(svg_bytes.to_vec()))
+            vector_icon
+            @ (IconSource::Themed(IconFile::Svg(_)) | IconSource::ThemedSymbolic(_)) => {
+                IconHandle::from(vector_icon)
             }
         }
     }

@@ -5,14 +5,14 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     blocking_background_work::blocking,
-    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
+    desktop_windows_apps::desktop_entry_app_icons::{DesktopEntries, IconTheme},
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
 
 const CHANGE_BURST_LIMIT: usize = 64;
 
-pub async fn load() -> Arc<DesktopEntries> {
-    Arc::new(blocking("desktop entries", DesktopEntries::load).await)
+pub async fn load(icon_theme: IconTheme) -> Arc<DesktopEntries> {
+    Arc::new(blocking("desktop entries", move || DesktopEntries::load(&icon_theme)).await)
 }
 
 pub fn application_changes() -> impl Stream<Item = ()> + Send {

@@ -1,5 +1,6 @@
 use iced::Subscription;
 use sottomano_desktop_sources::{
+    desktop_windows_apps::application_menu_nodes::MenuIconLookup,
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -38,6 +39,7 @@ impl ShellIndicatorGroups {
         &self,
         config: &Config,
         buses: Option<&DesktopBuses>,
+        menu_icons: &MenuIconLookup,
     ) -> Subscription<Message> {
         let working_days = self.quiet_schedule_group.working_days;
         let source_demand = |family| self.group_menus.source_demand(family);
@@ -74,7 +76,7 @@ impl ShellIndicatorGroups {
                 .map(Message::Clock),
             JournalEventsGroup::subscription().map(Message::JournalEvents),
             DarkModeGroup::subscription().map(Message::DarkMode),
-            TrayGroup::subscription().map(Message::Tray),
+            TrayGroup::subscription(menu_icons).map(Message::Tray),
             AudioGroup::subscription().map(Message::Audio),
             self.gamepad_group
                 .subscription(&config.indicator_groups.gamepad)
@@ -121,6 +123,7 @@ impl ShellIndicatorGroups {
         &self,
         config: &Config,
         buses: &DesktopBuses,
+        menu_icons: &MenuIconLookup,
     ) -> Subscription<Message> {
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
@@ -130,6 +133,7 @@ impl ShellIndicatorGroups {
                     buses,
                     self.group_menus
                         .topic_presence(GroupMenuTopic::WindowMenuBar),
+                    menu_icons,
                 )
                 .map(Message::WindowMenuBar),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),

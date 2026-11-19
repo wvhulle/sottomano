@@ -73,7 +73,8 @@ impl DesktopShell {
             .desktop_entries
             .resolve_catalog_icons(launcher.catalog_app_ids())
             .map(Message::IconsResolved);
-        Task::batch([self.refresh_app_launcher(), catalog_icons])
+        let window_icons = self.resolve_icons();
+        Task::batch([self.refresh_app_launcher(), catalog_icons, window_icons])
     }
 
     pub(crate) fn update_app_launcher(

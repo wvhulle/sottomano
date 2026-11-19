@@ -5,13 +5,42 @@ use system_tray::menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu};
 
 use crate::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries,
-        status_notifier_tray::{IconSource, capped_to_side_limit},
+        desktop_entry_app_icons::{DesktopEntries, IconTheme},
+        icon_whitespace_trim::IconTrim,
+        status_notifier_tray::capped_to_side_limit,
+        theme_icon_sources::IconSource,
     },
     non_empty_text::non_empty,
 };
 
 pub(crate) const SYMBOLIC_ICON_SUFFIX: &str = "-symbolic";
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MenuIconLookup {
+    pub icon_theme: IconTheme,
+    pub size_px: u16,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuNodeIcon {
+    pub source: IconSource,
+    pub design_side_px: f32,
+}
+
+impl MenuNodeIcon {
+    fn measured(source: IconSource) -> Option<Self> {
+        source
+            .design_side_px()
+            .inspect_err(|measure_failure| {
+                tracing::warn!("menu item icon: cannot measure its design size: {measure_failure}");
+            })
+            .ok()
+            .map(|design_side_px| Self {
+                source,
+                design_side_px,
+            })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuNode {
@@ -19,7 +48,7 @@ pub struct MenuNode {
     pub label: Option<String>,
     pub enabled: bool,
     pub kind: MenuKind,
-    pub icon: Option<IconSource>,
+    pub icon: Option<MenuNodeIcon>,
     pub children: Vec<MenuNode>,
 }
 
@@ -27,7 +56,7 @@ impl MenuNode {
     pub fn pixmaps(&self) -> Vec<&Arc<RgbaImage>> {
         self.icon
             .iter()
-            .filter_map(IconSource::pixmap)
+            .filter_map(|menu_icon| menu_icon.source.pixmap())
             .chain(self.children.iter().flat_map(MenuNode::pixmaps))
             .collect()
     }
@@ -56,29 +85,32 @@ pub enum MenuKind {
     },
 }
 
-fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
-    if let Some(decoded) = menu_item.icon_data.as_deref().and_then(|icon_bytes| {
-        image::load_from_memory(icon_bytes)
-            .inspect_err(|decode_failure| {
-                tracing::warn!(
-                    "menu item icon: cannot decode icon data of {:?}: {decode_failure}",
-                    menu_item.label
-                );
-            })
-            .ok()
-    }) {
-        return Some(IconSource::Pixmap(Arc::new(capped_to_side_limit(
-            super::icon_whitespace_trim::trim_rgba(decoded.into_rgba8()),
-        ))));
-    }
+fn named_menu_icon(
+    menu_item: &MenuItem,
+    entries: &DesktopEntries,
+    menu_icon_px: u16,
+) -> Option<IconSource> {
     let icon_name = menu_item
         .icon_name
         .as_deref()
         .filter(|icon_name| !icon_name.is_empty())?;
     symbolic_first_icon_names(icon_name)
         .into_iter()
-        .find_map(|candidate_name| entries.theme_lookup(&candidate_name))
-        .and_then(|icon_path| IconSource::loaded_theme_icon(&icon_path))
+        .find_map(|candidate_name| entries.theme_lookup_at(&candidate_name, menu_icon_px))
+        .and_then(|icon_path| IconSource::logged_theme_icon(&icon_path, IconTrim::DesignSize))
+}
+
+fn embedded_menu_icon(menu_item: &MenuItem) -> Option<IconSource> {
+    let icon_bytes = menu_item.icon_data.as_deref()?;
+    image::load_from_memory(icon_bytes)
+        .inspect_err(|decode_failure| {
+            tracing::warn!(
+                "menu item icon: cannot decode icon data of {:?}: {decode_failure}",
+                menu_item.label
+            );
+        })
+        .ok()
+        .map(|decoded| IconSource::Pixmap(Arc::new(capped_to_side_limit(decoded.into_rgba8()))))
 }
 
 pub(crate) fn symbolic_first_icon_names(icon_name: &str) -> Vec<String> {
@@ -92,14 +124,18 @@ pub(crate) fn symbolic_first_icon_names(icon_name: &str) -> Vec<String> {
     }
 }
 
-pub fn visible_menu_node(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode> {
+pub fn visible_menu_node(
+    menu_item: &MenuItem,
+    entries: &DesktopEntries,
+    menu_icon_px: u16,
+) -> Option<MenuNode> {
     if !menu_item.visible {
         return None;
     }
     let children: Vec<MenuNode> = menu_item
         .submenu
         .iter()
-        .filter_map(|child_item| visible_menu_node(child_item, entries))
+        .filter_map(|child_item| visible_menu_node(child_item, entries, menu_icon_px))
         .collect();
     let kind = if menu_item.menu_type == MenuType::Separator {
         MenuKind::Separator
@@ -131,17 +167,23 @@ pub fn visible_menu_node(menu_item: &MenuItem, entries: &DesktopEntries) -> Opti
             .and_then(non_empty),
         enabled: menu_item.enabled,
         kind,
-        icon: menu_item_icon(menu_item, entries),
+        icon: named_menu_icon(menu_item, entries, menu_icon_px)
+            .or_else(|| embedded_menu_icon(menu_item))
+            .and_then(MenuNodeIcon::measured),
         children,
     })
 }
 
 #[must_use]
-pub fn tray_menu_nodes(tray_menu: &TrayMenu, entries: &DesktopEntries) -> Vec<MenuNode> {
+pub fn tray_menu_nodes(
+    tray_menu: &TrayMenu,
+    entries: &DesktopEntries,
+    menu_icon_px: u16,
+) -> Vec<MenuNode> {
     tray_menu
         .submenus
         .iter()
-        .filter_map(|menu_item| visible_menu_node(menu_item, entries))
+        .filter_map(|menu_item| visible_menu_node(menu_item, entries, menu_icon_px))
         .collect()
 }
 
@@ -188,6 +230,8 @@ mod tests {
         assert_eq!(label_without_mnemonics("snake__case"), "snake_case");
     }
 
+    const TEST_MENU_ICON_PX: u16 = 18;
+
     fn toggle_item_kind(toggle_type: ToggleType, toggle_state: ToggleState) -> MenuKind {
         let toggle_item = MenuItem {
             label: Some("Trim Margins".to_owned()),
@@ -197,7 +241,7 @@ mod tests {
             toggle_state,
             ..MenuItem::default()
         };
-        visible_menu_node(&toggle_item, &DesktopEntries::default())
+        visible_menu_node(&toggle_item, &DesktopEntries::default(), TEST_MENU_ICON_PX)
             .expect("a visible item becomes a node")
             .kind
     }

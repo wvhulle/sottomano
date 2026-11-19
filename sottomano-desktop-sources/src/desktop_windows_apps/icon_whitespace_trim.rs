@@ -13,7 +13,7 @@ const ANTIALIAS_BLEED_FRACTION: f32 = 1.0 / 16.0;
 const ALPHA_INK_THRESHOLD: u8 = 8;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TrimmedIcon {
+pub enum IconFile {
     Svg(Arc<[u8]>),
     Raster(Arc<RgbaImage>),
 }
@@ -37,14 +37,25 @@ pub enum IconTrimError {
     },
 }
 
-pub fn trim_icon_file(icon_path: &Path) -> Result<TrimmedIcon, IconTrimError> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconTrim {
+    Trimmed,
+    DesignSize,
+}
+
+pub fn read_icon_file(icon_path: &Path, icon_trim: IconTrim) -> Result<IconFile, IconTrimError> {
     let icon_bytes = fs::read(icon_path).map_err(|read_failure| IconTrimError::Unreadable {
         icon_path: icon_path.to_path_buf(),
         read_failure,
     })?;
     if is_svg_file(icon_path) {
-        trim_svg_bytes(icon_bytes)
-            .map(|svg_bytes| TrimmedIcon::Svg(svg_bytes.into()))
+        let svg_bytes = match icon_trim {
+            IconTrim::Trimmed => trim_svg_bytes(icon_bytes),
+            IconTrim::DesignSize => usvg::Tree::from_data(&icon_bytes, &usvg::Options::default())
+                .map(|_parsed_tree| icon_bytes),
+        };
+        svg_bytes
+            .map(|svg_bytes| IconFile::Svg(svg_bytes.into()))
             .map_err(|parse_failure| IconTrimError::InvalidSvg {
                 icon_path: icon_path.to_path_buf(),
                 parse_failure,
@@ -52,7 +63,11 @@ pub fn trim_icon_file(icon_path: &Path) -> Result<TrimmedIcon, IconTrimError> {
     } else {
         image::load_from_memory(&icon_bytes)
             .map(|decoded_image| {
-                TrimmedIcon::Raster(Arc::new(trim_rgba(decoded_image.into_rgba8())))
+                let pixels = decoded_image.into_rgba8();
+                IconFile::Raster(Arc::new(match icon_trim {
+                    IconTrim::Trimmed => trim_rgba(pixels),
+                    IconTrim::DesignSize => pixels,
+                }))
             })
             .map_err(|decode_failure| IconTrimError::UndecodableRaster {
                 icon_path: icon_path.to_path_buf(),
@@ -176,7 +191,7 @@ mod tests {
 
     use image::{Rgba, RgbaImage};
 
-    use super::{IconTrimError, TrimmedIcon, trim_icon_file};
+    use super::{IconFile, IconTrim, IconTrimError, read_icon_file};
 
     const PADDED_BLUE_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="blue"/></svg>"#;
     const PADDED_RED_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="red"/></svg>"#;
@@ -221,11 +236,11 @@ mod tests {
     }
 
     fn trimmed_svg_text(icon_path: &Path) -> String {
-        match trim_icon_file(icon_path).expect("svg icon trims") {
-            TrimmedIcon::Svg(svg_bytes) => {
+        match read_icon_file(icon_path, IconTrim::Trimmed).expect("svg icon trims") {
+            IconFile::Svg(svg_bytes) => {
                 String::from_utf8(svg_bytes.to_vec()).expect("trimmed svg is utf-8")
             }
-            TrimmedIcon::Raster(_) => panic!("svg icon came back as raster"),
+            IconFile::Raster(_) => panic!("svg icon came back as raster"),
         }
     }
 
@@ -266,9 +281,9 @@ mod tests {
         padded_image
             .save(&icon_path)
             .expect("scratch png is writable");
-        match trim_icon_file(&icon_path).expect("png icon trims") {
-            TrimmedIcon::Raster(cropped_image) => assert_eq!(cropped_image.dimensions(), (18, 10)),
-            TrimmedIcon::Svg(_) => panic!("png icon came back as svg"),
+        match read_icon_file(&icon_path, IconTrim::Trimmed).expect("png icon trims") {
+            IconFile::Raster(cropped_image) => assert_eq!(cropped_image.dimensions(), (18, 10)),
+            IconFile::Svg(_) => panic!("png icon came back as svg"),
         }
     }
 
@@ -287,7 +302,7 @@ mod tests {
     fn unreadable_icon_reports_typed_error() {
         let scratch = ScratchIconDirectory::create("missing-icon");
         assert!(matches!(
-            trim_icon_file(&scratch.icon_path("absent.svg")),
+            read_icon_file(&scratch.icon_path("absent.svg"), IconTrim::Trimmed),
             Err(IconTrimError::Unreadable { .. })
         ));
     }
@@ -298,7 +313,7 @@ mod tests {
         let icon_path = scratch.icon_path("broken.svg");
         write_icon_with_nix_store_mtime(&icon_path, b"<svg");
         assert!(matches!(
-            trim_icon_file(&icon_path),
+            read_icon_file(&icon_path, IconTrim::Trimmed),
             Err(IconTrimError::InvalidSvg { .. })
         ));
     }

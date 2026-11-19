@@ -2,8 +2,9 @@ use corredo::{
     popovers::{MenuEntry, MenuItem, MenuRow, MenuRowContent, MenuRowEmphasis, MenuSubmenu},
     value_controls::{SwitchResponse, TogglePosition, radio_mark, toggle_switch},
 };
-use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::{
-    MenuKind, MenuNode, ToggleCheck, ToggleMark,
+use sottomano_desktop_sources::desktop_windows_apps::{
+    application_menu_nodes::{MenuIconLookup, MenuKind, MenuNode, ToggleCheck, ToggleMark},
+    desktop_entry_app_icons::IconTheme,
 };
 use sottomano_toml_config::Config;
 
@@ -64,6 +65,28 @@ pub fn menu_node_entries<Message: Clone + 'static>(
         .collect()
 }
 
+#[must_use]
+pub fn menu_icon_lookup(icon_theme: IconTheme, config: &Config) -> MenuIconLookup {
+    MenuIconLookup {
+        icon_theme,
+        size_px: config.theme.font.icon_size_px.round() as u16,
+    }
+}
+
+const SMALLEST_FRACTION_OF_TARGET: f32 = 0.75;
+
+fn crisp_icon_side_px(design_side_px: f32, target_side_px: f32) -> f32 {
+    if design_side_px <= target_side_px {
+        return design_side_px * (target_side_px / design_side_px).floor();
+    }
+    let whole_fraction_px = design_side_px / (design_side_px / target_side_px).ceil();
+    if whole_fraction_px >= target_side_px * SMALLEST_FRACTION_OF_TARGET {
+        whole_fraction_px
+    } else {
+        target_side_px
+    }
+}
+
 fn node_row_content<Message: 'static>(
     node: &MenuNode,
     config: &Config,
@@ -72,7 +95,11 @@ fn node_row_content<Message: 'static>(
     let icon_size = config.theme.font.icon_size_px;
     let content = MenuRowContent::new(node.label.clone().unwrap_or_default());
     let content = match &node.icon {
-        Some(source) => content.icon(pixmap_handles.icon_handle(source).view(icon_size, 1.0)),
+        Some(menu_icon) => content.icon(
+            pixmap_handles
+                .icon_handle(&menu_icon.source)
+                .view(crisp_icon_side_px(menu_icon.design_side_px, icon_size), 1.0),
+        ),
         None => content,
     };
     let MenuKind::Toggle { mark, check } = node.kind else {
@@ -98,5 +125,32 @@ fn node_row_content<Message: 'static>(
                 .size(icon_size)
                 .response(response),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::crisp_icon_side_px;
+
+    fn drawn_side(design_side_px: f32, target_side_px: f32) -> f32 {
+        crisp_icon_side_px(design_side_px, target_side_px)
+    }
+
+    #[test]
+    fn small_designs_draw_at_whole_multiples_of_their_size() {
+        assert!((drawn_side(16.0, 17.7) - 16.0).abs() < f32::EPSILON);
+        assert!((drawn_side(16.0, 33.0) - 32.0).abs() < f32::EPSILON);
+        assert!((drawn_side(22.0, 24.0) - 22.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn large_designs_draw_at_whole_fractions_of_their_size() {
+        assert!((drawn_side(48.0, 17.7) - 16.0).abs() < f32::EPSILON);
+        assert!((drawn_side(32.0, 24.0) - 24.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn a_design_slightly_above_the_target_shrinks_to_the_target() {
+        assert!((drawn_side(16.0, 12.0) - 12.0).abs() < f32::EPSILON);
     }
 }

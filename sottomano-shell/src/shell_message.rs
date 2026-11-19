@@ -13,7 +13,8 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::{
-        app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries,
+        app_launch_history::Launch,
+        desktop_entry_app_icons::{DesktopEntries, IconTheme},
         firefox_favicon_lookup::RawFavicon,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
@@ -162,6 +163,7 @@ pub enum Message {
     OutputsResolved(HashMap<String, compositor_output_facts::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
+    IconThemeChanged(IconTheme),
     PointerDrag(DragMessage),
     CompositorRequestFailed(CompositorRequestFailure),
     NiriConfigRead(Result<ConfiguredWorkspaces, String>),

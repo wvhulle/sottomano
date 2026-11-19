@@ -18,7 +18,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        application_menu_nodes::MenuNode,
+        application_menu_nodes::{MenuIconLookup, MenuNode},
         appmenu_registrar_server::{self, RegisteredMenuBar},
         dbusmenu_menu_bar_layout::DbusMenuLocation,
         focused_window_menu_bar::{
@@ -159,10 +159,6 @@ impl WindowMenuBar {
         self.switch_expansion.collapse();
     }
 
-    pub fn close_menu(&mut self) {
-        self.menu_state.close();
-    }
-
     pub fn observe_focused_window(&mut self, focused_window: FocusedWindowIdentity) {
         if focused_window == self.focused_window
             || focused_window == FocusedWindowIdentity::NoFocusedWindow
@@ -196,6 +192,7 @@ impl WindowMenuBar {
         &self,
         buses: &DesktopBuses,
         window_menu_bar_presence: MenuTopicPresence,
+        menu_icons: &MenuIconLookup,
     ) -> Subscription<WindowMenuBarMessage> {
         if self.window_menu_bar_use == WindowMenuBarUse::Disabled {
             return Subscription::none();
@@ -206,6 +203,7 @@ impl WindowMenuBar {
             buses: buses.clone(),
             focused_window: self.focused_window.clone(),
             registered_menu_bars: self.registered_menu_bars.clone(),
+            menu_icons: menu_icons.clone(),
         };
         let submenu_preparation = match &self.focused_menu_bar {
             FocusedMenuBar::Shown(shown_menu_bar) => match &shown_menu_bar.activation_route {

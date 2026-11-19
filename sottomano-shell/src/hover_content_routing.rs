@@ -94,7 +94,11 @@ impl DesktopShell {
                 WindowMenuBarInteraction::Menu,
             ),
             HoverTarget::GroupMenu(GroupMenuTopic::Applications) => {
-                let app_card_view = |sections: Vec<Section>| self.inspection_card_view(&sections);
+                let app_card_view = |sections: Vec<Section>| {
+                    self.inspection_card(&sections)
+                        .view(&self.config)
+                        .map(|card| card.map(GroupEvent::Popup))
+                };
                 self.cascading_menu(
                     groups.app_launcher_menu.menu_entries(
                         &self.desktop_entries,
@@ -175,12 +179,6 @@ impl DesktopShell {
             assets: self.window_assets(),
             clock: self.clock,
         }
-    }
-
-    fn inspection_card_view<'a>(&self, sections: &[Section]) -> Option<Element<'a, GroupEvent>> {
-        self.inspection_card(sections)
-            .view(&self.config)
-            .map(|card| card.map(GroupEvent::Popup))
     }
 
     fn group_menu_surfaces(
