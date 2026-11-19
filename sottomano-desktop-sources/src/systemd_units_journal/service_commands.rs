@@ -8,6 +8,7 @@ use super::{ManagerProxy, ServiceProxy, SystemdUnitScope};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::llama_server_slots::LLAMA_SERVER_PROGRAM,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     ci_runner_tasks::systemd_service_runner_discovery::{
         FORGEJO_RUNNER_PROGRAM, WOODPECKER_AGENT_PROGRAM,
     },
@@ -16,8 +17,6 @@ use crate::{
 };
 
 const SERVICE_SUFFIX: &str = ".service";
-
-const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
 
 const DISCOVERED_PROGRAMS: [&str; 4] = [
     WOODPECKER_AGENT_PROGRAM,
@@ -128,50 +127,6 @@ impl SnapshotSource for ServiceCommands {
     }
 }
 
-enum ServiceUnitChange {
-    JobFinished { unit: String },
-    Disappeared { unit: String },
-    ReloadFinished,
-}
-
-struct TrackedServices {
-    manager: ManagerProxy<'static>,
-    commands: BTreeMap<String, ServiceCommand>,
-}
-
-impl TrackedServices {
-    async fn apply(&mut self, change: ServiceUnitChange) -> zbus::Result<()> {
-        match change {
-            ServiceUnitChange::JobFinished { unit } => {
-                let unit_path = match self.manager.get_unit(&unit).await {
-                    Err(zbus::Error::MethodError(error_name, ..))
-                        if error_name.as_str() == NO_SUCH_UNIT =>
-                    {
-                        self.commands.remove(&unit);
-                        return Ok(());
-                    }
-                    found => found?,
-                };
-                match service_command(&self.manager, unit.clone(), unit_path).await {
-                    Some(command) => self.commands.insert(unit, command),
-                    None => self.commands.remove(&unit),
-                };
-            }
-            ServiceUnitChange::Disappeared { unit } => {
-                self.commands.remove(&unit);
-            }
-            ServiceUnitChange::ReloadFinished => {
-                self.commands = all_service_commands(&self.manager).await?;
-            }
-        }
-        Ok(())
-    }
-
-    fn listed(&self) -> Vec<ServiceCommand> {
-        self.commands.values().cloned().collect()
-    }
-}
-
 async fn watch_service_commands(
     connection: zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<ServiceCommand>>> + Send> {
@@ -185,22 +140,14 @@ async fn watch_service_commands(
         .await?
         .filter_map(|removed_job| {
             ready(match removed_job.args() {
-                Ok(finished_job) if finished_job.unit.ends_with(SERVICE_SUFFIX) => {
-                    Some(Ok(ServiceUnitChange::JobFinished {
-                        unit: finished_job.unit,
-                    }))
-                }
+                Ok(finished_job) if finished_job.unit.ends_with(SERVICE_SUFFIX) => Some(Ok(())),
                 Ok(_) => None,
                 Err(signal_failure) => Some(Err(signal_failure)),
             })
         });
     let disappeared = manager.receive_unit_removed().await?.filter_map(|removed| {
         ready(match removed.args() {
-            Ok(removed_unit) if removed_unit.id.ends_with(SERVICE_SUFFIX) => {
-                Some(Ok(ServiceUnitChange::Disappeared {
-                    unit: removed_unit.id,
-                }))
-            }
+            Ok(removed_unit) if removed_unit.id.ends_with(SERVICE_SUFFIX) => Some(Ok(())),
             Ok(_) => None,
             Err(signal_failure) => Some(Err(signal_failure)),
         })
@@ -208,37 +155,25 @@ async fn watch_service_commands(
     let reloads_finished = manager.receive_reloading().await?.filter_map(|reloading| {
         ready(match reloading.args() {
             Ok(reload) if reload.active => None,
-            Ok(_) => Some(Ok(ServiceUnitChange::ReloadFinished)),
+            Ok(_) => Some(Ok(())),
             Err(signal_failure) => Some(Err(signal_failure)),
         })
     });
-    let service_changes =
-        stream::select(stream::select(jobs_finished, disappeared), reloads_finished).boxed();
-    let tracked = TrackedServices {
-        commands: all_service_commands(&manager).await?,
-        manager,
-    };
-    let first_listing = tracked.listed();
-    let followed = stream::unfold(
-        (tracked, service_changes),
-        |(mut tracked, mut service_changes)| async move {
-            let applied = match service_changes.next().await? {
-                Ok(change) => tracked.apply(change).await.map(|()| tracked.listed()),
-                Err(signal_failure) => Err(signal_failure),
-            };
-            Some((applied, (tracked, service_changes)))
-        },
-    );
-    Ok(stream::once(ready(Ok(first_listing)))
-        .chain(followed)
-        .distinct_until_changed())
+    Ok(
+        stream::select(stream::select(jobs_finished, disappeared), reloads_finished)
+            .triggered_rereads(move || {
+                let manager = manager.clone();
+                async move { all_service_commands(&manager).await }
+            })
+            .distinct_until_changed(),
+    )
 }
 
 async fn all_service_commands(
     manager: &ManagerProxy<'static>,
-) -> zbus::Result<BTreeMap<String, ServiceCommand>> {
+) -> zbus::Result<Vec<ServiceCommand>> {
     let rows = manager.list_units().await?;
-    Ok(join_all(
+    let mut commands: Vec<ServiceCommand> = join_all(
         rows.into_iter()
             .filter(|row| row.name.ends_with(SERVICE_SUFFIX))
             .map(|row| service_command(manager, row.name, row.unit_path)),
@@ -246,8 +181,9 @@ async fn all_service_commands(
     .await
     .into_iter()
     .flatten()
-    .map(|command| (command.unit.clone(), command))
-    .collect())
+    .collect();
+    commands.sort_by(|left, right| left.unit.cmp(&right.unit));
+    Ok(commands)
 }
 
 async fn service_command(
