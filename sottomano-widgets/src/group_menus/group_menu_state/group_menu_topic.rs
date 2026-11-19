@@ -56,7 +56,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Hardware => Phosphor::Cpu(Weight::Regular),
             GroupMenuTopic::Network => Phosphor::Network(Weight::Regular),
             GroupMenuTopic::Agenda => Phosphor::CalendarBlank(Weight::Regular),
-            GroupMenuTopic::Media => Phosphor::MusicNotes(Weight::Regular),
+            GroupMenuTopic::Media => Phosphor::MonitorPlay(Weight::Regular),
             GroupMenuTopic::Display => Phosphor::Monitor(Weight::Regular),
             GroupMenuTopic::Virtualization => Phosphor::Cube(Weight::Regular),
             GroupMenuTopic::Services => Phosphor::Stack(Weight::Regular),
