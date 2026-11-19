@@ -8,6 +8,8 @@ use image::{ImageError, RgbaImage, imageops::crop_imm};
 
 const MIN_MARGIN_FRACTION: f32 = 0.02;
 
+const ANTIALIAS_BLEED_FRACTION: f32 = 1.0 / 16.0;
+
 const ALPHA_INK_THRESHOLD: u8 = 8;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,11 +89,12 @@ fn trim_svg_bytes(icon_bytes: Vec<u8>) -> Result<Vec<u8>, usvg::Error> {
 
 fn cropped_svg_bytes(tree: &usvg::Tree) -> Option<Vec<u8>> {
     let size = tree.size();
-    let bbox = tree.root().abs_bounding_box();
-    let x0 = bbox.x().max(0.0);
-    let y0 = bbox.y().max(0.0);
-    let x1 = (bbox.x() + bbox.width()).min(size.width());
-    let y1 = (bbox.y() + bbox.height()).min(size.height());
+    let ink_box = tree.root().abs_stroke_bounding_box();
+    let bleed = ink_box.width().max(ink_box.height()) * ANTIALIAS_BLEED_FRACTION;
+    let x0 = (ink_box.x() - bleed).max(0.0);
+    let y0 = (ink_box.y() - bleed).max(0.0);
+    let x1 = (ink_box.x() + ink_box.width() + bleed).min(size.width());
+    let y1 = (ink_box.y() + ink_box.height() + bleed).min(size.height());
     let (vw, vh) = (x1 - x0, y1 - y0);
     if vw <= 0.0 || vh <= 0.0 {
         return None;
@@ -177,6 +180,7 @@ mod tests {
 
     const PADDED_BLUE_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="blue"/></svg>"#;
     const PADDED_RED_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="red"/></svg>"#;
+    const PADDED_STROKED_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="none" stroke="black" stroke-width="8"/></svg>"#;
     const EDGE_TO_EDGE_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><rect width="16" height="16" fill="blue"/></svg>"#;
 
     struct ScratchIconDirectory {
@@ -230,7 +234,15 @@ mod tests {
         let scratch = ScratchIconDirectory::create("padded-svg");
         let icon_path = scratch.icon_path("app.svg");
         write_icon_with_nix_store_mtime(&icon_path, PADDED_BLUE_SQUARE_SVG.as_bytes());
-        assert!(trimmed_svg_text(&icon_path).contains("viewBox=\"40 40 20 20\""));
+        assert!(trimmed_svg_text(&icon_path).contains("viewBox=\"38.75 38.75 22.5 22.5\""));
+    }
+
+    #[test]
+    fn cropped_svg_keeps_the_full_width_of_outer_strokes() {
+        let scratch = ScratchIconDirectory::create("stroked-svg");
+        let icon_path = scratch.icon_path("utilities-terminal-symbolic.svg");
+        write_icon_with_nix_store_mtime(&icon_path, PADDED_STROKED_SQUARE_SVG.as_bytes());
+        assert!(trimmed_svg_text(&icon_path).contains("viewBox=\"34.25 34.25 31.5 31.5\""));
     }
 
     #[test]
