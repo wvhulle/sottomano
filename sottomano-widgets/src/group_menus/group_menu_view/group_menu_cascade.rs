@@ -1,26 +1,25 @@
 use corredo::{
     orientation::Axis,
     popovers::{
-        CascadeOrientation, MenuEntry, MenuRowEmphasis, MenuSubmenu, NestedMenuAction, nested_menu,
-        submenu_header_emphasis,
+        CascadeOrientation, MenuEntry, MenuRowEmphasis, MenuSubmenu, NestedMenuAction,
+        NestedMenuSurfaces, submenu_header_emphasis,
     },
-    selection_scroll::{ScrollEdgeFade, ScrollPacing},
+    selection_scroll::ScrollEdgeFade,
     transitions::ExpansionState,
 };
 use iced::widget::Column;
 use sottomano_toml_config::Config;
 
-use super::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard, MenuSections};
+use super::{GroupMenuView, InspectionCard, MenuSections};
 use crate::{
     group_menus::{
-        cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{AlertPromotion, GroupMenuPin},
         menu_rows::{
             group_menu_group_rows::{
                 GroupMenuGroupRow, GroupMenuRowContext, group_header, indicator_entry,
                 one_row_per_identity,
             },
-            menu_row::{MenuFrames, menu_metrics, menu_style, phosphor_caret},
+            menu_row::{MenuAppearance, configured_nested_menu, menu_metrics},
             quantity_table::quantity_table,
         },
     },
@@ -39,7 +38,7 @@ impl<'a> GroupMenuView<'a> {
         appearance: &LayerAppearance,
         card: &InspectionCard<'_, 'a>,
         orientation: CascadeOrientation,
-    ) -> Option<GroupMenuCascadeSurfaces<'a, GroupEvent>> {
+    ) -> Option<NestedMenuSurfaces<'a, GroupEvent>> {
         let GroupMenuView {
             group_menus,
             messenger,
@@ -75,49 +74,27 @@ impl<'a> GroupMenuView<'a> {
         };
         let menu_entries = group_menu_entries(&row_context, group_rows, card);
         let list_frame = appearance.frame;
-        let style = menu_style(
-            config,
-            MenuFrames {
-                list_frame,
-                beside_frame: card.card_appearance.frame,
-            },
-            presentation.submenu_connector,
-        );
-        let fade_extent_px = style.fade_extent_px;
+        let fade_extent_px =
+            config.group_menus.scroll_fade_rows * menu_metrics(config).row_height_px;
         let scrolled_px = group_menus.inspection.submenus.scrolled_px(0);
         let menu_action = messenger.menu_action();
-        let satellite_blur = SatelliteBlur {
-            item_list: appearance.backdrop_blur,
-            beside: card.card_appearance.backdrop_blur,
-        };
-        let cascade = nested_menu(
+        let cascade = configured_nested_menu(
             menu_entries,
             &group_menus.inspection.submenus,
-            presentation,
             messenger.menu_action(),
-        )
-        .metrics(menu_metrics(config))
-        .orientation(orientation)
-        .caret(phosphor_caret(config))
-        .style(style)
-        .wheel_scrolling(
-            config.scrolling.wheel_line_px,
-            ScrollPacing::Eased(config.scrolling.wheel_easing),
-        )
-        .surfaces()
-        .map(|surfaces| GroupMenuCascadeSurfaces {
-            primary: surfaces.primary,
-            satellites: surfaces
-                .satellites
-                .into_iter()
-                .map(|satellite| satellite_with_regions(satellite, satellite_blur))
-                .collect(),
-        });
+            config,
+            MenuAppearance {
+                list_appearance: *appearance,
+                beside_appearance: card.card_appearance,
+                presentation,
+                orientation,
+            },
+        );
         let Some(table) = table else {
             return cascade;
         };
         let Some(cascade) = cascade else {
-            return Some(GroupMenuCascadeSurfaces {
+            return Some(NestedMenuSurfaces {
                 primary: configured_scroll(table, Axis::Vertical, config)
                     .edge_fade(ScrollEdgeFade::within_frame(list_frame, fade_extent_px))
                     .controlled(scrolled_px, move |scrolled_px| {
@@ -130,7 +107,7 @@ impl<'a> GroupMenuView<'a> {
                 satellites: Vec::new(),
             });
         };
-        Some(GroupMenuCascadeSurfaces {
+        Some(NestedMenuSurfaces {
             primary: Column::with_children([table, cascade.primary]).into(),
             satellites: cascade.satellites,
         })

@@ -52,7 +52,7 @@ pub async fn open_dbusmenu_submenu(
         send_menu_event(&connection, &location, item_id, OPENED_EVENT).await
     };
     if let Err(open_failure) = opened.await {
-        tracing::debug!("global menu: open submenu {item_id}: {open_failure}");
+        tracing::debug!("window menu bar: open submenu {item_id}: {open_failure}");
     }
 }
 
@@ -64,13 +64,13 @@ pub async fn prepare_dbusmenu_submenus(
     let menu_proxy = match dbusmenu_proxy(&connection, &location).await {
         Ok(menu_proxy) => menu_proxy,
         Err(proxy_failure) => {
-            tracing::debug!("global menu: prepare submenus: {proxy_failure}");
+            tracing::debug!("window menu bar: prepare submenus: {proxy_failure}");
             return;
         }
     };
     for submenu_id in submenu_ids {
         if let Err(prepare_failure) = menu_proxy.about_to_show(submenu_id).await {
-            tracing::debug!("global menu: prepare submenu {submenu_id}: {prepare_failure}");
+            tracing::debug!("window menu bar: prepare submenu {submenu_id}: {prepare_failure}");
         }
     }
 }

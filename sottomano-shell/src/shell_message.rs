@@ -20,12 +20,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, LoadError};
 use sottomano_widgets::{
+    cascading_menus::{
+        app_launcher_menu::AppLauncherMessage, window_menu_bar::WindowMenuBarMessage,
+    },
     desktop_index::ResolvedIcons,
     desktop_panels::panel_slot_drag::DragMessage,
     group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{HoverCardMessage, PopupMessage},
     indicator_groups::{
-        app_launcher_group::AppLauncherMessage,
         apptainer_containers_group::ApptainerContainersMessage, audio_group::AudioMessage,
         bluetooth_adapters_group::BluetoothMessage, caldav_group::CaldavMessage,
         cgroup_memory_limits_group::CgroupMemoryLimitsMessage, ci_runs_group::CiRunsMessage,
@@ -35,9 +37,8 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageMessage, dark_mode_group::DarkModeMessage,
         docker_engines_group::DockerEnginesMessage, ethernet_ports_group::EthernetPortsMessage,
         flatpak_sandboxes_group::FlatpakSandboxesMessage, gamepad_group::GamepadMessage,
-        global_menu_group::GlobalMenuMessage, gpu_group::GpuMessage,
-        idle_pause_groups::IdlePauseMessage, incus_instances_group::IncusInstancesMessage,
-        indicator_group_content::GroupEvent,
+        gpu_group::GpuMessage, idle_pause_groups::IdlePauseMessage,
+        incus_instances_group::IncusInstancesMessage, indicator_group_content::GroupEvent,
         indicator_group_interaction::IndicatorGroupInteraction,
         journal_events_group::JournalEventsMessage, llama_server_group::LlamaServerMessage,
         login_session_group::LoginSessionMessage, lxc_containers_group::LxcContainersMessage,
@@ -116,7 +117,7 @@ pub enum Message {
     GroupMenuState(GroupMenuMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
-    GlobalMenu(GlobalMenuMessage),
+    WindowMenuBar(WindowMenuBarMessage),
     ConfigFileChanged(Result<(), ChangeWatchFailure>),
     ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
     SoundThemeLoaded(SoundTheme),

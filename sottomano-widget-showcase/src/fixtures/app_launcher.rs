@@ -5,17 +5,17 @@ use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::
     AppCategory, LaunchableApp, OpenAppWindows,
 };
 use sottomano_widgets::{
-    desktop_index::DesktopIndex,
-    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuTopic},
-    indicator_groups::app_launcher_group::{
-        AppLaunchUsage, AppLauncherGroup, FrequentApp, FrequentAppScope, OutputFrequentApps,
-        WorkspaceWindowPresence,
+    cascading_menus::app_launcher_menu::{
+        AppLaunchUsage, AppLauncherMenu, AppLauncherMessage, FrequentApp, FrequentAppScope,
+        OutputFrequentApps, WorkspaceWindowPresence,
     },
+    desktop_index::DesktopIndex,
+    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::icon_handle::IconHandle,
 };
 
 use crate::{
-    showcase_message::ShowcaseMessage,
+    showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedAppLauncher, ShowcasedGroup},
 };
 
@@ -246,13 +246,14 @@ fn long_utility_app(app_id: &str) -> LaunchableApp {
 }
 
 pub fn scrolled_item_list() -> Vec<ShowcaseMessage> {
-    vec![ShowcaseMessage::GroupMenuState(GroupMenuMessage::Menu {
-        menu: GroupMenuTopic::Applications,
-        action: NestedMenuAction::Scrolled {
-            depth: 1,
-            scrolled_px: SCROLLED_PAST_FIRST_ROWS_PX,
-        },
-    })]
+    vec![ShowcaseMessage::Interaction(ShowcaseInteraction::Group(
+        IndicatorGroupInteraction::AppLauncher(AppLauncherMessage::Menu(
+            NestedMenuAction::Scrolled {
+                depth: 1,
+                scrolled_px: SCROLLED_PAST_FIRST_ROWS_PX,
+            },
+        )),
+    ))]
 }
 
 fn launchable_app(app: &CatalogApp) -> LaunchableApp {
@@ -302,7 +303,7 @@ fn frequent_apps(open_windows: &HashMap<String, OpenAppWindows>) -> Vec<Frequent
 
 pub fn group() -> ShowcasedGroup {
     let open_windows = open_windows();
-    let mut group = AppLauncherGroup::default();
+    let mut group = AppLauncherMenu::default();
     group.adopt_catalog(
         CATALOG
             .iter()

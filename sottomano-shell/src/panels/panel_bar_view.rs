@@ -60,13 +60,13 @@ impl DesktopShell {
     ) -> Vec<Element<'a, ShellInteraction>> {
         let config = &self.config;
         match entry {
-            PanelZoneEntry::Menu(GroupMenuTopic::ApplicationMenu)
-                if !self.indicator_groups.global_menu_group.shows_top_menus() =>
+            PanelZoneEntry::Menu(GroupMenuTopic::WindowMenuBar)
+                if !self.indicator_groups.window_menu_bar.shows_top_menus() =>
             {
                 Vec::new()
             }
             PanelZoneEntry::Menu(topic) => self
-                .group_menu_of(topic, output)
+                .group_menu_of(topic)
                 .panel_views(
                     config,
                     position,

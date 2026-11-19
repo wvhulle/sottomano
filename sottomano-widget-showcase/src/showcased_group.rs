@@ -18,6 +18,7 @@ use sottomano_toml_config::{
     Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,
 };
 use sottomano_widgets::{
+    cascading_menus::app_launcher_menu::AppLauncherMenu,
     clock::Clock,
     desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
@@ -28,7 +29,6 @@ use sottomano_widgets::{
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
     indicator_groups::{
-        app_launcher_group::AppLauncherGroup,
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
         apptainer_containers_group::ApptainerContainersGroup,
         audio_group::AudioGroup,
@@ -207,7 +207,7 @@ impl ShowcasedShellSettings {
 }
 
 pub struct ShowcasedAppLauncher {
-    pub group: AppLauncherGroup,
+    pub group: AppLauncherMenu,
     pub desktop_entries: DesktopIndex,
 }
 
@@ -451,11 +451,7 @@ impl ShowcasedGroup {
         clock: Clock,
     ) -> Vec<IndicatorGroupContent<'a>> {
         match self {
-            ShowcasedGroup::AppLauncher(launcher) => launcher
-                .group
-                .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT)
-                .into_iter()
-                .collect(),
+            ShowcasedGroup::AppLauncher(_) => Vec::new(),
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
                 .flat_map(|member| member.group_contents(config, clock))
@@ -717,6 +713,12 @@ impl ShowcasedGroup {
         clock: Clock,
     ) -> Result<(), Box<IndicatorGroupInteraction>> {
         match (self, group_interaction) {
+            (
+                ShowcasedGroup::AppLauncher(launcher),
+                IndicatorGroupInteraction::AppLauncher(launcher_message),
+            ) => {
+                let _ = launcher.group.update(launcher_message, config);
+            }
             (ShowcasedGroup::Compute(group), IndicatorGroupInteraction::Compute(interaction)) => {
                 let _ = group.interact(interaction, config, clock);
             }

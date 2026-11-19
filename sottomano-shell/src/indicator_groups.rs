@@ -11,11 +11,11 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
+    cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     hover_cards::{anchored_popup::PopupAppearances, hover_card_surfaces::HoverCardSurfaceStyle},
     indicator_groups::{
-        app_launcher_group::AppLauncherGroup,
         appearance_presets_group::AppearancePresetsGroup,
         apptainer_containers_group::ApptainerContainersGroup,
         audio_group::AudioGroup,
@@ -34,7 +34,6 @@ use sottomano_widgets::{
         ethernet_ports_group::EthernetPortsGroup,
         flatpak_sandboxes_group::FlatpakSandboxesGroup,
         gamepad_group::GamepadGroup,
-        global_menu_group::GlobalMenuGroup,
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
         incus_instances_group::IncusInstancesGroup,
@@ -148,9 +147,9 @@ pub struct ShellIndicatorGroups {
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
-    pub global_menu_group: GlobalMenuGroup,
+    pub window_menu_bar: WindowMenuBar,
     pub window_group: WindowGroup,
-    pub app_launcher_group: AppLauncherGroup,
+    pub app_launcher_menu: AppLauncherMenu,
 }
 
 impl ShellIndicatorGroups {
@@ -228,9 +227,9 @@ impl ShellIndicatorGroups {
             ),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
-            global_menu_group: GlobalMenuGroup::default(),
+            window_menu_bar: WindowMenuBar::default(),
             window_group: WindowGroup::default(),
-            app_launcher_group: AppLauncherGroup::default(),
+            app_launcher_menu: AppLauncherMenu::default(),
         }
     }
 
@@ -240,11 +239,11 @@ impl ShellIndicatorGroups {
             SessionPowerGroup::load().map(Message::Session),
             IdlePauseGroups::load().map(Message::IdleTimeouts),
             GroupMenuState::load().map(Message::GroupMenuState),
-            AppLauncherGroup::load().map(Message::AppLauncher),
+            AppLauncherMenu::load().map(Message::AppLauncher),
             PanelSettingsGroup::load().map(Message::PanelSettings),
             SidebarSettingsGroup::load().map(Message::SidebarSettings),
             OverlaySettingsGroup::load().map(Message::OverlaySettings),
-            GlobalMenuGroup::load().map(Message::GlobalMenu),
+            WindowMenuBar::load().map(Message::WindowMenuBar),
             NotificationGroup::load().map(Message::NotificationGroup),
             QuietScheduleGroup::load().map(Message::QuietSchedule),
             DarkModeGroup::load().map(Message::DarkMode),
@@ -391,9 +390,8 @@ impl ShellIndicatorGroups {
         self.mobile_modems_group.collapse();
         self.ethernet_ports_group.collapse();
         self.bluetooth_adapters_group.collapse();
-        self.app_launcher_group.collapse();
         self.tray_group.collapse();
-        self.global_menu_group.collapse();
+        self.window_menu_bar.collapse();
         self.claude_usage_group.collapse();
         self.copilot_usage_group.collapse();
         self.openrouter_credit_group.collapse();

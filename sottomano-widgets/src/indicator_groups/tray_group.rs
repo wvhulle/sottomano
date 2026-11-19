@@ -1,7 +1,7 @@
 use corredo::{
     gauges::activity_line,
     orientation::Axis,
-    popovers::{NestedMenuAction, NestedMenuState},
+    popovers::{MenuEntry, NestedMenuAction, NestedMenuState},
     theming::primary_color,
 };
 use iced::{
@@ -29,6 +29,7 @@ use sottomano_toml_config::{
 
 use crate::{
     background_work::logged_failure_task,
+    cascading_menus::menu_node_entries::menu_node_entries,
     clock::Clock,
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
@@ -57,8 +58,6 @@ use crate::{
     },
 };
 
-mod tray_menu_surfaces;
-pub use tray_menu_surfaces::TrayMenuLook;
 #[cfg(test)]
 mod tray_group_tests;
 
@@ -67,7 +66,7 @@ pub struct TrayGroup {
     items: SubscribedSnapshot<Vec<TrayItem>>,
     pixmap_handles: PixmapHandles,
     host: Option<TrayHost>,
-    menu_state: NestedMenuState<i32>,
+    pub menu_state: NestedMenuState<i32>,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -204,6 +203,33 @@ impl TrayGroup {
             Some(body) => Section::new(title, SectionWidget::paragraph(body)),
             None => Section::new("Tooltip", SectionWidget::paragraph(title)),
         }]
+    }
+
+    #[must_use]
+    pub fn menu_entries_named(
+        &self,
+        item_name: &str,
+        config: &Config,
+    ) -> Vec<MenuEntry<'static, i32, TrayMessage>> {
+        let Some(item) = self
+            .items
+            .get()
+            .into_iter()
+            .flatten()
+            .find(|item| item.name() == item_name)
+        else {
+            return Vec::new();
+        };
+        let Some(menu_path) = item.menu_path.clone() else {
+            return Vec::new();
+        };
+        let item_address = item.address.clone();
+        let on_activate = move |id| TrayMessage::MenuItemClicked {
+            address: item_address.clone(),
+            menu_path: menu_path.clone(),
+            id,
+        };
+        menu_node_entries(&item.menu, config, &self.pixmap_handles, &on_activate)
     }
 
     pub fn close_menu(&mut self) {

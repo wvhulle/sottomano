@@ -48,11 +48,6 @@ pub struct GroupMenuView<'a> {
     groups: Vec<IndicatorGroupContent<'a>>,
 }
 
-pub struct GroupMenuCascadeSurfaces<'a, Message> {
-    pub primary: Element<'a, Message>,
-    pub satellites: Vec<Element<'a, Message>>,
-}
-
 pub struct InspectionCard<'c, 'a> {
     pub sections: &'c [Section],
     pub card_appearance: LayerAppearance,
@@ -61,7 +56,8 @@ pub struct InspectionCard<'c, 'a> {
 }
 
 impl InspectionCard<'_, '_> {
-    pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
+    #[must_use]
+    pub fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
         let hover_card = HoverCard::new(self.sections.to_vec(), CardHeader::Unheaded)?;
         Some(
             HoverCardContent::new(&hover_card, config, self.assets, self.clock)

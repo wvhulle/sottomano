@@ -1,13 +1,14 @@
 use corredo::popovers::{
     CascadeDirection, CascadeOrientation, NestedMenuAction, NestedMenuLayout,
-    NestedMenuOpenTrigger, NestedMenuPresentation, OpenGroupLimit, PopupGrowth, SubmenuConnector,
+    NestedMenuOpenTrigger, NestedMenuPresentation, NestedMenuSurfaces, OpenGroupLimit, PopupGrowth,
+    SubmenuConnector,
 };
 use iced::{Element, Settings, Size};
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::Simulator;
 use sottomano_toml_config::Config;
 
-use super::{GroupEvent, GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard};
+use super::{GroupEvent, GroupMenuView, InspectionCard};
 use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
@@ -77,7 +78,7 @@ impl<'a> GroupMenuView<'a> {
         self,
         bench: &'a MenuTestBench,
         orientation: CascadeOrientation,
-    ) -> GroupMenuCascadeSurfaces<'a, GroupEvent> {
+    ) -> NestedMenuSurfaces<'a, GroupEvent> {
         self.surfaces(
             &bench.config,
             &ShellLayer::Overlays.default_appearance(),
@@ -88,13 +89,14 @@ impl<'a> GroupMenuView<'a> {
     }
 }
 
-impl<'a> GroupMenuCascadeSurfaces<'a, GroupEvent> {
-    pub(super) fn first_indicator_list(self) -> Element<'a, GroupEvent> {
-        self.satellites
-            .into_iter()
-            .next()
-            .expect("the open group has an item list")
-    }
+pub(super) fn first_indicator_list(
+    surfaces: NestedMenuSurfaces<'_, GroupEvent>,
+) -> Element<'_, GroupEvent> {
+    surfaces
+        .satellites
+        .into_iter()
+        .next()
+        .expect("the open group has an item list")
 }
 
 pub(super) fn every_presentation() -> Vec<NestedMenuPresentation> {
@@ -286,7 +288,7 @@ pub(super) fn long_indicator_list_row_top(
             growth: PopupGrowth::Downward,
         },
     );
-    let item_list = surfaces.first_indicator_list();
+    let item_list = first_indicator_list(surfaces);
     Simulator::with_size(
         Settings::default(),
         Size::new(600.0, screen_height),

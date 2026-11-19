@@ -1,9 +1,11 @@
 use strum::IntoStaticStr;
 
 use crate::{
+    cascading_menus::{
+        app_launcher_menu::AppLauncherMessage, window_menu_bar::WindowMenuBarInteraction,
+    },
     group_menus::group_menu_state::GroupMenuMessage,
     indicator_groups::{
-        app_launcher_group::AppLauncherMessage,
         appearance_presets_group::AppearancePresetsMessage,
         apptainer_containers_group::ApptainerContainersInteraction,
         audio_group::AudioMessage,
@@ -21,7 +23,6 @@ use crate::{
         ethernet_ports_group::{EthernetPortsBusRequest, EthernetPortsInteraction},
         flatpak_sandboxes_group::FlatpakSandboxesInteraction,
         gamepad_group::GamepadInteraction,
-        global_menu_group::GlobalMenuInteraction,
         gpu_group::GpuInteraction,
         idle_pause_groups::IdlePauseInteraction,
         incus_instances_group::IncusInstancesInteraction,
@@ -105,7 +106,7 @@ pub enum IndicatorGroupInteraction {
     IdleTimeouts(IdlePauseInteraction),
     Media(MediaInteraction),
     Tray(TrayMessage),
-    GlobalMenu(GlobalMenuInteraction),
+    WindowMenuBar(WindowMenuBarInteraction),
     Audio(AudioMessage),
     ClaudeUsage(ClaudeUsageInteraction),
     CopilotUsage(CopilotUsageInteraction),
@@ -342,9 +343,9 @@ impl From<TrayMessage> for IndicatorGroupInteraction {
     }
 }
 
-impl From<GlobalMenuInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: GlobalMenuInteraction) -> Self {
-        IndicatorGroupInteraction::GlobalMenu(interaction)
+impl From<WindowMenuBarInteraction> for IndicatorGroupInteraction {
+    fn from(interaction: WindowMenuBarInteraction) -> Self {
+        IndicatorGroupInteraction::WindowMenuBar(interaction)
     }
 }
 

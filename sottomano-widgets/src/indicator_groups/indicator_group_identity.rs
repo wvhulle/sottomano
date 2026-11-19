@@ -9,7 +9,6 @@ use strum::IntoStaticStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum IndicatorGroupFamily {
-    AppLauncher,
     AppearancePresets,
     ApptainerContainers,
     Audio,
@@ -27,8 +26,8 @@ pub enum IndicatorGroupFamily {
     EthernetPorts,
     FlatpakSandboxes,
     Gamepad,
-    GlobalMenu,
-    GlobalMenuSwitch,
+    #[strum(serialize = "global_menu_switch")]
+    WindowMenuBarSwitch,
     Gpu,
     GroupMenuSettings,
     IdleTimeouts,
@@ -78,7 +77,6 @@ impl IndicatorGroupFamily {
     #[must_use]
     pub const fn title(self) -> &'static str {
         match self {
-            IndicatorGroupFamily::AppLauncher => "Applications",
             IndicatorGroupFamily::AppearancePresets => "Looks",
             IndicatorGroupFamily::Audio => "Audio",
             IndicatorGroupFamily::BluetoothAdapters => "Bluetooth",
@@ -132,9 +130,7 @@ impl IndicatorGroupFamily {
             IndicatorGroupFamily::SystemdManager => "Systemd",
             IndicatorGroupFamily::Tailnet => "Tailscale",
             IndicatorGroupFamily::Tray => "Tray",
-            IndicatorGroupFamily::GlobalMenu | IndicatorGroupFamily::GlobalMenuSwitch => {
-                "Application menu"
-            }
+            IndicatorGroupFamily::WindowMenuBarSwitch => "Menu bar",
             IndicatorGroupFamily::VoiceDictation => "Voice dictation",
             IndicatorGroupFamily::NetworkManagerVpns => "VPN",
             IndicatorGroupFamily::Wallpaper => "Wallpaper",

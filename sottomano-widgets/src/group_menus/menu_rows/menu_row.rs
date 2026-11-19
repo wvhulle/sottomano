@@ -1,15 +1,24 @@
 use corredo::{
-    popovers::{CaretPointing, MenuRowMetrics, NestedMenuStyle, SubmenuConnector},
+    popovers::{
+        CaretPointing, CascadeOrientation, MenuEntry, MenuRowMetrics, NestedMenuAction,
+        NestedMenuPresentation, NestedMenuState, NestedMenuStyle, NestedMenuSurfaces,
+        SubmenuConnector, nested_menu,
+    },
+    selection_scroll::ScrollPacing,
     theming::FrameStyle,
 };
 use iced::{Color, Element, Theme};
 use sottomano_toml_config::Config;
 
 use crate::{
+    group_menus::cascading_layout::menu_satellite_regions::{
+        SatelliteBlur, satellite_with_regions,
+    },
     hover_cards::hover_card_surfaces::SWITCH_INTENT,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::LayerAppearance,
         text::text_face_of,
     },
 };
@@ -59,4 +68,60 @@ pub(crate) fn phosphor_caret<'a, Message: 'a>(
         };
         IconGlyph::from(caret).view(icon_size_px, color)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MenuAppearance {
+    pub list_appearance: LayerAppearance,
+    pub beside_appearance: LayerAppearance,
+    pub presentation: NestedMenuPresentation,
+    pub orientation: CascadeOrientation,
+}
+
+pub fn configured_nested_menu<'a, SubmenuKey, Message>(
+    entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+    menu_state: &NestedMenuState<SubmenuKey>,
+    on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a,
+    config: &Config,
+    appearance: MenuAppearance,
+) -> Option<NestedMenuSurfaces<'a, Message>>
+where
+    SubmenuKey: Clone + PartialEq + 'a,
+    Message: Clone + 'a,
+{
+    let MenuAppearance {
+        list_appearance,
+        beside_appearance,
+        presentation,
+        orientation,
+    } = appearance;
+    let satellite_blur = SatelliteBlur {
+        item_list: list_appearance.backdrop_blur,
+        beside: beside_appearance.backdrop_blur,
+    };
+    let surfaces = nested_menu(entries, menu_state, presentation, on_action)
+        .metrics(menu_metrics(config))
+        .orientation(orientation)
+        .caret(phosphor_caret(config))
+        .style(menu_style(
+            config,
+            MenuFrames {
+                list_frame: list_appearance.frame,
+                beside_frame: beside_appearance.frame,
+            },
+            presentation.submenu_connector,
+        ))
+        .wheel_scrolling(
+            config.scrolling.wheel_line_px,
+            ScrollPacing::Eased(config.scrolling.wheel_easing),
+        )
+        .surfaces()?;
+    Some(NestedMenuSurfaces {
+        primary: surfaces.primary,
+        satellites: surfaces
+            .satellites
+            .into_iter()
+            .map(|satellite| satellite_with_regions(satellite, satellite_blur))
+            .collect(),
+    })
 }

@@ -11,7 +11,7 @@ use sottomano_toml_config::{Config, screen_edges::Position};
 
 use super::{
     GroupEvent, GroupMenuView,
-    group_menu_layout_tests::{MenuTestBench, opened_menu_state},
+    group_menu_layout_tests::{MenuTestBench, first_indicator_list, opened_menu_state},
 };
 use crate::{
     clock::Clock,
@@ -119,7 +119,7 @@ fn messages_after_pointing_at_row(
                 growth: PopupGrowth::Downward,
             },
         );
-    let item_list = surfaces.first_indicator_list();
+    let item_list = first_indicator_list(surfaces);
     let mut simulator =
         Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
     let pointer = pointer_target(&mut simulator);

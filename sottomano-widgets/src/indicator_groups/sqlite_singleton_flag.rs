@@ -5,7 +5,7 @@ use sottomano_desktop_sources::sqlite_state_store::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SingletonFlag {
     NotificationSound,
-    GlobalApplicationMenu,
+    WindowMenuBarUse,
     ToastSpatialLayout,
     WorkspacesInSidebar,
     AutoCollapseWorkspaces,
@@ -20,7 +20,7 @@ impl SingletonFlag {
     const fn table(self) -> &'static str {
         match self {
             Self::NotificationSound => "notification_sound",
-            Self::GlobalApplicationMenu => "global_application_menu",
+            Self::WindowMenuBarUse => "global_application_menu",
             Self::ToastSpatialLayout => "toast_spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
             Self::AutoCollapseWorkspaces => "auto_collapse_workspaces",
@@ -36,7 +36,7 @@ impl SingletonFlag {
         match self {
             Self::SwitchHeatBorders => "shown",
             Self::NotificationSound
-            | Self::GlobalApplicationMenu
+            | Self::WindowMenuBarUse
             | Self::ToastSpatialLayout
             | Self::WorkspacesInSidebar
             | Self::AutoCollapseWorkspaces
@@ -119,7 +119,7 @@ mod tests {
 
     const ALL_FLAGS: [SingletonFlag; 10] = [
         SingletonFlag::NotificationSound,
-        SingletonFlag::GlobalApplicationMenu,
+        SingletonFlag::WindowMenuBarUse,
         SingletonFlag::ToastSpatialLayout,
         SingletonFlag::WorkspacesInSidebar,
         SingletonFlag::AutoCollapseWorkspaces,

@@ -13,7 +13,7 @@ pub(crate) const TOP_PANEL: PanelBarComposition = PanelBarComposition {
     start: &[
         Menu(GroupMenuTopic::Hardware),
         Menu(GroupMenuTopic::Network),
-        Menu(GroupMenuTopic::ApplicationMenu),
+        Menu(GroupMenuTopic::WindowMenuBar),
     ],
     center: &[
         Standalone(Clock),

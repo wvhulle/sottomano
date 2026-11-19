@@ -33,6 +33,23 @@ pub struct NestedMenuSurfaces<'a, Message> {
     pub satellites: Vec<Element<'a, Message>>,
 }
 
+impl<'a, Message: 'a> NestedMenuSurfaces<'a, Message> {
+    #[must_use]
+    pub fn map<Mapped: 'a>(
+        self,
+        mapping: impl Fn(Message) -> Mapped + Clone + 'a,
+    ) -> NestedMenuSurfaces<'a, Mapped> {
+        NestedMenuSurfaces {
+            primary: self.primary.map(mapping.clone()),
+            satellites: self
+                .satellites
+                .into_iter()
+                .map(|satellite| satellite.map(mapping.clone()))
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct NestedMenuStyle {
     pub list_frame: FrameStyle,

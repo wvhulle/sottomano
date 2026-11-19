@@ -53,7 +53,7 @@ impl DesktopShell {
             Message::Session(msg) => self.update_session(msg),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
-            Message::GlobalMenu(msg) => self.update_global_menu(msg),
+            Message::WindowMenuBar(msg) => self.update_window_menu_bar(msg),
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
                 .indicator_groups

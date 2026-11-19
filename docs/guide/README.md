@@ -24,20 +24,20 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 |---|---|---|
 | Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |
 | Network | top, left | Wi-Fi adapters, mobile modems, ethernet ports, Bluetooth, reachability, VPN |
-| Application menu | top, left | the focused window's menus, one group per top-level menu; off until switched on in Behaviour |
+| Menu bar | top, left | the focused window's menus as nested submenus; off until switched on in Behaviour |
 | Agenda | top, middle | calendar, weather, quiet schedule, focus session |
 | Display | top, right | monitors, dark mode, colour temperature, wallpaper |
 | Media | top, right | media players, audio, dictation, game controllers |
 | Appearance | bottom, left | panel, sidebar, overlay, window and menu settings with a unit |
-| Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the application menu switch, looks |
-| Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
+| Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the menu bar switch, looks |
+| Applications | bottom, middle | frequently launched apps, one submenu per category, launcher options |
 | Virtualization | bottom, right | QEMU machines, microvm.nix guests, Incus instances, nspawn containers, LXC containers, Podman containers, Docker containers, Waydroid, Flatpak apps, memory limits |
 | Services | bottom, right | local models, CI runs, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 
 ## Top panel
 
-The Hardware, Network and Application menus on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
+The Hardware and Network menus and the Menu bar on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
 
 <div class="guide-cards">
 <a class="guide-card" href="compute.html"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/stills/tour_hardware.webp" alt="" loading="lazy"><span class="guide-card-title">Compute</span><span class="guide-card-description">load, clock, temperature and caches.</span></a>

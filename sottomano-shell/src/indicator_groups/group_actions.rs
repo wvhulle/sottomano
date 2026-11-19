@@ -15,10 +15,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     background_work::{compositor_request, logged_failure_task},
+    cascading_menus::{
+        app_launcher_menu::{self, AppLauncherMessage},
+        window_menu_bar::{
+            self, WindowMenuBarInteraction, WindowMenuBarMessage, WindowMenuBarRequest,
+        },
+    },
     indicator_groups::{
-        app_launcher_group::{self, AppLauncherMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
-        global_menu_group::{self, GlobalMenuInteraction, GlobalMenuMessage, GlobalMenuRequest},
         media_group::{self, MediaInteraction, MediaMessage},
         overlay_settings_group::{self, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsMessage},
@@ -61,7 +65,7 @@ impl DesktopShell {
     }
 
     pub(crate) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
-        let launcher = &mut self.indicator_groups.app_launcher_group;
+        let launcher = &mut self.indicator_groups.app_launcher_menu;
         launcher.adopt_catalog(entries.launchable_apps());
         self.desktop_entries.set(entries);
         let catalog_icons = self
@@ -77,11 +81,11 @@ impl DesktopShell {
     ) -> Task<Message> {
         match self
             .indicator_groups
-            .app_launcher_group
+            .app_launcher_menu
             .update(launcher_message, &self.config)
         {
-            app_launcher_group::Action::Run(task) => task.map(Message::AppLauncher),
-            app_launcher_group::Action::RunAndDismissMenu(task) => {
+            app_launcher_menu::Action::Run(task) => task.map(Message::AppLauncher),
+            app_launcher_menu::Action::RunAndDismissMenu(task) => {
                 Task::batch([self.dismiss_hover_card(), task.map(Message::AppLauncher)])
             }
         }
@@ -220,39 +224,36 @@ impl DesktopShell {
         }
     }
 
-    pub(crate) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
-        let action = self.indicator_groups.global_menu_group.update(msg);
-        self.run_global_menu_action(action)
+    pub(crate) fn update_window_menu_bar(&mut self, msg: WindowMenuBarMessage) -> Task<Message> {
+        let action = self.indicator_groups.window_menu_bar.update(msg);
+        self.run_window_menu_bar_action(action)
     }
 
-    pub(crate) fn interact_global_menu(
+    pub(crate) fn interact_window_menu_bar(
         &mut self,
-        interaction: GlobalMenuInteraction,
+        interaction: WindowMenuBarInteraction,
     ) -> Task<Message> {
-        let action = self
-            .indicator_groups
-            .global_menu_group
-            .interact(interaction);
-        self.run_global_menu_action(action)
+        let action = self.indicator_groups.window_menu_bar.interact(interaction);
+        self.run_window_menu_bar_action(action)
     }
 
-    fn run_global_menu_action(&mut self, action: global_menu_group::Action) -> Task<Message> {
+    fn run_window_menu_bar_action(&mut self, action: window_menu_bar::Action) -> Task<Message> {
         match action {
-            global_menu_group::Action::None => Task::none(),
-            global_menu_group::Action::Run(task) => task.map(Message::GlobalMenu),
-            global_menu_group::Action::Activate(request) => Task::batch([
+            window_menu_bar::Action::None => Task::none(),
+            window_menu_bar::Action::Run(task) => task.map(Message::WindowMenuBar),
+            window_menu_bar::Action::Activate(request) => Task::batch([
                 self.dismiss_hover_card(),
-                self.send_global_menu_request(request),
+                self.send_window_menu_bar_request(request),
             ]),
         }
     }
 
-    fn send_global_menu_request(&self, request: GlobalMenuRequest) -> Task<Message> {
+    fn send_window_menu_bar_request(&self, request: WindowMenuBarRequest) -> Task<Message> {
         let Some(buses) = &self.desktop_buses else {
             return Task::none();
         };
         logged_failure_task(
-            format!("global menu: {request:?}"),
+            format!("window menu bar: {request:?}"),
             request.send(buses.session.clone()),
         )
     }

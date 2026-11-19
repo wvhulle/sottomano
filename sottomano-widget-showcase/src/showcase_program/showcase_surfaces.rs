@@ -7,19 +7,24 @@ use iced::{
 use sottomano_desktop_sources::compositor_window_ipc::compositor_window_state::CompositorWindowState;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
+    cascading_menus::app_launcher_menu::AppLauncherMessage,
     clock::Clock,
     desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::GroupMenuTopic,
-        group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
+        group_menu_view::{GroupMenuView, InspectionCard},
+        menu_rows::menu_row::{MenuAppearance, configured_nested_menu},
     },
     hover_cards::{
         HoverTarget,
         anchored_popup::PopupAppearances,
+        hover_card_body::Section,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
-    indicator_groups::quiet_schedule_group::quiet_window::QuietPhase,
+    indicator_groups::{
+        indicator_group_content::GroupEvent, quiet_schedule_group::quiet_window::QuietPhase,
+    },
     layer_surfaces::PanelEdge,
     notification_toasts::{ToastContext, ToastSurfaceStyle},
     toast_messages::NotificationMessage,
@@ -34,7 +39,7 @@ use crate::{
     demo_script::GroupShown,
     fixtures::sample,
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
-    showcased_group::SHOWCASE_OUTPUT,
+    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
 };
 
 impl ShowcaseState {
@@ -69,42 +74,67 @@ impl ShowcaseState {
         &self,
         kind: GroupMenuTopic,
     ) -> Option<HoverContent<'_, ShowcaseInteraction>> {
-        let group_menu = self.group_menu(kind);
-        let inspected_sections = self
-            .group_menus
-            .inspection
-            .inspected_indicator(kind)
-            .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
-            .unwrap_or_default();
-        let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation = CascadeOrientation::toward_room(
-            anchor,
+            self.hover_card.shown_anchor().unwrap_or_default(),
             growth_away_from(self.group.position()),
             self.demo.backdrop.canvas().width,
         );
-        let surfaces = group_menu.surfaces(
-            &self.config,
-            &self.appearance.menus,
-            &InspectionCard {
-                sections: &inspected_sections,
-                card_appearance: self.appearance.overlays,
-                assets: self.window_assets(),
-                clock: self.clock,
-            },
-            orientation,
-        );
-        let GroupMenuCascadeSurfaces {
-            primary,
-            satellites,
-        } = surfaces?;
+        let surfaces = if let ShowcasedGroup::AppLauncher(launcher) = &self.group {
+            let app_card_view = |sections: Vec<Section>| {
+                self.inspection_card(&sections)
+                    .view(&self.config)
+                    .map(|card| card.map(GroupEvent::Popup))
+            };
+            configured_nested_menu(
+                launcher.group.menu_entries(
+                    &launcher.desktop_entries,
+                    &self.config,
+                    SHOWCASE_OUTPUT,
+                    &app_card_view,
+                ),
+                &launcher.group.menu_state,
+                |menu_action| GroupEvent::from(AppLauncherMessage::Menu(menu_action)),
+                &self.config,
+                MenuAppearance {
+                    list_appearance: self.appearance.menus,
+                    beside_appearance: self.appearance.overlays,
+                    presentation: self.group_menus.presentation,
+                    orientation,
+                },
+            )
+        } else {
+            let group_menu = self.group_menu(kind);
+            let inspected_sections = self
+                .group_menus
+                .inspection
+                .inspected_indicator(kind)
+                .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
+                .unwrap_or_default();
+            group_menu.surfaces(
+                &self.config,
+                &self.appearance.menus,
+                &self.inspection_card(&inspected_sections),
+                orientation,
+            )
+        }?
+        .map(ShowcaseInteraction::from);
         Some(HoverContent::Cascading {
-            primary: primary.map(ShowcaseInteraction::from),
-            satellites: satellites
-                .into_iter()
-                .map(|satellite| satellite.map(ShowcaseInteraction::from))
-                .collect(),
+            primary: surfaces.primary,
+            satellites: surfaces.satellites,
             orientation,
         })
+    }
+
+    fn inspection_card<'sections>(
+        &self,
+        sections: &'sections [Section],
+    ) -> InspectionCard<'sections, '_> {
+        InspectionCard {
+            sections,
+            card_appearance: self.appearance.overlays,
+            assets: self.window_assets(),
+            clock: self.clock,
+        }
     }
 
     pub(super) fn window_assets(&self) -> WindowAssets<'_> {

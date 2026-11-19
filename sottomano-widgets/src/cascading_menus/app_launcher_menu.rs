@@ -1,6 +1,13 @@
 use std::{cmp::Reverse, collections::HashMap};
 
-use corredo::theming::primary_color;
+use corredo::{
+    popovers::{
+        MenuEntry, MenuItem, MenuRow, MenuRowContent, MenuSubmenu, NestedMenuAction,
+        NestedMenuState,
+    },
+    theming::{primary_color, text_color},
+    value_controls::SwitchResponse,
+};
 use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request,
@@ -14,20 +21,12 @@ use crate::{
     background_work::logged_failure_task,
     desktop_index::DesktopIndex,
     group_indicators::{
-        group_indicator::{GroupIndicator, IndicatorValue},
-        indicator_drawing::IndicatorIcon,
-        indicator_state::IndicatorState,
+        indicator_toggle_switch::indicator_toggle_switch,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::{
-            GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
-        },
-        indicator_group_identity::{
-            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
-        },
+        indicator_group_content::GroupEvent,
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         terminal_command::TerminalCommand,
     },
@@ -40,9 +39,21 @@ use crate::{
 };
 
 const MAX_FREQUENT_APPS: usize = 8;
-const FREQUENT_GROUP_NAME: &str = "frequent";
-const OPTIONS_GROUP_NAME: &str = "options";
-const JUMP_PRESS_HINT: &str = "focus its most recently used window";
+const OPTIONS_SUBMENU_TITLE: &str = "Launcher options";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppLauncherSubmenu {
+    Frequent,
+    Category(AppCategory),
+    Options,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum InspectedApp {
+    #[default]
+    Nothing,
+    App(String),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkspaceWindowPresence {
@@ -125,7 +136,7 @@ pub enum FrequentAppScope {
 }
 
 impl FrequentAppScope {
-    const fn group_title(self) -> &'static str {
+    const fn submenu_title(self) -> &'static str {
         match self {
             FrequentAppScope::ThisWorkspace => "Frequently launched on this workspace",
             FrequentAppScope::AllWorkspaces => "Frequently launched",
@@ -148,9 +159,8 @@ pub struct AppLaunchUsage {
 
 #[derive(Debug, Clone)]
 pub enum AppLauncherMessage {
-    FrequentExpansion(IndicatorGroupExpansionMessage),
-    CategoryExpansion(AppCategory, IndicatorGroupExpansionMessage),
-    OptionsExpansion(IndicatorGroupExpansionMessage),
+    Menu(NestedMenuAction<AppLauncherSubmenu>),
+    InspectApp(String),
     Launch(String),
     JumpToWindow(u64),
     ToggleHideOpenApps,
@@ -167,36 +177,34 @@ pub enum Action {
 struct AppCategoryGroup {
     category: AppCategory,
     shown_apps: Vec<LaunchableApp>,
-    expansion: IndicatorGroupExpansion,
 }
 
-pub struct AppLauncherGroup {
+pub struct AppLauncherMenu {
     catalog: Vec<LaunchableApp>,
     usage: AppLaunchUsage,
     open_app_listing: OpenAppListing,
     category_app_order: CategoryAppOrder,
-    frequent_expansion: IndicatorGroupExpansion,
-    options_expansion: IndicatorGroupExpansion,
     category_groups: Vec<AppCategoryGroup>,
+    pub menu_state: NestedMenuState<AppLauncherSubmenu>,
+    inspected_app: InspectedApp,
 }
 
-impl Default for AppLauncherGroup {
+impl Default for AppLauncherMenu {
     fn default() -> Self {
         Self {
             catalog: Vec::new(),
             usage: AppLaunchUsage::default(),
             open_app_listing: OpenAppListing::Listed,
             category_app_order: CategoryAppOrder::Alphabetical,
-            frequent_expansion: IndicatorGroupExpansion::default(),
-            options_expansion: IndicatorGroupExpansion::default(),
             category_groups: AppCategory::ALL
                 .into_iter()
                 .map(|category| AppCategoryGroup {
                     category,
                     shown_apps: Vec::new(),
-                    expansion: IndicatorGroupExpansion::default(),
                 })
                 .collect(),
+            menu_state: NestedMenuState::default(),
+            inspected_app: InspectedApp::Nothing,
         }
     }
 }
@@ -299,7 +307,7 @@ fn jump_task(window: u64) -> Task<AppLauncherMessage> {
     )
 }
 
-impl AppLauncherGroup {
+impl AppLauncherMenu {
     pub fn load() -> Task<AppLauncherMessage> {
         Task::batch([
             Task::perform(
@@ -313,12 +321,9 @@ impl AppLauncherGroup {
         ])
     }
 
-    pub fn collapse(&mut self) {
-        self.frequent_expansion.collapse();
-        self.options_expansion.collapse();
-        for group in &mut self.category_groups {
-            group.expansion.collapse();
-        }
+    pub fn close_menu(&mut self) {
+        self.menu_state.close();
+        self.inspected_app = InspectedApp::Nothing;
     }
 
     pub fn adopt_catalog(&mut self, catalog: Vec<LaunchableApp>) {
@@ -376,22 +381,17 @@ impl AppLauncherGroup {
 
     pub fn update(&mut self, message: AppLauncherMessage, config: &Config) -> Action {
         match message {
-            AppLauncherMessage::FrequentExpansion(expansion) => {
-                self.frequent_expansion.update(expansion);
-                Action::Run(Task::none())
-            }
-            AppLauncherMessage::OptionsExpansion(expansion) => {
-                self.options_expansion.update(expansion);
-                Action::Run(Task::none())
-            }
-            AppLauncherMessage::CategoryExpansion(category, expansion) => {
-                if let Some(group) = self
-                    .category_groups
-                    .iter_mut()
-                    .find(|group| group.category == category)
+            AppLauncherMessage::Menu(menu_action) => {
+                if let NestedMenuAction::Opened(open_submenus) = &menu_action
+                    && *open_submenus != self.menu_state.open_submenus
                 {
-                    group.expansion.update(expansion);
+                    self.inspected_app = InspectedApp::Nothing;
                 }
+                self.menu_state.perform(menu_action);
+                Action::Run(Task::none())
+            }
+            AppLauncherMessage::InspectApp(app_id) => {
+                self.inspected_app = InspectedApp::App(app_id);
                 Action::Run(Task::none())
             }
             AppLauncherMessage::Launch(app_id) => self
@@ -431,181 +431,175 @@ impl AppLauncherGroup {
         }
     }
 
-    fn app_icon(app: &LaunchableApp, index: &DesktopIndex) -> IndicatorIcon {
-        index
-            .app_icons
-            .get(&app.app_id)
-            .map_or(IndicatorIcon::Absent, |icon_handle| {
-                IndicatorIcon::Image(icon_handle.clone())
-            })
-    }
-
-    fn jump_indicator<'a>(&self, app: &LaunchableApp, config: &'a Config) -> IndicatorValue<'a> {
-        self.usage
-            .open_windows
-            .get(&app.app_id)
-            .map_or(IndicatorValue::Nothing, |open_windows| {
-                let window = open_windows.latest_focused_window;
-                IndicatorValue::drawn(move |_reveal| -> Element<'a, GroupEvent> {
-                    glyph_button(
-                        Phosphor::ArrowSquareOut(Weight::Regular),
-                        config.theme.font.icon_size_px,
-                        primary_color,
-                        GroupEvent::from(AppLauncherMessage::JumpToWindow(window)),
-                    )
-                })
-            })
-    }
-
-    fn with_app_gestures<'a>(
+    fn jump_button<'a>(
         &self,
-        row: GroupIndicator<'a>,
         app: &LaunchableApp,
-    ) -> GroupIndicator<'a> {
-        let launchable_row = row.on_press("launch", AppLauncherMessage::Launch(app.app_id.clone()));
-        match self.usage.open_windows.get(&app.app_id) {
-            Some(open_windows) => launchable_row.on_right_press(
-                JUMP_PRESS_HINT,
+        config: &Config,
+    ) -> Option<Element<'a, GroupEvent>> {
+        let open_windows = self.usage.open_windows.get(&app.app_id)?;
+        Some(glyph_button(
+            Phosphor::ArrowSquareOut(Weight::Regular),
+            config.theme.font.icon_size_px,
+            primary_color,
+            GroupEvent::from(AppLauncherMessage::JumpToWindow(
+                open_windows.latest_focused_window,
+            )),
+        ))
+    }
+
+    fn app_entry<'a>(
+        &self,
+        app: &LaunchableApp,
+        index: &DesktopIndex,
+        config: &Config,
+        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
+    ) -> MenuEntry<'a, AppLauncherSubmenu, GroupEvent> {
+        let icon_size_px = config.theme.font.icon_size_px;
+        let content = MenuRowContent::new(app.name.clone());
+        let content = match index.app_icons.get(&app.app_id) {
+            Some(icon_handle) => content.icon(icon_handle.view(icon_size_px, 1.0)),
+            None => content,
+        };
+        let content = match self.jump_button(app, config) {
+            Some(jump_button) => content.value(jump_button),
+            None => content,
+        };
+        let row = MenuRow::new(content)
+            .on_press(GroupEvent::from(AppLauncherMessage::Launch(
+                app.app_id.clone(),
+            )))
+            .on_enter(GroupEvent::from(AppLauncherMessage::InspectApp(
+                app.app_id.clone(),
+            )));
+        let row = match self.usage.open_windows.get(&app.app_id) {
+            Some(open_windows) => row.on_right_press(GroupEvent::from(
                 AppLauncherMessage::JumpToWindow(open_windows.latest_focused_window),
-            ),
-            None => launchable_row,
+            )),
+            None => row,
+        };
+        let item = MenuItem::new(row);
+        let inspected_card = match &self.inspected_app {
+            InspectedApp::App(app_id) if *app_id == app.app_id => {
+                card_view(self.app_hover_card(app_id))
+            }
+            InspectedApp::App(_) | InspectedApp::Nothing => None,
+        };
+        match inspected_card {
+            Some(card) => item.beside(card),
+            None => item,
         }
+        .into()
     }
 
-    fn frequent_row<'a>(
-        &'a self,
-        app: &LaunchableApp,
-        index: &DesktopIndex,
-        config: &'a Config,
-    ) -> GroupIndicator<'a> {
-        let card_app_id = app.app_id.clone();
-        self.with_app_gestures(
-            GroupIndicator::composed(
-                app.name.clone(),
-                Self::app_icon(app, index),
-                self.jump_indicator(app, config),
-                Box::new(|_| Vec::new()),
-            )
-            .with_hover_card(Box::new(move |_| self.app_hover_card(&card_app_id))),
-            app,
-        )
+    fn frequent_scope(&self, output: &str) -> FrequentAppScope {
+        self.usage
+            .frequent_by_output
+            .get(output)
+            .map_or(FrequentAppScope::ThisWorkspace, |frequent| frequent.scope)
     }
 
-    fn category_row<'a>(
-        &'a self,
-        app: &LaunchableApp,
-        index: &DesktopIndex,
-        config: &'a Config,
-    ) -> GroupIndicator<'a> {
-        let card_app_id = app.app_id.clone();
-        self.with_app_gestures(
-            GroupIndicator::composed_pinnable(
-                app.name.clone(),
-                Self::app_icon(app, index),
-                self.jump_indicator(app, config),
-                Box::new(|_| Vec::new()),
-            )
-            .with_hover_card(Box::new(move |_| self.app_hover_card(&card_app_id))),
-            app,
-        )
+    fn frequent_apps_on(&self, output: &str) -> impl Iterator<Item = &LaunchableApp> {
+        let frequent_apps = self
+            .usage
+            .frequent_by_output
+            .get(output)
+            .map_or(&[][..], |frequent| frequent.apps.as_slice());
+        frequent_apps_shown(frequent_apps, self.open_app_listing)
     }
 
-    fn frequent_group<'a>(
-        &'a self,
-        index: &DesktopIndex,
-        config: &'a Config,
-        output: &str,
-    ) -> IndicatorGroupContent<'a> {
-        let output_frequent_apps = self.usage.frequent_by_output.get(output);
-        let frequent_apps =
-            output_frequent_apps.map_or(&[][..], |frequent| frequent.apps.as_slice());
-        let scope =
-            output_frequent_apps.map_or(FrequentAppScope::ThisWorkspace, |frequent| frequent.scope);
-        let frequent_rows: Vec<_> = frequent_apps_shown(frequent_apps, self.open_app_listing)
-            .map(|app| self.frequent_row(app, index, config))
-            .collect();
-        IndicatorGroupContent::expandable_instance(
-            IndicatorGroupIdentity::durable(IndicatorGroupFamily::AppLauncher, FREQUENT_GROUP_NAME),
-            IndicatorGroupTitle::fixed(scope.group_title()),
-            GroupIndicator::glyph_only(
-                IndicatorGroupTitle::fixed(scope.group_title()).to_string(),
-                IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
-                IndicatorState::Idle,
-            ),
-            &self.frequent_expansion,
-            AppLauncherMessage::FrequentExpansion,
-            frequent_rows,
-        )
+    fn submenu_header<'a>(
+        title: &'static str,
+        glyph: Phosphor,
+        config: &Config,
+    ) -> MenuRowContent<'a, GroupEvent> {
+        MenuRowContent::new(title)
+            .icon(IconGlyph::from(glyph).view(config.theme.font.icon_size_px, text_color))
     }
 
-    fn category_group<'a>(
-        &'a self,
-        group: &'a AppCategoryGroup,
-        index: &DesktopIndex,
-        config: &'a Config,
-    ) -> IndicatorGroupContent<'a> {
-        let category = group.category;
-        let category_rows: Vec<_> = group
-            .shown_apps
-            .iter()
-            .map(|app| self.category_row(app, index, config))
-            .collect();
-        IndicatorGroupContent::expandable_instance(
-            IndicatorGroupIdentity::durable(
-                IndicatorGroupFamily::AppLauncher,
-                category.stored_name(),
-            ),
-            IndicatorGroupTitle::fixed(category.title()),
-            GroupIndicator::glyph_only(
-                IndicatorGroupTitle::fixed(category.title()).to_string(),
-                IconGlyph::from(category_glyph(category)),
-                IndicatorState::Idle,
-            ),
-            &group.expansion,
-            move |expansion| AppLauncherMessage::CategoryExpansion(category, expansion),
-            category_rows,
-        )
-    }
-
-    fn options_group(&self) -> IndicatorGroupContent<'_> {
-        IndicatorGroupContent::expandable_instance(
-            IndicatorGroupIdentity::durable(IndicatorGroupFamily::AppLauncher, OPTIONS_GROUP_NAME),
-            IndicatorGroupTitle::fixed("Launcher options"),
-            GroupIndicator::glyph_only(
-                IndicatorGroupTitle::fixed("Launcher options").to_string(),
-                IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
-                IndicatorState::Idle,
-            ),
-            &self.options_expansion,
-            AppLauncherMessage::OptionsExpansion,
-            [
-                GroupIndicator::toggle(
-                    hide_open_apps_toggle(self.open_app_listing),
-                    AppLauncherMessage::ToggleHideOpenApps,
-                ),
-                GroupIndicator::toggle(
-                    sort_by_usage_toggle(self.category_app_order),
-                    AppLauncherMessage::ToggleSortByUsage,
-                ),
-            ],
-        )
+    fn option_entry<'a>(
+        toggle: IconToggle,
+        message: AppLauncherMessage,
+        config: &Config,
+    ) -> MenuEntry<'a, AppLauncherSubmenu, GroupEvent> {
+        let content = MenuRowContent::new(toggle.name)
+            .icon(IconGlyph::from(toggle.icon).view(config.theme.font.icon_size_px, text_color))
+            .value(indicator_toggle_switch(
+                config,
+                toggle.switch_position,
+                SwitchResponse::Inert,
+                1.0,
+            ));
+        MenuItem::new(MenuRow::new(content).on_press(GroupEvent::from(message))).into()
     }
 
     #[must_use]
-    pub fn group_contents<'a>(
-        &'a self,
+    pub fn menu_entries<'a>(
+        &self,
         index: &DesktopIndex,
-        config: &'a Config,
+        config: &Config,
         output: &str,
-    ) -> Vec<IndicatorGroupContent<'a>> {
-        [self.frequent_group(index, config, output)]
-            .into_iter()
-            .chain(
-                self.category_groups
-                    .iter()
-                    .map(|group| self.category_group(group, index, config)),
+        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
+    ) -> Vec<MenuEntry<'a, AppLauncherSubmenu, GroupEvent>> {
+        let frequent_entries: Vec<_> = self
+            .frequent_apps_on(output)
+            .map(|app| self.app_entry(app, index, config, card_view))
+            .collect();
+        let frequent_submenu = (!frequent_entries.is_empty()).then(|| {
+            MenuSubmenu::new(
+                AppLauncherSubmenu::Frequent,
+                Self::submenu_header(
+                    self.frequent_scope(output).submenu_title(),
+                    Phosphor::ClockCounterClockwise(Weight::Regular),
+                    config,
+                ),
+                frequent_entries,
             )
-            .chain([self.options_group()])
+            .into()
+        });
+        let category_submenus = self
+            .category_groups
+            .iter()
+            .filter(|group| !group.shown_apps.is_empty())
+            .map(|group| {
+                MenuSubmenu::new(
+                    AppLauncherSubmenu::Category(group.category),
+                    Self::submenu_header(
+                        group.category.title(),
+                        category_glyph(group.category),
+                        config,
+                    ),
+                    group
+                        .shown_apps
+                        .iter()
+                        .map(|app| self.app_entry(app, index, config, card_view)),
+                )
+                .into()
+            });
+        let options_submenu = MenuSubmenu::new(
+            AppLauncherSubmenu::Options,
+            Self::submenu_header(
+                OPTIONS_SUBMENU_TITLE,
+                Phosphor::SlidersHorizontal(Weight::Regular),
+                config,
+            ),
+            [
+                Self::option_entry(
+                    hide_open_apps_toggle(self.open_app_listing),
+                    AppLauncherMessage::ToggleHideOpenApps,
+                    config,
+                ),
+                Self::option_entry(
+                    sort_by_usage_toggle(self.category_app_order),
+                    AppLauncherMessage::ToggleSortByUsage,
+                    config,
+                ),
+            ],
+        )
+        .into();
+        frequent_submenu
+            .into_iter()
+            .chain(category_submenus)
+            .chain([options_submenu])
             .collect()
     }
 }
@@ -620,11 +614,10 @@ mod tests {
     use sottomano_toml_config::Config;
 
     use super::{
-        Action, AppLaunchUsage, AppLauncherGroup, AppLauncherMessage, FrequentApp,
-        FrequentAppScope, IndicatorValue, MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps,
-        WorkspaceWindowPresence, apps_shown_in_category, frequent_apps_shown,
+        Action, AppLaunchUsage, AppLauncherMenu, AppLauncherMessage, FrequentApp, FrequentAppScope,
+        MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps, WorkspaceWindowPresence,
+        apps_shown_in_category, frequent_apps_shown,
     };
-    use crate::desktop_index::DesktopIndex;
 
     fn app_named(app_id: &str, category: AppCategory) -> LaunchableApp {
         LaunchableApp {
@@ -715,7 +708,7 @@ mod tests {
 
     #[test]
     fn the_frequent_group_belongs_to_the_output_it_is_shown_on() {
-        let mut group = AppLauncherGroup::default();
+        let mut group = AppLauncherMenu::default();
         group.adopt_usage(AppLaunchUsage {
             frequent_by_output: HashMap::from([(
                 "DP-1".to_owned(),
@@ -726,16 +719,7 @@ mod tests {
             )]),
             ..AppLaunchUsage::default()
         });
-        let config = Config::default();
-        let index = DesktopIndex::default();
-
-        let items_on = |output: &str| {
-            group
-                .group_contents(&index, &config, output)
-                .into_iter()
-                .next()
-                .is_some_and(|frequent| !frequent.indicators.is_empty())
-        };
+        let items_on = |output: &str| group.frequent_apps_on(output).next().is_some();
 
         assert!(items_on("DP-1"));
         assert!(!items_on("HDMI-1"));
@@ -744,7 +728,7 @@ mod tests {
     #[test]
     fn the_frequent_title_names_the_scope_it_ranks_over() {
         let frequent_title_for = |scope: FrequentAppScope| {
-            let mut group = AppLauncherGroup::default();
+            let mut group = AppLauncherMenu::default();
             group.adopt_usage(AppLaunchUsage {
                 frequent_by_output: HashMap::from([(
                     "DP-1".to_owned(),
@@ -755,26 +739,22 @@ mod tests {
                 )]),
                 ..AppLaunchUsage::default()
             });
-            let config = Config::default();
-            group
-                .group_contents(&DesktopIndex::default(), &config, "DP-1")
-                .first()
-                .map(|frequent| frequent.group_title.clone().to_string())
+            group.frequent_scope("DP-1").submenu_title()
         };
 
         assert_eq!(
-            frequent_title_for(FrequentAppScope::ThisWorkspace).as_deref(),
-            Some("Frequently launched on this workspace")
+            frequent_title_for(FrequentAppScope::ThisWorkspace),
+            "Frequently launched on this workspace"
         );
         assert_eq!(
-            frequent_title_for(FrequentAppScope::AllWorkspaces).as_deref(),
-            Some("Frequently launched")
+            frequent_title_for(FrequentAppScope::AllWorkspaces),
+            "Frequently launched"
         );
     }
 
     #[test]
     fn launching_and_jumping_dismiss_the_menu_but_toggles_do_not() {
-        let mut group = AppLauncherGroup::default();
+        let mut group = AppLauncherMenu::default();
         group.adopt_catalog(alphabetical_catalog());
         let config = Config::default();
 
@@ -801,7 +781,7 @@ mod tests {
 
     #[test]
     fn an_open_window_offers_a_jump_only_for_its_own_app() {
-        let mut group = AppLauncherGroup::default();
+        let mut group = AppLauncherMenu::default();
         group.adopt_usage(AppLaunchUsage {
             open_windows: HashMap::from([(
                 "helix".to_owned(),
@@ -814,13 +794,15 @@ mod tests {
         });
         let config = Config::default();
 
-        assert!(matches!(
-            group.jump_indicator(&development_app("helix"), &config),
-            IndicatorValue::Drawn(_)
-        ));
-        assert!(matches!(
-            group.jump_indicator(&development_app("zed"), &config),
-            IndicatorValue::Nothing
-        ));
+        assert!(
+            group
+                .jump_button(&development_app("helix"), &config)
+                .is_some()
+        );
+        assert!(
+            group
+                .jump_button(&development_app("zed"), &config)
+                .is_none()
+        );
     }
 }

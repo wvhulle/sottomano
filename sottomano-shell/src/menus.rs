@@ -1,7 +1,7 @@
+use std::iter::empty;
+
 mod agenda_menu;
 mod appearance_menu;
-mod application_bar_menu;
-mod applications_menu;
 mod behaviour_menu;
 mod display_menu;
 mod hardware_menu;
@@ -19,10 +19,11 @@ use sottomano_widgets::{
 use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn group_menu_of(&self, topic: GroupMenuTopic, output: &str) -> GroupMenuView<'_> {
+    pub(crate) fn group_menu_of(&self, topic: GroupMenuTopic) -> GroupMenuView<'_> {
         match topic {
-            GroupMenuTopic::Applications => self.applications_group_menu(output),
-            GroupMenuTopic::ApplicationMenu => self.application_bar_group_menu(),
+            GroupMenuTopic::Applications | GroupMenuTopic::WindowMenuBar => {
+                self.group_menu(topic, empty())
+            }
             GroupMenuTopic::Hardware => self.hardware_group_menu(),
             GroupMenuTopic::Network => self.network_group_menu(),
             GroupMenuTopic::Agenda => self.agenda_group_menu(),
@@ -60,7 +61,7 @@ impl DesktopShell {
                 .compositor_styling_group
                 .group_content(config),
             self.indicator_groups.group_menus.settings_content(config),
-            self.indicator_groups.global_menu_group.switch_content(),
+            self.indicator_groups.window_menu_bar.switch_content(),
         ]
     }
 }

@@ -15,11 +15,11 @@ use sottomano_desktop_sources::{
         workspace_window_snapshot,
     },
 };
-use sottomano_widgets::indicator_groups::{
-    app_launcher_group::{
+use sottomano_widgets::{
+    cascading_menus::app_launcher_menu::{
         AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
     },
-    indicator_group_interaction::IndicatorGroupInteraction,
+    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::{
@@ -93,7 +93,7 @@ impl DesktopShell {
             self.indicator_groups.collapse_when_auto_collapsing();
         }
         self.indicator_groups
-            .global_menu_group
+            .window_menu_bar
             .observe_focused_window(FocusedWindowIdentity::from(
                 self.compositor.focused_window(),
             ));
@@ -174,7 +174,7 @@ impl DesktopShell {
                 .collect(),
             open_windows: open_windows_by_app(self.compositor.windows.values(), &entries),
         };
-        self.indicator_groups.app_launcher_group.adopt_usage(usage);
+        self.indicator_groups.app_launcher_menu.adopt_usage(usage);
         self.resolve_icons()
     }
 

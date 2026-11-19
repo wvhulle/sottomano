@@ -1,4 +1,5 @@
 pub mod background_work;
+pub mod cascading_menus;
 pub mod clock;
 pub mod desktop_index;
 pub mod desktop_panels;

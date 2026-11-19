@@ -129,6 +129,12 @@ impl PanelRaise {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuTopicPresence {
+    RecentlyOpen,
+    Closed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenGroupMenu {
     pub topic: GroupMenuTopic,
@@ -249,6 +255,19 @@ impl GroupMenuState {
                 menu,
                 last_open_at: now,
             });
+        }
+    }
+
+    #[must_use]
+    pub fn topic_presence(&self, topic: GroupMenuTopic) -> MenuTopicPresence {
+        if self
+            .recently_open_menus
+            .iter()
+            .any(|recent| recent.menu.topic == topic)
+        {
+            MenuTopicPresence::RecentlyOpen
+        } else {
+            MenuTopicPresence::Closed
         }
     }
 

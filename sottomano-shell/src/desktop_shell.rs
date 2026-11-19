@@ -173,16 +173,17 @@ impl DesktopShell {
                 .group_menus
                 .update(GroupMenuMessage::Closed);
             self.indicator_groups.tray_group.close_menu();
+            self.indicator_groups.window_menu_bar.close_menu();
+            self.indicator_groups.app_launcher_menu.close_menu();
         }
         let hover_indicators = if self.hovered_indicator_target() == hovered_before {
             Task::none()
         } else {
             self.retarget_hover_indicators()
         };
-        let open_menu = self.open_group_menu().map(|topic| {
-            self.group_menu_of(topic, self.hovered_output())
-                .open_group_menu()
-        });
+        let open_menu = self
+            .open_group_menu()
+            .map(|topic| self.group_menu_of(topic).open_group_menu());
         let widget_toasts = match alert_rescan {
             AlertRescanNeed::Rescans => self.rescan_group_alerts(open_menu),
             AlertRescanNeed::Skips => {

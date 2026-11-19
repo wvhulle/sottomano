@@ -1,16 +1,24 @@
-use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth};
+use corredo::popovers::{
+    CascadeDirection, CascadeOrientation, MenuEntry, NestedMenuAction, NestedMenuState,
+    NestedMenuSurfaces, PopupGrowth,
+};
 use iced::Element;
 use sottomano_widgets::{
+    cascading_menus::{
+        app_launcher_menu::AppLauncherMessage, window_menu_bar::WindowMenuBarInteraction,
+    },
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::GroupMenuTopic,
-        group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
+        group_menu_view::InspectionCard,
+        menu_rows::menu_row::{MenuAppearance, configured_nested_menu},
     },
-    hover_cards::{HoverTarget, hover_card_surfaces::HoverContent},
+    hover_cards::{HoverTarget, hover_card_body::Section, hover_card_surfaces::HoverContent},
     indicator_groups::{
+        indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         indicator_group_interaction::IndicatorGroupInteraction,
-        tray_group::TrayMenuLook,
+        tray_group::TrayMessage,
     },
     widgets::{typing_under_cards::CardBackgroundFade, window_icon::WindowAssets},
 };
@@ -22,7 +30,7 @@ impl DesktopShell {
         &self,
         target: &HoverTarget,
     ) -> Option<HoverContent<'_, ShellInteraction>> {
-        if let Some(GroupMenuCascadeSurfaces {
+        if let Some(NestedMenuSurfaces {
             primary,
             satellites,
         }) = self.cascading_menu_surfaces(target)
@@ -77,50 +85,109 @@ impl DesktopShell {
     fn cascading_menu_surfaces(
         &self,
         target: &HoverTarget,
-    ) -> Option<GroupMenuCascadeSurfaces<'_, ShellInteraction>> {
+    ) -> Option<NestedMenuSurfaces<'_, ShellInteraction>> {
+        let groups = &self.indicator_groups;
         match target {
+            HoverTarget::GroupMenu(GroupMenuTopic::WindowMenuBar) => self.cascading_menu(
+                groups.window_menu_bar.menu_entries(&self.config),
+                &groups.window_menu_bar.menu_state,
+                WindowMenuBarInteraction::Menu,
+            ),
+            HoverTarget::GroupMenu(GroupMenuTopic::Applications) => {
+                let app_card_view = |sections: Vec<Section>| self.inspection_card_view(&sections);
+                self.cascading_menu(
+                    groups.app_launcher_menu.menu_entries(
+                        &self.desktop_entries,
+                        &self.config,
+                        self.hovered_output(),
+                        &app_card_view,
+                    ),
+                    &groups.app_launcher_menu.menu_state,
+                    |menu_action| GroupEvent::from(AppLauncherMessage::Menu(menu_action)),
+                )
+            }
             HoverTarget::GroupMenu(topic) => self.group_menu_surfaces(*topic),
             HoverTarget::Indicator(indicator_key)
                 if indicator_key.group
                     == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>
             {
-                self.tray_menu_surfaces(&indicator_key.name)
+                self.cascading_menu(
+                    groups
+                        .tray_group
+                        .menu_entries_named(&indicator_key.name, &self.config),
+                    &groups.tray_group.menu_state,
+                    TrayMessage::Menu,
+                )
             }
             _ => None,
         }
     }
 
-    fn tray_menu_surfaces(
+    fn cascading_menu<'a, SubmenuKey, Message>(
         &self,
-        item_name: &str,
-    ) -> Option<GroupMenuCascadeSurfaces<'_, ShellInteraction>> {
-        let group_menus = &self.indicator_groups.group_menus;
-        let surfaces = self.indicator_groups.tray_group.menu_surfaces_named(
-            item_name,
+        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        menu_state: &NestedMenuState<SubmenuKey>,
+        on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a,
+    ) -> Option<NestedMenuSurfaces<'a, ShellInteraction>>
+    where
+        SubmenuKey: Clone + PartialEq + 'a,
+        Message: Clone + 'a,
+        GroupEvent: From<Message>,
+    {
+        configured_nested_menu(
+            entries,
+            menu_state,
+            on_action,
             &self.config,
-            TrayMenuLook {
-                appearance: group_menus.layer.appearance(),
-                presentation: group_menus.presentation,
-                orientation: self.group_menu_orientation(),
-            },
-        )?;
-        let routed =
-            |tray_message| ShellInteraction::Group(IndicatorGroupInteraction::Tray(tray_message));
-        Some(GroupMenuCascadeSurfaces {
-            primary: surfaces.primary.map(routed),
-            satellites: surfaces
-                .satellites
-                .into_iter()
-                .map(|satellite| satellite.map(routed))
-                .collect(),
-        })
+            self.menu_appearance(),
+        )
+        .map(|surfaces| surfaces.map(|message| ShellInteraction::from(GroupEvent::from(message))))
+    }
+
+    fn menu_appearance(&self) -> MenuAppearance {
+        let group_menus = &self.indicator_groups.group_menus;
+        let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
+            self.card_background_fade(output).fade_level_anywhere()
+        });
+        MenuAppearance {
+            list_appearance: group_menus
+                .layer
+                .appearance()
+                .with_background_faded(satellite_fade_level),
+            beside_appearance: self
+                .indicator_groups
+                .overlay_settings_group
+                .layer
+                .appearance()
+                .with_background_faded(satellite_fade_level),
+            presentation: group_menus.presentation,
+            orientation: self.group_menu_orientation(),
+        }
+    }
+
+    fn inspection_card<'sections>(
+        &self,
+        sections: &'sections [Section],
+    ) -> InspectionCard<'sections, '_> {
+        InspectionCard {
+            sections,
+            card_appearance: self.menu_appearance().beside_appearance,
+            assets: self.window_assets(),
+            clock: self.clock,
+        }
+    }
+
+    fn inspection_card_view<'a>(&self, sections: &[Section]) -> Option<Element<'a, GroupEvent>> {
+        self.inspection_card(sections)
+            .view(&self.config)
+            .map(|card| card.map(GroupEvent::Popup))
     }
 
     fn group_menu_surfaces(
         &self,
         topic: GroupMenuTopic,
-    ) -> Option<GroupMenuCascadeSurfaces<'_, ShellInteraction>> {
-        let group_menu = self.group_menu_of(topic, self.hovered_output());
+    ) -> Option<NestedMenuSurfaces<'_, ShellInteraction>> {
+        let group_menu = self.group_menu_of(topic);
         let inspected_sections = self
             .indicator_groups
             .group_menus
@@ -128,39 +195,15 @@ impl DesktopShell {
             .inspected_indicator(topic)
             .map(|indicator_key| group_menu.indicator_hover_card(indicator_key, self.clock))
             .unwrap_or_default();
-        let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
-            self.card_background_fade(output).fade_level_anywhere()
-        });
+        let appearance = self.menu_appearance();
         group_menu
             .surfaces(
                 &self.config,
-                &self
-                    .indicator_groups
-                    .group_menus
-                    .layer
-                    .appearance()
-                    .with_background_faded(satellite_fade_level),
-                &InspectionCard {
-                    sections: &inspected_sections,
-                    card_appearance: self
-                        .indicator_groups
-                        .overlay_settings_group
-                        .layer
-                        .appearance()
-                        .with_background_faded(satellite_fade_level),
-                    assets: self.window_assets(),
-                    clock: self.clock,
-                },
-                self.group_menu_orientation(),
+                &appearance.list_appearance,
+                &self.inspection_card(&inspected_sections),
+                appearance.orientation,
             )
-            .map(|surfaces| GroupMenuCascadeSurfaces {
-                primary: surfaces.primary.map(ShellInteraction::from),
-                satellites: surfaces
-                    .satellites
-                    .into_iter()
-                    .map(|satellite| satellite.map(ShellInteraction::from))
-                    .collect(),
-            })
+            .map(|surfaces| surfaces.map(ShellInteraction::from))
     }
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, ShellInteraction>> {

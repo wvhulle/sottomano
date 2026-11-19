@@ -64,7 +64,7 @@ impl DesktopShell {
     pub(crate) fn scan_group_alerts(&self) -> GroupAlertScan {
         let locale = self.config.calendar.locale;
         let group_menus: Vec<_> = composed_menu_topics()
-            .map(|topic| self.group_menu_of(topic, self.hovered_output()))
+            .map(|topic| self.group_menu_of(topic))
             .collect();
         let toast_requests = composed_standalone_groups()
             .map(|group| {

@@ -33,7 +33,7 @@ pub async fn activate_gtk_action(
 ) -> Result<(), BusWriteError> {
     let Some(object_path) = action_group_path(&action_groups, activation.scope) else {
         tracing::debug!(
-            "global menu: {} needs an action group the application does not export",
+            "window menu bar: {} needs an action group the application does not export",
             activation.action_name
         );
         return Ok(());

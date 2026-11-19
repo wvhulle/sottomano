@@ -9,9 +9,7 @@ use super::{
     seek_bar::{SeekAvailability, SeekBar, seek_position_indicator},
     session_controls::session_buttons_indicator,
     synced_lyrics_view::lyrics_row,
-    track_face::{
-        player_headline_indicator, player_hover_card, track_indicator,
-    },
+    track_face::{player_headline_indicator, player_hover_card, track_indicator},
     track_hover_card::track_hover_card,
     transport_controls::transport_controls_indicator,
 };

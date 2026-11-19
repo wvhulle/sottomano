@@ -218,13 +218,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
             Step::PressText("Frequently launched on this workspace"),
-            Step::Hover(instance_row(
-                IndicatorGroupIdentity {
-                    family: IndicatorGroupFamily::AppLauncher,
-                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("frequent")),
-                },
-                "Firefox",
-            )),
+            Step::HoverText("Firefox"),
         ],
     },
     Demo {

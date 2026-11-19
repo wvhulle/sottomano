@@ -282,13 +282,12 @@ the front from their own menu items. That limit is in the app.
 To keep an app's own activate behaviour, set `left_click = "activate_item"`
 for its item, keyed by the item's StatusNotifierItem id.
 
-## Application menu
+## Menu bar
 
-The application menu is off by default; the Behaviour menu has the switch. When
-it is on, the top panel gets an Application menu with the focused window's menu
-bar: each top-level menu is a group, its entries are rows, and entries of
-submenus appear as `Parent › Entry`. Single entries and whole menus can be
-pinned to the panel like any other group.
+The menu bar is off by default; the Behaviour menu has the switch. When it is
+on, the top panel gets a Menu bar menu with the focused window's menu bar: each
+top-level menu opens as a submenu, and nested submenus and separators keep the
+structure the application exported.
 
 Qt apps export their menu bar over D-Bus only when a global menu registrar is
 running when they start, so while the switch is on the shell claims the

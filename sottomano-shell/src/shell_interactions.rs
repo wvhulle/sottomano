@@ -137,8 +137,8 @@ impl DesktopShell {
             }
             IndicatorGroupInteraction::Media(interaction) => self.interact_media(interaction),
             IndicatorGroupInteraction::Tray(message) => self.update_tray(message),
-            IndicatorGroupInteraction::GlobalMenu(interaction) => {
-                self.interact_global_menu(interaction)
+            IndicatorGroupInteraction::WindowMenuBar(interaction) => {
+                self.interact_window_menu_bar(interaction)
             }
             IndicatorGroupInteraction::VirtualMachines(interaction) => {
                 self.interact_virtual_machines(interaction)

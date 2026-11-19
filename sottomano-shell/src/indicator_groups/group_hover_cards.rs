@@ -35,11 +35,8 @@ impl From<&GroupIndicator<'_>> for HoveredRowRequests {
 
 impl DesktopShell {
     fn indicator_hover_card(&self, target: &HoverTarget) -> Option<RowHoverCard> {
-        let output = self.hovered_output();
         all_panel_entries().find_map(|entry| match entry {
-            PanelZoneEntry::Menu(topic) => self
-                .group_menu_of(topic, output)
-                .hover_card(target, self.clock),
+            PanelZoneEntry::Menu(topic) => self.group_menu_of(topic).hover_card(target, self.clock),
             PanelZoneEntry::Standalone(group) => {
                 self.standalone_group(group).hover_card(target, self.clock)
             }
@@ -55,10 +52,9 @@ impl DesktopShell {
         &self,
         target: &HoverTarget,
     ) -> Option<HoveredRowRequests> {
-        let output = self.hovered_output();
         all_panel_entries().find_map(|entry| match entry {
             PanelZoneEntry::Menu(topic) => self
-                .group_menu_of(topic, output)
+                .group_menu_of(topic)
                 .hovered_indicator(target)
                 .map(HoveredRowRequests::from),
             PanelZoneEntry::Standalone(group) => self
