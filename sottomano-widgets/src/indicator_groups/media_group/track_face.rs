@@ -18,7 +18,6 @@ use super::{
 };
 use crate::{
     group_indicators::{
-        gauge::Gauge,
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::{IndicatorIcon, ReadoutGauge},
         indicator_state::{IndicatorState, IndicatorStateTint},
@@ -100,31 +99,6 @@ pub(super) fn player_headline_indicator<'a>(
         None => ReadoutGauge::Ungauged,
     };
     GroupIndicator::glyph_only("Player", glyph, playback_state(media)).with_gauge(gauge)
-}
-
-pub(super) fn wired_player_indicator<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    gauge_fraction: Option<Ratio>,
-) -> GroupIndicator<'a> {
-    let state = playback_state(media);
-    let glyph = SimpleIcon::titled(&media.identity)
-        .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);
-    let value = gauge_fraction.map_or(IndicatorValue::Nothing, |fraction| {
-        IndicatorValue::drawn(move |reveal| {
-            let tint = IndicatorStateTint {
-                state,
-                opacity: reveal,
-            };
-            Gauge::new(fraction, tint, config.theme.font.icon_size_px).into()
-        })
-    });
-    GroupIndicator::composed(
-        "Player",
-        IndicatorIcon::IconGlyph { glyph, state },
-        value,
-        Box::new(|_| Vec::new()),
-    )
 }
 
 pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {

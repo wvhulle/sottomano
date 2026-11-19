@@ -10,7 +10,7 @@ use super::{
     session_controls::session_buttons_indicator,
     synced_lyrics_view::lyrics_row,
     track_face::{
-        player_headline_indicator, player_hover_card, track_indicator, wired_player_indicator,
+        player_headline_indicator, player_hover_card, track_indicator,
     },
     track_hover_card::track_hover_card,
     transport_controls::transport_controls_indicator,
@@ -67,8 +67,6 @@ pub(super) fn player_group<'a>(
         )
         .with_hover_card(Box::new(move |_| player_hover_card(player_snapshot, media)));
     let mut rows = vec![
-        wired_player_indicator(config, media, gauge_fraction)
-            .with_hover_card(Box::new(move |_| player_hover_card(player_snapshot, media))),
         track_indicator(
             config,
             media,
