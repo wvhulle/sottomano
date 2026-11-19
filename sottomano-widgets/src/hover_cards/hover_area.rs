@@ -1,6 +1,6 @@
 use std::{mem::replace, slice::from_ref, sync::Arc};
 
-use corredo::popovers::{NestedMenuOpenTrigger, anchor_marker};
+use corredo::popovers::NestedMenuOpenTrigger;
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
@@ -11,9 +11,8 @@ use iced::{
     },
 };
 
-use crate::{
-    group_menus::group_menu_state::GroupMenuPin,
-    hover_cards::{AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor},
+use crate::hover_cards::{
+    AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
 };
 
 pub fn hoverable<'a, M: 'a>(
@@ -306,22 +305,6 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             translation,
         )
     }
-}
-
-#[must_use]
-pub fn marked_by_hover_target<'a, M: 'a>(
-    content: Element<'a, M>,
-    target: HoverTarget,
-) -> Element<'a, M> {
-    anchor_marker(content, target)
-}
-
-#[must_use]
-pub fn marked_by_menu_pin<'a, M: 'a>(
-    content: Element<'a, M>,
-    entry: GroupMenuPin,
-) -> Element<'a, M> {
-    anchor_marker(content, entry)
 }
 
 #[cfg(test)]

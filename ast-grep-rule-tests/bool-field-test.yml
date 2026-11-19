@@ -1,0 +1,10 @@
+id: bool-field
+valid:
+  - "enum ProfileChanges { Unchanged, ChangedMeanwhile }"
+  - "fn installed(path: &Path) -> bool { true }"
+  - "mod tests { struct Fixture { pressed: bool } }"
+invalid:
+  - "struct Lookup { profile_changed_meanwhile: bool }"
+  - "enum Lookup { Running { profile_changed_meanwhile: bool } }"
+  - "fn draw_switch(checked: bool) {}"
+  - "struct Pressed(bool);"

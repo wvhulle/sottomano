@@ -1,0 +1,7 @@
+id: one-icon-path
+valid:
+  - "fn requested(catalog: &IconCatalog) -> Option<&DrawableIcon> { catalog.drawable_icon(&app_icon_request(\"firefox\")) }"
+invalid:
+  - "async fn icon(path: PathBuf) { loaded_icon_file(path, IconTrim::Trimmed).await; }"
+  - "fn lookup() { freedesktop_icons::lookup(\"firefox\").find(); }"
+  - "fn matched(theme_index: &ThemeDirectoryIndex) { matching_icon_file(theme_index, \"firefox\", 48); }"

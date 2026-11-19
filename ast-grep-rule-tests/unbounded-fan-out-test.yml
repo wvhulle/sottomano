@@ -1,0 +1,9 @@
+id: unbounded-fan-out
+valid:
+  - "async fn listed(directories: Vec<PathBuf>) -> Vec<Listing> { stream::iter(directories).map(listed_directory).buffered(DIRECTORY_LISTINGS_IN_FLIGHT).collect().await }"
+  - "async fn both() -> (Power, Network) { join!(read_power(), read_network()) }"
+  - "async fn pair() -> Vec<Reading> { join_all([read_power(), read_network()]).await }"
+invalid:
+  - "async fn listed(directories: Vec<PathBuf>) -> Vec<Listing> { join_all(directories.iter().map(listed_directory)).await }"
+  - "async fn stamps(rows: Vec<UnitRow>) -> Result<Vec<Stamp>, Error> { futures::future::try_join_all(rows.into_iter().map(unit_stamp)).await }"
+  - "async fn pings(gateways: Vec<Gateway>) { let pending = gateways.iter().map(ping_gateway).collect::<FuturesUnordered<_>>(); }"

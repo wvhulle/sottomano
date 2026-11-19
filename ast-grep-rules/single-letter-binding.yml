@@ -1,0 +1,33 @@
+id: single-letter-binding
+language: rust
+severity: error
+message: A single-letter name says nothing about the value it holds.
+note: Name it after what it is, as in theme_directory or icon_request. A deliberately unused binding is written _. The files list is a ratchet; widen it as modules are renamed.
+files:
+  - sottomano-desktop-sources/src/theme_icons/**/*.rs
+  - sottomano-widgets/src/icon_catalog/**/*.rs
+  - sottomano-widgets/src/glyph_icons/**/*.rs
+  - sottomano-widgets/src/cascading_menus/**/*.rs
+rule:
+  kind: identifier
+  regex: ^[a-z]$
+  any:
+    - inside:
+        kind: closure_parameters
+    - inside:
+        kind: parameter
+        field: pattern
+    - inside:
+        kind: let_declaration
+        field: pattern
+    - inside:
+        kind: for_expression
+        field: pattern
+    - inside:
+        kind: tuple_pattern
+        inside:
+          any:
+            - kind: closure_parameters
+            - kind: let_declaration
+            - kind: for_expression
+          stopBy: end

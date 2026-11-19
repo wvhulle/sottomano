@@ -2,20 +2,18 @@ use std::{
     collections::{HashMap, HashSet},
     ops::Range,
     path::PathBuf,
-    sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 
 use bytesize::ByteSize;
 use futures::{Stream, future::join_all};
 use rustix::process::getuid;
-use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
     delivery_cadence_drivers::{
-        ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        CarriedRead, ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
         triggered_deliveries_with_recheck,
     },
     qemu_virtual_machines::{
@@ -302,16 +300,17 @@ impl SnapshotSource for VirtualMachinesReadout {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system_bus = buses.system;
-        let sampler = Arc::new(AsyncMutex::new(VirtualMachineSampler::new(
-            system_bus.clone(),
-        )));
         triggered_deliveries_with_recheck(
-            machine_set_changes(system_bus),
+            machine_set_changes(system_bus.clone()),
             TRIGGER_BURST_GAP,
             PeriodicPolling::every(VIRTUAL_MACHINE_POLL_PERIOD),
-            move || {
-                let sampler = sampler.clone();
-                async move { Ok(sampler.lock().await.sample().await) }
+            VirtualMachineSampler::new(system_bus),
+            |mut sampler| async move {
+                let machines = sampler.sample().await;
+                CarriedRead {
+                    carried_state: sampler,
+                    snapshot_fetch: Ok(machines),
+                }
             },
             |_| SamplingNeed::KeepSampling,
         )

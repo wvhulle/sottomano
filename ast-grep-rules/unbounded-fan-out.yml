@@ -1,0 +1,33 @@
+id: unbounded-fan-out
+language: rust
+severity: error
+message: Joining one future per collection element starts them all at once; a large collection exhausts file descriptors or floods the bus.
+note: Use stream::iter(elements).map(..).buffered(NAMED_LIMIT) or buffer_unordered(NAMED_LIMIT) with a named in-flight constant. Joining a fixed handful of distinct futures with join!/try_join! stays fine.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - corredo/src/**/*.rs
+ignores:
+  - sottomano-desktop-sources/src/desktop_windows_apps/dbusmenu_menu_bar_layout.rs
+  - sottomano-desktop-sources/src/login_session_presence/logind_action_permissions.rs
+  - sottomano-desktop-sources/src/login_session_presence/screensaver_bus_idle_inhibitors.rs
+  - sottomano-desktop-sources/src/network_connectivity/ethernet_connection.rs
+  - sottomano-desktop-sources/src/network_connectivity/icmp_gateway_latency.rs
+  - sottomano-desktop-sources/src/network_connectivity/nearby_wifi_networks.rs
+  - sottomano-desktop-sources/src/network_connectivity/network_manager_proxies.rs
+  - sottomano-desktop-sources/src/network_connectivity/wifi_connection.rs
+  - sottomano-desktop-sources/src/network_connectivity/wireguard_tunnels.rs
+  - sottomano-desktop-sources/src/qemu_virtual_machines/running_virtual_machines.rs
+  - sottomano-desktop-sources/src/system_protocol_clients/dbus_change_signals.rs
+  - sottomano-desktop-sources/src/systemd_units_journal/failed_units.rs
+  - sottomano-desktop-sources/src/systemd_units_journal/service_commands.rs
+  - sottomano-desktop-sources/src/systemd_units_journal/slow_running_jobs.rs
+rule:
+  any:
+    - pattern: join_all($ELEMENTS.map($$$))
+    - pattern: try_join_all($ELEMENTS.map($$$))
+    - pattern: $MODULE::join_all($ELEMENTS.map($$$))
+    - pattern: $MODULE::try_join_all($ELEMENTS.map($$$))
+    - pattern: $ELEMENTS.map($$$).collect::<FuturesUnordered<$$$>>()

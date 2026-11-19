@@ -1,0 +1,18 @@
+id: rust-comments
+language: rust
+severity: error
+message: Comments restate code or drift from it; this codebase has none, not even doc comments.
+note: Say it with a descriptive name, a named constant, an enum variant or a smaller function instead (no-transient-comments).
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+  - corredo/src/**/*.rs
+  - xtask/src/**/*.rs
+rule:
+  any:
+    - kind: line_comment
+    - kind: block_comment

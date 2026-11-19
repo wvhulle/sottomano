@@ -10,13 +10,15 @@ pub struct RainAlertsConfig {
     pub heavy_millimeters_per_hour: f64,
 }
 
+pub const DEFAULT_RAIN_ALERTS: RainAlertsConfig = RainAlertsConfig {
+    lead_time: TimeDelta::minutes(15),
+    minimum_millimeters_per_hour: 0.5,
+    heavy_millimeters_per_hour: 4.0,
+};
+
 impl Default for RainAlertsConfig {
     fn default() -> Self {
-        Self {
-            lead_time: TimeDelta::minutes(15),
-            minimum_millimeters_per_hour: 0.5,
-            heavy_millimeters_per_hour: 4.0,
-        }
+        DEFAULT_RAIN_ALERTS
     }
 }
 

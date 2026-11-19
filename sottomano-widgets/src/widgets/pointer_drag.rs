@@ -2,8 +2,8 @@ pub mod reorderable_list;
 
 use std::{fmt::Debug, hash::Hash};
 
-use corredo::{drag_reorder as generic_drag, drag_reorder::MoveTracking};
-use iced::{Subscription, time::Instant};
+use corredo::drag_reorder as generic_drag;
+use iced::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DraggedPanelSlot {
@@ -42,12 +42,6 @@ pub fn advance<Click: Copy>(
     now: Instant,
 ) -> DragTransition<Click> {
     generic_drag::advance_drag(drag, event, now, DraggedPanelSlot::list)
-}
-
-pub fn pointer_events<Click: Copy + Send + 'static>(
-    move_tracking: MoveTracking,
-) -> Subscription<DragEvent<Click>> {
-    generic_drag::drag_pointer_events(move_tracking)
 }
 
 #[cfg(test)]

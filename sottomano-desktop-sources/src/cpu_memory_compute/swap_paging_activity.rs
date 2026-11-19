@@ -1,6 +1,5 @@
 use std::{
     cmp::Reverse,
-    sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -47,13 +46,10 @@ impl SnapshotSource for SwapActivity {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let previous_counters = Arc::new(Mutex::new(None));
-        PeriodicPolling::every(Duration::from_secs(2)).blocking_poll_deliveries(move || {
-            let mut previous = previous_counters
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            read_swap_activity(&mut previous, Instant::now())
-        })
+        PeriodicPolling::every(Duration::from_secs(2)).blocking_poll_deliveries_carrying(
+            || None,
+            |previous_counters| read_swap_activity(previous_counters, Instant::now()),
+        )
     }
 }
 

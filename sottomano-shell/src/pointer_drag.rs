@@ -1,6 +1,6 @@
 use std::mem;
 
-use corredo::drag_reorder::MoveTracking;
+use corredo::drag_reorder::{MoveTracking, drag_pointer_events};
 use iced::{Subscription, Task, window::frames};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::{
@@ -85,7 +85,7 @@ impl DesktopShell {
     }
 
     pub fn pointer_drag_subscription(&self) -> Subscription<Message> {
-        let pointer = pointer_drag::pointer_events(MoveTracking::from(&self.pointer_drag))
+        let pointer = drag_pointer_events(MoveTracking::from(&self.pointer_drag))
             .map(|event| Message::PointerDrag(DragMessage::Pointer(event)));
         let spring_charging = match self.drag_view().drag.and_then(|drag| drag.hovered()) {
             Some(_) => frames().map(|_| Message::Redraw),

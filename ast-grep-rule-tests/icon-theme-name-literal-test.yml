@@ -1,0 +1,9 @@
+id: icon-theme-name-literal
+valid:
+  - "pub const FALLBACK_THEME_NAME: &str = \"hicolor\";"
+  - "const ACTION_ICON: &str = \"edit-select\";"
+  - "mod tests { const THEME: &str = \"Colloid-Dark\"; }"
+invalid:
+  - "const PREFERRED_THEME: &str = \"Colloid-Dark\";"
+  - "fn theme() -> String { \"breeze\".to_owned() }"
+  - "fn theme() -> String { \"Papirus\".to_owned() }"

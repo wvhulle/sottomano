@@ -8,6 +8,7 @@ use std::{
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
+use tokio::fs;
 use zbus::proxy;
 
 use crate::{
@@ -121,10 +122,18 @@ async fn waydroid_session(system_bus: &zbus::Connection) -> HashMap<String, Stri
 }
 
 async fn read_waydroid_listing(system_bus: &zbus::Connection) -> WaydroidListing {
-    let container = if waydroid_payload_cgroup().exists() {
-        ContainerRunState::Running
-    } else {
-        ContainerRunState::Stopped
+    let payload_cgroup = waydroid_payload_cgroup();
+    let container = match fs::try_exists(&payload_cgroup).await {
+        Ok(true) => ContainerRunState::Running,
+        Ok(false) => ContainerRunState::Stopped,
+        Err(probe_failure) => {
+            tracing::warn!(
+                payload_cgroup = %payload_cgroup.display(),
+                %probe_failure,
+                "waydroid: cannot probe the payload cgroup"
+            );
+            ContainerRunState::Stopped
+        }
     };
     let session = waydroid_session(system_bus).await;
     WaydroidListing {

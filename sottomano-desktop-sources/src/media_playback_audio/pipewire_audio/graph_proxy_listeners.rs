@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the session the pipewire listener callbacks share"
+)]
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -121,6 +125,11 @@ fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &AudioGrap
 
 #[derive(Clone)]
 pub(super) struct LiveAudioGraph {
+    #[expect(
+        clippy::disallowed_types,
+        reason = "pipewire listener callbacks run on the pipewire loop thread and must share the \
+                  bound session"
+    )]
     pub(super) session: Rc<RefCell<BoundAudioSession>>,
     pub(super) states: watch::Sender<AudioState>,
 }

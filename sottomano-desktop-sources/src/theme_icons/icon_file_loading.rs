@@ -160,31 +160,37 @@ fn cropped_svg(tree: &usvg::Tree) -> SvgFraming {
     let size = tree.size();
     let ink_box = tree.root().abs_stroke_bounding_box();
     let bleed = ink_box.width().max(ink_box.height()) * ANTIALIAS_BLEED_FRACTION;
-    let x0 = (ink_box.x() - bleed).max(0.0);
-    let y0 = (ink_box.y() - bleed).max(0.0);
-    let x1 = (ink_box.x() + ink_box.width() + bleed).min(size.width());
-    let y1 = (ink_box.y() + ink_box.height() + bleed).min(size.height());
-    let (vw, vh) = (x1 - x0, y1 - y0);
-    if vw <= 0.0 || vh <= 0.0 {
+    let Some(crop_box) = usvg::Rect::from_ltrb(
+        (ink_box.left() - bleed).max(0.0),
+        (ink_box.top() - bleed).max(0.0),
+        (ink_box.right() + bleed).min(size.width()),
+        (ink_box.bottom() + bleed).min(size.height()),
+    ) else {
         return SvgFraming::Uncropped;
-    }
+    };
 
-    let margin_x = 1.0 - vw / size.width();
-    let margin_y = 1.0 - vh / size.height();
+    let margin_x = 1.0 - crop_box.width() / size.width();
+    let margin_y = 1.0 - crop_box.height() / size.height();
     if margin_x < MIN_MARGIN_FRACTION && margin_y < MIN_MARGIN_FRACTION {
         return SvgFraming::Uncropped;
     }
 
-    match crop_view_box(tree, x0, y0, vw, vh) {
+    match crop_view_box(tree, crop_box) {
         Some(cropped_text) => SvgFraming::Cropped(CroppedSvg {
             svg_bytes: cropped_text.into_bytes(),
-            side_px: vw.max(vh),
+            side_px: crop_box.width().max(crop_box.height()),
         }),
         None => SvgFraming::Uncropped,
     }
 }
 
-fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<String> {
+fn crop_view_box(tree: &usvg::Tree, crop_box: usvg::Rect) -> Option<String> {
+    let (left, top, width, height) = (
+        crop_box.left(),
+        crop_box.top(),
+        crop_box.width(),
+        crop_box.height(),
+    );
     let svg = tree.to_string(&usvg::WriteOptions::default());
     let tag_end = svg.find('>')?;
     let opening = &svg[..tag_end];
@@ -195,7 +201,7 @@ fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<St
         ""
     };
     Some(format!(
-        "<svg width=\"{w}\" height=\"{h}\" viewBox=\"{x} {y} {w} {h}\" \
+        "<svg width=\"{width}\" height=\"{height}\" viewBox=\"{left} {top} {width} {height}\" \
          xmlns=\"http://www.w3.org/2000/svg\"{xlink}>{body}"
     ))
 }
@@ -220,15 +226,15 @@ fn ink_bounds(width: u32, height: u32, rgba: &[u8]) -> Option<InkBounds> {
     }
     let (mut min_x, mut min_y, mut max_x, mut max_y) = (width, height, 0, 0);
     let mut found = false;
-    for y in 0..height {
-        for x in 0..width {
-            let alpha = rgba[(y as usize * width as usize + x as usize) * 4 + 3];
+    for row in 0..height {
+        for column in 0..width {
+            let alpha = rgba[(row as usize * width as usize + column as usize) * 4 + 3];
             if alpha > ALPHA_INK_THRESHOLD {
                 found = true;
-                min_x = min_x.min(x);
-                min_y = min_y.min(y);
-                max_x = max_x.max(x);
-                max_y = max_y.max(y);
+                min_x = min_x.min(column);
+                min_y = min_y.min(row);
+                max_x = max_x.max(column);
+                max_y = max_y.max(row);
             }
         }
     }

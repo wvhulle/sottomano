@@ -1,0 +1,9 @@
+id: generic-module-name
+valid:
+  - "mod theme_icons;"
+  - "mod tests {}"
+invalid:
+  - "mod utils;"
+  - "pub mod helpers;"
+  - "mod stream_operators;"
+  - "mod icon_utils {}"

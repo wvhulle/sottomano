@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the per-thread ICU formatter caches"
+)]
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, time::Duration};
 
 use bytesize::ByteSize;
@@ -349,6 +353,7 @@ fn iec_scaled(magnitude: f64) -> (f64, &'static str) {
 }
 
 thread_local! {
+    #[expect(clippy::disallowed_types, reason = "ICU formatters are expensive to build and text is formatted deep inside views; follow-up: own the caches in the model and pass them in")]
     static DECIMAL_FORMATTERS: RefCell<HashMap<Locale, DecimalFormatter>> =
         RefCell::new(HashMap::new());
 }

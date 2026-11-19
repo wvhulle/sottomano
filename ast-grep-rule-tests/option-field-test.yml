@@ -1,4 +1,4 @@
-id: card-option-field
+id: option-field
 valid:
   - "enum AnchorReport { Unreported, Reported { anchor: Rectangle, visible: bool } }"
   - "enum KeyboardGrab { Released, Held(Id) }"

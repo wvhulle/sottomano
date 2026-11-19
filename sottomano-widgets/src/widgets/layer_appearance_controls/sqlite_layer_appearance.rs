@@ -67,13 +67,6 @@ impl ShellLayer {
     }
 }
 
-async fn with_table_for_appearance<T>(
-    label: &str,
-    work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
-) -> Option<T> {
-    with_state_store(label, work).await
-}
-
 pub async fn save(
     layer: ShellLayer,
     setting: AppearanceSetting,
@@ -92,7 +85,7 @@ pub async fn save_appearance(
 
 pub async fn load(layer: ShellLayer) -> LayerAppearance {
     let defaults = layer.default_appearance();
-    with_table_for_appearance("layer appearance: load failed", async |connection| {
+    with_state_store("layer appearance: load failed", async |connection| {
         read_layer_appearance(connection, layer, defaults).await
     })
     .await

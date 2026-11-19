@@ -14,7 +14,6 @@ use crate::{
         },
         group_menu_view::GroupMenuMessenger,
     },
-    hover_cards::marked_by_menu_pin,
     indicator_groups::{
         indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
@@ -60,7 +59,7 @@ pub(crate) fn group_header<'a>(
     emphasis: MenuRowEmphasis,
 ) -> MenuRowContent<'a, GroupEvent> {
     let pinned_entry = GroupMenuPin::Group(entry_identity.clone());
-    let pin = marked_by_menu_pin(
+    let pin = anchor_marker(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
             layout.config.theme.font.icon_size_px,

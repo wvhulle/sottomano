@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     mem::take,
-    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -196,14 +195,14 @@ fn longer_throttled(first: ThrottledTime, second: ThrottledTime) -> ThrottledTim
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct ThrottleBaseline {
-    histories: Arc<Mutex<Vec<CpuThrottleHistory>>>,
+    histories: Vec<CpuThrottleHistory>,
 }
 
 impl ThrottleBaseline {
     pub(super) fn activity_over_window(
-        &self,
+        &mut self,
         cpus: impl Iterator<Item = u32>,
     ) -> ThermalThrottleActivity {
         let read_at = Instant::now();
@@ -219,20 +218,21 @@ impl ThrottleBaseline {
         )
     }
 
-    fn advance(&self, readings: Vec<CpuThrottleReading>) -> ThermalThrottleActivity {
-        let mut histories = self.histories.lock().expect("throttle baseline");
-        let earlier_histories = take(&mut *histories);
-        *histories = readings
+    fn advance(&mut self, readings: Vec<CpuThrottleReading>) -> ThermalThrottleActivity {
+        let earlier_histories = take(&mut self.histories);
+        self.histories = readings
             .into_iter()
             .map(|current| CpuThrottleHistory::after(&earlier_histories, current))
             .collect();
-        let mut throttled_cores: Vec<CoreThrottledTime> = histories
+        let mut throttled_cores: Vec<CoreThrottledTime> = self
+            .histories
             .iter()
             .map(CpuThrottleHistory::core_throttled_time)
             .filter(|core| noticeable(core.throttled_time))
             .collect();
         throttled_cores.sort_by_key(|core| core.cpu);
-        let package = histories
+        let package = self
+            .histories
             .iter()
             .map(CpuThrottleHistory::package_throttled_time)
             .reduce(longer_throttled);
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn throttled_time_reads_as_a_share_of_the_window() {
         let timeline = timeline();
-        let baseline = ThrottleBaseline::default();
+        let mut baseline = ThrottleBaseline::default();
         baseline.advance(vec![timeline.reading(0, 0, 0, 0)]);
         baseline.advance(vec![timeline.reading(0, 3, 0, 1500)]);
         assert_eq!(
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn blips_below_a_noticeable_share_stay_quiet() {
         let timeline = timeline();
-        let baseline = ThrottleBaseline::default();
+        let mut baseline = ThrottleBaseline::default();
         baseline.advance(vec![timeline.reading(0, 0, 0, 0)]);
         assert_eq!(
             baseline.advance(vec![timeline.reading(0, 3, 1, 2)]),
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn a_restarted_counter_counts_from_the_restart() {
         let timeline = timeline();
-        let baseline = ThrottleBaseline::default();
+        let mut baseline = ThrottleBaseline::default();
         baseline.advance(vec![timeline.reading(0, 0, 9000, 0)]);
         assert_eq!(
             baseline.advance(vec![timeline.reading(0, 3, 300, 0)]),
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn throttling_older_than_the_window_drops_out() {
         let timeline = timeline();
-        let baseline = ThrottleBaseline::default();
+        let mut baseline = ThrottleBaseline::default();
         baseline.advance(vec![timeline.reading(0, 0, 0, 0)]);
         baseline.advance(vec![timeline.reading(0, 3, 3000, 3000)]);
         (2..=u64::from(THROTTLE_WINDOW_POLLS)).for_each(|poll| {
@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn a_package_read_on_every_cpu_counts_once() {
         let timeline = timeline();
-        let baseline = ThrottleBaseline::default();
+        let mut baseline = ThrottleBaseline::default();
         baseline.advance(vec![
             timeline.reading(0, 0, 0, 0),
             timeline.reading(1, 0, 0, 0),

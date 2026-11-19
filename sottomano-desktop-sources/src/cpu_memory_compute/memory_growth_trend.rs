@@ -1,7 +1,6 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -55,13 +54,11 @@ impl SnapshotSource for MemoryGrowth {
     fn delivery_stream(
         trend_config: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let trend_window = Arc::new(Mutex::new(MemoryTrendWindow::spanning(
-            trend_config.trend_window,
-        )));
-        PeriodicPolling::every(GROWTH_POLL_PERIOD).blocking_poll_deliveries(move || {
-            let mut window = trend_window.lock().unwrap_or_else(PoisonError::into_inner);
-            read_memory_growth(&mut window, &trend_config, Instant::now())
-        })
+        let window_length = trend_config.trend_window;
+        PeriodicPolling::every(GROWTH_POLL_PERIOD).blocking_poll_deliveries_carrying(
+            move || MemoryTrendWindow::spanning(window_length),
+            move |trend_window| read_memory_growth(trend_window, &trend_config, Instant::now()),
+        )
     }
 }
 

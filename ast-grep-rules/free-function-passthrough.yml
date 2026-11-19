@@ -1,0 +1,72 @@
+id: free-function-passthrough
+language: rust
+severity: error
+message: A function that only forwards its parameters to another function adds a name without adding behaviour.
+note: Call the target directly; when the forwarding exists to fix one argument, pass that argument at the call site or give the target a clearer name. Trait methods are exempt.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+  - corredo/src/**/*.rs
+constraints:
+  TARGET:
+    any:
+      - kind: identifier
+      - kind: scoped_identifier
+    regex: '(^|::)[a-z_][a-z0-9_]*$'
+rule:
+  kind: function_item
+  any:
+    - all:
+        - has:
+            field: parameters
+            pattern: { context: "fn f($A: $TA) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ $TARGET($A) }"
+              - pattern: "{ $TARGET(&$A) }"
+              - pattern: "{ $TARGET($A).await }"
+              - pattern: "{ $TARGET(&$A).await }"
+    - all:
+        - has:
+            field: parameters
+            pattern: { context: "fn f($A: $TA, $B: $TB) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ $TARGET($A, $B) }"
+              - pattern: "{ $TARGET(&$A, &$B) }"
+              - pattern: "{ $TARGET($A, $B).await }"
+              - pattern: "{ $TARGET(&$A, &$B).await }"
+    - all:
+        - has:
+            field: parameters
+            pattern: { context: "fn f($A: $TA, $B: $TB, $C: $TC) {}", selector: parameters }
+        - has:
+            field: body
+            any:
+              - pattern: "{ $TARGET($A, $B, $C) }"
+              - pattern: "{ $TARGET(&$A, &$B, &$C) }"
+              - pattern: "{ $TARGET($A, $B, $C).await }"
+              - pattern: "{ $TARGET(&$A, &$B, &$C).await }"
+  not:
+    any:
+      - inside:
+          kind: impl_item
+          has:
+            field: trait
+            any:
+              - kind: type_identifier
+              - kind: scoped_type_identifier
+              - kind: generic_type
+          stopBy: end
+      - inside:
+          kind: mod_item
+          has:
+            field: name
+            pattern: tests
+          stopBy: end

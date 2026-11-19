@@ -1,0 +1,15 @@
+id: free-function-passthrough
+valid:
+  - "fn width_of(text: &str) -> usize { text.trim().len() }"
+  - "fn icon_side(config: &Config) -> u16 { config.theme.font.icon_size_px.round() as u16 }"
+  - "impl From<Report> for Card { fn from(report: Report) -> Self { card_of(report) } }"
+  - "mod tests { fn fixture(name: &str) -> Row { row_named(name) } }"
+  - "fn celsius(degrees: f64) -> Temperature { Temperature::new::<degree_celsius>(degrees) }"
+  - "fn file_name(path: &str) -> &str { path.rsplit('/').next().unwrap_or(path) }"
+  - "fn non_empty(text: String) -> Option<String> { (!text.is_empty()).then_some(text) }"
+  - "fn size(size: ByteSize) -> Quantity { Quantity::InformationSize(size) }"
+invalid:
+  - "async fn listed_icon_files_in(directory: PathBuf) -> Listing { listed_icon_files(&directory).await }"
+  - "fn marked(content: Element, target: HoverTarget) -> Element { anchor_marker(content, target) }"
+  - "fn lookup(entries: &Entries, name: &str) -> Option<PathBuf> { theme_lookup_at(entries, name) }"
+  - "fn joined(first: &str, second: &str, third: &str) -> String { joined_parts(first, second, third) }"

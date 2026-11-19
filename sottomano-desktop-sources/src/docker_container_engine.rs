@@ -4,14 +4,12 @@ use std::{
     env,
     future::ready,
     path::{Path, PathBuf},
-    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
-use tokio::sync::Mutex;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -19,7 +17,7 @@ use crate::{
     blocking_background_work::blocking_poll,
     container_run_state::ContainerRunState,
     delivery_cadence_drivers::{
-        ChangeTriggerStreams, PeriodicPolling, RereadSchedule, SamplingNeed,
+        CarriedRead, ChangeTriggerStreams, PeriodicPolling, RereadSchedule, SamplingNeed,
         SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
     },
     podman_container_engine::{
@@ -414,21 +412,19 @@ impl SnapshotSource for DockerEngineReadout {
         path_present(socket_path).while_available(
             move || {
                 let sampled_socket = sampled_socket.clone();
-                let sampler =
-                    Arc::new(Mutex::new(DockerEngineSampler::new(sampled_socket.clone())));
                 triggered_deliveries_with_recheck(
-                    docker_events::docker_container_event_triggers(sampled_socket),
+                    docker_events::docker_container_event_triggers(sampled_socket.clone()),
                     docker_events::TRIGGER_BURST_GAP,
                     PeriodicPolling::every(DOCKER_POLL_PERIOD),
-                    move || {
-                        let sampler = sampler.clone();
-                        async move {
-                            sampler
-                                .lock()
-                                .await
-                                .sample()
-                                .await
-                                .map(|engine_listing| DockerEngineReadout { engine_listing })
+                    DockerEngineSampler::new(sampled_socket),
+                    |mut sampler| async move {
+                        let snapshot_fetch = sampler
+                            .sample()
+                            .await
+                            .map(|engine_listing| DockerEngineReadout { engine_listing });
+                        CarriedRead {
+                            carried_state: sampler,
+                            snapshot_fetch,
                         }
                     },
                     |delivered: &Result<Self, EngineReadError>| {

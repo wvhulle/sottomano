@@ -9,7 +9,7 @@ use std::{
 
 use chrono::{DateTime, Local};
 use futures::{
-    Stream, StreamExt, TryStreamExt,
+    FutureExt, Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
@@ -48,6 +48,45 @@ impl PartialEq for ChangeWatchFailure {
     }
 }
 
+pub struct CarriedRead<State, Fetch> {
+    pub carried_state: State,
+    pub snapshot_fetch: Fetch,
+}
+
+pin_project! {
+    struct UncarriedRead<ReadFuture> {
+        #[pin]
+        read_future: ReadFuture,
+    }
+}
+
+impl<ReadFuture: Future> Future for UncarriedRead<ReadFuture> {
+    type Output = CarriedRead<(), ReadFuture::Output>;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        self.project()
+            .read_future
+            .poll(context)
+            .map(|snapshot_fetch| CarriedRead {
+                carried_state: (),
+                snapshot_fetch,
+            })
+    }
+}
+
+fn uncarried_reads<ReadFuture>(
+    mut read: impl FnMut() -> ReadFuture,
+) -> impl FnMut(()) -> UncarriedRead<ReadFuture> {
+    move |()| UncarriedRead {
+        read_future: read(),
+    }
+}
+
+enum BlockingState<State> {
+    Unbuilt,
+    Built(State),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RereadSchedule {
     WaitForTrigger,
@@ -65,7 +104,7 @@ pub trait ChangeTriggerStreams<TriggerFailure>:
         Sample: Send + 'static,
         Failure: Send + 'static,
         TriggerFailure: Into<Failure>,
-        ReadFuture: Future<Output = Result<Sample, Failure>> + Send,
+        ReadFuture: Future<Output = Result<Sample, Failure>> + Send + 'static,
     {
         self.paced_rereads(Duration::ZERO, read, |_| RereadSchedule::WaitForTrigger)
     }
@@ -80,13 +119,36 @@ pub trait ChangeTriggerStreams<TriggerFailure>:
         Sample: Send + 'static,
         Failure: Send + 'static,
         TriggerFailure: Into<Failure>,
-        ReadFuture: Future<Output = Result<Sample, Failure>> + Send,
+        ReadFuture: Future<Output = Result<Sample, Failure>> + Send + 'static,
+    {
+        self.paced_rereads_carrying(
+            minimum_trigger_gap,
+            (),
+            uncarried_reads(read),
+            recheck_after,
+        )
+    }
+
+    fn paced_rereads_carrying<State, Sample, Failure, ReadFuture>(
+        self,
+        minimum_trigger_gap: Duration,
+        carried_state: State,
+        read: impl FnMut(State) -> ReadFuture + Send + 'static,
+        recheck_after: impl Fn(&Result<Sample, Failure>) -> RereadSchedule + Send + 'static,
+    ) -> impl Stream<Item = Result<Sample, Failure>> + Send
+    where
+        State: Send + 'static,
+        Sample: Send + 'static,
+        Failure: Send + 'static,
+        TriggerFailure: Into<Failure>,
+        ReadFuture: Future<Output = CarriedRead<State, Result<Sample, Failure>>> + Send,
     {
         RereadOnTrigger {
             triggers: self.fuse(),
             minimum_trigger_gap,
             recheck_after,
             read,
+            carried_state: Some(carried_state),
             trigger_failures: VecDeque::new(),
             sample: None,
             cooldown: None,
@@ -102,12 +164,13 @@ impl<TriggerFailure, TriggerStream> ChangeTriggerStreams<TriggerFailure> for Tri
 }
 
 pin_project! {
-    struct RereadOnTrigger<TriggerStream, Failure, RecheckFn, ReadFn, ReadFuture> {
+    struct RereadOnTrigger<TriggerStream, Failure, State, RecheckFn, ReadFn, ReadFuture> {
         #[pin]
         triggers: Fuse<TriggerStream>,
         minimum_trigger_gap: Duration,
         recheck_after: RecheckFn,
         read: ReadFn,
+        carried_state: Option<State>,
         trigger_failures: VecDeque<Failure>,
         #[pin]
         sample: Option<ReadFuture>,
@@ -119,14 +182,14 @@ pin_project! {
     }
 }
 
-impl<TriggerStream, TriggerFailure, Failure, Sample, RecheckFn, ReadFn, ReadFuture> Stream
-    for RereadOnTrigger<TriggerStream, Failure, RecheckFn, ReadFn, ReadFuture>
+impl<TriggerStream, TriggerFailure, Failure, State, Sample, RecheckFn, ReadFn, ReadFuture> Stream
+    for RereadOnTrigger<TriggerStream, Failure, State, RecheckFn, ReadFn, ReadFuture>
 where
     TriggerStream: Stream<Item = Result<(), TriggerFailure>>,
     TriggerFailure: Into<Failure>,
     RecheckFn: Fn(&Result<Sample, Failure>) -> RereadSchedule,
-    ReadFn: FnMut() -> ReadFuture,
-    ReadFuture: Future<Output = Result<Sample, Failure>>,
+    ReadFn: FnMut(State) -> ReadFuture,
+    ReadFuture: Future<Output = CarriedRead<State, Result<Sample, Failure>>>,
 {
     type Item = Result<Sample, Failure>;
 
@@ -180,13 +243,21 @@ where
                     projected.cooldown.set(None);
                 }
             }
-            projected.sample.set(Some((projected.read)()));
+            let carried_state = projected
+                .carried_state
+                .take()
+                .expect("the carried state is back whenever no read is in flight");
+            projected.sample.set(Some((projected.read)(carried_state)));
         }
         let Some(sample) = projected.sample.as_mut().as_pin_mut() else {
             return Poll::Pending;
         };
-        let produced = ready_poll!(sample.poll(context));
+        let CarriedRead {
+            carried_state,
+            snapshot_fetch: produced,
+        } = ready_poll!(sample.poll(context));
         projected.sample.set(None);
+        *projected.carried_state = Some(carried_state);
         let next_deadline = match (projected.recheck_after)(&produced) {
             RereadSchedule::WaitForTrigger => None,
             RereadSchedule::RecheckAt(recheck_instant) => Some(sleep_until(recheck_instant.into())),
@@ -287,10 +358,23 @@ impl PeriodicPolling {
     ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
         Source: SnapshotSource + PartialEq,
-        PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
+        PollFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
+    {
+        self.poll_deliveries_carrying((), uncarried_reads(poll))
+    }
+
+    fn poll_deliveries_carrying<Source, State, PollFuture>(
+        self,
+        carried_state: State,
+        poll: impl FnMut(State) -> PollFuture + Send + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
+    where
+        Source: SnapshotSource + PartialEq,
+        State: Send + 'static,
+        PollFuture: Future<Output = CarriedRead<State, Result<Source, Source::Error>>> + Send,
     {
         stream::pending::<Result<(), Source::Error>>()
-            .paced_rereads(Duration::ZERO, poll, move |_| {
+            .paced_rereads_carrying(Duration::ZERO, carried_state, poll, move |_| {
                 RereadSchedule::RecheckAt(TokioClockInstant::now().into_std() + self.poll_period)
             })
             .map(move |snapshot_fetch| SnapshotDelivery::SnapshotDelivered {
@@ -298,6 +382,39 @@ impl PeriodicPolling {
                 delivery_cadence: DeliveryCadence::PeriodicPolling(self),
             })
             .repeats_as_unchanged()
+    }
+
+    pub fn blocking_poll_deliveries_carrying<Source, State>(
+        self,
+        fresh_state: impl Fn() -> State + Send + Sync + Clone + 'static,
+        read: impl Fn(&mut State) -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
+    where
+        Source: SnapshotSource + PartialEq,
+        Source::Error: From<Panicked>,
+        State: Send + 'static,
+    {
+        self.poll_deliveries_carrying(BlockingState::Unbuilt, move |blocking_state| {
+            let fresh_state = fresh_state.clone();
+            let read = read.clone();
+            blocking_poll(move || {
+                let mut state = match blocking_state {
+                    BlockingState::Unbuilt => fresh_state(),
+                    BlockingState::Built(state) => state,
+                };
+                let snapshot_fetch = read(&mut state);
+                Ok(CarriedRead {
+                    carried_state: BlockingState::Built(state),
+                    snapshot_fetch,
+                })
+            })
+            .map(|blocking_read| {
+                blocking_read.unwrap_or_else(|Panicked| CarriedRead {
+                    carried_state: BlockingState::Unbuilt,
+                    snapshot_fetch: Err(Source::Error::from(Panicked)),
+                })
+            })
+        })
     }
 
     pub fn blocking_poll_deliveries<Source>(
@@ -335,7 +452,7 @@ impl PeriodicPolling {
     where
         Source: SnapshotSource + PartialEq,
         Prepared: Clone + Send + 'static,
-        PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
+        PollFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
     {
         stream::once(setup)
             .map_ok(move |prepared| {
@@ -372,23 +489,30 @@ impl PeriodicPolling {
         TriggerFailure: Into<Source::Error>,
         ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
     {
-        triggered_deliveries_with_recheck(triggers, Duration::ZERO, self, read, |_| {
-            SamplingNeed::KeepSampling
-        })
+        triggered_deliveries_with_recheck(
+            triggers,
+            Duration::ZERO,
+            self,
+            (),
+            uncarried_reads(read),
+            |_| SamplingNeed::KeepSampling,
+        )
     }
 }
 
-pub fn triggered_deliveries_with_recheck<Source, TriggerFailure, ReadFuture>(
+pub fn triggered_deliveries_with_recheck<Source, State, TriggerFailure, ReadFuture>(
     triggers: impl Stream<Item = Result<(), TriggerFailure>> + Send + 'static,
     minimum_trigger_gap: Duration,
     recheck: PeriodicPolling,
-    read: impl FnMut() -> ReadFuture + Send + 'static,
+    carried_state: State,
+    read: impl FnMut(State) -> ReadFuture + Send + 'static,
     sampling_need: fn(&Result<Source, Source::Error>) -> SamplingNeed,
 ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
 where
     Source: SnapshotSource,
+    State: Send + 'static,
     TriggerFailure: Into<Source::Error>,
-    ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
+    ReadFuture: Future<Output = CarriedRead<State, Result<Source, Source::Error>>> + Send + 'static,
 {
     let delivery_cadence_after =
         move |snapshot_fetch: &Result<Source, Source::Error>| match sampling_need(snapshot_fetch) {
@@ -396,8 +520,9 @@ where
             SamplingNeed::Settled => DeliveryCadence::LivePush,
         };
     triggers
-        .paced_rereads(
+        .paced_rereads_carrying(
             minimum_trigger_gap,
+            carried_state,
             read,
             move |snapshot_fetch| match delivery_cadence_after(snapshot_fetch) {
                 DeliveryCadence::LivePushWithRecheck(polling) => RereadSchedule::RecheckAt(

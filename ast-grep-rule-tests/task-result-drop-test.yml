@@ -1,0 +1,8 @@
+id: task-result-drop
+valid:
+  - "fn switched() -> Task<Message> { Task::future(async move { switch_power().await.err() }).and_then(|refusal| Task::done(Message::Refused(refusal))) }"
+  - "fn reloaded() -> Task<Message> { Task::future(blocking(\"config reload\", move || Some(file.load()))).and_then(|loaded| Task::done(Message::Loaded(loaded))) }"
+  - "fn indexed() -> Task<Message> { Task::perform(indexed_icon_theme(name, roots), |indexing| match indexing { Ok(index) => Message::Indexed(index), Err(failure) => Message::IndexFailed(failure) }) }"
+invalid:
+  - "fn indexed() -> Task<Message> { Task::future(indexed_icon_theme(name, roots)).and_then(|index| Task::done(Message::Indexed(index))) }"
+  - "fn loaded() -> Task<Message> { Task::future(load_settings()).and_then(|settings| Task::done(Message::Loaded(settings))) }"

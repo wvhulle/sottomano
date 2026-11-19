@@ -1,7 +1,6 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     iter,
-    sync::LazyLock,
 };
 
 use chrono::{DateTime, Local, Locale, NaiveDate, Timelike, Utc};
@@ -11,7 +10,10 @@ use sottomano_desktop_sources::weather::{
     open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
     open_meteo_temperature::SkyWetness,
 };
-use sottomano_toml_config::{indicator_groups::rain_alerts::RainAlertsConfig, severity::Severity};
+use sottomano_toml_config::{
+    indicator_groups::rain_alerts::{DEFAULT_RAIN_ALERTS, RainAlertsConfig},
+    severity::Severity,
+};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{
@@ -488,8 +490,6 @@ pub struct RadarRainForecast<'a> {
     pub rain: &'a Rain,
     pub alerts: &'a RainAlertsConfig,
 }
-
-static DEFAULT_RAIN_ALERTS: LazyLock<RainAlertsConfig> = LazyLock::new(RainAlertsConfig::default);
 
 impl<'a> RadarRainForecast<'a> {
     fn with_default_alerts(rain: &'a Rain) -> Self {

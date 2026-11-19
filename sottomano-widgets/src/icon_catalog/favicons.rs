@@ -16,13 +16,19 @@ pub struct Favicons {
     lookup: Lookup,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProfileChanges {
+    Unchanged,
+    ChangedMeanwhile,
+}
+
 #[derive(Default)]
 enum Lookup {
     #[default]
     Idle,
     Running {
         _aborts_on_drop: Handle,
-        profile_changed_meanwhile: bool,
+        profile_changes: ProfileChanges,
     },
 }
 
@@ -36,7 +42,7 @@ impl Favicons {
         let rerun = matches!(
             self.lookup,
             Lookup::Running {
-                profile_changed_meanwhile: true,
+                profile_changes: ProfileChanges::ChangedMeanwhile,
                 ..
             }
         );
@@ -65,11 +71,10 @@ impl Favicons {
 
     pub fn retry_unresolved(&mut self) -> Task<HashMap<String, RawFavicon>> {
         if let Lookup::Running {
-            profile_changed_meanwhile,
-            ..
+            profile_changes, ..
         } = &mut self.lookup
         {
-            *profile_changed_meanwhile = true;
+            *profile_changes = ProfileChanges::ChangedMeanwhile;
             return Task::none();
         }
         let unresolved: Vec<String> = self
@@ -87,7 +92,7 @@ impl Favicons {
         .abortable();
         self.lookup = Lookup::Running {
             _aborts_on_drop: handle.abort_on_drop(),
-            profile_changed_meanwhile: false,
+            profile_changes: ProfileChanges::Unchanged,
         };
         task
     }

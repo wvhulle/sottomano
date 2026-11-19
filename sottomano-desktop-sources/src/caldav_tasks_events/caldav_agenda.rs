@@ -11,7 +11,6 @@ use chrono::Local;
 use fast_dav_rs::CalendarObject;
 use futures::{Stream, future::try_join_all};
 use icalendar::Calendar;
-use tokio::sync::Mutex;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, StateChange,
@@ -25,7 +24,8 @@ use crate::{
         nextcloud_notify_push::{NotifyPushFailure, PushLogin, activity_pings},
     },
     delivery_cadence_drivers::{
-        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+        CarriedRead, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        triggered_deliveries_with_recheck,
     },
     network_connectivity::internet_connectivity_gate,
     secret_file_reads::{SecretUnreadable, read_secret},
@@ -157,14 +157,17 @@ fn push_or_poll_session<Poller: AgendaSnapshotPolling>(
         password: account.password.clone(),
     };
     let recheck = PeriodicPolling::every(account.push_safety_recheck_interval);
-    let poller = Arc::new(Mutex::new(poller));
     triggered_deliveries_with_recheck(
         activity_pings(push_login, push_live),
         account.change_poll_interval,
         recheck,
-        move || {
-            let poller = poller.clone();
-            async move { poller.lock().await.polled_snapshot().await }
+        poller,
+        |mut poller| async move {
+            let snapshot_fetch = poller.polled_snapshot().await;
+            CarriedRead {
+                carried_state: poller,
+                snapshot_fetch,
+            }
         },
         |_| SamplingNeed::KeepSampling,
     )

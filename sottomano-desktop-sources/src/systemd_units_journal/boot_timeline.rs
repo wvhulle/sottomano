@@ -1,10 +1,6 @@
 use std::{cmp::Reverse, time::Duration};
 
-use futures::{
-    Stream, StreamExt, TryStreamExt,
-    future::{join_all, ready},
-    stream,
-};
+use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{Ratio, Time},
@@ -23,6 +19,7 @@ use crate::{
 };
 
 const SLOWEST_UNIT_COUNT: usize = 10;
+const UNIT_STAMP_READS_IN_FLIGHT: usize = 16;
 const SHORTEST_REPORTED_ACTIVATION: Duration = Duration::from_millis(100);
 const DEVICE_UNIT_SUFFIX: &str = ".device";
 
@@ -476,11 +473,13 @@ async fn slowest_activations(
 ) -> zbus::Result<RankedActivations> {
     let connection = manager.inner().connection();
     let rows = manager.list_units().await?;
-    let stamps = join_all(
+    let stamps: Vec<_> = stream::iter(
         rows.into_iter()
-            .filter(|row| !row.name.ends_with(DEVICE_UNIT_SUFFIX))
-            .map(|row| activation_stamps(connection, row)),
+            .filter(|row| !row.name.ends_with(DEVICE_UNIT_SUFFIX)),
     )
+    .map(|row| activation_stamps(connection, row))
+    .buffer_unordered(UNIT_STAMP_READS_IN_FLIGHT)
+    .collect()
     .await;
     Ok(slowest_before_finish(
         stamps.into_iter().flatten(),

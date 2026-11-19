@@ -172,4 +172,14 @@ disallowed-methods = [
 disallowed-types = [
   { path = "core::num::Saturating", reason = "saturating arithmetic hides an overflow or underflow behind a clamped value; use checked_* and pass the error on or expect" },
   { path = "core::num::Wrapping", reason = "wrapping arithmetic hides an overflow behind a wrapped value; use checked_* and pass the error on or expect" },
+  { path = "std::sync::lazy_lock::LazyLock", reason = "a lazily initialised global is hidden state; build the value where it is used or keep it in the model" },
+  { path = "std::sync::once_lock::OnceLock", reason = "a lazily initialised global is hidden state; build the value where it is used or keep it in the model" },
+  { path = "core::cell::once::OnceCell", reason = "a lazily initialised global is hidden state; build the value where it is used or keep it in the model" },
+  { path = "core::cell::Cell", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
+  { path = "core::cell::lazy::LazyCell", reason = "a lazily initialised global is hidden state; build the value where it is used or keep it in the model" },
+  { path = "core::cell::RefCell", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
+  { path = "std::sync::poison::mutex::Mutex", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
+  { path = "std::sync::poison::rwlock::RwLock", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
+  { path = "tokio::sync::mutex::Mutex", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
+  { path = "tokio::sync::rwlock::RwLock", reason = "shared mutable state outside the model hides who changes it; keep state in the iced model and change it in update, or pass owned values" },
 ]

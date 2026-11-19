@@ -13,7 +13,6 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
-    blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
@@ -66,7 +65,7 @@ pub struct CpuClock {
     pub topology: CpuTopology,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ClockProbe {
     topology: CpuTopology,
     throttle_baseline: ThrottleBaseline,
@@ -165,13 +164,11 @@ impl SnapshotSource for CpuClock {
         };
         stream::once(exposed).while_available(
             move || {
-                PeriodicPolling::every(CLOCK_POLLING_PERIOD).blocking_poll_deliveries_after_setup(
-                    blocking_poll(|| {
-                        Ok(ClockProbe {
-                            topology: CpuTopology::detect(),
-                            throttle_baseline: ThrottleBaseline::default(),
-                        })
-                    }),
+                PeriodicPolling::every(CLOCK_POLLING_PERIOD).blocking_poll_deliveries_carrying(
+                    || ClockProbe {
+                        topology: CpuTopology::detect(),
+                        throttle_baseline: ThrottleBaseline::default(),
+                    },
                     read_cpu_clock,
                 )
             },
@@ -180,7 +177,7 @@ impl SnapshotSource for CpuClock {
     }
 }
 
-fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, FileReadError> {
+fn read_cpu_clock(probe: &mut ClockProbe) -> Result<CpuClock, FileReadError> {
     let cores = core_freqs();
     if cores.is_empty() {
         return Err(FileReadError::Unreadable(CPU_FREQ.to_owned()));
@@ -191,7 +188,7 @@ fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, FileReadError> {
             .throttle_baseline
             .activity_over_window(cores.iter().map(|core| core.core)),
         cores,
-        topology: probe.topology,
+        topology: probe.topology.clone(),
     })
 }
 

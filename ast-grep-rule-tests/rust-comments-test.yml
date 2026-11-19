@@ -1,0 +1,9 @@
+id: rust-comments
+valid:
+  - "const RETRY_LIMIT: u8 = 3;"
+  - "fn url_with_slashes() -> &'static str { \"https://example.org/path\" }"
+invalid:
+  - "// explains the next line\nconst RETRY_LIMIT: u8 = 3;"
+  - "/// documents the constant\nconst RETRY_LIMIT: u8 = 3;"
+  - "fn retry() { /* inline note */ }"
+  - "//! module documentation\nconst RETRY_LIMIT: u8 = 3;"

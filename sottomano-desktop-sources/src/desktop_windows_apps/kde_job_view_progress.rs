@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the job table the zbus interface mutates through &self"
+)]
 use std::{
     collections::HashMap,
     future::ready,
@@ -93,6 +97,11 @@ fn mean(percents: &[u8]) -> u8 {
 }
 
 struct Tracker {
+    #[expect(
+        clippy::disallowed_types,
+        reason = "zbus serves the interface through &self, so the job table it updates needs a \
+                  lock"
+    )]
     jobs: Mutex<HashMap<u64, Job>>,
     states: watch::Sender<JobProgress>,
     next_id: AtomicU64,
@@ -343,6 +352,11 @@ pub fn job_progress() -> impl Stream<Item = JobProgress> + Send {
 
 async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     let (states, updates) = watch::channel(JobProgress::default());
+    #[expect(
+        clippy::disallowed_types,
+        reason = "zbus serves the interface through &self, so the job table it updates needs a \
+                  lock"
+    )]
     let tracker = Arc::new(Tracker {
         jobs: Mutex::default(),
         states,

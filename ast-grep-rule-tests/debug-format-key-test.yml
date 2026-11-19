@@ -1,0 +1,7 @@
+id: debug-format-key
+valid:
+  - "fn sorted(mut names: Vec<String>) -> Vec<String> { names.sort_by_key(|name| name.len()); names }"
+  - "fn label(value: u8) -> String { format!(\"{value:?}\") }"
+invalid:
+  - "fn sorted(mut requests: Vec<Request>) -> Vec<Request> { requests.sort_unstable_by_key(|request| format!(\"{request:?}\")); requests }"
+  - "fn deduped(mut requests: Vec<Request>) { requests.dedup_by_key(|request| format!(\"{request:?}\")); }"

@@ -1,0 +1,31 @@
+id: debug-format-key
+language: rust
+severity: error
+message: Formatting a value with Debug to sort or deduplicate it depends on how Debug happens to print.
+note: Collect into a HashSet or BTreeSet, or derive Ord on the key type and sort by it.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+  - corredo/src/**/*.rs
+  - xtask/src/**/*.rs
+rule:
+  kind: call_expression
+  all:
+    - has:
+        field: function
+        kind: field_expression
+        has:
+          field: field
+          regex: '^(sort_by_key|sort_unstable_by_key|sort_by_cached_key|dedup_by_key|max_by_key|min_by_key)$'
+    - has:
+        field: arguments
+        has:
+          kind: closure_expression
+          has:
+            kind: macro_invocation
+            regex: '^format!'
+            stopBy: end

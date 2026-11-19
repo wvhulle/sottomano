@@ -13,11 +13,10 @@ use crate::{
         TaskUsage, TaskWebLog, images_of, sorted_unique,
         woodpecker_agent_varz::{AgentVarz, RunningWorkflow, fetch_agent_varz},
     },
-    delivery_cadence_drivers::SamplingNeed,
+    delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
         libpod_running_containers::{
-            ContainerCiIdentity, EngineContainers, EngineReadError, RunningContainer,
-            shared_engine_sampler,
+            ContainerCiIdentity, EngineContainers, EngineReadError, EngineSampler, RunningContainer,
         },
         running_set_changes::deliveries_on_running_set_changes,
     },
@@ -165,22 +164,24 @@ impl SnapshotSource for WoodpeckerAgentTasks {
     fn delivery_stream(
         watch: WoodpeckerAgentWatch,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let sampler = shared_engine_sampler(watch.engine_socket.clone());
         let engine_socket = watch.engine_socket;
         let varz_url = watch.varz_url;
         deliveries_on_running_set_changes(
-            move || {
-                let sampler = sampler.clone();
+            EngineSampler::new(engine_socket.clone()),
+            move |mut sampler| {
                 let varz_url = varz_url.clone();
                 let engine_socket = engine_socket.clone();
                 async move {
-                    let engine_read = sampler.lock().await.sample().await;
+                    let engine_read = sampler.sample().await;
                     let runner = fetch_agent_varz(&varz_url)
                         .await
                         .map_or_else(unreachable_agent, |varz| {
                             joined_agent_tasks(&varz, engine_read, &engine_socket)
                         });
-                    Ok(WoodpeckerAgentTasks { runner })
+                    CarriedRead {
+                        carried_state: sampler,
+                        snapshot_fetch: Ok(WoodpeckerAgentTasks { runner }),
+                    }
                 }
             },
             |delivered| {

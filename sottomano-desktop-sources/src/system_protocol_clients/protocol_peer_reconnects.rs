@@ -96,6 +96,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[expect(
+        clippy::disallowed_types,
+        reason = "imported for test fixtures that share state with closures under test"
+    )]
     use std::{
         iter::repeat_with,
         pin::pin,
@@ -192,6 +196,11 @@ mod tests {
         let dropped_subscriptions = Arc::new(AtomicUsize::new(0));
         let subscription_counter = dropped_subscriptions.clone();
         let mut subscribe_count = 0_usize;
+        #[expect(
+            clippy::disallowed_types,
+            reason = "the test records drop counts from inside the subscribe closure it hands to \
+                      the code under test"
+        )]
         let observed_drops_at_subscribe = Arc::new(Mutex::new(Vec::new()));
         let recorded_drops = observed_drops_at_subscribe.clone();
         let mut subscribed_events = pin!(subscribed((), move |()| {

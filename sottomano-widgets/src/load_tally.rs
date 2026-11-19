@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the load tally the counting allocator writes"
+)]
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
@@ -11,6 +15,11 @@ use std::{
 
 use crate::clock::Clock;
 
+#[expect(
+    clippy::disallowed_types,
+    reason = "the global allocator hook has no context to pass a tally through, so the tally is \
+              process-wide"
+)]
 static LOAD_TALLY: LazyLock<Mutex<LoadTally>> = LazyLock::new(Mutex::default);
 
 static ALLOCATION_COUNT: AtomicU64 = AtomicU64::new(0);

@@ -1,0 +1,33 @@
+id: bool-field
+language: rust
+severity: error
+message: A bool field or parameter names one state and leaves the other unnamed at every use.
+note: Model the two states as an enum at their source (rs-enums-over-booleans skill). The files list is a ratchet; widen it as modules are cleaned.
+files:
+  - sottomano-desktop-sources/src/theme_icons/**/*.rs
+  - sottomano-widgets/src/icon_catalog/**/*.rs
+  - sottomano-widgets/src/glyph_icons/**/*.rs
+  - sottomano-widgets/src/cascading_menus/**/*.rs
+rule:
+  any:
+    - kind: field_declaration
+      has:
+        field: type
+        kind: primitive_type
+        regex: ^bool$
+    - kind: parameter
+      has:
+        field: type
+        kind: primitive_type
+        regex: ^bool$
+    - kind: ordered_field_declaration_list
+      has:
+        kind: primitive_type
+        regex: ^bool$
+  not:
+    inside:
+      kind: mod_item
+      has:
+        field: name
+        regex: ^tests$
+      stopBy: end

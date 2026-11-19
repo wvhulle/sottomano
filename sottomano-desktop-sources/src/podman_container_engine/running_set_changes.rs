@@ -11,7 +11,8 @@ use systemd::journal::Journal;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{
-        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+        CarriedRead, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        triggered_deliveries_with_recheck,
     },
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
     system_protocol_clients::{
@@ -67,19 +68,22 @@ pub(crate) fn running_set_triggers() -> impl Stream<Item = Result<(), JournalFol
         .map(|window| window.map(drop))
 }
 
-pub(crate) fn deliveries_on_running_set_changes<Source, ReadFuture>(
-    read: impl FnMut() -> ReadFuture + Send + 'static,
+pub(crate) fn deliveries_on_running_set_changes<Source, State, ReadFuture>(
+    carried_state: State,
+    read: impl FnMut(State) -> ReadFuture + Send + 'static,
     sampling_need: fn(&Result<Source, Source::Error>) -> SamplingNeed,
 ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
 where
     Source: SnapshotSource + PartialEq,
+    State: Send + 'static,
     JournalFollowError: Into<Source::Error>,
-    ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
+    ReadFuture: Future<Output = CarriedRead<State, Result<Source, Source::Error>>> + Send + 'static,
 {
     triggered_deliveries_with_recheck(
         running_set_triggers(),
         TRIGGER_BURST_GAP,
         PeriodicPolling::every(ENGINE_POLL_PERIOD),
+        carried_state,
         read,
         sampling_need,
     )

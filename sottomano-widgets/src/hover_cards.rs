@@ -13,9 +13,7 @@ use iced::{Rectangle, window::Id};
 use sottomano_toml_config::screen_edges::Position;
 
 pub use crate::hover_cards::{
-    hover_area::{hoverable, marked_by_hover_target, marked_by_menu_pin},
-    hover_card_surfaces::HoverCardHost,
-    laid_out_anchors::WidgetAnchor,
+    hover_area::hoverable, hover_card_surfaces::HoverCardHost, laid_out_anchors::WidgetAnchor,
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},

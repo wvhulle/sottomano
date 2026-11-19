@@ -11,7 +11,7 @@ use futures::Stream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{
-        ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        CarriedRead, ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
         triggered_deliveries_with_recheck,
     },
     system_protocol_clients::{
@@ -255,9 +255,13 @@ impl SnapshotSource for NspawnContainersReadout {
             machine_set_changes(system_bus.clone()),
             TRIGGER_BURST_GAP,
             PeriodicPolling::every(CONTAINER_POLL_PERIOD),
-            move || {
-                let system_bus = system_bus.clone();
-                async move { Ok(read_container_listing(&system_bus).await) }
+            system_bus,
+            |system_bus| async move {
+                let container_listing = read_container_listing(&system_bus).await;
+                CarriedRead {
+                    carried_state: system_bus,
+                    snapshot_fetch: Ok(container_listing),
+                }
             },
             |_| SamplingNeed::KeepSampling,
         )

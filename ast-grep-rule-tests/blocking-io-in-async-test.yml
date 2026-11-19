@@ -1,0 +1,11 @@
+id: blocking-io-in-async
+valid:
+  - "fn installed(path: &Path) -> bool { path.exists() }"
+  - "async fn installed(path: &Path) -> io::Result<bool> { tokio::fs::try_exists(path).await }"
+  - "async fn listed(path: PathBuf) -> Vec<PathBuf> { blocking(\"list\", move || path.read_dir().map(collect_entries).unwrap_or_default()).await }"
+  - "async fn directory(path: &Path) -> io::Result<bool> { let metadata = tokio::fs::metadata(path).await?; Ok(metadata.is_dir()) }"
+  - "mod tests { async fn fixture(path: &Path) -> bool { path.exists() } }"
+invalid:
+  - "async fn installed(path: &Path) -> bool { path.exists() }"
+  - "async fn read(path: &Path) -> io::Result<String> { std::fs::read_to_string(path) }"
+  - "fn spawned(path: PathBuf) -> impl Future<Output = bool> { async move { path.is_dir() } }"

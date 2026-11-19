@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for test fixtures that share state with closures under test"
+)]
 use std::{
     collections::BTreeMap,
     sync::{Arc, LazyLock},
@@ -22,6 +26,10 @@ use crate::{
     layer_surfaces::PanelEdge,
 };
 
+#[expect(
+    clippy::disallowed_types,
+    reason = "tests need one widget liveness handle that outlives every anchor they lay out"
+)]
 static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
 
 fn top_edge() -> PanelEdge {

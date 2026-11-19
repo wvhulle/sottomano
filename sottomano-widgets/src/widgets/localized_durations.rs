@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the per-thread ICU formatter caches"
+)]
 use std::{cell::RefCell, collections::HashMap, time::Duration};
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
@@ -100,8 +104,10 @@ struct RelativeFormatterKey {
 }
 
 thread_local! {
+    #[expect(clippy::disallowed_types, reason = "ICU formatters are expensive to build and text is formatted deep inside views; follow-up: own the caches in the model and pass them in")]
     static DURATION_FORMATTERS: RefCell<HashMap<DurationFormatterKey, DurationFormatter>> =
         RefCell::new(HashMap::new());
+    #[expect(clippy::disallowed_types, reason = "ICU formatters are expensive to build and text is formatted deep inside views; follow-up: own the caches in the model and pass them in")]
     static RELATIVE_FORMATTERS: RefCell<HashMap<RelativeFormatterKey, RelativeTimeFormatter>> =
         RefCell::new(HashMap::new());
 }

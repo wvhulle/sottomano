@@ -1,3 +1,7 @@
+#[expect(
+    clippy::disallowed_types,
+    reason = "imported for the task origins the journal reader and the engine reads share"
+)]
 use std::{
     collections::{BTreeMap, HashMap},
     future::ready,
@@ -17,9 +21,9 @@ use crate::{
         forgejo_runner_journal_repos::ForgejoTaskStart,
         images_of, sorted_unique,
     },
-    delivery_cadence_drivers::SamplingNeed,
+    delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
-        libpod_running_containers::{EngineContainers, RunningContainer, shared_engine_sampler},
+        libpod_running_containers::{EngineContainers, EngineSampler, RunningContainer},
         running_set_changes::deliveries_on_running_set_changes,
     },
     system_protocol_clients::journal_follow::{JournalFollowError, journal_windows},
@@ -99,6 +103,11 @@ impl SnapshotSource for ForgejoRunnerTasks {
     fn delivery_stream(
         watch: ForgejoRunnerWatch,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        #[expect(
+            clippy::disallowed_types,
+            reason = "the journal reader and the task stream run concurrently and both update the \
+                      task origins"
+        )]
         let origins_by_task: Arc<Mutex<HashMap<u64, ForgejoTaskOrigin>>> = Arc::default();
         let origins_for_journal = origins_by_task.clone();
         let unit_name = watch.unit_name;
@@ -107,7 +116,10 @@ impl SnapshotSource for ForgejoRunnerTasks {
                 tracing::warn!("{failure}");
                 Vec::new()
             });
-            if let Ok(mut origins) = origins_for_journal.lock() {
+            {
+                let mut origins = origins_for_journal
+                    .lock()
+                    .expect("no holder of the task origins panics");
                 origins.extend(
                     starts
                         .into_iter()
@@ -125,20 +137,22 @@ impl SnapshotSource for ForgejoRunnerTasks {
             }
             ready(None)
         });
-        let sampler = shared_engine_sampler(watch.engine_socket.clone());
         let engine_socket = watch.engine_socket;
         let engine_deliveries = deliveries_on_running_set_changes(
-            move || {
-                let sampler = sampler.clone();
+            EngineSampler::new(engine_socket.clone()),
+            move |mut sampler| {
                 let origins_by_task = origins_by_task.clone();
                 let engine_socket = engine_socket.clone();
                 async move {
-                    let engine_read = sampler.lock().await.sample().await;
+                    let engine_read = sampler.sample().await;
                     let runner = match engine_read {
                         Ok(engine) => {
-                            let tasks = origins_by_task.lock().map_or_else(
-                                |_| Vec::new(),
-                                |origins| forgejo_tasks(&engine, &origins, &engine_socket),
+                            let tasks = forgejo_tasks(
+                                &engine,
+                                &origins_by_task
+                                    .lock()
+                                    .expect("no holder of the task origins panics"),
+                                &engine_socket,
                             );
                             CiRunnerTasks {
                                 tasks,
@@ -150,7 +164,10 @@ impl SnapshotSource for ForgejoRunnerTasks {
                             access: RunnerAccess::EngineUnreadable(failure),
                         },
                     };
-                    Ok(ForgejoRunnerTasks { runner })
+                    CarriedRead {
+                        carried_state: sampler,
+                        snapshot_fetch: Ok(ForgejoRunnerTasks { runner }),
+                    }
                 }
             },
             |delivered| {

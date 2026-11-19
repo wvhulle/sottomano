@@ -4,7 +4,6 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     io::ErrorKind,
     path::{Path, PathBuf},
-    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -12,13 +11,13 @@ use bytesize::ByteSize;
 use chrono::DateTime;
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
-use tokio::{net::UnixStream, sync::Mutex};
+use tokio::net::UnixStream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
     ci_runner_tasks::forgejo_runner_container_names::parse_forgejo_container_name,
-    delivery_cadence_drivers::SamplingNeed,
+    delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
         procfs_conmon_sessions::ConmonSessions,
@@ -521,10 +520,6 @@ impl EngineSampler {
     }
 }
 
-pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSampler>> {
-    Arc::new(Mutex::new(EngineSampler::new(socket_path)))
-}
-
 impl EngineListing {
     pub(crate) fn sampling_need(&self) -> SamplingNeed {
         if self.running.containers.is_empty() {
@@ -542,11 +537,14 @@ impl SnapshotSource for EngineListing {
     const NAME: &'static str = "Podman containers";
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let sampler = shared_engine_sampler(socket_path);
         deliveries_on_running_set_changes(
-            move || {
-                let sampler = sampler.clone();
-                async move { sampler.lock().await.sample_listing().await }
+            EngineSampler::new(socket_path),
+            |mut sampler| async move {
+                let snapshot_fetch = sampler.sample_listing().await;
+                CarriedRead {
+                    carried_state: sampler,
+                    snapshot_fetch,
+                }
             },
             |delivered| {
                 delivered

@@ -1,0 +1,6 @@
+id: cascading-menu-indicator-group
+valid:
+  - "fn entries() -> Vec<MenuEntry<'static, i32, Message>> { vec![MenuEntry::Divider] }"
+invalid:
+  - "fn content() { IndicatorGroupContent::expandable(family, headline, expansion, on_expansion, rows); }"
+  - "fn row() { GroupIndicator::composed_pinnable(name, icon, value, card); }"

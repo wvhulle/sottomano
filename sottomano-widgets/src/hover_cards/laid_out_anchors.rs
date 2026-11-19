@@ -121,6 +121,10 @@ pub enum WidgetLiveness {
 
 #[cfg(test)]
 mod tests {
+    #[expect(
+        clippy::disallowed_types,
+        reason = "imported for test fixtures that share state with closures under test"
+    )]
     use std::sync::{Arc, LazyLock};
 
     use corredo::popovers::NestedMenuOpenTrigger;
@@ -129,6 +133,10 @@ mod tests {
     use super::{LaidOutAnchors, WidgetAnchor};
     use crate::hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness};
 
+    #[expect(
+        clippy::disallowed_types,
+        reason = "tests need one widget liveness handle that outlives every anchor they lay out"
+    )]
     static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
 
     fn workspace_card() -> HoverTarget {

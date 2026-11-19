@@ -1,0 +1,19 @@
+id: task-result-drop
+language: rust
+severity: error
+message: and_then on a task whose future returns a Result runs only on Ok and drops the Err without a trace.
+note: Use Task::perform(future, |outcome| match outcome { Ok(..) => .., Err(..) => FailedMessage(..) }) so the failure reaches update, or logged_failure_task when it only needs logging. An async block ending in .err() or .ok() is fine; it surfaces the error as the Option it passes on.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+rule:
+  pattern: Task::future($FUTURE).and_then($$$)
+constraints:
+  FUTURE:
+    kind: call_expression
+    not:
+      has:
+        field: function
+        regex: '^blocking$'
