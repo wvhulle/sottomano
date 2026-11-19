@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use sottomano_desktop_sources::desktop_notifications::notification_data::{
-    ExpireTimeout, NotificationData, SoundHint,
+use sottomano_desktop_sources::desktop_notifications::{
+    notification_data::{ExpireTimeout, NotificationData},
+    spec_hints::SoundRequest,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
@@ -59,7 +60,7 @@ impl<Message> LevelToastRequest<Message> {
             body: Some(self.level.body_text.clone()),
             progress: Some(self.level.fill),
             severity: Severity::Low,
-            sound_hint: SoundHint::Suppressed,
+            sound_request: SoundRequest::Suppressed,
             expire_timeout: ExpireTimeout::After(LEVEL_TOAST_LIFETIME),
             ..NotificationData::shell_notification(toast_id, self.level.summary_text)
         }

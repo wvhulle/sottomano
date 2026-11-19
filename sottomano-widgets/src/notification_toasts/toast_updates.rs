@@ -32,13 +32,13 @@ use sottomano_desktop_sinks::{
         CompositorRequest, CompositorRequestFailure,
     },
     desktop_notifications::{
-        alert_sound_player::{self, SoundTheme},
-        freedesktop_notification_signals::notification_signal_sink,
+        alert_sound_player::SoundTheme, freedesktop_notification_signals::notification_signal_sink,
     },
 };
 use sottomano_desktop_sources::{
-    desktop_notifications::notification_data::{
-        NotificationData, Outbound, Residency, SoundHint, close_reason,
+    desktop_notifications::{
+        notification_data::{NotificationData, Outbound, Residency, close_reason},
+        spec_hints::Persistence,
     },
     desktop_windows_apps::window_edge_placement::Placement,
 };
@@ -47,9 +47,10 @@ use sottomano_toml_config::{Config, LoadError, severity::Severity};
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
     toast_card::{self, CardIcons},
+    toast_chimes::{Chime, arrival_chime},
     toast_lifecycle::{
-        BodyClick, Countdown, EventSource, ExitPace, Notification, ToastContent, ToastKind,
-        ToastPresence, lifetime,
+        BodyClick, CardStart, Countdown, EventSource, ExitPace, Notification, ToastContent,
+        ToastKind, ToastPresence, lifetime,
     },
     toast_placement::{ToastWindow, placement_for},
 };
@@ -57,8 +58,7 @@ use crate::{
     background_work::compositor_request,
     hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
     indicator_groups::{
-        indicator_group_content::GroupToastRequests, notification_group::AlertSound,
-        quiet_schedule_group::quiet_window::QuietPhase,
+        indicator_group_content::GroupToastRequests, quiet_schedule_group::quiet_window::QuietPhase,
     },
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     notification_toasts::{
@@ -156,6 +156,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             }
             NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
+            NotificationMessage::CardsDrawn { toast_ids } => self.ring_drawn_chimes(&toast_ids),
             NotificationMessage::CardsLaidOut {
                 output,
                 toast_cards,
@@ -428,7 +429,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
     }
 
-    fn hold_while_quiet(&mut self, toast: ToastContent<Routed>) {
+    fn hold_while_quiet(&mut self, toast: ToastContent<Routed>) -> Task<Routed> {
         if !matches!(
             toast.kind,
             ToastKind::Event {
@@ -436,10 +437,19 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 ..
             }
         ) {
-            return;
+            return Task::none();
         }
-        self.held.retain(|held| held.id != toast.data.id);
-        self.held.push(toast.data);
+        match toast.data.persistence {
+            Persistence::Transient => self.emit_in_order(vec![Outbound::Closed {
+                id: toast.data.id,
+                reason: close_reason::EXPIRED,
+            }]),
+            Persistence::Retained => {
+                self.held.retain(|held| held.id != toast.data.id);
+                self.held.push(toast.data);
+                Task::none()
+            }
+        }
     }
 
     pub fn release_held(&mut self, context: &ToastContext) -> Task<Routed> {
@@ -495,8 +505,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             clock,
         } = context;
         if *quiet_phase == QuietPhase::Active {
-            self.hold_while_quiet(toast);
-            return Task::none();
+            return self.hold_while_quiet(toast);
         }
         let data = &toast.data;
         let id = data.id;
@@ -504,10 +513,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         if let Some(window) = data.window_id_hint {
             let superseded: Vec<u32> = self
                 .showing()
-                .filter(|n| n.data.id != id)
-                .filter(|n| n.data.window_id_hint == Some(window))
-                .filter(|n| n.data.app_name == data.app_name)
-                .map(|n| n.data.id)
+                .filter(|shown| shown.data.id != id)
+                .filter(|shown| shown.data.window_id_hint == Some(window))
+                .filter(|shown| shown.data.app_name == data.app_name)
+                .map(|shown| shown.data.id)
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config, clock.instant));
         }
@@ -516,33 +525,50 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             .glyph()
             .map_or_else(|| toast_card::resolve_icons(data), CardIcons::from);
         let now = clock.instant;
-        let countdown = lifetime(
-            data.expire_timeout,
-            data.severity,
-            &config.notification_toasts.lifetime,
-        )
-        .map(|remaining| Countdown::started(remaining, now));
+        let countdown = Countdown::counting(
+            lifetime(
+                data.expire_timeout,
+                data.severity,
+                &config.notification_toasts.lifetime,
+            ),
+            now,
+        );
         let window = ToastWindow::resolve(data, placement);
         let place = placement_for(window, placement, *notifications, config);
-        let shown = self
-            .live
-            .iter_mut()
-            .find(|notif| notif.data.id == id && notif.presence() == ToastPresence::Shown);
+        let stacked_predecessors = self.stacked_predecessors(data);
+        let chime = if stacked_predecessors.is_empty() {
+            arrival_chime(data, notifications.alert_sound)
+        } else {
+            Chime::Rung
+        };
+        tasks.push(self.close_all(
+            stacked_predecessors,
+            close_reason::UNDEFINED,
+            config,
+            clock.instant,
+        ));
+        let shown = self.live.iter_mut().find(|live_notification| {
+            live_notification.data.id == id && live_notification.presence() == ToastPresence::Shown
+        });
         if let Some(shown) = shown {
             shown.replace_content(toast, icons, countdown, place);
+            tasks.push(self.play_chime(chime));
         } else {
-            if notifications.alert_sound == AlertSound::Audible
-                && data.sound_hint == SoundHint::Allowed
-            {
-                tasks.push(
-                    Task::future(alert_sound_player::play(data, &self.sound_theme)).discard(),
-                );
-            }
-            self.live.retain(|n| n.data.id != id);
+            self.live
+                .retain(|live_notification| live_notification.data.id != id);
             let seq = self.next_seq;
             self.next_seq += 1;
             self.live.push(Notification::appearing(
-                toast, icons, countdown, seq, place, config, now,
+                toast,
+                CardStart {
+                    icons,
+                    countdown,
+                    chime,
+                },
+                seq,
+                place,
+                config,
+                now,
             ));
         }
         self.sync_countdowns(now);
@@ -585,11 +611,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let now = context.clock.instant;
         let expired: Vec<u32> = self
             .showing()
-            .filter(|n| {
-                n.countdown
-                    .is_some_and(|c| c.expiry_at(now) == CountdownExpiry::Elapsed)
+            .filter(|notification| {
+                notification.countdown.expiry_at(now) == CountdownExpiry::Elapsed
             })
-            .map(|n| n.data.id)
+            .map(|notification| notification.data.id)
             .collect();
         let closed = self.close_all(expired, close_reason::EXPIRED, context.config, now);
         self.prune(now);
@@ -598,15 +623,14 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     pub(super) fn sync_countdowns(&mut self, now: Instant) {
         let hovered = self.hovered;
-        self.live.iter_mut().for_each(|notif| {
-            let held = hovered == Some(notif.data.id) || !notif.reply_draft.is_empty();
-            notif.countdown = notif.countdown.map(|countdown| {
-                if held {
-                    countdown.paused(now)
-                } else {
-                    countdown.resumed(now)
-                }
-            });
+        self.live.iter_mut().for_each(|notification| {
+            let held =
+                hovered == Some(notification.data.id) || !notification.reply_draft.is_empty();
+            notification.countdown = if held {
+                notification.countdown.paused(now)
+            } else {
+                notification.countdown.resumed(now)
+            };
         });
     }
 

@@ -15,7 +15,7 @@ use sottomano_toml_config::{
     severity::Severity,
 };
 
-use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
+use super::{toast_card::CardIcons, toast_chimes::Chime, toast_placement::ToastPlacement};
 use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     hover_cards::IndicatorKey,
@@ -163,15 +163,22 @@ impl<Routed> ToastContent<Routed> {
     }
 }
 
+pub(super) struct CardStart {
+    pub(super) icons: CardIcons,
+    pub(super) countdown: Countdown,
+    pub(super) chime: Chime,
+}
+
 pub struct Notification<Routed> {
     pub data: NotificationData,
     pub kind: ToastKind<Routed>,
     pub body_click: BodyClick<Routed>,
     pub icons: CardIcons,
     pub(super) place: ToastPlacement,
-    pub(super) countdown: Option<Countdown>,
+    pub(super) countdown: Countdown,
     pub(super) seq: u64,
     pub(super) reply_draft: String,
+    pub(super) chime: Chime,
     visibility: Animation<bool>,
     pub(crate) slot: Animation<bool>,
 }
@@ -183,8 +190,11 @@ impl<Routed> Notification<Routed> {
             kind,
             body_click,
         }: ToastContent<Routed>,
-        icons: CardIcons,
-        countdown: Option<Countdown>,
+        CardStart {
+            icons,
+            countdown,
+            chime,
+        }: CardStart,
         seq: u64,
         place: ToastPlacement,
         config: &Config,
@@ -199,6 +209,7 @@ impl<Routed> Notification<Routed> {
             countdown,
             seq,
             reply_draft: String::new(),
+            chime,
             visibility: appearing(now, config),
             slot: appearing(now, config),
         }
@@ -212,7 +223,7 @@ impl<Routed> Notification<Routed> {
             body_click,
         }: ToastContent<Routed>,
         icons: CardIcons,
-        countdown: Option<Countdown>,
+        countdown: Countdown,
         place: ToastPlacement,
     ) {
         self.data = data;
@@ -258,7 +269,7 @@ impl<Routed> Notification<Routed> {
     }
 
     pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {
-        self.countdown = None;
+        self.countdown = Countdown::Unlimited;
         let fade = pace.fade(&config.notification_toasts.card);
         self.visibility = fading_out(now, fade);
         self.slot = collapsing_after_fade(now, fade);
@@ -323,6 +334,13 @@ fn collapsing_after_fade(now: Instant, fade: Duration) -> Animation<bool> {
 pub enum Countdown {
     Running { deadline: Instant },
     Paused { remaining: Duration },
+    Unlimited,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastLifetime {
+    Limited(Duration),
+    Unlimited,
 }
 
 impl Countdown {
@@ -330,6 +348,14 @@ impl Countdown {
     pub fn started(remaining: Duration, now: Instant) -> Self {
         Self::Running {
             deadline: now + remaining,
+        }
+    }
+
+    #[must_use]
+    pub fn counting(toast_lifetime: ToastLifetime, now: Instant) -> Self {
+        match toast_lifetime {
+            ToastLifetime::Limited(remaining) => Self::started(remaining, now),
+            ToastLifetime::Unlimited => Self::Unlimited,
         }
     }
 
@@ -343,7 +369,7 @@ impl Countdown {
             Self::Running { deadline } => Self::Paused {
                 remaining: deadline.saturating_duration_since(now),
             },
-            Self::Paused { .. } => self,
+            Self::Paused { .. } | Self::Unlimited => self,
         }
     }
 
@@ -351,7 +377,7 @@ impl Countdown {
     pub fn resumed(self, now: Instant) -> Self {
         match self {
             Self::Paused { remaining } => Self::started(remaining, now),
-            Self::Running { .. } => self,
+            Self::Running { .. } | Self::Unlimited => self,
         }
     }
 
@@ -359,7 +385,9 @@ impl Countdown {
     pub fn expiry_at(self, now: Instant) -> CountdownExpiry {
         match self {
             Self::Running { deadline } if deadline <= now => CountdownExpiry::Elapsed,
-            Self::Running { .. } | Self::Paused { .. } => CountdownExpiry::Pending,
+            Self::Running { .. } | Self::Paused { .. } | Self::Unlimited => {
+                CountdownExpiry::Pending
+            }
         }
     }
 
@@ -367,7 +395,7 @@ impl Countdown {
     pub fn deadline(self) -> Option<Instant> {
         match self {
             Self::Running { deadline } => Some(deadline),
-            Self::Paused { .. } => None,
+            Self::Paused { .. } | Self::Unlimited => None,
         }
     }
 }
@@ -377,11 +405,14 @@ pub fn lifetime(
     expire_timeout: ExpireTimeout,
     severity: Severity,
     config: &ToastLifetimeConfig,
-) -> Option<Duration> {
+) -> ToastLifetime {
     match expire_timeout {
-        ExpireTimeout::Never => None,
-        ExpireTimeout::After(requested) => Some(requested),
-        ExpireTimeout::ServerDefault => config.default_timeout_for(severity),
+        ExpireTimeout::Never => ToastLifetime::Unlimited,
+        ExpireTimeout::After(requested) => ToastLifetime::Limited(requested),
+        ExpireTimeout::ServerDefault => match config.default_timeout_for(severity) {
+            Some(default_timeout) => ToastLifetime::Limited(default_timeout),
+            None => ToastLifetime::Unlimited,
+        },
     }
 }
 
@@ -434,7 +465,10 @@ mod tests {
     #[test]
     fn explicit_zero_never_expires() {
         for severity in [Severity::Low, Severity::Normal, Severity::Critical] {
-            assert_eq!(lifetime(ExpireTimeout::Never, severity, &config()), None);
+            assert_eq!(
+                lifetime(ExpireTimeout::Never, severity, &config()),
+                ToastLifetime::Unlimited
+            );
         }
     }
 
@@ -444,7 +478,7 @@ mod tests {
         for severity in [Severity::Low, Severity::Normal, Severity::Critical] {
             assert_eq!(
                 lifetime(ExpireTimeout::After(requested), severity, &config()),
-                Some(requested)
+                ToastLifetime::Limited(requested)
             );
         }
     }
@@ -454,15 +488,15 @@ mod tests {
         let config = config();
         assert_eq!(
             lifetime(ExpireTimeout::ServerDefault, Severity::Low, &config),
-            Some(Duration::from_secs(8))
+            ToastLifetime::Limited(Duration::from_secs(8))
         );
         assert_eq!(
             lifetime(ExpireTimeout::ServerDefault, Severity::Normal, &config),
-            Some(Duration::from_secs(12))
+            ToastLifetime::Limited(Duration::from_secs(12))
         );
         assert_eq!(
             lifetime(ExpireTimeout::ServerDefault, Severity::Critical, &config),
-            None
+            ToastLifetime::Unlimited
         );
     }
 

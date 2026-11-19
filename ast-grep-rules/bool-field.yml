@@ -4,6 +4,12 @@ severity: error
 message: A bool field or parameter names one state and leaves the other unnamed at every use.
 note: Model the two states as an enum at their source (rs-enums-over-booleans skill). The files list is a ratchet; widen it as modules are cleaned.
 files:
+  - sottomano-desktop-sources/src/desktop_notifications/spec_*.rs
+  - sottomano-desktop-sources/src/desktop_notifications/vendor_hints.rs
+  - sottomano-desktop-sources/src/desktop_notifications/notification_image_policy.rs
+  - sottomano-desktop-sinks/src/desktop_notifications/alert_sound_policy.rs
+  - sottomano-widgets/src/notification_toasts/toast_chimes.rs
+  - sottomano-widgets/src/notification_toasts/toast_stacking.rs
   - sottomano-desktop-sources/src/theme_icons/**/*.rs
   - sottomano-widgets/src/icon_catalog/**/*.rs
   - sottomano-widgets/src/glyph_icons/**/*.rs

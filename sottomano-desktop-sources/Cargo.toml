@@ -68,6 +68,7 @@ tokio-tungstenite = { version = "0.30.0", default-features = false, features = [
 ] }
 toml.workspace = true
 tracing.workspace = true
+url = "2.5.8"
 turso.workspace = true
 uom.workspace = true
 usvg.workspace = true

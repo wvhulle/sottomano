@@ -45,6 +45,9 @@ pub enum IconRequest {
         icon_trim: IconTrim,
         item_theme_path: ItemThemePath,
     },
+    IconFile {
+        icon_path: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +78,24 @@ pub fn window_theme_icon_request(icon_name: &str) -> IconRequest {
         name_variants: NameVariants::AsNamed,
         icon_trim: IconTrim::Trimmed,
         item_theme_path: ItemThemePath::Unset,
+    }
+}
+
+#[must_use]
+pub fn notification_image_icon_request(icon_name: &str) -> IconRequest {
+    IconRequest::NamedIcon {
+        icon_name: icon_name.to_owned(),
+        side_px: APP_ICON_SIDE_PX,
+        name_variants: NameVariants::AsNamed,
+        icon_trim: IconTrim::Trimmed,
+        item_theme_path: ItemThemePath::Unset,
+    }
+}
+
+#[must_use]
+pub fn notification_file_icon_request(icon_path: &Path) -> IconRequest {
+    IconRequest::IconFile {
+        icon_path: icon_path.to_path_buf(),
     }
 }
 
@@ -155,9 +176,10 @@ async fn resolved_icon(
             )
             .await
         }
+        IconRequest::IconFile { icon_path } => Ok(IconFileMatch::Found(icon_path.clone())),
     };
     let icon_trim = match request {
-        IconRequest::AppIcon { .. } => IconTrim::Trimmed,
+        IconRequest::AppIcon { .. } | IconRequest::IconFile { .. } => IconTrim::Trimmed,
         IconRequest::NamedIcon { icon_trim, .. } => *icon_trim,
     };
     let loaded = match located_file {

@@ -1,15 +1,11 @@
 use std::{
     collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 use futures::Stream;
-use image::RgbaImage;
 use sottomano_toml_config::severity::Severity;
-use tokio::sync::mpsc;
+use tokio::sync::{OnceCell, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use uom::si::{f64::Ratio, ratio::percent};
 use zbus::{
@@ -19,15 +15,23 @@ use zbus::{
     names::BusName,
     object_server::SignalEmitter,
     proxy::CacheProperties,
-    zvariant::{OwnedValue, Value},
+    zvariant::OwnedValue,
 };
 
-use super::notification_data::{
-    ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
-    ServerEvent,
+use super::{
+    notification_data::{
+        ActionTint, ExpireTimeout, NotifAction, NotificationData, Outbound, ReplyPrompt,
+        ServerEvent,
+    },
+    notification_image_policy::image_role,
+    spec_hints::{
+        Arrival, HintFlag, hint_flag, hint_str, notification_category, persistence, sound_request,
+        spec_app_icon, spec_image,
+    },
+    vendor_hints::stack_tag,
 };
 use crate::{
-    desktop_notifications::notification_data::{Residency, SoundHint},
+    desktop_notifications::notification_data::Residency,
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::{OwnerProcess, prop},
 };
@@ -39,16 +43,28 @@ const INLINE_REPLY: &str = "inline-reply";
 struct NotificationServer {
     next_id: AtomicU32,
     events: mpsc::Sender<ServerEvent>,
+    bus_proxy: OnceCell<DBusProxy<'static>>,
+}
+
+struct IssuedId {
+    id: u32,
+    arrival: Arrival,
 }
 
 impl NotificationServer {
-    fn replaced_or_fresh_id(&self, replaces_id: u32) -> u32 {
+    fn replaced_or_fresh_id(&self, replaces_id: u32) -> IssuedId {
         let issued_by_this_server =
             replaces_id != 0 && replaces_id < self.next_id.load(Ordering::Relaxed);
         if issued_by_this_server {
-            replaces_id
+            IssuedId {
+                id: replaces_id,
+                arrival: Arrival::Replacement,
+            }
         } else {
-            self.next_id.fetch_add(1, Ordering::Relaxed)
+            IssuedId {
+                id: self.next_id.fetch_add(1, Ordering::Relaxed),
+                arrival: Arrival::Fresh,
+            }
         }
     }
 }
@@ -70,8 +86,11 @@ impl NotificationServer {
         #[zbus(header)] header: Header<'_>,
         #[zbus(connection)] connection: &Connection,
     ) -> u32 {
-        let sender = sender_process(connection, &header).await;
-        let id = self.replaced_or_fresh_id(replaces_id);
+        let sender = sender_process(&self.bus_proxy, connection, &header).await;
+        let IssuedId { id, arrival } = self.replaced_or_fresh_id(replaces_id);
+        let app_icon = spec_app_icon(&app_icon);
+        let image = spec_image(&hints, &app_icon);
+        let image_role = image_role(&image).await;
         let (reply_actions, actions): (Vec<NotifAction>, Vec<NotifAction>) =
             parse_actions(&actions)
                 .into_iter()
@@ -79,7 +98,9 @@ impl NotificationServer {
         let data = NotificationData {
             id,
             app_name: non_empty(app_name),
-            app_icon: non_empty(app_icon),
+            image,
+            image_role,
+            app_icon,
             summary,
             body: non_empty(body),
             reply: reply_prompt(reply_actions.first(), &hints),
@@ -89,17 +110,15 @@ impl NotificationServer {
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
             sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),
-            image: hint_image(&hints),
-            sound_hint: match hint_flag(&hints, "suppress-sound") {
-                HintFlag::Set => SoundHint::Suppressed,
-                HintFlag::Unset => SoundHint::Allowed,
-            },
-            sound_file: hint_str(&hints, "sound-file"),
-            category: hint_str(&hints, "category"),
+            sound_request: sound_request(&hints),
+            category: notification_category(&hints),
             residency: match hint_flag(&hints, "resident") {
                 HintFlag::Set => Residency::Resident,
                 HintFlag::Unset => Residency::Transient,
             },
+            persistence: persistence(&hints),
+            arrival,
+            stack_tag: stack_tag(&hints),
             progress: hint_progress(&hints),
         };
         if let Err(e) = self.events.send(ServerEvent::Notify(Box::new(data))).await {
@@ -121,6 +140,7 @@ impl NotificationServer {
             "actions",
             "icon-static",
             "persistence",
+            "sound",
             INLINE_REPLY,
         ]
         .iter()
@@ -172,6 +192,7 @@ pub async fn serve() -> zbus::Result<(impl Stream<Item = ServerEvent> + Send, No
     let server = NotificationServer {
         next_id: AtomicU32::new(1),
         events: event_sender,
+        bus_proxy: OnceCell::new(),
     };
     let connection = connection::Builder::session()?
         .serve_at(PATH, server)?
@@ -228,18 +249,27 @@ impl NotificationSignals {
     }
 }
 
-async fn sender_process(connection: &Connection, header: &Header<'_>) -> OwnerProcess {
+async fn sender_process(
+    bus_proxy: &OnceCell<DBusProxy<'static>>,
+    connection: &Connection,
+    header: &Header<'_>,
+) -> OwnerProcess {
     let Some(sender) = header.sender() else {
         return OwnerProcess::Unidentified;
     };
-    let dbus = DBusProxy::builder(connection)
-        .cache_properties(CacheProperties::No)
-        .build()
+    let shared_proxy = bus_proxy
+        .get_or_try_init(|| {
+            DBusProxy::builder(connection)
+                .cache_properties(CacheProperties::No)
+                .build()
+        })
         .await;
-    match dbus {
-        Ok(dbus) => OwnerProcess::query_bus_owner(&dbus, BusName::from(sender.clone())).await,
-        Err(e) => {
-            tracing::debug!("notifications: bus proxy: {e}");
+    match shared_proxy {
+        Ok(shared_bus_proxy) => {
+            OwnerProcess::query_bus_owner(shared_bus_proxy, BusName::from(sender.clone())).await
+        }
+        Err(proxy_failure) => {
+            tracing::debug!(error = %proxy_failure, "notifications: bus proxy is unavailable");
             OwnerProcess::Unidentified
         }
     }
@@ -275,25 +305,6 @@ fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64>
         .ok()
 }
 
-fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
-    non_empty(prop::<String>(hints, key)?)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HintFlag {
-    Set,
-    Unset,
-}
-
-fn hint_flag(hints: &HashMap<String, OwnedValue>, key: &str) -> HintFlag {
-    let flag_set = prop::<bool>(hints, key).unwrap_or_default();
-    if flag_set {
-        HintFlag::Set
-    } else {
-        HintFlag::Unset
-    }
-}
-
 fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Option<Ratio> {
     prop::<i32>(hints, "value").map(clamped_progress)
 }
@@ -312,106 +323,6 @@ fn reply_prompt(action: Option<&NotifAction>, hints: &HashMap<String, OwnedValue
         submit: hint_str(hints, "x-kde-reply-submit-button-text")
             .unwrap_or_else(|| "Send".to_owned()),
     }
-}
-
-fn hint_image(hints: &HashMap<String, OwnedValue>) -> Option<NotifImage> {
-    if let Some(pixels) = ["image-data", "image_data"]
-        .iter()
-        .find_map(|key| hints.get(*key))
-        .and_then(|value| image_data_pixels(value))
-    {
-        return Some(NotifImage::Rgba(Arc::new(pixels)));
-    }
-    if let Some(path) = hint_str(hints, "image-path").or_else(|| hint_str(hints, "image_path")) {
-        return Some(NotifImage::Named(path));
-    }
-    hints
-        .get("icon_data")
-        .and_then(|value| image_data_pixels(value))
-        .map(|pixels| NotifImage::Rgba(Arc::new(pixels)))
-}
-
-fn image_data_pixels(value: &Value) -> Option<RgbaImage> {
-    let (width, height, rowstride, has_alpha, _bits, channels, data): (
-        i32,
-        i32,
-        i32,
-        bool,
-        i32,
-        i32,
-        Vec<u8>,
-    ) = value
-        .try_into()
-        .inspect_err(|type_mismatch| {
-            tracing::warn!(
-                "notifications: image data hint has an unexpected type: {type_mismatch}"
-            );
-        })
-        .ok()?;
-    let (Ok(width), Ok(height), Ok(rowstride), Ok(channels)) = (
-        usize::try_from(width),
-        usize::try_from(height),
-        usize::try_from(rowstride),
-        usize::try_from(channels),
-    ) else {
-        tracing::warn!(
-            "notifications: image data hint has negative layout {width}x{height}, rowstride \
-             {rowstride}, {channels} channels"
-        );
-        return None;
-    };
-    if width == 0 || height == 0 || channels < 3 {
-        tracing::warn!(
-            "notifications: image data hint has an empty layout {width}x{height} with {channels} \
-             channels"
-        );
-        return None;
-    }
-    let required_bytes = (height - 1) * rowstride + width * channels;
-    if data.len() < required_bytes {
-        tracing::warn!(
-            "notifications: image data hint holds {} bytes, its {width}x{height} layout needs \
-             {required_bytes}",
-            data.len()
-        );
-        return None;
-    }
-    let alpha_channel = if has_alpha && channels >= 4 {
-        AlphaChannel::Present
-    } else {
-        AlphaChannel::Absent
-    };
-    let rgba = (0..height)
-        .flat_map(|row_index| {
-            (0..width).map(move |column_index| row_index * rowstride + column_index * channels)
-        })
-        .flat_map(|pixel_start| {
-            let alpha = match alpha_channel {
-                AlphaChannel::Present => data[pixel_start + 3],
-                AlphaChannel::Absent => u8::MAX,
-            };
-            [
-                data[pixel_start],
-                data[pixel_start + 1],
-                data[pixel_start + 2],
-                alpha,
-            ]
-        })
-        .collect();
-    Some(
-        RgbaImage::from_raw(
-            u32::try_from(width).expect("image width came from a non-negative i32"),
-            u32::try_from(height).expect("image height came from a non-negative i32"),
-            rgba,
-        )
-        .expect("the rgba buffer holds four bytes for every pixel of the layout"),
-    )
-}
-
-#[derive(Clone, Copy)]
-enum AlphaChannel {
-    Present,
-    Absent,
 }
 
 #[cfg(test)]

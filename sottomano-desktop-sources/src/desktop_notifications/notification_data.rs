@@ -1,10 +1,17 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use image::RgbaImage;
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use crate::system_protocol_clients::dbus_desktop_buses::OwnerProcess;
+use crate::{
+    desktop_notifications::{
+        notification_image_policy::ImageRole,
+        spec_categories::NotificationCategory,
+        spec_hints::{Arrival, Persistence, SoundRequest, SpecAppIcon, SpecImage},
+        vendor_hints::StackTag,
+    },
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {
@@ -50,19 +57,6 @@ pub struct NotifAction {
     pub tint: ActionTint,
 }
 
-#[derive(Debug, Clone)]
-pub enum NotifImage {
-    Rgba(Arc<RgbaImage>),
-    Named(String),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SoundHint {
-    #[default]
-    Allowed,
-    Suppressed,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Residency {
     #[default]
@@ -74,7 +68,7 @@ pub enum Residency {
 pub struct NotificationData {
     pub id: u32,
     pub app_name: Option<String>,
-    pub app_icon: Option<String>,
+    pub app_icon: SpecAppIcon,
     pub summary: String,
     pub body: Option<String>,
     pub actions: Vec<NotifAction>,
@@ -83,11 +77,14 @@ pub struct NotificationData {
     pub window_id_hint: Option<u64>,
     pub sender: OwnerProcess,
     pub desktop_entry: Option<String>,
-    pub image: Option<NotifImage>,
-    pub sound_hint: SoundHint,
-    pub sound_file: Option<String>,
-    pub category: Option<String>,
+    pub image: SpecImage,
+    pub image_role: ImageRole,
+    pub sound_request: SoundRequest,
+    pub category: NotificationCategory,
     pub residency: Residency,
+    pub persistence: Persistence,
+    pub arrival: Arrival,
+    pub stack_tag: StackTag,
     pub progress: Option<Ratio>,
     pub reply: ReplyPrompt,
 }

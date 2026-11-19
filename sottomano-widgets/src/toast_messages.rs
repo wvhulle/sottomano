@@ -44,6 +44,9 @@ pub enum NotificationMessage {
         output: String,
         toast_cards: Vec<Rectangle>,
     },
+    CardsDrawn {
+        toast_ids: Vec<u32>,
+    },
 }
 
 impl From<ServerEvent> for NotificationMessage {

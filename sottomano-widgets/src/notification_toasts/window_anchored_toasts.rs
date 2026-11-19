@@ -131,6 +131,7 @@ struct FieldState {
     drift: Drifts,
     frame: Option<Instant>,
     published_cards: Vec<Rectangle>,
+    drawn_toast_ids: Vec<u32>,
 }
 
 #[derive(Default)]
@@ -391,6 +392,18 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
                 toast_cards: laid_out_cards,
             });
         }
+        let newly_drawn_ids: Vec<u32> = self
+            .ids
+            .iter()
+            .filter(|toast_id| !state.drawn_toast_ids.contains(toast_id))
+            .copied()
+            .collect();
+        state.drawn_toast_ids.clone_from(&self.ids);
+        if !newly_drawn_ids.is_empty() {
+            shell.publish(NotificationMessage::CardsDrawn {
+                toast_ids: newly_drawn_ids,
+            });
+        }
         if state.frame == Some(*frame) {
             shell.request_redraw();
             return;
@@ -505,5 +518,43 @@ mod tests {
             })
             .collect();
         assert_eq!(published_card_counts, [1]);
+    }
+
+    #[test]
+    fn a_card_is_reported_drawn_once_across_frames() {
+        let config = Config::default();
+        let single_toast = AnchoredToast {
+            id: 7,
+            anchor: ToastAnchor::Edge {
+                vertical: VEdge::Top,
+                horizontal: HEdge::Right,
+            },
+            card: container(text("device plugged in")).padding(20).into(),
+            motion: MotionState::Settled,
+        };
+        let toasts = WindowAnchoredToasts::new(
+            "DP-1",
+            vec![single_toast],
+            Padding::ZERO,
+            &ShellLayer::Overlays.default_appearance(),
+            CardBackgroundFade::Resting,
+            &config,
+        );
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
+        let first_frame = Clock::real().instant;
+        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
+            Event::Window(window::Event::RedrawRequested(
+                first_frame + Duration::from_millis(16 * frame_index),
+            ))
+        }));
+        let drawn_reports: Vec<Vec<u32>> = simulator
+            .into_messages()
+            .filter_map(|message| match message {
+                NotificationMessage::CardsDrawn { toast_ids } => Some(toast_ids),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(drawn_reports, [vec![7]]);
     }
 }

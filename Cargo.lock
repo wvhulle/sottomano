@@ -6813,6 +6813,7 @@ dependencies = [
  "tracing",
  "turso",
  "uom",
+ "url",
  "usvg 0.48.1",
  "virt",
  "wayrs-client",

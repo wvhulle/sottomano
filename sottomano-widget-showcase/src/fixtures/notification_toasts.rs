@@ -7,8 +7,9 @@ use sottomano_desktop_sources::{
             CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
         },
     },
-    desktop_notifications::notification_data::{
-        ActionTint, ExpireTimeout, NotifAction, NotificationData, SoundHint,
+    desktop_notifications::{
+        notification_data::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
+        spec_hints::SoundRequest,
     },
 };
 use sottomano_toml_config::severity::Severity;
@@ -133,7 +134,7 @@ fn download(tick: u32) -> NotificationData {
 fn quiet_toast() -> NotificationData {
     NotificationData {
         severity: Severity::Normal,
-        sound_hint: SoundHint::Suppressed,
+        sound_request: SoundRequest::Suppressed,
         ..NotificationData::default()
     }
 }

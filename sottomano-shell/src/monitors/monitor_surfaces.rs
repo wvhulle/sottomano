@@ -89,6 +89,49 @@ fn panel_settings(output: &str, layer: Layer) -> NewLayerShellSettings {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct ToastSurfaceChanges {
+    orphaned_surfaces: Vec<Id>,
+    missing_outputs: Vec<String>,
+}
+
+fn output_surfaces<'outputs>(
+    surfaces: impl Iterator<Item = (Id, &'outputs str)>,
+) -> Vec<OutputSurface<'outputs>> {
+    surfaces
+        .map(|(surface, output)| OutputSurface { surface, output })
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OutputSurface<'outputs> {
+    surface: Id,
+    output: &'outputs str,
+}
+
+fn toast_surface_changes(
+    panels: &[OutputSurface<'_>],
+    toast_surfaces: &[OutputSurface<'_>],
+) -> ToastSurfaceChanges {
+    let panel_outputs: BTreeSet<&str> = panels.iter().map(|panel| panel.output).collect();
+    ToastSurfaceChanges {
+        orphaned_surfaces: toast_surfaces
+            .iter()
+            .filter(|toast_surface| !panel_outputs.contains(toast_surface.output))
+            .map(|toast_surface| toast_surface.surface)
+            .collect(),
+        missing_outputs: panel_outputs
+            .into_iter()
+            .filter(|panel_output| {
+                !toast_surfaces
+                    .iter()
+                    .any(|toast_surface| toast_surface.output == *panel_output)
+            })
+            .map(str::to_owned)
+            .collect(),
+    }
+}
+
 fn notification_toasts_settings(output: &str, layer: Layer) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
@@ -322,33 +365,20 @@ impl DesktopShell {
     }
 
     fn reconcile_notification_toasts_surfaces(&mut self) -> Task<Message> {
-        let occupied_outputs: BTreeSet<String> = self
-            .notifications
-            .occupied_outputs()
-            .filter(|output| {
-                self.panels()
-                    .any(|(_, panel_output)| panel_output == *output)
-            })
-            .map(str::to_owned)
-            .collect();
-        let emptied_surfaces: Vec<Id> = self
-            .notification_toast_surfaces()
-            .filter(|(_, output)| !occupied_outputs.contains(*output))
-            .map(|(id, _)| id)
-            .collect();
-        let closes = emptied_surfaces.into_iter().map(|id| {
-            if let Some(emptied) = self.surfaces.remove(&id) {
-                self.hover_card.forget_toast_cards(&emptied.output);
-            }
-            Task::done(Message::RemoveWindow(id))
-        });
-        let closes: Vec<Task<Message>> = closes.collect();
-        let missing_outputs: Vec<String> = occupied_outputs
+        let ToastSurfaceChanges {
+            orphaned_surfaces,
+            missing_outputs,
+        } = toast_surface_changes(
+            &output_surfaces(self.panels()),
+            &output_surfaces(self.notification_toast_surfaces()),
+        );
+        let closes: Vec<Task<Message>> = orphaned_surfaces
             .into_iter()
-            .filter(|output| {
-                !self
-                    .notification_toast_surfaces()
-                    .any(|(_, surface_output)| surface_output == output)
+            .map(|id| {
+                if let Some(orphaned) = self.surfaces.remove(&id) {
+                    self.hover_card.forget_toast_cards(&orphaned.output);
+                }
+                Task::done(Message::RemoveWindow(id))
             })
             .collect();
         let opens: Vec<Task<Message>> = missing_outputs
@@ -418,7 +448,10 @@ mod tests {
     use sottomano_toml_config::screen_edges::Position;
     use sottomano_widgets::hover_cards::hover_card_surfaces::HoverCardPresence;
 
-    use super::{Surface, SurfaceRole, restack_around_hover_card};
+    use super::{
+        OutputSurface, Surface, SurfaceRole, ToastSurfaceChanges, restack_around_hover_card,
+        toast_surface_changes,
+    };
 
     fn hover_card_on_first_output(output: &str) -> HoverCardPresence {
         if output == "DP-1" {
@@ -487,6 +520,68 @@ mod tests {
         let mut surfaces = surfaces_on_two_outputs();
         let _lifted = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
         assert!(restack_around_hover_card(&mut surfaces, hover_card_on_first_output).is_empty());
+    }
+
+    #[test]
+    fn every_panel_output_gets_a_toast_surface_without_toasts() {
+        let first_panel = Id::unique();
+        let second_panel = Id::unique();
+        let changes = toast_surface_changes(
+            &[
+                OutputSurface {
+                    surface: first_panel,
+                    output: "DP-1",
+                },
+                OutputSurface {
+                    surface: second_panel,
+                    output: "DP-2",
+                },
+            ],
+            &[],
+        );
+        assert_eq!(
+            changes,
+            ToastSurfaceChanges {
+                orphaned_surfaces: Vec::new(),
+                missing_outputs: vec!["DP-1".to_owned(), "DP-2".to_owned()],
+            }
+        );
+    }
+
+    #[test]
+    fn an_open_toast_surface_stays_while_its_panel_exists() {
+        let panel = Id::unique();
+        let toast_surface = Id::unique();
+        let changes = toast_surface_changes(
+            &[OutputSurface {
+                surface: panel,
+                output: "DP-1",
+            }],
+            &[OutputSurface {
+                surface: toast_surface,
+                output: "DP-1",
+            }],
+        );
+        assert_eq!(
+            changes,
+            ToastSurfaceChanges {
+                orphaned_surfaces: Vec::new(),
+                missing_outputs: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn a_toast_surface_closes_with_its_output() {
+        let toast_surface = Id::unique();
+        let changes = toast_surface_changes(
+            &[],
+            &[OutputSurface {
+                surface: toast_surface,
+                output: "DP-1",
+            }],
+        );
+        assert_eq!(changes.orphaned_surfaces, vec![toast_surface]);
     }
 
     #[test]

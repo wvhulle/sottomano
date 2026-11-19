@@ -1,53 +1,10 @@
 use std::{path::PathBuf, process::Command};
 
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking, desktop_notifications::notification_data::NotificationData,
-};
-use sottomano_toml_config::severity::Severity;
+use sottomano_desktop_sources::blocking_background_work::blocking;
+
+use crate::desktop_notifications::alert_sound_policy::SoundChoice;
 
 const PLAYER: &str = "pw-play";
-
-#[derive(Debug, Clone, Copy)]
-enum Alert {
-    Critical,
-    Interactive,
-    NewMessage,
-    Complete,
-    Error,
-    Passive,
-}
-
-impl From<&NotificationData> for Alert {
-    fn from(data: &NotificationData) -> Self {
-        if matches!(data.severity, Severity::Critical) {
-            return Self::Critical;
-        }
-        if !data.actions.is_empty() {
-            return Self::Interactive;
-        }
-        match data.category.as_deref() {
-            Some(category) if category.starts_with("email") || category.starts_with("im") => {
-                Self::NewMessage
-            }
-            Some("transfer.complete") => Self::Complete,
-            Some(category) if category.rsplit('.').next() == Some("error") => Self::Error,
-            _ => Self::Passive,
-        }
-    }
-}
-
-impl Alert {
-    fn theme_name(self) -> &'static str {
-        match self {
-            Self::Critical => "window-attention",
-            Self::Interactive => "window-question",
-            Self::NewMessage => "message-new-instant",
-            Self::Complete => "complete",
-            Self::Error => "dialog-error",
-            Self::Passive => "message",
-        }
-    }
-}
 
 #[derive(Debug, Clone, Default)]
 pub enum SoundTheme {
@@ -94,21 +51,41 @@ impl SoundTheme {
     }
 }
 
-pub fn play(data: &NotificationData, theme: &SoundTheme) -> impl Future<Output = ()> + use<> {
-    let explicit = data.sound_file.clone();
-    let alert = Alert::from(data);
+const FALLBACK_SOUND_NAME: &str = "message";
+
+pub fn play(sound_choice: SoundChoice, theme: &SoundTheme) -> impl Future<Output = ()> + use<> {
     let theme = theme.clone();
     blocking("notification sound", move || {
-        if let Some(file) = resolve(explicit, alert, &theme) {
-            let _ = Command::new(PLAYER).arg(file).status();
+        let Some(sound_file) = resolve(sound_choice, &theme) else {
+            return;
+        };
+        match Command::new(PLAYER).arg(&sound_file).status() {
+            Ok(exit_status) if exit_status.success() => {}
+            Ok(exit_status) => tracing::warn!(
+                path = %sound_file.display(),
+                status = %exit_status,
+                "alert sounds: player failed"
+            ),
+            Err(spawn_failure) => tracing::warn!(
+                path = %sound_file.display(),
+                error = %spawn_failure,
+                "alert sounds: cannot start the player"
+            ),
         }
     })
 }
 
-fn resolve(explicit: Option<String>, alert: Alert, theme: &SoundTheme) -> Option<PathBuf> {
-    explicit
-        .map(PathBuf::from)
-        .filter(|path| path.exists())
-        .or_else(|| theme.find(alert.theme_name()))
-        .or_else(|| theme.find("message"))
+fn resolve(sound_choice: SoundChoice, theme: &SoundTheme) -> Option<PathBuf> {
+    match sound_choice {
+        SoundChoice::Silent => None,
+        SoundChoice::RequestedFile(sound_file) if sound_file.exists() => Some(sound_file),
+        SoundChoice::RequestedFile(_) => theme.find(FALLBACK_SOUND_NAME),
+        SoundChoice::RequestedThemeSound(sound_name) => theme
+            .find(&sound_name)
+            .or_else(|| theme.find(FALLBACK_SOUND_NAME)),
+        SoundChoice::PolicyThemeSounds(sound_names) => sound_names
+            .iter()
+            .find_map(|sound_name| theme.find(sound_name))
+            .or_else(|| theme.find(FALLBACK_SOUND_NAME)),
+    }
 }

@@ -1,9 +1,11 @@
 pub mod toast_anchor_geometry;
 pub mod toast_card;
 pub mod toast_card_backdrop;
+pub mod toast_chimes;
 pub mod toast_lifecycle;
 pub mod toast_placement;
 pub mod toast_reply;
+mod toast_stacking;
 pub mod toast_updates;
 pub mod window_anchored_toasts;
 
@@ -33,7 +35,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, severity::Severity};
 use toast_card::{CardIcon, CardImage, ToastCard};
 pub use toast_lifecycle::Notification;
-use toast_lifecycle::{BodyClick, Countdown, ToastKind, ToastPresence};
+use toast_lifecycle::{BodyClick, ToastKind, ToastPresence};
 use toast_placement::{AnchoredToast, ToastAnchor};
 use toast_reply::ReplyFocus;
 use tokio::time::sleep_until;
@@ -165,12 +167,6 @@ impl<Routed> Default for NotificationLayer<Routed> {
 }
 
 impl<Routed: Clone> NotificationLayer<Routed> {
-    pub fn occupied_outputs(&self) -> impl Iterator<Item = &str> {
-        self.live
-            .iter()
-            .filter_map(|notification| notification.place.output.as_deref())
-    }
-
     #[must_use]
     pub fn icon_requests(&self) -> Vec<IconRequest> {
         self.live
@@ -269,7 +265,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
     #[must_use]
     pub fn next_expiry(&self) -> Option<Instant> {
         self.showing()
-            .filter_map(|n| n.countdown.and_then(Countdown::deadline))
+            .filter_map(|notification| notification.countdown.deadline())
             .min()
     }
 
