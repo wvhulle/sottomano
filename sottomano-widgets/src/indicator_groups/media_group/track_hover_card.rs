@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use reqwest::Url;
 use sottomano_desktop_sources::{
-    desktop_windows_apps::desktop_entries::SchemeHandling,
+    desktop_windows_apps::desktop_entries::{DesktopEntries, SchemeHandling},
     media_playback_audio::mpris_players::Media,
 };
 
@@ -10,7 +10,6 @@ use crate::{
     clock::Clock,
     glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
     hover_cards::hover_card_body::{Section, dictionary_table},
-    icon_catalog::drawable_icon_catalog::DesktopIndex,
     widgets::{
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
@@ -58,18 +57,20 @@ impl SearchPlatform {
             .find(|platform| platform.host() == host)
     }
 
-    fn url(self, query: &str, index: &DesktopIndex) -> String {
+    fn url(self, query: &str, desktop_entries: &DesktopEntries) -> String {
         let host = self.host();
         match self {
             Self::YouTubeMusic | Self::Bandcamp => {
                 format!("https://{host}/search?{}", query_string("q", query))
             }
-            Self::Spotify => self.spotify_link(&format!("/search/{}", path_segment(query)), index),
+            Self::Spotify => {
+                self.spotify_link(&format!("/search/{}", path_segment(query)), desktop_entries)
+            }
         }
     }
 
-    fn spotify_link(self, path: &str, index: &DesktopIndex) -> String {
-        if index.scheme_handling("spotify") == SchemeHandling::Handled {
+    fn spotify_link(self, path: &str, desktop_entries: &DesktopEntries) -> String {
+        if desktop_entries.scheme_handling("spotify") == SchemeHandling::Handled {
             format!("spotify{}", path.replace('/', ":"))
         } else {
             format!("https://{}{path}", self.host())
@@ -89,13 +90,13 @@ fn path_segment(value: &str) -> String {
         .replace('+', "%20")
 }
 
-pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
+pub fn track_section(media: &Media, desktop_entries: &DesktopEntries) -> Section {
     let source = media.url.as_ref().and_then(|url| {
         let label = url.host_str()?.to_owned();
         let link = match SearchPlatform::hosting(url) {
             Some(spotify @ SearchPlatform::Spotify) => ValueCell::BrandedLink {
                 label,
-                url: spotify.spotify_link(url.path(), index),
+                url: spotify.spotify_link(url.path(), desktop_entries),
                 glyph: spotify.glyph(),
             },
             Some(platform @ (SearchPlatform::YouTubeMusic | SearchPlatform::Bandcamp)) => {
@@ -154,7 +155,7 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
     )
 }
 
-pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
+pub fn search_section(media: &Media, desktop_entries: &DesktopEntries) -> Section {
     let query = media.title.as_ref().map(|title| {
         media
             .joined_artists()
@@ -170,7 +171,7 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
                     platform.name(),
                     ValueCell::BrandedLink {
                         label: query.clone(),
-                        url: platform.url(&query, index),
+                        url: platform.url(&query, desktop_entries),
                         glyph: platform.glyph(),
                     },
                 )
@@ -182,13 +183,13 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
 pub(super) fn track_hover_card(
     player_snapshot: &SubscribedSnapshot<Media>,
     media: &Media,
-    index: &DesktopIndex,
+    desktop_entries: &DesktopEntries,
     clock: Clock,
 ) -> Vec<Section> {
     player_snapshot.hover_card_with(vec![
-        track_section(media, index),
+        track_section(media, desktop_entries),
         playback_section(media, clock.instant),
-        search_section(media, index),
+        search_section(media, desktop_entries),
     ])
 }
 
@@ -199,13 +200,13 @@ mod tests {
     #[test]
     fn query_encodes_spaces_and_non_ascii_per_platform() {
         let query = "Felix Räuber Stay Here";
-        let index = DesktopIndex::default();
+        let desktop_entries = DesktopEntries::default();
         assert_eq!(
-            SearchPlatform::YouTubeMusic.url(query, &index),
+            SearchPlatform::YouTubeMusic.url(query, &desktop_entries),
             "https://music.youtube.com/search?q=Felix+R%C3%A4uber+Stay+Here"
         );
         assert_eq!(
-            SearchPlatform::Spotify.url(query, &index),
+            SearchPlatform::Spotify.url(query, &desktop_entries),
             "https://open.spotify.com/search/Felix%20R%C3%A4uber%20Stay%20Here"
         );
     }

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
@@ -9,11 +9,11 @@ use sottomano_desktop_sources::{
     },
     desktop_windows_apps::{
         app_launch_history::LaunchScope,
-        desktop_entries,
         desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
         focused_window_menu_bar::FocusedWindowIdentity,
         workspace_window_snapshot,
     },
+    theme_icons::icon_requests::{app_icon_request, window_icon_requests},
 };
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::app_ranking::{
@@ -45,12 +45,9 @@ impl DesktopShell {
         self.notifications
             .show_compositor_failure(
                 failure,
-                &self.indicator_groups.toast_context(
-                    &self.compositor,
-                    self.desktop_entries.entries.as_deref(),
-                    &self.config,
-                    self.clock,
-                ),
+                &self
+                    .indicator_groups
+                    .toast_context(&self.compositor, &self.config, self.clock),
             )
             .map(Message::from)
     }
@@ -122,9 +119,7 @@ impl DesktopShell {
     }
 
     pub(crate) fn refresh_app_launcher(&mut self) -> Task<Message> {
-        let Some(entries) = self.desktop_entries.entries.clone() else {
-            return Task::none();
-        };
+        let entries = Arc::clone(&self.desktop_entries);
         let snapshot = &self.window_snapshot;
         let now = self.clock.utc();
         let launchable_ranked = |scope: LaunchScope<'_>| -> Vec<LaunchableApp> {
@@ -175,15 +170,28 @@ impl DesktopShell {
             open_windows: open_windows_by_app(self.compositor.windows.values(), &entries),
         };
         self.indicator_groups.app_launcher_menu.adopt_usage(usage);
-        self.resolve_icons()
+        self.request_icons()
     }
 
-    pub(crate) fn resolve_icons(&mut self) -> Task<Message> {
-        let app_keys = desktop_entries::app_icon_keys(&self.window_snapshot);
-        let theme_keys = desktop_entries::theme_icon_keys(&self.window_snapshot);
-        self.desktop_entries
-            .resolve_missing(app_keys, theme_keys)
-            .map(Message::IconsResolved)
+    pub(crate) fn request_icons(&mut self) -> Task<Message> {
+        let launcher_app_ids = self.indicator_groups.app_launcher_menu.catalog_app_ids();
+        let requests = window_icon_requests(&self.window_snapshot)
+            .into_iter()
+            .chain(self.indicator_groups.tray_group.icon_requests(&self.config))
+            .chain(
+                self.indicator_groups
+                    .window_menu_bar
+                    .icon_requests(&self.config),
+            )
+            .chain(
+                launcher_app_ids
+                    .iter()
+                    .map(|app_id| app_icon_request(app_id)),
+            )
+            .chain(self.notifications.icon_requests());
+        self.icon_catalog
+            .request(requests, &self.desktop_entries)
+            .map(Message::IconCatalog)
     }
 }
 

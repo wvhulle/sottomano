@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use ::image::RgbaImage;
 use corredo::theming::text_color;
@@ -8,7 +8,7 @@ use iced::{
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::firefox_favicon_lookup::{FaviconKind, RawFavicon},
-    theme_icons::{icon_file_loading::IconFile, icon_ink_classification::IconSource},
+    theme_icons::icon_ink_classification::IconDrawing,
 };
 
 impl From<RawFavicon> for IconHandle {
@@ -106,107 +106,16 @@ impl From<&RgbaImage> for IconHandle {
     }
 }
 
-impl From<&IconSource> for IconHandle {
-    fn from(icon_source: &IconSource) -> Self {
-        match icon_source {
-            IconSource::Pixmap(pixels) | IconSource::Themed(IconFile::Raster(pixels)) => {
-                Self::from(pixels.as_ref())
-            }
-            IconSource::Themed(IconFile::Svg(svg_bytes)) => {
+impl From<&IconDrawing> for IconHandle {
+    fn from(icon_drawing: &IconDrawing) -> Self {
+        match icon_drawing {
+            IconDrawing::Raster(pixels) => Self::from(pixels.as_ref()),
+            IconDrawing::ColouredSvg(svg_bytes) => {
                 Self::Svg(svg::Handle::from_memory(svg_bytes.to_vec()))
             }
-            IconSource::ThemedSymbolic(svg_bytes) => {
+            IconDrawing::MonochromeSvg(svg_bytes) => {
                 Self::SymbolicSvg(svg::Handle::from_memory(svg_bytes.to_vec()))
             }
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct ConvertedPixmap {
-    pixels: Arc<RgbaImage>,
-    handle: IconHandle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct PixmapHandles {
-    converted: Vec<ConvertedPixmap>,
-}
-
-impl PixmapHandles {
-    #[must_use]
-    pub fn refreshed<'a>(&self, pixmaps: impl IntoIterator<Item = &'a Arc<RgbaImage>>) -> Self {
-        Self {
-            converted: pixmaps
-                .into_iter()
-                .map(|pixels| ConvertedPixmap {
-                    pixels: pixels.clone(),
-                    handle: self.pixmap_handle(pixels),
-                })
-                .collect(),
-        }
-    }
-
-    #[must_use]
-    pub fn pixmap_handle(&self, pixels: &Arc<RgbaImage>) -> IconHandle {
-        self.converted
-            .iter()
-            .find(|converted| Arc::ptr_eq(&converted.pixels, pixels))
-            .or_else(|| {
-                self.converted
-                    .iter()
-                    .find(|converted| converted.pixels.as_ref() == pixels.as_ref())
-            })
-            .map_or_else(
-                || IconHandle::from(pixels.as_ref()),
-                |converted| converted.handle.clone(),
-            )
-    }
-
-    #[must_use]
-    pub fn icon_handle(&self, source: &IconSource) -> IconHandle {
-        match source {
-            IconSource::Pixmap(pixels) | IconSource::Themed(IconFile::Raster(pixels)) => {
-                self.pixmap_handle(pixels)
-            }
-            vector_icon
-            @ (IconSource::Themed(IconFile::Svg(_)) | IconSource::ThemedSymbolic(_)) => {
-                IconHandle::from(vector_icon)
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use ::image::{Rgba, RgbaImage};
-
-    use super::PixmapHandles;
-
-    fn filled_icon(channel_value: u8) -> Arc<RgbaImage> {
-        Arc::new(RgbaImage::from_pixel(16, 16, Rgba([channel_value; 4])))
-    }
-
-    #[test]
-    fn a_resent_icon_with_equal_pixels_keeps_its_handle() {
-        let first_delivery = filled_icon(200);
-        let handles = PixmapHandles::default().refreshed([&first_delivery]);
-        let resent_delivery = filled_icon(200);
-        assert_eq!(
-            handles.pixmap_handle(&resent_delivery),
-            handles.pixmap_handle(&first_delivery)
-        );
-    }
-
-    #[test]
-    fn an_icon_with_new_pixels_gets_a_new_handle() {
-        let first_delivery = filled_icon(200);
-        let handles = PixmapHandles::default().refreshed([&first_delivery]);
-        assert_ne!(
-            handles.pixmap_handle(&filled_icon(10)),
-            handles.pixmap_handle(&first_delivery)
-        );
     }
 }

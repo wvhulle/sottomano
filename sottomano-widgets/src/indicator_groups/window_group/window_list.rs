@@ -1070,6 +1070,7 @@ mod tests {
     };
     use iced_controller_diagram::ControllerArtwork;
     use iced_test::Simulator;
+    use sottomano_desktop_sources::desktop_windows_apps::desktop_entries::DesktopEntries;
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
@@ -1087,7 +1088,7 @@ mod tests {
             },
         },
         icon_catalog::{
-            drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
+            drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
         },
         indicator_groups::window_group::{WindowRowLayout, WindowTitleLength},
         widgets::{
@@ -1207,11 +1208,13 @@ mod tests {
             workspace: SIMULATED_WORKSPACE_IDS[0],
         };
         let drag_view = dragging_from_start(dragged_window);
-        let desktop_entries = DesktopIndex::default();
+        let icon_catalog = IconCatalog::default();
+        let desktop_entries = DesktopEntries::default();
         let favicons = Favicons::default();
         let controller_artwork = ControllerArtwork::decoded();
         let window_assets = WindowAssets {
-            entries: &desktop_entries,
+            icon_catalog: &icon_catalog,
+            desktop_entries: &desktop_entries,
             favicons: &favicons,
             controller_artwork: &controller_artwork,
         };

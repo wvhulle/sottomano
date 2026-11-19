@@ -85,7 +85,7 @@ impl ShowcaseState {
             };
             configured_nested_menu(
                 launcher.group.menu_entries(
-                    &launcher.desktop_entries,
+                    &launcher.icon_catalog,
                     &self.config,
                     SHOWCASE_OUTPUT,
                     &app_card_view,
@@ -137,7 +137,8 @@ impl ShowcaseState {
 
     pub(super) fn window_assets(&self) -> WindowAssets<'_> {
         WindowAssets {
-            entries: &self.desktop_entries,
+            icon_catalog: &self.icon_catalog,
+            desktop_entries: &self.desktop_entries,
             favicons: &self.favicons,
             controller_artwork: &self.controller_artwork,
         }
@@ -183,6 +184,7 @@ impl ShowcaseState {
     pub(super) fn toast_layer(&self) -> Element<'_, ShowcaseInteraction> {
         Element::from(self.notifications.anchored_toasts(
             SHOWCASE_OUTPUT,
+            &self.icon_catalog,
             &self.config,
             &self.theme,
             ToastSurfaceStyle {
@@ -202,7 +204,6 @@ impl ShowcaseState {
         let unplaced = CompositorWindowState::default();
         let context = ToastContext::new(
             self.group.compositor().unwrap_or(&unplaced),
-            self.desktop_entries.entries.as_deref(),
             &self.config,
             self.notification_settings,
             QuietPhase::Inactive,

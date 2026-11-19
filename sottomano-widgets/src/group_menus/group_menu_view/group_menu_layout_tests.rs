@@ -6,6 +6,7 @@ use corredo::popovers::{
 use iced::{Element, Settings, Size};
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::Simulator;
+use sottomano_desktop_sources::desktop_windows_apps::desktop_entries::DesktopEntries;
 use sottomano_toml_config::Config;
 
 use super::{GroupEvent, GroupMenuView, InspectionCard};
@@ -26,7 +27,7 @@ use crate::{
         hover_card_body::{Section, SectionWidget},
     },
     icon_catalog::{
-        drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
+        drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
     },
     indicator_groups::{
         clock_group::ClockInteraction,
@@ -39,7 +40,8 @@ use crate::{
 pub(super) struct MenuTestBench {
     config: Config,
     sections: Vec<Section>,
-    pub(super) entries: DesktopIndex,
+    pub(super) icon_catalog: IconCatalog,
+    pub(super) desktop_entries: DesktopEntries,
     pub(super) favicons: Favicons,
     pub(super) controller_artwork: ControllerArtwork,
     pub(super) clock: Clock,
@@ -50,7 +52,8 @@ impl Default for MenuTestBench {
         MenuTestBench {
             config: Config::default(),
             sections: Vec::new(),
-            entries: DesktopIndex::default(),
+            icon_catalog: IconCatalog::default(),
+            desktop_entries: DesktopEntries::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
             clock: Clock::real(),
@@ -64,7 +67,8 @@ impl MenuTestBench {
             sections: &self.sections,
             card_appearance: ShellLayer::Overlays.default_appearance(),
             assets: WindowAssets {
-                entries: &self.entries,
+                icon_catalog: &self.icon_catalog,
+                desktop_entries: &self.desktop_entries,
                 favicons: &self.favicons,
                 controller_artwork: &self.controller_artwork,
             },

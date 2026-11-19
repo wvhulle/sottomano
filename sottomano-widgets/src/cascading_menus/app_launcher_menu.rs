@@ -12,8 +12,9 @@ use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request,
 };
-use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
-    AppCategory, LaunchableApp,
+use sottomano_desktop_sources::{
+    desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp},
+    theme_icons::icon_requests::app_icon_request,
 };
 use sottomano_toml_config::Config;
 
@@ -28,7 +29,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    icon_catalog::drawable_icon_catalog::DesktopIndex,
+    icon_catalog::drawable_icon_catalog::IconCatalog,
     indicator_groups::{
         indicator_group_content::GroupEvent, sqlite_singleton_flag,
         terminal_command::TerminalCommand,
@@ -282,14 +283,14 @@ impl AppLauncherMenu {
     fn app_entry<'a>(
         &self,
         app: &LaunchableApp,
-        index: &DesktopIndex,
+        icon_catalog: &IconCatalog,
         config: &Config,
         card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
     ) -> MenuEntry<'a, AppLauncherSubmenu, GroupEvent> {
         let icon_size_px = config.theme.font.icon_size_px;
         let content = MenuRowContent::new(app.name.clone());
-        let content = match index.app_icons.get(&app.app_id) {
-            Some(icon_handle) => content.icon(icon_handle.view(icon_size_px, 1.0)),
+        let content = match icon_catalog.drawable_icon(&app_icon_request(&app.app_id)) {
+            Some(drawable_icon) => content.icon(drawable_icon.handle.view(icon_size_px, 1.0)),
             None => content,
         };
         let content = match self.jump_button(app, config) {
@@ -351,14 +352,14 @@ impl AppLauncherMenu {
     #[must_use]
     pub fn menu_entries<'a>(
         &self,
-        index: &DesktopIndex,
+        icon_catalog: &IconCatalog,
         config: &Config,
         output: &str,
         card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
     ) -> Vec<MenuEntry<'a, AppLauncherSubmenu, GroupEvent>> {
         let frequent_entries: Vec<_> = self
             .frequent_apps_on(output)
-            .map(|app| self.app_entry(app, index, config, card_view))
+            .map(|app| self.app_entry(app, icon_catalog, config, card_view))
             .collect();
         let frequent_submenu = (!frequent_entries.is_empty()).then(|| {
             MenuSubmenu::new(
@@ -387,7 +388,7 @@ impl AppLauncherMenu {
                     group
                         .shown_apps
                         .iter()
-                        .map(|app| self.app_entry(app, index, config, card_view)),
+                        .map(|app| self.app_entry(app, icon_catalog, config, card_view)),
                 )
                 .into()
             });

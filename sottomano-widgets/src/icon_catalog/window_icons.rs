@@ -1,16 +1,21 @@
 use iced::Element;
 use iced_controller_diagram::ControllerArtwork;
-use sottomano_desktop_sources::desktop_windows_apps::{
-    window_title_labels::IconCandidate, workspace_window_snapshot,
+use sottomano_desktop_sources::{
+    desktop_windows_apps::{
+        desktop_entries::DesktopEntries, window_title_labels::IconCandidate,
+        workspace_window_snapshot,
+    },
+    theme_icons::icon_requests::{app_icon_request, window_theme_icon_request},
 };
 
 use crate::icon_catalog::{
-    drawable_icon_catalog::DesktopIndex, favicons::Favicons, icon_handle::IconHandle,
+    drawable_icon_catalog::IconCatalog, favicons::Favicons, icon_handle::IconHandle,
 };
 
 #[derive(Clone, Copy)]
 pub struct WindowAssets<'a> {
-    pub entries: &'a DesktopIndex,
+    pub icon_catalog: &'a IconCatalog,
+    pub desktop_entries: &'a DesktopEntries,
     pub favicons: &'a Favicons,
     pub controller_artwork: &'a ControllerArtwork,
 }
@@ -21,7 +26,7 @@ impl<'a> WindowAssets<'a> {
         &self,
         window_entry: &workspace_window_snapshot::WinEntry,
     ) -> Option<&'a IconHandle> {
-        resolved_window_icon(self.entries, window_entry)
+        resolved_window_icon(self.icon_catalog, window_entry)
     }
 }
 
@@ -41,14 +46,18 @@ pub fn window_icon<'a, Message: 'a>(
 
 #[must_use]
 pub fn resolved_window_icon<'a>(
-    icons: &'a DesktopIndex,
+    icon_catalog: &'a IconCatalog,
     window_entry: &workspace_window_snapshot::WinEntry,
 ) -> Option<&'a IconHandle> {
     window_entry
         .icon_candidates()
         .into_iter()
-        .find_map(|candidate| match candidate {
-            IconCandidate::Theme(name) => icons.theme_icons.get(&name),
-            IconCandidate::AppId(app_id) => icons.app_icons.get(&app_id),
+        .find_map(|candidate| {
+            let request = match candidate {
+                IconCandidate::Theme(icon_name) => window_theme_icon_request(&icon_name),
+                IconCandidate::AppId(app_id) => app_icon_request(&app_id),
+            };
+            icon_catalog.drawable_icon(&request)
         })
+        .map(|drawable_icon| &drawable_icon.handle)
 }

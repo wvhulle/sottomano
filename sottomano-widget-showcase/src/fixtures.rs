@@ -35,6 +35,7 @@ pub mod app_launcher;
 pub mod appearance_presets;
 pub mod apptainer_containers;
 pub mod audio;
+pub mod bundled_app_icons;
 pub mod caldav;
 pub mod cgroup_memory_limits;
 pub mod ci_runner_tasks;

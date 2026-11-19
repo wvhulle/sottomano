@@ -110,7 +110,7 @@ impl DesktopShell {
             }
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.window_snapshot,
-                &self.desktop_entries,
+                &self.icon_catalog,
                 self.indicator_groups
                     .compositor_styling_group
                     .app_window_layout(),

@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
         niri_kdl_config::ConfiguredWorkspaces,
     },
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::workspace_window_snapshot::Snapshot,
+    desktop_windows_apps::{desktop_entries::DesktopEntries, workspace_window_snapshot::Snapshot},
 };
 use sottomano_toml_config::{
     Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,
@@ -28,7 +28,7 @@ use sottomano_widgets::{
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
     icon_catalog::{
-        drawable_icon_catalog::DesktopIndex, favicons::Favicons, window_icons::WindowAssets,
+        drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
     },
     indicator_groups::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
@@ -208,7 +208,7 @@ impl ShowcasedShellSettings {
 
 pub struct ShowcasedAppLauncher {
     pub group: AppLauncherMenu,
-    pub desktop_entries: DesktopIndex,
+    pub icon_catalog: IconCatalog,
 }
 
 pub struct ShowcasedGamepad {
@@ -300,7 +300,7 @@ impl ShowcasedToasts {
 
 pub struct ShowcasedMedia {
     pub group: MediaGroup,
-    pub desktop_entries: DesktopIndex,
+    pub desktop_entries: DesktopEntries,
 }
 
 pub struct ShowcasedDesktopSession {
@@ -308,7 +308,8 @@ pub struct ShowcasedDesktopSession {
     pub window_row_layout: WindowRowLayout,
     pub compositor: CompositorWindowState,
     pub snapshot: Snapshot,
-    pub desktop_entries: DesktopIndex,
+    pub icon_catalog: IconCatalog,
+    pub desktop_entries: DesktopEntries,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
 }
@@ -354,7 +355,8 @@ impl ShowcasedDesktopSession {
             .view(
                 snapshot,
                 WindowAssets {
-                    entries: &self.desktop_entries,
+                    icon_catalog: &self.icon_catalog,
+                    desktop_entries: &self.desktop_entries,
                     favicons: &self.favicons,
                     controller_artwork: &self.controller_artwork,
                 },
@@ -393,7 +395,7 @@ impl ShowcasedDesktopSession {
                 .collect(),
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.snapshot,
-                &self.desktop_entries,
+                &self.icon_catalog,
                 AppWindowLayout::default(),
                 *workspace,
             ),

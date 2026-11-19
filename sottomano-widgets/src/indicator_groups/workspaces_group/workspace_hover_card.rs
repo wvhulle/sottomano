@@ -9,13 +9,13 @@ use crate::{
         Section,
         hover_card_figure_payloads::{PreviewTile, TileCaption, TileIcon, WorkspacePreview},
     },
-    icon_catalog::{drawable_icon_catalog::DesktopIndex, window_icons::resolved_window_icon},
+    icon_catalog::{drawable_icon_catalog::IconCatalog, window_icons::resolved_window_icon},
 };
 
 #[must_use]
 pub fn hover_card(
     snapshot: &workspace_window_snapshot::Snapshot,
-    icons: &DesktopIndex,
+    icon_catalog: &IconCatalog,
     app_window_layout: AppWindowLayout,
     workspace: u64,
 ) -> Vec<Section> {
@@ -23,7 +23,7 @@ pub fn hover_card(
     if windows.is_empty() {
         return Vec::new();
     }
-    let tile = |window| preview_tile(icons, window);
+    let tile = |window| preview_tile(icon_catalog, window);
     vec![Section::new(
         "Layout",
         WorkspacePreview {
@@ -54,14 +54,17 @@ fn scrolling_columns(
         .collect()
 }
 
-fn preview_tile(icons: &DesktopIndex, window: &workspace_window_snapshot::WinEntry) -> PreviewTile {
+fn preview_tile(
+    icon_catalog: &IconCatalog,
+    window: &workspace_window_snapshot::WinEntry,
+) -> PreviewTile {
     PreviewTile {
         window: window.id,
         caption: match &window.label {
             Some(label) => TileCaption::Titled(label.clone()),
             None => TileCaption::Untitled,
         },
-        icon: match resolved_window_icon(icons, window) {
+        icon: match resolved_window_icon(icon_catalog, window) {
             Some(icon) => TileIcon::Resolved(icon.clone()),
             None => TileIcon::Unresolved,
         },

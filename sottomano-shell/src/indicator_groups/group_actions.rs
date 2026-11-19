@@ -66,15 +66,17 @@ impl DesktopShell {
     }
 
     pub(crate) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
-        let launcher = &mut self.indicator_groups.app_launcher_menu;
-        launcher.adopt_catalog(entries.launchable_apps());
-        self.desktop_entries.set(entries);
-        let catalog_icons = self
-            .desktop_entries
-            .resolve_catalog_icons(launcher.catalog_app_ids())
-            .map(Message::IconsResolved);
-        let window_icons = self.resolve_icons();
-        Task::batch([self.refresh_app_launcher(), catalog_icons, window_icons])
+        self.indicator_groups
+            .app_launcher_menu
+            .adopt_catalog(entries.launchable_apps());
+        self.desktop_entries = entries;
+        let reindexed_icons = self.icon_catalog.refresh().map(Message::IconCatalog);
+        let requested_icons = self.request_icons();
+        Task::batch([
+            self.refresh_app_launcher(),
+            reindexed_icons,
+            requested_icons,
+        ])
     }
 
     pub(crate) fn update_app_launcher(
@@ -155,7 +157,7 @@ impl DesktopShell {
             window_group::Action::WindowList(window_list::Action::None) => Task::none(),
             window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
                 self.derive_window_snapshot();
-                self.resolve_icons()
+                self.request_icons()
             }
             window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
                 self.update_pointer_drag(drag)

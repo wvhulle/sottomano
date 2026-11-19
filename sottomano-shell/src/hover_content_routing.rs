@@ -90,7 +90,9 @@ impl DesktopShell {
         let groups = &self.indicator_groups;
         match target {
             HoverTarget::GroupMenu(GroupMenuTopic::WindowMenuBar) => self.cascading_menu(
-                groups.window_menu_bar.menu_entries(&self.config),
+                groups
+                    .window_menu_bar
+                    .menu_entries(&self.config, &self.icon_catalog),
                 &groups.window_menu_bar.menu_state,
                 WindowMenuBarInteraction::Menu,
             ),
@@ -102,7 +104,7 @@ impl DesktopShell {
                 };
                 self.cascading_menu(
                     groups.app_launcher_menu.menu_entries(
-                        &self.desktop_entries,
+                        &self.icon_catalog,
                         &self.config,
                         self.hovered_output(),
                         &app_card_view,
@@ -117,9 +119,11 @@ impl DesktopShell {
                     == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>
             {
                 self.cascading_menu(
-                    groups
-                        .tray_group
-                        .menu_entries_named(&indicator_key.name, &self.config),
+                    groups.tray_group.menu_entries_named(
+                        &indicator_key.name,
+                        &self.config,
+                        &self.icon_catalog,
+                    ),
                     &groups.tray_group.menu_state,
                     TrayMessage::Menu,
                 )
@@ -230,7 +234,8 @@ impl DesktopShell {
     #[must_use]
     pub fn window_assets(&self) -> WindowAssets<'_> {
         WindowAssets {
-            entries: &self.desktop_entries,
+            icon_catalog: &self.icon_catalog,
+            desktop_entries: &self.desktop_entries,
             favicons: &self.favicons,
             controller_artwork: &self.controller_artwork,
         }

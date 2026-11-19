@@ -18,7 +18,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        application_menu_nodes::{MenuIconLookup, MenuNode},
+        application_menu_nodes::MenuNode,
         appmenu_registrar_server::{self, RegisteredMenuBar},
         dbusmenu_menu_bar_layout::DbusMenuLocation,
         focused_window_menu_bar::{
@@ -29,16 +29,23 @@ use sottomano_desktop_sources::{
         x11_window_menu_properties::X11MenuLookupError,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    theme_icons::icon_requests::IconRequest,
 };
 use sottomano_toml_config::Config;
 
 use self::{menu_bar_switch::WindowMenuBarUse, top_menu_glyphs::top_menu_glyph};
 use crate::{
     background_work::logged_failure_task,
-    cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
+    cascading_menus::menu_node_entries::{
+        PressDismissal, menu_icon_side_px, menu_node_entries, menu_node_icon_requests,
+        press_dismissal,
+    },
     glyph_icons::icon_glyph::IconGlyph,
     group_menus::group_menu_state::MenuTopicPresence,
-    icon_catalog::icon_handle::PixmapHandles,
+    icon_catalog::{
+        drawable_icon_catalog::{DrawableIconSources, IconCatalog},
+        pixmap_handles::PixmapHandles,
+    },
     indicator_groups::{
         indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
         sqlite_singleton_flag,
@@ -193,7 +200,6 @@ impl WindowMenuBar {
         &self,
         buses: &DesktopBuses,
         window_menu_bar_presence: MenuTopicPresence,
-        menu_icons: &MenuIconLookup,
     ) -> Subscription<WindowMenuBarMessage> {
         if self.window_menu_bar_use == WindowMenuBarUse::Disabled {
             return Subscription::none();
@@ -204,7 +210,6 @@ impl WindowMenuBar {
             buses: buses.clone(),
             focused_window: self.focused_window.clone(),
             registered_menu_bars: self.registered_menu_bars.clone(),
-            menu_icons: menu_icons.clone(),
         };
         let submenu_preparation = match &self.focused_menu_bar {
             FocusedMenuBar::Shown(shown_menu_bar) => match &shown_menu_bar.activation_route {
@@ -328,9 +333,14 @@ impl WindowMenuBar {
     }
 
     #[must_use]
+    pub fn icon_requests(&self, config: &Config) -> Vec<IconRequest> {
+        menu_node_icon_requests(self.top_menus(), menu_icon_side_px(config))
+    }
+
     pub fn menu_entries(
         &self,
         config: &Config,
+        icon_catalog: &IconCatalog,
     ) -> Vec<MenuEntry<'static, i32, WindowMenuBarInteraction>> {
         if self.window_menu_bar_use == WindowMenuBarUse::Disabled {
             return Vec::new();
@@ -346,7 +356,10 @@ impl WindowMenuBar {
                 let child_entries = menu_node_entries(
                     &top_menu.children,
                     config,
-                    &self.pixmap_handles,
+                    DrawableIconSources {
+                        icon_catalog,
+                        pixmap_handles: &self.pixmap_handles,
+                    },
                     &WindowMenuBarInteraction::ItemPressed,
                 );
                 Some(MenuSubmenu::new(top_menu.id, header, child_entries).into())

@@ -18,11 +18,11 @@ use sottomano_desktop_sources::{
         inotify_directory_changes::{WatchTarget, changes},
         protocol_peer_reconnects::subscribed,
     },
-    theme_icons::icon_theme_setting::icon_theme_changes,
+    theme_icons::icon_theme_setting::{fallback_icon_theme, icon_theme_changes},
 };
 use sottomano_widgets::{
-    cascading_menus::menu_node_entries::menu_icon_lookup, hover_cards::HoverCardMessage,
-    toast_messages::NotificationMessage, widgets::typing_under_cards::CardVisibility,
+    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
+    widgets::typing_under_cards::CardVisibility,
 };
 use wayland_client::Connection;
 
@@ -70,35 +70,30 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         Subscription::none()
     };
 
-    let menu_icons = menu_icon_lookup(state.icon_theme.clone(), &state.config);
     Subscription::batch([
         outputs(state.wayland.as_ref()),
         Subscription::run_with(state.config_file.clone(), |config_file| {
             changes(vec![WatchTarget::WrittenFile(config_file.path.clone())])
         })
         .map(Message::ConfigFileChanged),
-        state.indicator_groups.subscription(
-            &state.config,
-            state.desktop_buses.as_ref(),
-            &menu_icons,
-        ),
-        Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
-            .desktop_buses
-            .as_ref()
-            .map_or_else(Subscription::none, |buses| {
+            .indicator_groups
+            .subscription(&state.config, state.desktop_buses.as_ref()),
+        Subscription::run(desktop_bus_events).map(Message::DesktopBus),
+        state.desktop_buses.as_ref().map_or_else(
+            || Subscription::run(fallback_icon_theme).map(Message::IconThemeChanged),
+            |buses| {
                 Subscription::batch([
-                    state.indicator_groups.desktop_bus_subscription(
-                        &state.config,
-                        buses,
-                        &menu_icons,
-                    ),
+                    state
+                        .indicator_groups
+                        .desktop_bus_subscription(&state.config, buses),
                     Subscription::run_with(buses.clone(), |buses| {
                         icon_theme_changes(&buses.session)
                     })
                     .map(Message::IconThemeChanged),
                 ])
-            }),
+            },
+        ),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
@@ -109,7 +104,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             }) => Some(Message::from(HoverCardMessage::DismissHeldOpen)),
             _ => None,
         }),
-        Subscription::run(desktop_entry_changes::application_changes)
+        Subscription::run(desktop_entry_changes::catalog_file_changes)
             .map(|()| Message::ReloadDesktopEntries),
         Subscription::run(firefox_favicon_lookup::profile_changes)
             .map(Message::FirefoxProfileChanged),

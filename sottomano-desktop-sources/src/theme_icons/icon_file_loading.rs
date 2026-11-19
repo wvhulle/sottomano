@@ -1,10 +1,16 @@
 use std::{
-    fs, io,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use image::{ImageError, RgbaImage, imageops::crop_imm};
+use tokio::fs;
+
+use crate::{
+    blocking_background_work::{Panicked, blocking_poll},
+    theme_icons::icon_ink_classification::{IconDrawing, classified_svg},
+};
 
 const MIN_MARGIN_FRACTION: f32 = 0.02;
 
@@ -12,14 +18,20 @@ const ANTIALIAS_BLEED_FRACTION: f32 = 1.0 / 16.0;
 
 const ALPHA_INK_THRESHOLD: u8 = 8;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IconTrim {
+    Trimmed,
+    DesignSize,
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum IconFile {
-    Svg(Arc<[u8]>),
-    Raster(Arc<RgbaImage>),
+pub struct LoadedIcon {
+    pub drawing: IconDrawing,
+    pub design_side_px: f32,
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum IconTrimError {
+pub enum IconLoadError {
     #[error("cannot read icon {icon_path}: {read_failure}")]
     Unreadable {
         icon_path: PathBuf,
@@ -35,45 +47,82 @@ pub enum IconTrimError {
         icon_path: PathBuf,
         decode_failure: ImageError,
     },
+    #[error("decoding an icon panicked")]
+    DecodePanicked(#[from] Panicked),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IconTrim {
-    Trimmed,
-    DesignSize,
+pub async fn loaded_icon_file(
+    icon_path: PathBuf,
+    icon_trim: IconTrim,
+) -> Result<LoadedIcon, IconLoadError> {
+    let icon_bytes =
+        fs::read(&icon_path)
+            .await
+            .map_err(|read_failure| IconLoadError::Unreadable {
+                icon_path: icon_path.clone(),
+                read_failure,
+            })?;
+    blocking_poll(move || decoded_icon(&icon_path, icon_bytes, icon_trim)).await
 }
 
-pub fn read_icon_file(icon_path: &Path, icon_trim: IconTrim) -> Result<IconFile, IconTrimError> {
-    let icon_bytes = fs::read(icon_path).map_err(|read_failure| IconTrimError::Unreadable {
-        icon_path: icon_path.to_path_buf(),
-        read_failure,
-    })?;
+fn decoded_icon(
+    icon_path: &Path,
+    icon_bytes: Vec<u8>,
+    icon_trim: IconTrim,
+) -> Result<LoadedIcon, IconLoadError> {
     if is_svg_file(icon_path) {
-        let svg_bytes = match icon_trim {
-            IconTrim::Trimmed => trim_svg_bytes(icon_bytes),
-            IconTrim::DesignSize => usvg::Tree::from_data(&icon_bytes, &usvg::Options::default())
-                .map(|_parsed_tree| icon_bytes),
-        };
-        svg_bytes
-            .map(|svg_bytes| IconFile::Svg(svg_bytes.into()))
-            .map_err(|parse_failure| IconTrimError::InvalidSvg {
+        decoded_svg(icon_path, icon_bytes, icon_trim)
+    } else {
+        decoded_raster(icon_path, &icon_bytes, icon_trim)
+    }
+}
+
+fn decoded_svg(
+    icon_path: &Path,
+    icon_bytes: Vec<u8>,
+    icon_trim: IconTrim,
+) -> Result<LoadedIcon, IconLoadError> {
+    let svg_tree =
+        usvg::Tree::from_data(&icon_bytes, &usvg::Options::default()).map_err(|parse_failure| {
+            IconLoadError::InvalidSvg {
                 icon_path: icon_path.to_path_buf(),
                 parse_failure,
-            })
-    } else {
-        image::load_from_memory(&icon_bytes)
-            .map(|decoded_image| {
-                let pixels = decoded_image.into_rgba8();
-                IconFile::Raster(Arc::new(match icon_trim {
-                    IconTrim::Trimmed => trim_rgba(pixels),
-                    IconTrim::DesignSize => pixels,
-                }))
-            })
-            .map_err(|decode_failure| IconTrimError::UndecodableRaster {
-                icon_path: icon_path.to_path_buf(),
-                decode_failure,
-            })
-    }
+            }
+        })?;
+    let canvas_side_px = svg_tree.size().width().max(svg_tree.size().height());
+    let framed_svg = match icon_trim {
+        IconTrim::Trimmed => cropped_svg(&svg_tree),
+        IconTrim::DesignSize => SvgFraming::Uncropped,
+    };
+    let (svg_bytes, design_side_px) = match framed_svg {
+        SvgFraming::Cropped(cropped) => (cropped.svg_bytes, cropped.side_px),
+        SvgFraming::Uncropped => (icon_bytes, canvas_side_px),
+    };
+    Ok(LoadedIcon {
+        drawing: classified_svg(icon_path, &svg_tree, svg_bytes.into()),
+        design_side_px,
+    })
+}
+
+fn decoded_raster(
+    icon_path: &Path,
+    icon_bytes: &[u8],
+    icon_trim: IconTrim,
+) -> Result<LoadedIcon, IconLoadError> {
+    let decoded_pixels = image::load_from_memory(icon_bytes)
+        .map_err(|decode_failure| IconLoadError::UndecodableRaster {
+            icon_path: icon_path.to_path_buf(),
+            decode_failure,
+        })?
+        .into_rgba8();
+    let framed_pixels = match icon_trim {
+        IconTrim::Trimmed => trim_rgba(decoded_pixels),
+        IconTrim::DesignSize => decoded_pixels,
+    };
+    Ok(LoadedIcon {
+        design_side_px: framed_pixels.width().max(framed_pixels.height()) as f32,
+        drawing: IconDrawing::Raster(Arc::new(framed_pixels)),
+    })
 }
 
 #[must_use]
@@ -97,12 +146,17 @@ pub fn trim_rgba(image: RgbaImage) -> RgbaImage {
     }
 }
 
-fn trim_svg_bytes(icon_bytes: Vec<u8>) -> Result<Vec<u8>, usvg::Error> {
-    let tree = usvg::Tree::from_data(&icon_bytes, &usvg::Options::default())?;
-    Ok(cropped_svg_bytes(&tree).unwrap_or(icon_bytes))
+struct CroppedSvg {
+    svg_bytes: Vec<u8>,
+    side_px: f32,
 }
 
-fn cropped_svg_bytes(tree: &usvg::Tree) -> Option<Vec<u8>> {
+enum SvgFraming {
+    Cropped(CroppedSvg),
+    Uncropped,
+}
+
+fn cropped_svg(tree: &usvg::Tree) -> SvgFraming {
     let size = tree.size();
     let ink_box = tree.root().abs_stroke_bounding_box();
     let bleed = ink_box.width().max(ink_box.height()) * ANTIALIAS_BLEED_FRACTION;
@@ -112,16 +166,22 @@ fn cropped_svg_bytes(tree: &usvg::Tree) -> Option<Vec<u8>> {
     let y1 = (ink_box.y() + ink_box.height() + bleed).min(size.height());
     let (vw, vh) = (x1 - x0, y1 - y0);
     if vw <= 0.0 || vh <= 0.0 {
-        return None;
+        return SvgFraming::Uncropped;
     }
 
     let margin_x = 1.0 - vw / size.width();
     let margin_y = 1.0 - vh / size.height();
     if margin_x < MIN_MARGIN_FRACTION && margin_y < MIN_MARGIN_FRACTION {
-        return None;
+        return SvgFraming::Uncropped;
     }
 
-    crop_view_box(tree, x0, y0, vw, vh).map(String::into_bytes)
+    match crop_view_box(tree, x0, y0, vw, vh) {
+        Some(cropped_text) => SvgFraming::Cropped(CroppedSvg {
+            svg_bytes: cropped_text.into_bytes(),
+            side_px: vw.max(vh),
+        }),
+        None => SvgFraming::Uncropped,
+    }
 }
 
 fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<String> {
@@ -191,7 +251,8 @@ mod tests {
 
     use image::{Rgba, RgbaImage};
 
-    use super::{IconFile, IconTrim, IconTrimError, read_icon_file};
+    use super::{IconLoadError, IconTrim, LoadedIcon, loaded_icon_file};
+    use crate::theme_icons::icon_ink_classification::IconDrawing;
 
     const PADDED_BLUE_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="blue"/></svg>"#;
     const PADDED_RED_SQUARE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect x="40" y="40" width="20" height="20" fill="red"/></svg>"#;
@@ -235,41 +296,56 @@ mod tests {
             .expect("scratch icon mtime is settable");
     }
 
-    fn trimmed_svg_text(icon_path: &Path) -> String {
-        match read_icon_file(icon_path, IconTrim::Trimmed).expect("svg icon trims") {
-            IconFile::Svg(svg_bytes) => {
+    async fn trimmed_icon(icon_path: &Path) -> LoadedIcon {
+        loaded_icon_file(icon_path.to_path_buf(), IconTrim::Trimmed)
+            .await
+            .expect("icon loads")
+    }
+
+    async fn trimmed_svg_text(icon_path: &Path) -> String {
+        match trimmed_icon(icon_path).await.drawing {
+            IconDrawing::ColouredSvg(svg_bytes) | IconDrawing::MonochromeSvg(svg_bytes) => {
                 String::from_utf8(svg_bytes.to_vec()).expect("trimmed svg is utf-8")
             }
-            IconFile::Raster(_) => panic!("svg icon came back as raster"),
+            IconDrawing::Raster(_) => panic!("svg icon came back as raster"),
         }
     }
 
-    #[test]
-    fn padded_svg_gets_cropped_view_box() {
+    #[tokio::test]
+    async fn padded_svg_gets_cropped_view_box() {
         let scratch = ScratchIconDirectory::create("padded-svg");
         let icon_path = scratch.icon_path("app.svg");
         write_icon_with_nix_store_mtime(&icon_path, PADDED_BLUE_SQUARE_SVG.as_bytes());
-        assert!(trimmed_svg_text(&icon_path).contains("viewBox=\"38.75 38.75 22.5 22.5\""));
+        assert!(
+            trimmed_svg_text(&icon_path)
+                .await
+                .contains("viewBox=\"38.75 38.75 22.5 22.5\"")
+        );
+        assert!((trimmed_icon(&icon_path).await.design_side_px - 22.5).abs() < f32::EPSILON);
     }
 
-    #[test]
-    fn cropped_svg_keeps_the_full_width_of_outer_strokes() {
+    #[tokio::test]
+    async fn cropped_svg_keeps_the_full_width_of_outer_strokes() {
         let scratch = ScratchIconDirectory::create("stroked-svg");
         let icon_path = scratch.icon_path("utilities-terminal-symbolic.svg");
         write_icon_with_nix_store_mtime(&icon_path, PADDED_STROKED_SQUARE_SVG.as_bytes());
-        assert!(trimmed_svg_text(&icon_path).contains("viewBox=\"34.25 34.25 31.5 31.5\""));
+        assert!(
+            trimmed_svg_text(&icon_path)
+                .await
+                .contains("viewBox=\"34.25 34.25 31.5 31.5\"")
+        );
     }
 
-    #[test]
-    fn svg_without_margin_keeps_original_bytes() {
+    #[tokio::test]
+    async fn svg_without_margin_keeps_original_bytes() {
         let scratch = ScratchIconDirectory::create("edge-svg");
         let icon_path = scratch.icon_path("app.svg");
         write_icon_with_nix_store_mtime(&icon_path, EDGE_TO_EDGE_SQUARE_SVG.as_bytes());
-        assert_eq!(trimmed_svg_text(&icon_path), EDGE_TO_EDGE_SQUARE_SVG);
+        assert_eq!(trimmed_svg_text(&icon_path).await, EDGE_TO_EDGE_SQUARE_SVG);
     }
 
-    #[test]
-    fn padded_raster_gets_cropped_pixels() {
+    #[tokio::test]
+    async fn padded_raster_gets_cropped_pixels() {
         let scratch = ScratchIconDirectory::create("padded-raster");
         let icon_path = scratch.icon_path("app.png");
         let mut padded_image = RgbaImage::new(48, 48);
@@ -281,40 +357,42 @@ mod tests {
         padded_image
             .save(&icon_path)
             .expect("scratch png is writable");
-        match read_icon_file(&icon_path, IconTrim::Trimmed).expect("png icon trims") {
-            IconFile::Raster(cropped_image) => assert_eq!(cropped_image.dimensions(), (18, 10)),
-            IconFile::Svg(_) => panic!("png icon came back as svg"),
+        match trimmed_icon(&icon_path).await.drawing {
+            IconDrawing::Raster(cropped_image) => assert_eq!(cropped_image.dimensions(), (18, 10)),
+            IconDrawing::ColouredSvg(_) | IconDrawing::MonochromeSvg(_) => {
+                panic!("png icon came back as svg")
+            }
         }
     }
 
-    #[test]
-    fn replaced_icon_at_same_path_and_mtime_yields_new_content() {
+    #[tokio::test]
+    async fn replaced_icon_at_same_path_and_mtime_yields_new_content() {
         let scratch = ScratchIconDirectory::create("replaced-svg");
         let icon_path = scratch.icon_path("app.svg");
         write_icon_with_nix_store_mtime(&icon_path, PADDED_BLUE_SQUARE_SVG.as_bytes());
-        let first_trim = trimmed_svg_text(&icon_path);
+        let first_trim = trimmed_svg_text(&icon_path).await;
         write_icon_with_nix_store_mtime(&icon_path, PADDED_RED_SQUARE_SVG.as_bytes());
-        let second_trim = trimmed_svg_text(&icon_path);
+        let second_trim = trimmed_svg_text(&icon_path).await;
         assert_ne!(first_trim, second_trim);
     }
 
-    #[test]
-    fn unreadable_icon_reports_typed_error() {
+    #[tokio::test]
+    async fn unreadable_icon_reports_typed_error() {
         let scratch = ScratchIconDirectory::create("missing-icon");
         assert!(matches!(
-            read_icon_file(&scratch.icon_path("absent.svg"), IconTrim::Trimmed),
-            Err(IconTrimError::Unreadable { .. })
+            loaded_icon_file(scratch.icon_path("absent.svg"), IconTrim::Trimmed).await,
+            Err(IconLoadError::Unreadable { .. })
         ));
     }
 
-    #[test]
-    fn malformed_svg_reports_typed_error() {
+    #[tokio::test]
+    async fn malformed_svg_reports_typed_error() {
         let scratch = ScratchIconDirectory::create("malformed-svg");
         let icon_path = scratch.icon_path("broken.svg");
         write_icon_with_nix_store_mtime(&icon_path, b"<svg");
         assert!(matches!(
-            read_icon_file(&icon_path, IconTrim::Trimmed),
-            Err(IconTrimError::InvalidSvg { .. })
+            loaded_icon_file(icon_path, IconTrim::Trimmed).await,
+            Err(IconLoadError::InvalidSvg { .. })
         ));
     }
 }

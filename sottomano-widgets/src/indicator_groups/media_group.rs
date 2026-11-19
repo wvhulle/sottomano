@@ -11,6 +11,7 @@ use corredo::{
 use iced::{Element, Subscription, Task, time::every};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    desktop_windows_apps::desktop_entries::DesktopEntries,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
         mpris_players::{Command, Media, PlayerBusOwner, PlayerBusOwners, Progress, Status},
@@ -26,7 +27,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_menus::group_source_demand::GroupSourceDemand,
-    icon_catalog::{drawable_icon_catalog::DesktopIndex, icon_handle::IconHandle},
+    icon_catalog::icon_handle::IconHandle,
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
@@ -430,7 +431,7 @@ impl MediaGroup {
     pub fn group_contents<'a>(
         &'a self,
         config: &'a Config,
-        index: &'a DesktopIndex,
+        desktop_entries: &'a DesktopEntries,
         clock: Clock,
     ) -> impl Iterator<Item = IndicatorGroupContent<'a>> {
         self.player_snapshots
@@ -450,7 +451,7 @@ impl MediaGroup {
                     player_snapshot,
                     session,
                     self.lyrics_of(media),
-                    index,
+                    desktop_entries,
                 )
             })
     }
@@ -526,9 +527,9 @@ mod tests {
             clock,
         );
         let config = Config::default();
-        let index = DesktopIndex::default();
+        let desktop_entries = DesktopEntries::default();
         let group_titles: Vec<String> = group
-            .group_contents(&config, &index, clock)
+            .group_contents(&config, &desktop_entries, clock)
             .map(|group_content| group_content.group_title.to_string())
             .collect();
         assert_eq!(

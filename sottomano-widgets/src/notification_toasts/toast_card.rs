@@ -8,15 +8,14 @@ use corredo::changing_text::MarkupText;
 use iced::{
     Alignment, Border, Color, Element, Length, Shadow, Theme, border,
     theme::palette::{Extended, Pair},
-    widget::{Column, Row, button, container, mouse_area, progress_bar, space, text_input},
+    widget::{Column, Row, Space, button, container, mouse_area, progress_bar, space, text_input},
 };
 use reqwest::Url;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
     },
-    desktop_windows_apps::desktop_entries::DesktopEntries,
-    theme_icons::{icon_file_loading::IconTrim, icon_ink_classification::theme_icon_source},
+    theme_icons::icon_requests::{IconRequest, app_icon_request},
 };
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -25,7 +24,7 @@ use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycl
 use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     hover_cards::PointerPresence,
-    icon_catalog::icon_handle::IconHandle,
+    icon_catalog::{drawable_icon_catalog::IconCatalog, icon_handle::IconHandle},
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         localized_durations::relative_moment_text,
@@ -90,6 +89,17 @@ const TOAST_PREVIEW_MAX_HEIGHT_PX: f32 = 180.0;
 pub enum CardIcon {
     Handle(IconHandle),
     IconGlyph(IconGlyph),
+    Themed(IconRequest),
+}
+
+impl CardIcon {
+    #[must_use]
+    pub fn icon_request(&self) -> Option<&IconRequest> {
+        match self {
+            CardIcon::Themed(request) => Some(request),
+            CardIcon::Handle(_) | CardIcon::IconGlyph(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -99,10 +109,10 @@ pub enum CardImage {
 }
 
 impl CardImage {
-    fn named(name: &str, entries: Option<&DesktopEntries>) -> Option<Self> {
+    fn named(name: &str) -> Self {
         match icon_file(name) {
-            Some(file) => Some(Self::from(file)),
-            None => themed_icon(name, entries).map(Self::Icon),
+            Some(file) => Self::from(file),
+            None => Self::Icon(CardIcon::Themed(app_icon_request(name))),
         }
     }
 }
@@ -140,13 +150,13 @@ impl From<IconGlyph> for CardIcons {
     }
 }
 
-pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
+pub fn resolve_icons(data: &NotificationData) -> CardIcons {
     let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
         Some(NotifImage::Rgba(pixels)) => Some(CardImage::Icon(CardIcon::Handle(
             IconHandle::from(pixels.as_ref()),
         ))),
-        Some(NotifImage::Named(name)) => CardImage::named(name, entries),
+        Some(NotifImage::Named(name)) => Some(CardImage::named(name)),
         None => app_icon_file.map(CardImage::from),
     };
     let badge = data
@@ -154,19 +164,8 @@ pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) 
         .as_deref()
         .filter(|name| icon_file(name).is_none())
         .or(data.desktop_entry.as_deref())
-        .and_then(|name| themed_icon(name, entries));
+        .map(|name| CardIcon::Themed(app_icon_request(name)));
     CardIcons { image, badge }
-}
-
-fn themed_icon(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon> {
-    let entries = entries?;
-    let path = entries
-        .theme_lookup(name)
-        .or_else(|| entries.icon_for(name))?;
-    let icon_source = theme_icon_source(&path, IconTrim::Trimmed)
-        .inspect_err(|load_failure| tracing::warn!("toast icon {name}: {load_failure}"))
-        .ok()?;
-    Some(CardIcon::Handle(IconHandle::from(&icon_source)))
 }
 
 fn icon_file(name: &str) -> Option<PathBuf> {
@@ -188,6 +187,7 @@ fn icon_file(name: &str) -> Option<PathBuf> {
 
 pub struct ToastCard<'a, Routed> {
     notif: &'a Notification<Routed>,
+    icon_catalog: &'a IconCatalog,
     config: &'a Config,
     theme: &'a Theme,
     overlay_appearance: LayerAppearance,
@@ -200,6 +200,7 @@ pub struct ToastCard<'a, Routed> {
 impl<'a, Routed> ToastCard<'a, Routed> {
     pub fn new(
         notif: &'a Notification<Routed>,
+        icon_catalog: &'a IconCatalog,
         config: &'a Config,
         theme: &'a Theme,
         overlay_appearance: LayerAppearance,
@@ -207,6 +208,7 @@ impl<'a, Routed> ToastCard<'a, Routed> {
     ) -> Self {
         Self {
             notif,
+            icon_catalog,
             config,
             theme,
             overlay_appearance,
@@ -244,7 +246,7 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
         let mut body_row = Row::new()
             .spacing(card.config.theme.spacing.group_gap)
             .align_y(Alignment::Center);
-        if let Some(icon) = icon_slot(&card.notif.icons, card.reveal, text) {
+        if let Some(icon) = icon_slot(&card.notif.icons, card.icon_catalog, card.reveal, text) {
             body_row = body_row.push(icon);
         }
         body_row = body_row.push(card.column(text));
@@ -388,6 +390,7 @@ impl<Routed> ToastCard<'_, Routed> {
         if let Some(CardImage::Preview { icon, .. }) = &self.notif.icons.image {
             column = column.push(preview_widget(
                 icon,
+                self.icon_catalog,
                 TOAST_PREVIEW_MAX_HEIGHT_PX,
                 self.reveal,
                 text,
@@ -532,6 +535,7 @@ impl<Routed> ToastCard<'_, Routed> {
 
 fn icon_slot<'a>(
     icons: &CardIcons,
+    icon_catalog: &IconCatalog,
     reveal: f32,
     text: Color,
 ) -> Option<Element<'a, NotificationMessage>> {
@@ -539,20 +543,27 @@ fn icon_slot<'a>(
         return icons
             .badge
             .as_ref()
-            .map(|badge| icon_widget(badge, TOAST_ICON_SIZE_PX, reveal, text));
+            .map(|badge| icon_widget(badge, icon_catalog, TOAST_ICON_SIZE_PX, reveal, text));
     };
-    let main = icon_widget(image, TOAST_ICON_SIZE_PX, reveal, text);
+    let main = icon_widget(image, icon_catalog, TOAST_ICON_SIZE_PX, reveal, text);
     let Some(badge) = &icons.badge else {
         return Some(main);
     };
-    let overlay = container(icon_widget(badge, TOAST_APP_BADGE_SIZE_PX, reveal, text))
-        .width(TOAST_ICON_SIZE_PX)
-        .height(TOAST_ICON_SIZE_PX);
+    let overlay = container(icon_widget(
+        badge,
+        icon_catalog,
+        TOAST_APP_BADGE_SIZE_PX,
+        reveal,
+        text,
+    ))
+    .width(TOAST_ICON_SIZE_PX)
+    .height(TOAST_ICON_SIZE_PX);
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 
 fn preview_widget<'a>(
     icon: &CardIcon,
+    icon_catalog: &IconCatalog,
     max_height: f32,
     reveal: f32,
     text: Color,
@@ -560,6 +571,10 @@ fn preview_widget<'a>(
     let preview: Element<'a, NotificationMessage> = match icon {
         CardIcon::Handle(handle) => handle.scaled_down(reveal),
         CardIcon::IconGlyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
+        CardIcon::Themed(request) => match icon_catalog.drawable_icon(request) {
+            Some(drawable_icon) => drawable_icon.handle.scaled_down(reveal),
+            None => Space::new().into(),
+        },
     };
     container(preview).max_height(max_height).into()
 }
@@ -582,6 +597,7 @@ fn progress_widget<'a>(
 
 fn icon_widget<'a>(
     icon: &CardIcon,
+    icon_catalog: &IconCatalog,
     size: f32,
     reveal: f32,
     text: Color,
@@ -589,6 +605,10 @@ fn icon_widget<'a>(
     match icon {
         CardIcon::IconGlyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
+        CardIcon::Themed(request) => match icon_catalog.drawable_icon(request) {
+            Some(drawable_icon) => drawable_icon.handle.view(size, reveal),
+            None => Space::new().width(size).height(size).into(),
+        },
     }
 }
 

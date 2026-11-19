@@ -77,12 +77,9 @@ impl DesktopShell {
             .show_change_watch_failure(
                 stopped_watch,
                 watch_failure,
-                &self.indicator_groups.toast_context(
-                    &self.compositor,
-                    self.desktop_entries.entries.as_deref(),
-                    &self.config,
-                    self.clock,
-                ),
+                &self
+                    .indicator_groups
+                    .toast_context(&self.compositor, &self.config, self.clock),
             )
             .map(Message::from)
     }
@@ -94,12 +91,9 @@ impl DesktopShell {
             .show_config_error(
                 path,
                 error,
-                &self.indicator_groups.toast_context(
-                    &self.compositor,
-                    self.desktop_entries.entries.as_deref(),
-                    &self.config,
-                    self.clock,
-                ),
+                &self
+                    .indicator_groups
+                    .toast_context(&self.compositor, &self.config, self.clock),
             )
             .map(Message::from)
     }

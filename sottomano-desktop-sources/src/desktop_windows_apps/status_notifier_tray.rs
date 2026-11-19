@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     future::ready,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, PoisonError},
 };
 
@@ -22,18 +22,10 @@ use zbus::{fdo::DBusProxy, names::BusName};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    desktop_windows_apps::{
-        application_menu_nodes::{
-            MenuIconLookup, MenuNode, symbolic_first_icon_names, tray_menu_nodes,
-        },
-        desktop_entries::DesktopEntries,
-    },
+    desktop_windows_apps::application_menu_nodes::{MenuNode, tray_menu_nodes},
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
-    theme_icons::{
-        icon_file_loading::{IconTrim, trim_rgba},
-        icon_ink_classification::IconSource,
-    },
+    theme_icons::{icon_file_loading::trim_rgba, icon_requests::ItemThemePath},
 };
 
 const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
@@ -54,6 +46,16 @@ impl Tip {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum TrayItemIcon {
+    NoIcon,
+    Pixmap(Arc<RgbaImage>),
+    Named {
+        icon_name: String,
+        item_theme_path: ItemThemePath,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct TrayItem {
     pub address: String,
@@ -63,7 +65,7 @@ pub struct TrayItem {
     pub status: Status,
     pub tooltip: Option<Tip>,
     pub menu_path: Option<String>,
-    pub icon: Option<IconSource>,
+    pub icon: TrayItemIcon,
     pub menu: Vec<MenuNode>,
 }
 
@@ -74,9 +76,12 @@ impl TrayItem {
     }
 
     pub fn pixmaps(&self) -> impl Iterator<Item = &Arc<RgbaImage>> {
-        self.icon
-            .iter()
-            .filter_map(IconSource::pixmap)
+        let own_pixmap = match &self.icon {
+            TrayItemIcon::Pixmap(pixels) => Some(pixels),
+            TrayItemIcon::NoIcon | TrayItemIcon::Named { .. } => None,
+        };
+        own_pixmap
+            .into_iter()
             .chain(self.menu.iter().flat_map(MenuNode::pixmaps))
     }
 }
@@ -147,37 +152,25 @@ pub(crate) fn capped_to_side_limit(image: RgbaImage) -> RgbaImage {
     )
 }
 
-const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
-
-fn existing_theme_icon_path(theme_path: &str, name: &str) -> Option<PathBuf> {
-    ["svg", "png"].into_iter().find_map(|extension| {
-        let path = Path::new(theme_path).join(format!("{name}.{extension}"));
-        path.exists().then_some(path)
-    })
-}
-
-fn resolve_visual(
+fn tray_item_icon(
     icon_name: Option<&str>,
     icon_pixmap: Option<&[IconPixmap]>,
     icon_theme_path: Option<&str>,
-    entries: &DesktopEntries,
-) -> Option<IconSource> {
+) -> TrayItemIcon {
     if let Some(pixmap) = icon_pixmap.and_then(best_pixmap) {
-        return Some(IconSource::Pixmap(Arc::new(pixmap)));
+        return TrayItemIcon::Pixmap(Arc::new(pixmap));
     }
-    icon_name
-        .filter(|n| !n.is_empty())
-        .and_then(|name| {
-            symbolic_first_icon_names(name)
-                .into_iter()
-                .find_map(|candidate_name| {
-                    icon_theme_path
-                        .and_then(|dir| existing_theme_icon_path(dir, &candidate_name))
-                        .or_else(|| entries.theme_lookup(&candidate_name))
-                })
-        })
-        .or_else(|| entries.theme_lookup(UNIDENTIFIED_APP_ICON))
-        .and_then(|path| IconSource::logged_theme_icon(&path, IconTrim::Trimmed))
+    let Some(icon_name) = icon_name.filter(|icon_name| !icon_name.is_empty()) else {
+        return TrayItemIcon::NoIcon;
+    };
+    TrayItemIcon::Named {
+        icon_name: icon_name.to_owned(),
+        item_theme_path: icon_theme_path
+            .filter(|theme_path| !theme_path.is_empty())
+            .map_or(ItemThemePath::Unset, |theme_path| {
+                ItemThemePath::Directory(PathBuf::from(theme_path))
+            }),
+    }
 }
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
@@ -190,7 +183,6 @@ fn build_item(
     owner: OwnerProcess,
     item: &StatusNotifierItem,
     menu: Option<&TrayMenu>,
-    icon_lookup: &TrayIconLookup,
 ) -> TrayItem {
     TrayItem {
         address: address.to_string(),
@@ -200,17 +192,12 @@ fn build_item(
         status: item.status,
         tooltip: adapt_tooltip(item),
         menu_path: item.menu.clone(),
-        icon: resolve_visual(
+        icon: tray_item_icon(
             item.icon_name.as_deref(),
             item.icon_pixmap.as_deref(),
             item.icon_theme_path.as_deref(),
-            &icon_lookup.entries,
         ),
-        menu: menu
-            .map(|tray_menu| {
-                tray_menu_nodes(tray_menu, &icon_lookup.entries, icon_lookup.menu_icon_px)
-            })
-            .unwrap_or_default(),
+        menu: menu.map(tray_menu_nodes).unwrap_or_default(),
     }
 }
 
@@ -260,24 +247,14 @@ struct ConnectedTrayHost {
     owner_lookup: TrayOwnerLookup,
     item_events: BroadcastStream<Event>,
     listed: Vec<TrayItem>,
-    icon_lookup: TrayIconLookup,
 }
 
-struct TrayIconLookup {
-    entries: DesktopEntries,
-    menu_icon_px: u16,
-}
-
-async fn connect_tray_host(menu_icons: MenuIconLookup) -> Result<ConnectedTrayHost, TrayHostError> {
+async fn connect_tray_host() -> Result<ConnectedTrayHost, TrayHostError> {
     let client = Arc::new(Client::new().await?);
     let item_events = BroadcastStream::new(client.subscribe());
     let owner_lookup = TrayOwnerLookup::connect().await?;
     let listed_owners = owner_lookup.owners_of_listed(&client).await;
-    let icon_lookup = TrayIconLookup {
-        entries: DesktopEntries::themed(&menu_icons.icon_theme),
-        menu_icon_px: menu_icons.size_px,
-    };
-    let listed = listed_items(&client, &icon_lookup, &|address| {
+    let listed = listed_items(&client, &|address| {
         listed_owners
             .get(address)
             .copied()
@@ -288,12 +265,11 @@ async fn connect_tray_host(menu_icons: MenuIconLookup) -> Result<ConnectedTrayHo
         owner_lookup,
         item_events,
         listed,
-        icon_lookup,
     })
 }
 
-pub fn updates(menu_icons: &MenuIconLookup) -> impl Stream<Item = TrayUpdate> + Send + use<> {
-    stream::once(connect_tray_host(menu_icons.clone()))
+pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
+    stream::once(connect_tray_host())
         .map_ok(|connected_host| hosted_updates(connected_host).map(Ok))
         .try_flatten()
         .map(|update| {
@@ -307,7 +283,6 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
         owner_lookup,
         item_events,
         listed,
-        icon_lookup,
     } = connected_host;
     let host = TrayHost {
         tray_client: client.clone(),
@@ -327,10 +302,10 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
         .buffered(OWNER_LOOKUPS_IN_FLIGHT)
         .scan(listed.clone(), move |items, (received, added_owner)| {
             match received {
-                Ok(event) => apply(items, event, added_owner, &client, &icon_lookup),
+                Ok(event) => apply(items, event, added_owner, &client),
                 Err(BroadcastStreamRecvError::Lagged(_)) => {
                     let known_items = items.clone();
-                    *items = listed_items(&client, &icon_lookup, &|address| {
+                    *items = listed_items(&client, &|address| {
                         known_items
                             .iter()
                             .find(|known_item| known_item.address == address)
@@ -345,14 +320,12 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
 
 impl SnapshotSource for Vec<TrayItem> {
     type Error = Arc<TrayHostError>;
-    type StreamInputs = MenuIconLookup;
+    type StreamInputs = ();
 
     const NAME: &'static str = "Tray";
 
-    fn delivery_stream(
-        menu_icons: MenuIconLookup,
-    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        updates(&menu_icons)
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        updates()
             .filter_map(|update| {
                 ready(match update {
                     TrayUpdate::Items(items) => Some(Ok(items)),
@@ -364,23 +337,13 @@ impl SnapshotSource for Vec<TrayItem> {
     }
 }
 
-fn listed_items(
-    client: &Client,
-    icon_lookup: &TrayIconLookup,
-    known_owner: &dyn Fn(&str) -> OwnerProcess,
-) -> Vec<TrayItem> {
+fn listed_items(client: &Client, known_owner: &dyn Fn(&str) -> OwnerProcess) -> Vec<TrayItem> {
     client.items().lock().map_or_else(
         |_| Vec::new(),
         |map| {
             map.iter()
                 .map(|(address, (item, menu))| {
-                    build_item(
-                        address,
-                        known_owner(address),
-                        item,
-                        menu.as_ref(),
-                        icon_lookup,
-                    )
+                    build_item(address, known_owner(address), item, menu.as_ref())
                 })
                 .collect()
         },
@@ -391,7 +354,7 @@ fn find_mut<'a>(items: &'a mut [TrayItem], address: &str) -> Option<&'a mut Tray
     items.iter_mut().find(|item| item.address == address)
 }
 
-fn menu_from_map(client: &Client, address: &str, icon_lookup: &TrayIconLookup) -> Vec<MenuNode> {
+fn menu_from_map(client: &Client, address: &str) -> Vec<MenuNode> {
     client
         .items()
         .lock()
@@ -404,21 +367,15 @@ fn menu_from_map(client: &Client, address: &str, icon_lookup: &TrayIconLookup) -
         .and_then(|map| {
             map.get(address)
                 .and_then(|(_, menu)| menu.as_ref())
-                .map(|menu| tray_menu_nodes(menu, &icon_lookup.entries, icon_lookup.menu_icon_px))
+                .map(tray_menu_nodes)
         })
         .unwrap_or_default()
 }
 
-fn apply(
-    items: &mut Vec<TrayItem>,
-    event: Event,
-    added_owner: OwnerProcess,
-    client: &Client,
-    icon_lookup: &TrayIconLookup,
-) {
+fn apply(items: &mut Vec<TrayItem>, event: Event, added_owner: OwnerProcess, client: &Client) {
     match event {
         Event::Add(address, item) => {
-            let built = build_item(&address, added_owner, &item, None, icon_lookup);
+            let built = build_item(&address, added_owner, &item, None);
             match find_mut(items, &address) {
                 Some(existing) => *existing = built,
                 None => items.push(built),
@@ -427,7 +384,7 @@ fn apply(
         Event::Remove(address) => items.retain(|item| item.address != address),
         Event::Update(address, update) => {
             let menu = matches!(update, UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_))
-                .then(|| menu_from_map(client, &address, icon_lookup));
+                .then(|| menu_from_map(client, &address));
             let Some(item) = find_mut(items, &address) else {
                 return;
             };
@@ -436,12 +393,7 @@ fn apply(
                     icon_name,
                     icon_pixmap,
                 } => {
-                    item.icon = resolve_visual(
-                        icon_name.as_deref(),
-                        icon_pixmap.as_deref(),
-                        None,
-                        &icon_lookup.entries,
-                    );
+                    item.icon = tray_item_icon(icon_name.as_deref(), icon_pixmap.as_deref(), None);
                 }
                 UpdateEvent::Status(status) => item.status = status,
                 UpdateEvent::Title(title) => item.title = title.and_then(non_empty),

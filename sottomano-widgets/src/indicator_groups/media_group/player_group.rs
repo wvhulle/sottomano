@@ -1,6 +1,7 @@
 use corredo::transitions::ExpansionState;
-use sottomano_desktop_sources::media_playback_audio::{
-    lrclib_synced_lyrics::TrackLyrics, mpris_players::Media,
+use sottomano_desktop_sources::{
+    desktop_windows_apps::desktop_entries::DesktopEntries,
+    media_playback_audio::{lrclib_synced_lyrics::TrackLyrics, mpris_players::Media},
 };
 use sottomano_toml_config::Config;
 
@@ -16,7 +17,6 @@ use super::{
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    icon_catalog::drawable_icon_catalog::DesktopIndex,
     indicator_groups::{
         indicator_group_content::IndicatorGroupContent,
         indicator_group_identity::{
@@ -44,7 +44,7 @@ pub(super) fn player_group<'a>(
     player_snapshot: &'a SubscribedSnapshot<Media>,
     session: &'a PlayerSession,
     lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
-    index: &'a DesktopIndex,
+    desktop_entries: &'a DesktopEntries,
 ) -> Option<IndicatorGroupContent<'a>> {
     let media = player_snapshot.get()?;
     let bus = media.bus.as_str();
@@ -69,7 +69,7 @@ pub(super) fn player_group<'a>(
             session.cover_art.as_ref().map(|art| &art.handle),
         )
         .with_hover_card(Box::new(move |card_clock| {
-            track_hover_card(player_snapshot, media, index, card_clock)
+            track_hover_card(player_snapshot, media, desktop_entries, card_clock)
         })),
     ];
     rows.extend(

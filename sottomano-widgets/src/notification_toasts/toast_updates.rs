@@ -489,7 +489,6 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     fn serve(&mut self, toast: ToastContent<Routed>, context: &ToastContext) -> Task<Routed> {
         let ToastContext {
             placement,
-            entries,
             config,
             notifications,
             quiet_phase,
@@ -512,10 +511,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config, clock.instant));
         }
-        let icons = toast.kind.glyph().map_or_else(
-            || toast_card::resolve_icons(data, *entries),
-            CardIcons::from,
-        );
+        let icons = toast
+            .kind
+            .glyph()
+            .map_or_else(|| toast_card::resolve_icons(data), CardIcons::from);
         let now = clock.instant;
         let countdown = lifetime(
             data.expire_timeout,

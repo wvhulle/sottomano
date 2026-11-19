@@ -23,21 +23,17 @@ impl DesktopShell {
             Message::AppLauncher(launcher_message) => self.update_app_launcher(launcher_message),
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
-            Message::ReloadDesktopEntries => Task::perform(
-                desktop_entry_changes::load(self.icon_theme.clone()),
-                Message::DesktopEntriesLoaded,
-            ),
-            Message::IconThemeChanged(icon_theme) => {
-                if icon_theme == self.icon_theme {
-                    return Task::none();
-                }
-                self.icon_theme = icon_theme;
-                Task::done(Message::ReloadDesktopEntries)
+            Message::ReloadDesktopEntries => {
+                Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded)
             }
-            Message::IconsResolved(resolved) => {
-                self.desktop_entries.merge(resolved);
-                Task::none()
-            }
+            Message::IconThemeChanged(theme_name) => self
+                .icon_catalog
+                .reindex(theme_name)
+                .map(Message::IconCatalog),
+            Message::IconCatalog(catalog_message) => self
+                .icon_catalog
+                .update(catalog_message, &self.desktop_entries)
+                .map(Message::IconCatalog),
             Message::FaviconsResolved(raw) => {
                 self.favicons.merge(raw).map(Message::FaviconsResolved)
             }
@@ -126,7 +122,6 @@ impl DesktopShell {
                         &failure,
                         &self.indicator_groups.toast_context(
                             &self.compositor,
-                            self.desktop_entries.entries.as_deref(),
                             &self.config,
                             self.clock,
                         ),

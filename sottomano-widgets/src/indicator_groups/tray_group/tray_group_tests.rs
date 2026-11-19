@@ -6,7 +6,7 @@ use iced::{
 use iced_test::Simulator;
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        status_notifier_tray::{Status, TrayItem},
+        status_notifier_tray::{Status, TrayItem, TrayItemIcon},
         window_edge_placement::WindowOwner,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -17,7 +17,10 @@ use sottomano_toml_config::{
 };
 
 use super::{TrayItemWindow, TrayMessage, click_hint, click_message, item_view};
-use crate::icon_catalog::icon_handle::PixmapHandles;
+use crate::icon_catalog::{
+    drawable_icon_catalog::{DrawableIconSources, IconCatalog},
+    pixmap_handles::PixmapHandles,
+};
 
 const PANEL_WIDTH: f32 = 800.0;
 const MARKER_AFTER_ITEM: &str = "marker after the tray item";
@@ -31,7 +34,7 @@ fn item_needing_attention() -> TrayItem {
         status: Status::NeedsAttention,
         tooltip: None,
         menu_path: None,
-        icon: None,
+        icon: TrayItemIcon::NoIcon,
         menu: Vec::new(),
     }
 }
@@ -40,11 +43,15 @@ fn item_needing_attention() -> TrayItem {
 fn an_item_needing_attention_keeps_a_finite_width_while_revealed() {
     let config = Config::default();
     let pixmap_handles = PixmapHandles::default();
+    let icon_catalog = IconCatalog::default();
     let item = item_needing_attention();
     let revealed = reveal(
         item_view(
             &config,
-            &pixmap_handles,
+            DrawableIconSources {
+                icon_catalog: &icon_catalog,
+                pixmap_handles: &pixmap_handles,
+            },
             &item,
             &TrayItemWindow::NotOpen,
             1.0,

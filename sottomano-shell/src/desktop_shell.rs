@@ -24,7 +24,7 @@ use sottomano_desktop_sources::{
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
     },
     desktop_windows_apps::{
-        app_launch_history::LaunchTracker, desktop_entries::IconTheme, desktop_entry_changes,
+        app_launch_history::LaunchTracker, desktop_entries::DesktopEntries, desktop_entry_changes,
         workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -35,7 +35,7 @@ use sottomano_widgets::{
     group_indicators::group_indicator::HoverFetch,
     group_menus::group_menu_state::{GroupMenuMessage, OpenGroupMenu},
     hover_cards::HoverCardHost,
-    icon_catalog::{drawable_icon_catalog::DesktopIndex, favicons::Favicons},
+    icon_catalog::{drawable_icon_catalog::IconCatalog, favicons::Favicons},
     load_tally::{WorkKind, WorkMeasurement, record_update, record_view},
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widgets::{
@@ -72,8 +72,8 @@ pub struct DesktopShell {
     pub hover_card: HoverCardHost,
     pub active_hover_fetch: HoverFetch,
     pub notifications: NotificationLayer<ShellInteraction>,
-    pub desktop_entries: DesktopIndex,
-    pub icon_theme: IconTheme,
+    pub desktop_entries: Arc<DesktopEntries>,
+    pub icon_catalog: IconCatalog,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
     pub pointer_drag: ShellDrag,
@@ -108,8 +108,8 @@ impl DesktopShell {
             hover_card: HoverCardHost::default(),
             active_hover_fetch: HoverFetch::NothingToFetch,
             notifications: NotificationLayer::default(),
-            desktop_entries: DesktopIndex::default(),
-            icon_theme: IconTheme::GtkDefault,
+            desktop_entries: Arc::new(DesktopEntries::default()),
+            icon_catalog: IconCatalog::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
             pointer_drag: ShellDrag::Idle,
@@ -126,10 +126,7 @@ impl DesktopShell {
         };
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
-            Task::perform(
-                desktop_entry_changes::load(IconTheme::GtkDefault),
-                Message::DesktopEntriesLoaded,
-            ),
+            Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
             Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
             shell.indicator_groups.load(clock),
             shell.read_niri_workspace_order(),
@@ -222,12 +219,9 @@ impl DesktopShell {
         self.notifications
             .show_widget_toasts(
                 toast_requests,
-                &self.indicator_groups.toast_context(
-                    &self.compositor,
-                    self.desktop_entries.entries.as_deref(),
-                    &self.config,
-                    self.clock,
-                ),
+                &self
+                    .indicator_groups
+                    .toast_context(&self.compositor, &self.config, self.clock),
             )
             .map(Message::from)
     }
@@ -260,6 +254,7 @@ impl DesktopShell {
             }) => Element::from(
                 self.notifications.anchored_toasts(
                     output,
+                    &self.icon_catalog,
                     &self.config,
                     &self.theme,
                     ToastSurfaceStyle {

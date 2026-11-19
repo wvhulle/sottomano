@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sottomano_desktop_sources::desktop_windows_apps::{
-    application_menu_nodes::{MenuKind, ToggleCheck, ToggleMark},
+    application_menu_nodes::{MenuItemIcon, MenuKind, ToggleCheck, ToggleMark},
     focused_window_menu_bar::{FocusedWindowOwner, MenuBarMatch, ShownMenuBar},
     gtk_menus_menu_bar::{
         ApplicationActionPath, GtkActionScope, GtkActionTarget, WindowActionPath,
@@ -25,7 +25,7 @@ fn menu_node(id: i32, label: &str, kind: MenuKind, children: Vec<MenuNode>) -> M
         label: Some(label.to_owned()),
         enabled: true,
         kind,
-        icon: None,
+        icon: MenuItemIcon::NoIcon,
         children,
     }
 }
@@ -119,7 +119,7 @@ fn gtk_quit_route() -> MenuActivationRoute {
 #[test]
 fn each_labelled_top_menu_becomes_a_submenu() {
     let group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-    let top_menu_entries = group.menu_entries(&Config::default());
+    let top_menu_entries = group.menu_entries(&Config::default(), &IconCatalog::default());
     assert_eq!(top_menu_entries.len(), 1);
     assert!(matches!(top_menu_entries[0], MenuEntry::Submenu(_)));
     assert!(group.shows_top_menus());
@@ -131,7 +131,10 @@ fn submenu_children_keep_their_nesting_and_separators() {
     let file_children = menu_node_entries(
         &file_menu()[0].children,
         &Config::default(),
-        &group.pixmap_handles,
+        DrawableIconSources {
+            icon_catalog: &IconCatalog::default(),
+            pixmap_handles: &group.pixmap_handles,
+        },
         &WindowMenuBarInteraction::ItemPressed,
     );
     assert!(matches!(
@@ -151,7 +154,11 @@ fn switched_off_group_shows_nothing() {
     let mut group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
     let _ = group.interact(WindowMenuBarInteraction::ToggleUse);
     assert_eq!(group.window_menu_bar_use, WindowMenuBarUse::Disabled);
-    assert!(group.menu_entries(&Config::default()).is_empty());
+    assert!(
+        group
+            .menu_entries(&Config::default(), &IconCatalog::default())
+            .is_empty()
+    );
     assert!(!group.shows_top_menus());
 }
 
@@ -223,7 +230,12 @@ fn menu_bar_survives_the_panel_taking_keyboard_focus() {
     let mut group = enabled_group_showing(gtk_quit_route());
     group.observe_focused_window(FocusedWindowIdentity::NoFocusedWindow);
     assert!(group.shows_top_menus());
-    assert_eq!(group.menu_entries(&Config::default()).len(), 1);
+    assert_eq!(
+        group
+            .menu_entries(&Config::default(), &IconCatalog::default())
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -233,5 +245,9 @@ fn focus_change_drops_the_previous_menu_bar() {
         window_id: 9,
         owner: FocusedWindowOwner::ProcessOnly { process_id: 9 },
     });
-    assert!(group.menu_entries(&Config::default()).is_empty());
+    assert!(
+        group
+            .menu_entries(&Config::default(), &IconCatalog::default())
+            .is_empty()
+    );
 }

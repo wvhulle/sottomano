@@ -98,7 +98,6 @@ impl DesktopShell {
                 msg,
                 &ToastContext::new(
                     &self.compositor,
-                    self.desktop_entries.entries.as_deref(),
                     &self.config,
                     self.indicator_groups.notification_settings(),
                     self.indicator_groups.quiet_schedule_group.phase,
@@ -147,7 +146,6 @@ impl DesktopShell {
                     .notifications
                     .release_held(&ToastContext::new(
                         &self.compositor,
-                        self.desktop_entries.entries.as_deref(),
                         &self.config,
                         self.indicator_groups.notification_settings(),
                         QuietPhase::Inactive,

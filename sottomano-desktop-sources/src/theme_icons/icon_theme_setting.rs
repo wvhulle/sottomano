@@ -6,7 +6,7 @@ use zbus::{
     zvariant::{OwnedValue, Value},
 };
 
-use crate::desktop_windows_apps::desktop_entries::IconTheme;
+use crate::theme_icons::theme_directory_index::FALLBACK_THEME_NAME;
 
 const INTERFACE_SETTINGS_NAMESPACE: &str = "org.gnome.desktop.interface";
 const ICON_THEME_KEY: &str = "icon-theme";
@@ -23,16 +23,23 @@ trait PortalSettings {
     fn setting_changed(&self, namespace: &str, key: &str, value: Value<'_>) -> zbus::Result<()>;
 }
 
+pub fn fallback_icon_theme() -> impl Stream<Item = String> + Send {
+    stream::iter([FALLBACK_THEME_NAME.to_owned()])
+}
+
 pub fn icon_theme_changes(
     session_bus: &zbus::Connection,
-) -> impl Stream<Item = IconTheme> + Send + use<> {
+) -> impl Stream<Item = String> + Send + use<> {
     let session_bus = session_bus.clone();
     stream::once(async move { followed_icon_themes(session_bus).await }).flat_map(
         |followed_themes| match followed_themes {
             Ok(icon_themes) => icon_themes.boxed(),
             Err(portal_failure) => {
-                tracing::warn!("icon theme: cannot follow the settings portal: {portal_failure}");
-                stream::empty().boxed()
+                tracing::warn!(
+                    %portal_failure,
+                    "icon theme: cannot follow the settings portal, using the fallback theme"
+                );
+                stream::iter([FALLBACK_THEME_NAME.to_owned()]).boxed()
             }
         },
     )
@@ -40,7 +47,7 @@ pub fn icon_theme_changes(
 
 async fn followed_icon_themes(
     session_bus: zbus::Connection,
-) -> zbus::Result<impl Stream<Item = IconTheme> + Send> {
+) -> zbus::Result<impl Stream<Item = String> + Send> {
     let portal_settings = PortalSettingsProxy::new(&session_bus).await?;
     let setting_changes = portal_settings.receive_setting_changed().await?;
     let current_theme = portal_settings
@@ -61,14 +68,14 @@ async fn followed_icon_themes(
                 .and_then(|changed| named_icon_theme(&changed.value)),
         )
     });
-    Ok(stream::iter(named_icon_theme(&current_theme)).chain(changed_themes))
+    let current_theme_name =
+        named_icon_theme(&current_theme).unwrap_or_else(|| FALLBACK_THEME_NAME.to_owned());
+    Ok(stream::iter([current_theme_name]).chain(changed_themes))
 }
 
-fn named_icon_theme(setting_value: &Value<'_>) -> Option<IconTheme> {
+fn named_icon_theme(setting_value: &Value<'_>) -> Option<String> {
     match setting_value {
-        Value::Str(theme_name) if !theme_name.is_empty() => {
-            Some(IconTheme::Named(theme_name.to_string()))
-        }
+        Value::Str(theme_name) if !theme_name.is_empty() => Some(theme_name.to_string()),
         Value::Value(boxed_value) => named_icon_theme(boxed_value),
         _ => None,
     }
@@ -80,10 +87,10 @@ mod tests {
 
     #[test]
     fn a_boxed_theme_name_is_unwrapped() {
-        let boxed_name = Value::Value(Box::new(Value::from("Colloid-Light")));
+        let boxed_name = Value::Value(Box::new(Value::from("Example-Light")));
         assert_eq!(
             named_icon_theme(&boxed_name),
-            Some(IconTheme::Named("Colloid-Light".to_owned()))
+            Some("Example-Light".to_owned())
         );
     }
 

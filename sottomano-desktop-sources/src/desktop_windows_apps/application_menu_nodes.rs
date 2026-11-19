@@ -4,41 +4,14 @@ use image::RgbaImage;
 use system_tray::menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu};
 
 use crate::{
-    desktop_windows_apps::{
-        desktop_entries::{DesktopEntries, IconTheme},
-        status_notifier_tray::capped_to_side_limit,
-    },
-    non_empty_text::non_empty,
-    theme_icons::{icon_file_loading::IconTrim, icon_ink_classification::IconSource},
+    desktop_windows_apps::status_notifier_tray::capped_to_side_limit, non_empty_text::non_empty,
 };
 
-pub(crate) const SYMBOLIC_ICON_SUFFIX: &str = "-symbolic";
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MenuIconLookup {
-    pub icon_theme: IconTheme,
-    pub size_px: u16,
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct MenuNodeIcon {
-    pub source: IconSource,
-    pub design_side_px: f32,
-}
-
-impl MenuNodeIcon {
-    fn measured(source: IconSource) -> Option<Self> {
-        source
-            .design_side_px()
-            .inspect_err(|measure_failure| {
-                tracing::warn!("menu item icon: cannot measure its design size: {measure_failure}");
-            })
-            .ok()
-            .map(|design_side_px| Self {
-                source,
-                design_side_px,
-            })
-    }
+pub enum MenuItemIcon {
+    NoIcon,
+    Named(String),
+    Embedded(Arc<RgbaImage>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,15 +20,18 @@ pub struct MenuNode {
     pub label: Option<String>,
     pub enabled: bool,
     pub kind: MenuKind,
-    pub icon: Option<MenuNodeIcon>,
+    pub icon: MenuItemIcon,
     pub children: Vec<MenuNode>,
 }
 
 impl MenuNode {
     pub fn pixmaps(&self) -> Vec<&Arc<RgbaImage>> {
-        self.icon
-            .iter()
-            .filter_map(|menu_icon| menu_icon.source.pixmap())
+        let own_pixmap = match &self.icon {
+            MenuItemIcon::Embedded(pixels) => Some(pixels),
+            MenuItemIcon::NoIcon | MenuItemIcon::Named(_) => None,
+        };
+        own_pixmap
+            .into_iter()
             .chain(self.children.iter().flat_map(MenuNode::pixmaps))
             .collect()
     }
@@ -84,57 +60,38 @@ pub enum MenuKind {
     },
 }
 
-fn named_menu_icon(
-    menu_item: &MenuItem,
-    entries: &DesktopEntries,
-    menu_icon_px: u16,
-) -> Option<IconSource> {
-    let icon_name = menu_item
+fn menu_item_icon(menu_item: &MenuItem) -> MenuItemIcon {
+    if let Some(icon_name) = menu_item
         .icon_name
         .as_deref()
-        .filter(|icon_name| !icon_name.is_empty())?;
-    symbolic_first_icon_names(icon_name)
-        .into_iter()
-        .find_map(|candidate_name| entries.theme_lookup_at(&candidate_name, menu_icon_px))
-        .and_then(|icon_path| IconSource::logged_theme_icon(&icon_path, IconTrim::DesignSize))
-}
-
-fn embedded_menu_icon(menu_item: &MenuItem) -> Option<IconSource> {
-    let icon_bytes = menu_item.icon_data.as_deref()?;
-    image::load_from_memory(icon_bytes)
-        .inspect_err(|decode_failure| {
+        .filter(|icon_name| !icon_name.is_empty())
+    {
+        return MenuItemIcon::Named(icon_name.to_owned());
+    }
+    let Some(icon_bytes) = menu_item.icon_data.as_deref() else {
+        return MenuItemIcon::NoIcon;
+    };
+    match image::load_from_memory(icon_bytes) {
+        Ok(decoded) => MenuItemIcon::Embedded(Arc::new(capped_to_side_limit(decoded.into_rgba8()))),
+        Err(decode_failure) => {
             tracing::warn!(
-                "menu item icon: cannot decode icon data of {:?}: {decode_failure}",
-                menu_item.label
+                label = ?menu_item.label,
+                %decode_failure,
+                "menu item icon: cannot decode its icon data"
             );
-        })
-        .ok()
-        .map(|decoded| IconSource::Pixmap(Arc::new(capped_to_side_limit(decoded.into_rgba8()))))
-}
-
-pub(crate) fn symbolic_first_icon_names(icon_name: &str) -> Vec<String> {
-    if icon_name.ends_with(SYMBOLIC_ICON_SUFFIX) {
-        vec![icon_name.to_string()]
-    } else {
-        vec![
-            format!("{icon_name}{SYMBOLIC_ICON_SUFFIX}"),
-            icon_name.to_string(),
-        ]
+            MenuItemIcon::NoIcon
+        }
     }
 }
 
-pub fn visible_menu_node(
-    menu_item: &MenuItem,
-    entries: &DesktopEntries,
-    menu_icon_px: u16,
-) -> Option<MenuNode> {
+pub fn visible_menu_node(menu_item: &MenuItem) -> Option<MenuNode> {
     if !menu_item.visible {
         return None;
     }
     let children: Vec<MenuNode> = menu_item
         .submenu
         .iter()
-        .filter_map(|child_item| visible_menu_node(child_item, entries, menu_icon_px))
+        .filter_map(visible_menu_node)
         .collect();
     let kind = if menu_item.menu_type == MenuType::Separator {
         MenuKind::Separator
@@ -166,23 +123,17 @@ pub fn visible_menu_node(
             .and_then(non_empty),
         enabled: menu_item.enabled,
         kind,
-        icon: named_menu_icon(menu_item, entries, menu_icon_px)
-            .or_else(|| embedded_menu_icon(menu_item))
-            .and_then(MenuNodeIcon::measured),
+        icon: menu_item_icon(menu_item),
         children,
     })
 }
 
 #[must_use]
-pub fn tray_menu_nodes(
-    tray_menu: &TrayMenu,
-    entries: &DesktopEntries,
-    menu_icon_px: u16,
-) -> Vec<MenuNode> {
+pub fn tray_menu_nodes(tray_menu: &TrayMenu) -> Vec<MenuNode> {
     tray_menu
         .submenus
         .iter()
-        .filter_map(|menu_item| visible_menu_node(menu_item, entries, menu_icon_px))
+        .filter_map(visible_menu_node)
         .collect()
 }
 
@@ -208,28 +159,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plain_icon_name_tries_its_symbolic_variant_first() {
-        assert_eq!(
-            symbolic_first_icon_names("nm-device-wired-secure"),
-            ["nm-device-wired-secure-symbolic", "nm-device-wired-secure"]
-        );
-    }
-
-    #[test]
-    fn symbolic_icon_name_is_looked_up_once() {
-        assert_eq!(
-            symbolic_first_icon_names("network-wired-symbolic"),
-            ["network-wired-symbolic"]
-        );
-    }
-
-    #[test]
     fn mnemonic_underscores_are_dropped_and_doubled_ones_kept() {
         assert_eq!(label_without_mnemonics("_File"), "File");
         assert_eq!(label_without_mnemonics("snake__case"), "snake_case");
     }
-
-    const TEST_MENU_ICON_PX: u16 = 18;
 
     fn toggle_item_kind(toggle_type: ToggleType, toggle_state: ToggleState) -> MenuKind {
         let toggle_item = MenuItem {
@@ -240,7 +173,7 @@ mod tests {
             toggle_state,
             ..MenuItem::default()
         };
-        visible_menu_node(&toggle_item, &DesktopEntries::default(), TEST_MENU_ICON_PX)
+        visible_menu_node(&toggle_item)
             .expect("a visible item becomes a node")
             .kind
     }

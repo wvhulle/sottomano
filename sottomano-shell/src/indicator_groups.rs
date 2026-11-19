@@ -5,10 +5,7 @@ mod group_subscriptions;
 
 use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
-    desktop_windows_apps::desktop_entries::DesktopEntries,
-};
+use sottomano_desktop_sources::compositor_window_ipc::compositor_window_state::CompositorWindowState;
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
     cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},
@@ -341,13 +338,11 @@ impl ShellIndicatorGroups {
     pub fn toast_context<'shell>(
         &self,
         compositor: &CompositorWindowState,
-        entries: Option<&'shell DesktopEntries>,
         config: &'shell Config,
         clock: Clock,
     ) -> ToastContext<'shell> {
         ToastContext::new(
             compositor,
-            entries,
             config,
             self.notification_settings(),
             self.quiet_schedule_group.phase,

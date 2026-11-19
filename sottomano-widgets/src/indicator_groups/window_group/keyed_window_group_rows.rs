@@ -107,10 +107,8 @@ fn keyed_group_heading_text(
     match window_entry.group_key()? {
         WindowGroupKey::Application(app_id) => Some(
             icons
-                .entries
-                .entries
-                .as_deref()
-                .and_then(|entries| entries.launchable_app(app_id))
+                .desktop_entries
+                .launchable_app(app_id)
                 .map_or_else(|| app_id.to_owned(), |app| app.name),
         ),
         group_key => Some(group_key.heading_text().to_owned()),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use futures::{Stream, StreamExt, future::join_all, stream};
 use serde::{Deserialize, Serialize};
@@ -13,10 +13,7 @@ use zbus::{
 
 use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
-    desktop_windows_apps::{
-        application_menu_nodes::{MenuIconLookup, MenuNode, visible_menu_node},
-        desktop_entries::DesktopEntries,
-    },
+    desktop_windows_apps::application_menu_nodes::{MenuNode, visible_menu_node},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
@@ -85,14 +82,19 @@ pub async fn dbusmenu_proxy<'proxy>(
         .await
 }
 
-async fn menu_bar_top_menus(
-    menu_proxy: &DbusMenuProxy<'_>,
-    menu_icons: &MenuIconLookup,
-) -> zbus::Result<Vec<MenuNode>> {
+async fn menu_bar_top_menus(menu_proxy: &DbusMenuProxy<'_>) -> zbus::Result<Vec<MenuNode>> {
+    let reread_started = Instant::now();
     let layout = menu_proxy
         .get_layout(ROOT_MENU_ITEM, WHOLE_TREE_DEPTH, &[])
         .await?;
-    let desktop_entries = DesktopEntries::themed(&menu_icons.icon_theme);
+    tracing::debug!(
+        layout_ms = Instant::now()
+            .checked_duration_since(reread_started)
+            .expect("the monotonic clock never runs backwards")
+            .as_millis(),
+        top_menu_count = layout.root.children.len(),
+        "window menu bar: layout reread"
+    );
     Ok(layout
         .root
         .children
@@ -104,14 +106,13 @@ async fn menu_bar_top_menus(
                 })
                 .ok()
         })
-        .filter_map(|menu_item| visible_menu_node(&menu_item, &desktop_entries, menu_icons.size_px))
+        .filter_map(|menu_item| visible_menu_node(&menu_item))
         .collect())
 }
 
 pub async fn menu_bar_layout_updates(
     connection: zbus::Connection,
     location: DbusMenuLocation,
-    menu_icons: MenuIconLookup,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<MenuNode>>> + Send> {
     let menu_proxy = dbusmenu_proxy(&connection, &location).await?;
     let layout_changes = menu_proxy
@@ -125,8 +126,7 @@ pub async fn menu_bar_layout_updates(
     Ok(
         stream::select(layout_changes, property_changes).triggered_rereads(move || {
             let menu_proxy = menu_proxy.clone();
-            let menu_icons = menu_icons.clone();
-            async move { menu_bar_top_menus(&menu_proxy, &menu_icons).await }
+            async move { menu_bar_top_menus(&menu_proxy).await }
         }),
     )
 }

@@ -3,6 +3,7 @@ use std::time::Duration;
 use reqwest::Url;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    desktop_windows_apps::desktop_entries::DesktopEntries,
     media_playback_audio::{
         lrclib_synced_lyrics::TrackLyrics,
         mpris_players::{
@@ -14,7 +15,6 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    icon_catalog::drawable_icon_catalog::DesktopIndex,
     indicator_groups::media_group::{MediaGroup, MediaMessage},
 };
 
@@ -59,7 +59,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     }
     ShowcasedGroup::Media(Box::new(ShowcasedMedia {
         group,
-        desktop_entries: DesktopIndex::default(),
+        desktop_entries: DesktopEntries::default(),
     }))
 }
 

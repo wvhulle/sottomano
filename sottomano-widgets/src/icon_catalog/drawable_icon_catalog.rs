@@ -1,102 +1,321 @@
-use std::{collections::HashMap, sync::Arc};
-
-use iced::{Task, task::Handle};
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking,
-    desktop_windows_apps::{
-        desktop_entries,
-        desktop_entries::{DesktopEntries, SchemeHandling},
-    },
-    theme_icons::icon_ink_classification::IconSource,
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    sync::Arc,
 };
 
-use crate::icon_catalog::icon_handle::IconHandle;
+use iced::Task;
+use sottomano_desktop_sources::{
+    desktop_windows_apps::desktop_entries::DesktopEntries,
+    theme_icons::{
+        icon_requests::{IconRequest, RequestedIcon, ResolvedIcon, resolved_icons},
+        theme_directory_index::{
+            ThemeDirectoryIndex, ThemeIndexError, indexed_icon_theme, xdg_icon_search_roots,
+        },
+    },
+};
 
-#[derive(Debug, Clone, Default)]
-pub struct ResolvedIcons {
-    app: HashMap<String, IconHandle>,
-    theme: HashMap<String, IconHandle>,
+use crate::icon_catalog::{icon_handle::IconHandle, pixmap_handles::PixmapHandles};
+
+#[derive(Debug, Clone)]
+pub struct DrawableIcon {
+    pub handle: IconHandle,
+    pub design_side_px: f32,
 }
 
-#[derive(Default)]
-pub struct DesktopIndex {
-    pub entries: Option<Arc<DesktopEntries>>,
-    pub app_icons: HashMap<String, IconHandle>,
-    pub theme_icons: HashMap<String, IconHandle>,
-    resolve: Option<Handle>,
+#[derive(Clone, Copy)]
+pub struct DrawableIconSources<'sources> {
+    pub icon_catalog: &'sources IconCatalog,
+    pub pixmap_handles: &'sources PixmapHandles,
 }
 
-impl DesktopIndex {
-    #[must_use]
-    pub fn with_app_icons(app_icons: impl IntoIterator<Item = (String, IconHandle)>) -> Self {
+#[derive(Debug, Clone)]
+pub enum CatalogIcon {
+    Pending,
+    Drawable(DrawableIcon),
+    Missing,
+    Unloadable,
+}
+
+#[derive(Debug, Clone)]
+enum ThemeIndexing {
+    Unnamed,
+    Indexing {
+        theme_name: String,
+    },
+    Indexed {
+        theme_name: String,
+        theme_index: Arc<ThemeDirectoryIndex>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum CatalogMessage {
+    ThemeIndexed {
+        generation: u64,
+        theme_index: Arc<ThemeDirectoryIndex>,
+    },
+    IconsResolved {
+        generation: u64,
+        requested_icons: Vec<RequestedIcon>,
+    },
+    ThemeIndexFailed {
+        index_failure: Arc<ThemeIndexError>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct IconCatalog {
+    theme_index: ThemeIndexing,
+    catalog_icons: HashMap<IconRequest, CatalogIcon>,
+    generation: u64,
+}
+
+impl Default for IconCatalog {
+    fn default() -> Self {
         Self {
-            app_icons: app_icons.into_iter().collect(),
+            theme_index: ThemeIndexing::Unnamed,
+            catalog_icons: HashMap::new(),
+            generation: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SeededIcon {
+    pub request: IconRequest,
+    pub drawable_icon: DrawableIcon,
+}
+
+impl FromIterator<SeededIcon> for IconCatalog {
+    fn from_iter<SeededIcons: IntoIterator<Item = SeededIcon>>(seeded_icons: SeededIcons) -> Self {
+        Self {
+            catalog_icons: seeded_icons
+                .into_iter()
+                .map(|seeded_icon| {
+                    (
+                        seeded_icon.request,
+                        CatalogIcon::Drawable(seeded_icon.drawable_icon),
+                    )
+                })
+                .collect(),
             ..Self::default()
         }
     }
+}
 
-    pub fn set(&mut self, entries: Arc<DesktopEntries>) {
-        self.entries = Some(entries);
-        self.app_icons.clear();
-        self.theme_icons.clear();
-    }
-
-    #[must_use]
-    pub fn scheme_handling(&self, scheme: &str) -> SchemeHandling {
-        self.entries
-            .as_deref()
-            .map_or(SchemeHandling::Unhandled, |entries| {
-                entries.scheme_handling(scheme)
-            })
-    }
-
-    pub fn resolve_missing(
-        &mut self,
-        app_keys: Vec<String>,
-        theme_keys: Vec<String>,
-    ) -> Task<ResolvedIcons> {
-        let Some(entries) = self.entries.clone() else {
-            return Task::none();
-        };
-        let app: Vec<String> = app_keys
-            .into_iter()
-            .filter(|k| !self.app_icons.contains_key(k))
-            .collect();
-        let theme: Vec<String> = theme_keys
-            .into_iter()
-            .filter(|k| !self.theme_icons.contains_key(k))
-            .collect();
-        if app.is_empty() && theme.is_empty() {
-            return Task::none();
+impl From<ResolvedIcon> for CatalogIcon {
+    fn from(resolved: ResolvedIcon) -> Self {
+        match resolved {
+            ResolvedIcon::Loaded(loaded_icon) => CatalogIcon::Drawable(DrawableIcon {
+                handle: IconHandle::from(&loaded_icon.drawing),
+                design_side_px: loaded_icon.design_side_px,
+            }),
+            ResolvedIcon::Missing => CatalogIcon::Missing,
+            ResolvedIcon::Unloadable(_) => CatalogIcon::Unloadable,
         }
-        let (task, handle) = Task::future(blocking("app icons", move || ResolvedIcons {
-            app: icon_handles_by_key(desktop_entries::resolve_app_icons(&entries, app)),
-            theme: icon_handles_by_key(desktop_entries::resolve_theme_icons(&entries, theme)),
-        }))
-        .abortable();
-        self.resolve = Some(handle.abort_on_drop());
-        task
-    }
-
-    pub fn resolve_catalog_icons(&self, app_ids: Vec<String>) -> Task<ResolvedIcons> {
-        let Some(entries) = self.entries.clone() else {
-            return Task::none();
-        };
-        Task::future(blocking("app catalog icons", move || ResolvedIcons {
-            app: icon_handles_by_key(desktop_entries::resolve_app_icons(&entries, app_ids)),
-            theme: HashMap::new(),
-        }))
-    }
-
-    pub fn merge(&mut self, resolved: ResolvedIcons) {
-        self.app_icons.extend(resolved.app);
-        self.theme_icons.extend(resolved.theme);
     }
 }
 
-fn icon_handles_by_key(icon_sources: HashMap<String, IconSource>) -> HashMap<String, IconHandle> {
-    icon_sources
-        .into_iter()
-        .map(|(icon_key, icon_source)| (icon_key, IconHandle::from(&icon_source)))
-        .collect()
+impl IconCatalog {
+    #[must_use]
+    pub fn drawable_icon(&self, request: &IconRequest) -> Option<&DrawableIcon> {
+        match self.catalog_icons.get(request)? {
+            CatalogIcon::Drawable(drawable_icon) => Some(drawable_icon),
+            CatalogIcon::Pending | CatalogIcon::Missing | CatalogIcon::Unloadable => None,
+        }
+    }
+
+    pub fn refresh(&mut self) -> Task<CatalogMessage> {
+        match &self.theme_index {
+            ThemeIndexing::Unnamed => Task::none(),
+            ThemeIndexing::Indexing { theme_name } | ThemeIndexing::Indexed { theme_name, .. } => {
+                self.reindex(theme_name.clone())
+            }
+        }
+    }
+
+    pub fn reindex(&mut self, theme_name: String) -> Task<CatalogMessage> {
+        self.generation += 1;
+        self.theme_index = ThemeIndexing::Indexing {
+            theme_name: theme_name.clone(),
+        };
+        let generation = self.generation;
+        Task::perform(
+            indexed_icon_theme(theme_name, xdg_icon_search_roots()),
+            move |indexing| match indexing {
+                Ok(theme_index) => CatalogMessage::ThemeIndexed {
+                    generation,
+                    theme_index: Arc::new(theme_index),
+                },
+                Err(index_failure) => CatalogMessage::ThemeIndexFailed {
+                    index_failure: Arc::new(index_failure),
+                },
+            },
+        )
+    }
+
+    pub fn request(
+        &mut self,
+        requests: impl IntoIterator<Item = IconRequest>,
+        desktop_entries: &Arc<DesktopEntries>,
+    ) -> Task<CatalogMessage> {
+        let unseen_requests: Vec<IconRequest> = requests
+            .into_iter()
+            .filter(|request| match self.catalog_icons.entry(request.clone()) {
+                Entry::Vacant(vacant_entry) => {
+                    vacant_entry.insert(CatalogIcon::Pending);
+                    true
+                }
+                Entry::Occupied(_) => false,
+            })
+            .collect();
+        self.resolve(unseen_requests, desktop_entries)
+    }
+
+    pub fn update(
+        &mut self,
+        message: CatalogMessage,
+        desktop_entries: &Arc<DesktopEntries>,
+    ) -> Task<CatalogMessage> {
+        match message {
+            CatalogMessage::ThemeIndexed {
+                generation,
+                theme_index,
+            } if generation == self.generation => {
+                let ThemeIndexing::Indexing { theme_name } = &self.theme_index else {
+                    return Task::none();
+                };
+                self.theme_index = ThemeIndexing::Indexed {
+                    theme_name: theme_name.clone(),
+                    theme_index,
+                };
+                let known_requests = self.catalog_icons.keys().cloned().collect();
+                self.resolve(known_requests, desktop_entries)
+            }
+            CatalogMessage::IconsResolved {
+                generation,
+                requested_icons,
+            } if generation == self.generation => {
+                requested_icons.into_iter().for_each(|requested_icon| {
+                    self.catalog_icons.insert(
+                        requested_icon.request,
+                        CatalogIcon::from(requested_icon.resolved),
+                    );
+                });
+                Task::none()
+            }
+            CatalogMessage::ThemeIndexFailed { index_failure } => {
+                tracing::error!(%index_failure, "icon catalog: cannot index the icon theme");
+                Task::none()
+            }
+            CatalogMessage::ThemeIndexed { .. } | CatalogMessage::IconsResolved { .. } => {
+                Task::none()
+            }
+        }
+    }
+
+    fn resolve(
+        &self,
+        requests: Vec<IconRequest>,
+        desktop_entries: &Arc<DesktopEntries>,
+    ) -> Task<CatalogMessage> {
+        let ThemeIndexing::Indexed { theme_index, .. } = &self.theme_index else {
+            return Task::none();
+        };
+        if requests.is_empty() {
+            return Task::none();
+        }
+        let generation = self.generation;
+        Task::perform(
+            resolved_icons(
+                Arc::clone(theme_index),
+                Arc::clone(desktop_entries),
+                requests,
+            ),
+            move |requested_icons| CatalogMessage::IconsResolved {
+                generation,
+                requested_icons,
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_desktop_sources::theme_icons::icon_requests::{
+        app_icon_request, window_theme_icon_request,
+    };
+
+    use super::*;
+
+    fn indexed_catalog() -> IconCatalog {
+        IconCatalog {
+            theme_index: ThemeIndexing::Indexed {
+                theme_name: "Example-Dark".to_owned(),
+                theme_index: Arc::new(ThemeDirectoryIndex::default()),
+            },
+            catalog_icons: HashMap::new(),
+            generation: 3,
+        }
+    }
+
+    #[test]
+    fn a_known_or_pending_request_is_not_resolved_twice() {
+        let mut catalog = indexed_catalog();
+        let entries = Arc::new(DesktopEntries::default());
+        let _ = catalog.request([app_icon_request("firefox")], &entries);
+        catalog
+            .catalog_icons
+            .insert(window_theme_icon_request("folder"), CatalogIcon::Missing);
+        let unseen_before = catalog.catalog_icons.len();
+        let _ = catalog.request(
+            [
+                app_icon_request("firefox"),
+                window_theme_icon_request("folder"),
+            ],
+            &entries,
+        );
+        assert_eq!(catalog.catalog_icons.len(), unseen_before);
+        assert!(matches!(
+            catalog.catalog_icons.get(&app_icon_request("firefox")),
+            Some(CatalogIcon::Pending)
+        ));
+    }
+
+    #[test]
+    fn results_from_an_older_generation_are_dropped() {
+        let mut catalog = indexed_catalog();
+        let entries = Arc::new(DesktopEntries::default());
+        let _ = catalog.update(
+            CatalogMessage::IconsResolved {
+                generation: 2,
+                requested_icons: vec![RequestedIcon {
+                    request: app_icon_request("firefox"),
+                    resolved: ResolvedIcon::Missing,
+                }],
+            },
+            &entries,
+        );
+        assert!(catalog.catalog_icons.is_empty());
+    }
+
+    #[test]
+    fn reindexing_keeps_showing_known_icons_until_the_new_theme_resolves() {
+        let mut catalog = indexed_catalog();
+        catalog
+            .catalog_icons
+            .insert(window_theme_icon_request("folder"), CatalogIcon::Missing);
+        let _ = catalog.reindex("Example-Light".to_owned());
+        assert_eq!(catalog.generation, 4);
+        assert!(matches!(
+            catalog.theme_index,
+            ThemeIndexing::Indexing { ref theme_name } if theme_name == "Example-Light"
+        ));
+        assert!(matches!(
+            catalog
+                .catalog_icons
+                .get(&window_theme_icon_request("folder")),
+            Some(CatalogIcon::Missing)
+        ));
+    }
 }

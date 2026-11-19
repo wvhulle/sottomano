@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use bytesize::ByteSize;
 use iced_controller_diagram::ControllerArtwork;
@@ -15,6 +12,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
+        desktop_entries::DesktopEntries,
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
             UpstreamState,
@@ -30,9 +28,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     hover_cards::HoverTarget,
-    icon_catalog::{
-        drawable_icon_catalog::DesktopIndex, favicons::Favicons, icon_handle::IconHandle,
-    },
+    icon_catalog::favicons::Favicons,
     indicator_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowRowLayout, WindowTarget,
         window_list::WindowListMessage,
@@ -41,7 +37,7 @@ use sottomano_widgets::{
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    fixtures::showcase_epoch,
+    fixtures::{bundled_app_icons::bundled_app_icon, showcase_epoch},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedDesktopSession, ShowcasedGroup},
 };
 
@@ -57,7 +53,6 @@ const GAMES_WORKSPACE: u64 = 9;
 const BOTTOM_BAR_WORKSPACE_COUNT: usize = 3;
 const TERMINAL_WINDOW: u64 = 2;
 const TERMINAL_PID: i32 = 4200;
-const SHOWCASE_APP_ICONS: &str = env!("SHOWCASE_APP_ICONS");
 
 const NAMED_WORKSPACES: &[NamedWorkspace] = &[
     NamedWorkspace {
@@ -349,19 +344,14 @@ fn session(
         window_row_layout,
         compositor,
         snapshot,
-        desktop_entries: bundled_app_icons(&shown_windows),
+        icon_catalog: shown_windows
+            .iter()
+            .map(|placed| bundled_app_icon(placed.app_id))
+            .collect(),
+        desktop_entries: DesktopEntries::default(),
         favicons: Favicons::default(),
         controller_artwork: ControllerArtwork::decoded(),
     }
-}
-
-fn bundled_app_icons(shown_windows: &[&PlacedWindow]) -> DesktopIndex {
-    DesktopIndex::with_app_icons(shown_windows.iter().map(|placed| {
-        (
-            placed.app_id.to_owned(),
-            IconHandle::at(&Path::new(SHOWCASE_APP_ICONS).join(format!("{}.svg", placed.app_id))),
-        )
-    }))
 }
 
 pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {

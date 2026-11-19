@@ -35,12 +35,11 @@ impl DesktopShell {
                     &self.indicator_groups.quiet_schedule_group,
                 )
             }
-            StandaloneIndicatorGroup::Tray => self
-                .indicator_groups
-                .tray_group
-                .group_content(config, &|owner| {
-                    window_placement.window_owned_by(owner).is_some()
-                }),
+            StandaloneIndicatorGroup::Tray => self.indicator_groups.tray_group.group_content(
+                config,
+                &self.icon_catalog,
+                &|owner| window_placement.window_owned_by(owner).is_some(),
+            ),
         }
     }
 

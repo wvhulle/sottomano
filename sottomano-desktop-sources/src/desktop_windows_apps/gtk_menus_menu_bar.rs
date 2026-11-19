@@ -19,7 +19,7 @@ pub mod gtk_actions_proxy;
 use self::gtk_actions_proxy::{GtkActionDescription, gtk_actions_proxy};
 use crate::desktop_windows_apps::{
     application_menu_nodes::{
-        MenuKind, MenuNode, ToggleCheck, ToggleMark, label_without_mnemonics,
+        MenuItemIcon, MenuKind, MenuNode, ToggleCheck, ToggleMark, label_without_mnemonics,
     },
     dbusmenu_menu_bar_layout::introspected_node,
 };
@@ -261,7 +261,7 @@ impl GtkMenuTreeBuilder<'_> {
             label: None,
             enabled: true,
             kind: MenuKind::Separator,
-            icon: None,
+            icon: MenuItemIcon::NoIcon,
             children: Vec::new(),
         }
     }
@@ -285,7 +285,7 @@ impl GtkMenuTreeBuilder<'_> {
                 label,
                 enabled: true,
                 kind: MenuKind::Submenu,
-                icon: None,
+                icon: MenuItemIcon::NoIcon,
                 children,
             });
         }
@@ -334,7 +334,7 @@ impl GtkMenuTreeBuilder<'_> {
             label,
             enabled,
             kind,
-            icon: None,
+            icon: MenuItemIcon::NoIcon,
             children: Vec::new(),
         })
     }

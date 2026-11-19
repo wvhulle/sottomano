@@ -2,13 +2,70 @@ use corredo::{
     popovers::{MenuEntry, MenuItem, MenuRow, MenuRowContent, MenuRowEmphasis, MenuSubmenu},
     value_controls::{SwitchResponse, TogglePosition, radio_mark, toggle_switch},
 };
-use sottomano_desktop_sources::desktop_windows_apps::{
-    application_menu_nodes::{MenuIconLookup, MenuKind, MenuNode, ToggleCheck, ToggleMark},
-    desktop_entries::IconTheme,
+use iced::Element;
+use sottomano_desktop_sources::{
+    desktop_windows_apps::application_menu_nodes::{
+        MenuItemIcon, MenuKind, MenuNode, ToggleCheck, ToggleMark,
+    },
+    theme_icons::icon_requests::{IconRequest, menu_row_icon_request},
 };
 use sottomano_toml_config::Config;
 
-use crate::icon_catalog::{crisp_icon_size::crisp_icon_side_px, icon_handle::PixmapHandles};
+use crate::icon_catalog::{
+    crisp_icon_size::crisp_icon_side_px, drawable_icon_catalog::DrawableIconSources,
+};
+
+fn menu_row_icon<Message: 'static>(
+    icon_sources: DrawableIconSources<'_>,
+    menu_item_icon: &MenuItemIcon,
+    config: &Config,
+) -> Option<Element<'static, Message>> {
+    let target_side_px = config.theme.font.icon_size_px;
+    match menu_item_icon {
+        MenuItemIcon::NoIcon => None,
+        MenuItemIcon::Named(icon_name) => {
+            let drawable_icon = icon_sources
+                .icon_catalog
+                .drawable_icon(&menu_row_icon_request(icon_name, menu_icon_side_px(config)))?;
+            Some(drawable_icon.handle.view(
+                crisp_icon_side_px(drawable_icon.design_side_px, target_side_px),
+                1.0,
+            ))
+        }
+        MenuItemIcon::Embedded(pixels) => {
+            let design_side_px = pixels.width().max(pixels.height()) as f32;
+            Some(
+                icon_sources
+                    .pixmap_handles
+                    .pixmap_handle(pixels)
+                    .view(crisp_icon_side_px(design_side_px, target_side_px), 1.0),
+            )
+        }
+    }
+}
+
+#[must_use]
+pub fn menu_icon_side_px(config: &Config) -> u16 {
+    config.theme.font.icon_size_px.round() as u16
+}
+
+#[must_use]
+pub fn menu_node_icon_requests(nodes: &[MenuNode], menu_icon_side_px: u16) -> Vec<IconRequest> {
+    nodes
+        .iter()
+        .flat_map(|node| {
+            let own_request = match &node.icon {
+                MenuItemIcon::Named(icon_name) => {
+                    Some(menu_row_icon_request(icon_name, menu_icon_side_px))
+                }
+                MenuItemIcon::NoIcon | MenuItemIcon::Embedded(_) => None,
+            };
+            own_request
+                .into_iter()
+                .chain(menu_node_icon_requests(&node.children, menu_icon_side_px))
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PressDismissal {
@@ -39,7 +96,7 @@ fn pressed_node(nodes: &[MenuNode], item_id: i32) -> Option<&MenuNode> {
 pub fn menu_node_entries<Message: Clone + 'static>(
     nodes: &[MenuNode],
     config: &Config,
-    pixmap_handles: &PixmapHandles,
+    icon_sources: DrawableIconSources<'_>,
     on_activate: &dyn Fn(i32) -> Message,
 ) -> Vec<MenuEntry<'static, i32, Message>> {
     nodes
@@ -48,12 +105,12 @@ pub fn menu_node_entries<Message: Clone + 'static>(
             MenuKind::Separator => MenuEntry::Divider,
             MenuKind::Submenu => MenuSubmenu::new(
                 node.id,
-                node_row_content(node, config, pixmap_handles),
-                menu_node_entries(&node.children, config, pixmap_handles, on_activate),
+                node_row_content(node, config, icon_sources),
+                menu_node_entries(&node.children, config, icon_sources, on_activate),
             )
             .into(),
             MenuKind::Standard | MenuKind::Toggle { .. } => {
-                let row = MenuRow::new(node_row_content(node, config, pixmap_handles));
+                let row = MenuRow::new(node_row_content(node, config, icon_sources));
                 let row = if node.enabled {
                     row.on_press(on_activate(node.id))
                 } else {
@@ -65,27 +122,15 @@ pub fn menu_node_entries<Message: Clone + 'static>(
         .collect()
 }
 
-#[must_use]
-pub fn menu_icon_lookup(icon_theme: IconTheme, config: &Config) -> MenuIconLookup {
-    MenuIconLookup {
-        icon_theme,
-        size_px: config.theme.font.icon_size_px.round() as u16,
-    }
-}
-
 fn node_row_content<Message: 'static>(
     node: &MenuNode,
     config: &Config,
-    pixmap_handles: &PixmapHandles,
+    icon_sources: DrawableIconSources<'_>,
 ) -> MenuRowContent<'static, Message> {
     let icon_size = config.theme.font.icon_size_px;
     let content = MenuRowContent::new(node.label.clone().unwrap_or_default());
-    let content = match &node.icon {
-        Some(menu_icon) => content.icon(
-            pixmap_handles
-                .icon_handle(&menu_icon.source)
-                .view(crisp_icon_side_px(menu_icon.design_side_px, icon_size), 1.0),
-        ),
+    let content = match menu_row_icon(icon_sources, &node.icon, config) {
+        Some(row_icon) => content.icon(row_icon),
         None => content,
     };
     let MenuKind::Toggle { mark, check } = node.kind else {

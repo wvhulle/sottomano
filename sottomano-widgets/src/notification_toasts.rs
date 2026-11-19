@@ -27,10 +27,11 @@ use sottomano_desktop_sources::{
     desktop_notifications::{
         freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },
-    desktop_windows_apps::{desktop_entries::DesktopEntries, window_edge_placement::Placement},
+    desktop_windows_apps::window_edge_placement::Placement,
+    theme_icons::icon_requests::IconRequest,
 };
 use sottomano_toml_config::{Config, severity::Severity};
-use toast_card::ToastCard;
+use toast_card::{CardIcon, CardImage, ToastCard};
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind, ToastPresence};
 use toast_placement::{AnchoredToast, ToastAnchor};
@@ -41,6 +42,7 @@ use window_anchored_toasts::WindowAnchoredToasts;
 use crate::{
     clock::Clock,
     hover_cards::{PointerPresence, PopupMessage},
+    icon_catalog::drawable_icon_catalog::IconCatalog,
     indicator_groups::{
         indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
         overlay_settings_group::ToastArrangement, quiet_schedule_group::quiet_window::QuietPhase,
@@ -80,7 +82,6 @@ pub struct ToastSurfaceStyle {
 
 pub struct ToastContext<'a> {
     pub placement: Placement,
-    pub entries: Option<&'a DesktopEntries>,
     pub config: &'a Config,
     pub notifications: NotificationSettings,
     pub quiet_phase: QuietPhase,
@@ -91,7 +92,6 @@ impl<'a> ToastContext<'a> {
     #[must_use]
     pub fn new(
         compositor: &CompositorWindowState,
-        entries: Option<&'a DesktopEntries>,
         config: &'a Config,
         notifications: NotificationSettings,
         quiet_phase: QuietPhase,
@@ -99,7 +99,6 @@ impl<'a> ToastContext<'a> {
     ) -> Self {
         Self {
             placement: Placement::derive(compositor),
-            entries,
             config,
             notifications,
             quiet_phase,
@@ -173,9 +172,28 @@ impl<Routed: Clone> NotificationLayer<Routed> {
     }
 
     #[must_use]
+    pub fn icon_requests(&self) -> Vec<IconRequest> {
+        self.live
+            .iter()
+            .flat_map(|notification| {
+                let image_icon = match &notification.icons.image {
+                    Some(CardImage::Icon(icon) | CardImage::Preview { icon, .. }) => Some(icon),
+                    None => None,
+                };
+                image_icon
+                    .into_iter()
+                    .chain(notification.icons.badge.as_ref())
+                    .filter_map(CardIcon::icon_request)
+                    .cloned()
+            })
+            .collect()
+    }
+
+    #[must_use]
     pub fn anchored_toasts<'a>(
         &'a self,
         output: &str,
+        icon_catalog: &'a IconCatalog,
         config: &'a Config,
         theme: &'a Theme,
         ToastSurfaceStyle {
@@ -203,14 +221,21 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 id: notif.data.id,
                 anchor: notif.place.anchor,
                 card: reveal(
-                    ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
-                        .pointer_presence(if self.hovered == Some(notif.data.id) {
-                            PointerPresence::PointedAt
-                        } else {
-                            PointerPresence::NotPointedAt
-                        })
-                        .background_fade(background_fade)
-                        .reveal(notif.opacity(now)),
+                    ToastCard::new(
+                        notif,
+                        icon_catalog,
+                        config,
+                        theme,
+                        overlay_appearance,
+                        clock.wall,
+                    )
+                    .pointer_presence(if self.hovered == Some(notif.data.id) {
+                        PointerPresence::PointedAt
+                    } else {
+                        PointerPresence::NotPointedAt
+                    })
+                    .background_fade(background_fade)
+                    .reveal(notif.opacity(now)),
                     notif.slot.interpolate(0.0, 1.0, now),
                     Axis::Vertical,
                 )

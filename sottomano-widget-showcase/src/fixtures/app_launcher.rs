@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use corredo::popovers::NestedMenuAction;
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
@@ -12,16 +12,15 @@ use sottomano_widgets::{
             WorkspaceWindowPresence,
         },
     },
-    icon_catalog::{drawable_icon_catalog::DesktopIndex, icon_handle::IconHandle},
     indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::{
+    fixtures::bundled_app_icons::bundled_app_icon,
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedAppLauncher, ShowcasedGroup},
 };
 
-const SHOWCASE_APP_ICONS: &str = env!("SHOWCASE_APP_ICONS");
 const FIREFOX_WINDOW: u64 = 11;
 const KITTY_WINDOW: u64 = 12;
 
@@ -326,19 +325,11 @@ pub fn group() -> ShowcasedGroup {
     });
     ShowcasedGroup::AppLauncher(Box::new(ShowcasedAppLauncher {
         group,
-        desktop_entries: DesktopIndex::with_app_icons(
-            CATALOG
-                .iter()
-                .map(|app| app.app_id)
-                .chain(LONG_UTILITY_APP_IDS)
-                .map(|app_id| {
-                    (
-                        app_id.to_owned(),
-                        IconHandle::at(
-                            &Path::new(SHOWCASE_APP_ICONS).join(format!("{app_id}.svg")),
-                        ),
-                    )
-                }),
-        ),
+        icon_catalog: CATALOG
+            .iter()
+            .map(|app| app.app_id)
+            .chain(LONG_UTILITY_APP_IDS)
+            .map(bundled_app_icon)
+            .collect(),
     }))
 }

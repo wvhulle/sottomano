@@ -17,13 +17,16 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use iced_exwlshell::SurfaceRegionsCollector;
 use iced_test::program::{Preset, Program};
-use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
+use sottomano_desktop_sources::{
+    desktop_windows_apps::desktop_entries::DesktopEntries,
+    screen_brightness_color::solar_switch_schedule::ColorMode,
+};
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState},
     hover_cards::{HoverCardHost, HoverTarget, PopupMessage},
-    icon_catalog::{drawable_icon_catalog::DesktopIndex, favicons::Favicons},
+    icon_catalog::{drawable_icon_catalog::IconCatalog, favicons::Favicons},
     indicator_groups::{
         appearance_presets_group::AppearancePresetsMessage,
         indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
@@ -121,7 +124,8 @@ pub struct ShowcaseState {
     config: Config,
     appearance: ShellAppearance,
     notification_settings: NotificationSettings,
-    desktop_entries: DesktopIndex,
+    icon_catalog: IconCatalog,
+    desktop_entries: DesktopEntries,
     favicons: Favicons,
     controller_artwork: ControllerArtwork,
     theme: Theme,
@@ -178,7 +182,8 @@ impl ShowcaseState {
             config: config.clone(),
             appearance,
             notification_settings,
-            desktop_entries: DesktopIndex::default(),
+            icon_catalog: IconCatalog::default(),
+            desktop_entries: DesktopEntries::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
             theme: configured_theme(&scheme_palette(config, appearance.scheme)),

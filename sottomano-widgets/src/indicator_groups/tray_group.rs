@@ -14,11 +14,11 @@ use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activati
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
-        application_menu_nodes::MenuIconLookup,
-        status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayUpdate},
+        status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayItemIcon, TrayUpdate},
         window_edge_placement::WindowOwner,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    theme_icons::icon_requests::{IconRequest, ItemThemePath, tray_item_icon_request},
 };
 use sottomano_toml_config::{
     Config,
@@ -30,7 +30,10 @@ use sottomano_toml_config::{
 
 use crate::{
     background_work::logged_failure_task,
-    cascading_menus::menu_node_entries::{PressDismissal, menu_node_entries, press_dismissal},
+    cascading_menus::menu_node_entries::{
+        PressDismissal, menu_icon_side_px, menu_node_entries, menu_node_icon_requests,
+        press_dismissal,
+    },
     clock::Clock,
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -45,7 +48,11 @@ use crate::{
         MouseGesture, PressAction,
         hover_card_body::{Section, SectionWidget},
     },
-    icon_catalog::icon_handle::PixmapHandles,
+    icon_catalog::{
+        drawable_icon_catalog::{DrawableIconSources, IconCatalog},
+        icon_handle::IconHandle,
+        pixmap_handles::PixmapHandles,
+    },
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, IndicatorGroupContent, IndicatorGroupExpansion,
@@ -62,6 +69,8 @@ use crate::{
 
 #[cfg(test)]
 mod tray_group_tests;
+
+const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
 
 #[derive(Default)]
 pub struct TrayGroup {
@@ -137,9 +146,31 @@ impl TrayGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(menu_icons: &MenuIconLookup) -> iced::Subscription<TrayMessage> {
-        iced::Subscription::run_with(menu_icons.clone(), status_notifier_tray::updates)
-            .map(TrayMessage::Update)
+    pub fn subscription() -> iced::Subscription<TrayMessage> {
+        iced::Subscription::run(status_notifier_tray::updates).map(TrayMessage::Update)
+    }
+
+    #[must_use]
+    pub fn icon_requests(&self, config: &Config) -> Vec<IconRequest> {
+        let menu_icon_side_px = menu_icon_side_px(config);
+        self.items
+            .get()
+            .into_iter()
+            .flatten()
+            .flat_map(|item| {
+                let item_request = match &item.icon {
+                    TrayItemIcon::Named {
+                        icon_name,
+                        item_theme_path,
+                    } => Some(tray_item_icon_request(icon_name, item_theme_path)),
+                    TrayItemIcon::NoIcon | TrayItemIcon::Pixmap(_) => None,
+                };
+                item_request
+                    .into_iter()
+                    .chain(menu_node_icon_requests(&item.menu, menu_icon_side_px))
+            })
+            .chain([unidentified_tray_icon_request()])
+            .collect()
     }
 
     pub fn update(&mut self, message: TrayMessage, clock: Clock) -> Action {
@@ -230,6 +261,7 @@ impl TrayGroup {
         &self,
         item_name: &str,
         config: &Config,
+        icon_catalog: &IconCatalog,
     ) -> Vec<MenuEntry<'static, i32, TrayMessage>> {
         let Some(item) = self
             .items
@@ -249,7 +281,15 @@ impl TrayGroup {
             menu_path: menu_path.clone(),
             id,
         };
-        menu_node_entries(&item.menu, config, &self.pixmap_handles, &on_activate)
+        menu_node_entries(
+            &item.menu,
+            config,
+            DrawableIconSources {
+                icon_catalog,
+                pixmap_handles: &self.pixmap_handles,
+            },
+            &on_activate,
+        )
     }
 
     fn command(&self, command: TrayCommand, token: ActivationTokenOutcome) -> Task<TrayMessage> {
@@ -283,6 +323,7 @@ impl TrayGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        icon_catalog: &'a IconCatalog,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
     ) -> IndicatorGroupContent<'a> {
         let group_indicators: Vec<_> = self
@@ -300,7 +341,11 @@ impl TrayGroup {
                     item.name().to_owned(),
                     IndicatorIcon::Absent,
                     IndicatorValue::drawn(move |reveal| {
-                        item_view(config, &self.pixmap_handles, item, &item_window, reveal)
+                        let icon_sources = DrawableIconSources {
+                            icon_catalog,
+                            pixmap_handles: &self.pixmap_handles,
+                        };
+                        item_view(config, icon_sources, item, &item_window, reveal)
                     }),
                     Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
                 )
@@ -364,9 +409,35 @@ fn item_press_actions(rule: &TrayRule, item_window: &TrayItemWindow) -> Vec<Pres
     .collect()
 }
 
+fn unidentified_tray_icon_request() -> IconRequest {
+    tray_item_icon_request(UNIDENTIFIED_APP_ICON, &ItemThemePath::Unset)
+}
+
+fn tray_item_handle(
+    icon_sources: DrawableIconSources<'_>,
+    tray_item_icon: &TrayItemIcon,
+) -> Option<IconHandle> {
+    let named_handle = |request: &IconRequest| {
+        icon_sources
+            .icon_catalog
+            .drawable_icon(request)
+            .map(|drawable_icon| drawable_icon.handle.clone())
+    };
+    let unidentified_handle = || named_handle(&unidentified_tray_icon_request());
+    match tray_item_icon {
+        TrayItemIcon::Pixmap(pixels) => Some(icon_sources.pixmap_handles.pixmap_handle(pixels)),
+        TrayItemIcon::Named {
+            icon_name,
+            item_theme_path,
+        } => named_handle(&tray_item_icon_request(icon_name, item_theme_path))
+            .or_else(unidentified_handle),
+        TrayItemIcon::NoIcon => unidentified_handle(),
+    }
+}
+
 fn item_view<'a>(
     config: &Config,
-    pixmap_handles: &PixmapHandles,
+    icon_sources: DrawableIconSources<'_>,
     item: &TrayItem,
     item_window: &TrayItemWindow,
     reveal: f32,
@@ -376,17 +447,13 @@ fn item_view<'a>(
         state: IndicatorState::Idle,
         opacity: reveal,
     };
-    let glyph: Element<'a, GroupEvent> = item.icon.as_ref().map_or_else(
-        || {
-            IconGlyph::from(Phosphor::Question(Weight::Regular))
-                .view(side, move |theme| tint.color(theme))
-        },
-        |source| {
-            pixmap_handles
-                .icon_handle(source)
-                .view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
-        },
-    );
+    let glyph: Element<'a, GroupEvent> = match tray_item_handle(icon_sources, &item.icon) {
+        Some(icon_handle) => {
+            icon_handle.view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
+        }
+        None => IconGlyph::from(Phosphor::Question(Weight::Regular))
+            .view(side, move |theme| tint.color(theme)),
+    };
 
     let marked: Element<'a, GroupEvent> = if item.status == Status::NeedsAttention {
         Column::with_children([
