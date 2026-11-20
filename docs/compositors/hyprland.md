@@ -44,14 +44,15 @@ if sottomano_rules_file then
 end
 ```
 
-The home-manager module does not add this, because home-manager's Hyprland
-module writes a `hyprland.conf`. Sottomano asks Hyprland to reload after each
-change.
+The home-manager module adds this for you when
+`wayland.windowManager.hyprland.configType` is `"lua"`. Sottomano asks Hyprland
+to reload after each change.
 
 ## What Hyprland does not offer
 
-- There is no overview: pressing the active workspace does nothing, and
-  toggling the overview from a gamepad reports that Hyprland has no equivalent.
+- The overview comes from the [hyprexpo](https://github.com/sandwichfarm/hyprexpo)
+  plugin. Pressing the active workspace or the gamepad overview button asks it
+  to toggle; without the plugin loaded, Hyprland rejects the request.
 - Workspaces cannot be reordered: dragging one in the bar reports that the
   compositor has no equivalent. Dragging a window onto another workspace moves
   it, but windows have no columns to reorder within a workspace.

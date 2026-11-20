@@ -317,6 +317,21 @@ in
               include ${config.xdg.configHome}/sottomano/sway.conf
             '';
 
+            wayland.windowManager.hyprland.extraConfig =
+              let
+                hyprlandConfig = config.wayland.windowManager.hyprland;
+              in
+              lib.mkIf (hyprlandConfig.enable && hyprlandConfig.configType == "lua") (
+                lib.mkAfter ''
+                  local sottomano_rules_path = ${builtins.toJSON "${config.xdg.configHome}/sottomano/hyprland.lua"}
+                  local sottomano_rules_file = io.open(sottomano_rules_path)
+                  if sottomano_rules_file then
+                    sottomano_rules_file:close()
+                    dofile(sottomano_rules_path)
+                  end
+                ''
+              );
+
             systemd.user.services.sottomano = lib.mkIf cfg.systemdUnit {
               Unit = {
                 Description = "sottomano bar";

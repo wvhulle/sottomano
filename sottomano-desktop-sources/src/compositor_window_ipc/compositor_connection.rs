@@ -74,7 +74,7 @@ impl CompositorKind {
             #[cfg(feature = "sway")]
             CompositorKind::Sway => CompositorFeatureSupport::Missing,
             #[cfg(feature = "hyprland")]
-            CompositorKind::Hyprland => CompositorFeatureSupport::Missing,
+            CompositorKind::Hyprland => CompositorFeatureSupport::Available,
         }
     }
 

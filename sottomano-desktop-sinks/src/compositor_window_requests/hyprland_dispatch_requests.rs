@@ -7,8 +7,11 @@ use crate::compositor_window_requests::{
 
 const HYPRLAND_ACCEPTED_REPLY: &str = "ok";
 
+const HYPREXPO_OVERVIEW_TOGGLE: &str = "hl.plugin.hyprexpo.expo(\"toggle\")";
+
 enum HyprlandDispatch {
     Dispatcher(String),
+    Evaluation(&'static str),
     Command(&'static str),
     Launch(Vec<String>),
     Unsupported,
@@ -67,10 +70,10 @@ fn hyprland_dispatch_of(request: &CompositorRequest) -> HyprlandDispatch {
         CompositorRequest::Quit => lua_dispatcher("exit()"),
         CompositorRequest::ReloadConfig => HyprlandDispatch::Command("reload"),
         CompositorRequest::Spawn(command) => HyprlandDispatch::Launch(command.clone()),
+        CompositorRequest::ToggleOverview => HyprlandDispatch::Evaluation(HYPREXPO_OVERVIEW_TOGGLE),
         CompositorRequest::MoveWorkspaceToIndex { .. }
         | CompositorRequest::MoveNamedWorkspaceToIndex { .. }
-        | CompositorRequest::MoveFocusedColumnToIndex(_)
-        | CompositorRequest::ToggleOverview => HyprlandDispatch::Unsupported,
+        | CompositorRequest::MoveFocusedColumnToIndex(_) => HyprlandDispatch::Unsupported,
     }
 }
 
@@ -103,6 +106,9 @@ pub async fn send_hyprland_request(
         HyprlandDispatch::Dispatcher(dispatcher) => {
             hyprland_command_accepted(format!("dispatch {dispatcher}")).await
         }
+        HyprlandDispatch::Evaluation(lua_code) => {
+            hyprland_command_accepted(format!("eval {lua_code}")).await
+        }
         HyprlandDispatch::Command(command) => hyprland_command_accepted(command.to_owned()).await,
     }
 }
@@ -116,9 +122,18 @@ mod tests {
         match hyprland_dispatch_of(request) {
             HyprlandDispatch::Dispatcher(dispatcher) => Some(dispatcher),
             HyprlandDispatch::Launch(_)
+            | HyprlandDispatch::Evaluation(_)
             | HyprlandDispatch::Command(_)
             | HyprlandDispatch::Unsupported => None,
         }
+    }
+
+    #[test]
+    fn the_overview_toggles_through_the_hyprexpo_plugin() {
+        assert!(matches!(
+            hyprland_dispatch_of(&CompositorRequest::ToggleOverview),
+            HyprlandDispatch::Evaluation("hl.plugin.hyprexpo.expo(\"toggle\")")
+        ));
     }
 
     #[test]
