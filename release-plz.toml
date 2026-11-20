@@ -1,0 +1,105 @@
+[workspace]
+publish = false
+git_only = true
+semver_check = false
+git_release_type = "prod"
+release_commits = "^(feat|fix|perf)[(:!]"
+pr_labels = ["release"]
+pr_body = """
+{% for release in releases %}
+## `{{ release.package }}` {% if release.previous_version and release.previous_version != release.next_version %}{{ release.previous_version }} → {% endif %}{{ release.next_version }}
+
+Merging this pull request into `main` will:
+
+- tag the release commit as `v{{ release.next_version }}`
+- create the Codeberg release `v{{ release.next_version }}` with the changelog below
+
+{% if release.changelog %}{{ release.changelog }}{% endif %}
+{% endfor %}
+"""
+
+[[package]]
+name = "sottomano-shell"
+changelog_path = "CHANGELOG.md"
+git_tag_name = "v{{ version }}"
+git_release_name = "v{{ version }}"
+changelog_include = [
+  "corredo",
+  "iced_controller_diagram",
+  "sottomano-db-migrations",
+  "sottomano-desktop-sinks",
+  "sottomano-desktop-sources",
+  "sottomano-phosphor-icons",
+  "sottomano-simple-icons",
+  "sottomano-toml-config",
+  "sottomano-weather-icons",
+  "sottomano-widgets",
+]
+
+[[package]]
+name = "corredo"
+release = false
+
+[[package]]
+name = "iced_controller_diagram"
+release = false
+
+[[package]]
+name = "sottomano-db-migrations"
+release = false
+
+[[package]]
+name = "sottomano-desktop-sinks"
+release = false
+
+[[package]]
+name = "sottomano-desktop-sources"
+release = false
+
+[[package]]
+name = "sottomano-phosphor-icons"
+release = false
+
+[[package]]
+name = "sottomano-simple-icons"
+release = false
+
+[[package]]
+name = "sottomano-toml-config"
+release = false
+
+[[package]]
+name = "sottomano-weather-icons"
+release = false
+
+[[package]]
+name = "sottomano-widgets"
+release = false
+
+[[package]]
+name = "sottomano-widget-showcase"
+release = false
+
+[[package]]
+name = "xtask"
+release = false
+
+[changelog]
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
+protect_breaking_commits = true
+commit_parsers = [
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^doc", group = "Documentation" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^style", group = "Changed" },
+  { message = "^test", group = "Testing" },
+  { message = "^chore: release", skip = true },
+  { message = "^chore", group = "Miscellaneous" },
+  { message = "^ci", group = "CI" },
+  { message = "^build", group = "Build" },
+  { message = "^[Mm]erge", skip = true },
+  { message = ".*", group = "Other" },
+]

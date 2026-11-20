@@ -6661,7 +6661,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-db-migrations"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "thiserror 2.0.21",
  "tokio",
@@ -6671,7 +6671,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-desktop-sinks"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "club-kdl",
  "freedesktop-sound",
@@ -6695,7 +6695,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-desktop-sources"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "adskalman",
  "base64 0.22.1",
@@ -6767,11 +6767,11 @@ dependencies = [
 
 [[package]]
 name = "sottomano-phosphor-icons"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "sottomano-shell"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
@@ -6800,14 +6800,14 @@ dependencies = [
 
 [[package]]
 name = "sottomano-simple-icons"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "sottomano-toml-config"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -6823,11 +6823,11 @@ dependencies = [
 
 [[package]]
 name = "sottomano-weather-icons"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "sottomano-widget-showcase"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bytesize",
  "chrono",
@@ -6858,7 +6858,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-widgets"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bytesize",
  "chrono",
@@ -9353,7 +9353,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "clap",
  "image",

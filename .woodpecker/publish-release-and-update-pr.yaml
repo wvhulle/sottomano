@@ -1,0 +1,43 @@
+when:
+  - repo: wvhulle/sottomano
+    event: [push, manual]
+    branch: main
+
+labels:
+  host: ryzen
+
+depends_on:
+  - checks
+
+clone:
+  - name: clone-with-history
+    image: woodpeckerci/plugin-git
+    settings:
+      depth: 0
+      partial: false
+      tags: true
+
+variables:
+  - &release_env
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      accept-flake-config = true
+    GIT_AUTHOR_NAME: release-plz
+    GIT_AUTHOR_EMAIL: willemvanhulle@protonmail.com
+    GIT_COMMITTER_NAME: release-plz
+    GIT_COMMITTER_EMAIL: willemvanhulle@protonmail.com
+    CODEBERG_TOKEN:
+      from_secret: bot_token
+
+steps:
+  - name: publish-unreleased-version
+    image: nixos/nix:latest
+    environment: *release_env
+    commands:
+      - nix develop --quiet .#ci-cargo --command ci/release-tasks.nu publish-unreleased-crate-version
+
+  - name: open-or-update-release-pr
+    image: nixos/nix:latest
+    environment: *release_env
+    commands:
+      - nix develop --quiet .#ci-cargo --command ci/release-tasks.nu open-or-update-release-pr

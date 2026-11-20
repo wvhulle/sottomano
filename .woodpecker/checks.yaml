@@ -72,3 +72,13 @@ steps:
     environment: *nix_config
     commands:
       - nix develop --quiet .#ci --command ci/release-tasks.nu check-commit-messages --fetch-target-branch FETCH_HEAD..HEAD
+
+  - name: check-release-pr-is-current
+    image: nixos/nix:latest
+    depends_on: []
+    when:
+      - event: pull_request
+        evaluate: 'CI_COMMIT_SOURCE_BRANCH startsWith "release-plz-"'
+    environment: *nix_config
+    commands:
+      - nix develop --quiet .#ci --command ci/release-tasks.nu check-release-pr-is-current
