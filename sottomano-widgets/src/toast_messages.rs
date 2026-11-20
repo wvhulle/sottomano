@@ -44,7 +44,7 @@ pub enum NotificationMessage {
         output: String,
         toast_cards: Vec<Rectangle>,
     },
-    CardsDrawn {
+    CardsSettled {
         toast_ids: Vec<u32>,
     },
 }

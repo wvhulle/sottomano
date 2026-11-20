@@ -38,11 +38,11 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         }
     }
 
-    pub(super) fn ring_drawn_chimes(&mut self, drawn_toast_ids: &[u32]) -> Task<Routed> {
+    pub(super) fn ring_settled_chimes(&mut self, settled_toast_ids: &[u32]) -> Task<Routed> {
         let awaiting_chimes: Vec<Chime> = self
             .live
             .iter_mut()
-            .filter(|notification| drawn_toast_ids.contains(&notification.data.id))
+            .filter(|notification| settled_toast_ids.contains(&notification.data.id))
             .map(|notification| mem::replace(&mut notification.chime, Chime::Rung))
             .collect();
         Task::batch(

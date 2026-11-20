@@ -157,7 +157,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             }
             NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
-            NotificationMessage::CardsDrawn { toast_ids } => self.ring_drawn_chimes(&toast_ids),
+            NotificationMessage::CardsSettled { toast_ids } => self.ring_settled_chimes(&toast_ids),
             NotificationMessage::CardsLaidOut {
                 output,
                 toast_cards,

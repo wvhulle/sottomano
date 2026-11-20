@@ -53,6 +53,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                     corner_radius: Radius::from(overlays.frame.corner_radius_px),
                 },
                 ids: Vec::new(),
+                settled_ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
                 background_fade,
@@ -64,8 +65,9 @@ impl<'a> WindowAnchoredToasts<'a> {
                 toasts.ids.push(toast.id);
                 toasts.anchors.push(toast.anchor);
                 toasts.cards.push(toast.card);
-                if toast.motion == MotionState::Moving {
-                    toasts.reveal_motion = MotionState::Moving;
+                match toast.motion {
+                    MotionState::Moving => toasts.reveal_motion = MotionState::Moving,
+                    MotionState::Settled => toasts.settled_ids.push(toast.id),
                 }
                 toasts
             },
@@ -84,6 +86,7 @@ pub struct WindowAnchoredToasts<'a> {
     panel_clearance: Padding,
     card_roles: RegionRoles,
     ids: Vec<u32>,
+    settled_ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
     background_fade: CardBackgroundFade,
@@ -131,7 +134,7 @@ struct FieldState {
     drift: Drifts,
     frame: Option<Instant>,
     published_cards: Vec<Rectangle>,
-    drawn_toast_ids: Vec<u32>,
+    reported_settled_ids: Vec<u32>,
 }
 
 #[derive(Default)]
@@ -392,16 +395,21 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
                 toast_cards: laid_out_cards,
             });
         }
-        let newly_drawn_ids: Vec<u32> = self
-            .ids
+        state
+            .reported_settled_ids
+            .retain(|toast_id| self.ids.contains(toast_id));
+        let newly_settled_ids: Vec<u32> = self
+            .settled_ids
             .iter()
-            .filter(|toast_id| !state.drawn_toast_ids.contains(toast_id))
+            .filter(|toast_id| !state.reported_settled_ids.contains(toast_id))
             .copied()
             .collect();
-        state.drawn_toast_ids.clone_from(&self.ids);
-        if !newly_drawn_ids.is_empty() {
-            shell.publish(NotificationMessage::CardsDrawn {
-                toast_ids: newly_drawn_ids,
+        state
+            .reported_settled_ids
+            .extend_from_slice(&newly_settled_ids);
+        if !newly_settled_ids.is_empty() {
+            shell.publish(NotificationMessage::CardsSettled {
+                toast_ids: newly_settled_ids,
             });
         }
         if state.frame == Some(*frame) {
@@ -521,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn a_card_is_reported_drawn_once_across_frames() {
+    fn a_settled_card_is_reported_once_across_frames() {
         let config = Config::default();
         let single_toast = AnchoredToast {
             id: 7,
@@ -548,13 +556,48 @@ mod tests {
                 first_frame + Duration::from_millis(16 * frame_index),
             ))
         }));
-        let drawn_reports: Vec<Vec<u32>> = simulator
+        let settled_reports: Vec<Vec<u32>> = simulator
             .into_messages()
             .filter_map(|message| match message {
-                NotificationMessage::CardsDrawn { toast_ids } => Some(toast_ids),
+                NotificationMessage::CardsSettled { toast_ids } => Some(toast_ids),
                 _ => None,
             })
             .collect();
-        assert_eq!(drawn_reports, [vec![7]]);
+        assert_eq!(settled_reports, [vec![7]]);
+    }
+
+    #[test]
+    fn a_card_still_appearing_is_not_reported_settled() {
+        let config = Config::default();
+        let appearing_toast = AnchoredToast {
+            id: 9,
+            anchor: ToastAnchor::Edge {
+                vertical: VEdge::Top,
+                horizontal: HEdge::Right,
+            },
+            card: container(text("download complete")).padding(20).into(),
+            motion: MotionState::Moving,
+        };
+        let toasts = WindowAnchoredToasts::new(
+            "DP-1",
+            vec![appearing_toast],
+            Padding::ZERO,
+            &ShellLayer::Overlays.default_appearance(),
+            CardBackgroundFade::Resting,
+            &config,
+        );
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
+        let first_frame = Clock::real().instant;
+        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
+            Event::Window(window::Event::RedrawRequested(
+                first_frame + Duration::from_millis(16 * frame_index),
+            ))
+        }));
+        let settled_report_count = simulator
+            .into_messages()
+            .filter(|message| matches!(message, NotificationMessage::CardsSettled { .. }))
+            .count();
+        assert_eq!(settled_report_count, 0);
     }
 }
