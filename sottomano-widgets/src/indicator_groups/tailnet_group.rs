@@ -44,9 +44,10 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         tailnet_group::{
+            own_node_hover_card::OwnNodeIndicator,
             tailscale_access_hover_card::{
-                InboundAccessIndicator, OwnNodeIndicator, PolicyFileIndicator,
-                tailscale_inbound_access_sections, tailscale_policy_file_sections,
+                InboundAccessIndicator, PolicyFileIndicator, tailscale_inbound_access_sections,
+                tailscale_policy_file_sections,
             },
             tailscale_exit_node_hover_card::{ExitNodeChoiceIndicator, ExitNodeLanAccessIndicator},
             tailscale_exit_offer_hover_card::ExitOfferIndicator,
@@ -61,6 +62,7 @@ use crate::{
 const TAILNET_MEMBERSHIP_GLYPH: Phosphor = Phosphor::Plugs(Weight::Regular);
 const TAILSCALE_EXIT_NODES_GLYPH: Phosphor = Phosphor::SignOut(Weight::Regular);
 
+mod own_node_hover_card;
 mod tailscale_access_hover_card;
 mod tailscale_exit_node_hover_card;
 mod tailscale_exit_offer_hover_card;
@@ -521,7 +523,7 @@ impl TailnetGroup {
 mod tests {
     use sottomano_desktop_sources::network_connectivity::{
         tailscale_exit_nodes::ExitNodeReachability,
-        tailscale_status::{ExitNodeOffer, KeyExpiry, Peer, PeerPath},
+        tailscale_status::{ExitNodeOffer, KeyExpiry, NodeCapabilities, Peer, PeerPath},
     };
 
     use super::*;
@@ -544,7 +546,7 @@ mod tests {
             },
             online: Vec::new(),
             total_peers: 0,
-            own_capabilities: Vec::new(),
+            own_capabilities: NodeCapabilities::default(),
             exit_offer,
             exit_node_use,
             key_expiry: KeyExpiry::Disabled,

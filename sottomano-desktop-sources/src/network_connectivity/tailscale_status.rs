@@ -1,4 +1,8 @@
-use std::{collections::HashMap, net::IpAddr, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::IpAddr,
+    time::Duration,
+};
 
 use chrono::{DateTime, Datelike, Utc};
 use futures::{Stream, stream};
@@ -49,13 +53,19 @@ pub enum KeyExpiry {
     At(DateTime<Utc>),
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NodeCapabilities {
+    pub unscoped_features: Vec<String>,
+    pub scoped_by_namespace: BTreeMap<String, Vec<String>>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tailnet {
     pub tailnet_name: String,
     pub own_node: Peer,
     pub online: Vec<Peer>,
     pub total_peers: usize,
-    pub own_capabilities: Vec<String>,
+    pub own_capabilities: NodeCapabilities,
     pub exit_offer: ExitNodeOffer,
     pub exit_node_use: ExitNodeUse,
     pub key_expiry: KeyExpiry,
@@ -232,19 +242,27 @@ pub(super) struct TailscaleNodeJson {
 }
 
 impl TailscaleNodeJson {
-    fn sorted_capability_names(&self) -> Vec<String> {
-        let mut capability_names: Vec<String> = self
-            .cap_map
-            .keys()
-            .map(|capability_name| {
-                capability_name
-                    .strip_prefix(CAPABILITY_URL_PREFIX)
-                    .unwrap_or(capability_name)
-                    .to_owned()
-            })
-            .collect();
-        capability_names.sort();
-        capability_names
+    fn grouped_capabilities(&self) -> NodeCapabilities {
+        let mut capabilities = NodeCapabilities::default();
+        for capability_name in self.cap_map.keys() {
+            let short_name = capability_name
+                .strip_prefix(CAPABILITY_URL_PREFIX)
+                .unwrap_or(capability_name);
+            match short_name.split_once('/') {
+                Some((namespace, scoped_name)) => capabilities
+                    .scoped_by_namespace
+                    .entry(namespace.to_owned())
+                    .or_default()
+                    .push(scoped_name.to_owned()),
+                None => capabilities.unscoped_features.push(short_name.to_owned()),
+            }
+        }
+        capabilities.unscoped_features.sort();
+        capabilities
+            .scoped_by_namespace
+            .values_mut()
+            .for_each(|scoped_names| scoped_names.sort());
+        capabilities
     }
 
     pub(super) fn short_name(&self) -> String {
@@ -359,7 +377,7 @@ impl Tailscale {
             own_node: Peer::try_from(own_node)?,
             online,
             total_peers: status.peer.len(),
-            own_capabilities: own_node.sorted_capability_names(),
+            own_capabilities: own_node.grouped_capabilities(),
             exit_offer,
             exit_node_use,
             key_expiry: own_node
@@ -396,7 +414,7 @@ mod tests {
             "KeyExpiry": "2026-12-08T19:22:27Z",
             "Tags": ["tag:home"],
             "ExitNodeOption": true,
-            "CapMap": {"https://tailscale.com/cap/ssh": null, "default-auto-update": [true]}
+            "CapMap": {"https://tailscale.com/cap/ssh": null, "default-auto-update": [true], "services/jellyfin": null, "services/bazarr": null}
         },
         "Peer": {
             "a": {"DNSName": "zbook.tail.ts.net.", "TailscaleIPs": ["100.1.1.1"], "OS": "linux",
@@ -493,7 +511,17 @@ mod tests {
     fn own_access_tailnet_and_key_expiry_are_read() {
         let tailnet = running_tailnet();
         assert_eq!(tailnet.own_node.tags, ["tag:home"]);
-        assert_eq!(tailnet.own_capabilities, ["default-auto-update", "ssh"]);
+        assert_eq!(
+            tailnet.own_capabilities.unscoped_features,
+            ["default-auto-update", "ssh"]
+        );
+        assert_eq!(
+            tailnet.own_capabilities.scoped_by_namespace,
+            BTreeMap::from([(
+                "services".to_owned(),
+                vec!["bazarr".to_owned(), "jellyfin".to_owned()]
+            )])
+        );
         assert_eq!(tailnet.tailnet_name, "example.com");
         assert!(matches!(tailnet.key_expiry, KeyExpiry::At(_)));
         assert!(tailnet.health_warnings.is_empty());

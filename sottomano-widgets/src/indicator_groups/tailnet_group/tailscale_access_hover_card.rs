@@ -8,7 +8,6 @@ use sottomano_desktop_sources::network_connectivity::{
     tailscale_policy_file::{
         ACCESS_CONTROLS_URL, PolicyRule, PolicySshAction, PolicySshRule, TailscalePolicyFile,
     },
-    tailscale_status::{Tailnet, Tailscale},
 };
 
 use crate::{
@@ -16,72 +15,13 @@ use crate::{
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
     },
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         value_cells::{LabeledValue, ValueCell},
     },
 };
-
-const NO_TAGS_TEXT: &str = "none";
-
-#[derive(Clone, Copy)]
-pub(super) struct OwnNodeIndicator<'a> {
-    tailnet: &'a Tailnet,
-}
-
-impl<'a> OwnNodeIndicator<'a> {
-    pub(super) fn running_own_node(tailscale: &'a Tailscale) -> Option<Self> {
-        match tailscale {
-            Tailscale::Running(tailnet) => Some(Self { tailnet }),
-            Tailscale::Stopped | Tailscale::Starting => None,
-        }
-    }
-
-    fn own_tags_text(self) -> String {
-        match self.tailnet.own_node.tags.as_slice() {
-            [] => NO_TAGS_TEXT.to_owned(),
-            tags => tags.join(", "),
-        }
-    }
-}
-
-impl<'a> OwnNodeIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
-        GroupIndicator::glyph_only(
-            "This machine",
-            Phosphor::IdentificationBadge(Weight::Regular).into(),
-            IndicatorState::Idle,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(self.own_tags_text()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub(super) fn hover_card(self) -> Vec<Section> {
-        vec![
-            Section::new(
-                "Identity",
-                dictionary_table([
-                    LabeledValue::new("Machine", self.tailnet.own_node.name.as_str()),
-                    LabeledValue::new("Tags", self.own_tags_text()),
-                ]),
-            ),
-            Section::new(
-                "Capabilities",
-                SectionWidget::paragraph(self.tailnet.own_capabilities.join(", ")),
-            ),
-        ]
-    }
-}
 
 pub(super) struct InboundAccessIndicator;
 

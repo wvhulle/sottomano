@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use bytesize::ByteSize;
 use chrono::TimeDelta;
@@ -14,7 +14,8 @@ use sottomano_desktop_sources::{
             InboundAccessRule, InboundDestination, InboundPorts, TailscaleInboundAccess,
         },
         tailscale_status::{
-            ExitNodeOffer, ExitNodeUse, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
+            ExitNodeOffer, ExitNodeUse, KeyExpiry, NodeCapabilities, Peer, PeerPath, Tailnet,
+            Tailscale,
         },
     },
 };
@@ -107,7 +108,23 @@ fn home_tailnet(clock: Clock) -> Tailnet {
             ),
         ],
         total_peers: 5,
-        own_capabilities: vec!["file-sharing".to_owned(), "ssh".to_owned()],
+        own_capabilities: NodeCapabilities {
+            unscoped_features: [
+                "file-sharing",
+                "https",
+                "ssh",
+                "ssh-env-vars",
+                "tailnet-lock",
+            ]
+            .map(str::to_owned)
+            .to_vec(),
+            scoped_by_namespace: BTreeMap::from([(
+                "services".to_owned(),
+                ["jellyfin", "nextcloud", "vaultwarden"]
+                    .map(str::to_owned)
+                    .to_vec(),
+            )]),
+        },
         exit_offer: ExitNodeOffer::NotOffered,
         exit_node_use: ExitNodeUse::InUse,
         key_expiry: KeyExpiry::At(clock.utc() + TimeDelta::days(KEY_EXPIRY_DAYS)),
