@@ -2,7 +2,7 @@ use sottomano_widgets::clock::Clock;
 
 use crate::{
     fixtures::{
-        audio, compute, docker_engines, gamepad, incus_instances, media, memory_board,
+        audio, compute, docker_engines, incus_instances, media, memory_board,
         nspawn_containers, podman_engines, tailnet, virtual_machines, voice_dictation,
         wireguard_tunnels,
     },
@@ -15,7 +15,6 @@ pub fn media_group_menu(clock: Clock) -> ShowcasedGroup {
         media::group(clock),
         audio::group(clock),
         voice_dictation::group(clock),
-        gamepad::group(),
     ])
 }
 

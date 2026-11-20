@@ -19,6 +19,7 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
         mobile_modems_group::MobileModemsGroup,
+        steam_client_groups::SteamClientGroups,
         monitor_group::MonitorGroup,
         pending_upgrades_group::PendingUpgradesGroup,
         power_group::PowerGroup,
@@ -166,6 +167,7 @@ impl ShellIndicatorGroups {
                 .subscription(buses, source_demand(IndicatorGroupFamily::WifiAdapters))
                 .map(Message::WifiAdapters),
             MobileModemsGroup::subscription(buses).map(Message::MobileModems),
+            SteamClientGroups::subscription().map(Message::SteamClient),
             self.ethernet_ports_group
                 .subscription(buses, source_demand(IndicatorGroupFamily::EthernetPorts))
                 .map(Message::EthernetPorts),

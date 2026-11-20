@@ -6,6 +6,7 @@ pub enum GroupMenuTopic {
     Network,
     Agenda,
     Media,
+    Gaming,
     Display,
     Virtualization,
     Services,
@@ -17,11 +18,12 @@ pub enum GroupMenuTopic {
 }
 
 impl GroupMenuTopic {
-    pub const ALL: [GroupMenuTopic; 12] = [
+    pub const ALL: [GroupMenuTopic; 13] = [
         GroupMenuTopic::Hardware,
         GroupMenuTopic::Network,
         GroupMenuTopic::Agenda,
         GroupMenuTopic::Media,
+        GroupMenuTopic::Gaming,
         GroupMenuTopic::Display,
         GroupMenuTopic::Virtualization,
         GroupMenuTopic::Services,
@@ -39,6 +41,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Network => "Network",
             GroupMenuTopic::Agenda => "Agenda",
             GroupMenuTopic::Media => "Media",
+            GroupMenuTopic::Gaming => "Gaming",
             GroupMenuTopic::Display => "Display",
             GroupMenuTopic::Virtualization => "Virtualization",
             GroupMenuTopic::Services => "Services",
@@ -57,6 +60,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Network => Phosphor::Network(Weight::Regular),
             GroupMenuTopic::Agenda => Phosphor::CalendarBlank(Weight::Regular),
             GroupMenuTopic::Media => Phosphor::MonitorPlay(Weight::Regular),
+            GroupMenuTopic::Gaming => Phosphor::Joystick(Weight::Regular),
             GroupMenuTopic::Display => Phosphor::Monitor(Weight::Regular),
             GroupMenuTopic::Virtualization => Phosphor::Cube(Weight::Regular),
             GroupMenuTopic::Services => Phosphor::Stack(Weight::Regular),
@@ -74,6 +78,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Network => "network",
             GroupMenuTopic::Agenda => "agenda",
             GroupMenuTopic::Media => "media",
+            GroupMenuTopic::Gaming => "gaming",
             GroupMenuTopic::Display => "display",
             GroupMenuTopic::Virtualization => "virtualization",
             GroupMenuTopic::Services => "services",

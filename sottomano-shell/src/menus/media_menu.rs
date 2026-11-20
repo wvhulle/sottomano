@@ -12,17 +12,10 @@ impl DesktopShell {
             &self.desktop_entries,
             self.clock,
         );
-        let gamepad_groups = self
-            .indicator_groups
-            .gamepad_group
-            .group_contents(&config.indicator_groups.gamepad)
-            .into_iter();
-        let groups = media_groups
-            .chain([
-                self.indicator_groups.audio_group.group_content(config),
-                self.indicator_groups.voice_dictation_group.group_content(),
-            ])
-            .chain(gamepad_groups);
+        let groups = media_groups.chain([
+            self.indicator_groups.audio_group.group_content(config),
+            self.indicator_groups.voice_dictation_group.group_content(),
+        ]);
         self.group_menu(GroupMenuTopic::Media, groups)
     }
 }

@@ -23,6 +23,7 @@ pub(crate) const TOP_PANEL: PanelBarComposition = PanelBarComposition {
     end: &[
         Menu(GroupMenuTopic::Display),
         Menu(GroupMenuTopic::Media),
+        Menu(GroupMenuTopic::Gaming),
         Fixed(SessionPower),
     ],
 };

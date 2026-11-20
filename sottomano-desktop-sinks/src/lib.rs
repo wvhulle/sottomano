@@ -17,6 +17,7 @@ pub mod network_connectivity;
 pub mod qemu_virtual_machines;
 pub mod screen_brightness_color;
 pub mod sink_write_errors;
+pub mod steam_client_pages;
 pub mod systemd_units_journal;
 pub mod virtualbox_machines;
 pub mod vmware_machines;

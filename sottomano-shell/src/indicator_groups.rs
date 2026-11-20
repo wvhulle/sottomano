@@ -44,6 +44,7 @@ use sottomano_widgets::{
         microvm_guests_group::MicrovmGuestsGroup,
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
+        steam_client_groups::SteamClientGroups,
         network_manager_vpn_group::NetworkManagerVpnGroup,
         notification_group::NotificationGroup,
         nspawn_containers_group::NspawnContainersGroup,
@@ -112,6 +113,7 @@ pub struct ShellIndicatorGroups {
     pub network_manager_vpn_group: NetworkManagerVpnGroup,
     pub wifi_adapters_group: WifiAdaptersGroup,
     pub mobile_modems_group: MobileModemsGroup,
+    pub steam_client_groups: SteamClientGroups,
     pub ethernet_ports_group: EthernetPortsGroup,
     pub bluetooth_adapters_group: BluetoothAdaptersGroup,
     pub monitor_group: MonitorGroup,
@@ -187,6 +189,7 @@ impl ShellIndicatorGroups {
             network_manager_vpn_group: NetworkManagerVpnGroup::default(),
             wifi_adapters_group: WifiAdaptersGroup::default(),
             mobile_modems_group: MobileModemsGroup::default(),
+            steam_client_groups: SteamClientGroups::default(),
             ethernet_ports_group: EthernetPortsGroup::default(),
             bluetooth_adapters_group: BluetoothAdaptersGroup::default(),
             monitor_group: MonitorGroup::default(),
@@ -383,6 +386,7 @@ impl ShellIndicatorGroups {
         self.network_manager_vpn_group.collapse();
         self.wifi_adapters_group.collapse();
         self.mobile_modems_group.collapse();
+        self.steam_client_groups.collapse();
         self.ethernet_ports_group.collapse();
         self.bluetooth_adapters_group.collapse();
         self.tray_group.collapse();

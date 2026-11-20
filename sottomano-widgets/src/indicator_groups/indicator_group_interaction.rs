@@ -35,6 +35,7 @@ use crate::{
         memory_board_group::MemoryBoardInteraction,
         microvm_guests_group::MicrovmGuestsInteraction,
         mobile_modems_group::MobileModemsInteraction,
+        steam_client_groups::SteamClientInteraction,
         monitor_group::{MonitorBusRequest, MonitorInteraction},
         network_manager_vpn_group::{NetworkManagerVpnBusRequest, NetworkManagerVpnInteraction},
         notification_group::NotificationGroupMessage,
@@ -97,6 +98,7 @@ pub enum IndicatorGroupInteraction {
     NetworkManagerVpns(NetworkManagerVpnInteraction),
     WifiAdapters(WifiAdaptersInteraction),
     MobileModems(MobileModemsInteraction),
+    SteamClient(SteamClientInteraction),
     EthernetPorts(EthernetPortsInteraction),
     BluetoothAdapters(BluetoothInteraction),
     Monitor(MonitorInteraction),
@@ -280,6 +282,12 @@ impl From<NetworkManagerVpnInteraction> for IndicatorGroupInteraction {
 impl From<WifiAdaptersInteraction> for IndicatorGroupInteraction {
     fn from(interaction: WifiAdaptersInteraction) -> Self {
         IndicatorGroupInteraction::WifiAdapters(interaction)
+    }
+}
+
+impl From<SteamClientInteraction> for IndicatorGroupInteraction {
+    fn from(interaction: SteamClientInteraction) -> Self {
+        IndicatorGroupInteraction::SteamClient(interaction)
     }
 }
 

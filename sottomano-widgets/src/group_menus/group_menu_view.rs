@@ -5,13 +5,13 @@ use corredo::{
     popovers::{NestedMenuAction, NestedMenuOpenTrigger},
     theming::text_color,
 };
-use iced::Element;
+use iced::{Alignment, Element, widget::row};
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
-    glyph_icons::icon_glyph::IconGlyph,
+    glyph_icons::{icon_glyph::IconGlyph, phosphor::Phosphor},
     group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
     group_menus::{
         group_menu_state::{
@@ -38,6 +38,8 @@ use crate::{
     },
     widgets::shell_layer_appearance::LayerAppearance,
 };
+
+const BADGE_SCALE: f32 = 0.6;
 
 mod group_menu_cascade;
 #[cfg(test)]
@@ -66,6 +68,13 @@ pub struct GroupMenuView<'a> {
     group_menus: &'a GroupMenuState,
     messenger: GroupMenuMessenger,
     groups: Vec<IndicatorGroupContent<'a>>,
+    handle_badge: MenuHandleBadge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuHandleBadge {
+    Unbadged,
+    Badged(Phosphor),
 }
 
 pub struct InspectionCard<'c, 'a> {
@@ -141,7 +150,14 @@ impl<'a> GroupMenuView<'a> {
             group_menus,
             messenger: GroupMenuMessenger { topic },
             groups: groups.into_iter().collect(),
+            handle_badge: MenuHandleBadge::Unbadged,
         }
+    }
+
+    #[must_use]
+    pub fn with_handle_badge(mut self, handle_badge: MenuHandleBadge) -> Self {
+        self.handle_badge = handle_badge;
+        self
     }
 
     #[must_use]
@@ -216,8 +232,17 @@ impl<'a> GroupMenuView<'a> {
             .map(IndicatorGroupContent::highest_alert_severity)
             .max()
             .unwrap_or_default();
-        let glyph = IconGlyph::from(self.messenger.topic.glyph())
-            .view(config.theme.font.icon_size_px, text_color);
+        let icon_size = config.theme.font.icon_size_px;
+        let topic_glyph = IconGlyph::from(self.messenger.topic.glyph()).view(icon_size, text_color);
+        let glyph: Element<'a, GroupEvent> = match self.handle_badge {
+            MenuHandleBadge::Unbadged => topic_glyph,
+            MenuHandleBadge::Badged(badge_glyph) => row![
+                topic_glyph,
+                IconGlyph::from(badge_glyph).view(icon_size * BADGE_SCALE, text_color)
+            ]
+            .align_y(Alignment::End)
+            .into(),
+        };
         panel_menu_handle(
             self.group_menus.presentation.open_trigger,
             glyph,

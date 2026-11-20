@@ -467,9 +467,9 @@ pub const DEMOS: &[Demo] = &[
         group: |_| gamepad::group(),
         live: |_| unchanging(),
         backdrop: DemoBackdrop::Transparent,
-        shown: GroupShown::InMenu(GroupMenuTopic::Media),
+        shown: GroupShown::InMenu(GroupMenuTopic::Gaming),
         script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Gaming)),
             Step::PressText("DualSense Wireless Controller"),
             Step::Hover(instance_row(
                 IndicatorGroupIdentity {

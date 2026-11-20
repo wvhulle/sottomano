@@ -4,6 +4,7 @@ mod agenda_menu;
 mod appearance_menu;
 mod behaviour_menu;
 mod display_menu;
+mod gaming_menu;
 mod hardware_menu;
 mod media_menu;
 mod network_menu;
@@ -28,6 +29,7 @@ impl DesktopShell {
             GroupMenuTopic::Network => self.network_group_menu(),
             GroupMenuTopic::Agenda => self.agenda_group_menu(),
             GroupMenuTopic::Media => self.media_group_menu(),
+            GroupMenuTopic::Gaming => self.gaming_group_menu(),
             GroupMenuTopic::Display => self.display_group_menu(),
             GroupMenuTopic::Virtualization => self.virtualization_group_menu(),
             GroupMenuTopic::Services => self.services_group_menu(),

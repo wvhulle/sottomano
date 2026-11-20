@@ -181,6 +181,10 @@ impl ShellIndicatorGroups {
                 .mobile_modems_group
                 .interact(interaction)
                 .map(Message::MobileModems),
+            IndicatorGroupInteraction::SteamClient(interaction) => self
+                .steam_client_groups
+                .interact(interaction)
+                .map(Message::SteamClient),
             IndicatorGroupInteraction::EthernetPorts(interaction) => self
                 .ethernet_ports_group
                 .interact(interaction)
@@ -391,6 +395,10 @@ impl ShellIndicatorGroups {
                 .mobile_modems_group
                 .update(delivery, clock)
                 .map(Message::MobileModems),
+            Message::SteamClient(delivery) => self
+                .steam_client_groups
+                .update(delivery, clock)
+                .map(Message::SteamClient),
             Message::EthernetPorts(delivery) => self
                 .ethernet_ports_group
                 .update(delivery, clock)

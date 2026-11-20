@@ -170,6 +170,7 @@ impl DesktopShell {
             | Message::PendingUpgrades(_)
             | Message::WifiAdapters(_)
             | Message::MobileModems(_)
+            | Message::SteamClient(_)
             | Message::EthernetPorts(_)
             | Message::BluetoothAdapters(_)
             | Message::Reachability(_)
