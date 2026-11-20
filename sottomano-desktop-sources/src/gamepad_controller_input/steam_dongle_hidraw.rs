@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use futures::{Stream, stream};
+use futures::{Stream, StreamExt, stream};
 use rustix::{
     fs::{Mode, OFlags, open},
     io::{Errno, read},
@@ -51,7 +51,7 @@ pub enum DongleSample {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DongleReport {
     Battery(GamepadPower),
-    Input,
+    Input { button_bits: u32 },
     Unrelated,
 }
 
@@ -68,7 +68,13 @@ impl DongleReport {
                     _ => GamepadPower::Discharging(level_percent),
                 })
             }
-            [report_id, ..] if INPUT_REPORT_IDS.contains(report_id) => DongleReport::Input,
+            [report_id, _, first, second, third, fourth, ..]
+                if INPUT_REPORT_IDS.contains(report_id) =>
+            {
+                DongleReport::Input {
+                    button_bits: u32::from_le_bytes([*first, *second, *third, *fourth]),
+                }
+            }
             _ => DongleReport::Unrelated,
         }
     }
@@ -171,7 +177,7 @@ async fn sample_once(interface: &DongleInterface) -> io::Result<DongleSample> {
     while let Ok(report) = timeout_at(window_end, next_report(&reader)).await {
         match report? {
             DongleReport::Battery(power) => return Ok(DongleSample::Battery(power)),
-            DongleReport::Input => sample = DongleSample::Streaming,
+            DongleReport::Input { .. } => sample = DongleSample::Streaming,
             DongleReport::Unrelated => {}
         }
     }
@@ -196,6 +202,55 @@ pub fn dongle_samples(
             });
         Some(((interface.clone(), sample), (interface, false)))
     })
+}
+
+pub fn dongle_button_changes(
+    interface: DongleInterface,
+) -> impl Stream<Item = (DongleInterface, Instant)> + Send {
+    let reader = open_read_only(&interface.hidraw_node)
+        .inspect_err(|open_failure| {
+            tracing::debug!(
+                "gamepad: Steam dongle {} unreadable for pairing: {open_failure}",
+                interface.hidraw_node.display()
+            );
+        })
+        .ok();
+    stream::iter(reader).flat_map(move |reader| {
+        let interface = interface.clone();
+        stream::unfold(
+            (reader, interface, ButtonState::Unseen),
+            |(reader, interface, previous_buttons)| async move {
+                let mut buttons = previous_buttons;
+                loop {
+                    match next_report(&reader).await {
+                        Ok(DongleReport::Input { button_bits }) => {
+                            let changed = buttons != ButtonState::Seen(button_bits)
+                                && buttons != ButtonState::Unseen;
+                            buttons = ButtonState::Seen(button_bits);
+                            if changed {
+                                let change = (interface.clone(), Instant::now());
+                                return Some((change, (reader, interface, buttons)));
+                            }
+                        }
+                        Ok(DongleReport::Battery(_) | DongleReport::Unrelated) => {}
+                        Err(read_failure) => {
+                            tracing::debug!(
+                                "gamepad: Steam dongle {} pairing reads ended: {read_failure}",
+                                interface.hidraw_node.display()
+                            );
+                            return None;
+                        }
+                    }
+                }
+            },
+        )
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ButtonState {
+    Unseen,
+    Seen(u32),
 }
 
 #[cfg(test)]
@@ -243,7 +298,13 @@ mod tests {
 
     #[test]
     fn input_reports_mark_a_streaming_controller() {
-        assert_eq!(DongleReport::parse(&[0x42; 54]), DongleReport::Input);
+        let mut input_report = [0_u8; 54];
+        input_report[0] = 0x42;
+        input_report[2] = 0b0000_0001;
+        assert_eq!(
+            DongleReport::parse(&input_report),
+            DongleReport::Input { button_bits: 1 }
+        );
         assert_eq!(DongleReport::parse(&[0x7b; 13]), DongleReport::Unrelated);
     }
 

@@ -18,13 +18,17 @@ use super::{
     bluez_device_aliases::bluetooth_aliases,
     player_indicator_leds::PlayerIndicator,
     steam_dongle_hidraw::{
-        STEAM_PUCK_PRODUCTS, STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR, dongle_interfaces,
-        dongle_samples,
+        STEAM_PUCK_PRODUCTS, STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR, dongle_button_changes,
+        dongle_interfaces, dongle_samples,
     },
+    steam_input_facts::SteamInputFacts,
     steam_input_pairing::{DeviceSignal, SteamInputPairing},
 };
 use crate::{
     battery_power_profiles::upower_battery_state::ChargeStatus,
+    steam_client_files::{
+        steam_controller_facts::steam_controller_facts, steam_root_location::SteamRoot,
+    },
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
     network_connectivity::hid_sysfs_bluetooth_peripherals::DeviceBattery,
     system_protocol_clients::{
@@ -132,7 +136,7 @@ impl From<InputId> for GamepadTransport {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputRoute {
     Kernel,
-    SteamInput,
+    SteamInput(SteamInputFacts),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -717,7 +721,7 @@ fn connected_gamepad_events(
     let steam_virtual_pads = gamepads
         .iter()
         .filter(|gamepad| gamepad.is_steam_virtual_pad());
-    let steam_input_active = steam_virtual_pads.clone().next().is_some();
+    let steam_virtual_pad_count = steam_virtual_pads.clone().count();
     let button_events = physical_gamepads
         .clone()
         .chain(steam_virtual_pads)
@@ -726,24 +730,47 @@ fn connected_gamepad_events(
         accelerometer_node_beside(gamepad.slot)
             .map(|accelerometer| report_timings(gamepad.slot, &accelerometer).boxed())
     });
-    let watched_dongle_interfaces = if steam_input_active {
+    let watched_dongle_interfaces = if steam_virtual_pad_count > 0 {
         dongle_interfaces()
     } else {
         Vec::new()
     };
-    let dongle_signals = watched_dongle_interfaces.into_iter().map(|interface| {
+    let correlated_interfaces = if steam_virtual_pad_count > 1 {
+        watched_dongle_interfaces.clone()
+    } else {
+        Vec::new()
+    };
+    let battery_signals = watched_dongle_interfaces.into_iter().map(|interface| {
         dongle_samples(interface)
             .map(|(interface, sample)| DeviceSignal::Dongle(interface, sample))
             .boxed()
     });
+    let button_change_signals = correlated_interfaces.into_iter().map(|interface| {
+        dongle_button_changes(interface)
+            .map(|(interface, changed_at)| DeviceSignal::DongleButtonsChanged(interface, changed_at))
+            .boxed()
+    });
+    let steam_root = if steam_virtual_pad_count > 0 {
+        SteamRoot::located()
+    } else {
+        None
+    };
+    let steam_fact_signals = steam_root.map(|steam_root| {
+        steam_controller_facts(&steam_root)
+            .map(|facts| DeviceSignal::SteamFacts(Box::new(facts)))
+            .boxed()
+    });
+    let dongle_signals = battery_signals
+        .chain(button_change_signals)
+        .chain(steam_fact_signals);
     let device_events = stream::select_all(button_events.chain(report_rate_events));
     let raw_signals =
         stream::select(roster_with_refresh(gamepads), device_events).map(DeviceSignal::Raw);
     stream::select(raw_signals, stream::select_all(dongle_signals))
         .scan(SteamInputPairing::default(), |pairing, signal| {
-            ready(Some(pairing.absorb(signal)))
+            ready(Some(stream::iter(pairing.absorb(signal))))
         })
-        .filter_map(ready)
+        .flatten()
 }
 
 pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sottomano_desktop_sources::steam_client_files::steam_log_lines::controller_log_lines::RadioSignalSample;
 use sottomano_desktop_sources::gamepad_controller_input::{
     accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
     evdev_gamepad_devices::{
@@ -9,6 +10,7 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     gamepad_input_machine::GamepadInput,
     player_indicator_leds::{LitPlayer, PlayerIndicator},
     steam_dongle_hidraw::{STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR},
+    steam_input_facts::{FirmwareStatus, PairingEvidence, RadioReading, SteamInputFacts},
     steam_input_pairing::STEAM_CONTROLLER_NAME,
 };
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
@@ -77,7 +79,15 @@ fn steam_controller_through_steam_input() -> ConnectedGamepad {
                 alias: STEAM_CONTROLLER_NAME.to_owned(),
             },
             player_indicator: PlayerIndicator::Unlit,
-            input_route: InputRoute::SteamInput,
+            input_route: InputRoute::SteamInput(SteamInputFacts {
+                pairing: PairingEvidence::SteamControllerLog,
+                radio: RadioReading::Measured(RadioSignalSample {
+                    rssi_dbm: -52,
+                    channel: 76,
+                }),
+                controller_firmware: FirmwareStatus::Current,
+                dongle_firmware: FirmwareStatus::UpdatePending,
+            }),
         }),
     }
 }

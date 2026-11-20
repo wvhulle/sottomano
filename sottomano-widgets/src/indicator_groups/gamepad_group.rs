@@ -5,6 +5,7 @@ mod controller_link_indicator;
 mod diagram_anchor_mapping;
 mod sqlite_compositor_driving_controllers;
 mod steam_input_route;
+mod steam_radio_firmware_indicators;
 mod usb_cable_indicator;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -31,6 +32,7 @@ use sottomano_desktop_sources::{
             GamepadTransport, InputRoute, PhysicalGamepadLink, UsbCableState,
         },
         gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
+        steam_input_facts::{RadioReading, SteamInputFacts},
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
@@ -49,6 +51,7 @@ use self::{
     connected_controller_indicator::{ConnectedControllerIndicator, ControllerMarking},
     controller_battery_indicator::ControllerBatteryIndicator,
     controller_link_indicator::{BandSharing, ControllerLinkIndicator, WiredFallback, wifi_band},
+    steam_radio_firmware_indicators::{SteamFirmwareIndicator, SteamRadioIndicator},
     usb_cable_indicator::{UsbCableIndicator, UsbCableRole},
 };
 use crate::{
@@ -660,12 +663,22 @@ impl GamepadGroup {
             .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
         ];
         if !shown_in_bluetooth_group {
-            if link.input_route == InputRoute::Kernel {
-                rows.push(self.link_indicator(slot, link).indicator());
+            match link.input_route {
+                InputRoute::Kernel => rows.push(self.link_indicator(slot, link).indicator()),
+                InputRoute::SteamInput(SteamInputFacts {
+                    radio: RadioReading::Measured(signal),
+                    ..
+                }) => rows.push(SteamRadioIndicator { signal }.indicator()),
+                InputRoute::SteamInput(_) => {}
             }
             if gamepad.power != GamepadPower::NoBattery {
                 rows.push(battery_indicator.indicator());
             }
+        }
+        if let InputRoute::SteamInput(facts) = link.input_route
+            && SteamFirmwareIndicator::has_pending_update(&facts)
+        {
+            rows.push(SteamFirmwareIndicator { facts }.indicator());
         }
         if let Some(cable_role) = usb_cable_role(link.transport) {
             let cable_indicator = UsbCableIndicator { role: cable_role }.indicator();

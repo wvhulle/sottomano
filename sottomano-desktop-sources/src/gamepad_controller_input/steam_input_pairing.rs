@@ -1,4 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+use tokio::time::Instant;
 
 use super::{
     evdev_gamepad_devices::{
@@ -7,29 +9,48 @@ use super::{
     },
     player_indicator_leds::PlayerIndicator,
     steam_dongle_hidraw::{DongleInterface, DongleSample},
+    steam_input_assignment::{
+        SteamPadAssignment, steam_pad_assignments, unassigned_steam_pad_slots,
+    },
+    steam_input_facts::SteamInputFacts,
+    steam_pairing_heuristics::{interface_changing_with_edge, serial_number_from_steam_handle},
 };
+use crate::steam_client_files::steam_controller_facts::SteamControllerFacts;
 
 pub const STEAM_CONTROLLER_NAME: &str = "Steam Controller";
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum DeviceSignal {
     Raw(RawGamepadEvent),
     Dongle(DongleInterface, DongleSample),
+    DongleButtonsChanged(DongleInterface, Instant),
+    SteamFacts(Box<SteamControllerFacts>),
 }
 
 #[derive(Debug, Default)]
 pub struct SteamInputPairing {
     latest_roster: Option<Vec<ConnectedGamepad>>,
     delivered_roster: Vec<ConnectedGamepad>,
-    live_interfaces: BTreeMap<DongleInterface, bool>,
+    known_interfaces: BTreeMap<DongleInterface, bool>,
     battery_by_interface: BTreeMap<DongleInterface, GamepadPower>,
+    steam_facts: SteamControllerFacts,
+    correlated_interfaces: BTreeMap<usize, DongleInterface>,
+    latest_button_change: BTreeMap<DongleInterface, Instant>,
 }
 
 fn steam_input_controller(
     steam_virtual_pad: &ConnectedGamepad,
-    interface: &DongleInterface,
+    assignment: &SteamPadAssignment<'_>,
     power: GamepadPower,
+    facts: &SteamControllerFacts,
 ) -> ConnectedGamepad {
+    let controller_serial = serial_number_from_steam_handle(assignment.virtual_slot.steam_handle);
+    let input_facts = SteamInputFacts::gathered(
+        facts,
+        assignment.evidence,
+        &controller_serial,
+        &assignment.interface.dongle_serial,
+    );
     ConnectedGamepad {
         slot: steam_virtual_pad.slot,
         name: STEAM_CONTROLLER_NAME.to_owned(),
@@ -37,43 +58,45 @@ fn steam_input_controller(
         product_id: steam_virtual_pad.product_id,
         power,
         origin: GamepadOrigin::Physical(PhysicalGamepadLink {
-            kernel_device: interface.kernel_device.clone(),
+            kernel_device: assignment.interface.kernel_device.clone(),
             transport: GamepadTransport::SteamDongle,
             identity: ControllerIdentity::Addressed {
-                hardware_address: format!(
-                    "{}/input{}",
-                    interface.dongle_serial, interface.interface_number
-                ),
+                hardware_address: controller_serial,
                 alias: STEAM_CONTROLLER_NAME.to_owned(),
             },
             player_indicator: PlayerIndicator::Unlit,
-            input_route: InputRoute::SteamInput,
+            input_route: InputRoute::SteamInput(input_facts),
         }),
     }
 }
 
 impl SteamInputPairing {
+    fn assignments<'pairing>(
+        &'pairing self,
+        roster: &[ConnectedGamepad],
+    ) -> BTreeMap<usize, SteamPadAssignment<'pairing>> {
+        steam_pad_assignments(
+            roster,
+            &self.steam_facts,
+            &self.known_interfaces,
+            &self.correlated_interfaces,
+        )
+    }
+
     fn paired_roster(&self, roster: &[ConnectedGamepad]) -> Vec<ConnectedGamepad> {
-        let mut live_interfaces = self
-            .live_interfaces
-            .iter()
-            .filter(|(_, live)| **live)
-            .map(|(interface, _)| interface);
+        let assignments = self.assignments(roster);
         roster
             .iter()
             .map(|gamepad| {
-                if !gamepad.is_steam_virtual_pad() {
-                    return gamepad.clone();
-                }
-                let Some(interface) = live_interfaces.next() else {
+                let Some(assignment) = assignments.get(&gamepad.slot) else {
                     return gamepad.clone();
                 };
                 let power = self
                     .battery_by_interface
-                    .get(interface)
+                    .get(&assignment.interface)
                     .copied()
                     .unwrap_or(GamepadPower::NoBattery);
-                steam_input_controller(gamepad, interface, power)
+                steam_input_controller(gamepad, assignment, power, &self.steam_facts)
             })
             .collect()
     }
@@ -87,135 +110,68 @@ impl SteamInputPairing {
         Some(RawGamepadEvent::Roster(paired))
     }
 
-    pub fn absorb(&mut self, signal: DeviceSignal) -> Option<RawGamepadEvent> {
+    fn correlate_button_edge(&mut self, pad_slot: usize, edge_at: Instant) -> bool {
+        let Some(roster) = self.latest_roster.as_deref() else {
+            return false;
+        };
+        let assigned_pad_slots: BTreeSet<usize> = self.assignments(roster).into_keys().collect();
+        if !unassigned_steam_pad_slots(roster, &self.steam_facts, &assigned_pad_slots)
+            .contains(&pad_slot)
+        {
+            return false;
+        }
+        let assigned_interfaces: BTreeSet<DongleInterface> = self
+            .assignments(roster)
+            .into_values()
+            .map(|assignment| assignment.interface)
+            .collect();
+        let Some(interface) =
+            interface_changing_with_edge(edge_at, &self.latest_button_change, |interface| {
+                !assigned_interfaces.contains(interface)
+            })
+        else {
+            return false;
+        };
+        self.correlated_interfaces
+            .insert(pad_slot, interface.clone());
+        true
+    }
+
+    pub fn absorb(&mut self, signal: DeviceSignal) -> Vec<RawGamepadEvent> {
         match signal {
             DeviceSignal::Raw(RawGamepadEvent::Roster(roster)) => {
+                self.correlated_interfaces
+                    .retain(|pad_slot, _| roster.iter().any(|gamepad| gamepad.slot == *pad_slot));
                 let paired = self.paired_roster(&roster);
                 self.latest_roster = Some(roster);
                 self.delivered_roster.clone_from(&paired);
-                Some(RawGamepadEvent::Roster(paired))
+                vec![RawGamepadEvent::Roster(paired)]
             }
-            DeviceSignal::Raw(event) => Some(event),
+            DeviceSignal::Raw(button @ RawGamepadEvent::Button { slot, .. }) => {
+                let newly_paired = self.correlate_button_edge(slot, Instant::now());
+                let roster_update = newly_paired.then(|| self.deliver_roster()).flatten();
+                roster_update.into_iter().chain([button]).collect()
+            }
+            DeviceSignal::Raw(event) => vec![event],
             DeviceSignal::Dongle(interface, sample) => {
                 if let DongleSample::Battery(power) = sample {
                     self.battery_by_interface.insert(interface.clone(), power);
                 }
-                self.live_interfaces
+                self.known_interfaces
                     .insert(interface, sample != DongleSample::Silent);
-                self.deliver_roster()
+                self.deliver_roster().into_iter().collect()
+            }
+            DeviceSignal::DongleButtonsChanged(interface, changed_at) => {
+                self.latest_button_change.insert(interface, changed_at);
+                Vec::new()
+            }
+            DeviceSignal::SteamFacts(facts) => {
+                self.steam_facts = *facts;
+                self.deliver_roster().into_iter().collect()
             }
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use super::*;
-    use crate::gamepad_controller_input::steam_dongle_hidraw::{
-        STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR,
-    };
-
-    fn steam_virtual_pad(slot: usize) -> ConnectedGamepad {
-        ConnectedGamepad {
-            slot,
-            name: format!("Microsoft X-Box 360 pad {slot}"),
-            vendor_id: VALVE_USB_VENDOR,
-            product_id: STEAM_VIRTUAL_PAD_PRODUCT,
-            power: GamepadPower::NoBattery,
-            origin: GamepadOrigin::Virtual,
-        }
-    }
-
-    fn dongle_slot(interface_number: u8) -> DongleInterface {
-        DongleInterface {
-            interface_number,
-            dongle_serial: "FXB99634004CA".to_owned(),
-            kernel_device: format!("+hid:0003:28DE:1304.000{interface_number}"),
-            hidraw_node: PathBuf::from(format!("/dev/hidraw1{interface_number}")),
-        }
-    }
-
-    fn roster_of(event: Option<RawGamepadEvent>) -> Vec<ConnectedGamepad> {
-        match event {
-            Some(RawGamepadEvent::Roster(roster)) => roster,
-            other => panic!("expected a roster, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn a_steam_pad_without_a_live_dongle_slot_stays_virtual() {
-        let mut pairing = SteamInputPairing::default();
-        pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Silent));
-        let roster = roster_of(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-            steam_virtual_pad(18),
-        ]))));
-        assert_eq!(roster, [steam_virtual_pad(18)]);
-    }
-
-    #[test]
-    fn a_battery_report_turns_the_steam_pad_into_a_steam_controller() {
-        let mut pairing = SteamInputPairing::default();
-        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-            steam_virtual_pad(18),
-        ])));
-        let roster = roster_of(pairing.absorb(DeviceSignal::Dongle(
-            dongle_slot(2),
-            DongleSample::Battery(GamepadPower::Charging(76)),
-        )));
-        assert_eq!(roster[0].name, STEAM_CONTROLLER_NAME);
-        assert_eq!(roster[0].power, GamepadPower::Charging(76));
-        assert!(matches!(
-            &roster[0].origin,
-            GamepadOrigin::Physical(PhysicalGamepadLink {
-                transport: GamepadTransport::SteamDongle,
-                input_route: InputRoute::SteamInput,
-                ..
-            })
-        ));
-    }
-
-    #[test]
-    fn a_streaming_sample_keeps_the_last_battery_level() {
-        let mut pairing = SteamInputPairing::default();
-        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-            steam_virtual_pad(18),
-        ])));
-        pairing.absorb(DeviceSignal::Dongle(
-            dongle_slot(2),
-            DongleSample::Battery(GamepadPower::Discharging(63)),
-        ));
-        assert_eq!(
-            pairing.absorb(DeviceSignal::Dongle(
-                dongle_slot(2),
-                DongleSample::Streaming
-            )),
-            None
-        );
-    }
-
-    #[test]
-    fn steam_pads_pair_with_live_slots_in_order() {
-        let mut pairing = SteamInputPairing::default();
-        pairing.absorb(DeviceSignal::Dongle(dongle_slot(3), DongleSample::Streaming));
-        pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Streaming));
-        let roster = roster_of(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-            steam_virtual_pad(18),
-            steam_virtual_pad(19),
-        ]))));
-        let addresses: Vec<&str> = roster
-            .iter()
-            .filter_map(|gamepad| match &gamepad.origin {
-                GamepadOrigin::Physical(PhysicalGamepadLink {
-                    identity: ControllerIdentity::Addressed {
-                        hardware_address, ..
-                    },
-                    ..
-                }) => Some(hardware_address.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(addresses, ["FXB99634004CA/input2", "FXB99634004CA/input3"]);
-    }
-}
+mod steam_input_pairing_tests;

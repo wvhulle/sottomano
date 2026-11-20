@@ -6,6 +6,8 @@ use winnow::{
     token::take_till,
 };
 
+const VALVE_USB_VENDOR: u16 = 0x28de;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VirtualSlotControllerType {
     SteamController,
@@ -20,6 +22,14 @@ pub struct SteamVirtualSlot {
     pub physical_product: u16,
     pub controller_type: VirtualSlotControllerType,
     pub steam_handle: u64,
+}
+
+impl SteamVirtualSlot {
+    #[must_use]
+    pub fn is_steam_controller(&self) -> bool {
+        self.controller_type == VirtualSlotControllerType::SteamController
+            && self.physical_vendor == VALVE_USB_VENDOR
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -149,6 +159,13 @@ mod tests {
             slots[1].controller_type,
             VirtualSlotControllerType::OtherController
         );
+    }
+
+    #[test]
+    fn only_valve_slots_of_type_steam_are_steam_controllers() {
+        let slots = parse_virtual_slot_table(TWO_SLOTS).expect("valid table");
+        assert!(slots[0].is_steam_controller());
+        assert!(!slots[1].is_steam_controller());
     }
 
     #[test]
