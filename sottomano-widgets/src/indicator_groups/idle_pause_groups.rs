@@ -1,6 +1,11 @@
-use crate::group_indicators::indicator_state::IndicatorState;
+mod chain_settings;
+mod chain_stage_rows;
+mod idle_timeline_row;
 mod pause_blocker_indicators;
+mod pause_group_elements;
+mod relative_idle_chain;
 mod sqlite_idle_timeouts;
+mod stage_schedule_cards;
 
 use std::{convert::identity, time::Duration};
 
@@ -14,39 +19,40 @@ use sottomano_desktop_sources::{
     login_session_presence::{
         focus_time_ledger::ScreenEdge,
         idle_session_actions::IdleAction,
-        kernel_sleep_obstacles::{LogindCapability, SleepObstacles, SleepState},
+        kernel_sleep_obstacles::{SleepObstacles, SleepState},
         screensaver_bus_idle_inhibitors::ScreenSaverInhibitors,
+        system_hibernate_delay::HibernateDelay,
         wayland_idle_notify::IdleEdge,
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
+    systemd_units_journal::unit_active_state::UnitChangeFailure,
 };
-use sottomano_toml_config::Config;
 
-use self::pause_blocker_indicators::{
-    NextSleepStateIndicator, PauseBlocker, PauseFacts, ScheduledShutdownIndicator,
-    blocker_sections, pause_blockers, pause_title, sleep_state_sections,
+use self::{
+    chain_stage_rows::HibernateDelayApply,
+    pause_blocker_indicators::{
+        PauseBlocker, PauseFacts, TimerArming, pause_blockers, pause_title,
+    },
+    stage_schedule_cards::stage_caption,
 };
-pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
+pub use self::{
+    relative_idle_chain::{
+        HibernateDelayDemand, ResolvedIdleChain, ScheduledAfterIdle, StageSchedule, StageSetting,
+        SuspendThenHibernateSupport,
+    },
+    sqlite_idle_timeouts::Timeouts,
+};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, slider_control::ControlMessage},
-    hover_cards::hover_card_body::Section,
-    indicator_groups::{
-        idle_pause_groups::pause_blocker_indicators::TimerArming,
-        indicator_group_content::{
-            ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
-        },
-        indicator_group_identity::{
-            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
-        },
+    group_indicators::slider_control::ControlMessage,
+    indicator_groups::indicator_group_content::{
+        ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
     },
     widgets::{
         idle::{
-            ActionTrigger, performed_idle_action_edges,
-            timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
+            ArmedIdleChain, performed_idle_action_edges,
+            timer::{IdleTimer, TimerChange},
         },
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -54,16 +60,22 @@ use crate::{
 
 struct IdlePause {
     timer: IdleTimer,
-    expansion: IndicatorGroupExpansion,
 }
 
 impl IdlePause {
-    fn new(name: &'static str, action: IdleAction) -> Self {
+    fn new(stage: IdleAction) -> Self {
         Self {
-            timer: IdleTimer::new(name, action),
-            expansion: IndicatorGroupExpansion::default(),
+            timer: IdleTimer::new(pause_title(stage)),
         }
     }
+}
+
+enum IdleWatch {
+    Disarmed,
+    Watching {
+        armed_chain: ArmedIdleChain,
+        _watcher: task::Handle,
+    },
 }
 
 pub struct IdlePauseGroups {
@@ -72,10 +84,13 @@ pub struct IdlePauseGroups {
     sleep: IdlePause,
     hibernate: IdlePause,
     power_down: IdlePause,
+    expansion: IndicatorGroupExpansion,
     quiet_screen_off: Option<Duration>,
-    idle_watcher: Option<task::Handle>,
+    idle_watch: IdleWatch,
     sleep_obstacles: SubscribedSnapshot<SleepObstacles>,
     idle_inhibitors: SubscribedSnapshot<ScreenSaverInhibitors>,
+    hibernate_delay: SubscribedSnapshot<HibernateDelay>,
+    hibernate_delay_apply: HibernateDelayApply,
     pause_blockers: Vec<PauseBlocker>,
 }
 
@@ -85,51 +100,38 @@ pub enum IdlePauseMessage {
     ScreenPowerChangedByIdleAction(ScreenEdge),
     SleepObstaclesFetched(Box<SnapshotDelivery<SleepObstacles>>),
     IdleInhibitorsFetched(Box<SnapshotDelivery<ScreenSaverInhibitors>>),
+    HibernateDelayFetched(Box<SnapshotDelivery<HibernateDelay>>),
+    HibernateDelayApplied(Result<(), UnitChangeFailure>),
     TimeoutPersisted(IdleAction, ControlMessage),
 }
 
 #[derive(Debug, Clone)]
 pub enum IdlePauseInteraction {
-    Expansion(IdleAction, IndicatorGroupExpansionMessage),
+    Expansion(IndicatorGroupExpansionMessage),
     Timer(IdleAction, ControlMessage),
 }
 
 impl Default for IdlePauseGroups {
     fn default() -> Self {
         Self {
-            lock: IdlePause::new("Lock timeout", IdleAction::Lock),
-            screen_off: IdlePause::new("Screen-off timeout", IdleAction::ScreenOff),
-            sleep: IdlePause::new("Standby timeout", IdleAction::Sleep),
-            hibernate: IdlePause::new("Hibernate timeout", IdleAction::Hibernate),
-            power_down: IdlePause::new("Power-down timeout", IdleAction::PowerOff),
+            lock: IdlePause::new(IdleAction::Lock),
+            screen_off: IdlePause::new(IdleAction::ScreenOff),
+            sleep: IdlePause::new(IdleAction::Sleep),
+            hibernate: IdlePause::new(IdleAction::Hibernate),
+            power_down: IdlePause::new(IdleAction::PowerOff),
+            expansion: IndicatorGroupExpansion::default(),
             quiet_screen_off: None,
-            idle_watcher: None,
+            idle_watch: IdleWatch::Disarmed,
             sleep_obstacles: SubscribedSnapshot::default(),
             idle_inhibitors: SubscribedSnapshot::default(),
+            hibernate_delay: SubscribedSnapshot::default(),
+            hibernate_delay_apply: HibernateDelayApply::Settled,
             pause_blockers: Vec::new(),
         }
     }
 }
 
-fn pause_glyph(pause: IdleAction) -> Phosphor {
-    match pause {
-        IdleAction::Lock => Phosphor::Lock(Weight::Regular),
-        IdleAction::ScreenOff => Phosphor::Monitor(Weight::Regular),
-        IdleAction::Sleep => Phosphor::Bed(Weight::Regular),
-        IdleAction::Hibernate => Phosphor::Snowflake(Weight::Regular),
-        IdleAction::PowerOff => Phosphor::Power(Weight::Regular),
-    }
-}
-
-fn pause_stored_name(pause: IdleAction) -> &'static str {
-    match pause {
-        IdleAction::Lock => "lock",
-        IdleAction::ScreenOff => "screen_off",
-        IdleAction::Sleep => "sleep",
-        IdleAction::Hibernate => "hibernate",
-        IdleAction::PowerOff => "power_down",
-    }
-}
+use self::chain_settings::capability_availability;
 
 impl IdlePauseGroups {
     pub fn load() -> Task<IdlePauseMessage> {
@@ -148,6 +150,8 @@ impl IdlePauseGroups {
             .map(|delivery| IdlePauseMessage::SleepObstaclesFetched(Box::new(delivery))),
             snapshot_subscription::<ScreenSaverInhibitors>(buses.clone())
                 .map(|delivery| IdlePauseMessage::IdleInhibitorsFetched(Box::new(delivery))),
+            snapshot_subscription::<HibernateDelay>(())
+                .map(|delivery| IdlePauseMessage::HibernateDelayFetched(Box::new(delivery))),
         ])
     }
 
@@ -172,11 +176,14 @@ impl IdlePauseGroups {
     }
 
     pub fn collapse(&mut self) {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
+            self.close_all_timers();
+        }
+    }
+
+    fn close_all_timers(&mut self) {
         for kind in IdleAction::ALL {
-            let pause = self.pause_mut(kind);
-            if pause.expansion.collapse() == ExpansionChange::JustCollapsed {
-                pause.timer.close();
-            }
+            self.pause_mut(kind).timer.close();
         }
     }
 
@@ -201,33 +208,29 @@ impl IdlePauseGroups {
             IdlePauseMessage::ScreenPowerChangedByIdleAction(_) => Task::none(),
             IdlePauseMessage::SleepObstaclesFetched(delivery) => {
                 self.sleep_obstacles.receive(*delivery, clock);
-                let hibernate_availability = match self
+                let hibernate_capability = self
                     .sleep_obstacles
                     .get()
-                    .map(|obstacles| obstacles.capability_of(SleepState::Hibernate))
-                {
-                    Some(LogindCapability::NotPermitted | LogindCapability::Unsupported) => {
-                        ActionAvailability::Unavailable
-                    }
-                    Some(LogindCapability::Allowed | LogindCapability::AfterAuthorisation)
-                    | None => ActionAvailability::Available,
-                };
-                let availability_change = self
-                    .hibernate
+                    .map(|obstacles| obstacles.capability_of(SleepState::Hibernate));
+                self.hibernate
                     .timer
-                    .set_availability(hibernate_availability);
-                if availability_change == AvailabilityChange::Changed
-                    && self.hibernate.timer.timeout.is_some()
-                {
-                    self.rearm()
-                } else {
-                    self.refresh_pause_blockers();
-                    Task::none()
-                }
+                    .set_availability(capability_availability(hibernate_capability));
+                self.rearm()
             }
             IdlePauseMessage::IdleInhibitorsFetched(delivery) => {
                 self.idle_inhibitors.receive(*delivery, clock);
                 self.refresh_pause_blockers();
+                Task::none()
+            }
+            IdlePauseMessage::HibernateDelayFetched(delivery) => {
+                self.hibernate_delay.receive(*delivery, clock);
+                Task::none()
+            }
+            IdlePauseMessage::HibernateDelayApplied(outcome) => {
+                self.hibernate_delay_apply = match outcome {
+                    Ok(()) => HibernateDelayApply::Settled,
+                    Err(failure) => HibernateDelayApply::Failed(failure.to_string()),
+                };
                 Task::none()
             }
             IdlePauseMessage::TimeoutPersisted(kind, control_message) => {
@@ -238,10 +241,9 @@ impl IdlePauseGroups {
 
     pub fn interact(&mut self, interaction: IdlePauseInteraction) -> Task<IdlePauseMessage> {
         match interaction {
-            IdlePauseInteraction::Expansion(kind, expansion_message) => {
-                let pause = self.pause_mut(kind);
-                if pause.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
-                    pause.timer.close();
+            IdlePauseInteraction::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.close_all_timers();
                 }
                 Task::none()
             }
@@ -271,23 +273,23 @@ impl IdlePauseGroups {
                         )
                     },
                 );
-                Task::batch([persist, self.rearm()])
+                Task::batch([persist, self.rearm(), self.apply_wanted_hibernate_delay()])
             }
         }
     }
 
     fn refresh_pause_blockers(&mut self) {
-        let armed_triggers = self.triggers();
+        let armed_chain = self.idle_chain().armed();
         self.pause_blockers = pause_blockers(&PauseFacts {
             obstacles: self.sleep_obstacles.get(),
             idle_inhibitors: self
                 .idle_inhibitors
                 .get()
                 .map_or(&[], |held| held.inhibitors.as_slice()),
-            armed_triggers: &armed_triggers,
-            hibernate_timer: match self.hibernate.timer.timeout {
-                Some(_) => TimerArming::Armed,
-                None => TimerArming::Unarmed,
+            armed_triggers: &armed_chain.triggers,
+            hibernate_timer: match self.hibernate.timer.setting() {
+                StageSetting::After(_) => TimerArming::Armed,
+                StageSetting::Off | StageSetting::Unavailable => TimerArming::Unarmed,
             },
         });
     }
@@ -309,151 +311,50 @@ impl IdlePauseGroups {
             .filter(move |blocker| blocker.pause == pause)
     }
 
-    fn pause_sections(&self, kind: IdleAction, clock: Clock) -> Vec<Section> {
-        let timer = &self.pause(kind).timer;
-        let timer_card = if kind == IdleAction::ScreenOff
-            && let Some(override_timeout) = self.quiet_screen_off
-        {
-            timer.hover_card_overridden_by("Quiet hours", override_timeout, clock)
-        } else {
-            timer.hover_card(clock)
-        };
-        timer_card
-            .into_iter()
-            .chain(self.sleep_obstacles.sections_described_by(|obstacles| {
-                let sleep_states = if kind == IdleAction::Sleep {
-                    sleep_state_sections(obstacles)
-                } else {
-                    Vec::new()
-                };
-                sleep_states
-                    .into_iter()
-                    .chain(blocker_sections(self.blockers_of(kind)))
-                    .collect()
-            }))
-            .collect()
-    }
-
-    fn blocker_group_sections(&self, pause: IdleAction) -> Vec<Section> {
-        self.sleep_obstacles
-            .hover_card_with(blocker_sections(self.blockers_of(pause)))
-    }
-
     pub fn override_screen_off(&mut self, timeout: Option<Duration>) -> Task<IdlePauseMessage> {
         self.quiet_screen_off = timeout;
         self.rearm()
     }
 
+    fn caption_sliders(&mut self) {
+        let chain = self.idle_chain();
+        for stage in IdleAction::ALL {
+            self.pause_mut(stage)
+                .timer
+                .caption_after(stage_caption(stage, chain.stage(stage)));
+        }
+    }
+
     fn rearm(&mut self) -> Task<IdlePauseMessage> {
+        self.caption_sliders();
         self.refresh_pause_blockers();
-        let triggers = self.triggers();
-        if triggers.is_empty() {
-            self.idle_watcher = None;
+        let armed_chain = self.idle_chain().armed();
+        if let IdleWatch::Watching {
+            armed_chain: watched_chain,
+            ..
+        } = &self.idle_watch
+            && *watched_chain == armed_chain
+        {
             return Task::none();
         }
-        let screen_power_edges = performed_idle_action_edges(triggers).filter_map(|tagged| {
-            ready((tagged.tag == IdleAction::ScreenOff).then_some(
-                IdlePauseMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
-                    IdleEdge::Idled => ScreenEdge::Off,
-                    IdleEdge::Resumed => ScreenEdge::On,
-                }),
-            ))
-        });
-        let (watcher, handle) = Task::run(screen_power_edges, identity).abortable();
-        self.idle_watcher = Some(handle.abort_on_drop());
-        watcher
-    }
-
-    fn triggers(&self) -> Vec<ActionTrigger> {
-        IdleAction::ALL
-            .into_iter()
-            .filter_map(|kind| {
-                if kind == IdleAction::ScreenOff
-                    && let Some(after) = self.quiet_screen_off
-                {
-                    Some(ActionTrigger {
-                        after,
-                        tag: IdleAction::ScreenOff,
-                    })
-                } else {
-                    self.pause(kind).timer.trigger()
-                }
-            })
-            .collect()
-    }
-
-    #[must_use]
-    pub fn pause_groups<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> [IndicatorGroupContent<'a>; 5] {
-        IdleAction::ALL.map(|pause| self.pause_group(pause, config, clock))
-    }
-
-    fn pause_group<'a>(
-        &'a self,
-        pause: IdleAction,
-        config: &'a Config,
-        clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
-        let locale = config.calendar.locale;
-        let first_blocker = self.blockers_of(pause).next();
-        let timeout_slider =
-            GroupIndicator::slider(&self.pause(pause).timer.control, config, move |message| {
-                IdlePauseInteraction::Timer(pause, message)
-            })
-            .with_hover_card(Box::new(move |card_clock| {
-                self.pause_sections(pause, card_clock)
-            }));
-        let mut rows = vec![timeout_slider];
-        rows.extend(self.blockers_of(pause).map(move |blocker| {
-            blocker
-                .indicator()
-                .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
-        }));
-        if let Some(obstacles) = self.sleep_obstacles.get() {
-            if pause == IdleAction::Sleep
-                && let Some(state) = obstacles.sleep_state_that_runs()
-            {
-                rows.push(
-                    NextSleepStateIndicator { state }
-                        .indicator()
-                        .with_hover_card(Box::new(move |card_clock| {
-                            self.pause_sections(IdleAction::Sleep, card_clock)
-                        })),
-                );
-            }
-            if pause == IdleAction::PowerOff
-                && let Some(shutdown) = obstacles.scheduled_shutdown.as_ref()
-            {
-                rows.push(
-                    ScheduledShutdownIndicator { shutdown }
-                        .indicator(clock, locale)
-                        .with_hover_card(Box::new(move |card_clock| {
-                            self.pause_sections(IdleAction::PowerOff, card_clock)
-                        })),
-                );
-            }
+        if armed_chain.triggers.is_empty() {
+            self.idle_watch = IdleWatch::Disarmed;
+            return Task::none();
         }
-        let headline_state = match first_blocker {
-            Some(blocker) => blocker.display_state(),
-            None => IndicatorState::Idle,
+        let screen_power_edges =
+            performed_idle_action_edges(armed_chain.clone()).filter_map(|tagged| {
+                ready((tagged.tag == IdleAction::ScreenOff).then_some(
+                    IdlePauseMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
+                        IdleEdge::Idled => ScreenEdge::Off,
+                        IdleEdge::Resumed => ScreenEdge::On,
+                    }),
+                ))
+            });
+        let (watcher, handle) = Task::run(screen_power_edges, identity).abortable();
+        self.idle_watch = IdleWatch::Watching {
+            armed_chain,
+            _watcher: handle.abort_on_drop(),
         };
-        IndicatorGroupContent::expandable_instance(
-            IndicatorGroupIdentity::durable(
-                IndicatorGroupFamily::IdleTimeouts,
-                pause_stored_name(pause),
-            ),
-            IndicatorGroupTitle::fixed(pause_title(pause)),
-            GroupIndicator::glyph_only(
-                IndicatorGroupTitle::fixed(pause_title(pause)).to_string(),
-                pause_glyph(pause).into(),
-                headline_state,
-            ),
-            &self.pause(pause).expansion,
-            move |message| IdlePauseInteraction::Expansion(pause, message),
-            rows,
-        )
+        watcher
     }
 }

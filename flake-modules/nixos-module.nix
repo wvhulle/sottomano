@@ -14,6 +14,26 @@
     let
       cfg = config.programs.sottomano;
       containerControllerGroup = "sottomano-containers";
+      hibernateDelayControllerGroup = "sottomano-hibernate-delay";
+      hibernateDelayDropIn = "/etc/systemd/sleep.conf.d/50-sottomano.conf";
+      writeHibernateDelay = pkgs.writeShellScript "sottomano-write-hibernate-delay" ''
+        set -euo pipefail
+        requested_instance="$1"
+        drop_in_directory="$(${pkgs.coreutils}/bin/dirname ${hibernateDelayDropIn})"
+        if ! [[ "$requested_instance" =~ ^[1-9][0-9]{0,5}$ ]]; then
+          echo "hibernate delay must be whole seconds, got: $requested_instance" >&2
+          exit 1
+        fi
+        if (( requested_instance < ${toString cfg.hibernateDelayRange.shortestSeconds} || requested_instance > ${toString cfg.hibernateDelayRange.longestSeconds} )); then
+          echo "hibernate delay $requested_instance s is outside the allowed range" >&2
+          exit 1
+        fi
+        ${pkgs.coreutils}/bin/mkdir -p "$drop_in_directory"
+        staged_drop_in="$(${pkgs.coreutils}/bin/mktemp "$drop_in_directory/.50-sottomano.XXXXXX")"
+        printf '[Sleep]\nHibernateDelaySec=%ss\n' "$requested_instance" > "$staged_drop_in"
+        ${pkgs.coreutils}/bin/chmod 0644 "$staged_drop_in"
+        ${pkgs.coreutils}/bin/mv -f "$staged_drop_in" ${hibernateDelayDropIn}
+      '';
     in
     {
       imports = [
@@ -108,6 +128,37 @@
           '';
         };
 
+        hibernateDelayControllers = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          example = [ "alice" ];
+          description = ''
+            Users added to the `sottomano-hibernate-delay` group, whose members may
+            set how long a suspended machine waits before hibernating (systemd's
+            `HibernateDelaySec`) from the bar's Hibernate group. A polkit rule lets the
+            group start only `sottomano-hibernate-delay@<seconds>.service`, without a
+            password prompt. The unit accepts whole seconds within
+            `hibernateDelayRange` and writes `${hibernateDelayDropIn}`; delete that file
+            to return to the NixOS value. The drop-in
+            overrides `systemd.sleep.settings.Sleep.HibernateDelaySec` and applies to
+            every suspend-then-hibernate, including lid close. Any process running as
+            a member can change the delay. Group changes apply at the next login.
+          '';
+        };
+
+        hibernateDelayRange = {
+          shortestSeconds = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 10;
+            description = "Shortest hibernate delay the helper unit accepts.";
+          };
+          longestSeconds = lib.mkOption {
+            type = lib.types.ints.positive;
+            default = 86400;
+            description = "Longest hibernate delay the helper unit accepts.";
+          };
+        };
+
         journalReaders = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [ ];
@@ -160,6 +211,45 @@
               '';
             };
           }
+
+          (lib.mkIf (cfg.hibernateDelayControllers != [ ]) {
+            users.groups.${hibernateDelayControllerGroup} = { };
+
+            users.users = lib.genAttrs cfg.hibernateDelayControllers (_: {
+              extraGroups = [ hibernateDelayControllerGroup ];
+            });
+
+            systemd.services."sottomano-hibernate-delay@" = {
+              description = "Set the suspend-then-hibernate delay to %i";
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = "${writeHibernateDelay} %i";
+                ProtectSystem = "strict";
+                ReadWritePaths = [ "/etc/systemd" ];
+                ProtectHome = true;
+                PrivateNetwork = true;
+                PrivateTmp = true;
+                NoNewPrivileges = true;
+                CapabilityBoundingSet = "";
+              };
+            };
+
+            security.polkit = {
+              enable = true;
+              extraConfig = ''
+                polkit.addRule(function (action, subject) {
+                  var managedUnit = action.lookup("unit");
+                  if (action.id == "org.freedesktop.systemd1.manage-units"
+                      && managedUnit
+                      && /^sottomano-hibernate-delay@[1-9][0-9]{0,5}\.service$/.test(managedUnit)
+                      && action.lookup("verb") == "start"
+                      && subject.isInGroup("${hibernateDelayControllerGroup}")) {
+                    return polkit.Result.YES;
+                  }
+                });
+              '';
+            };
+          })
 
           (lib.mkIf cfg.secretMemoryInspection.enable {
             security.wrappers.sottomano-secret-memory-holders = {

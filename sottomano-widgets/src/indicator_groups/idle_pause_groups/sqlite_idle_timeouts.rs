@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use sottomano_desktop_sources::{
-    login_session_presence::{
-        idle_session_actions::IdleAction, session_power_actions::SessionAction,
-    },
+    login_session_presence::idle_session_actions::IdleAction,
     sqlite_state_store::{Columns, StoreError, in_state_store, with_state_store},
 };
 
@@ -16,13 +14,6 @@ pub struct Timeouts {
     pub power_down: Option<Duration>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScheduledAfterIdle {
-    Never,
-    Disabled,
-    After(Duration),
-}
-
 impl Timeouts {
     #[must_use]
     pub fn timeout_for(self, action: IdleAction) -> Option<Duration> {
@@ -33,14 +24,6 @@ impl Timeouts {
             IdleAction::Hibernate => self.hibernate,
             IdleAction::PowerOff => self.power_down,
         }
-    }
-
-    #[must_use]
-    pub fn scheduled(self, action: SessionAction) -> ScheduledAfterIdle {
-        IdleAction::performing(action).map_or(ScheduledAfterIdle::Never, |idle| {
-            self.timeout_for(idle)
-                .map_or(ScheduledAfterIdle::Disabled, ScheduledAfterIdle::After)
-        })
     }
 }
 
@@ -57,7 +40,7 @@ pub async fn save(timeouts: Timeouts) -> Result<(), StoreError> {
 async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {
     let mut rows = connection
         .query(
-            "SELECT idle_action, after_seconds FROM idle_action_timeouts",
+            "SELECT idle_action, after_seconds FROM idle_action_offsets",
             (),
         )
         .await?;
@@ -84,7 +67,7 @@ async fn write_timeouts(
     timeouts: Timeouts,
 ) -> Result<(), StoreError> {
     connection
-        .execute("DELETE FROM idle_action_timeouts", ())
+        .execute("DELETE FROM idle_action_offsets", ())
         .await?;
     let enabled_actions = [
         ("lock_user", timeouts.lock_user),
@@ -97,11 +80,11 @@ async fn write_timeouts(
         if let Some(duration) = timeout {
             connection
                 .execute(
-                    "INSERT INTO idle_action_timeouts (idle_action, after_seconds) VALUES (?1, ?2)",
+                    "INSERT INTO idle_action_offsets (idle_action, after_seconds) VALUES (?1, ?2)",
                     (
                         idle_action,
                         i64::try_from(duration.as_secs())
-                            .expect("an idle timeout is shorter than i64::MAX seconds"),
+                            .expect("an idle offset is shorter than i64::MAX seconds"),
                     ),
                 )
                 .await?;
@@ -114,12 +97,9 @@ async fn write_timeouts(
 mod tests {
     use std::time::Duration;
 
-    use sottomano_desktop_sources::{
-        login_session_presence::session_power_actions::SessionAction,
-        sqlite_state_store::migrated_in_memory_store,
-    };
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{ScheduledAfterIdle, Timeouts, read_timeouts, write_timeouts};
+    use super::{Timeouts, read_timeouts, write_timeouts};
 
     #[tokio::test]
     async fn timeouts_survive_a_round_trip() {
@@ -137,15 +117,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_fresh_store_locks_blanks_and_sleeps_but_never_hibernates_or_powers_off() {
+    async fn a_fresh_store_locks_and_blanks_together_then_sleeps_but_never_hibernates() {
         let connection = migrated_in_memory_store().await;
 
         assert_eq!(
             read_timeouts(&connection).await.unwrap(),
             Timeouts {
                 lock_user: Some(Duration::from_mins(5)),
-                screen_off: Some(Duration::from_mins(5)),
-                sleep: Some(Duration::from_mins(20)),
+                screen_off: Some(Duration::ZERO),
+                sleep: Some(Duration::from_mins(15)),
                 hibernate: None,
                 power_down: None,
             }
@@ -162,36 +142,6 @@ mod tests {
         assert_eq!(
             read_timeouts(&connection).await.unwrap(),
             Timeouts::default()
-        );
-    }
-
-    #[test]
-    fn the_hibernate_timeout_schedules_logind_hibernate() {
-        let timeouts = Timeouts {
-            hibernate: Some(Duration::from_mins(30)),
-            ..Timeouts::default()
-        };
-
-        assert_eq!(
-            timeouts.scheduled(SessionAction::Hibernate),
-            ScheduledAfterIdle::After(Duration::from_mins(30))
-        );
-    }
-
-    #[test]
-    fn the_sleep_timeout_schedules_logind_sleep_and_never_a_plain_suspend() {
-        let timeouts = Timeouts {
-            sleep: Some(Duration::from_secs(600)),
-            ..Timeouts::default()
-        };
-
-        assert_eq!(
-            timeouts.scheduled(SessionAction::Sleep),
-            ScheduledAfterIdle::After(Duration::from_secs(600))
-        );
-        assert_eq!(
-            timeouts.scheduled(SessionAction::Suspend),
-            ScheduledAfterIdle::Never
         );
     }
 }

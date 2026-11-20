@@ -23,7 +23,7 @@ use crate::{
         app_launcher, appearance_presets, apptainer_containers, audio, caldav,
         cgroup_memory_limits, ci_runner_tasks, claude_usage, compute, desktop_session,
         flatpak_sandboxes, gamepad, group_menu_members, idle_lock, login_session, lxc_containers,
-        microvm_guests, notification_toasts, shell_settings, tailnet, unchanging,
+        microvm_guests, notification_toasts, session_focus, shell_settings, tailnet, unchanging,
         virtualbox_machines, vmware_machines, voice_dictation, wallpaper, waydroid_container,
         weather,
     },
@@ -150,6 +150,22 @@ pub const DEMOS: &[Demo] = &[
                 "Temperature forecast",
             )),
             Step::Hover(indicator_row(IndicatorGroupFamily::Weather, "Rain")),
+        ],
+    },
+    Demo {
+        name: "focus_timeline",
+        group: session_focus::group,
+        live: |_| unchanging(),
+        backdrop: DemoBackdrop::Transparent,
+        shown: GroupShown::OnPanel,
+        script: &[
+            Step::PressFace(IndicatorGroupIdentity::sole(
+                IndicatorGroupFamily::SessionFocus,
+            )),
+            Step::Hover(indicator_row(
+                IndicatorGroupFamily::SessionFocus,
+                "Timeline",
+            )),
         ],
     },
     Demo {
@@ -431,13 +447,13 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
-            Step::PressText("Screen off"),
+            Step::PressText("Idle"),
             Step::Hover(instance_row(
                 IndicatorGroupIdentity {
                     family: IndicatorGroupFamily::IdleTimeouts,
-                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("screen_off")),
+                    instance: IndicatorGroupInstance::Durable(Cow::Borrowed("chain")),
                 },
-                "Screen-off timeout",
+                "Timeline",
             )),
         ],
     },

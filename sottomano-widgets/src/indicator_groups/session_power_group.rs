@@ -34,7 +34,7 @@ use crate::{
     hover_cards::HoverTarget,
     indicator_groups::{
         fixed_panel_group::FixedPanelGroup,
-        idle_pause_groups::{ScheduledAfterIdle, Timeouts},
+        idle_pause_groups::{ResolvedIdleChain, ScheduledAfterIdle},
     },
     widgets::{localized_durations::duration_text, text::text_face_of},
 };
@@ -161,7 +161,7 @@ impl SessionPowerGroup {
         &self,
         config: &'a Config,
         list_frame: FrameStyle,
-        timeouts: Timeouts,
+        idle_chain: ResolvedIdleChain,
     ) -> Element<'a, SessionMessage> {
         let entries = self
             .permissions
@@ -170,7 +170,7 @@ impl SessionPowerGroup {
             .map(|allowed| SessionMenuEntry {
                 action: allowed.action,
                 needs_authorisation: allowed.needs_authorisation,
-                idle: timeouts.scheduled(allowed.action),
+                idle: idle_chain.scheduled(allowed.action),
             })
             .scan(None, |previous_family, entry| {
                 let family = entry.action.family();

@@ -1,17 +1,14 @@
 use std::time::Duration;
 
-use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
-
 use crate::{
-    clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
-    hover_cards::hover_card_body::{Section, dictionary_table},
+    group_indicators::slider_control::{
+        Action, ControlMessage, SliderActivity, SliderCaption, SliderControl,
+    },
+    indicator_groups::idle_pause_groups::StageSetting,
     widgets::{
-        idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
+        idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
-        localized_time::LocalizedTimeFormat,
-        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -24,36 +21,50 @@ pub enum TimerChange {
 pub struct IdleTimer {
     pub timeout: Option<Duration>,
     pub control: SliderControl,
-    action: IdleAction,
     availability: ActionAvailability,
 }
 
 impl IdleTimer {
     #[must_use]
-    pub fn new(name: &'static str, action: IdleAction) -> Self {
+    pub fn new(name: &'static str) -> Self {
         Self {
             control: SliderControl::new(name, 0.0..=MAX_POSITION, Phosphor::Timer(Weight::Regular))
                 .readout(|value, locale| {
-                    timeout_at(value)
-                        .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
+                    timeout_at(value).map_or_else(
+                        || "∞".to_owned(),
+                        |offset| format!("+{}", duration_text(offset, locale)),
+                    )
                 })
                 .label(|value, locale| {
-                    timeout_at(value).map(|timeout| duration_text(timeout, locale))
+                    timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
                 }),
             timeout: None,
-            action,
             availability: ActionAvailability::Available,
         }
     }
 
     #[must_use]
-    pub fn trigger(&self) -> Option<ActionTrigger> {
-        self.timeout
-            .filter(|_| self.availability == ActionAvailability::Available)
-            .map(|after| ActionTrigger {
-                after,
-                tag: self.action,
-            })
+    pub fn setting(&self) -> StageSetting {
+        Self::setting_of(self.timeout, self.availability)
+    }
+
+    #[must_use]
+    pub fn shown_setting(&self) -> StageSetting {
+        Self::setting_of(
+            timeout_at(self.control.expanding_slider.synced_value.shown_value()),
+            self.availability,
+        )
+    }
+
+    fn setting_of(timeout: Option<Duration>, availability: ActionAvailability) -> StageSetting {
+        match availability {
+            ActionAvailability::Unavailable => StageSetting::Unavailable,
+            ActionAvailability::Available => timeout.map_or(StageSetting::Off, StageSetting::After),
+        }
+    }
+
+    pub fn caption_after(&mut self, stage_caption: &'static str) {
+        self.control.caption = SliderCaption::Captioned(stage_caption.into());
     }
 
     pub fn set_availability(&mut self, availability: ActionAvailability) -> AvailabilityChange {
@@ -98,68 +109,6 @@ impl IdleTimer {
             }
             Action::None | Action::Right | Action::Adjust(_) => TimerChange::None,
         }
-    }
-
-    #[must_use]
-    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.hover_card_of(
-            timeout_at(self.control.expanding_slider.synced_value.shown_value()),
-            None,
-            clock,
-        )
-    }
-
-    #[must_use]
-    pub fn hover_card_overridden_by(
-        &self,
-        overrider: &'static str,
-        timeout: Duration,
-        clock: Clock,
-    ) -> Vec<Section> {
-        self.hover_card_of(Some(timeout), Some(overrider), clock)
-    }
-
-    fn hover_card_of(
-        &self,
-        timeout: Option<Duration>,
-        overrider: Option<&'static str>,
-        clock: Clock,
-    ) -> Vec<Section> {
-        let when = match timeout.filter(|_| self.availability == ActionAvailability::Available) {
-            None if self.availability == ActionAvailability::Unavailable => {
-                LabeledValue::new("State", "unavailable")
-            }
-            None => LabeledValue::new("State", "disabled"),
-            Some(timeout) => {
-                let label = format!("{} at", self.action.session_action().verb());
-                match chrono::Duration::from_std(timeout) {
-                    Ok(delay) => LabeledValue::new(
-                        label,
-                        ValueCell::Time {
-                            at: clock.utc() + delay,
-                            format: LocalizedTimeFormat::TimeOfDay,
-                        },
-                    ),
-                    Err(_) => LabeledValue::new(label, "beyond the calendar range"),
-                }
-            }
-        };
-        let overridden = overrider
-            .zip(timeout)
-            .map(|(overrider, timeout)| LabeledValue::new(overrider, ValueCell::duration(timeout)));
-        vec![Section::new(
-            "Schedule",
-            dictionary_table(
-                [
-                    when,
-                    LabeledValue::new("Via", self.action.session_action().mechanism()),
-                ]
-                .into_iter()
-                .chain(overridden),
-            ),
-        )]
-        .into_iter()
-        .collect()
     }
 }
 

@@ -30,7 +30,7 @@ pub struct SessionFace<'a> {
 }
 
 impl SessionFace<'_> {
-    fn snoozed_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    pub(super) fn snoozed_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         self.snooze
             .map(|WarningSnooze { until }| until)
             .filter(|until| now < *until)
@@ -159,7 +159,7 @@ impl SessionFace<'_> {
             SectionTitle::captioned(
                 "Current session".to_owned(),
                 "Active means recent keyboard or pointer input. The count starts when the last \
-                 break ended; the Breaks reading shows what counts as one."
+                 break ended; the break rows show what counts as one."
                     .to_owned(),
             ),
             dictionary_table(entries.into_iter().flatten()),

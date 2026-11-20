@@ -57,6 +57,7 @@ pub mod microvm_guests;
 pub mod notification_toasts;
 pub mod nspawn_containers;
 pub mod podman_engines;
+pub mod session_focus;
 pub mod shell_settings;
 pub mod systemd_service_units;
 pub mod tailnet;

@@ -242,7 +242,7 @@ impl DesktopShell {
                         .layer
                         .appearance()
                         .frame,
-                    self.indicator_groups.idle_pause_groups.timeouts(),
+                    self.indicator_groups.idle_pause_groups.idle_chain(),
                 )
                 .map(|session_message| {
                     ShellInteraction::Group(IndicatorGroupInteraction::Session(session_message))

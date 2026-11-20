@@ -132,10 +132,14 @@ impl Default for QuietScheduleGroup {
                 Phosphor::Monitor(Weight::Regular),
             )
             .readout(|value, locale| {
-                timeout_at(value)
-                    .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
+                timeout_at(value).map_or_else(
+                    || "∞".to_owned(),
+                    |offset| format!("+{}", duration_text(offset, locale)),
+                )
             })
-            .label(|value, locale| timeout_at(value).map(|timeout| duration_text(timeout, locale))),
+            .label(|value, locale| {
+                timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
+            }),
             manual: None,
             phase: QuietPhase::Inactive,
             armed_edge: None,

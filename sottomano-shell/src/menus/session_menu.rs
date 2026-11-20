@@ -8,15 +8,14 @@ use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
     pub(crate) fn session_group_menu(&self) -> GroupMenuView<'_> {
-        let pause_groups = self
+        let idle_chain = self
             .indicator_groups
             .idle_pause_groups
-            .pause_groups(&self.config, self.clock)
-            .into_iter();
+            .idle_chain_group(&self.config, self.clock);
         let login_session = self.indicator_groups.login_session_group.group_content();
         self.group_menu(
             GroupMenuTopic::Session,
-            pause_groups.chain(once(login_session)),
+            once(idle_chain).chain(once(login_session)),
         )
     }
 }

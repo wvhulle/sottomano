@@ -1,3 +1,4 @@
+use corredo::gauges::{DurationTimeline, TimelineDensity};
 use iced::Size;
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_desktop_sources::{
@@ -107,5 +108,15 @@ pub fn controller_diagram_widget(
     SectionWidget::from(ControllerCallouts {
         model,
         callouts: callouts.into_iter().collect(),
+    })
+}
+
+#[must_use]
+pub fn timeline_widget(timeline: DurationTimeline) -> SectionWidget {
+    SectionWidget::drawn(move |_| {
+        timeline
+            .clone()
+            .density(TimelineDensity::LabeledColumn)
+            .view()
     })
 }

@@ -2,6 +2,7 @@ mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
 mod focus_run_indicator;
+mod focus_timeline_row;
 mod focus_tracker;
 mod session_face;
 mod sqlite_focus_spans;
@@ -28,7 +29,8 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    hover_cards::hover_card_body::Section,
+    group_indicators::{group_indicator::GroupIndicator, timeline_row::timeline_row},
+    hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -39,12 +41,13 @@ use crate::{
             context_switch_rate::ContextSwitchRate,
             daily_totals_gauge::DailyTotalsGauge,
             focus_run_indicator::FocusRunIndicator,
+            focus_timeline_row::FocusTimeline,
             focus_tracker::{FocusTracker, TrackerMessage},
             session_face::SessionFace,
             window_usage::WindowUsage,
         },
     },
-    widgets::ongoing_toast::OngoingToastActionButton,
+    widgets::{ongoing_toast::OngoingToastActionButton, text::text_face_of},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +96,19 @@ impl SessionFocusGroup {
 
     pub fn collapse(&mut self) {
         self.expansion.collapse();
+    }
+
+    pub fn record_signal(
+        &mut self,
+        signal: FocusSignal,
+        config: &SessionFocusConfig,
+        clock: Clock,
+    ) -> Task<SessionFocusMessage> {
+        self.update(
+            SessionFocusMessage::Tracker(TrackerMessage::Signal(signal)),
+            config,
+            clock,
+        )
     }
 
     pub fn load(clock: Clock) -> Task<SessionFocusMessage> {
@@ -177,13 +193,42 @@ impl SessionFocusGroup {
         }
     }
 
-    fn break_log<'a>(&'a self, config: &'a Config) -> BreakLog<'a> {
-        BreakLog {
-            accounting: self
-                .tracker
-                .ledger
-                .accounted(&config.indicator_groups.session_focus),
+    fn focus_timeline<'a>(&'a self, config: &'a Config) -> FocusTimeline<'a> {
+        FocusTimeline {
+            session_face: self.session_face(config),
         }
+    }
+
+    fn timeline_indicator<'a>(&'a self, config: &'a Config, clock: Clock) -> GroupIndicator<'a> {
+        let locale = config.calendar.locale;
+        let label_face = text_face_of(&config.theme.font);
+        timeline_row(
+            "Timeline",
+            Phosphor::ChartBar(Weight::Regular).into(),
+            move || {
+                self.focus_timeline(config)
+                    .timeline(clock.utc(), locale, label_face)
+            },
+            Box::new(move |card_clock: Clock| {
+                [Section::new(
+                    "Last hours",
+                    timeline_widget(self.focus_timeline(config).timeline(
+                        card_clock.utc(),
+                        locale,
+                        label_face,
+                    )),
+                )]
+                .into_iter()
+                .chain([BreakLog {
+                    accounting: self
+                        .tracker
+                        .ledger
+                        .accounted(&config.indicator_groups.session_focus),
+                }
+                .break_rules()])
+                .collect()
+            }),
+        )
     }
 
     fn focus_run_indicator<'a>(&'a self, config: &'a Config) -> FocusRunIndicator<'a> {
@@ -280,7 +325,6 @@ impl SessionFocusGroup {
         };
         let headline_indicator = build_focus_session_indicator()
             .with_headline_glyph(Phosphor::Crosshair(Weight::Regular).into());
-        let breaks = self.break_log(config).indicator(clock);
         let focus_run = self.focus_run_indicator(config).indicator(clock);
         let totals = self.daily_totals.indicator(locale);
         let switches = self.context_switch_rate(config).indicator(clock);
@@ -290,8 +334,8 @@ impl SessionFocusGroup {
             &self.expansion,
             SessionFocusMessage::Expansion,
             [
+                self.timeline_indicator(config, clock),
                 build_focus_session_indicator(),
-                breaks,
                 focus_run,
                 totals,
                 switches,

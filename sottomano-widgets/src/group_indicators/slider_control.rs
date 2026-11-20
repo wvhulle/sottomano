@@ -42,7 +42,7 @@ use crate::{
         announced_level::{LevelAnnouncement, LevelChangeOrigin},
         ongoing_toast::{IndicatorAlerts, LevelNotice},
         slider_look::slider_look,
-        text::{panel_text, text_face_of},
+        text::{panel_text, row_key_label, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
     },
 };
@@ -65,6 +65,8 @@ pub enum SeverityDirection {
     LowerWorse,
 }
 
+const CAPTION_WIDTH_IN_TEXT_SIZES: f32 = 7.0;
+
 pub struct SliderControl {
     pub name: Cow<'static, str>,
     pub(crate) expanding_slider: ExpandingSlider,
@@ -78,6 +80,13 @@ pub struct SliderControl {
     severity_scale: SliderSeverityScale,
     right_click: SliderRightClick,
     level_announcing: SliderLevelAnnouncing,
+    pub caption: SliderCaption,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SliderCaption {
+    Uncaptioned,
+    Captioned(Cow<'static, str>),
 }
 
 #[derive(Clone, Copy)]
@@ -226,6 +235,7 @@ impl SliderControl {
             severity_scale: SliderSeverityScale::Unrated,
             right_click: SliderRightClick::Unbound,
             level_announcing: SliderLevelAnnouncing::Silent,
+            caption: SliderCaption::Uncaptioned,
         }
     }
 
@@ -607,12 +617,27 @@ impl SliderControl {
 
     #[must_use]
     pub fn menu_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
-        self.expanding_slider.open_row(
+        let open_row = self.expanding_slider.open_row(
             slider_look(config, self.severity()),
             self.readout_view(config),
             config.theme.spacing.item_gap,
             control_message_of,
-        )
+        );
+        match &self.caption {
+            SliderCaption::Uncaptioned => open_row,
+            SliderCaption::Captioned(caption_text) => Row::with_children([
+                row_key_label(&config.theme.font, caption_text.clone().into_owned())
+                    .wrapping(Wrapping::None)
+                    .width(Length::Fixed(
+                        config.theme.font.text_size_px * CAPTION_WIDTH_IN_TEXT_SIZES,
+                    ))
+                    .into(),
+                open_row,
+            ])
+            .spacing(config.theme.spacing.item_gap)
+            .align_y(Alignment::Center)
+            .into(),
+        }
     }
 
     fn state_glyph<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {

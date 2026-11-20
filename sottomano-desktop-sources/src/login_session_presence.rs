@@ -8,4 +8,5 @@ pub mod logind_manager;
 pub mod logind_session_facts;
 pub mod screensaver_bus_idle_inhibitors;
 pub mod session_power_actions;
+pub mod system_hibernate_delay;
 pub mod wayland_idle_notify;

@@ -195,26 +195,6 @@ impl From<&PauseBlocker> for TableRecord<2> {
     }
 }
 
-pub(super) struct NextSleepStateIndicator {
-    pub state: SleepState,
-}
-
-impl NextSleepStateIndicator {
-    pub(super) fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
-        GroupIndicator::glyph_only(
-            self.state.title(),
-            Phosphor::Bed(Weight::Regular).into(),
-            IndicatorState::Idle,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled("will run".to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(|_| Vec::new()))
-    }
-}
-
 pub(super) struct ScheduledShutdownIndicator<'a> {
     pub shutdown: &'a ScheduledShutdown,
 }

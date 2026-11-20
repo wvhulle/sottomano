@@ -19,8 +19,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let _ = group.update(
         IdlePauseMessage::Loaded(Timeouts {
             lock_user: Some(Duration::from_mins(15)),
-            screen_off: Some(Duration::from_mins(20)),
-            sleep: Some(Duration::from_hours(1)),
+            screen_off: Some(Duration::from_mins(5)),
+            sleep: Some(Duration::from_mins(40)),
             hibernate: None,
             power_down: None,
         }),

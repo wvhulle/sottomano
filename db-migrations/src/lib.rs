@@ -24,7 +24,7 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 8] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 10] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
@@ -33,6 +33,8 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 8] = [
     schema_migration!(6, "0006_leftover_focus_facet_text_to_bytes.sql"),
     schema_migration!(7, "0007_window_titles_capped.sql"),
     schema_migration!(8, "0008_window_menu_bar_inline.sql"),
+    schema_migration!(9, "0009_idle_timeouts_relative.sql"),
+    schema_migration!(10, "0010_idle_chain_group.sql"),
 ];
 
 pub async fn apply_pending_migrations(
@@ -261,5 +263,121 @@ mod tests {
             row.get_value(0).unwrap(),
             turso::Value::Blob(b"kitty".to_vec())
         );
+    }
+
+    #[tokio::test]
+    async fn absolute_idle_timeouts_become_offsets_from_the_previous_stage() {
+        let connection = empty_connection().await;
+        for migration in SCHEMA_MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 9)
+        {
+            apply_migration_once(&connection, migration).await.unwrap();
+        }
+        connection
+            .execute("DELETE FROM idle_action_timeouts", ())
+            .await
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO idle_action_timeouts (idle_action, after_seconds) VALUES \
+                 ('lock_user', 600), ('screen_off', 300), ('sleep', 1800), ('power_down', 7200)",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        let mut rows = connection
+            .query(
+                "SELECT idle_action, after_seconds FROM idle_action_offsets ORDER BY idle_action",
+                (),
+            )
+            .await
+            .unwrap();
+        let mut offsets = Vec::new();
+        while let Some(row) = rows.next().await.unwrap() {
+            offsets.push((row.get_value(0).unwrap(), row.get_value(1).unwrap()));
+        }
+        let text_and_seconds = |name: &str, seconds: i64| {
+            (
+                turso::Value::Text(name.to_owned()),
+                turso::Value::Integer(seconds),
+            )
+        };
+        assert_eq!(
+            offsets,
+            [
+                text_and_seconds("lock_user", 600),
+                text_and_seconds("power_down", 5400),
+                text_and_seconds("screen_off", 0),
+                text_and_seconds("sleep", 1200),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn pins_of_the_five_idle_groups_become_one_pin_of_the_idle_chain() {
+        let connection = empty_connection().await;
+        for migration in SCHEMA_MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 10)
+        {
+            apply_migration_once(&connection, migration).await.unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO pinned_widget_groups (menu_topic, group_family, group_instance) \
+                 VALUES ('session', 'idle_timeouts', 'lock'), ('session', 'idle_timeouts', \
+                 'sleep'), ('session', 'media', 'lock')",
+                (),
+            )
+            .await
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
+                 item_key) VALUES ('session', 'idle_timeouts', 'sleep', 'After screen off')",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        let mut rows = connection
+            .query(
+                "SELECT group_family, group_instance FROM pinned_widget_groups ORDER BY \
+                 group_family",
+                (),
+            )
+            .await
+            .unwrap();
+        let mut pinned_groups = Vec::new();
+        while let Some(row) = rows.next().await.unwrap() {
+            pinned_groups.push((row.get_value(0).unwrap(), row.get_value(1).unwrap()));
+        }
+        let family_and_instance = |family: &str, instance: &str| {
+            (
+                turso::Value::Text(family.to_owned()),
+                turso::Value::Text(instance.to_owned()),
+            )
+        };
+        assert_eq!(
+            pinned_groups,
+            [
+                family_and_instance("idle_timeouts", "chain"),
+                family_and_instance("media", "lock"),
+            ]
+        );
+        let mut item_rows = connection
+            .query("SELECT COUNT(*) FROM pinned_group_items", ())
+            .await
+            .unwrap();
+        let item_count = item_rows
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .get_value(0)
+            .unwrap();
+        assert_eq!(item_count, turso::Value::Integer(0));
     }
 }

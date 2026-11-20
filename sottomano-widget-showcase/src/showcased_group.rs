@@ -56,6 +56,7 @@ use sottomano_widgets::{
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
         podman_engines_group::PodmanEnginesGroup,
+        session_focus_group::SessionFocusGroup,
         sidebar_settings_group::SidebarSettingsGroup,
         tailnet_group::TailnetGroup,
         virtual_machines_group::VirtualMachinesGroup,
@@ -159,6 +160,7 @@ pub enum ShowcasedGroup {
     Tailnet(Box<TailnetGroup>),
     WireguardTunnels(Box<WireguardTunnelsGroup>),
     LoginSession(Box<LoginSessionGroup>),
+    SessionFocus(Box<SessionFocusGroup>),
     BottomPanel(Box<ShowcasedDesktopSession>),
     WorkspaceSidebar(Box<ShowcasedDesktopSession>),
     Toasts(Box<ShowcasedToasts>),
@@ -424,6 +426,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::SessionFocus(_)
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
@@ -486,6 +489,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Tailnet(group) => group.group_content(clock),
             ShowcasedGroup::WireguardTunnels(group) => group.group_content(),
             ShowcasedGroup::LoginSession(group) => group.group_content(),
+            ShowcasedGroup::SessionFocus(group) => group.group_content(config, clock),
             ShowcasedGroup::AppearancePresets(presets) => {
                 presets.group.group_content(&presets.appearance)
             }
@@ -504,9 +508,7 @@ impl ShowcasedGroup {
                 .group
                 .group_contents(config, &media.desktop_entries, clock)
                 .collect(),
-            ShowcasedGroup::IdleTimeouts(group) => {
-                group.pause_groups(config, clock).into_iter().collect()
-            }
+            ShowcasedGroup::IdleTimeouts(group) => vec![group.idle_chain_group(config, clock)],
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
                 .group_contents(&gamepad.bindings)
@@ -776,12 +778,6 @@ impl ShowcasedGroup {
                 let _ = group.interact(interaction, config, clock);
             }
             (
-                ShowcasedGroup::LoginSession(group),
-                IndicatorGroupInteraction::LoginSession(interaction),
-            ) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (
                 ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
                 IndicatorGroupInteraction::WindowGroup(interaction),
             ) => {
@@ -809,6 +805,32 @@ impl ShowcasedGroup {
                     })
                     .continue_value()
                     .map_or(Ok(()), |unclaimed| Err(Box::new(unclaimed)));
+            }
+            (other_group, unclaimed) => {
+                return other_group.interact_session_groups(unclaimed, config, clock);
+            }
+        }
+        Ok(())
+    }
+
+    fn interact_session_groups(
+        &mut self,
+        group_interaction: IndicatorGroupInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Result<(), Box<IndicatorGroupInteraction>> {
+        match (self, group_interaction) {
+            (
+                ShowcasedGroup::LoginSession(group),
+                IndicatorGroupInteraction::LoginSession(interaction),
+            ) => {
+                let _ = group.interact(interaction, config, clock);
+            }
+            (
+                ShowcasedGroup::SessionFocus(group),
+                IndicatorGroupInteraction::SessionFocus(message),
+            ) => {
+                let _ = group.update(message, &config.indicator_groups.session_focus, clock);
             }
             (guest_group, unclaimed) => return guest_group.interact_guest_group(unclaimed),
         }
@@ -983,6 +1005,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::SessionFocus(_)
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)

@@ -7,6 +7,7 @@ use sottomano_desktop_sinks::login_session_presence::logind_session_commands::pe
 use sottomano_desktop_sources::{
     login_session_presence::{
         idle_session_actions::IdleAction,
+        session_power_actions::SessionAction,
         wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge},
     },
     system_protocol_clients::{
@@ -15,7 +16,8 @@ use sottomano_desktop_sources::{
 };
 use tokio::task::spawn;
 
-const LADDER: [Duration; 11] = [
+const LADDER: [Duration; 16] = [
+    Duration::ZERO,
     Duration::from_secs(10),
     Duration::from_secs(30),
     Duration::from_mins(1),
@@ -26,7 +28,11 @@ const LADDER: [Duration; 11] = [
     Duration::from_mins(30),
     Duration::from_hours(1),
     Duration::from_hours(2),
+    Duration::from_hours(3),
     Duration::from_hours(4),
+    Duration::from_hours(6),
+    Duration::from_hours(12),
+    Duration::from_hours(24),
 ];
 
 #[allow(clippy::cast_precision_loss)]
@@ -50,12 +56,30 @@ pub type ActionTrigger = IdleTrigger<IdleAction>;
 
 pub type IdleActionEdge = TaggedEdge<IdleAction>;
 
-fn perform_idled_actions(edges: &[IdleActionEdge]) {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArmedIdleChain {
+    pub triggers: Vec<ActionTrigger>,
+    pub standby_performs: SessionAction,
+}
+
+impl ArmedIdleChain {
+    fn performed_action(&self, stage: IdleAction) -> SessionAction {
+        match stage {
+            IdleAction::Sleep => self.standby_performs,
+            IdleAction::Lock
+            | IdleAction::ScreenOff
+            | IdleAction::Hibernate
+            | IdleAction::PowerOff => stage.session_action(),
+        }
+    }
+}
+
+fn perform_idled_actions(armed_chain: &ArmedIdleChain, edges: &[IdleActionEdge]) {
     edges
         .iter()
         .filter(|tagged| tagged.edge == IdleEdge::Idled)
         .for_each(|tagged| {
-            let action = tagged.tag.session_action();
+            let action = armed_chain.performed_action(tagged.tag);
             spawn(async move {
                 if let Err(action_failure) = perform_session_action(action).await {
                     tracing::warn!("idle action {action:?}: {action_failure}");
@@ -65,23 +89,26 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
 }
 
 pub fn performed_idle_action_edges(
-    triggers: Vec<ActionTrigger>,
+    armed_chain: ArmedIdleChain,
 ) -> impl Stream<Item = IdleActionEdge> + Send {
-    subscribed(triggers, |triggers| async move {
+    subscribed(armed_chain, |armed_chain| async move {
         let mut notifier = IdleNotifier::<IdleAction, InputOrInhibitors>::connect().await?;
-        notifier.arm(&triggers);
-        Ok::<_, WaylandProtocolError>(stream::unfold(notifier, |mut notifier| async move {
-            match notifier.edges().await {
-                Ok(edges) => {
-                    perform_idled_actions(&edges);
-                    Some((Ok(edges), notifier))
+        notifier.arm(&armed_chain.triggers);
+        Ok::<_, WaylandProtocolError>(stream::unfold(
+            (notifier, armed_chain),
+            |(mut notifier, armed_chain)| async move {
+                match notifier.edges().await {
+                    Ok(edges) => {
+                        perform_idled_actions(&armed_chain, &edges);
+                        Some((Ok(edges), (notifier, armed_chain)))
+                    }
+                    Err(failure) => {
+                        tracing::warn!("idle daemon: {failure}");
+                        None
+                    }
                 }
-                Err(failure) => {
-                    tracing::warn!("idle daemon: {failure}");
-                    None
-                }
-            }
-        }))
+            },
+        ))
     })
     .filter_map(|edges| {
         ready(

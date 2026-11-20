@@ -7,7 +7,7 @@ When the screen turns off and locks, and what the session runs on.
 <div class="beside">
 <div class="beside-text">
 
-Dragging a timeout changes it; the card says when it fires and through which mechanism.
+Each timer adds to the previous enabled one in the order lock, screen off, standby, hibernate, power-down; the slider names the step it counts from and the card says when it fires and through which mechanism.
 
 </div>
 
@@ -17,11 +17,14 @@ Dragging a timeout changes it; the card says when it fires and through which mec
 
 ## Idle timeouts: Other timers
 
-This timer works like the screen-off timer above.
+These timers work like the screen-off timer above.
 
 | Timer | What it shows |
 |---|---|
-| Lock | The lock timer, next to the screen-off timer. |
+| Lock | The first step, counted from the last input. |
+| Standby | Suspends; a row names the logind call: suspend, suspend-then-hibernate or hibernate. |
+| Hibernate | With standby on, the time spent asleep before hibernating, written as systemd's `HibernateDelaySec` and shown next to the system's current value. With standby off, a regular idle step. |
+| Power-down | Marked unreachable while standby or hibernate is on, since the machine is asleep by then. |
 
 ## Login session: Kernel and compositor
 

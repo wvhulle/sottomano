@@ -63,7 +63,7 @@ impl CountedActivity for InputOrInhibitors {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IdleTrigger<Tag> {
     pub after: Duration,
     pub tag: Tag,
