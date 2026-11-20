@@ -1,5 +1,4 @@
 mod recording_embed_widths;
-mod recordings_branch;
 
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
@@ -35,10 +34,6 @@ enum MaintenanceTask {
         )]
         check: bool,
     },
-    #[command(
-        about = "Force-push the rendered recordings/ directory as the single commit of the \n                 recordings branch on Codeberg, unless its tree is already published."
-    )]
-    PublishRecordings,
 }
 
 struct GeneratedSection {
@@ -160,9 +155,6 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
                 Path::new(WORKSPACE_ROOT),
                 docs_mode(check),
             )
-        }
-        MaintenanceTask::PublishRecordings => {
-            recordings_branch::publish_recordings(Path::new(WORKSPACE_ROOT))
         }
     }
 }

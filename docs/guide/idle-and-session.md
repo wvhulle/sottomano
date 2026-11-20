@@ -11,7 +11,7 @@ Dragging a timeout changes it; the card says when it fires and through which mec
 
 </div>
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/idle_screen_off.webp" width="852" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
+<img src="https://sottomano.work/recordings/idle_screen_off.webp" width="852" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
 
 </div>
 
@@ -32,6 +32,6 @@ The kernel and the compositor, each with a logo and a wiki link.
 
 </div>
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/login_session_kernel.webp" width="1122" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
+<img src="https://sottomano.work/recordings/login_session_kernel.webp" width="1122" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
 
 </div>

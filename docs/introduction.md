@@ -4,7 +4,7 @@
 <p class="hero-subline">A desktop shell where everything is at hand, within reach, when you need it.</p>
 <p class="hero-actions"><a class="hero-button hero-button-primary" href="installation/index.html">Install</a><a class="hero-button" href="guide/index.html">Tour</a></p>
 </div>
-<img class="hero-recording" src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_hardware.webp" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
+<img class="hero-recording" src="https://sottomano.work/recordings/tour_hardware.webp" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
 </div>
 
 <div class="feature-cards">

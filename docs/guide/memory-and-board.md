@@ -7,7 +7,7 @@ Memory use and the hardware it sits on.
 
 </div>
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_hardware.webp" width="1256" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
+<img src="https://sottomano.work/recordings/tour_hardware.webp" width="1256" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
 
 </div>
 

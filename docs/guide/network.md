@@ -7,7 +7,7 @@ WireGuard tunnels with a switch to connect or disconnect them, and who may reach
 
 </div>
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_network.webp" width="1167" alt="Opening the Network menu, hovering who can reach this machine and an exit node, then a WireGuard tunnel">
+<img src="https://sottomano.work/recordings/tour_network.webp" width="1167" alt="Opening the Network menu, hovering who can reach this machine and an exit node, then a WireGuard tunnel">
 
 </div>
 

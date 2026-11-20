@@ -12,4 +12,3 @@ workspace = true
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 clap.workspace = true
 image.workspace = true
-git2.workspace = true

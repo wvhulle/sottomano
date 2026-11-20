@@ -23,7 +23,8 @@
             export HOME=$TMPDIR
             export XDG_CACHE_HOME=$TMPDIR/cache
           '';
-          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --output $out";
+          LP_NUM_THREADS = "4";
+          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --jobs 1 --output $out";
           installPhaseCommand = "";
         }
       );
@@ -53,7 +54,6 @@
           shopt -s globstar
           for markdown in README.md docs/**/*.md; do
             substituteInPlace "$markdown" \
-              --replace-quiet https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ /recordings/ \
               --replace-quiet https://codeberg.org/wvhulle/sottomano/raw/branch/main/logo.svg /logo.svg \
               --replace-quiet https://sottomano.work/ /
           done

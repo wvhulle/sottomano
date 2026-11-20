@@ -7,7 +7,7 @@ Conditions where you are, from the location fix to rain and pollen.
 
 </div>
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tour_weather.webp" width="884" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
+<img src="https://sottomano.work/recordings/tour_weather.webp" width="884" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
 
 </div>
 

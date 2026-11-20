@@ -11,8 +11,7 @@ use image::ImageReader;
 use crate::DocsMode;
 
 const RECORDINGS_DIRECTORY: &str = "recordings";
-const PUBLISHED_RECORDINGS_URL: &str =
-    "https://codeberg.org/wvhulle/sottomano/raw/branch/recordings";
+const PUBLISHED_RECORDINGS_URL: &str = "https://sottomano.work/recordings";
 const RECORDING_EXTENSION: &str = "webp";
 const RECORDING_PIXELS_PER_LOGICAL_PIXEL: u32 = 2;
 const WIDTH_ATTRIBUTE: &str = r#" width=""#;

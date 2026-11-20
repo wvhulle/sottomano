@@ -114,11 +114,10 @@ scripts in `ci/` inside the `ci` devshell (`ci-cargo` adds the Rust toolchain
 and release-plz), so any step runs locally the same way. It also checks pull
 request commits against Conventional Commits (locally:
 `nix develop .#ci --command ci/release-tasks.nu check-commit-messages main..HEAD`). After
-checks pass on `main`, the recordings pipeline re-renders the tour, force-pushes
-it as the single commit of the orphan `recordings` branch and opens a pull
-request when the embed widths changed. The config docs pipeline does the same
-for the full default config in `docs/configuration.md` when the config crate
-changes.
+checks pass on `main`, the config docs pipeline regenerates the full default
+config in `docs/configuration.md` when the config crate changes and opens a pull
+request with it. CI does not render the tour recordings; deploying the
+documentation site does (see [Embedding recordings](#embedding-recordings)).
 
 ```mermaid
 flowchart LR
@@ -130,16 +129,6 @@ flowchart LR
     main_checks["tests, clippy,<br>then push to the binary cache"]
     format_check["format<br>treefmt: rustfmt, nixfmt"]
     conventional_commits["conventional commits<br>convco check"]
-  end
-
-  subgraph recordings_pipeline ["recordings pipeline"]
-    render_recordings["render the tour<br>nix build .#showcase-recordings<br>cargo xtask update-recording-embeds"]
-    push_orphan_recordings["replace the single commit<br>of the recordings branch"]
-    push_recordings_branch["force-push resized embeds<br>to Codeberg"]
-    open_recordings_pull_request["open, update or close<br>the pull request"]
-    render_recordings -->|"recordings/*.webp"| push_orphan_recordings
-    render_recordings -->|resized embeds| push_recordings_branch
-    push_recordings_branch --> open_recordings_pull_request
   end
 
   subgraph config_docs_pipeline ["config docs pipeline"]
@@ -154,14 +143,11 @@ flowchart LR
 
   pull_request_event --> pull_request_checks & format_check & conventional_commits
   main_push_event --> main_checks & format_check
-  checks_pipeline -->|"after checks"| recordings_pipeline
   checks_pipeline -->|"after checks"| config_docs_pipeline
-  open_recordings_pull_request -->|recordings PR| main_branch
   open_config_docs_pull_request -->|config docs PR| main_branch
 ```
 
-The recordings pipeline skips its own commits. The config docs pipeline only runs
-when the config crate, `xtask/` or `docs/configuration.md` change, and skips its
+The config docs pipeline only runs when the config crate, `xtask/` or `docs/configuration.md` change, and skips its
 own commits.
 
 ## VM tests
@@ -197,7 +183,8 @@ labelled `nix` with KVM.
 
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
-`nix build .#showcase-recordings` renders them all the way CI does. Its source is
+`nix build .#showcase-recordings` renders them the way the documentation site
+build does, one demo at a time with at most four lavapipe threads. Its source is
 only the crates the showcase links, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
@@ -292,17 +279,24 @@ CI); `expect` sees plain text widgets, not rich text such as toast bodies.
 
 ### Embedding recordings
 
-The recordings are not part of `main`: CI publishes them as the single commit of
-the orphan `recordings` branch, so the history of `main` stays free of media.
-That branch serves the recordings when the markdown is read on Codeberg; the
-documentation site serves its own copy (see below).
+The recordings are not part of `main`, so its history stays free of media. They
+are rendered when the documentation site is built, which happens when nuremberg
+is deployed, and sottomano.work serves them, also to the markdown read on
+Codeberg.
 Each recording appears either in the root `README.md` (a few highlights) or on
 a page of `docs/guide/` (the rest), as
-`<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/<name>.webp" width="<w>">`.
+`<img src="https://sottomano.work/recordings/<name>.webp" width="<w>">`.
 `<w>` is the recording's cropped width in logical pixels, so all demos show at
 the same scale. After rendering, `cargo xtask update-recording-embeds` rewrites
 `<w>` from the files in `recordings/`; it fails with the expected tag only when a
-recording is embedded nowhere. CI runs it right after the render.
+recording is embedded nowhere. Run it by hand after a render and commit the new
+widths:
+
+```bash
+nix build .#showcase-recordings
+nix develop .#ci --command ci/nix-built-paths.nu copy-build-output result .
+cargo xtask update-recording-embeds
+```
 
 Rendering every widget takes long, so each visually distinct kind of widget has
 one demo, and widgets that look alike are listed in a table on the guide page
@@ -324,13 +318,12 @@ book from there too). `mdbook serve` previews it locally, and `nix build .#docum
 site updates when the nuremberg host in nixos-config is rebuilt with a newer
 sottomano input.
 
-The build rewrites the Codeberg recording and logo URLs and the absolute
-`https://sottomano.work/` links to site paths, and links `recordings/` to the
+The build rewrites the Codeberg logo URL and the absolute
+`https://sottomano.work/` links (the recordings among them) to site paths, and links `recordings/` to the
 output of `.#showcase-recordings`, so the pages and their recordings come from the
 same commit. It then checks every link offline with lychee, heading anchors
 included, and fails on a missing page, anchor or recording. Building the site
-therefore needs `.#showcase-recordings`: from the binary cache, or rendered on
-the spot.
+therefore renders `.#showcase-recordings` unless it is already in the store.
 
 ## Upstream docs
 
