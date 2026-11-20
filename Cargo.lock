@@ -6760,6 +6760,7 @@ dependencies = [
  "virt",
  "wayrs-client",
  "wayrs-protocols",
+ "winnow 1.0.4",
  "x11rb",
  "zbus",
  "zbus_xml",

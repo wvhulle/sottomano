@@ -119,6 +119,7 @@ uom = { version = "0.38.0", default-features = false, features = [
   "std",
 ] }
 usvg = "0.48.1"
+winnow = "1.0.4"
 zbus = { version = "5.19.0", default-features = false, features = [
   "tokio",
   "blocking-api",

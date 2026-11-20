@@ -32,6 +32,7 @@ pub mod restarting_counters;
 pub mod screen_brightness_color;
 pub mod secret_file_reads;
 pub mod sqlite_state_store;
+pub mod steam_client_files;
 pub mod system_protocol_clients;
 pub mod systemd_units_journal;
 pub mod theme_icons;
