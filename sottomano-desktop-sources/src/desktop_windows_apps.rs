@@ -9,6 +9,7 @@ pub mod firefox_favicon_lookup;
 pub mod focused_window_menu_bar;
 pub mod gtk_menus_menu_bar;
 pub mod kde_job_view_progress;
+pub mod nix_flake_pin;
 pub mod nix_package_facts;
 pub mod nix_store_provenance;
 pub mod process_tree_inspection;

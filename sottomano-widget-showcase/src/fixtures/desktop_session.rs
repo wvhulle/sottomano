@@ -13,6 +13,7 @@ use sottomano_desktop_sources::{
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
         desktop_entries::DesktopEntries,
+        nix_flake_pin::FlakePin,
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
             UpstreamState,
@@ -441,12 +442,16 @@ fn terminal_processes() -> Process {
     )
 }
 
-fn terminal_inspection() -> Inspection {
-    let foot = StorePackage {
+fn foot_store_package() -> StorePackage {
+    StorePackage {
         root: PathBuf::from("/nix/store/7rj0kcq2w9j8foot-1.23.1"),
         name: "foot".to_owned(),
         version: Some("1.23.1".to_owned()),
-    };
+    }
+}
+
+fn terminal_inspection() -> Inspection {
+    let foot = foot_store_package();
     Inspection {
         pid: TERMINAL_PID,
         launch: Launch {
@@ -465,6 +470,7 @@ fn terminal_inspection() -> Inspection {
 
 fn terminal_package_facts() -> NixPackageFacts {
     NixPackageFacts {
+        running: foot_store_package(),
         closure: ClosureFacts {
             closure_size: ByteSize::mib(96),
             path_count: 41,
@@ -482,7 +488,12 @@ fn terminal_package_facts() -> NixPackageFacts {
             homepage: Some("https://codeberg.org/dnkl/foot".to_owned()),
             description: Some("Fast, lightweight and minimalistic Wayland terminal emulator".to_owned()),
             license: Some("MIT".to_owned()),
-            generation: Generation::Current,
+            generation: Generation::Rebuilt {
+                version: "1.23.2".to_owned(),
+            },
+            pin: FlakePin::Moved {
+                version: "1.23.4".to_owned(),
+            },
         }),
         upstream: Some(Upstream {
             branch: "nixos-unstable".to_owned(),

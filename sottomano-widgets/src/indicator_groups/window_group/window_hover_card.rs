@@ -3,7 +3,8 @@ use std::time::{Duration, SystemTime};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::{CompositorWindow, CompositorWindowState},
     desktop_windows_apps::{
-        nix_package_facts::{Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
+        nix_flake_pin::FlakePin,
+        nix_package_facts::{Generation, NixPackageFacts, Origin, UpstreamState},
         nix_store_provenance::StorePackage,
         process_tree_inspection::{self, Inspection, Launch},
     },
@@ -54,7 +55,7 @@ pub fn inspection_sections(inspection: &Inspection) -> Vec<Section> {
     let packages = provenance
         .package
         .as_ref()
-        .map(|package| versioned("Package", package))
+        .map(|package| LabeledValue::new("Package", package.name.as_str()))
         .into_iter()
         .chain(
             provenance
@@ -112,12 +113,14 @@ pub fn nix_package_facts_sections(nix_package_facts: &NixPackageFacts) -> Vec<Se
             ValueCell::RelativeMoment(nix_package_facts.registered.into()),
         )),
         origin_entry(&nix_package_facts.origin),
-        nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
-        nix_package_facts.upstream.as_ref().and_then(upstream_entry),
     ];
     vec![Section::new(
         "Derivation",
-        dictionary_table(rows.into_iter().flatten()),
+        dictionary_table(
+            rows.into_iter()
+                .flatten()
+                .chain(version_entries(nix_package_facts)),
+        ),
     )]
 }
 
@@ -140,27 +143,49 @@ fn origin_entry(origin: &Origin) -> Option<LabeledValue> {
     }
 }
 
-fn generation_entry(generation: &Generation) -> Option<LabeledValue> {
-    match generation {
-        Generation::Current => None,
-        Generation::Rebuilt { version } => Some(
+fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
+    let mut shown_versions: Vec<&str> = nix_package_facts
+        .running
+        .version
+        .as_deref()
+        .into_iter()
+        .collect();
+    let mut entries: Vec<LabeledValue> = shown_versions
+        .iter()
+        .map(|running_version| LabeledValue::new("Running", *running_version))
+        .collect();
+    let nixpkgs = nix_package_facts.nixpkgs.as_ref();
+    if let Some(Generation::Rebuilt { version }) = nixpkgs.map(|entry| &entry.generation) {
+        let installed_value = if shown_versions.contains(&version.as_str()) {
+            "rebuilt, restart to use it".to_owned()
+        } else {
+            shown_versions.push(version);
+            format!("{version}, restart to use it")
+        };
+        entries.push(LabeledValue::new("Installed", installed_value).level(Severity::Warning));
+    }
+    if let Some(FlakePin::Moved { version }) = nixpkgs.map(|entry| &entry.pin)
+        && !shown_versions.contains(&version.as_str())
+    {
+        shown_versions.push(version);
+        entries.push(
             LabeledValue::new(
-                "System generation",
-                format!("has {version}, restart to use it"),
+                "Pinned in flake.lock",
+                format!("{version}, rebuild to install it"),
             )
             .level(Severity::Warning),
-        ),
+        );
     }
-}
-
-fn upstream_entry(upstream: &Upstream) -> Option<LabeledValue> {
-    match &upstream.state {
-        UpstreamState::UpToDate => None,
-        UpstreamState::Newer { version } => Some(
-            LabeledValue::new(upstream.branch.as_str(), format!("has {version}"))
+    if let Some(upstream) = &nix_package_facts.upstream
+        && let UpstreamState::Newer { version } = &upstream.state
+        && !shown_versions.contains(&version.as_str())
+    {
+        entries.push(
+            LabeledValue::new(format!("Latest in {}", upstream.branch), version.as_str())
                 .level(Severity::Warning),
-        ),
+        );
     }
+    entries
 }
 
 fn focus_age(window: &CompositorWindow) -> Option<Duration> {

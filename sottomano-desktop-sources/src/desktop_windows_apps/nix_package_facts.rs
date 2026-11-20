@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 
@@ -14,6 +15,7 @@ use crate::{
     blocking_background_work::{Panicked, blocking_poll},
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::{
+        nix_flake_pin::{FlakePin, evaluate_version, flake_pin},
         nix_store_provenance::{Provenance, StorePackage, below_derivation},
         process_tree_inspection::{Watched, launch},
     },
@@ -29,12 +31,11 @@ const NIXPKGS_META: &str = "p: {
   license = p.meta.license.spdxId or null;
 }";
 
-const UPSTREAM_VERSION: &str = "p: { storePath = p.outPath; inherit (p) version; }";
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PackageWatch {
     pub watched: Watched,
     pub upstream_branch: String,
+    pub nixos_flake: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +96,7 @@ pub struct NixpkgsEntry {
     pub description: Option<String>,
     pub license: Option<String>,
     pub generation: Generation,
+    pub pin: FlakePin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +119,7 @@ pub enum UpstreamState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NixPackageFacts {
+    pub running: StorePackage,
     pub closure: ClosureFacts,
     pub origin: Origin,
     pub registered: SystemTime,
@@ -151,13 +154,6 @@ struct EvaluatedMeta {
     homepage: Option<String>,
     description: Option<String>,
     license: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct EvaluatedVersion {
-    store_path: String,
-    version: String,
 }
 
 impl SnapshotSource for NixPackageFacts {
@@ -203,9 +199,10 @@ impl InstalledPackage {
             .await?
             .lines()
             .count();
-        let nixpkgs = nixpkgs_entry(&package, &root).await;
+        let nixpkgs = nixpkgs_entry(&package, &root, &key.nixos_flake).await;
         Ok(Self {
             facts: NixPackageFacts {
+                running: package.clone(),
                 closure: ClosureFacts {
                     closure_size: ByteSize::b(info.closure_size),
                     path_count,
@@ -289,7 +286,11 @@ fn origin(info: &PathInfo) -> Origin {
     }
 }
 
-async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntry> {
+async fn nixpkgs_entry(
+    package: &StorePackage,
+    root: &str,
+    nixos_flake: &Path,
+) -> Option<NixpkgsEntry> {
     let raw = shell_command_output::output("nixos-version", &["--json"])
         .await
         .inspect_err(|command_failure| {
@@ -317,6 +318,7 @@ async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntr
             tracing::warn!("nix facts: meta of {installable}: {parse_failure}");
         })
         .ok()?;
+    let pin = flake_pin(&package.name, nixos_flake, &revision, &meta.version).await;
     let generation = if meta.store_path == root {
         Generation::Current
     } else {
@@ -330,6 +332,7 @@ async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntr
         description: meta.description,
         license: meta.license,
         generation,
+        pin,
     })
 }
 
@@ -344,20 +347,7 @@ fn definition(position: &str, revision: &str) -> Option<Definition> {
 
 async fn upstream_state(package: &StorePackage, root: &str, branch: &str) -> Option<UpstreamState> {
     let installable = format!("github:NixOS/nixpkgs/{branch}#{}", package.name);
-    let raw = shell_command_output::output(
-        "nix",
-        &["eval", "--json", &installable, "--apply", UPSTREAM_VERSION],
-    )
-    .await
-    .inspect_err(|command_failure| {
-        tracing::warn!("nix facts: eval {installable}: {command_failure}");
-    })
-    .ok()?;
-    let evaluated: EvaluatedVersion = serde_json::from_str(&raw)
-        .inspect_err(|parse_failure| {
-            tracing::warn!("nix facts: version of {installable}: {parse_failure}");
-        })
-        .ok()?;
+    let evaluated = evaluate_version(&installable).await?;
     let same_build = evaluated.store_path == root;
     let same_version = package.version.as_deref() == Some(evaluated.version.as_str());
     Some(if same_build || same_version {

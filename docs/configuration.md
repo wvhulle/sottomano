@@ -104,6 +104,7 @@ audio_indicator = "shown"
 progress = "shown"
 count_badge = "shown"
 nixpkgs_branch = "nixpkgs-unstable"
+nixos_flake = "/etc/nixos"
 maximum_window_title_width = "200px"
 workspace_slide_duration = "250ms"
 

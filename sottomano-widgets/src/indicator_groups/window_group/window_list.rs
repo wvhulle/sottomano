@@ -283,6 +283,7 @@ impl WindowList {
                 PackageWatch {
                     watched,
                     upstream_branch: config.indicator_groups.window.nixpkgs_branch.clone(),
+                    nixos_flake: config.indicator_groups.window.nixos_flake.clone(),
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,

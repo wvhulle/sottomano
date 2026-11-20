@@ -10,7 +10,7 @@ pub mod systemd_manager;
 pub mod temperature_sensors;
 pub mod tray;
 
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
@@ -105,6 +105,7 @@ pub struct WindowGroupConfig {
     pub progress: ElementVisibility,
     pub count_badge: ElementVisibility,
     pub nixpkgs_branch: String,
+    pub nixos_flake: PathBuf,
     pub maximum_window_title_width: Spacing,
     #[serde(with = "humantime_serde")]
     pub workspace_slide_duration: Duration,
@@ -120,6 +121,7 @@ impl Default for WindowGroupConfig {
             progress: ElementVisibility::Shown,
             count_badge: ElementVisibility::Shown,
             nixpkgs_branch: "nixpkgs-unstable".to_owned(),
+            nixos_flake: PathBuf::from("/etc/nixos"),
             maximum_window_title_width: Spacing::Px(200.0),
             workspace_slide_duration: Duration::from_millis(250),
             agents: WindowAgentsConfig::default(),
