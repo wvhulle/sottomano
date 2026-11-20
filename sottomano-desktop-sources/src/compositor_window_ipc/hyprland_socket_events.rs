@@ -20,7 +20,7 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 struct HyprlandWorkspaceReference {
-    id: i64,
+    id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,7 +49,7 @@ fn mapped_by_default() -> bool {
 
 #[derive(Debug, Deserialize)]
 struct HyprlandWorkspace {
-    id: i64,
+    id: Option<i64>,
     name: String,
     monitor: String,
     #[serde(rename = "lastwindow", default)]
@@ -102,8 +102,10 @@ fn window_id_of(address: &str) -> Option<u64> {
         .filter(|window_id| *window_id != 0)
 }
 
-fn regular_workspace_id(id: i64) -> Option<u64> {
-    (id > 0).then_some(id.cast_unsigned())
+fn regular_workspace_id(hyprland_workspace_id: Option<i64>) -> Option<u64> {
+    hyprland_workspace_id
+        .filter(|workspace_id| *workspace_id > 0)
+        .map(i64::cast_unsigned)
 }
 
 fn hyprland_state_of(
@@ -135,7 +137,7 @@ fn hyprland_state_of(
             Some(CompositorWorkspace {
                 id,
                 index: *index,
-                name: (workspace.name != workspace.id.to_string()).then(|| workspace.name.clone()),
+                name: (workspace.name != id.to_string()).then(|| workspace.name.clone()),
                 output: Some(workspace.monitor.clone()),
                 is_urgent: false,
                 is_active,
@@ -296,12 +298,14 @@ mod tests {
     const HYPRLAND_WORKSPACES: &str = r#"[
         {"id": 2, "name": "web", "monitor": "DP-2", "lastwindow": "0x5a1"},
         {"id": 1, "name": "1", "monitor": "DP-1", "lastwindow": "0x0"},
-        {"id": -98, "name": "special:scratch", "monitor": "DP-1", "lastwindow": "0x5a2"}
+        {"id": -98, "name": "special:scratch", "monitor": "DP-1", "lastwindow": "0x5a2"},
+        {"address": "Games", "name": "Games", "monitor": "DP-1", "lastwindow": "0x0", "ispersistent": true}
     ]"#;
 
     const HYPRLAND_MONITORS: &str = r#"[
         {"id": 0, "name": "DP-1", "width": 1280, "height": 800, "refreshRate": 60.0, "x": 0, "y": 0,
-         "activeWorkspace": {"id": 1, "name": "1"}, "scale": 1.0, "focused": false},
+         "activeWorkspace": {"id": 1, "name": "1"}, "specialWorkspace": {"address": "", "name": ""},
+         "scale": 1.0, "focused": false},
         {"id": 1, "name": "DP-2", "width": 1920, "height": 1080, "refreshRate": 60.0, "x": 1280, "y": 0,
          "activeWorkspace": {"id": 2, "name": "web"}, "scale": 1.5, "focused": true}
     ]"#;
