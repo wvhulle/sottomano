@@ -38,7 +38,7 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     desktop_notifications::{
         notification_data::{NotificationData, Outbound, Residency, close_reason},
-        spec_hints::Persistence,
+        spec_hints::{Arrival, Persistence},
     },
     desktop_windows_apps::window_edge_placement::Placement,
 };
@@ -286,15 +286,18 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let shown = self
             .showing()
             .find(|notif| notif.ongoing_key() == Some(&toast.key))
-            .map(|n| (n.data.id, n.ongoing_since()));
-        let toast_id = match shown {
-            Some((id, since)) => {
+            .map(|n| (n.data.id, n.ongoing_since(), n.data.severity));
+        let (toast_id, shown_severity) = match shown {
+            Some((id, since, shown_severity)) => {
                 toast.since = since.unwrap_or(toast.since);
-                id
+                (id, Some(shown_severity))
             }
-            None => self.fresh_shell_toast_id(),
+            None => (self.fresh_shell_toast_id(), None),
         };
-        self.serve(ToastContent::ongoing(toast, toast_id), context)
+        let mut ongoing_content = ToastContent::ongoing(toast, toast_id);
+        ongoing_content.data.arrival =
+            ongoing_update_arrival(shown_severity, ongoing_content.data.severity);
+        self.serve(ongoing_content, context)
     }
 
     fn announce_level(
@@ -846,5 +849,49 @@ fn action_on_window<Routed: ToastLayerHost>(
                 }),
         ),
         _ => None,
+    }
+}
+
+fn ongoing_update_arrival(shown_severity: Option<Severity>, next_severity: Severity) -> Arrival {
+    match shown_severity {
+        Some(shown_severity) if next_severity <= shown_severity => Arrival::Replacement,
+        Some(_) | None => Arrival::Fresh,
+    }
+}
+
+#[cfg(test)]
+mod ongoing_update_arrival_tests {
+    use super::*;
+
+    #[test]
+    fn first_ongoing_toast_arrives_fresh() {
+        assert_eq!(
+            ongoing_update_arrival(None, Severity::Critical),
+            Arrival::Fresh
+        );
+    }
+
+    #[test]
+    fn refreshed_ongoing_toast_at_same_severity_is_a_silent_replacement() {
+        assert_eq!(
+            ongoing_update_arrival(Some(Severity::Critical), Severity::Critical),
+            Arrival::Replacement
+        );
+    }
+
+    #[test]
+    fn calmer_ongoing_toast_is_a_silent_replacement() {
+        assert_eq!(
+            ongoing_update_arrival(Some(Severity::Critical), Severity::Warning),
+            Arrival::Replacement
+        );
+    }
+
+    #[test]
+    fn escalated_ongoing_toast_arrives_fresh() {
+        assert_eq!(
+            ongoing_update_arrival(Some(Severity::Warning), Severity::Critical),
+            Arrival::Fresh
+        );
     }
 }
