@@ -1,6 +1,6 @@
 use corredo::{
     drag_reorder::{HoverReorder, draggable_slot},
-    gauges::{ColorDotTrack, activity_line},
+    gauges::{ColorSegmentTrack, activity_line},
     orientation::Axis,
     popovers::NestedMenuOpenTrigger,
     theming::{
@@ -28,7 +28,7 @@ use crate::{
     widgets::{
         pointer_drag::DraggedPanelSlot,
         screen_edge::screen_edge_of,
-        shared_metrics::{ACCENT_STROKE_PX, WINDOW_MARKER_DIAMETER_PX, pill_corners},
+        shared_metrics::{ACCENT_STROKE_PX, WINDOW_MARKER_LENGTH_PX, pill_corners},
         text::panel_text,
     },
 };
@@ -233,7 +233,7 @@ impl<'s> WorkspaceSlot<'s> {
         )
     }
 
-    fn window_markers(&self, marker_edge: Position, marker_diameter: f32) -> ColorDotTrack {
+    fn window_markers(&self, marker_edge: Position) -> ColorSegmentTrack {
         let incoming = match window_arrival_on(&self.slot_context.drag, self.workspace.id) {
             WindowArrival::Awaited => Some(Box::new(primary_color) as ThemedColor<'static>),
             WindowArrival::NotAwaited => None,
@@ -248,9 +248,10 @@ impl<'s> WorkspaceSlot<'s> {
             })
             .chain(incoming)
             .collect();
-        ColorDotTrack::new(
+        ColorSegmentTrack::new(
             colors,
-            marker_diameter,
+            ACCENT_STROKE_PX,
+            WINDOW_MARKER_LENGTH_PX,
             if marker_edge == Position::Left {
                 Axis::Vertical
             } else {
@@ -289,7 +290,7 @@ impl<'s> WorkspaceSlot<'s> {
     pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
         let PanelSlotContext { config, edge, .. } = self.slot_context;
         let panel_slot = PanelSlot::new(self.label(), self.edge_line())
-            .ticks(self.window_markers(edge, ACCENT_STROKE_PX).view())
+            .ticks(self.window_markers(edge).view())
             .padded_along_panel(config.theme.spacing.item_gap)
             .view(edge);
         self.hit_area(
@@ -304,13 +305,10 @@ impl<'s> WorkspaceSlot<'s> {
         highlight_radius: Radius,
     ) -> Element<'a, WorkspacesMessage> {
         let config = self.slot_context.config;
-        let label_over_markers = column![
-            self.label(),
-            self.window_markers(Position::Bottom, WINDOW_MARKER_DIAMETER_PX)
-                .view()
-        ]
-        .width(Length::Shrink)
-        .align_x(Alignment::Center);
+        let label_over_markers =
+            column![self.label(), self.window_markers(Position::Bottom).view()]
+                .width(Length::Shrink)
+                .align_x(Alignment::Center);
         let label_with_edge = row![
             Space::new().width(ACCENT_STROKE_PX),
             label_over_markers,

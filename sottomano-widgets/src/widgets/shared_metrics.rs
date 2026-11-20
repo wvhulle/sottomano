@@ -2,7 +2,7 @@ use iced::{Border, border};
 
 pub const OUTLINE_WIDTH_PX: f32 = 1.0;
 pub const ACCENT_STROKE_PX: f32 = 2.0;
-pub const WINDOW_MARKER_DIAMETER_PX: f32 = 4.0;
+pub const WINDOW_MARKER_LENGTH_PX: f32 = 8.0;
 pub const SMALL_CORNER_RADIUS_PX: f32 = 2.0;
 
 #[must_use]
