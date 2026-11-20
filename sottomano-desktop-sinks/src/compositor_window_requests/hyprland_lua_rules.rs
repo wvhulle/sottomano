@@ -4,7 +4,7 @@ use sottomano_desktop_sources::compositor_window_ipc::compositor_styling_model::
     CompositorStyling, HeatedWindow, ShellBlurDepth, StyledSurface, SwitchHeat, escaped_for_regex,
 };
 
-fn lua_string(text: &str) -> String {
+pub(crate) fn lua_string(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 

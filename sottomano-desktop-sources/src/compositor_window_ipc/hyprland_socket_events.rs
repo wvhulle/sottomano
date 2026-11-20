@@ -14,14 +14,12 @@ use crate::{
             CompositorWindowState, CompositorWorkspace,
         },
         hyprland_socket_connection::{HyprlandEventSubscription, hyprland_request},
+        hyprland_workspace_identity::{
+            HyprlandWorkspaceIdentity, HyprlandWorkspaceReference, RegularHyprlandWorkspace,
+        },
     },
     desktop_windows_apps::process_tree_inspection,
 };
-
-#[derive(Debug, Deserialize)]
-struct HyprlandWorkspaceReference {
-    id: Option<i64>,
-}
 
 #[derive(Debug, Deserialize)]
 struct HyprlandClient {
@@ -49,7 +47,8 @@ fn mapped_by_default() -> bool {
 
 #[derive(Debug, Deserialize)]
 struct HyprlandWorkspace {
-    id: Option<i64>,
+    #[serde(flatten)]
+    reference: HyprlandWorkspaceReference,
     name: String,
     monitor: String,
     #[serde(rename = "lastwindow", default)]
@@ -102,10 +101,33 @@ fn window_id_of(address: &str) -> Option<u64> {
         .filter(|window_id| *window_id != 0)
 }
 
-fn regular_workspace_id(hyprland_workspace_id: Option<i64>) -> Option<u64> {
-    hyprland_workspace_id
-        .filter(|workspace_id| *workspace_id > 0)
-        .map(i64::cast_unsigned)
+fn regular_workspace_key(reference: &HyprlandWorkspaceReference) -> Option<u64> {
+    match HyprlandWorkspaceIdentity::from(reference) {
+        HyprlandWorkspaceIdentity::Regular(regular) => Some(regular.workspace_key()),
+        HyprlandWorkspaceIdentity::Special | HyprlandWorkspaceIdentity::Unassigned => None,
+    }
+}
+
+struct RegularHyprlandEntry<'listing> {
+    regular: RegularHyprlandWorkspace,
+    workspace: &'listing HyprlandWorkspace,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum WorkspaceListingOrder {
+    ByNumber { id: u64 },
+    AsListed,
+}
+
+impl From<&RegularHyprlandWorkspace> for WorkspaceListingOrder {
+    fn from(regular: &RegularHyprlandWorkspace) -> Self {
+        match regular {
+            RegularHyprlandWorkspace::Numbered { id } => {
+                WorkspaceListingOrder::ByNumber { id: *id }
+            }
+            RegularHyprlandWorkspace::Addressed { .. } => WorkspaceListingOrder::AsListed,
+        }
+    }
 }
 
 fn hyprland_state_of(
@@ -114,16 +136,23 @@ fn hyprland_state_of(
     monitors: &[HyprlandMonitor],
 ) -> CompositorWindowState {
     let monitor_named = |name: &str| monitors.iter().find(|monitor| monitor.name == name);
-    let mut regular_workspaces: Vec<&HyprlandWorkspace> = workspaces
+    let mut regular_workspaces: Vec<RegularHyprlandEntry> = workspaces
         .iter()
-        .filter(|workspace| regular_workspace_id(workspace.id).is_some())
+        .filter_map(
+            |workspace| match HyprlandWorkspaceIdentity::from(&workspace.reference) {
+                HyprlandWorkspaceIdentity::Regular(regular) => {
+                    Some(RegularHyprlandEntry { regular, workspace })
+                }
+                HyprlandWorkspaceIdentity::Special | HyprlandWorkspaceIdentity::Unassigned => None,
+            },
+        )
         .collect();
-    regular_workspaces.sort_by_key(|workspace| workspace.id);
+    regular_workspaces.sort_by_key(|entry| WorkspaceListingOrder::from(&entry.regular));
     let mut next_index_by_monitor: HashMap<&str, u8> = HashMap::new();
     let compositor_workspaces: Vec<CompositorWorkspace> = regular_workspaces
         .into_iter()
-        .filter_map(|workspace| {
-            let id = regular_workspace_id(workspace.id)?;
+        .map(|RegularHyprlandEntry { regular, workspace }| {
+            let id = regular.workspace_key();
             let index = next_index_by_monitor
                 .entry(workspace.monitor.as_str())
                 .and_modify(|index| {
@@ -132,9 +161,10 @@ fn hyprland_state_of(
                         .expect("fewer than 255 workspaces share one monitor");
                 })
                 .or_insert(1);
-            let is_active = monitor_named(&workspace.monitor)
-                .is_some_and(|monitor| monitor.active_workspace.id == workspace.id);
-            Some(CompositorWorkspace {
+            let is_active = monitor_named(&workspace.monitor).is_some_and(|monitor| {
+                regular_workspace_key(&monitor.active_workspace) == Some(id)
+            });
+            CompositorWorkspace {
                 id,
                 index: *index,
                 name: (workspace.name != id.to_string()).then(|| workspace.name.clone()),
@@ -144,7 +174,7 @@ fn hyprland_state_of(
                 is_focused: is_active
                     && monitor_named(&workspace.monitor).is_some_and(|monitor| monitor.focused),
                 active_window_id: window_id_of(&workspace.last_window),
-            })
+            }
         })
         .collect();
     let windows = clients
@@ -160,7 +190,7 @@ fn hyprland_state_of(
                 title: Some(client.title.clone()),
                 app_id: Some(client.class.clone()).filter(|class| !class.is_empty()),
                 pid: Some(client.pid).filter(|pid| *pid > 0),
-                workspace_id: regular_workspace_id(client.workspace.id),
+                workspace_id: regular_workspace_key(&client.workspace),
                 is_focused: client.focus_history_id == 0,
                 is_floating: client.floating,
                 is_urgent: false,
@@ -285,6 +315,7 @@ pub async fn hyprland_window_pids() -> io::Result<Vec<i32>> {
 #[cfg(test)]
 mod tests {
     use super::{HyprlandClient, HyprlandMonitor, HyprlandWorkspace, hyprland_state_of};
+    use crate::compositor_window_ipc::hyprland_workspace_identity::RegularHyprlandWorkspace;
 
     const HYPRLAND_CLIENTS: &str = r#"[
         {"address": "0x5a1", "mapped": true, "at": [1290, 10], "size": [600, 400],
@@ -296,10 +327,10 @@ mod tests {
     ]"#;
 
     const HYPRLAND_WORKSPACES: &str = r#"[
-        {"id": 2, "name": "web", "monitor": "DP-2", "lastwindow": "0x5a1"},
-        {"id": 1, "name": "1", "monitor": "DP-1", "lastwindow": "0x0"},
-        {"id": -98, "name": "special:scratch", "monitor": "DP-1", "lastwindow": "0x5a2"},
-        {"address": "Games", "name": "Games", "monitor": "DP-1", "lastwindow": "0x0", "ispersistent": true}
+        {"address": "2", "id": 2, "type": "normal", "name": "web", "monitor": "DP-2", "lastwindow": "0x5a1"},
+        {"address": "Games", "type": "normal", "name": "Games", "monitor": "DP-1", "lastwindow": "0x0", "ispersistent": true},
+        {"address": "1", "id": 1, "type": "normal", "name": "1", "monitor": "DP-1", "lastwindow": "0x0"},
+        {"address": "special:scratch", "type": "special", "name": "scratch", "monitor": "DP-1", "lastwindow": "0x5a2"}
     ]"#;
 
     const HYPRLAND_MONITORS: &str = r#"[
@@ -321,9 +352,13 @@ mod tests {
     fn regular_workspaces_are_kept_with_their_monitor_flags() {
         let state = parsed_state();
 
+        let games_key = RegularHyprlandWorkspace::Addressed {
+            address: "Games".to_owned(),
+        }
+        .workspace_key();
         let mut workspace_ids: Vec<u64> = state.workspaces.keys().copied().collect();
         workspace_ids.sort_unstable();
-        assert_eq!(workspace_ids, [1, 2]);
+        assert_eq!(workspace_ids, [1, 2, games_key]);
         let web = &state.workspaces[&2];
         assert_eq!(web.name.as_deref(), Some("web"));
         assert!(web.is_active && web.is_focused);
@@ -331,6 +366,10 @@ mod tests {
         assert_eq!(state.workspaces[&1].name, None);
         assert_eq!(state.workspaces[&1].active_window_id, None);
         assert!(!state.workspaces[&1].is_focused);
+        let games = &state.workspaces[&games_key];
+        assert_eq!(games.name.as_deref(), Some("Games"));
+        assert_eq!(games.index, 2);
+        assert!(!games.is_active);
     }
 
     #[test]

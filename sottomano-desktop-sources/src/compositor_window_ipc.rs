@@ -8,6 +8,8 @@ pub mod compositor_window_state;
 pub mod hyprland_socket_connection;
 #[cfg(feature = "hyprland")]
 pub mod hyprland_socket_events;
+#[cfg(feature = "hyprland")]
+pub mod hyprland_workspace_identity;
 #[cfg(feature = "niri")]
 pub mod niri_event_stream;
 pub mod niri_kdl_config;

@@ -67,6 +67,9 @@ pub enum CompositorRequestFailure {
         request: String,
         compositor: &'static str,
     },
+    WorkspaceGone {
+        request: String,
+    },
 }
 
 impl CompositorRequestFailure {
@@ -82,6 +85,9 @@ impl CompositorRequestFailure {
             CompositorRequestFailure::Unsupported { .. } => {
                 "The compositor has no equivalent for this request"
             }
+            CompositorRequestFailure::WorkspaceGone { .. } => {
+                "The workspace closed before the request reached the compositor"
+            }
         }
     }
 
@@ -91,6 +97,7 @@ impl CompositorRequestFailure {
             CompositorRequestFailure::Rejected { reason, .. }
             | CompositorRequestFailure::Unreachable { reason, .. } => reason,
             CompositorRequestFailure::Unsupported { compositor, .. } => compositor,
+            CompositorRequestFailure::WorkspaceGone { .. } => "the compositor no longer lists it",
         }
     }
 
@@ -99,7 +106,8 @@ impl CompositorRequestFailure {
         match self {
             CompositorRequestFailure::Rejected { request, .. }
             | CompositorRequestFailure::Unreachable { request, .. }
-            | CompositorRequestFailure::Unsupported { request, .. } => request,
+            | CompositorRequestFailure::Unsupported { request, .. }
+            | CompositorRequestFailure::WorkspaceGone { request } => request,
         }
     }
 }
