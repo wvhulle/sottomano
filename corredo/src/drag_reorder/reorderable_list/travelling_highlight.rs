@@ -1,9 +1,10 @@
 use std::convert::identity;
 
 use iced::{
-    Animation, Rectangle, Theme,
+    Animation, Color, Rectangle, Theme,
     advanced::{Renderer as _, renderer},
     border::{Border, Radius},
+    mouse::Cursor,
     time::{Duration, Instant},
 };
 
@@ -20,6 +21,7 @@ use crate::{
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
 
+#[derive(Clone, Copy)]
 pub(super) enum HighlightMark {
     Tile {
         tile_inset: SlotTileInset,
@@ -142,6 +144,37 @@ impl TravellingHighlight<'_> {
     }
 }
 
+pub(super) fn fill_slot_mark(
+    renderer: &mut iced::Renderer,
+    mark: &HighlightMark,
+    pager_axis: Axis,
+    row_bounds: Rectangle,
+    slot: Rectangle,
+    color: Color,
+) {
+    match *mark {
+        HighlightMark::Tile {
+            tile_inset,
+            tile_neighbours,
+        } => renderer.fill_quad(
+            tile_inset.tile_on_slot(pager_axis, slot, tile_neighbours),
+            color,
+        ),
+        HighlightMark::EdgeBand { edge, corners, .. } => renderer.fill_quad(
+            renderer::Quad {
+                bounds: edge_backdrop(edge, row_bounds, slot),
+                border: Border {
+                    radius: corners,
+                    ..Border::default()
+                },
+                snap: false,
+                ..renderer::Quad::default()
+            },
+            color.scale_alpha(BACKDROP_TINT_ALPHA),
+        ),
+    }
+}
+
 impl SlotPainter for TravellingHighlight<'_> {
     type PainterState = HighlightTravelState;
 
@@ -149,6 +182,7 @@ impl SlotPainter for TravellingHighlight<'_> {
         &self,
         travel_state: &mut HighlightTravelState,
         child_bounds: &[Rectangle],
+        _cursor: Cursor,
         now: Instant,
     ) -> MotionState {
         travel_state.frame = Some(now);
@@ -176,28 +210,14 @@ impl SlotPainter for TravellingHighlight<'_> {
         let Some((highlighted_slot, travelled)) = self.travelled_slot(&painted_row) else {
             return;
         };
-        let color = (highlighted_slot.color)(theme);
-        match highlighted_slot.mark {
-            HighlightMark::Tile {
-                tile_inset,
-                tile_neighbours,
-            } => renderer.fill_quad(
-                tile_inset.tile_on_slot(self.pager_axis, travelled, tile_neighbours),
-                color,
-            ),
-            HighlightMark::EdgeBand { edge, corners, .. } => renderer.fill_quad(
-                renderer::Quad {
-                    bounds: edge_backdrop(edge, painted_row.row_bounds, travelled),
-                    border: Border {
-                        radius: corners,
-                        ..Border::default()
-                    },
-                    snap: false,
-                    ..renderer::Quad::default()
-                },
-                color.scale_alpha(BACKDROP_TINT_ALPHA),
-            ),
-        }
+        fill_slot_mark(
+            renderer,
+            &highlighted_slot.mark,
+            self.pager_axis,
+            painted_row.row_bounds,
+            travelled,
+            (highlighted_slot.color)(theme),
+        );
     }
 
     fn draw_over(

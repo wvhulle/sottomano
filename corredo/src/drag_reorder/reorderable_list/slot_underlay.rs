@@ -28,7 +28,17 @@ pub(super) trait SlotPainter {
         &self,
         _painter_state: &mut Self::PainterState,
         _child_bounds: &[Rectangle],
+        _cursor: Cursor,
         _now: Instant,
+    ) -> MotionState {
+        MotionState::Settled
+    }
+
+    fn pointer_motion(
+        &self,
+        _painter_state: &Self::PainterState,
+        _child_bounds: &[Rectangle],
+        _cursor: Cursor,
     ) -> MotionState {
         MotionState::Settled
     }
@@ -111,15 +121,24 @@ impl<Message, Painter: SlotPainter> Widget<Message, Theme, iced::Renderer>
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            let painter_state = tree.state.downcast_mut::<Painter::PainterState>();
-            if self
-                .painter
-                .advance(painter_state, &child_bounds_of(layout), *now)
-                == MotionState::Moving
-            {
-                shell.request_redraw();
+        let painter_motion = match event {
+            Event::Window(window::Event::RedrawRequested(now)) => self.painter.advance(
+                tree.state.downcast_mut::<Painter::PainterState>(),
+                &child_bounds_of(layout),
+                cursor,
+                *now,
+            ),
+            Event::Mouse(mouse::Event::CursorMoved { .. } | mouse::Event::CursorLeft) => {
+                self.painter.pointer_motion(
+                    tree.state.downcast_ref::<Painter::PainterState>(),
+                    &child_bounds_of(layout),
+                    cursor,
+                )
             }
+            _ => MotionState::Settled,
+        };
+        if painter_motion == MotionState::Moving {
+            shell.request_redraw();
         }
         self.content.as_widget_mut().update(
             &mut tree.children[0],

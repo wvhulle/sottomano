@@ -7,23 +7,26 @@ use crate::orientation::Edge;
 mod alarm_tiles;
 mod edge_band_geometry;
 mod group_enclosures;
+mod hover_glow;
 mod row_arrangement;
+mod row_painters;
 mod sliding_row;
 mod slot_underlay;
 mod tile_joins;
 mod travelling_highlight;
 
-use alarm_tiles::{AlarmTile, AlarmTiles};
+use alarm_tiles::AlarmTiles;
 use group_enclosures::{EnclosedGroup, GroupEnclosures};
+use hover_glow::HoverGlow;
 use row_arrangement::RowArrangement;
+use row_painters::{RowPainters, alarm_tiles_of, grouped_slots_of};
 use sliding_row::SlidingRow;
-use slot_underlay::SlotUnderlay;
-use tile_joins::{GroupedSlots, SlotMarking};
-use travelling_highlight::{HighlightMark, HighlightedSlot, TravellingHighlight};
+use tile_joins::SlotMarking;
+use travelling_highlight::{HighlightedSlot, TravellingHighlight};
 
 use crate::{
     drag_reorder::{
-        DragEvent, DragView, ListEndCorners,
+        DragEvent, DragView,
         slot_group::{SlotGroup, SlotTileInset},
         wheel_stepper::{WheelStep, WheelStepper},
     },
@@ -218,21 +221,14 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             spacing,
             group_gap,
         );
+        let slot_marks =
+            slot_marking.slot_marks(slot_count, edge, frame_corners, indicator_thickness);
         let mut highlighted_slot =
             highlight
                 .zip(highlighted_position)
                 .map(|(slot_highlight, slot_position)| HighlightedSlot {
                     slot_position,
-                    mark: highlight_mark(
-                        &slot_marking,
-                        slot_position,
-                        HighlightMark::EdgeBand {
-                            edge,
-                            corners: ListEndCorners::new(slot_count, frame_corners)
-                                .radius_at(slot_position),
-                            thickness: indicator_thickness,
-                        },
-                    ),
+                    mark: slot_marks[slot_position],
                     color: slot_highlight.color,
                 });
         let mut row_children: Vec<(RowKey<SlotKey>, Element<'a, Message>)> =
@@ -264,6 +260,11 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             alarm_tiles: AlarmTiles {
                 pager_axis,
                 alarm_tiles: alarm_tiles_of(alarms, &slot_marking),
+            },
+            hover_glow: HoverGlow {
+                pager_axis,
+                fade_duration: motion,
+                slot_marks,
             },
             travelling_highlight: TravellingHighlight {
                 pager_axis,
@@ -309,67 +310,6 @@ fn wheel_selecting<'a, Message: 'a, SlotKey: Copy + 'static>(
         keys.get(neighbour).map(|key| select(*key))
     })
     .into()
-}
-
-struct RowPainters<'a> {
-    alarm_tiles: AlarmTiles<'a>,
-    travelling_highlight: TravellingHighlight<'a>,
-    group_enclosures: GroupEnclosures<'a>,
-}
-
-impl<'a> RowPainters<'a> {
-    fn painted_under<Message: 'a>(
-        self,
-        sliding_row: impl Into<Element<'a, Message>>,
-    ) -> Element<'a, Message> {
-        let alarmed_row = SlotUnderlay::new(self.alarm_tiles, sliding_row);
-        let highlighted_row = SlotUnderlay::new(self.travelling_highlight, alarmed_row);
-        SlotUnderlay::new(self.group_enclosures, highlighted_row).into()
-    }
-}
-
-fn grouped_slots_of<Message>(groups: &[SlotGroup<'_, Message>]) -> Vec<GroupedSlots> {
-    groups
-        .iter()
-        .map(|group| GroupedSlots {
-            positions: group.positions.clone(),
-            tile_inset: SlotTileInset {
-                thickness: group.enclosure_thickness,
-                enclosure_radius: group.enclosure_radius,
-            },
-        })
-        .collect()
-}
-
-fn highlight_mark(
-    slot_marking: &SlotMarking<'_>,
-    slot_position: usize,
-    edge_band_mark: HighlightMark,
-) -> HighlightMark {
-    match slot_marking.tile_inset_at(slot_position) {
-        Some(tile_inset) => HighlightMark::Tile {
-            tile_inset,
-            tile_neighbours: slot_marking.tile_neighbours(slot_position),
-        },
-        None => edge_band_mark,
-    }
-}
-
-fn alarm_tiles_of<'a>(
-    alarms: Vec<SlotAlarm<'a>>,
-    slot_marking: &SlotMarking<'_>,
-) -> Vec<AlarmTile<'a>> {
-    alarms
-        .into_iter()
-        .filter_map(|alarm| {
-            Some(AlarmTile {
-                slot_position: alarm.position,
-                tile_inset: slot_marking.tile_inset_at(alarm.position)?,
-                tile_neighbours: slot_marking.tile_neighbours(alarm.position),
-                color: alarm.color,
-            })
-        })
-        .collect()
 }
 
 impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>

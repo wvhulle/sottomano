@@ -1,7 +1,15 @@
 use std::ops::Range;
 
-use super::UngroupedHighlightLook;
-use crate::drag_reorder::slot_group::{SlotTileInset, TileNeighbours};
+use iced::border::Radius;
+
+use super::{UngroupedHighlightLook, travelling_highlight::HighlightMark};
+use crate::{
+    drag_reorder::{
+        ListEndCorners,
+        slot_group::{SlotTileInset, TileNeighbours},
+    },
+    orientation::Edge,
+};
 
 pub(super) struct GroupedSlots {
     pub(super) positions: Range<usize>,
@@ -29,6 +37,29 @@ impl SlotMarking<'_> {
                 UngroupedHighlightLook::AccentTile(tile_inset) => Some(tile_inset),
             },
         }
+    }
+
+    pub(super) fn slot_marks(
+        &self,
+        slot_count: usize,
+        edge: Edge,
+        frame_corners: Radius,
+        thickness: f32,
+    ) -> Vec<HighlightMark> {
+        let end_corners = ListEndCorners::new(slot_count, frame_corners);
+        (0..slot_count)
+            .map(|slot_position| match self.tile_inset_at(slot_position) {
+                Some(tile_inset) => HighlightMark::Tile {
+                    tile_inset,
+                    tile_neighbours: self.tile_neighbours(slot_position),
+                },
+                None => HighlightMark::EdgeBand {
+                    edge,
+                    corners: end_corners.radius_at(slot_position),
+                    thickness,
+                },
+            })
+            .collect()
     }
 
     fn joins_ungrouped_tile(&self, slot_position: usize, neighbour_position: usize) -> bool {
