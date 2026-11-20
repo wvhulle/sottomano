@@ -32,13 +32,14 @@ use sottomano_desktop_sinks::{
         CompositorRequest, CompositorRequestFailure,
     },
     desktop_notifications::{
-        alert_sound_player::SoundTheme, freedesktop_notification_signals::notification_signal_sink,
+        alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
+        freedesktop_notification_signals::notification_signal_sink,
     },
 };
 use sottomano_desktop_sources::{
     desktop_notifications::{
         notification_data::{NotificationData, Outbound, Residency, close_reason},
-        spec_hints::{Arrival, Persistence},
+        spec_hints::Persistence,
     },
     desktop_windows_apps::window_edge_placement::Placement,
 };
@@ -47,7 +48,7 @@ use sottomano_toml_config::{Config, LoadError, severity::Severity};
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
     toast_card::{self, CardIcons},
-    toast_chimes::{Chime, arrival_chime},
+    toast_chimes::arrival_chime,
     toast_lifecycle::{
         BodyClick, CardStart, Countdown, EventSource, ExitPace, Notification, ToastContent,
         ToastKind, ToastPresence, lifetime,
@@ -286,18 +287,15 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let shown = self
             .showing()
             .find(|notif| notif.ongoing_key() == Some(&toast.key))
-            .map(|n| (n.data.id, n.ongoing_since(), n.data.severity));
-        let (toast_id, shown_severity) = match shown {
-            Some((id, since, shown_severity)) => {
+            .map(|n| (n.data.id, n.ongoing_since()));
+        let toast_id = match shown {
+            Some((id, since)) => {
                 toast.since = since.unwrap_or(toast.since);
-                (id, Some(shown_severity))
+                id
             }
-            None => (self.fresh_shell_toast_id(), None),
+            None => self.fresh_shell_toast_id(),
         };
-        let mut ongoing_content = ToastContent::ongoing(toast, toast_id);
-        ongoing_content.data.arrival =
-            ongoing_update_arrival(shown_severity, ongoing_content.data.severity);
-        self.serve(ongoing_content, context)
+        self.serve(ToastContent::ongoing(toast, toast_id), context)
     }
 
     fn announce_level(
@@ -539,11 +537,15 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let window = ToastWindow::resolve(data, placement);
         let place = placement_for(window, placement, *notifications, config);
         let stacked_predecessors = self.stacked_predecessors(data);
-        let chime = if stacked_predecessors.is_empty() {
-            arrival_chime(data, notifications.alert_sound)
-        } else {
-            Chime::Rung
-        };
+        let toast_slot = self
+            .showing()
+            .filter(|shown| shown.data.id == id || stacked_predecessors.contains(&shown.data.id))
+            .map(|shown| shown.data.severity)
+            .max()
+            .map_or(ToastSlot::Vacant, |shown_severity| ToastSlot::Occupied {
+                shown_severity,
+            });
+        let chime = arrival_chime(data, toast_slot, notifications.alert_sound);
         tasks.push(self.close_all(
             stacked_predecessors,
             close_reason::UNDEFINED,
@@ -849,49 +851,5 @@ fn action_on_window<Routed: ToastLayerHost>(
                 }),
         ),
         _ => None,
-    }
-}
-
-fn ongoing_update_arrival(shown_severity: Option<Severity>, next_severity: Severity) -> Arrival {
-    match shown_severity {
-        Some(shown_severity) if next_severity <= shown_severity => Arrival::Replacement,
-        Some(_) | None => Arrival::Fresh,
-    }
-}
-
-#[cfg(test)]
-mod ongoing_update_arrival_tests {
-    use super::*;
-
-    #[test]
-    fn first_ongoing_toast_arrives_fresh() {
-        assert_eq!(
-            ongoing_update_arrival(None, Severity::Critical),
-            Arrival::Fresh
-        );
-    }
-
-    #[test]
-    fn refreshed_ongoing_toast_at_same_severity_is_a_silent_replacement() {
-        assert_eq!(
-            ongoing_update_arrival(Some(Severity::Critical), Severity::Critical),
-            Arrival::Replacement
-        );
-    }
-
-    #[test]
-    fn calmer_ongoing_toast_is_a_silent_replacement() {
-        assert_eq!(
-            ongoing_update_arrival(Some(Severity::Critical), Severity::Warning),
-            Arrival::Replacement
-        );
-    }
-
-    #[test]
-    fn escalated_ongoing_toast_arrives_fresh() {
-        assert_eq!(
-            ongoing_update_arrival(Some(Severity::Warning), Severity::Critical),
-            Arrival::Fresh
-        );
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     desktop_notifications::{
         notification_image_policy::ImageRole,
         spec_categories::NotificationCategory,
-        spec_hints::{Arrival, Persistence, SoundRequest, SpecAppIcon, SpecImage},
+        spec_hints::{Persistence, SoundRequest, SpecAppIcon, SpecImage},
         vendor_hints::StackTag,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -83,7 +83,6 @@ pub struct NotificationData {
     pub category: NotificationCategory,
     pub residency: Residency,
     pub persistence: Persistence,
-    pub arrival: Arrival,
     pub stack_tag: StackTag,
     pub progress: Option<Ratio>,
     pub reply: ReplyPrompt,

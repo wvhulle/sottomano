@@ -3,7 +3,7 @@ use std::mem;
 use iced::Task;
 use sottomano_desktop_sinks::desktop_notifications::{
     alert_sound_player,
-    alert_sound_policy::{SoundChoice, sound_choice},
+    alert_sound_policy::{SoundChoice, ToastSlot, sound_choice},
 };
 use sottomano_desktop_sources::desktop_notifications::notification_data::NotificationData;
 
@@ -17,9 +17,13 @@ pub enum Chime {
 }
 
 #[must_use]
-pub fn arrival_chime(data: &NotificationData, alert_sound: AlertSound) -> Chime {
+pub fn arrival_chime(
+    data: &NotificationData,
+    toast_slot: ToastSlot,
+    alert_sound: AlertSound,
+) -> Chime {
     match alert_sound {
-        AlertSound::Audible => Chime::Awaiting(sound_choice(data)),
+        AlertSound::Audible => Chime::Awaiting(sound_choice(data, toast_slot)),
         AlertSound::Silent => Chime::Rung,
     }
 }

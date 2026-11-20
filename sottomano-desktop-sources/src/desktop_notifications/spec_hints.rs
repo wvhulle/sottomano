@@ -93,13 +93,6 @@ pub enum Persistence {
     Transient,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Arrival {
-    #[default]
-    Fresh,
-    Replacement,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum HintFlag {
     Set,

@@ -25,7 +25,7 @@ use super::{
     },
     notification_image_policy::image_role,
     spec_hints::{
-        Arrival, HintFlag, hint_flag, hint_str, notification_category, persistence, sound_request,
+        HintFlag, hint_flag, hint_str, notification_category, persistence, sound_request,
         spec_app_icon, spec_image,
     },
     vendor_hints::stack_tag,
@@ -46,25 +46,14 @@ struct NotificationServer {
     bus_proxy: OnceCell<DBusProxy<'static>>,
 }
 
-struct IssuedId {
-    id: u32,
-    arrival: Arrival,
-}
-
 impl NotificationServer {
-    fn replaced_or_fresh_id(&self, replaces_id: u32) -> IssuedId {
+    fn replaced_or_fresh_id(&self, replaces_id: u32) -> u32 {
         let issued_by_this_server =
             replaces_id != 0 && replaces_id < self.next_id.load(Ordering::Relaxed);
         if issued_by_this_server {
-            IssuedId {
-                id: replaces_id,
-                arrival: Arrival::Replacement,
-            }
+            replaces_id
         } else {
-            IssuedId {
-                id: self.next_id.fetch_add(1, Ordering::Relaxed),
-                arrival: Arrival::Fresh,
-            }
+            self.next_id.fetch_add(1, Ordering::Relaxed)
         }
     }
 }
@@ -87,7 +76,7 @@ impl NotificationServer {
         #[zbus(connection)] connection: &Connection,
     ) -> u32 {
         let sender = sender_process(&self.bus_proxy, connection, &header).await;
-        let IssuedId { id, arrival } = self.replaced_or_fresh_id(replaces_id);
+        let id = self.replaced_or_fresh_id(replaces_id);
         let app_icon = spec_app_icon(&app_icon);
         let image = spec_image(&hints, &app_icon);
         let image_role = image_role(&image).await;
@@ -117,7 +106,6 @@ impl NotificationServer {
                 HintFlag::Unset => Residency::Transient,
             },
             persistence: persistence(&hints),
-            arrival,
             stack_tag: stack_tag(&hints),
             progress: hint_progress(&hints),
         };

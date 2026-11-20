@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use sottomano_desktop_sources::desktop_notifications::{
-    notification_data::NotificationData,
-    spec_categories::NotificationCategory,
-    spec_hints::{Arrival, SoundRequest},
+    notification_data::NotificationData, spec_categories::NotificationCategory,
+    spec_hints::SoundRequest,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -13,6 +12,12 @@ pub enum SoundChoice {
     RequestedFile(PathBuf),
     RequestedThemeSound(String),
     PolicyThemeSounds(&'static [&'static str]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastSlot {
+    Vacant,
+    Occupied { shown_severity: Severity },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +80,12 @@ fn urgency_sounds(data: &NotificationData) -> &'static [&'static str] {
 }
 
 #[must_use]
-pub fn sound_choice(data: &NotificationData) -> SoundChoice {
+pub fn sound_choice(data: &NotificationData, toast_slot: ToastSlot) -> SoundChoice {
+    if let ToastSlot::Occupied { shown_severity } = toast_slot
+        && data.severity <= shown_severity
+    {
+        return SoundChoice::Silent;
+    }
     match &data.sound_request {
         SoundRequest::Suppressed => return SoundChoice::Silent,
         SoundRequest::File(sound_file) => return SoundChoice::RequestedFile(sound_file.clone()),
@@ -83,9 +93,6 @@ pub fn sound_choice(data: &NotificationData) -> SoundChoice {
             return SoundChoice::RequestedThemeSound(sound_name.clone());
         }
         SoundRequest::Unspecified => {}
-    }
-    if data.arrival == Arrival::Replacement {
-        return SoundChoice::Silent;
     }
     match category_sounds(&data.category) {
         CategorySounds::Chain(sound_names) => SoundChoice::PolicyThemeSounds(sound_names),
@@ -115,7 +122,7 @@ mod tests {
     }
 
     fn first_sound(data: &NotificationData) -> &'static str {
-        match sound_choice(data) {
+        match sound_choice(data, ToastSlot::Vacant) {
             SoundChoice::PolicyThemeSounds(sound_names) => sound_names[0],
             other_choice => panic!("expected a policy sound, got {other_choice:?}"),
         }
@@ -236,17 +243,70 @@ mod tests {
         let mut requested = notification("device.added", Severity::Normal);
         requested.sound_request = SoundRequest::ThemeName("bell".to_owned());
         assert_eq!(
-            sound_choice(&requested),
+            sound_choice(&requested, ToastSlot::Vacant),
             SoundChoice::RequestedThemeSound("bell".to_owned())
         );
         requested.sound_request = SoundRequest::Suppressed;
-        assert_eq!(sound_choice(&requested), SoundChoice::Silent);
+        assert_eq!(
+            sound_choice(&requested, ToastSlot::Vacant),
+            SoundChoice::Silent
+        );
     }
 
     #[test]
-    fn replacements_are_silent_unless_a_sound_is_requested() {
-        let mut replacement = notification("device.added", Severity::Normal);
-        replacement.arrival = Arrival::Replacement;
-        assert_eq!(sound_choice(&replacement), SoundChoice::Silent);
+    fn refreshing_a_shown_toast_at_the_same_severity_is_silent() {
+        let ram_refresh = notification("x-app", Severity::Critical);
+        assert_eq!(
+            sound_choice(
+                &ram_refresh,
+                ToastSlot::Occupied {
+                    shown_severity: Severity::Critical
+                }
+            ),
+            SoundChoice::Silent
+        );
+    }
+
+    #[test]
+    fn calming_a_shown_toast_is_silent() {
+        let calmer_refresh = notification("x-app", Severity::Warning);
+        assert_eq!(
+            sound_choice(
+                &calmer_refresh,
+                ToastSlot::Occupied {
+                    shown_severity: Severity::Critical
+                }
+            ),
+            SoundChoice::Silent
+        );
+    }
+
+    #[test]
+    fn requested_sounds_stay_silent_on_an_occupied_slot() {
+        let mut requested_refresh = notification("x-app", Severity::Normal);
+        requested_refresh.sound_request = SoundRequest::ThemeName("bell".to_owned());
+        assert_eq!(
+            sound_choice(
+                &requested_refresh,
+                ToastSlot::Occupied {
+                    shown_severity: Severity::Normal
+                }
+            ),
+            SoundChoice::Silent
+        );
+    }
+
+    #[test]
+    fn escalating_a_shown_toast_chimes() {
+        let escalated_refresh = notification("x-app", Severity::Critical);
+        assert_eq!(
+            sound_choice(
+                &escalated_refresh,
+                ToastSlot::Occupied {
+                    shown_severity: Severity::Warning
+                }
+            ),
+            SoundChoice::PolicyThemeSounds(&["dialog-warning", "window-attention"])
+        );
     }
 }
