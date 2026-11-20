@@ -48,6 +48,49 @@ impl From<WindowMenuBarUse> for SwitchPosition {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowMenuBarLayout {
+    BehindHandle,
+    InlineTopMenus,
+}
+
+impl WindowMenuBarLayout {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            WindowMenuBarLayout::BehindHandle => WindowMenuBarLayout::InlineTopMenus,
+            WindowMenuBarLayout::InlineTopMenus => WindowMenuBarLayout::BehindHandle,
+        }
+    }
+}
+
+impl SingletonFlagState for WindowMenuBarLayout {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowMenuBarInline;
+    const STORED_AS_SET: Self = WindowMenuBarLayout::InlineTopMenus;
+    const STORED_AS_CLEARED: Self = WindowMenuBarLayout::BehindHandle;
+}
+
+impl From<WindowMenuBarLayout> for SwitchPosition {
+    fn from(window_menu_bar_layout: WindowMenuBarLayout) -> Self {
+        match window_menu_bar_layout {
+            WindowMenuBarLayout::InlineTopMenus => SwitchPosition::On,
+            WindowMenuBarLayout::BehindHandle => SwitchPosition::Off,
+        }
+    }
+}
+
+fn window_menu_bar_layout_toggle(window_menu_bar_layout: WindowMenuBarLayout) -> IconToggle {
+    IconToggle::new(
+        "Inline top menus",
+        Phosphor::Columns(Weight::Regular),
+        window_menu_bar_layout,
+        SwitchPresses {
+            turning_on: "show each top-level menu of the focused window in the panel",
+            turning_off: "gather the top-level menus behind one panel handle",
+        },
+    )
+}
+
 fn window_menu_bar_use_toggle(window_menu_bar_use: WindowMenuBarUse) -> IconToggle {
     IconToggle::new(
         "Window menu bar",
@@ -90,10 +133,16 @@ impl<'failure> MenuLookupFailureIndicator<'failure> {
 
 impl WindowMenuBar {
     pub fn switch_content(&self) -> IndicatorGroupContent<'_> {
-        let mut rows = vec![GroupIndicator::toggle(
-            window_menu_bar_use_toggle(self.window_menu_bar_use),
-            WindowMenuBarInteraction::ToggleUse,
-        )];
+        let mut rows = vec![
+            GroupIndicator::toggle(
+                window_menu_bar_use_toggle(self.window_menu_bar_use),
+                WindowMenuBarInteraction::ToggleUse,
+            ),
+            GroupIndicator::toggle(
+                window_menu_bar_layout_toggle(self.window_menu_bar_layout),
+                WindowMenuBarInteraction::ToggleLayout,
+            ),
+        ];
         if let Some(lookup_failure) = self.lookup_failure() {
             rows.push(MenuLookupFailureIndicator { lookup_failure }.indicator());
         }

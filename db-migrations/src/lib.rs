@@ -24,7 +24,7 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 7] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 8] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
@@ -32,6 +32,7 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 7] = [
     schema_migration!(5, "0005_submenu_connector_choice.sql"),
     schema_migration!(6, "0006_leftover_focus_facet_text_to_bytes.sql"),
     schema_migration!(7, "0007_window_titles_capped.sql"),
+    schema_migration!(8, "0008_window_menu_bar_inline.sql"),
 ];
 
 pub async fn apply_pending_migrations(

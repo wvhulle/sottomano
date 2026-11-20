@@ -9,7 +9,7 @@ use sottomano_widgets::{
     },
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
-        group_menu_state::GroupMenuTopic,
+        group_menu_state::{GroupMenuTopic, MenuTopicPresence},
         group_menu_view::InspectionCard,
         menu_rows::menu_row::{MenuAppearance, configured_nested_menu},
     },
@@ -83,6 +83,16 @@ impl DesktopShell {
         }
     }
 
+    pub(crate) fn window_menu_bar_presence(&self) -> MenuTopicPresence {
+        match self.hover_card.target() {
+            Some(HoverTarget::WindowTopMenu(_)) => MenuTopicPresence::RecentlyOpen,
+            _ => self
+                .indicator_groups
+                .group_menus
+                .topic_presence(GroupMenuTopic::WindowMenuBar),
+        }
+    }
+
     fn cascading_menu_surfaces(
         &self,
         target: &HoverTarget,
@@ -93,6 +103,15 @@ impl DesktopShell {
                 groups
                     .window_menu_bar
                     .menu_entries(&self.config, &self.icon_catalog),
+                &groups.window_menu_bar.menu_state,
+                WindowMenuBarInteraction::Menu,
+            ),
+            HoverTarget::WindowTopMenu(top_menu_id) => self.cascading_menu(
+                groups.window_menu_bar.top_menu_entries(
+                    *top_menu_id,
+                    &self.config,
+                    &self.icon_catalog,
+                ),
                 &groups.window_menu_bar.menu_state,
                 WindowMenuBarInteraction::Menu,
             ),

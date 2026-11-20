@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     background_work::snapshot_subscription,
-    group_menus::{group_menu_state::GroupMenuTopic, group_source_demand::GroupSourceDemand},
+    group_menus::{group_menu_state::MenuTopicPresence, group_source_demand::GroupSourceDemand},
     indicator_groups::{
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
@@ -121,16 +121,13 @@ impl ShellIndicatorGroups {
         &self,
         config: &Config,
         buses: &DesktopBuses,
+        window_menu_bar_presence: MenuTopicPresence,
     ) -> Subscription<Message> {
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
             PowerGroup::subscription(buses).map(Message::Power),
             self.window_menu_bar
-                .subscription(
-                    buses,
-                    self.group_menus
-                        .topic_presence(GroupMenuTopic::WindowMenuBar),
-                )
+                .subscription(buses, window_menu_bar_presence)
                 .map(Message::WindowMenuBar),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
             IdlePauseGroups::subscription(

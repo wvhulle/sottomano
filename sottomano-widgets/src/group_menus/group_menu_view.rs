@@ -1,7 +1,10 @@
 use std::iter::once;
 
 use chrono::Locale;
-use corredo::{popovers::NestedMenuAction, theming::text_color};
+use corredo::{
+    popovers::{NestedMenuAction, NestedMenuOpenTrigger},
+    theming::text_color,
+};
 use iced::Element;
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
@@ -41,6 +44,23 @@ mod group_menu_cascade;
 mod group_menu_layout_tests;
 #[cfg(test)]
 mod row_pointer_tests;
+
+pub fn panel_menu_handle(
+    open_trigger: NestedMenuOpenTrigger,
+    content: Element<'_, GroupEvent>,
+    target: HoverTarget,
+    highest_alert_severity: Severity,
+    handle_indicator: MenuHandleIndicator,
+    panel_position: Position,
+) -> Element<'_, GroupEvent> {
+    let handle = hoverable(open_trigger, content, target, GroupEvent::from);
+    let edge_indicator_view = edge_indicator(
+        highest_alert_severity,
+        handle_indicator,
+        handle_indicator.settled_reveal(),
+    );
+    PanelSlot::new(handle, edge_indicator_view).view(panel_position)
+}
 
 pub struct GroupMenuView<'a> {
     group_menus: &'a GroupMenuState,
@@ -198,18 +218,14 @@ impl<'a> GroupMenuView<'a> {
             .unwrap_or_default();
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
             .view(config.theme.font.icon_size_px, text_color);
-        let handle = hoverable(
+        panel_menu_handle(
             self.group_menus.presentation.open_trigger,
             glyph,
             HoverTarget::GroupMenu(self.messenger.topic),
-            GroupEvent::from,
-        );
-        let edge_indicator_view = edge_indicator(
             highest_alert_severity,
             handle_indicator,
-            handle_indicator.settled_reveal(),
-        );
-        PanelSlot::new(handle, edge_indicator_view).view(panel_position)
+            panel_position,
+        )
     }
 
     pub fn panel_views(

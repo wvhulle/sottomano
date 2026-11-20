@@ -1,3 +1,4 @@
+pub mod inline_top_menus;
 pub mod menu_bar_switch;
 pub mod top_menu_glyphs;
 
@@ -33,19 +34,18 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use self::{menu_bar_switch::WindowMenuBarUse, top_menu_glyphs::top_menu_glyph};
+use self::{
+    menu_bar_switch::{WindowMenuBarLayout, WindowMenuBarUse},
+    top_menu_glyphs::top_menu_glyph,
+};
 use crate::{
     background_work::logged_failure_task,
     cascading_menus::menu_node_entries::{
-        PressDismissal, menu_icon_side_px, menu_node_entries, menu_node_icon_requests,
-        press_dismissal,
+        PressDismissal, menu_icon_side_px, menu_node_icon_requests, press_dismissal,
     },
     glyph_icons::icon_glyph::IconGlyph,
     group_menus::group_menu_state::MenuTopicPresence,
-    icon_catalog::{
-        drawable_icon_catalog::{DrawableIconSources, IconCatalog},
-        pixmap_handles::PixmapHandles,
-    },
+    icon_catalog::{drawable_icon_catalog::IconCatalog, pixmap_handles::PixmapHandles},
     indicator_groups::{
         indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
         sqlite_singleton_flag,
@@ -54,6 +54,7 @@ use crate::{
 
 pub struct WindowMenuBar {
     pub window_menu_bar_use: WindowMenuBarUse,
+    pub window_menu_bar_layout: WindowMenuBarLayout,
     registered_menu_bars: Vec<RegisteredMenuBar>,
     focused_window: FocusedWindowIdentity,
     focused_menu_bar: FocusedMenuBar,
@@ -66,6 +67,7 @@ impl Default for WindowMenuBar {
     fn default() -> Self {
         Self {
             window_menu_bar_use: WindowMenuBarUse::Disabled,
+            window_menu_bar_layout: WindowMenuBarLayout::BehindHandle,
             registered_menu_bars: Vec::new(),
             focused_window: FocusedWindowIdentity::NoFocusedWindow,
             focused_menu_bar: FocusedMenuBar::NoFocusedWindow,
@@ -79,6 +81,7 @@ impl Default for WindowMenuBar {
 #[derive(Debug)]
 pub enum WindowMenuBarMessage {
     UseLoaded(WindowMenuBarUse),
+    LayoutLoaded(WindowMenuBarLayout),
     RegistrationsChanged(Vec<RegisteredMenuBar>),
     MenuBarChanged(FocusedMenuBar),
     SubmenusPrepared,
@@ -87,6 +90,7 @@ pub enum WindowMenuBarMessage {
 #[derive(Debug, Clone)]
 pub enum WindowMenuBarInteraction {
     ToggleUse,
+    ToggleLayout,
     ItemPressed(i32),
     Menu(NestedMenuAction<i32>),
     SwitchExpansion(IndicatorGroupExpansionMessage),
@@ -151,10 +155,16 @@ fn prepared_submenus(
 
 impl WindowMenuBar {
     pub fn load() -> Task<WindowMenuBarMessage> {
-        Task::perform(
-            sqlite_singleton_flag::load(WindowMenuBarUse::Disabled),
-            WindowMenuBarMessage::UseLoaded,
-        )
+        Task::batch([
+            Task::perform(
+                sqlite_singleton_flag::load(WindowMenuBarUse::Disabled),
+                WindowMenuBarMessage::UseLoaded,
+            ),
+            Task::perform(
+                sqlite_singleton_flag::load(WindowMenuBarLayout::BehindHandle),
+                WindowMenuBarMessage::LayoutLoaded,
+            ),
+        ])
     }
 
     #[must_use]
@@ -248,6 +258,10 @@ impl WindowMenuBar {
                 self.window_menu_bar_use = window_menu_bar_use;
                 Action::None
             }
+            WindowMenuBarMessage::LayoutLoaded(window_menu_bar_layout) => {
+                self.window_menu_bar_layout = window_menu_bar_layout;
+                Action::None
+            }
             WindowMenuBarMessage::RegistrationsChanged(registered_menu_bars) => {
                 self.registered_menu_bars = registered_menu_bars;
                 Action::None
@@ -272,6 +286,14 @@ impl WindowMenuBar {
                 Action::Run(logged_failure_task(
                     "singleton flag: save".to_owned(),
                     sqlite_singleton_flag::save(self.window_menu_bar_use),
+                ))
+            }
+            WindowMenuBarInteraction::ToggleLayout => {
+                self.window_menu_bar_layout = self.window_menu_bar_layout.toggled();
+                self.menu_state.close();
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.window_menu_bar_layout),
                 ))
             }
             WindowMenuBarInteraction::Menu(menu_action) => {
@@ -354,15 +376,7 @@ impl WindowMenuBar {
                 let header = MenuRowContent::new(top_menu_label.clone()).icon(
                     IconGlyph::from(top_menu_glyph(&top_menu_label)).view(icon_size_px, text_color),
                 );
-                let child_entries = menu_node_entries(
-                    &top_menu.children,
-                    config,
-                    DrawableIconSources {
-                        icon_catalog,
-                        pixmap_handles: &self.pixmap_handles,
-                    },
-                    &WindowMenuBarInteraction::ItemPressed,
-                );
+                let child_entries = self.top_menu_children(top_menu, config, icon_catalog);
                 Some(MenuSubmenu::new(top_menu.id, header, child_entries).into())
             })
             .collect()

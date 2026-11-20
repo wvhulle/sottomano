@@ -65,6 +65,24 @@ impl DesktopShell {
             {
                 Vec::new()
             }
+            PanelZoneEntry::Menu(GroupMenuTopic::WindowMenuBar)
+                if self
+                    .indicator_groups
+                    .window_menu_bar
+                    .shows_inline_top_menus() =>
+            {
+                self.indicator_groups
+                    .window_menu_bar
+                    .inline_handle_views(
+                        config,
+                        position,
+                        self.indicator_groups.group_menus.presentation.open_trigger,
+                        |target| self.hover_card.handle_indicator(target, output),
+                    )
+                    .into_iter()
+                    .map(|element| element.map(ShellInteraction::from))
+                    .collect()
+            }
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic)
                 .panel_views(

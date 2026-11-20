@@ -128,15 +128,8 @@ fn each_labelled_top_menu_becomes_a_submenu() {
 #[test]
 fn submenu_children_keep_their_nesting_and_separators() {
     let group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-    let file_children = menu_node_entries(
-        &file_menu()[0].children,
-        &Config::default(),
-        DrawableIconSources {
-            icon_catalog: &IconCatalog::default(),
-            pixmap_handles: &group.pixmap_handles,
-        },
-        &WindowMenuBarInteraction::ItemPressed,
-    );
+    let file_children =
+        group.top_menu_entries(FILE_MENU_ID, &Config::default(), &IconCatalog::default());
     assert!(matches!(
         file_children.as_slice(),
         [
@@ -147,6 +140,30 @@ fn submenu_children_keep_their_nesting_and_separators() {
             MenuEntry::Item(_)
         ]
     ));
+}
+
+#[test]
+fn unknown_top_menu_id_has_no_entries() {
+    let group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
+    assert!(
+        group
+            .top_menu_entries(QUIT_ITEM_ID, &Config::default(), &IconCatalog::default())
+            .is_empty()
+    );
+}
+
+#[test]
+fn inline_layout_shows_top_menus_in_the_panel() {
+    let mut group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
+    assert!(!group.shows_inline_top_menus());
+    let _ = group.interact(WindowMenuBarInteraction::ToggleLayout);
+    assert_eq!(
+        group.window_menu_bar_layout,
+        WindowMenuBarLayout::InlineTopMenus
+    );
+    assert!(group.shows_inline_top_menus());
+    let _ = group.interact(WindowMenuBarInteraction::ToggleUse);
+    assert!(!group.shows_inline_top_menus());
 }
 
 #[test]

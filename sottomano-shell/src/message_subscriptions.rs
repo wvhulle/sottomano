@@ -84,9 +84,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             || Subscription::run(fallback_icon_theme).map(Message::IconThemeChanged),
             |buses| {
                 Subscription::batch([
-                    state
-                        .indicator_groups
-                        .desktop_bus_subscription(&state.config, buses),
+                    state.indicator_groups.desktop_bus_subscription(
+                        &state.config,
+                        buses,
+                        state.window_menu_bar_presence(),
+                    ),
                     Subscription::run_with(buses.clone(), |buses| {
                         icon_theme_changes(&buses.session)
                     })

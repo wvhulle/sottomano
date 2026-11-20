@@ -131,6 +131,7 @@ impl DesktopShell {
             | HoverTarget::PinnedOnPanel(_)
             | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
+            | HoverTarget::WindowTopMenu(_)
             | HoverTarget::SessionMenu => Vec::new(),
         }
     }

@@ -459,6 +459,7 @@ impl<'a> IndicatorGroupContent<'a> {
             HoverTarget::Indicator(_)
             | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
+            | HoverTarget::WindowTopMenu(_)
             | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
