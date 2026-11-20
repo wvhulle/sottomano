@@ -6,10 +6,11 @@ use iced_controller_diagram::{
     ControllerArtwork, ControllerModel, DiagramButton, DiagramStick, controller_diagram,
 };
 
-const MODELS: [(&str, ControllerModel); 3] = [
+const MODELS: [(&str, ControllerModel); 4] = [
     ("DualSense", ControllerModel::DualSense),
     ("Xbox Series", ControllerModel::XboxSeries),
     ("Switch Pro", ControllerModel::SwitchPro),
+    ("Steam Controller", ControllerModel::SteamController),
 ];
 
 #[derive(Debug, Clone, Copy)]

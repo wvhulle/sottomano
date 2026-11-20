@@ -4,12 +4,14 @@ pub enum ControllerModel {
     #[default]
     XboxSeries,
     SwitchPro,
+    SteamController,
 }
 
 impl ControllerModel {
-    pub const ALL: [ControllerModel; 3] = [
+    pub const ALL: [ControllerModel; 4] = [
         ControllerModel::DualSense,
         ControllerModel::XboxSeries,
         ControllerModel::SwitchPro,
+        ControllerModel::SteamController,
     ];
 }

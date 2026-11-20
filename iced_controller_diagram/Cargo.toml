@@ -2,13 +2,13 @@
 name = "iced_controller_diagram"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "MIT AND CC-BY-NC-SA-4.0"
 description = "An iced widget that draws a game controller with labelled callouts for its buttons and sticks"
 repository = "https://github.com/wvhulle/sottomano"
 readme = "README.md"
 keywords = ["iced", "gamepad", "controller", "widget", "gui"]
 categories = ["gui"]
-include = ["src/", "assets/", "examples/", "README.md", "LICENSE", "LICENSE-GAMEPAD-ASSET-PACK"]
+include = ["src/", "assets/", "examples/", "README.md", "LICENSE", "LICENSE-GAMEPAD-ASSET-PACK", "LICENSE-STEAM-CONTROLLER-CAD"]
 
 [lints]
 workspace = true

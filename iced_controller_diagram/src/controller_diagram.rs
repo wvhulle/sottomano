@@ -10,7 +10,7 @@ use crate::{
     diagram_anchor::DiagramAnchor,
     diagram_style::{Style, StyleFn, default},
     leader_lines::LeaderLines,
-    vscview_controller_artwork::{ControllerArtwork, body_size},
+    controller_front_artwork::{ControllerArtwork, body_size},
 };
 
 const DEFAULT_BODY_WIDTH: f32 = 280.0;

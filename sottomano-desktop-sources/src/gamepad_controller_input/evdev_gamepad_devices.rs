@@ -5,7 +5,9 @@ use std::{
     time::Duration,
 };
 
-use evdev::{AbsoluteAxisCode, BusType, Device, EventStream, EventSummary, InputEvent, KeyCode};
+use evdev::{
+    AbsoluteAxisCode, BusType, Device, EventStream, EventSummary, InputEvent, InputId, KeyCode,
+};
 use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
 use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadButton, GamepadStick};
@@ -15,6 +17,11 @@ use super::{
     accelerometer_report_timing::{ReportTiming, accelerometer_node_beside, report_timings},
     bluez_device_aliases::bluetooth_aliases,
     player_indicator_leds::PlayerIndicator,
+    steam_dongle_hidraw::{
+        STEAM_PUCK_PRODUCTS, STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR, dongle_interfaces,
+        dongle_samples,
+    },
+    steam_input_pairing::{DeviceSignal, SteamInputPairing},
 };
 use crate::{
     battery_power_profiles::upower_battery_state::ChargeStatus,
@@ -84,6 +91,7 @@ pub enum UsbCableState {
 pub enum GamepadTransport {
     Bluetooth { usb_cable: UsbCableState },
     Usb,
+    SteamDongle,
     Other,
 }
 
@@ -103,16 +111,28 @@ impl GamepadTransport {
     }
 }
 
-impl From<BusType> for GamepadTransport {
-    fn from(bus: BusType) -> Self {
-        match bus {
+impl From<InputId> for GamepadTransport {
+    fn from(input_id: InputId) -> Self {
+        match input_id.bus_type() {
             BusType::BUS_BLUETOOTH => GamepadTransport::Bluetooth {
                 usb_cable: UsbCableState::Absent,
             },
+            BusType::BUS_USB
+                if input_id.vendor() == VALVE_USB_VENDOR
+                    && STEAM_PUCK_PRODUCTS.contains(&input_id.product()) =>
+            {
+                GamepadTransport::SteamDongle
+            }
             BusType::BUS_USB => GamepadTransport::Usb,
             _ => GamepadTransport::Other,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputRoute {
+    Kernel,
+    SteamInput,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +180,7 @@ pub struct PhysicalGamepadLink {
     pub transport: GamepadTransport,
     pub identity: ControllerIdentity,
     pub player_indicator: PlayerIndicator,
+    pub input_route: InputRoute,
 }
 
 impl PhysicalGamepadLink {
@@ -170,6 +191,7 @@ impl PhysicalGamepadLink {
             transport: self.transport.refreshed(&identity),
             identity,
             player_indicator: PlayerIndicator::from(slot),
+            input_route: self.input_route,
         }
     }
 }
@@ -185,9 +207,10 @@ impl GamepadOrigin {
         kernel_device_of_input_node(slot).map_or(GamepadOrigin::Virtual, |kernel_device| {
             GamepadOrigin::Physical(PhysicalGamepadLink {
                 kernel_device,
-                transport: GamepadTransport::from(device.input_id().bus_type()),
+                transport: GamepadTransport::from(device.input_id()),
                 identity: ControllerIdentity::from(device),
                 player_indicator: PlayerIndicator::from(slot),
+                input_route: InputRoute::Kernel,
             })
         })
     }
@@ -207,8 +230,22 @@ pub struct ConnectedGamepad {
     pub slot: usize,
     pub name: String,
     pub vendor_id: u16,
+    pub product_id: u16,
     pub power: GamepadPower,
     pub origin: GamepadOrigin,
+}
+
+impl ConnectedGamepad {
+    #[must_use]
+    pub fn is_steam_virtual_pad(&self) -> bool {
+        is_steam_virtual_pad(self.vendor_id, self.product_id, &self.origin)
+    }
+}
+
+fn is_steam_virtual_pad(vendor_id: u16, product_id: u16, origin: &GamepadOrigin) -> bool {
+    *origin == GamepadOrigin::Virtual
+        && vendor_id == VALVE_USB_VENDOR
+        && product_id == STEAM_VIRTUAL_PAD_PRODUCT
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -552,10 +589,15 @@ struct DiscoveredGamepad {
     slot: usize,
     name: String,
     vendor_id: u16,
+    product_id: u16,
     origin: GamepadOrigin,
 }
 
 impl DiscoveredGamepad {
+    fn is_steam_virtual_pad(&self) -> bool {
+        is_steam_virtual_pad(self.vendor_id, self.product_id, &self.origin)
+    }
+
     fn input_node(&self) -> PathBuf {
         Path::new(INPUT_DEVICE_DIRECTORY).join(format!("event{}", self.slot))
     }
@@ -565,6 +607,7 @@ impl DiscoveredGamepad {
             slot: self.slot,
             name: self.name.clone(),
             vendor_id: self.vendor_id,
+            product_id: self.product_id,
             power: GamepadPower::from(self.slot),
             origin: self.origin.refreshed(self.slot, bluetooth_aliases),
         }
@@ -580,6 +623,7 @@ fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
                 slot,
                 name: device.name().unwrap_or("Game controller").to_owned(),
                 vendor_id: device.input_id().vendor(),
+                product_id: device.input_id().product(),
                 origin: GamepadOrigin::probe_input_node(slot, &device),
             })
         })
@@ -670,15 +714,36 @@ fn connected_gamepad_events(
     let physical_gamepads = gamepads
         .iter()
         .filter(|gamepad| gamepad.origin != GamepadOrigin::Virtual);
+    let steam_virtual_pads = gamepads
+        .iter()
+        .filter(|gamepad| gamepad.is_steam_virtual_pad());
+    let steam_input_active = steam_virtual_pads.clone().next().is_some();
     let button_events = physical_gamepads
         .clone()
+        .chain(steam_virtual_pads)
         .map(|gamepad| gamepad_events(gamepad).boxed());
     let report_rate_events = physical_gamepads.filter_map(|gamepad| {
         accelerometer_node_beside(gamepad.slot)
             .map(|accelerometer| report_timings(gamepad.slot, &accelerometer).boxed())
     });
+    let watched_dongle_interfaces = if steam_input_active {
+        dongle_interfaces()
+    } else {
+        Vec::new()
+    };
+    let dongle_signals = watched_dongle_interfaces.into_iter().map(|interface| {
+        dongle_samples(interface)
+            .map(|(interface, sample)| DeviceSignal::Dongle(interface, sample))
+            .boxed()
+    });
     let device_events = stream::select_all(button_events.chain(report_rate_events));
-    stream::select(roster_with_refresh(gamepads), device_events)
+    let raw_signals =
+        stream::select(roster_with_refresh(gamepads), device_events).map(DeviceSignal::Raw);
+    stream::select(raw_signals, stream::select_all(dongle_signals))
+        .scan(SteamInputPairing::default(), |pairing, signal| {
+            ready(Some(pairing.absorb(signal)))
+        })
+        .filter_map(ready)
 }
 
 pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {

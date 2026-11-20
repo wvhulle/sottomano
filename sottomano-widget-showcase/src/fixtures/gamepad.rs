@@ -4,10 +4,12 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower, GamepadTransport,
-        PhysicalGamepadLink, UsbCableState,
+        InputRoute, PhysicalGamepadLink, UsbCableState,
     },
     gamepad_input_machine::GamepadInput,
     player_indicator_leds::{LitPlayer, PlayerIndicator},
+    steam_dongle_hidraw::{STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR},
+    steam_input_pairing::STEAM_CONTROLLER_NAME,
 };
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_widgets::indicator_groups::gamepad_group::{GamepadGroup, GamepadMessage};
@@ -22,6 +24,7 @@ use crate::showcased_group::{ShowcasedGamepad, ShowcasedGroup};
 pub const DUALSENSE_SLOT: usize = 31;
 const SECOND_DUALSENSE_SLOT: usize = 258;
 const STEAM_VIRTUAL_SLOT: usize = 261;
+const STEAM_CONTROLLER_SLOT: usize = 18;
 
 fn dualsense(
     slot: usize,
@@ -34,6 +37,7 @@ fn dualsense(
         slot,
         name: "DualSense Wireless Controller".to_owned(),
         vendor_id: 0x054c,
+        product_id: 0x0ce6,
         power,
         origin: GamepadOrigin::Physical(PhysicalGamepadLink {
             kernel_device: format!("+hid:0005:054C:0CE6.{slot:04X}"),
@@ -53,6 +57,27 @@ fn dualsense(
                     })
                     .collect(),
             }),
+            input_route: InputRoute::Kernel,
+        }),
+    }
+}
+
+fn steam_controller_through_steam_input() -> ConnectedGamepad {
+    ConnectedGamepad {
+        slot: STEAM_CONTROLLER_SLOT,
+        name: STEAM_CONTROLLER_NAME.to_owned(),
+        vendor_id: VALVE_USB_VENDOR,
+        product_id: STEAM_VIRTUAL_PAD_PRODUCT,
+        power: GamepadPower::Discharging(63),
+        origin: GamepadOrigin::Physical(PhysicalGamepadLink {
+            kernel_device: "+hid:0003:28DE:1304.000B".to_owned(),
+            transport: GamepadTransport::SteamDongle,
+            identity: ControllerIdentity::Addressed {
+                hardware_address: "FXB99634004CA/input2".to_owned(),
+                alias: STEAM_CONTROLLER_NAME.to_owned(),
+            },
+            player_indicator: PlayerIndicator::Unlit,
+            input_route: InputRoute::SteamInput,
         }),
     }
 }
@@ -76,10 +101,12 @@ pub fn group() -> ShowcasedGroup {
                 2,
                 GamepadPower::Charging(40),
             ),
+            steam_controller_through_steam_input(),
             ConnectedGamepad {
                 slot: STEAM_VIRTUAL_SLOT,
-                name: "Microsoft X-Box 360 pad 0".to_owned(),
-                vendor_id: 0x28de,
+                name: "Microsoft X-Box 360 pad 1".to_owned(),
+                vendor_id: VALVE_USB_VENDOR,
+                product_id: STEAM_VIRTUAL_PAD_PRODUCT,
                 power: GamepadPower::NoBattery,
                 origin: GamepadOrigin::Virtual,
             },

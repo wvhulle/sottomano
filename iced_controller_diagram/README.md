@@ -37,7 +37,16 @@ Run the gallery with
 
 The code is MIT licensed (see `LICENSE`).
 
-The controller drawings in `assets/` are the VSCView overlays from
+The DualSense, Xbox Series and Switch Pro drawings in `assets/` are the VSCView
+overlays from
 [AL2009man's Gamepad Asset Pack](https://github.com/AL2009man/Gamepad-Asset-Pack),
-MIT licensed (see `LICENSE-GAMEPAD-ASSET-PACK`), unchanged. Controller names and
-logos belong to their respective trademark owners.
+MIT licensed (see `LICENSE-GAMEPAD-ASSET-PACK`), unchanged.
+
+`assets/steam_controller_front.svg` is a front projection traced from Valve's
+[Steam Controller CAD files](https://gitlab.steamos.cloud/SteamHardware/SteamController)
+(`sc_solid_stl_20260429.stl`), Copyright 2026 Valve Corporation, and is shared
+under the same Creative Commons Attribution-NonCommercial-ShareAlike 4.0 license
+(see `LICENSE-STEAM-CONTROLLER-CAD`). It is not associated with or endorsed by
+Valve.
+
+Controller names and logos belong to their respective trademark owners.

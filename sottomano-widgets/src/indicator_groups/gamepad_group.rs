@@ -4,6 +4,7 @@ pub mod controller_button_labels;
 mod controller_link_indicator;
 mod diagram_anchor_mapping;
 mod sqlite_compositor_driving_controllers;
+mod steam_input_route;
 mod usb_cable_indicator;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -27,7 +28,7 @@ use sottomano_desktop_sources::{
         accelerometer_report_timing::ReportTiming,
         evdev_gamepad_devices::{
             ButtonEdge, ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower,
-            GamepadTransport, PhysicalGamepadLink, UsbCableState,
+            GamepadTransport, InputRoute, PhysicalGamepadLink, UsbCableState,
         },
         gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
         gamepad_input_stream::gamepad_inputs,
@@ -659,7 +660,9 @@ impl GamepadGroup {
             .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
         ];
         if !shown_in_bluetooth_group {
-            rows.push(self.link_indicator(slot, link).indicator());
+            if link.input_route == InputRoute::Kernel {
+                rows.push(self.link_indicator(slot, link).indicator());
+            }
             if gamepad.power != GamepadPower::NoBattery {
                 rows.push(battery_indicator.indicator());
             }
@@ -716,6 +719,7 @@ fn usb_cable_role(transport: GamepadTransport) -> Option<UsbCableRole> {
         GamepadTransport::Bluetooth {
             usb_cable: UsbCableState::Absent,
         }
+        | GamepadTransport::SteamDongle
         | GamepadTransport::Other => None,
     }
 }
@@ -839,6 +843,7 @@ mod tests {
             slot,
             name: "pad".to_owned(),
             vendor_id: 0x054c,
+            product_id: 0x0ce6,
             power: GamepadPower::NoBattery,
             origin,
         }
@@ -862,6 +867,7 @@ mod tests {
                 hardware_address: format!("00:00:00:00:00:{slot:02x}"),
                 alias: format!("Pad {slot}"),
             },
+            input_route: InputRoute::Kernel,
         })
     }
 

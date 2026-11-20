@@ -8,12 +8,14 @@ use crate::{
 const DUALSENSE_SVG: &[u8] = include_bytes!("../assets/dualsense_front.svg");
 const XBOX_SERIES_SVG: &[u8] = include_bytes!("../assets/xbox_series_front.svg");
 const SWITCH_PRO_SVG: &[u8] = include_bytes!("../assets/switch_pro_front.svg");
+const STEAM_CONTROLLER_SVG: &[u8] = include_bytes!("../assets/steam_controller_front.svg");
 
 #[derive(Debug, Clone)]
 pub struct ControllerArtwork {
     dualsense: Handle,
     xbox_series: Handle,
     switch_pro: Handle,
+    steam_controller: Handle,
 }
 
 impl ControllerArtwork {
@@ -23,6 +25,7 @@ impl ControllerArtwork {
             dualsense: Handle::from_memory(DUALSENSE_SVG),
             xbox_series: Handle::from_memory(XBOX_SERIES_SVG),
             switch_pro: Handle::from_memory(SWITCH_PRO_SVG),
+            steam_controller: Handle::from_memory(STEAM_CONTROLLER_SVG),
         }
     }
 
@@ -31,6 +34,7 @@ impl ControllerArtwork {
             ControllerModel::DualSense => &self.dualsense,
             ControllerModel::XboxSeries => &self.xbox_series,
             ControllerModel::SwitchPro => &self.switch_pro,
+            ControllerModel::SteamController => &self.steam_controller,
         }
     }
 }
@@ -40,6 +44,7 @@ pub(crate) const fn body_size(model: ControllerModel) -> Size {
         ControllerModel::DualSense => Size::new(2058.7, 1144.9),
         ControllerModel::XboxSeries => Size::new(1534.7, 954.0),
         ControllerModel::SwitchPro => Size::new(1584.1, 1151.0),
+        ControllerModel::SteamController => Size::new(1590.0, 1110.0),
     }
 }
 
@@ -48,6 +53,7 @@ pub(crate) const fn anchor_point(model: ControllerModel, anchor: DiagramAnchor) 
         ControllerModel::DualSense => dualsense_anchor(anchor),
         ControllerModel::XboxSeries => xbox_series_anchor(anchor),
         ControllerModel::SwitchPro => switch_pro_anchor(anchor),
+        ControllerModel::SteamController => steam_controller_anchor(anchor),
     };
     Point::new(x, y)
 }
@@ -130,6 +136,32 @@ const fn switch_pro_anchor(anchor: DiagramAnchor) -> (f32, f32) {
     }
 }
 
+const fn steam_controller_anchor(anchor: DiagramAnchor) -> (f32, f32) {
+    match anchor {
+        DiagramAnchor::Button(button) => match button {
+            DiagramButton::South => (1283.0, 350.0),
+            DiagramButton::East => (1376.0, 257.0),
+            DiagramButton::West => (1191.0, 257.0),
+            DiagramButton::North => (1283.0, 165.0),
+            DiagramButton::Back => (510.0, 143.0),
+            DiagramButton::Guide => (793.0, 257.0),
+            DiagramButton::Start => (1077.0, 143.0),
+            DiagramButton::LeftStick => (563.0, 372.0),
+            DiagramButton::RightStick => (1023.0, 372.0),
+            DiagramButton::LeftShoulder => (320.0, 55.0),
+            DiagramButton::RightShoulder => (1270.0, 55.0),
+            DiagramButton::LeftTrigger => (300.0, 12.0),
+            DiagramButton::RightTrigger => (1290.0, 12.0),
+            DiagramButton::DpadUp => (303.0, 180.0),
+            DiagramButton::DpadDown => (303.0, 335.0),
+            DiagramButton::DpadLeft => (225.0, 257.0),
+            DiagramButton::DpadRight => (381.0, 257.0),
+        },
+        DiagramAnchor::Stick(DiagramStick::Left) => (563.0, 372.0),
+        DiagramAnchor::Stick(DiagramStick::Right) => (1023.0, 372.0),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,7 +189,12 @@ mod tests {
 
     #[test]
     fn bundled_drawings_are_svg_documents() {
-        for drawing in [DUALSENSE_SVG, XBOX_SERIES_SVG, SWITCH_PRO_SVG] {
+        for drawing in [
+            DUALSENSE_SVG,
+            XBOX_SERIES_SVG,
+            SWITCH_PRO_SVG,
+            STEAM_CONTROLLER_SVG,
+        ] {
             let head = &drawing[..drawing.len().min(512)];
             assert!(
                 head.windows(4).any(|window| window == b"<svg"),
@@ -172,6 +209,7 @@ mod tests {
             (ControllerModel::DualSense, Size::new(544.7, 302.9)),
             (ControllerModel::XboxSeries, Size::new(1534.7, 954.0)),
             (ControllerModel::SwitchPro, Size::new(419.1, 304.5)),
+            (ControllerModel::SteamController, Size::new(1590.0, 1110.0)),
         ];
         for (model, view_box) in view_boxes {
             let body = body_size(model);

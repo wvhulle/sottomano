@@ -5,5 +5,7 @@ pub mod gamepad_input_machine;
 pub mod gamepad_input_stream;
 pub mod player_indicator_leds;
 pub mod playstation_player_leds;
+pub mod steam_dongle_hidraw;
+pub mod steam_input_pairing;
 pub mod stick_motion_tracking;
 pub mod wlr_virtual_pointer_motion;

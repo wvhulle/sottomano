@@ -1,4 +1,5 @@
 use iced_controller_diagram::ControllerModel;
+use sottomano_desktop_sources::gamepad_controller_input::steam_dongle_hidraw::VALVE_USB_VENDOR;
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
 
 use crate::glyph_icons::{
@@ -15,6 +16,7 @@ pub enum ControllerFamily {
     PlayStation,
     Nintendo,
     Xbox,
+    Steam,
 }
 
 impl ControllerFamily {
@@ -35,6 +37,7 @@ impl ControllerFamily {
             ControllerFamily::PlayStation => ControllerModel::DualSense,
             ControllerFamily::Nintendo => ControllerModel::SwitchPro,
             ControllerFamily::Xbox => ControllerModel::XboxSeries,
+            ControllerFamily::Steam => ControllerModel::SteamController,
         }
     }
 
@@ -42,7 +45,7 @@ impl ControllerFamily {
     pub fn brand_glyph(self) -> IconGlyph {
         match self {
             ControllerFamily::PlayStation => SimpleIcon::PlayStation.into(),
-            ControllerFamily::Nintendo | ControllerFamily::Xbox => {
+            ControllerFamily::Nintendo | ControllerFamily::Xbox | ControllerFamily::Steam => {
                 Phosphor::GameController(Weight::Regular).into()
             }
         }
@@ -54,6 +57,7 @@ impl ControllerFamily {
             ControllerFamily::PlayStation => "PlayStation",
             ControllerFamily::Nintendo => "Nintendo",
             ControllerFamily::Xbox => "Xbox",
+            ControllerFamily::Steam => "Steam",
         }
     }
 
@@ -70,6 +74,7 @@ impl ControllerFamily {
             (ControllerFamily::PlayStation, button) => playstation_label(button),
             (ControllerFamily::Nintendo, button) => nintendo_label(button),
             (ControllerFamily::Xbox, button) => xbox_label(button),
+            (ControllerFamily::Steam, button) => steam_label(button),
         }
     }
 }
@@ -79,6 +84,7 @@ impl From<u16> for ControllerFamily {
         match vendor_id {
             SONY_USB_VENDOR => ControllerFamily::PlayStation,
             NINTENDO_USB_VENDOR => ControllerFamily::Nintendo,
+            VALVE_USB_VENDOR => ControllerFamily::Steam,
             _ => ControllerFamily::Xbox,
         }
     }
@@ -150,6 +156,15 @@ const fn xbox_label(button: GamepadButton) -> &'static str {
     }
 }
 
+const fn steam_label(button: GamepadButton) -> &'static str {
+    match button {
+        GamepadButton::Guide => "Steam",
+        GamepadButton::LeftStick => "L3",
+        GamepadButton::RightStick => "R3",
+        other => xbox_label(other),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +175,14 @@ mod tests {
         assert_eq!(south(SONY_USB_VENDOR), "Cross");
         assert_eq!(south(NINTENDO_USB_VENDOR), "B");
         assert_eq!(south(0x045e), "A");
+        assert_eq!(south(VALVE_USB_VENDOR), "A");
+    }
+
+    #[test]
+    fn steam_controllers_name_their_own_guide_button() {
+        let steam = ControllerFamily::from(VALVE_USB_VENDOR);
+        assert_eq!(steam.button_label(GamepadButton::Guide), "Steam");
+        assert_eq!(steam.controller_model(), ControllerModel::SteamController);
     }
 
     #[test]

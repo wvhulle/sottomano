@@ -18,6 +18,7 @@ use super::{
     ControllerCustody,
     controller_button_labels::ControllerFamily,
     diagram_anchor_mapping::{button_anchor, stick_anchor},
+    steam_input_route::{connection_rows, steam_input_note},
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -192,6 +193,13 @@ impl ConnectedControllerIndicator<'_> {
         }
     }
 
+    fn physical_link(&self) -> Option<&PhysicalGamepadLink> {
+        match &self.gamepad.origin {
+            GamepadOrigin::Physical(link) => Some(link),
+            GamepadOrigin::Virtual => None,
+        }
+    }
+
     fn identity_section(&self) -> Section {
         let named = self.paired_alias().map_or_else(
             || vec![LabeledValue::new("Controller", self.gamepad.name.clone())],
@@ -204,7 +212,12 @@ impl ConnectedControllerIndicator<'_> {
         );
         Section::new(
             "Identity",
-            dictionary_table(named.into_iter().chain(self.marking.player_indicators())),
+            dictionary_table(
+                named
+                    .into_iter()
+                    .chain(self.physical_link().into_iter().flat_map(connection_rows))
+                    .chain(self.marking.player_indicators()),
+            ),
         )
     }
 
@@ -302,6 +315,7 @@ impl<'a> ConnectedControllerIndicator<'a> {
     pub fn hover_card(&self) -> Vec<Section> {
         once(self.identity_section())
             .chain(self.marking.numbering_note())
+            .chain(self.physical_link().and_then(steam_input_note))
             .chain([
                 self.bindings_section(),
                 Section::new(
