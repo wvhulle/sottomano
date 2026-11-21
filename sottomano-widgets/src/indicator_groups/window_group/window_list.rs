@@ -55,9 +55,7 @@ use crate::{
         simple_icons::view_simple_icon,
     },
     group_indicators::indicator_state::{IndicatorState, IndicatorStateTint},
-    hover_cards::{
-        HoverCardMessage, MouseGesture, PressAction, hover_card_body::Section, hoverable,
-    },
+    hover_cards::{HoverCardMessage, MouseGesture, PressAction, hover_card_body::Section},
     icon_catalog::window_icons::{WindowAssets, window_icon},
     indicator_groups::window_group::{
         WindowRowLayout, WindowTarget, WindowTitleLength,
@@ -854,36 +852,34 @@ impl WindowSlot<'_> {
 
     fn panel_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let config = self.slot_context.config;
+        let edge = self.slot_context.edge;
         let window = self.window_entry.id;
-        let usage = self.window_entry.is_focused.then(|| {
-            hoverable(
-                NestedMenuOpenTrigger::Hover,
-                self.secondary_glyph(Phosphor::UserFocus),
-                WindowTarget::Usage(window).into(),
-                WindowListInteraction::HoverCard,
-            )
-        });
-        let inspecting = self.window_entry.is_focused.then(|| {
-            hoverable(
-                NestedMenuOpenTrigger::Hover,
-                self.secondary_glyph(Phosphor::Package),
-                WindowTarget::Inspect(window).into(),
-                WindowListInteraction::HoverCard,
-            )
-        });
-        let content = Row::new()
-            .push(self.button_content(icons))
-            .extend(usage)
-            .extend(inspecting)
-            .spacing(config.theme.spacing.item_gap)
-            .align_y(Alignment::Center);
-        let panel_slot = PanelSlot::new(content.into(), self.indicator_line())
+        let window_slot = PanelSlot::new(self.button_content(icons), self.indicator_line())
             .padded_along_panel(config.theme.spacing.item_gap);
-        match self.progress_ticks() {
-            Some(ticks) => panel_slot.ticks(ticks),
-            None => panel_slot,
+        let window_slot = match self.progress_ticks() {
+            Some(ticks) => window_slot.ticks(ticks),
+            None => window_slot,
         }
-        .view(self.slot_context.edge)
+        .view(edge);
+        let glyph_slot = |icon: fn(Weight) -> Phosphor, target: WindowTarget| {
+            PanelSlot::new(self.secondary_glyph(icon), self.indicator_line()).hovered(
+                edge,
+                NestedMenuOpenTrigger::Hover,
+                target.into(),
+                WindowListInteraction::HoverCard,
+            )
+        };
+        let focused_glyph_slots = self.window_entry.is_focused.then(|| {
+            [
+                glyph_slot(Phosphor::UserFocus, WindowTarget::Usage(window)),
+                glyph_slot(Phosphor::Package, WindowTarget::Inspect(window)),
+            ]
+        });
+        Row::new()
+            .push(window_slot)
+            .extend(focused_glyph_slots.into_iter().flatten())
+            .spacing(config.theme.spacing.item_gap)
+            .into()
     }
 
     fn secondary_glyph<'a>(

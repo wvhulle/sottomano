@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::identity, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 use corredo::{
     popovers::MenuRowEmphasis,
@@ -10,7 +10,7 @@ use iced::{
     Alignment, Element,
     widget::{Row, Space, button, mouse_area, row},
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use super::{
     GroupIndicator, IndicatorPinning, IndicatorPlacement, IndicatorPowerControl, RowScroll,
@@ -18,6 +18,7 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    desktop_panels::panel_slot::PanelSlot,
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -28,7 +29,7 @@ use crate::{
         indicator_toggle_switch::indicator_toggle_switch,
     },
     group_menus::group_menu_state::GroupMenuPin,
-    hover_cards::{HoverTarget, IndicatorKey, hoverable},
+    hover_cards::{HoverTarget, IndicatorKey},
     indicator_groups::{
         indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupIdentity,
     },
@@ -41,19 +42,20 @@ impl<'a> GroupIndicator<'a> {
         reveal: f32,
         clock: Clock,
         hover_target: HoverTarget,
+        edge_line: Element<'a, GroupEvent>,
+        panel_position: Position,
     ) -> Element<'a, GroupEvent> {
-        let opening = self.card_opening_trigger;
-        self.placed_view(
-            config,
-            reveal,
-            clock,
-            IndicatorPlacement::Panel,
-            move |content| hoverable(opening, content, hover_target, GroupEvent::from),
+        let content = self.placed_view(config, reveal, clock, IndicatorPlacement::Panel);
+        PanelSlot::new(content, edge_line).hovered(
+            panel_position,
+            self.card_opening_trigger,
+            hover_target,
+            GroupEvent::from,
         )
     }
 
     pub(crate) fn table_cell_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
-        self.placed_view(config, 1.0, clock, IndicatorPlacement::Table, identity)
+        self.placed_view(config, 1.0, clock, IndicatorPlacement::Table)
     }
 
     pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
@@ -146,7 +148,6 @@ impl<'a> GroupIndicator<'a> {
         reveal: f32,
         clock: Clock,
         placement: IndicatorPlacement,
-        hover_area: impl FnOnce(Element<'a, GroupEvent>) -> Element<'a, GroupEvent>,
     ) -> Element<'a, GroupEvent> {
         let content = match &self.value {
             RowValueControl::IndicatorReadout(readout) => self.with_switch_indicator(
@@ -167,7 +168,7 @@ impl<'a> GroupIndicator<'a> {
                 self.with_switch_indicator(config, composed_row, reveal)
             }
         };
-        let mut element = hover_area(content);
+        let mut element = content;
         if let IndicatorGesture::Performs { message, .. } = self.gestures.left.clone() {
             element = button(element)
                 .padding(0)

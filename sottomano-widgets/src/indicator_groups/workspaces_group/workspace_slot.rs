@@ -272,19 +272,14 @@ impl<'s> WorkspaceSlot<'s> {
                 is_active: self.workspace.is_active,
             },
         };
-        let pressable = draggable_slot(
+        draggable_slot(
             content,
             press,
             HoverReorder::ReordersOnHover,
             &self.slot_context.drag,
             dragged,
-        );
-        hoverable(
-            NestedMenuOpenTrigger::Hover,
-            pressable.into(),
-            HoverTarget::Workspace(self.workspace.id),
-            WorkspacesMessage::HoverCard,
         )
+        .into()
     }
 
     pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
@@ -292,7 +287,12 @@ impl<'s> WorkspaceSlot<'s> {
         let panel_slot = PanelSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
             .padded_along_panel(config.theme.spacing.item_gap)
-            .view(edge);
+            .hovered(
+                edge,
+                NestedMenuOpenTrigger::Hover,
+                HoverTarget::Workspace(self.workspace.id),
+                WorkspacesMessage::HoverCard,
+            );
         self.hit_area(
             container(panel_slot)
                 .style(self.drop_tint(Radius::default()))
@@ -317,12 +317,15 @@ impl<'s> WorkspaceSlot<'s> {
         .spacing(config.theme.spacing.item_gap)
         .height(config.desktop_panels.height)
         .align_y(Alignment::Center);
-        self.hit_area(
+        self.hit_area(hoverable(
+            NestedMenuOpenTrigger::Hover,
             container(label_with_edge)
                 .align_right(Length::Fill)
                 .style(self.drop_tint(highlight_radius))
                 .into(),
-        )
+            HoverTarget::Workspace(self.workspace.id),
+            WorkspacesMessage::HoverCard,
+        ))
     }
 }
 

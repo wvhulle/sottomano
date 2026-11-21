@@ -41,7 +41,6 @@ use crate::{
         CardHeader, HoverCardMessage, HoverTarget, IndicatorKey, MenuHandleIndicator, MouseGesture,
         PanelPinOrigin, PointerPresence, PressAction,
         hover_card_body::{Section, hover_card_source_delivery::SectionSource},
-        hoverable,
     },
     indicator_groups::indicator_group_identity::{
         IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
@@ -584,9 +583,13 @@ impl<'a> IndicatorGroupContent<'a> {
                     .style(flat_button(text_color))
                     .on_press(toggle.clone())
                     .into();
-            let handle = hoverable(
-                NestedMenuOpenTrigger::Hover,
+            let handle = PanelSlot::new(
                 handle,
+                edge_indicator(highest_alert_severity, handle_indicator, reveal),
+            )
+            .hovered(
+                panel_position,
+                NestedMenuOpenTrigger::Hover,
                 handle_target.clone(),
                 GroupEvent::from,
             );
@@ -600,21 +603,23 @@ impl<'a> IndicatorGroupContent<'a> {
             } else {
                 handle
             };
-            let inner = Row::new()
+            Row::new()
                 .push(handle)
                 .extend((reveal > 0.0).then(|| {
                     revealed_content(
                         config,
                         reveal,
-                        indicators_row(config, &group_identity, &indicators, reveal, clock),
+                        indicators_row(
+                            config,
+                            &group_identity,
+                            &indicators,
+                            reveal,
+                            clock,
+                            panel_position,
+                        ),
                     )
                 }))
-                .align_y(Alignment::Center);
-            PanelSlot::new(
-                inner.into(),
-                edge_indicator(highest_alert_severity, handle_indicator, reveal),
-            )
-            .view(panel_position)
+                .into()
         });
         Some(Element::from(
             mouse_area(animated).on_enter(on_enter).on_exit(on_exit),
@@ -631,15 +636,19 @@ pub(crate) fn fixed_view<'a>(
     panel_position: Position,
     clock: Clock,
 ) -> Element<'a, GroupEvent> {
-    let row = Row::with_children([indicator.view(config, 1.0, clock, hover_target)])
-        .spacing(config.theme.spacing.item_gap)
-        .align_y(Alignment::Center);
     let edge_indicator_view = edge_indicator(
         highest_alert_severity,
         handle_indicator,
         handle_indicator.settled_reveal(),
     );
-    PanelSlot::new(row.into(), edge_indicator_view).view(panel_position)
+    indicator.view(
+        config,
+        1.0,
+        clock,
+        hover_target,
+        edge_indicator_view,
+        panel_position,
+    )
 }
 
 pub(crate) fn edge_indicator<'a, Message: 'a>(
@@ -690,6 +699,7 @@ fn indicators_row<'r, 'a: 'r>(
     rows: impl IntoIterator<Item = &'r GroupIndicator<'a>>,
     reveal: f32,
     clock: Clock,
+    panel_position: Position,
 ) -> Element<'a, GroupEvent> {
     Row::with_children(rows.into_iter().map(|indicator| {
         indicator.view(
@@ -697,6 +707,12 @@ fn indicators_row<'r, 'a: 'r>(
             reveal,
             clock,
             HoverTarget::Indicator(indicator.indicator_key(group_identity)),
+            edge_indicator(
+                indicator.shown_alert_severity().unwrap_or_default(),
+                MenuHandleIndicator::default(),
+                reveal,
+            ),
+            panel_position,
         )
     }))
     .spacing(config.theme.spacing.item_gap)

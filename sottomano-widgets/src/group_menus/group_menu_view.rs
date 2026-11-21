@@ -26,7 +26,6 @@ use crate::{
         CardHeader, HoverTarget, IndicatorKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_card_content::HoverCardContent,
-        hoverable,
     },
     icon_catalog::{icon_handle::IconHandle, window_icons::WindowAssets},
     indicator_groups::{
@@ -55,13 +54,17 @@ pub fn panel_menu_handle(
     handle_indicator: MenuHandleIndicator,
     panel_position: Position,
 ) -> Element<'_, GroupEvent> {
-    let handle = hoverable(open_trigger, content, target, GroupEvent::from);
     let edge_indicator_view = edge_indicator(
         highest_alert_severity,
         handle_indicator,
         handle_indicator.settled_reveal(),
     );
-    PanelSlot::new(handle, edge_indicator_view).view(panel_position)
+    PanelSlot::new(content, edge_indicator_view).hovered(
+        panel_position,
+        open_trigger,
+        target,
+        GroupEvent::from,
+    )
 }
 
 pub struct GroupMenuView<'a> {

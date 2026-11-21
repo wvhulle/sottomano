@@ -10,27 +10,30 @@ use std::collections::HashMap;
 use corredo::{press_actions::flat_button, theming::secondary_text_color};
 use iced::{
     Element,
-    widget::{button, text},
+    widget::{Space, button, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
     configured_workspace_order::{ConfiguredOrderStatus, ConfiguredWorkspaces},
     workspace_window_snapshot,
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use self::workspace_slot::WorkspaceSlot;
 use crate::{
     desktop_panels::{
         panel_frame::panel_frame,
-        panel_slot::dragged_slot_content,
+        panel_slot::{PanelSlot, dragged_slot_content},
         panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     },
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    hover_cards::{HoverCardMessage, HoverTarget, MouseGesture, PressAction, hoverable},
-    widgets::{glyph_button, pointer_drag::DraggedPanelSlot, text::panel_text},
+    hover_cards::{HoverCardMessage, HoverTarget, MouseGesture, PressAction},
+    widgets::{
+        glyph_button, pointer_drag::DraggedPanelSlot, shared_metrics::ACCENT_STROKE_PX,
+        text::panel_text,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -271,6 +274,7 @@ fn empty_workspaces_toggle<'a>(
     output: &str,
     folding: &EmptyWorkspaceFolding,
     config: &Config,
+    edge: Position,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     if folding.mode == EmptyWorkspaces::Shown {
         return None;
@@ -294,16 +298,32 @@ fn empty_workspaces_toggle<'a>(
             })
             .into()
     };
-    Some(hoverable(
-        NestedMenuOpenTrigger::Hover,
+    Some(glyph_slot(
         button(face)
             .padding(0)
             .style(flat_button(secondary_text_color))
             .on_press(WorkspacesMessage::ToggleEmptyWorkspaces)
             .into(),
         HoverTarget::WorkspaceFolding,
-        WorkspacesMessage::HoverCard,
+        edge,
     ))
+}
+
+fn glyph_slot(
+    glyph: Element<'_, WorkspacesMessage>,
+    target: HoverTarget,
+    edge: Position,
+) -> Element<'_, WorkspacesMessage> {
+    let unmarked_edge_line = Space::new()
+        .width(ACCENT_STROKE_PX)
+        .height(ACCENT_STROKE_PX)
+        .into();
+    PanelSlot::new(glyph, unmarked_edge_line).hovered(
+        edge,
+        NestedMenuOpenTrigger::Hover,
+        target,
+        WorkspacesMessage::HoverCard,
+    )
 }
 
 #[must_use]
@@ -347,12 +367,12 @@ fn order_restore<'a>(
     workspaces: &[workspace_window_snapshot::WorkspaceIndicator],
     output: &str,
     config: &Config,
+    edge: Position,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     configured.filter(|configured| {
         configured.order_status_on(workspaces) == ConfiguredOrderStatus::Diverged
     })?;
-    Some(hoverable(
-        NestedMenuOpenTrigger::Hover,
+    Some(glyph_slot(
         glyph_button(
             Phosphor::ArrowCounterClockwise(Weight::Regular),
             config.theme.font.icon_size_px,
@@ -362,7 +382,7 @@ fn order_restore<'a>(
             },
         ),
         HoverTarget::WorkspaceOrder,
-        WorkspacesMessage::HoverCard,
+        edge,
     ))
 }
 

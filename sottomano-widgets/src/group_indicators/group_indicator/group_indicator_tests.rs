@@ -1,8 +1,10 @@
 use iced::{
     Point, Settings, Size,
     mouse::{Button, Event as MouseEvent},
+    widget::Space,
 };
 use iced_test::Simulator;
+use sottomano_toml_config::screen_edges::Position;
 
 use super::*;
 use crate::{
@@ -212,9 +214,16 @@ fn events_from_pointing_at_pinned_slider(slider_pointing: SliderPointing) -> Vec
     let mut panel = Simulator::with_size(
         Settings::default(),
         Size::new(200.0, 100.0),
-        indicator.view(&config, 1.0, Clock::real(), pinned_slider_target()),
+        indicator.view(
+            &config,
+            1.0,
+            Clock::real(),
+            pinned_slider_target(),
+            Space::new().into(),
+            Position::Top,
+        ),
     );
-    let inside_slider = Point::new(5.0, 5.0);
+    let inside_slider = Point::new(5.0, 50.0);
     panel.point_at(inside_slider);
     let _moved_inside = panel.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
         position: inside_slider,

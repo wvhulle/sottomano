@@ -59,13 +59,20 @@ pub fn vertical_view<'a>(
         .draggable(PanelSlotList::Workspaces, &drag, dragged)
         .on_wheel_select(focused_by_wheel);
     let workspace_column = Column::new()
-        .extend(order_restore(configured, workspaces, output, config))
+        .extend(order_restore(
+            configured,
+            workspaces,
+            output,
+            config,
+            Position::Left,
+        ))
         .push(pager)
         .extend(empty_workspaces_toggle(
             compositor,
             output,
             empty_workspace_folding,
             config,
+            Position::Left,
         ))
         .spacing(config.theme.spacing.item_gap)
         .align_x(Alignment::Center);

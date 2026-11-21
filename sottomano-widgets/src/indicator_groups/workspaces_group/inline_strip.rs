@@ -55,8 +55,9 @@ pub fn inline_view<'a>(
                 output,
                 empty_workspace_folding,
                 config,
+                edge,
             ))
-            .extend(order_restore(configured, workspaces, output, config))
+            .extend(order_restore(configured, workspaces, output, config, edge))
             .spacing(config.theme.spacing.item_gap)
             .height(Length::Fill)
             .align_y(Alignment::Center)
