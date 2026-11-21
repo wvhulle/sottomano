@@ -1,13 +1,20 @@
-mod compositor_drawn_shadow;
-mod self_drawn_falloff;
-
-use iced::{Element, Task, window::Id};
+use iced::{
+    Color, Element, Length, Shadow, Task, Vector,
+    widget::{Space, column, container, row},
+    window::Id,
+};
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, Margin, NewLayerShellSettings};
-use sottomano_compositor_model::compositor_styling_model::{EdgeShadowRendering, StyledSurface};
+use sottomano_compositor_model::compositor_styling_model::{
+    EdgeShadowRendering, PANEL_EDGE_SHADOW, StyledSurface,
+};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::layer_surfaces::base_settings;
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
+
+const SELF_DRAWN_CASTER_DEPTH_PX: f32 = PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px;
+
+const ICED_SHADOW_OPACITY_AT_CASTER_EDGE: f32 = 0.5;
 
 pub(crate) fn panel_edge_anchor(position: Position) -> Anchor {
     match position {
@@ -24,23 +31,43 @@ pub(crate) fn panel_edge_strip_size(position: Position, thickness: u32) -> Layer
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BackdropPlacement {
-    size: LayerSize,
-    margin: Margin,
+fn offscreen_margin(position: Position, offscreen_depth: u32) -> Margin {
+    let pulled_out = -offscreen_depth.cast_signed();
+    match position {
+        Position::Top => Margin {
+            top: pulled_out,
+            ..Margin::default()
+        },
+        Position::Bottom => Margin {
+            bottom: pulled_out,
+            ..Margin::default()
+        },
+        Position::Left => Margin {
+            left: pulled_out,
+            ..Margin::default()
+        },
+    }
 }
 
-fn backdrop_placement(
-    rendering: EdgeShadowRendering,
-    position: Position,
-    panel_height: u32,
-) -> BackdropPlacement {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BackdropStrip {
+    thickness: u32,
+    offscreen_depth: u32,
+}
+
+fn backdrop_strip(rendering: EdgeShadowRendering, panel_height: u32) -> BackdropStrip {
     match rendering {
-        EdgeShadowRendering::CompositorShadow => {
-            compositor_drawn_shadow::offscreen_caster_placement(position, panel_height)
-        }
+        EdgeShadowRendering::CompositorShadow => BackdropStrip {
+            thickness: panel_height,
+            offscreen_depth: panel_height,
+        },
         EdgeShadowRendering::SelfDrawnFalloff => {
-            self_drawn_falloff::edge_caster_placement(position)
+            let caster_depth = SELF_DRAWN_CASTER_DEPTH_PX.ceil() as u32;
+            BackdropStrip {
+                thickness: caster_depth
+                    + (SELF_DRAWN_CASTER_DEPTH_PX + PANEL_EDGE_SHADOW.softness_px).ceil() as u32,
+                offscreen_depth: caster_depth,
+            }
         }
     }
 }
@@ -50,56 +77,84 @@ pub(crate) fn backdrop_view<'a, Interaction: 'a>(
     position: Position,
 ) -> Element<'a, Interaction> {
     match rendering {
-        EdgeShadowRendering::CompositorShadow => compositor_drawn_shadow::opaque_caster_view(),
-        EdgeShadowRendering::SelfDrawnFalloff => self_drawn_falloff::shadow_casting_view(position),
+        EdgeShadowRendering::CompositorShadow => {
+            container(Space::new().width(Length::Fill).height(Length::Fill))
+                .style(|_| container::background(Color::BLACK))
+                .into()
+        }
+        EdgeShadowRendering::SelfDrawnFalloff => self_drawn_shadow_view(position),
     }
 }
 
-fn backdrop_settings(
-    output: &str,
-    position: Position,
-    placement: BackdropPlacement,
-) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: placement.size,
-        exclusive_zone: Some(-1),
-        anchor: panel_edge_anchor(position),
-        layer: Layer::Background,
-        margin: Some(placement.margin),
-        events_transparent: true,
-        ..base_settings(Some(output), StyledSurface::Backdrop(position).namespace())
+fn self_drawn_shadow_view<'a, Interaction: 'a>(position: Position) -> Element<'a, Interaction> {
+    let depth = SELF_DRAWN_CASTER_DEPTH_PX;
+    let caster = match position {
+        Position::Top | Position::Bottom => {
+            container(Space::new()).width(Length::Fill).height(depth)
+        }
+        Position::Left => container(Space::new()).width(depth).height(Length::Fill),
+    }
+    .style(move |_| container::Style {
+        background: Some(Color::BLACK.into()),
+        shadow: Shadow {
+            color: Color::BLACK.scale_alpha(
+                f32::from(PANEL_EDGE_SHADOW.alpha) / 255.0 / ICED_SHADOW_OPACITY_AT_CASTER_EDGE,
+            ),
+            offset: match position {
+                Position::Top => Vector::new(0.0, depth),
+                Position::Bottom => Vector::new(0.0, -depth),
+                Position::Left => Vector::new(depth, 0.0),
+            },
+            blur_radius: PANEL_EDGE_SHADOW.softness_px,
+        },
+        ..container::Style::default()
+    });
+    let onscreen = Space::new().width(Length::Fill).height(Length::Fill);
+    match position {
+        Position::Top => column![caster, onscreen].into(),
+        Position::Bottom => column![onscreen, caster].into(),
+        Position::Left => row![caster, onscreen].into(),
     }
 }
 
 impl DesktopShell {
     pub(crate) fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let placement = backdrop_placement(
-            self.edge_shadow_rendering,
-            position,
-            self.config.desktop_panels.height as u32,
-        );
+        let rendering = self.edge_shadow_rendering;
+        let strip = backdrop_strip(rendering, self.config.desktop_panels.height as u32);
         let id = Id::unique();
         self.backdrops.insert(id, position);
         Task::done(Message::NewLayerShell {
-            settings: backdrop_settings(output, position, placement),
+            settings: NewLayerShellSettings {
+                size: panel_edge_strip_size(position, strip.thickness),
+                exclusive_zone: Some(-1),
+                anchor: panel_edge_anchor(position),
+                layer: match rendering {
+                    EdgeShadowRendering::CompositorShadow => Layer::Background,
+                    EdgeShadowRendering::SelfDrawnFalloff => Layer::Bottom,
+                },
+                margin: Some(offscreen_margin(position, strip.offscreen_depth)),
+                events_transparent: true,
+                ..base_settings(Some(output), StyledSurface::Backdrop(position).namespace())
+            },
             id,
         })
     }
 
     pub fn resize_backdrops(&self) -> Task<Message> {
-        let panel_height = self.config.desktop_panels.height as u32;
-        let rendering = self.edge_shadow_rendering;
+        let strip = backdrop_strip(
+            self.edge_shadow_rendering,
+            self.config.desktop_panels.height as u32,
+        );
         Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
-            let placement = backdrop_placement(rendering, position, panel_height);
             [
                 Task::done(Message::LayoutChange {
                     id,
                     anchor: panel_edge_anchor(position),
-                    size: placement.size,
+                    size: panel_edge_strip_size(position, strip.thickness),
                 }),
                 Task::done(Message::MarginChange {
                     id,
-                    margin: placement.margin,
+                    margin: offscreen_margin(position, strip.offscreen_depth),
                 }),
             ]
         }))
@@ -108,24 +163,19 @@ impl DesktopShell {
 
 #[cfg(test)]
 mod tests {
-    use iced_exwlshell::reexport::{LayerSize, Margin};
     use sottomano_compositor_model::compositor_styling_model::{
         EdgeShadowRendering, PANEL_EDGE_SHADOW,
     };
-    use sottomano_toml_config::screen_edges::Position;
 
-    use super::{BackdropPlacement, backdrop_placement};
+    use super::{BackdropStrip, backdrop_strip};
 
     #[test]
     fn a_compositor_shadow_caster_sits_just_beyond_the_screen_edge() {
         assert_eq!(
-            backdrop_placement(EdgeShadowRendering::CompositorShadow, Position::Top, 40),
-            BackdropPlacement {
-                size: LayerSize::fill_width(40),
-                margin: Margin {
-                    top: -40,
-                    ..Margin::default()
-                },
+            backdrop_strip(EdgeShadowRendering::CompositorShadow, 40),
+            BackdropStrip {
+                thickness: 40,
+                offscreen_depth: 40,
             }
         );
     }
@@ -135,13 +185,10 @@ mod tests {
         let caster_depth = (PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px) as u32;
         let onscreen_reach = caster_depth + PANEL_EDGE_SHADOW.softness_px as u32;
         assert_eq!(
-            backdrop_placement(EdgeShadowRendering::SelfDrawnFalloff, Position::Bottom, 40),
-            BackdropPlacement {
-                size: LayerSize::fill_width(caster_depth + onscreen_reach),
-                margin: Margin {
-                    bottom: -caster_depth.cast_signed(),
-                    ..Margin::default()
-                },
+            backdrop_strip(EdgeShadowRendering::SelfDrawnFalloff, 40),
+            BackdropStrip {
+                thickness: caster_depth + onscreen_reach,
+                offscreen_depth: caster_depth,
             }
         );
     }
