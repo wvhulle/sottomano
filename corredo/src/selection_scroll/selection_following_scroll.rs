@@ -30,15 +30,28 @@ use crate::{
 const NEGLIGIBLE_SCROLL_PX: f32 = 0.5;
 const DEFAULT_FADE_EXTENT_PX: f32 = 20.0;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WheelAxes {
+    #[default]
+    AlongOrVertical,
+    AlongOnly,
+}
+
 impl Axis {
-    fn wheel_travel(self, delta: mouse::ScrollDelta, line_travel_px: f32) -> f32 {
+    fn wheel_travel(
+        self,
+        delta: mouse::ScrollDelta,
+        line_travel_px: f32,
+        wheel_axes: WheelAxes,
+    ) -> f32 {
         let (horizontal, vertical, step) = match delta {
             mouse::ScrollDelta::Lines { x, y } => (x, y, line_travel_px),
             mouse::ScrollDelta::Pixels { x, y } => (x, y, 1.0),
         };
-        let along_axis = match self {
-            Self::Horizontal if horizontal != 0.0 => horizontal,
-            Self::Horizontal | Self::Vertical => vertical,
+        let along_axis = match (self, wheel_axes) {
+            (Self::Horizontal, WheelAxes::AlongOnly) => horizontal,
+            (Self::Horizontal, WheelAxes::AlongOrVertical) if horizontal != 0.0 => horizontal,
+            (Self::Horizontal, WheelAxes::AlongOrVertical) | (Self::Vertical, _) => vertical,
         };
         along_axis * step
     }
@@ -76,6 +89,7 @@ pub struct SelectionFollowingScroll<'a, Message> {
     edge_fade: ScrollEdgeFade,
     pacing: ScrollPacing,
     wheel_line_travel_px: f32,
+    wheel_axes: WheelAxes,
     ownership: ScrollOwnership<'a, Message>,
     selected_position: Option<usize>,
     content_identity: u64,
@@ -91,6 +105,7 @@ pub fn selection_following_scroll<'a, Message: 'a>(
         edge_fade: ScrollEdgeFade::away_from_frame(FrameStyle::default(), DEFAULT_FADE_EXTENT_PX),
         pacing: ScrollPacing::Instant,
         wheel_line_travel_px: SCROLL_LINE_STEP_PX,
+        wheel_axes: WheelAxes::default(),
         ownership: ScrollOwnership::SelfOwned,
         selected_position: None,
         content_identity: 0,
@@ -109,6 +124,11 @@ impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
             wheel_line_travel_px,
             ..self
         }
+    }
+
+    #[must_use]
+    pub fn wheel_axes(self, wheel_axes: WheelAxes) -> Self {
+        Self { wheel_axes, ..self }
     }
 
     #[must_use]
@@ -263,8 +283,11 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         shell: &mut Shell<'_, Message>,
     ) {
         let current = state.scroll_motion.target_offset;
-        let next = (current - self.axis.wheel_travel(delta, self.wheel_line_travel_px))
-            .clamp(0.0, self.max_offset(layout));
+        let next = (current
+            - self
+                .axis
+                .wheel_travel(delta, self.wheel_line_travel_px, self.wheel_axes))
+        .clamp(0.0, self.max_offset(layout));
         if (next - current).abs() <= f32::EPSILON {
             return;
         }
@@ -507,7 +530,7 @@ mod tests {
     use iced_test::Simulator;
 
     use super::{
-        ScrollPacing, ScrollerState, SelectedSpan, SelectionFollowingScroll,
+        ScrollPacing, ScrollerState, SelectedSpan, SelectionFollowingScroll, WheelAxes,
         selection_following_scroll,
     };
     use crate::{
@@ -583,6 +606,18 @@ mod tests {
                 "{axis:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_horizontal_scroller_limited_to_its_axis_ignores_a_vertical_wheel() {
+        let axis = Axis::Horizontal;
+        let scroller = scroller_over(axis).wheel_axes(WheelAxes::AlongOnly);
+        let mut simulator = Simulator::with_size(Settings::default(), VISIBLE_SIZE, scroller);
+        let before = first_entry_position(&mut simulator, axis);
+        wheel_down(&mut simulator, ScrollDelta::Lines { x: 0.0, y: -2.0 });
+        assert!((first_entry_position(&mut simulator, axis) - before).abs() < 0.5);
+        wheel_down(&mut simulator, ScrollDelta::Lines { x: -2.0, y: 0.0 });
+        assert!(first_entry_position(&mut simulator, axis) < before);
     }
 
     #[test]

@@ -26,7 +26,7 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{
-        Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
+        LineOverflow, Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
     },
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -221,7 +221,8 @@ pub(crate) fn upcoming_events_hover_card(
                     rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
                 )
                 .truncated_to(LISTED_EVENTS),
-            ),
+            )
+            .line_overflow(LineOverflow::ScrollSideways),
             Section::new(
                 "Links",
                 dictionary_table(nextcloud_app_link(

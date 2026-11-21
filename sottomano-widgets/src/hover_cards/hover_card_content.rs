@@ -10,7 +10,7 @@ use corredo::{
     gauges::CountdownDial,
     orientation::Axis,
     press_actions::flash_on_press_text,
-    selection_scroll::ScrollEdgeFade,
+    selection_scroll::{ScrollEdgeFade, WheelAxes},
     theming::{
         FrameStyle, LINE_HEIGHT, OUTLINE_WIDTH_PX, background_strong_color, danger_color,
         primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
@@ -47,7 +47,7 @@ use crate::{
         CardHeader, PopupMessage, PressAction,
         core_grid::CoreCellGrid,
         hover_card_body::{
-            Section, SectionTitle, dictionary_table,
+            LineOverflow, Section, SectionTitle, dictionary_table,
             hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview},
             hover_card_source_delivery::{DeliveryStamp, HoverCard, SectionSource, SourceDelivery},
         },
@@ -130,21 +130,26 @@ impl<'a> HoverCardContent<'a> {
                     SectionSource::Snapshot { .. } | SectionSource::Local => None,
                 };
                 previous_source = source;
-                self.section(section, source_row)
+                self.section(section, source_row, frame)
             })
             .collect();
         let content = equal_width_column(section_views)
             .spacing(self.config.theme.spacing.group_gap)
             .into();
-        let scroll_fade_extent_px =
-            self.config.group_menus.scroll_fade_rows * menu_metrics(self.config).row_height_px;
         configured_scroll(
             self.shell_below_title(title_rows, content),
             Axis::Vertical,
             self.config,
         )
-        .edge_fade(ScrollEdgeFade::within_frame(frame, scroll_fade_extent_px))
+        .edge_fade(ScrollEdgeFade::within_frame(
+            frame,
+            self.scroll_fade_extent_px(),
+        ))
         .into()
+    }
+
+    fn scroll_fade_extent_px(&self) -> f32 {
+        self.config.group_menus.scroll_fade_rows * menu_metrics(self.config).row_height_px
     }
 
     fn shell_below_title(
@@ -430,12 +435,25 @@ impl<'a> HoverCardContent<'a> {
         &self,
         section: &Section,
         source_row: Option<Element<'static, PopupMessage>>,
+        frame: FrameStyle,
     ) -> Element<'static, PopupMessage> {
         let delivered = match section.source {
             SectionSource::Snapshot { delivery, .. } => self.in_delivery_state(delivery),
             SectionSource::Local => *self,
         };
-        let section_view = (section.widget.draw)(&delivered);
+        let drawn_widget = (section.widget.draw)(&delivered);
+        let section_view = match section.line_overflow {
+            LineOverflow::Wrap => drawn_widget,
+            LineOverflow::ScrollSideways => {
+                configured_scroll(drawn_widget, Axis::Horizontal, self.config)
+                    .wheel_axes(WheelAxes::AlongOnly)
+                    .edge_fade(ScrollEdgeFade::away_from_frame(
+                        frame,
+                        self.scroll_fade_extent_px(),
+                    ))
+                    .into()
+            }
+        };
         self.inset(
             Column::with_children(
                 self.title_rows(&section.title)

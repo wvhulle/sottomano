@@ -126,11 +126,19 @@ impl From<String> for SectionTitle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineOverflow {
+    #[default]
+    Wrap,
+    ScrollSideways,
+}
+
 #[derive(Debug, Clone)]
 pub struct Section {
     pub title: SectionTitle,
     pub widget: SectionWidget,
     pub source: SectionSource,
+    pub line_overflow: LineOverflow,
 }
 
 impl Section {
@@ -139,6 +147,15 @@ impl Section {
             title: title.into(),
             widget: widget.into(),
             source: SectionSource::Local,
+            line_overflow: LineOverflow::Wrap,
+        }
+    }
+
+    #[must_use]
+    pub fn line_overflow(self, line_overflow: LineOverflow) -> Self {
+        Self {
+            line_overflow,
+            ..self
         }
     }
 

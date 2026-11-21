@@ -3,7 +3,7 @@ use corredo::popovers::{
     NestedMenuOpenTrigger, NestedMenuPresentation, NestedMenuSurfaces, OpenGroupLimit, PopupGrowth,
     SubmenuConnector,
 };
-use iced::{Element, Settings, Size};
+use iced::{Element, Rectangle, Settings, Size, widget::text};
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::Simulator;
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entries::DesktopEntries;
@@ -24,7 +24,7 @@ use crate::{
     },
     hover_cards::{
         IndicatorKey, MouseGesture, PopupMessage, PressAction,
-        hover_card_body::{Section, SectionWidget},
+        hover_card_body::{LineOverflow, Section, SectionWidget},
     },
     icon_catalog::{
         drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
@@ -372,5 +372,33 @@ fn a_card_taller_than_the_screen_keeps_its_rows_apart() {
         title_tops
             .windows(2)
             .all(|neighbours| neighbours[1] - neighbours[0] >= line_height)
+    );
+}
+
+const UNBROKEN_TABLE_ROW: &str = "Monday 23 November 09:30 Design review in the north meeting room";
+
+fn long_line_bounds(line_overflow: LineOverflow) -> Rectangle {
+    let wide_section = Section::new(
+        "Agenda",
+        SectionWidget::drawn(|_| text(UNBROKEN_TABLE_ROW).into()),
+    )
+    .line_overflow(line_overflow);
+    let card = inspection_card_view(vec![wide_section]).expect("a card with sections is shown");
+    let mut simulator = Simulator::with_size(Settings::default(), Size::new(220.0, 400.0), card);
+    simulator
+        .find(UNBROKEN_TABLE_ROW)
+        .expect("the long line is laid out")
+        .bounds()
+}
+
+#[test]
+fn a_sideways_scrolling_section_keeps_its_long_line_unwrapped() {
+    let wrapped = long_line_bounds(LineOverflow::Wrap);
+    let unwrapped = long_line_bounds(LineOverflow::ScrollSideways);
+    assert!(wrapped.width <= 220.0, "wrapped {wrapped:?}");
+    assert!(unwrapped.width > 220.0, "unwrapped {unwrapped:?}");
+    assert!(
+        unwrapped.height < wrapped.height,
+        "wrapped {wrapped:?}, unwrapped {unwrapped:?}"
     );
 }
