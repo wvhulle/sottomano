@@ -139,17 +139,14 @@ impl DesktopShell {
             .panel_settings_group
             .layer
             .appearance();
-        let centered = mouse_area(
+        let band = mouse_area(
             container(content)
                 .width(Length::Fill)
-                .height(Length::Fill)
+                .height(Length::Fixed(self.config.desktop_panels.height))
                 .align_y(Vertical::Center),
         )
         .on_press(ShellInteraction::DismissPressed);
         let group_framing = self.indicator_groups.panel_settings_group.group_framing;
-        let band = container(centered)
-            .width(Length::Fill)
-            .height(Length::Fixed(self.config.desktop_panels.height));
         if group_framing == PanelGroupFraming::Disconnected {
             let roles = RegionRoles {
                 pointer_input: PointerInput::Accepted,
@@ -193,10 +190,13 @@ impl DesktopShell {
                 return group;
             }
             panel_frame(
-                container(container(group).padding([0.0, config.theme.spacing.item_gap]))
+                container(group)
                     .height(Length::Fixed(config.desktop_panels.height))
                     .align_y(Vertical::Center)
-                    .padding([0.0, panels.frame_corner_inset()]),
+                    .padding([
+                        0.0,
+                        config.theme.spacing.item_gap + panels.frame_corner_inset(),
+                    ]),
                 frame_style,
             )
             .outlined_sides(outlined_sides)

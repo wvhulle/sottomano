@@ -2,7 +2,7 @@ use core::slice;
 
 use corredo::theming::{FrameStyle, OutlinedSides};
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -58,6 +58,17 @@ impl<Message> PanelFrame<'_, Message> {
     pub fn backdrop_blur(mut self, backdrop_blur: BackdropBlur) -> Self {
         self.backdrop_blur = backdrop_blur;
         self
+    }
+
+    fn outline_clearance(&self) -> Padding {
+        let outline_width = self.frame.outline_width();
+        let cleared = |outlined: bool| if outlined { outline_width } else { 0.0 };
+        Padding {
+            top: cleared(self.outlined_sides.top),
+            right: cleared(self.outlined_sides.right),
+            bottom: cleared(self.outlined_sides.bottom),
+            left: cleared(self.outlined_sides.left),
+        }
     }
 
     fn drawn_radius(&self) -> Radius {
@@ -117,7 +128,16 @@ impl<Message> PanelFrame<'_, Message> {
 
 impl<'a, Message: 'a> From<PanelFrame<'a, Message>> for Element<'a, Message> {
     fn from(frame: PanelFrame<'a, Message>) -> Self {
-        Self::new(frame)
+        let content_size = frame.content.as_widget().size();
+        let outline_clearance = frame.outline_clearance();
+        let content_inside_outline = container(frame.content)
+            .width(content_size.width)
+            .height(content_size.height)
+            .padding(outline_clearance);
+        Self::new(PanelFrame {
+            content: content_inside_outline.into(),
+            ..frame
+        })
     }
 }
 
@@ -154,21 +174,19 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
         let radius = self.drawn_radius();
         let resolved_frame = self.frame.container_style(theme);
         Self::draw_fill(renderer, &resolved_frame, bounds, radius);
-        self.draw_outline(renderer, resolved_frame.border, bounds, radius);
         let framed_style = renderer::Style {
             text_color: resolved_frame.text_color.unwrap_or(style.text_color),
         };
-        renderer.with_layer(*viewport, |renderer| {
-            self.content.as_widget().draw(
-                &tree.children[0],
-                renderer,
-                theme,
-                &framed_style,
-                layout,
-                cursor,
-                viewport,
-            );
-        });
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            &framed_style,
+            layout,
+            cursor,
+            viewport,
+        );
+        self.draw_outline(renderer, resolved_frame.border, bounds, radius);
     }
 
     fn operate(
@@ -245,7 +263,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
 
 #[cfg(test)]
 mod tests {
-    use iced::{Rectangle, widget::space};
+    use iced::{Padding, Rectangle, widget::space};
     use sottomano_toml_config::screen_edges::Position;
 
     use super::{FrameStyle, outlined_sides_inward_of, panel_frame};
@@ -267,5 +285,22 @@ mod tests {
         let bottom_row = rows.iter().find(|row| row.y == 23).expect("bottom row");
         assert_eq!((top_row.x, top_row.width), (10, 60));
         assert!(bottom_row.x > 10 && bottom_row.width < 60);
+    }
+
+    #[test]
+    fn a_bottom_panel_clears_the_outline_on_every_side_but_the_screen_edge() {
+        let frame_style = FrameStyle::default();
+        let outline_width = frame_style.outline_width();
+        let frame = panel_frame::<()>(space(), frame_style)
+            .outlined_sides(outlined_sides_inward_of(Position::Bottom));
+        assert_eq!(
+            frame.outline_clearance(),
+            Padding {
+                top: outline_width,
+                right: outline_width,
+                bottom: 0.0,
+                left: outline_width,
+            }
+        );
     }
 }

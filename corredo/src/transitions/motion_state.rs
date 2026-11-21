@@ -10,6 +10,17 @@ pub enum MotionState {
     Settled,
 }
 
+impl MotionState {
+    #[must_use]
+    pub fn moving_with(self, other_motion: MotionState) -> MotionState {
+        if self == MotionState::Moving || other_motion == MotionState::Moving {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
+    }
+}
+
 pub(crate) fn eased_animation<AnimatedValue>(
     resting_value: AnimatedValue,
     duration: Duration,
