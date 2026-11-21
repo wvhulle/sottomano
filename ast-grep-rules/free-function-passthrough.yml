@@ -3,14 +3,6 @@ language: rust
 severity: error
 message: A function that only forwards its parameters to another function adds a name without adding behaviour.
 note: Call the target directly; when the forwarding exists to fix one argument, pass that argument at the call site or give the target a clearer name. Trait methods are exempt.
-files:
-  - sottomano-desktop-sources/src/**/*.rs
-  - sottomano-desktop-sinks/src/**/*.rs
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
-  - sottomano-toml-config/src/**/*.rs
-  - corredo/src/**/*.rs
 constraints:
   TARGET:
     any:

@@ -25,7 +25,7 @@ use iced::{
     mouse::Interaction,
     widget::{Column, Space, Text, button, container, row, rule, text, text::Wrapping},
 };
-use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
+use iced_controller_diagram::{ControllerDiagram, Style as DiagramStyle};
 use sottomano_desktop_sources::{
     delivery_cadence_drivers::DeliveryCadence,
     desktop_windows_apps::process_tree_inspection::Process,
@@ -556,7 +556,7 @@ impl<'a> HoverCardContent<'a> {
             .callouts
             .iter()
             .fold(
-                controller_diagram(self.assets.controller_artwork.clone(), diagram.model)
+                ControllerDiagram::new(self.assets.controller_artwork.clone(), diagram.model)
                     .body_width(CONTROLLER_DIAGRAM_WIDTH_PX)
                     .row_height(row_height)
                     .style(|theme| DiagramStyle {

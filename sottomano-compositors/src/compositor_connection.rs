@@ -28,16 +28,24 @@ enum CompiledBackend {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CompositorKind(CompiledBackend);
+pub struct CompositorKind {
+    backend: CompiledBackend,
+}
 
 impl CompositorKind {
     pub const COMPILED_IN: &[Self] = &[
         #[cfg(feature = "niri")]
-        Self(CompiledBackend::Niri),
+        Self {
+            backend: CompiledBackend::Niri,
+        },
         #[cfg(feature = "hyprland")]
-        Self(CompiledBackend::Hyprland),
+        Self {
+            backend: CompiledBackend::Hyprland,
+        },
         #[cfg(feature = "sway")]
-        Self(CompiledBackend::Sway),
+        Self {
+            backend: CompiledBackend::Sway,
+        },
     ];
 
     #[must_use]
@@ -50,7 +58,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn name(self) -> &'static str {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::DISPLAY_NAME,
             #[cfg(feature = "sway")]
@@ -61,7 +69,7 @@ impl CompositorKind {
     }
 
     fn session_variable(self) -> &'static str {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::SESSION_VARIABLE,
             #[cfg(feature = "sway")]
@@ -73,7 +81,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn rules_file_name(self) -> &'static str {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::RULES_FILE_NAME,
             #[cfg(feature = "sway")]
@@ -85,7 +93,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn notification_window_id_hint(self) -> Option<&'static str> {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::NOTIFICATION_WINDOW_ID_HINT,
             #[cfg(feature = "sway")]
@@ -97,7 +105,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn edge_shadow_rendering(self) -> EdgeShadowRendering {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::EDGE_SHADOW_RENDERING,
             #[cfg(feature = "sway")]
@@ -109,7 +117,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn overview_support(self) -> CompositorFeatureSupport {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::overview_support(),
             #[cfg(feature = "sway")]
@@ -121,7 +129,7 @@ impl CompositorKind {
 
     #[must_use]
     pub fn styling_support(self, control: StylingControl) -> CompositorFeatureSupport {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::styling_support(control),
             #[cfg(feature = "sway")]
@@ -136,7 +144,7 @@ impl CompositorKind {
         styling: CompositorStyling,
         switch_heat: &SwitchHeat,
     ) -> Result<String, String> {
-        match self.0 {
+        match self.backend {
             #[cfg(feature = "niri")]
             CompiledBackend::Niri => NiriBackend::rendered_rules(styling, switch_heat),
             #[cfg(feature = "sway")]
@@ -224,7 +232,7 @@ pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
         tracing::error!("{}", missing_compositor_reason());
         return stream::empty().boxed();
     };
-    match compositor.0 {
+    match compositor.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::compositor_updates().boxed(),
         #[cfg(feature = "sway")]
@@ -235,7 +243,7 @@ pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
 }
 
 pub async fn compositor_version() -> Option<String> {
-    match CompositorKind::detected()?.0 {
+    match CompositorKind::detected()?.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::compositor_version().await,
         #[cfg(feature = "sway")]
@@ -249,7 +257,7 @@ pub async fn compositor_outputs() -> HashMap<String, OutputInfo> {
     let Some(compositor) = CompositorKind::detected() else {
         return HashMap::new();
     };
-    let outputs = match compositor.0 {
+    let outputs = match compositor.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::compositor_outputs().await,
         #[cfg(feature = "sway")]
@@ -261,7 +269,7 @@ pub async fn compositor_outputs() -> HashMap<String, OutputInfo> {
 }
 
 pub async fn compositor_window_pids() -> Option<Vec<i32>> {
-    match CompositorKind::detected()?.0 {
+    match CompositorKind::detected()?.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::compositor_window_pids().await,
         #[cfg(feature = "sway")]
@@ -280,7 +288,7 @@ pub async fn send_compositor_request(
             reason: missing_compositor_reason(),
         });
     };
-    match compositor.0 {
+    match compositor.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::send_request(request).await,
         #[cfg(feature = "sway")]
@@ -292,7 +300,7 @@ pub async fn send_compositor_request(
 
 pub async fn configured_workspace_names(config_home: &Path) -> Option<Result<Vec<String>, String>> {
     let compositor = CompositorKind::detected()?;
-    match compositor.0 {
+    match compositor.backend {
         #[cfg(feature = "niri")]
         CompiledBackend::Niri => NiriBackend::configured_workspace_names(config_home).await,
         #[cfg(feature = "sway")]
@@ -361,10 +369,15 @@ mod tests {
     #[test]
     fn niri_alone_draws_the_edge_shadow_through_its_rules() {
         assert_eq!(
-            CompositorKind(CompiledBackend::Niri).edge_shadow_rendering(),
+            CompositorKind {
+                backend: CompiledBackend::Niri,
+            }
+            .edge_shadow_rendering(),
             EdgeShadowRendering::CompositorShadow
         );
-        let rules = default_styling_rules(CompositorKind(CompiledBackend::Niri));
+        let rules = default_styling_rules(CompositorKind {
+            backend: CompiledBackend::Niri,
+        });
         assert!(rules.contains("namespace=\"^sottomano-backdrop-top$\""));
         assert!(rules.contains("softness 27"));
         assert!(rules.contains("spread 25"));
@@ -377,12 +390,17 @@ mod tests {
     #[test]
     fn hyprland_leaves_the_edge_shadow_to_sottomano() {
         assert_eq!(
-            CompositorKind(CompiledBackend::Hyprland).edge_shadow_rendering(),
+            CompositorKind {
+                backend: CompiledBackend::Hyprland,
+            }
+            .edge_shadow_rendering(),
             EdgeShadowRendering::SelfDrawnFalloff
         );
         assert!(
-            !default_styling_rules(CompositorKind(CompiledBackend::Hyprland))
-                .contains("sottomano-backdrop")
+            !default_styling_rules(CompositorKind {
+                backend: CompiledBackend::Hyprland,
+            })
+            .contains("sottomano-backdrop")
         );
     }
 
@@ -390,12 +408,17 @@ mod tests {
     #[test]
     fn sway_leaves_the_edge_shadow_to_sottomano() {
         assert_eq!(
-            CompositorKind(CompiledBackend::Sway).edge_shadow_rendering(),
+            CompositorKind {
+                backend: CompiledBackend::Sway,
+            }
+            .edge_shadow_rendering(),
             EdgeShadowRendering::SelfDrawnFalloff
         );
         assert!(
-            !default_styling_rules(CompositorKind(CompiledBackend::Sway))
-                .contains("sottomano-backdrop")
+            !default_styling_rules(CompositorKind {
+                backend: CompiledBackend::Sway,
+            })
+            .contains("sottomano-backdrop")
         );
     }
 }

@@ -3,10 +3,6 @@ language: nix
 severity: error
 message: A single-letter name says nothing about the value it holds.
 note: "Name it after what it is, as in base16Palette or compositorName. A parameter that is deliberately unused is written _."
-files:
-  - flake.nix
-  - flake-modules/**/*.nix
-  - vm-tests/**/*.nix
 rule:
   kind: identifier
   regex: ^[a-zA-Z]$

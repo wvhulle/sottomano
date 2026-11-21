@@ -40,7 +40,11 @@ fn decoded_xml_text(text: &str) -> String {
                 .strip_prefix("#x")
                 .map(|hex| u32::from_str_radix(hex, 16))
                 .or_else(|| entity.strip_prefix('#').map(str::parse))
-                .and_then(Result::ok)
+                .map(|parsed_code| {
+                    parsed_code.unwrap_or_else(|parse_error| {
+                        panic!("XML entity &{entity}; is not a number: {parse_error}")
+                    })
+                })
                 .and_then(char::from_u32)
                 .unwrap_or_else(|| panic!("unknown XML entity &{entity};")),
         });

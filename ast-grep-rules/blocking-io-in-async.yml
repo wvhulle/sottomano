@@ -3,11 +3,6 @@ language: rust
 severity: error
 message: A blocking filesystem call inside async code stalls the executor thread every other task shares.
 note: Use tokio::fs (tokio::fs::metadata, read, read_dir, try_exists), or move the work into blocking(...) from blocking_background_work.
-files:
-  - sottomano-desktop-sources/src/**/*.rs
-  - sottomano-desktop-sinks/src/**/*.rs
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
 constraints:
   PATH:
     not:

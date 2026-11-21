@@ -25,19 +25,20 @@ struct TourDocument {
 }
 
 fn tour_documents(workspace_root: &Path) -> io::Result<Vec<TourDocument>> {
-    let mut guide_pages: Vec<PathBuf> = fs::read_dir(workspace_root.join(GUIDE_DIRECTORY))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
+    let mut guide_pages = fs::read_dir(workspace_root.join(GUIDE_DIRECTORY))?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<io::Result<Vec<PathBuf>>>()?
+        .into_iter()
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == MARKDOWN_EXTENSION)
         })
-        .filter_map(|path| {
+        .map(|path| {
             path.strip_prefix(workspace_root)
-                .ok()
-                .map(Path::to_path_buf)
+                .expect("the guide directory lists paths under the workspace root")
+                .to_path_buf()
         })
-        .collect();
+        .collect::<Vec<PathBuf>>();
     guide_pages.sort();
     Ok(once(PathBuf::from(README_DOCUMENT))
         .chain(guide_pages)
@@ -70,8 +71,9 @@ impl RenderedRecording {
 fn rendered_recordings(workspace_root: &Path) -> Result<Vec<RenderedRecording>, Box<dyn Error>> {
     let mut recording_paths: Vec<PathBuf> =
         fs::read_dir(workspace_root.join(RECORDINGS_DIRECTORY))?
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<io::Result<Vec<PathBuf>>>()?
+            .into_iter()
             .filter(|path| {
                 path.extension()
                     .is_some_and(|extension| extension == RECORDING_EXTENSION)

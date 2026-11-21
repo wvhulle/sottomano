@@ -3,14 +3,6 @@ language: rust
 severity: error
 message: Tuple structs hide what their fields mean.
 note: "Name the field, as in struct Name { descriptive_field: Type }. If the struct only wraps a value to hang methods on it, pass the inner value and make the methods functions instead."
-files:
-  - sottomano-desktop-sources/src/**/*.rs
-  - sottomano-desktop-sinks/src/**/*.rs
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
-  - sottomano-toml-config/src/**/*.rs
-  - corredo/src/**/*.rs
 rule:
   kind: struct_item
   has:

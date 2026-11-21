@@ -3,10 +3,6 @@ language: nix
 severity: error
 message: _module.args passes untyped values around the option system.
 note: "Declare an option for a value modules share and read it from config; a NixOS test node gets extra module arguments through node.specialArgs."
-files:
-  - flake.nix
-  - flake-modules/**/*.nix
-  - vm-tests/**/*.nix
 rule:
   any:
     - pattern:

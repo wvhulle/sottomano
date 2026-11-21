@@ -3,14 +3,6 @@ language: rust
 severity: error
 message: A method that only returns one of its fields is an accessor.
 note: Remove the method, give the field the visibility the method had (pub or pub(crate)), and read the field at the call sites. Trait methods are exempt.
-files:
-  - sottomano-desktop-sources/src/**/*.rs
-  - sottomano-desktop-sinks/src/**/*.rs
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
-  - sottomano-toml-config/src/**/*.rs
-  - corredo/src/**/*.rs
 rule:
   kind: function_item
   all:

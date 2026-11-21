@@ -3,15 +3,6 @@ language: rust
 severity: error
 message: Formatting a value with Debug to sort or deduplicate it depends on how Debug happens to print.
 note: Collect into a HashSet or BTreeSet, or derive Ord on the key type and sort by it.
-files:
-  - sottomano-desktop-sources/src/**/*.rs
-  - sottomano-desktop-sinks/src/**/*.rs
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
-  - sottomano-toml-config/src/**/*.rs
-  - corredo/src/**/*.rs
-  - xtask/src/**/*.rs
 rule:
   kind: call_expression
   all:

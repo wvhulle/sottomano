@@ -3,9 +3,5 @@ language: nix
 severity: error
 message: with hides where each name in its body comes from.
 note: "Name each value through its set, as in [ pkgs.wayland pkgs.libGL ], or bring a few names into scope with inherit (pkgs) wayland libGL."
-files:
-  - flake.nix
-  - flake-modules/**/*.nix
-  - vm-tests/**/*.nix
 rule:
   pattern: with $SCOPE; $BODY

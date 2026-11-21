@@ -3,7 +3,7 @@ use iced::{
     widget::{button, column, container, row, text},
 };
 use iced_controller_diagram::{
-    ControllerArtwork, ControllerModel, DiagramButton, DiagramStick, controller_diagram,
+    ControllerArtwork, ControllerDiagram, ControllerModel, DiagramButton, DiagramStick,
 };
 
 const MODELS: [(&str, ControllerModel); 4] = [
@@ -43,7 +43,7 @@ impl DiagramGallery {
                 .into()
         }))
         .spacing(8);
-        let diagram = controller_diagram(self.artwork.clone(), self.model)
+        let diagram = ControllerDiagram::new(self.artwork.clone(), self.model)
             .body_width(420.0)
             .callout(DiagramButton::LeftTrigger, text("dictate"))
             .callout(DiagramButton::RightTrigger, text("click"))

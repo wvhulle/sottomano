@@ -3,9 +3,5 @@ language: nix
 severity: error
 message: Indexing the flake's own outputs by system repeats what flake-parts already resolves.
 note: "Inside perSystem use self' (self'.packages.sottomano); in an exported NixOS or home-manager module wrap it in moduleWithSystem and read the per-system config.packages."
-files:
-  - flake.nix
-  - flake-modules/**/*.nix
-  - vm-tests/**/*.nix
 rule:
   pattern: self.$OUTPUT.${$SYSTEM}

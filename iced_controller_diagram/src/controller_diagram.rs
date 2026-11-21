@@ -28,14 +28,6 @@ pub struct ControllerDiagram<'a, Message> {
     style: StyleFn<'a>,
 }
 
-#[must_use]
-pub fn controller_diagram<'a, Message: 'a>(
-    artwork: ControllerArtwork,
-    model: ControllerModel,
-) -> ControllerDiagram<'a, Message> {
-    ControllerDiagram::new(artwork, model)
-}
-
 impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     #[must_use]
     pub fn new(artwork: ControllerArtwork, model: ControllerModel) -> Self {
