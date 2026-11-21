@@ -6,5 +6,4 @@ pub mod compositor_styling_model;
 pub mod compositor_test_windows;
 pub mod compositor_window_state;
 pub mod monotonic_clock;
-pub mod process_output_text;
 pub mod systemd_run_launches;

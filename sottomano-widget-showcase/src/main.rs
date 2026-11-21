@@ -1,8 +1,10 @@
 use std::{
     env,
     error::Error,
+    ffi::OsStr,
     iter,
     num::NonZeroUsize,
+    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
@@ -11,7 +13,6 @@ use std::{
 };
 
 use clap::Parser;
-use sottomano_desktop_sources::system_protocol_clients::shell_command_output::shown_process_text;
 use sottomano_toml_config::Config;
 use sottomano_widget_showcase::{
     WORKSPACE_ROOT,
@@ -77,7 +78,7 @@ fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Res
         Err(format!(
             "{}\n{}",
             child_output.status,
-            shown_process_text(&child_output.stderr)
+            OsStr::from_bytes(&child_output.stderr).display()
         ))
     }
 }

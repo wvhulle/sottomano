@@ -1,4 +1,4 @@
-use std::{fs, io, sync::Arc, time::Duration};
+use std::{ffi::OsStr, fs, io, os::unix::ffi::OsStrExt, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, future::ready, stream};
@@ -20,7 +20,6 @@ use crate::{
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule, signal_rule},
         dbus_desktop_buses::{BusReadError, DesktopBuses, OnBus},
-        shell_command_output::shown_process_text,
     },
 };
 
@@ -359,7 +358,10 @@ async fn secret_memory_scan() -> SecretMemoryScan {
             tracing::warn!(
                 "sleep obstacles: secret memory helper failed with {}: {}",
                 failed_output.status,
-                shown_process_text(&failed_output.stderr).trim()
+                OsStr::from_bytes(&failed_output.stderr)
+                    .display()
+                    .to_string()
+                    .trim()
             );
             SecretMemoryScan::Unavailable
         }

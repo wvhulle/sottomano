@@ -1,5 +1,7 @@
 use std::{
+    ffi::OsStr,
     io::{self, ErrorKind},
+    os::unix::ffi::OsStrExt,
     process::Output,
 };
 
@@ -68,23 +70,14 @@ fn captured(program: &str, output: &Output) -> Result<String, Error> {
     }
     Err(Error::Failed {
         program: program.to_owned(),
-        stderr: shown_process_text(&output.stderr)
+        stderr: OsStr::from_bytes(&output.stderr)
+            .display()
+            .to_string()
             .trim()
             .chars()
             .take(200)
             .collect(),
     })
-}
-
-#[must_use]
-pub fn shown_process_text(process_bytes: &[u8]) -> String {
-    process_bytes
-        .utf8_chunks()
-        .fold(String::new(), |mut shown_text, utf8_chunk| {
-            shown_text.push_str(utf8_chunk.valid());
-            shown_text.extend(utf8_chunk.invalid().escape_ascii().map(char::from));
-            shown_text
-        })
 }
 
 pub mod blocking {

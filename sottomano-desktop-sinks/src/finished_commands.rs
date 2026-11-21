@@ -1,8 +1,6 @@
-use std::{ffi::OsStr, io::ErrorKind};
+use std::{ffi::OsStr, io::ErrorKind, os::unix::ffi::OsStrExt};
 
-use sottomano_desktop_sources::system_protocol_clients::shell_command_output::{
-    self, shown_process_text,
-};
+use sottomano_desktop_sources::system_protocol_clients::shell_command_output;
 use tokio::process::Command;
 
 pub(crate) async fn run_to_success(
@@ -28,7 +26,11 @@ pub(crate) async fn run_to_success(
     } else {
         Err(shell_command_output::Error::Failed {
             program: program.to_owned(),
-            stderr: shown_process_text(&finished.stderr).trim().to_owned(),
+            stderr: OsStr::from_bytes(&finished.stderr)
+                .display()
+                .to_string()
+                .trim()
+                .to_owned(),
         })
     }
 }

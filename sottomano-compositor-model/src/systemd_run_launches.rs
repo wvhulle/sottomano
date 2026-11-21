@@ -1,10 +1,8 @@
-use std::env;
+use std::{env, ffi::OsStr, os::unix::ffi::OsStrExt};
 
 use tokio::process::Command;
 
-use crate::{
-    compositor_requests::CompositorRequestFailure, process_output_text::shown_process_text,
-};
+use crate::compositor_requests::CompositorRequestFailure;
 
 pub async fn launch_in_user_service(command: &[String]) -> Result<(), CompositorRequestFailure> {
     let request = format!("launch {}", command.join(" "));
@@ -27,6 +25,10 @@ pub async fn launch_in_user_service(command: &[String]) -> Result<(), Compositor
     }
     Err(CompositorRequestFailure::Rejected {
         request,
-        reason: shown_process_text(&output.stderr).trim().to_owned(),
+        reason: OsStr::from_bytes(&output.stderr)
+            .display()
+            .to_string()
+            .trim()
+            .to_owned(),
     })
 }
