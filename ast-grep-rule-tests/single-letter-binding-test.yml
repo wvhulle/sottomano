@@ -4,6 +4,7 @@ valid:
   - "fn unused() { let _ = launch(); }"
   - "fn coordinates() -> f32 { point.x }"
   - "fn pairs() { entries.iter().map(|(k, value)| value); }"
+  - "fn wrapped<'a>(content: Element<'a, Message>) { let label: Text<'a> = text(content); }"
 invalid:
   - "fn scaled(s: f32) -> f32 { s * 2.0 }"
   - "fn width() { let w = 4; }"

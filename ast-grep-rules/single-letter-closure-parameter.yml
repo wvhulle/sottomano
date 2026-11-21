@@ -11,6 +11,9 @@ rule:
   kind: identifier
   pattern: $NAME
   regex: ^[a-z]$
+  not:
+    inside:
+      kind: lifetime
   inside:
     kind: closure_parameters
     stopBy:

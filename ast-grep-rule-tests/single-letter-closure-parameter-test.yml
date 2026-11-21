@@ -2,6 +2,7 @@ id: single-letter-closure-parameter
 valid:
   - "fn sorted(mut cores: Vec<Core>) { cores.sort_by_key(|core| core.index); }"
   - "fn width(x: u8) {}"
+  - "fn wrapped<'a>() { let wrap = |content: Element<'a, Message>| content; }"
 invalid:
   - "fn sorted(mut cores: Vec<Core>) { cores.sort_by_key(|c| c.index); }"
   - "fn sorted(mut cores: Vec<Core>) { cores.sort_by(|a, b| a.cmp(b)); }"
