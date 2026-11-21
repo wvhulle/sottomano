@@ -3,11 +3,6 @@ language: rust
 severity: error
 message: A single-letter name says nothing about the value it holds.
 note: Name it after what it is, as in theme_directory or icon_request. A deliberately unused binding is written _. The files list is a ratchet; widen it as modules are renamed.
-files:
-  - sottomano-desktop-sources/src/theme_icons/**/*.rs
-  - sottomano-widgets/src/icon_catalog/**/*.rs
-  - sottomano-widgets/src/glyph_icons/**/*.rs
-  - sottomano-widgets/src/cascading_menus/**/*.rs
 rule:
   kind: identifier
   regex: ^[a-z]$

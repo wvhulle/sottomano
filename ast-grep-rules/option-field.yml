@@ -3,19 +3,6 @@ language: rust
 severity: error
 message: An Option field squeezes two kinds of value into one type.
 note: Use an enum variant per state, a separate constructor, or compute the value before constructing (rs-no-option-fields skill). The files list is a ratchet; widen it as modules are cleaned.
-files:
-  - sottomano-desktop-sources/src/desktop_notifications/spec_*.rs
-  - sottomano-desktop-sources/src/desktop_notifications/vendor_hints.rs
-  - sottomano-desktop-sources/src/desktop_notifications/notification_image_policy.rs
-  - sottomano-desktop-sinks/src/desktop_notifications/alert_sound_policy.rs
-  - sottomano-widgets/src/notification_toasts/toast_chimes.rs
-  - sottomano-widgets/src/notification_toasts/toast_stacking.rs
-  - sottomano-widgets/src/group_indicators/**/*.rs
-  - sottomano-widgets/src/hover_cards/**/*.rs
-  - sottomano-desktop-sources/src/theme_icons/**/*.rs
-  - sottomano-widgets/src/icon_catalog/**/*.rs
-  - sottomano-widgets/src/glyph_icons/**/*.rs
-  - sottomano-widgets/src/cascading_menus/**/*.rs
 rule:
   any:
     - kind: field_declaration

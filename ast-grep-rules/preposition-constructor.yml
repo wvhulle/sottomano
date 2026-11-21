@@ -1,13 +1,13 @@
 id: preposition-constructor
 language: rust
 severity: error
-message: A function named of, of_*, from_* or for_* is a bespoke constructor or lookup.
+message: A function named of, of_*, *_of, from_* or for_* is a bespoke constructor or lookup.
 note: Implement From, TryFrom or FromStr for a single-value conversion, build the value with a struct literal, or name a lookup after what it returns.
 rule:
   kind: function_item
   has:
     field: name
-    regex: ^(of|of_.+|from_.+|for_.+)$
+    regex: ^(of|of_.+|.+_of|from_.+|for_.+)$
   not:
     inside:
       kind: impl_item
