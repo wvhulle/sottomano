@@ -83,25 +83,35 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
             ticks,
             along_panel_padding,
         } = self;
-        let share_of_gap = if position == Position::Left {
-            Padding::ZERO.vertical(along_panel_padding)
-        } else {
-            Padding::ZERO.horizontal(along_panel_padding)
-        };
-        let label = stacked_label(content, share_of_gap);
         match position {
             Position::Bottom => stacked([
-                wrap_target(stacked([indicator, label])),
+                wrap_target(stacked([
+                    indicator,
+                    label_across_bar(content, along_panel_padding),
+                ])),
                 ticks_across(ticks, band, Vertical::Bottom),
             ]),
             Position::Top => stacked([
                 ticks_across(ticks, band, Vertical::Top),
-                wrap_target(stacked([label, indicator])),
+                wrap_target(stacked([
+                    label_across_bar(content, along_panel_padding),
+                    indicator,
+                ])),
             ]),
             Position::Left => Row::with_children([
                 ticks.unwrap_or_else(|| Space::new().width(band).into()),
-                wrap_target(Row::with_children([label, indicator]).into()),
+                wrap_target(
+                    Row::with_children([
+                        container(content)
+                            .padding(Padding::ZERO.vertical(along_panel_padding))
+                            .into(),
+                        indicator,
+                    ])
+                    .align_y(Alignment::Center)
+                    .into(),
+                ),
             ])
+            .align_y(Alignment::Center)
             .into(),
         }
     }
@@ -117,12 +127,12 @@ fn stacked<'a, Message: 'a, const BAND_COUNT: usize>(
         .into()
 }
 
-fn stacked_label<'a, Message: 'a>(
+fn label_across_bar<'a, Message: 'a>(
     content: Element<'a, Message>,
-    share_of_gap: Padding,
+    along_panel_padding: f32,
 ) -> Element<'a, Message> {
     container(content)
-        .padding(share_of_gap)
+        .padding(Padding::ZERO.horizontal(along_panel_padding))
         .height(Length::Fill)
         .align_y(Vertical::Center)
         .into()
