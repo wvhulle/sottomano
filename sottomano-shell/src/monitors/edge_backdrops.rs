@@ -40,7 +40,7 @@ fn backdrop_placement(
             compositor_drawn_shadow::offscreen_caster_placement(position, panel_height)
         }
         EdgeShadowRendering::SelfDrawnFalloff => {
-            self_drawn_falloff::onscreen_falloff_placement(position)
+            self_drawn_falloff::edge_caster_placement(position)
         }
     }
 }
@@ -51,9 +51,7 @@ pub(crate) fn backdrop_view<'a, Interaction: 'a>(
 ) -> Element<'a, Interaction> {
     match rendering {
         EdgeShadowRendering::CompositorShadow => compositor_drawn_shadow::opaque_caster_view(),
-        EdgeShadowRendering::SelfDrawnFalloff => {
-            self_drawn_falloff::gradient_falloff_view(position)
-        }
+        EdgeShadowRendering::SelfDrawnFalloff => self_drawn_falloff::shadow_casting_view(position),
     }
 }
 
@@ -133,12 +131,17 @@ mod tests {
     }
 
     #[test]
-    fn a_self_drawn_falloff_covers_its_reach_on_screen() {
+    fn a_self_drawn_caster_hides_beyond_the_edge_and_shadows_the_screen() {
+        let caster_depth = (PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px) as u32;
+        let onscreen_reach = caster_depth + PANEL_EDGE_SHADOW.softness_px as u32;
         assert_eq!(
             backdrop_placement(EdgeShadowRendering::SelfDrawnFalloff, Position::Bottom, 40),
             BackdropPlacement {
-                size: LayerSize::fill_width(PANEL_EDGE_SHADOW.reach_px() as u32),
-                margin: Margin::default(),
+                size: LayerSize::fill_width(caster_depth + onscreen_reach),
+                margin: Margin {
+                    bottom: -caster_depth.cast_signed(),
+                    ..Margin::default()
+                },
             }
         );
     }
