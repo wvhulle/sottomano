@@ -1,0 +1,18 @@
+[package]
+name = "sottomano-compositor-model"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-toml-config = { path = "../sottomano-toml-config" }
+futures.workspace = true
+rustix = { version = "1.1.5", features = ["time"] }
+tokio = { workspace = true, features = ["process", "rt"] }
+tracing.workspace = true
+
+[features]
+test-support = []

@@ -99,7 +99,7 @@ impl SessionAction {
         match self {
             SessionAction::Lock => "logind LockSession",
             SessionAction::LockAllSessions => "logind LockSessions",
-            SessionAction::ScreenOff => "niri PowerOffMonitors",
+            SessionAction::ScreenOff => "compositor PowerOffMonitors",
             SessionAction::Sleep => "logind Sleep",
             SessionAction::Suspend => "logind Suspend",
             SessionAction::Hibernate => "logind Hibernate",
@@ -111,7 +111,7 @@ impl SessionAction {
             SessionAction::Halt => "logind Halt",
             SessionAction::PowerOff => "logind PowerOff",
             SessionAction::CancelScheduledShutdown => "logind CancelScheduledShutdown",
-            SessionAction::LogOut => "niri Quit",
+            SessionAction::LogOut => "compositor Quit",
             SessionAction::TerminateSession => "logind TerminateSession",
             SessionAction::RestartShell => "systemctl --user restart sottomano",
         }

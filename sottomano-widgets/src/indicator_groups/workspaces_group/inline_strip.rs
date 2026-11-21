@@ -1,7 +1,6 @@
 use iced::{Alignment, Element, Length, widget::Row};
-use sottomano_desktop_sources::{
-    compositor_window_ipc::niri_kdl_config::ConfiguredWorkspaces,
-    desktop_windows_apps::workspace_window_snapshot,
+use sottomano_desktop_sources::desktop_windows_apps::{
+    configured_workspace_order::ConfiguredWorkspaces, workspace_window_snapshot,
 };
 
 use super::{

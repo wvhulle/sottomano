@@ -43,7 +43,6 @@ pub enum IndicatorGroupFamily {
     SteamDownloads,
     SteamLibrary,
     SteamRunningGame,
-    #[strum(serialize = "niri_window")]
     CompositorStyling,
     Notification,
     NspawnContainers,

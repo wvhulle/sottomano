@@ -134,12 +134,12 @@ impl DesktopShell {
                     )
                     .map(Message::from)
             }
-            Message::NiriConfigRead(Ok(configured)) => {
+            Message::ConfiguredWorkspacesRead(Ok(configured)) => {
                 self.configured_workspaces = Some(configured);
                 Task::none()
             }
-            Message::NiriConfigRead(Err(reason)) => {
-                tracing::warn!("niri config: {reason}");
+            Message::ConfiguredWorkspacesRead(Err(reason)) => {
+                tracing::warn!("compositor config: {reason}");
                 Task::none()
             }
             Message::HoverCardHideElapsed => self.leave_hover_card_after_grace(),

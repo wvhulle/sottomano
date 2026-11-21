@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{
         focus_time_ledger::{FocusIdentity, FocusLedger, FocusSignal, LoadedSpans},

@@ -2,11 +2,11 @@ use std::mem;
 
 use corredo::drag_reorder::{MoveTracking, drag_pointer_events};
 use iced::{Subscription, Task, window::frames};
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_connection::{CompositorFeatureSupport, CompositorKind},
-    desktop_windows_apps::workspace_window_snapshot,
+use sottomano_compositor_model::{
+    compositor_backend::CompositorFeatureSupport, compositor_requests::CompositorRequest,
 };
+use sottomano_compositors::compositor_connection::CompositorKind;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,

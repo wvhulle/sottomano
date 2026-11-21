@@ -1,6 +1,7 @@
 pub mod app_launch_history;
 pub mod application_menu_nodes;
 pub mod appmenu_registrar_server;
+pub mod configured_workspace_order;
 pub mod dbusmenu_menu_bar_layout;
 pub mod desktop_entries;
 pub mod desktop_entry_app_catalog;

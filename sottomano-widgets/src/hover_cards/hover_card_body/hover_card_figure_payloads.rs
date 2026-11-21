@@ -1,10 +1,8 @@
 use corredo::gauges::{DurationTimeline, TimelineDensity};
 use iced::Size;
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_styling_model::AppWindowLayout,
-    desktop_windows_apps::window_title_labels::WindowLabel,
-};
+use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 

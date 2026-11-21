@@ -1,9 +1,9 @@
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::{
-    CompositorRulesFile, RulesSaveError, SaveStep,
-};
-use sottomano_desktop_sources::compositor_window_ipc::compositor_styling_model::{
+use sottomano_compositor_model::compositor_styling_model::{
     CompositorStyling, HeatedWindow, SwitchHeat,
+};
+use sottomano_desktop_sinks::compositor_rule_files::{
+    CompositorRulesFile, RulesSaveError, SaveStep,
 };
 use sottomano_toml_config::theme::palette::Palette;
 

@@ -1,8 +1,6 @@
 use iced::Size;
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_styling_model::AppWindowLayout,
-    desktop_windows_apps::workspace_window_snapshot,
-};
+use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 
 use crate::{
     hover_cards::hover_card_body::{

@@ -2,10 +2,10 @@ use std::env;
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
+use sottomano_compositors::compositor_connection::compositor_version;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    compositor_window_ipc::compositor_connection::compositor_version,
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,

@@ -2,14 +2,14 @@ use std::{path::PathBuf, time::Duration};
 
 use bytesize::ByteSize;
 use iced_controller_diagram::ControllerArtwork;
+use sottomano_compositor_model::{
+    compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+    compositor_window_state::{
+        CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
+    },
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    compositor_window_ipc::{
-        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
-        compositor_window_state::{
-            CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
-        },
-    },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
         desktop_entries::DesktopEntries,

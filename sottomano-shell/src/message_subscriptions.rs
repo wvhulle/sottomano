@@ -9,8 +9,8 @@ use iced::{
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
+use sottomano_compositors::compositor_connection;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_connection,
     desktop_notifications::freedesktop_notification_server,
     desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup},
     system_protocol_clients::{

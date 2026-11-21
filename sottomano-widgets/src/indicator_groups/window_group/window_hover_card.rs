@@ -1,13 +1,14 @@
 use std::time::{Duration, SystemTime};
 
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::{CompositorWindow, CompositorWindowState},
-    desktop_windows_apps::{
-        nix_flake_pin::FlakePin,
-        nix_package_facts::{Generation, NixPackageFacts, Origin, UpstreamState},
-        nix_store_provenance::StorePackage,
-        process_tree_inspection::{self, Inspection, Launch},
-    },
+use sottomano_compositor_model::{
+    compositor_window_state::{CompositorWindow, CompositorWindowState},
+    monotonic_clock::monotonic_since_boot,
+};
+use sottomano_desktop_sources::desktop_windows_apps::{
+    nix_flake_pin::FlakePin,
+    nix_package_facts::{Generation, NixPackageFacts, Origin, UpstreamState},
+    nix_store_provenance::StorePackage,
+    process_tree_inspection::{Inspection, Launch},
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -189,7 +190,7 @@ fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
 }
 
 fn focus_age(window: &CompositorWindow) -> Option<Duration> {
-    process_tree_inspection::monotonic().checked_sub(window.focused_at_monotonic?)
+    monotonic_since_boot().checked_sub(window.focused_at_monotonic?)
 }
 
 fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {

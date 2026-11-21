@@ -1,13 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iced::Task;
-use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::CompositorRequest,
-    desktop_windows_apps::status_notifier_tray_activation::TrayCommand,
-};
+use sottomano_compositor_model::{compositor_output_facts, compositor_requests::CompositorRequest};
+use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activation::TrayCommand;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    compositor_window_ipc::compositor_output_facts,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entries::DesktopEntries, window_edge_placement,
     },

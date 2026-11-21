@@ -1,5 +1,5 @@
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
+use sottomano_compositor_model::compositor_requests::CompositorRequest;
 use sottomano_widgets::{
     background_work::{compositor_request, copy_to_clipboard},
     group_menus::group_menu_state::{GroupMenuMessage, PanelPin, PanelPinDuration},

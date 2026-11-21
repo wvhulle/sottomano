@@ -11,8 +11,8 @@ use std::{
 };
 
 use iced::{Element, Subscription, Task};
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::{
         process_tree_inspection::Watched, terminal_emulator_windows::WindowProcesses,
         workspace_window_snapshot,

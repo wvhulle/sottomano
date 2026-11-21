@@ -4,12 +4,11 @@ use iced::{
     Subscription, Task,
     futures::{Stream, StreamExt, stream},
 };
-use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::{
-        self, CompositorRequest, CompositorRequestFailure,
-    },
-    desktop_windows_apps::clipboard_copy,
+use sottomano_compositor_model::compositor_requests::{
+    CompositorRequest, CompositorRequestFailure,
 };
+use sottomano_compositors::compositor_connection::send_compositor_request;
+use sottomano_desktop_sinks::desktop_windows_apps::clipboard_copy;
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
 };
@@ -19,12 +18,8 @@ use crate::load_tally::{PollOutcome, WorkMeasurement, record_source_poll};
 pub fn compositor_request<Routed: From<CompositorRequestFailure> + Send + 'static>(
     request: CompositorRequest,
 ) -> Task<Routed> {
-    Task::future(async move {
-        compositor_requests::send_compositor_request(request)
-            .await
-            .err()
-    })
-    .and_then(|failure| Task::done(Routed::from(failure)))
+    Task::future(async move { send_compositor_request(request).await.err() })
+        .and_then(|failure| Task::done(Routed::from(failure)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -9,6 +9,18 @@ diagram per flow. The workflow for building, debugging and testing it is in
 The repository is a cargo workspace:
 
 - `sottomano-toml-config/` holds the TOML config types and their loading.
+- `sottomano-compositor-model/` holds the compositor-neutral window, workspace,
+  output, request and styling types, and the `CompositorBackend` trait every
+  compositor implements.
+- `sottomano-niri/`, `sottomano-hyprland/` and `sottomano-sway/` each implement
+  `CompositorBackend` for one compositor: its IPC events and queries, its
+  requests, its window styling rules and whatever only it supports. All
+  compositor-specific code lives in these three crates.
+- `sottomano-compositors/` detects the running compositor and dispatches to its
+  backend. Other crates stay compositor-neutral by construction: none of them
+  depends on a backend crate or an IPC library, `CompositorKind` keeps its
+  variants private, and the `compositor-feature-cfg` ast-grep rule leaves the
+  compositor features to this crate's dispatch.
 - `sottomano-desktop-sources/` holds the data sources the shell reads, as
   streams, together with the bus proxies and connection handles they share.
 - `sottomano-desktop-sinks/` holds what the shell writes: commands, settings and
@@ -29,8 +41,8 @@ The shell loads the config and starts its daemon. A data source becomes a
 subscription that yields a message while a reading it backs is on screen or can
 alert, decided the same way for pinned groups and groups in a menu. Windows and
 workspaces come from whichever compositor runs (niri, sway or Hyprland), detected
-from its socket variable; each compositor sits behind a cargo feature of the
-same name, all on by default.
+by `sottomano-compositors` from its socket variable; each compositor's backend
+crate sits behind a cargo feature of the same name, all on by default.
 
 ```mermaid
 flowchart TB
@@ -38,8 +50,11 @@ flowchart TB
   config_loading["config loading"]
   config_file --> config_loading
 
+  subgraph compositors_crate [sottomano-compositors]
+    compositor_events["compositor IPC<br>niri, sway or Hyprland backend"]
+  end
+
   subgraph sources_crate [sottomano-desktop-sources]
-    compositor_events["compositor IPC<br>niri, sway or Hyprland events"]
     file_watches["inotify<br>config file, desktop entries"]
   end
 
@@ -67,10 +82,13 @@ flowchart TB
   subgraph sources_crate [sottomano-desktop-sources]
     desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
     notification_server["freedesktop<br>notification server"]
-    compositor_events["compositor IPC<br>niri, sway or Hyprland events"]
     wayland_outputs["Wayland outputs"]
     file_watches["inotify<br>config file, desktop entries"]
     snapshot_sources["snapshot sources"]
+  end
+
+  subgraph compositors_crate [sottomano-compositors]
+    compositor_events["compositor IPC<br>niri, sway or Hyprland backend"]
   end
 
   message_subscriptions["message subscriptions"]
@@ -114,9 +132,9 @@ flowchart TB
 ## Writes to the desktop
 
 The write tasks the indicator groups produce go through the sinks crate: service
-commands and notification signals, and the compositor requests that rewrite the
-running compositor's window styling rule file, which each
-[compositor's page](compositors/) includes in its config.
+commands, notification signals and the window styling rule file, which each
+[compositor's page](compositors/) includes in its config. The running
+compositor's backend renders the rules and carries out compositor requests.
 
 ```mermaid
 flowchart TB
@@ -125,13 +143,18 @@ flowchart TB
   subgraph sinks_crate [sottomano-desktop-sinks]
     service_commands["service commands<br>volume, power, network, tray, …"]
     notification_signals["notification<br>signals"]
-    compositor_requests["compositor requests<br>and window styling rules"]
+    rules_file_writes["window styling<br>rule file writes"]
+  end
+
+  subgraph compositors_crate [sottomano-compositors]
+    compositor_requests["compositor requests<br>and rule rendering"]
   end
 
   compositor_rules_file[("$XDG_CONFIG_HOME/sottomano/<br>niri.kdl, sway.conf or hyprland.lua")]
 
-  indicator_groups -->|write tasks| service_commands & notification_signals & compositor_requests
-  compositor_requests -->|rewrite| compositor_rules_file
+  indicator_groups -->|write tasks| service_commands & notification_signals & rules_file_writes & compositor_requests
+  rules_file_writes -->|rendered by| compositor_requests
+  rules_file_writes -->|rewrite| compositor_rules_file
 ```
 
 The CI pipelines and the tour recordings each have a diagram of their own in

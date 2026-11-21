@@ -9,9 +9,8 @@ use corredo::{
     theming::{primary_color, text_color},
 };
 use iced::{Element, Task};
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
-    CompositorRequest, send_compositor_request,
-};
+use sottomano_compositor_model::compositor_requests::CompositorRequest;
+use sottomano_compositors::compositor_connection::send_compositor_request;
 use sottomano_desktop_sources::{
     desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp},
     theme_icons::icon_requests::app_icon_request,

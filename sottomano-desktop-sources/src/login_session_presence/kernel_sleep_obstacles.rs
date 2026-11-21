@@ -2,12 +2,12 @@ use std::{fs, io, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, future::ready, stream};
+use sottomano_compositors::compositor_connection::compositor_window_pids;
 use tokio::{process::Command, task::spawn_blocking};
 use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    compositor_window_ipc::compositor_connection::compositor_window_pids,
     delivery_cadence_drivers::ChangeTriggerStreams,
     desktop_windows_apps::process_tree_inspection::launch,
     host_machine_identity::hostname1_os_identity::at_micros,

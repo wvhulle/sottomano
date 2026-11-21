@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use iced::{Task, task::Handle};
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
-    desktop_windows_apps::firefox_favicon_lookup::{self, RawFavicon},
+    desktop_windows_apps::{firefox_favicon_lookup, firefox_favicon_lookup::RawFavicon},
 };
 
 use crate::icon_catalog::icon_handle::IconHandle;

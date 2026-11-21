@@ -1,15 +1,13 @@
 use iced::{Element, Event, Point, Settings, Size, mouse, window};
 use iced_test::Simulator;
-use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
-        compositor_window_state::{
-            CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
-        },
+use sottomano_compositor_model::{
+    compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+    compositor_window_state::{
+        CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
     },
-    desktop_windows_apps::{
-        terminal_emulator_windows::WindowProcesses, workspace_window_snapshot::Snapshot,
-    },
+};
+use sottomano_desktop_sources::desktop_windows_apps::{
+    terminal_emulator_windows::WindowProcesses, workspace_window_snapshot::Snapshot,
 };
 
 use crate::widgets::{

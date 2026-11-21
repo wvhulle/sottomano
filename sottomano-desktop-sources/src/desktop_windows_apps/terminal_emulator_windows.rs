@@ -15,14 +15,13 @@ use std::{
 use futures::{Stream, StreamExt, future::ready, stream};
 use futures_rx::RxExt;
 use pty_shell_sessions::ShellSession;
+use sottomano_compositor_model::compositor_window_state::{
+    CompositorChange, CompositorWindow, CompositorWindowState,
+};
+use sottomano_compositors::compositor_connection::compositor_updates;
 use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
 use terminal_shell_label::TerminalShellLabel;
 use tokio::task::spawn_blocking;
-
-use crate::compositor_window_ipc::{
-    compositor_connection::compositor_updates,
-    compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
-};
 
 const KITTY_APP_ID: &str = "kitty";
 
@@ -311,12 +310,12 @@ impl Pairing {
         };
         self.forget_closed(process, &terminal_windows);
         self.settle_probes(process, compositor, access, now);
-        if let ([sole_niri_window], [sole_terminal_window]) = (
+        if let ([sole_compositor_window], [sole_terminal_window]) = (
             terminal.compositor_windows.as_slice(),
             terminal_windows.as_slice(),
         ) {
             self.paired
-                .insert(*sole_niri_window, sole_terminal_window.key);
+                .insert(*sole_compositor_window, sole_terminal_window.key);
         }
         for terminal_window in &terminal_windows {
             let key = terminal_window.key;
@@ -548,15 +547,15 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use sottomano_compositor_model::{
+        compositor_test_windows::unplaced_compositor_window,
+        compositor_window_state::{CompositorWindow, CompositorWindowState},
+    };
     use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
 
     use super::{
         Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelSource, TerminalWindow,
         TerminalWindowKey, TitleProbeTarget,
-    };
-    use crate::compositor_window_ipc::{
-        compositor_test_windows::unplaced_compositor_window,
-        compositor_window_state::{CompositorWindow, CompositorWindowState},
     };
 
     const GHOSTTY_PID: i32 = 700;
@@ -581,7 +580,7 @@ mod tests {
             &mut self,
             _agent: TerminalAgent,
             _process: i32,
-            _niri_window_count: usize,
+            _compositor_window_count: usize,
         ) -> io::Result<Vec<TerminalWindow>> {
             Ok(self.listed.clone())
         }

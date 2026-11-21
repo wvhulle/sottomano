@@ -4,8 +4,8 @@ mod group_routing;
 mod group_subscriptions;
 
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
-use sottomano_desktop_sources::compositor_window_ipc::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
+use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
     cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},

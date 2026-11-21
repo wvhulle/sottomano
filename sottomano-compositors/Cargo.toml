@@ -1,0 +1,21 @@
+[package]
+name = "sottomano-compositors"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-compositor-model = { path = "../sottomano-compositor-model" }
+sottomano-hyprland = { path = "../sottomano-hyprland", optional = true }
+sottomano-niri = { path = "../sottomano-niri", optional = true }
+sottomano-sway = { path = "../sottomano-sway", optional = true }
+futures.workspace = true
+tracing.workspace = true
+
+[features]
+hyprland = ["dep:sottomano-hyprland"]
+niri = ["dep:sottomano-niri"]
+sway = ["dep:sottomano-sway"]

@@ -6660,6 +6660,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-compositor-model"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "rustix 1.1.5",
+ "sottomano-toml-config",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sottomano-compositors"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "sottomano-compositor-model",
+ "sottomano-hyprland",
+ "sottomano-niri",
+ "sottomano-sway",
+ "tracing",
+]
+
+[[package]]
 name = "sottomano-db-migrations"
 version = "0.1.0"
 dependencies = [
@@ -6673,18 +6696,16 @@ dependencies = [
 name = "sottomano-desktop-sinks"
 version = "0.1.0"
 dependencies = [
- "club-kdl",
  "freedesktop-sound",
  "futures",
- "kdl 6.7.1",
- "niri-ipc",
  "notulist-client",
  "rustix 1.1.5",
  "serde",
  "serde_json",
+ "sottomano-compositor-model",
+ "sottomano-compositors",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
- "swayipc-types",
  "system-tray",
  "thiserror 2.0.21",
  "tokio",
@@ -6718,10 +6739,8 @@ dependencies = [
  "image",
  "inotify",
  "ipnet",
- "kdl 6.7.1",
  "libc",
  "nalgebra",
- "niri-ipc",
  "notulist-client",
  "nvml-wrapper",
  "perf-event2",
@@ -6739,10 +6758,11 @@ dependencies = [
  "serde_json",
  "situo-client",
  "socket2",
+ "sottomano-compositor-model",
+ "sottomano-compositors",
  "sottomano-db-migrations",
  "sottomano-toml-config",
  "sunrise",
- "swayipc-types",
  "sys-locale",
  "system-tray",
  "systemd",
@@ -6767,6 +6787,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-hyprland"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "serde",
+ "serde_json",
+ "sottomano-compositor-model",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sottomano-niri"
+version = "0.1.0"
+dependencies = [
+ "club-kdl",
+ "futures",
+ "kdl 6.7.1",
+ "niri-ipc",
+ "serde_json",
+ "sottomano-compositor-model",
+ "sottomano-toml-config",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "sottomano-phosphor-icons"
 version = "0.1.0"
 
@@ -6784,6 +6834,8 @@ dependencies = [
  "reqwest",
  "rustix 1.1.5",
  "signal-hook",
+ "sottomano-compositor-model",
+ "sottomano-compositors",
  "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
@@ -6804,6 +6856,20 @@ name = "sottomano-simple-icons"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "sottomano-sway"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "serde",
+ "serde_json",
+ "sottomano-compositor-model",
+ "swayipc-types",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6847,6 +6913,8 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
+ "sottomano-compositor-model",
+ "sottomano-compositors",
  "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
@@ -6889,6 +6957,8 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
+ "sottomano-compositor-model",
+ "sottomano-compositors",
  "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-phosphor-icons",

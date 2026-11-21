@@ -7,8 +7,8 @@ use iced::{
     mouse,
     time::{Duration, Instant},
 };
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::window_edge_placement::Placement,
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };

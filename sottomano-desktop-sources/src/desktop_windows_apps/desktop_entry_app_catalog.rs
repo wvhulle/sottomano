@@ -1,9 +1,9 @@
 use std::{borrow::Cow, cmp::Reverse, collections::HashMap};
 
 use freedesktop_desktop_entry::DesktopEntry;
+use sottomano_compositor_model::compositor_window_state::CompositorWindow;
 
 use super::desktop_entries::DesktopEntries;
-use crate::compositor_window_ipc::compositor_window_state::CompositorWindow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AppCategory {
@@ -194,15 +194,13 @@ mod tests {
     use std::time::Duration;
 
     use freedesktop_desktop_entry::DesktopEntry;
+    use sottomano_compositor_model::{
+        compositor_test_windows::unplaced_compositor_window,
+        compositor_window_state::CompositorWindow,
+    };
 
     use super::{AppCategory, LaunchableApp, OpenAppWindows, open_windows_by_app};
-    use crate::{
-        compositor_window_ipc::{
-            compositor_test_windows::unplaced_compositor_window,
-            compositor_window_state::CompositorWindow,
-        },
-        desktop_windows_apps::desktop_entries::DesktopEntries,
-    };
+    use crate::desktop_windows_apps::desktop_entries::DesktopEntries;
 
     fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {
         let no_locales: Option<&[&str]> = None;

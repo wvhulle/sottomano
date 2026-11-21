@@ -4,6 +4,7 @@ use std::{
 };
 
 use futures::Stream;
+use sottomano_compositors::compositor_connection::CompositorKind;
 use sottomano_toml_config::severity::Severity;
 use tokio::sync::{OnceCell, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
@@ -96,7 +97,9 @@ impl NotificationServer {
             actions,
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::client_requested_millis(expire_timeout),
-            window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
+            window_id_hint: CompositorKind::detected()
+                .and_then(CompositorKind::notification_window_id_hint)
+                .and_then(|hint_key| hint_window_id(&hints, hint_key)),
             sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),
             sound_request: sound_request(&hints),

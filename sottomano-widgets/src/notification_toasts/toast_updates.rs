@@ -27,14 +27,12 @@ use iced::{
     window::Id,
 };
 use quick_xml::escape::escape;
-use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::{
-        CompositorRequest, CompositorRequestFailure,
-    },
-    desktop_notifications::{
-        alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
-        freedesktop_notification_signals::notification_signal_sink,
-    },
+use sottomano_compositor_model::compositor_requests::{
+    CompositorRequest, CompositorRequestFailure,
+};
+use sottomano_desktop_sinks::desktop_notifications::{
+    alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
+    freedesktop_notification_signals::notification_signal_sink,
 };
 use sottomano_desktop_sources::{
     desktop_notifications::{

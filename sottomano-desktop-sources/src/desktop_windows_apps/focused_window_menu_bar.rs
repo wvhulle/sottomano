@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use futures::{Stream, StreamExt, TryStreamExt, stream, stream::BoxStream};
 use futures_rx::RxExt;
+use sottomano_compositor_model::compositor_window_state::CompositorWindow;
 use tokio::fs;
 
 use crate::{
-    compositor_window_ipc::compositor_window_state::CompositorWindow,
     desktop_windows_apps::{
         application_menu_nodes::MenuNode,
         appmenu_registrar_server::RegisteredMenuBar,
@@ -496,13 +496,13 @@ pub fn focused_menu_bar_updates(
 
 #[cfg(test)]
 mod tests {
+    use sottomano_compositor_model::compositor_window_state::CompositorWindowLayout;
     use zbus::{
         names::{OwnedBusName, OwnedUniqueName},
         zvariant::OwnedObjectPath,
     };
 
     use super::*;
-    use crate::compositor_window_ipc::compositor_window_state::CompositorWindowLayout;
 
     fn location(bus_name: &str, menu_path: &str) -> DbusMenuLocation {
         DbusMenuLocation {

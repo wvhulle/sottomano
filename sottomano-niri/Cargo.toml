@@ -1,0 +1,24 @@
+[package]
+name = "sottomano-niri"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-compositor-model = { path = "../sottomano-compositor-model" }
+sottomano-toml-config = { path = "../sottomano-toml-config" }
+club-kdl = { version = "0.14.1", features = ["kdl-rs"] }
+futures.workspace = true
+kdl.workspace = true
+niri-ipc.workspace = true
+serde_json = "1.0.154"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "net", "rt"] }
+tokio-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+sottomano-compositor-model = { path = "../sottomano-compositor-model", features = ["test-support"] }

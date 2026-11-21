@@ -1,12 +1,11 @@
 use std::{io, path::PathBuf};
 
 use rustix::io::Errno;
+use sottomano_compositor_model::compositor_requests::CompositorRequestFailure;
 use sottomano_desktop_sources::system_protocol_clients::{http_json_client, shell_command_output};
 use tokio::task::JoinError;
 #[cfg(feature = "libvirt-domains")]
 use virt::error::Error as VirtError;
-
-use crate::compositor_window_requests::compositor_requests::CompositorRequestFailure;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BusWriteError {

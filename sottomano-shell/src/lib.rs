@@ -34,10 +34,8 @@ use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
-use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
-use sottomano_desktop_sources::compositor_window_ipc::{
-    compositor_connection::CompositorKind, niri_kdl_config::NiriConfigFile,
-};
+use sottomano_compositors::compositor_connection::CompositorKind;
+use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
 use sottomano_toml_config::{Config, ConfigFile, SecretPaths};
 use sottomano_widgets::widgets::text::font_faces_of;
 use tracing_chrome::{ChromeLayerBuilder, FlushGuard};
@@ -110,7 +108,6 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let secrets = SecretPaths::discover(&config_home);
     let compositor_rules =
         CompositorRulesFile::in_config_home(&config_home, CompositorKind::detected());
-    let niri_config = NiriConfigFile::in_config_home(&config_home);
     let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
     let config = loaded
         .as_ref()
@@ -141,7 +138,6 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
                 config_file.clone(),
                 secrets.clone(),
                 compositor_rules.clone(),
-                niri_config.clone(),
                 loaded.clone(),
             )
         },

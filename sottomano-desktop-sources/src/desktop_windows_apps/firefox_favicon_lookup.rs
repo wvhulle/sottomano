@@ -7,9 +7,9 @@ use std::{
 
 use futures::Stream;
 use rusqlite::{Connection, OpenFlags};
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 
 use crate::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::window_title_labels::{
         WindowLabel, firefox_page_titles::strip_unread_badge,

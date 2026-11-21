@@ -182,12 +182,12 @@ fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<Shell
     })
 }
 
-pub fn terminal_windows(terminal_pid: i32, niri_window_count: usize) -> Vec<TerminalWindow> {
+pub fn terminal_windows(terminal_pid: i32, compositor_window_count: usize) -> Vec<TerminalWindow> {
     let sessions = shell_sessions(terminal_pid);
-    if sessions.len() != niri_window_count {
+    if sessions.len() != compositor_window_count {
         tracing::debug!(
-            "terminal {terminal_pid} runs {} shells in {niri_window_count} windows, so tabs hide \
-             some",
+            "terminal {terminal_pid} runs {} shells in {compositor_window_count} windows, so tabs \
+             hide some",
             sessions.len()
         );
         return Vec::new();

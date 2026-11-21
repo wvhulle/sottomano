@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{
-    compositor_window_ipc::compositor_window_state::{CompositorWindow, CompositorWindowState},
-    desktop_windows_apps::{
-        terminal_emulator_windows::WindowProcesses,
-        window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
-    },
+use sottomano_compositor_model::compositor_window_state::{
+    CompositorWindow, CompositorWindowState,
+};
+
+use crate::desktop_windows_apps::{
+    terminal_emulator_windows::WindowProcesses,
+    window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
 };
 
 #[derive(Debug, Clone)]

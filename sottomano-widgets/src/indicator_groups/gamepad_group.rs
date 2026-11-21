@@ -15,10 +15,10 @@ use std::{
 
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
+use sottomano_compositor_model::compositor_requests::{
+    CompositorRequest, CompositorRequestFailure,
+};
 use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::{
-        CompositorRequest, CompositorRequestFailure,
-    },
     network_connectivity::bluez_bluetooth_commands::disconnect_bluetooth_address,
     voice_dictation_input::notulist_dictation_commands::send_dictation_command,
 };

@@ -1,0 +1,10 @@
+id: compositor-feature-cfg
+language: rust
+severity: error
+message: Gating code on a compositor feature spreads compositor-specific behaviour outside the dispatch in sottomano-compositors.
+note: Only sottomano-compositors selects backends by feature; add the behaviour to the CompositorBackend trait and implement it in each backend crate.
+ignores:
+  - sottomano-compositors/src/compositor_connection.rs
+rule:
+  kind: attribute_item
+  regex: 'feature\s*=\s*"(niri|hyprland|sway)"'

@@ -20,12 +20,11 @@ use iced::{
     futures::{StreamExt, stream},
     time::Instant,
 };
-use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::CompositorRequestFailure,
-    desktop_notifications::alert_sound_player::SoundTheme,
+use sottomano_compositor_model::{
+    compositor_requests::CompositorRequestFailure, compositor_window_state::CompositorWindowState,
 };
+use sottomano_desktop_sinks::desktop_notifications::alert_sound_player::SoundTheme;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_notifications::{
         freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },

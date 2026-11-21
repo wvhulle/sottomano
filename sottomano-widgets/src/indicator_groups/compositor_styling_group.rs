@@ -5,18 +5,17 @@ pub mod switch_heat_borders;
 use std::{io, sync::Arc};
 
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::{
+use sottomano_compositor_model::{
+    compositor_backend::CompositorFeatureSupport,
+    compositor_styling_model::{
+        AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, StylingControl,
+    },
+};
+use sottomano_compositors::compositor_connection::CompositorKind;
+use sottomano_desktop_sinks::compositor_rule_files::{
     CompositorRulesFile, RulesSaveError, SaveStep,
 };
-use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_connection::{CompositorFeatureSupport, CompositorKind},
-        compositor_styling_model::{
-            AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, StylingControl,
-        },
-    },
-    sqlite_state_store::StoreError,
-};
+use sottomano_desktop_sources::sqlite_state_store::StoreError;
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
@@ -176,7 +175,7 @@ impl CompositorStylingGroup {
         Task::batch([
             SwitchHeatBorders::load(),
             Task::perform(
-                sqlite_compositor_styling::load(self.rules_file.config_home.clone()),
+                sqlite_compositor_styling::load(),
                 CompositorStylingMessage::StylingLoaded,
             ),
         ])
@@ -426,10 +425,10 @@ impl CompositorStylingGroup {
 mod tests {
     use std::path::Path;
 
-    use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
-    use sottomano_desktop_sources::compositor_window_ipc::compositor_styling_model::{
+    use sottomano_compositor_model::compositor_styling_model::{
         AppWindowLayout, CompositorStyling, ShellBlurDepth,
     };
+    use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
 
     use super::{CompositorStylingGroup, CompositorStylingMessage};
 

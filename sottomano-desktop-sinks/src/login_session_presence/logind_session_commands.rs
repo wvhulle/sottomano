@@ -1,3 +1,5 @@
+use sottomano_compositor_model::compositor_requests::CompositorRequest;
+use sottomano_compositors::compositor_connection::send_compositor_request;
 use sottomano_desktop_sources::{
     login_session_presence::{
         logind_manager::{self, ManagerProxy},
@@ -6,10 +8,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-use crate::{
-    compositor_window_requests::compositor_requests::{self, CompositorRequest},
-    sink_write_errors::{BusWriteError, SessionActionError},
-};
+use crate::sink_write_errors::{BusWriteError, SessionActionError};
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
 
@@ -18,11 +17,10 @@ pub async fn perform_session_action(
 ) -> Result<(), SessionActionError> {
     match session_action {
         SessionAction::ScreenOff => {
-            compositor_requests::send_compositor_request(CompositorRequest::PowerOffMonitors)
-                .await?;
+            send_compositor_request(CompositorRequest::PowerOffMonitors).await?;
         }
         SessionAction::LogOut => {
-            compositor_requests::send_compositor_request(CompositorRequest::Quit).await?;
+            send_compositor_request(CompositorRequest::Quit).await?;
         }
         SessionAction::RestartShell => {
             shell_command_output::output("systemctl", &["--user", "restart", "sottomano.service"])

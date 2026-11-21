@@ -1,14 +1,17 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
+use sottomano_compositor_model::{
+    compositor_requests::CompositorRequestFailure,
+    compositor_window_state::{CompositorChange, CompositorUpdate},
+};
+use sottomano_compositors::compositor_connection::{
+    CompositorKind, configured_workspace_names, missing_compositor_reason,
+};
 use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_connection::{CompositorKind, WorkspaceConfigSource, missing_compositor_reason},
-        compositor_window_state::{CompositorChange, CompositorUpdate},
-    },
     desktop_windows_apps::{
         app_launch_history::LaunchScope,
+        configured_workspace_order::ConfiguredWorkspaces,
         desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
         focused_window_menu_bar::FocusedWindowIdentity,
         workspace_window_snapshot,
@@ -52,13 +55,15 @@ impl DesktopShell {
             .map(Message::from)
     }
 
-    pub(crate) fn read_niri_workspace_order(&self) -> Task<Message> {
-        if CompositorKind::detected().map(CompositorKind::workspace_config_source)
-            != Some(WorkspaceConfigSource::NiriKdl)
-        {
-            return Task::none();
-        }
-        Task::perform(self.niri_config.read_workspaces(), Message::NiriConfigRead)
+    pub(crate) fn read_configured_workspace_order(&self) -> Task<Message> {
+        let config_home = self.config_home.clone();
+        Task::future(async move { configured_workspace_names(&config_home).await }).and_then(
+            |configured_names| {
+                Task::done(Message::ConfiguredWorkspacesRead(
+                    configured_names.map(ConfiguredWorkspaces::from_iter),
+                ))
+            },
+        )
     }
 
     pub(crate) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
@@ -75,7 +80,7 @@ impl DesktopShell {
             .map(|launch| Task::future(sqlite_app_launches::record(launch)).discard())
             .collect();
         if config_reloaded {
-            tasks.push(self.read_niri_workspace_order());
+            tasks.push(self.read_configured_workspace_order());
         }
         self.derive_window_snapshot();
         self.indicator_groups

@@ -4,8 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-
-use crate::compositor_window_ipc::compositor_window_state::{
+use sottomano_compositor_model::compositor_window_state::{
     CompositorWindow, CompositorWindowState, CompositorWorkspace,
 };
 
@@ -175,12 +174,12 @@ impl RankedApp<'_> {
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
-
-    use super::{Launch, LaunchScope, LaunchTracker, LaunchWorkspace};
-    use crate::compositor_window_ipc::{
+    use sottomano_compositor_model::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
         compositor_window_state::{CompositorWindow, CompositorWindowState, CompositorWorkspace},
     };
+
+    use super::{Launch, LaunchScope, LaunchTracker, LaunchWorkspace};
 
     fn workspace(id: u64, name: &str) -> CompositorWorkspace {
         CompositorWorkspace {

@@ -93,9 +93,9 @@ mod tests {
     #[test]
     fn rows_are_the_union_of_member_quantities_in_declared_order() {
         let panels = [AlignedQuantity::Blur, AlignedQuantity::Opacity];
-        let niri = [AlignedQuantity::CornerRadius];
+        let compositor_layout = [AlignedQuantity::CornerRadius];
         assert_eq!(
-            aligned_quantity_rows([panels.to_vec(), niri.to_vec()]),
+            aligned_quantity_rows([panels.to_vec(), compositor_layout.to_vec()]),
             [
                 AlignedQuantity::Opacity,
                 AlignedQuantity::CornerRadius,

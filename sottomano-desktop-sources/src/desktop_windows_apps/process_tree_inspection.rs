@@ -13,7 +13,6 @@ use procfs::{
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
-use rustix::time::{ClockId, clock_gettime};
 use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -443,15 +442,6 @@ fn scope(process: &Proc) -> Option<String> {
     let unified = groups.0.iter().find(|group| group.hierarchy == 0)?;
     let unit = unified.pathname.rsplit('/').find(|part| !part.is_empty())?;
     Some(unit.to_owned())
-}
-
-#[must_use]
-pub fn monotonic() -> Duration {
-    let spec = clock_gettime(ClockId::Monotonic);
-    let secs = u64::try_from(spec.tv_sec).expect("monotonic clock seconds are never negative");
-    let nanos =
-        u32::try_from(spec.tv_nsec).expect("monotonic clock nanoseconds are below one second");
-    Duration::new(secs, nanos)
 }
 
 #[cfg(test)]

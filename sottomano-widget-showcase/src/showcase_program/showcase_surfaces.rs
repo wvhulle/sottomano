@@ -4,7 +4,7 @@ use iced::{
     alignment::Vertical,
     widget::{Column, Row, container},
 };
-use sottomano_desktop_sources::compositor_window_ipc::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMessage,

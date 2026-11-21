@@ -1,7 +1,6 @@
 use iced::Task;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
-    CompositorRequest, send_compositor_request,
-};
+use sottomano_compositor_model::compositor_requests::CompositorRequest;
+use sottomano_compositors::compositor_connection::send_compositor_request;
 use sottomano_toml_config::Config;
 
 use crate::background_work::logged_failure_task;

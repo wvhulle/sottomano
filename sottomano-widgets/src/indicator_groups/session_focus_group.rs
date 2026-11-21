@@ -9,11 +9,11 @@ mod window_usage;
 
 use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
+use sottomano_compositor_model::{
+    compositor_styling_model::HeatedWindow, compositor_window_state::CompositorWindowState,
+};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_styling_model::HeatedWindow, compositor_window_state::CompositorWindowState,
-    },
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{

@@ -6,13 +6,15 @@ use iced::{
     widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
+use sottomano_compositor_model::{
+    compositor_styling_model::AppWindowLayout, compositor_window_state::CompositorWindowState,
+};
 use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_styling_model::AppWindowLayout, compositor_window_state::CompositorWindowState,
-        niri_kdl_config::ConfiguredWorkspaces,
-    },
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::{desktop_entries::DesktopEntries, workspace_window_snapshot::Snapshot},
+    desktop_windows_apps::{
+        configured_workspace_order::ConfiguredWorkspaces, desktop_entries::DesktopEntries,
+        workspace_window_snapshot::Snapshot,
+    },
 };
 use sottomano_toml_config::{
     Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,

@@ -1,13 +1,8 @@
-use std::path::PathBuf;
-
-use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::imported_legacy_niri_styling;
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_styling_model::{
-        AppWindowLayout, CompositorStyling, ShellBlurDepth,
-    },
-    sqlite_state_store::{
-        StoreError, in_state_store, real, singleton_row, upsert_column, with_state_store,
-    },
+use sottomano_compositor_model::compositor_styling_model::{
+    AppWindowLayout, CompositorStyling, ShellBlurDepth,
+};
+use sottomano_desktop_sources::sqlite_state_store::{
+    StoreError, in_state_store, real, singleton_row, upsert_column, with_state_store,
 };
 
 const WINDOWS_BEHIND: &str = "windows_behind";
@@ -101,24 +96,18 @@ async fn write_blur_depth(
     .await
 }
 
-async fn stored_or_imported(
+async fn stored_or_default(
     connection: &turso::Connection,
-    config_home: PathBuf,
 ) -> Result<CompositorStyling, StoreError> {
-    if let StoredStyling::Partial(styling) = read_styling(connection).await? {
-        return Ok(styling);
-    }
-    let Some(imported) = imported_legacy_niri_styling(&config_home).await else {
-        return Ok(CompositorStyling::default());
-    };
-    write_layout(connection, imported.layout).await?;
-    write_blur_depth(connection, imported.blur_depth).await?;
-    Ok(imported)
+    Ok(match read_styling(connection).await? {
+        StoredStyling::Partial(styling) => styling,
+        StoredStyling::Empty => CompositorStyling::default(),
+    })
 }
 
-pub async fn load(config_home: PathBuf) -> CompositorStyling {
+pub async fn load() -> CompositorStyling {
     with_state_store("compositor styling: load failed", async |connection| {
-        stored_or_imported(connection, config_home).await
+        stored_or_default(connection).await
     })
     .await
     .unwrap_or_default()
@@ -134,16 +123,12 @@ pub async fn save_blur_depth(blur_depth: ShellBlurDepth) -> Result<(), StoreErro
 
 #[cfg(test)]
 mod tests {
-    use std::{env, fs, process};
-
-    use sottomano_desktop_sources::{
-        compositor_window_ipc::compositor_styling_model::{
-            AppWindowLayout, CompositorStyling, ShellBlurDepth,
-        },
-        sqlite_state_store::migrated_in_memory_store,
+    use sottomano_compositor_model::compositor_styling_model::{
+        AppWindowLayout, CompositorStyling, ShellBlurDepth,
     };
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{stored_or_imported, write_blur_depth, write_layout};
+    use super::{stored_or_default, write_blur_depth, write_layout};
 
     fn styled() -> CompositorStyling {
         CompositorStyling {
@@ -156,11 +141,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_empty_store_without_niri_rules_reads_the_defaults() {
+    async fn an_empty_store_reads_the_defaults() {
         let connection = migrated_in_memory_store().await;
-        let config_home = env::temp_dir().join("sottomano-styling-no-niri-rules");
         assert_eq!(
-            stored_or_imported(&connection, config_home).await.unwrap(),
+            stored_or_default(&connection).await.unwrap(),
             CompositorStyling::default()
         );
     }
@@ -172,11 +156,7 @@ mod tests {
         write_blur_depth(&connection, styled().blur_depth)
             .await
             .unwrap();
-        let config_home = env::temp_dir().join("sottomano-styling-stored");
-        assert_eq!(
-            stored_or_imported(&connection, config_home).await.unwrap(),
-            styled()
-        );
+        assert_eq!(stored_or_default(&connection).await.unwrap(), styled());
     }
 
     #[tokio::test]
@@ -185,36 +165,8 @@ mod tests {
         write_blur_depth(&connection, ShellBlurDepth::WallpaperOnly)
             .await
             .unwrap();
-        let config_home = env::temp_dir().join("sottomano-styling-lone-depth");
-        let stored = stored_or_imported(&connection, config_home).await.unwrap();
+        let stored = stored_or_default(&connection).await.unwrap();
         assert_eq!(stored.blur_depth, ShellBlurDepth::WallpaperOnly);
         assert_eq!(stored.layout, AppWindowLayout::default());
-    }
-
-    #[tokio::test]
-    async fn an_empty_store_imports_the_niri_rules_once() {
-        let connection = migrated_in_memory_store().await;
-        let config_home =
-            env::temp_dir().join(format!("sottomano-styling-import-{}", process::id()));
-        let rules_directory = config_home.join("sottomano");
-        fs::create_dir_all(&rules_directory).unwrap();
-        fs::write(
-            rules_directory.join("niri.kdl"),
-            "layer-rule {\n    match namespace=\"^sottomano-panel$\"\n    background-effect {\n        \
-             blur true\n        xray true\n    }\n}\nlayout {\n    gaps 5.0\n}\nwindow-rule {\n    \
-             geometry-corner-radius 7.0\n    clip-to-geometry true\n}\n",
-        )
-        .unwrap();
-        assert_eq!(
-            stored_or_imported(&connection, config_home.clone())
-                .await
-                .unwrap(),
-            styled()
-        );
-        fs::remove_dir_all(&config_home).unwrap();
-        assert_eq!(
-            stored_or_imported(&connection, config_home).await.unwrap(),
-            styled()
-        );
     }
 }

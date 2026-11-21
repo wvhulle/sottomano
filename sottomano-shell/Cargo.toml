@@ -18,6 +18,8 @@ workspace = true
 
 [dependencies]
 sottomano-toml-config = { path = "../sottomano-toml-config" }
+sottomano-compositor-model = { path = "../sottomano-compositor-model" }
+sottomano-compositors = { path = "../sottomano-compositors" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 corredo = { path = "../corredo" }
@@ -48,8 +50,8 @@ sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = 
 default = ["hyprland", "libvirt-domains", "niri", "sway"]
 devtools = ["iced_exwlshell/debug"]
 allocation-tally = []
-hyprland = ["sottomano-desktop-sinks/hyprland"]
+hyprland = ["sottomano-compositors/hyprland"]
 libvirt-domains = ["sottomano-desktop-sinks/libvirt-domains"]
-niri = ["sottomano-desktop-sinks/niri"]
-sway = ["sottomano-desktop-sinks/sway"]
+niri = ["sottomano-compositors/niri"]
+sway = ["sottomano-compositors/sway"]
 time-travel = ["iced_exwlshell/time-travel"]

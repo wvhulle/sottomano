@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -12,20 +13,18 @@ use iced::{
     window::Id,
 };
 use iced_controller_diagram::ControllerArtwork;
+use sottomano_compositor_model::{
+    compositor_output_facts, compositor_window_state::CompositorWindowState,
+};
 use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_rule_files::CompositorRulesFile,
+    compositor_rule_files::CompositorRulesFile,
     desktop_notifications::alert_sound_player::SoundTheme,
 };
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    compositor_window_ipc::{
-        compositor_output_facts,
-        compositor_window_state::CompositorWindowState,
-        niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
-    },
     desktop_windows_apps::{
-        app_launch_history::LaunchTracker, desktop_entries::DesktopEntries, desktop_entry_changes,
-        workspace_window_snapshot,
+        app_launch_history::LaunchTracker, configured_workspace_order::ConfiguredWorkspaces,
+        desktop_entries::DesktopEntries, desktop_entry_changes, workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -79,7 +78,7 @@ pub struct DesktopShell {
     pub pointer_drag: ShellDrag,
     pub typing_under_cards: TypingUnderCards,
     pub spring_load: Option<Handle>,
-    pub niri_config: NiriConfigFile,
+    pub config_home: PathBuf,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
 }
 
@@ -90,12 +89,12 @@ impl DesktopShell {
         config_file: ConfigFile,
         secrets: SecretPaths,
         compositor_rules: CompositorRulesFile,
-        niri_config: NiriConfigFile,
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("desktop shell init").entered();
         point_generic_font_families_at(&config.theme);
         let clock = Clock::real();
+        let config_home = compositor_rules.config_home.clone();
         let shell = Self {
             indicator_groups: ShellIndicatorGroups::new(&config, secrets, compositor_rules, clock),
             launch_tracker: LaunchTracker::default(),
@@ -115,7 +114,7 @@ impl DesktopShell {
             pointer_drag: ShellDrag::Idle,
             typing_under_cards: TypingUnderCards::new(clock.instant, &config.overlay_surfaces),
             spring_load: None,
-            niri_config,
+            config_home,
             configured_workspaces: None,
             theme: configured_theme(&config.theme.palette),
             wayland,
@@ -129,7 +128,7 @@ impl DesktopShell {
             Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
             Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
             shell.indicator_groups.load(clock),
-            shell.read_niri_workspace_order(),
+            shell.read_configured_workspace_order(),
             report_missing_compositor(),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),

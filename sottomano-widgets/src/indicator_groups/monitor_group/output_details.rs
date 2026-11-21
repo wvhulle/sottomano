@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_output_facts::{OutputInfo, OutputMode},
-    screen_brightness_color::clightd_backlight::{Backlight, BacklightKind},
+use sottomano_compositor_model::compositor_output_facts::{OutputInfo, OutputMode};
+use sottomano_desktop_sources::screen_brightness_color::clightd_backlight::{
+    Backlight, BacklightKind,
 };
 
 use crate::widgets::{

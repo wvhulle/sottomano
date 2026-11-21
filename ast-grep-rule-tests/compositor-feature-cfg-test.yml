@@ -1,0 +1,7 @@
+id: compositor-feature-cfg
+valid:
+  - "#[cfg(feature = \"libvirt-domains\")]\nfn domains() {}"
+  - "#[cfg(test)]\nmod tests {}"
+invalid:
+  - "#[cfg(feature = \"niri\")]\nfn workspaces() {}"
+  - "#[cfg(all(test, feature = \"hyprland\"))]\nmod tests {}"

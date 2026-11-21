@@ -10,13 +10,12 @@ use std::{
 
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
+use sottomano_compositor_model::compositor_output_facts::OutputInfo;
 use sottomano_desktop_sinks::screen_brightness_color::clightd_backlight_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    compositor_window_ipc::compositor_output_facts::OutputInfo,
     screen_brightness_color::{
-        clight_auto_brightness::AutoBrightness,
-        clightd_backlight::{self, Backlight},
+        clight_auto_brightness::AutoBrightness, clightd_backlight, clightd_backlight::Backlight,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

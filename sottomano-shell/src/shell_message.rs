@@ -2,19 +2,16 @@ use std::{collections::HashMap, sync::Arc};
 
 use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
-use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::CompositorRequestFailure,
-    desktop_notifications::alert_sound_player::SoundTheme,
+use sottomano_compositor_model::{
+    compositor_output_facts, compositor_requests::CompositorRequestFailure,
+    compositor_window_state::CompositorUpdate,
 };
+use sottomano_desktop_sinks::desktop_notifications::alert_sound_player::SoundTheme;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::{
-        compositor_output_facts, compositor_window_state::CompositorUpdate,
-        niri_kdl_config::ConfiguredWorkspaces,
-    },
     delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::{
-        app_launch_history::Launch, desktop_entries::DesktopEntries,
-        firefox_favicon_lookup::RawFavicon,
+        app_launch_history::Launch, configured_workspace_order::ConfiguredWorkspaces,
+        desktop_entries::DesktopEntries, firefox_favicon_lookup::RawFavicon,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
@@ -167,7 +164,7 @@ pub enum Message {
     IconThemeChanged(String),
     PointerDrag(DragMessage),
     CompositorRequestFailed(CompositorRequestFailure),
-    NiriConfigRead(Result<ConfiguredWorkspaces, String>),
+    ConfiguredWorkspacesRead(Result<ConfiguredWorkspaces, String>),
     DesktopBus(Result<DesktopBusEvent, zbus::Error>),
     Interaction(ShellInteraction),
 }

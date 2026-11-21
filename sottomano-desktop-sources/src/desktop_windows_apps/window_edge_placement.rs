@@ -1,10 +1,9 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use sottomano_toml_config::screen_edges::{HEdge, VEdge};
-
-use crate::compositor_window_ipc::compositor_window_state::{
+use sottomano_compositor_model::compositor_window_state::{
     CompositorWindow, CompositorWindowLayout, CompositorWindowState,
 };
+use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 
 #[derive(Debug, Clone)]
 pub struct WindowEdge {

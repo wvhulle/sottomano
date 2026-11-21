@@ -1,5 +1,5 @@
 use iced_exwlshell::SurfaceRegionsCollector;
-use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
+use sottomano_compositor_model::compositor_requests::CompositorRequestFailure;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuMessage,
