@@ -75,16 +75,8 @@
             checkoutDrv;
       };
 
-      awsLcInstallPrefix = pkgs.symlinkJoin {
-        name = "aws-lc-install-prefix";
-        paths = [
-          pkgs.aws-lc.dev
-          pkgs.aws-lc.out
-        ];
-      };
-
       linkedSystemLibraryEnv = {
-        AWS_LC_SYS_SYSTEM_DIR = "${awsLcInstallPrefix}";
+        AWS_LC_SYS_USE_SYSTEM = "1";
         ZSTD_SYS_USE_PKG_CONFIG = "1";
       };
 
@@ -103,6 +95,7 @@
           pkgs.systemd
           pkgs.pipewire
           pkgs.openssl
+          pkgs.aws-lc
           pkgs.libvirt
           pkgs.zstd
         ];
