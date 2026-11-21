@@ -8,6 +8,13 @@ mod activity_line;
 pub use activity_line::activity_line;
 mod duration_timeline;
 pub use duration_timeline::{
-    DurationTimeline, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineDensity,
-    TimelineMark, TimelineScale, TimelineSpan,
+    DurationTimeline, MarkShape, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis,
+    TimelineDensity, TimelineMark, TimelineScale, TimelineSpan,
+};
+#[cfg(feature = "chrono")]
+mod wall_clock_timeline;
+#[cfg(feature = "chrono")]
+pub use wall_clock_timeline::{
+    ClockScale, ClockSpan, ClockWindow, EdgeEvent, EventGlyph, EventMeasure, SpanCaption,
+    SpanEdges, TimePrecision, TimelineEvent, TimelineTextFormat, WallClockTimeline,
 };

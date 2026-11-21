@@ -17,7 +17,8 @@ use iced::{
 };
 
 pub use self::timeline_layout::{
-    RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark, TimelineScale, TimelineSpan,
+    MarkShape, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark, TimelineScale,
+    TimelineSpan,
 };
 use self::{
     timeline_layout::{
@@ -41,7 +42,10 @@ const GLYPH_GAP_PX: f32 = 2.0;
 const COLUMN_GAP_PX: f32 = 8.0;
 const MINUTES_PER_ROW: f32 = 10.0;
 const LONGEST_GAP_ROWS: f32 = 4.0;
+const MARK_SPACING_ROWS: f32 = 1.6;
 const COMPRESSION_TICK_PX: f32 = 4.0;
+const EVENT_RING_SCALE: f32 = 1.5;
+const EVENT_GLYPH_SCALE: f32 = 0.7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NowCursor {
@@ -124,25 +128,42 @@ impl DurationTimeline {
 
     fn column_layout(&self) -> ColumnLayout {
         let size_px = self.label_face.size_px;
-        let widest_text = |text_of: fn(&TimelineMark) -> &str| {
+        let widest_text = |shape_filter: fn(&MarkShape) -> bool,
+                           text_of: fn(&TimelineMark) -> String| {
             self.marks
                 .iter()
-                .map(|mark| estimated_text_width(text_of(mark), size_px))
+                .filter(|mark| shape_filter(&mark.shape))
+                .map(|mark| estimated_text_width(&text_of(mark), size_px))
                 .fold(0.0, f32::max)
         };
-        let time_column_width = widest_text(|mark| &mark.time_text);
-        let widest_glyph_run = self
+        let is_event = |shape: &MarkShape| *shape == MarkShape::PointEvent;
+        let is_interval = |shape: &MarkShape| matches!(shape, MarkShape::Interval { .. });
+        let time_column_width = widest_text(is_event, |mark| mark.time_text.clone());
+        let event_detail_x = time_column_width + COLUMN_GAP_PX;
+        let ring_extent = size_px * EVENT_RING_SCALE;
+        let rail_x = event_detail_x
+            + widest_text(is_event, |mark| mark.detail_text.clone())
+            + COLUMN_GAP_PX
+            + ring_extent / 2.0;
+        let interval_glyph_x = rail_x + ring_extent / 2.0 + COLUMN_GAP_PX;
+        let widest_interval_glyph_run = self
             .marks
             .iter()
+            .filter(|mark| is_interval(&mark.shape))
             .map(|mark| self.glyph_extent(mark.glyph_svgs.len()))
-            .fold(size_px, f32::max);
-        let rail_x = time_column_width + COLUMN_GAP_PX + widest_glyph_run / 2.0;
-        let detail_x = rail_x + widest_glyph_run / 2.0 + COLUMN_GAP_PX;
+            .fold(0.0, f32::max);
+        let interval_text_x = if widest_interval_glyph_run > 0.0 {
+            interval_glyph_x + widest_interval_glyph_run + GLYPH_GAP_PX * 2.0
+        } else {
+            interval_glyph_x
+        };
         ColumnLayout {
             time_column_width,
+            event_detail_x,
             rail_x,
-            detail_x,
-            natural_width: detail_x + widest_text(|mark| &mark.detail_text),
+            interval_glyph_x,
+            interval_text_x,
+            natural_width: interval_text_x + widest_text(is_interval, interval_label_text),
         }
     }
 
@@ -162,12 +183,13 @@ impl DurationTimeline {
 
     fn vertical_scale(&self) -> VerticalScale {
         let row_height_px = self.row_height();
-        let mark_times: Vec<Duration> = self.marks.iter().map(|mark| mark.at).collect();
+        let mark_times: Vec<Duration> = self.marks.iter().map(TimelineMark::label_anchor).collect();
         VerticalScale::laid_out(
             &mark_times,
             self.axis.span_end,
             VerticalMetrics {
                 row_height_px,
+                mark_spacing_px: row_height_px * MARK_SPACING_ROWS,
                 pixels_per_minute: row_height_px / MINUTES_PER_ROW,
                 longest_gap_px: row_height_px * LONGEST_GAP_ROWS,
             },
@@ -181,14 +203,7 @@ impl DurationTimeline {
         center: Point,
         color: Color,
     ) {
-        let size_px = self.label_face.size_px;
-        frame.draw_svg(
-            Rectangle::new(
-                Point::new(center.x - size_px / 2.0, center.y - size_px / 2.0),
-                Size::new(size_px, size_px),
-            ),
-            Svg::new(svg::Handle::from_memory(glyph_svg)).color(color),
-        );
+        draw_glyph_sized(frame, glyph_svg, center, color, self.label_face.size_px);
     }
 
     fn draw_spans_along(
@@ -271,20 +286,23 @@ impl DurationTimeline {
     fn draw_labeled_column(&self, frame: &mut canvas::Frame, theme: &Theme) {
         let scale = self.vertical_scale();
         let size_px = self.label_face.size_px;
+        let ring_radius = size_px * EVENT_RING_SCALE / 2.0;
         let ColumnLayout {
             time_column_width,
+            event_detail_x,
             rail_x,
-            detail_x,
+            interval_glyph_x,
+            interval_text_x,
             ..
         } = self.column_layout();
-        let glyph_runs: Vec<PixelRun> = self
+        let ring_runs: Vec<PixelRun> = self
             .marks
             .iter()
             .zip(&scale.mark_ys)
-            .filter(|(mark, _)| !mark.glyph_svgs.is_empty())
+            .filter(|(mark, _)| mark.shape == MarkShape::PointEvent && !mark.glyph_svgs.is_empty())
             .map(|(_, mark_y)| PixelRun {
-                start: mark_y - size_px / 2.0,
-                end: mark_y + size_px / 2.0,
+                start: mark_y - ring_radius,
+                end: mark_y + ring_radius,
             })
             .chain(scale.compressed_gap_ys.iter().map(|gap_y| PixelRun {
                 start: gap_y - COMPRESSION_TICK_PX,
@@ -297,7 +315,7 @@ impl DurationTimeline {
                 start: scale.top_y(),
                 end: scale.bottom_y(),
             },
-            gaps: padded_gaps(&glyph_runs),
+            gaps: padded_gaps(&ring_runs),
         };
         self.draw_spans_along(frame, theme, &rail, |offset| scale.y_of(offset));
         for gap_y in &scale.compressed_gap_ys {
@@ -312,35 +330,78 @@ impl DurationTimeline {
             }
         }
         for (mark, mark_y) in self.marks.iter().zip(&scale.mark_ys) {
-            let glyph_extent = self.glyph_extent(mark.glyph_svgs.len());
-            for (glyph_index, glyph_svg) in mark.glyph_svgs.iter().enumerate() {
-                #[expect(
-                    clippy::cast_precision_loss,
-                    reason = "a mark joins a handful of glyphs"
-                )]
-                let glyph_center_x = rail_x - glyph_extent / 2.0
-                    + size_px / 2.0
-                    + glyph_index as f32 * (size_px + GLYPH_GAP_PX);
-                self.draw_glyph(
-                    frame,
-                    glyph_svg,
-                    Point::new(glyph_center_x, *mark_y),
-                    ink_color(mark.ink, theme),
-                );
+            let mark_color = ink_color(mark.ink, theme);
+            match mark.shape {
+                MarkShape::PointEvent => {
+                    self.draw_event_ring(frame, mark, Point::new(rail_x, *mark_y), mark_color);
+                    frame.fill_text(self.label_text(
+                        &mark.time_text,
+                        Point::new(time_column_width, *mark_y),
+                        Alignment::Right,
+                        secondary_text_color(theme),
+                    ));
+                    frame.fill_text(self.label_text(
+                        &mark.detail_text,
+                        Point::new(event_detail_x, *mark_y),
+                        Alignment::Left,
+                        text_color(theme),
+                    ));
+                }
+                MarkShape::Interval { .. } => {
+                    let faint_color = secondary_text_color(theme);
+                    for (glyph_index, glyph_svg) in mark.glyph_svgs.iter().enumerate() {
+                        #[expect(
+                            clippy::cast_precision_loss,
+                            reason = "a mark joins a handful of glyphs"
+                        )]
+                        let glyph_center_x = interval_glyph_x
+                            + size_px / 2.0
+                            + glyph_index as f32 * (size_px + GLYPH_GAP_PX);
+                        self.draw_glyph(
+                            frame,
+                            glyph_svg,
+                            Point::new(glyph_center_x, *mark_y),
+                            faint_color,
+                        );
+                    }
+                    frame.fill_text(self.label_text(
+                        &interval_label_text(mark),
+                        Point::new(interval_text_x, *mark_y),
+                        Alignment::Left,
+                        faint_color,
+                    ));
+                }
             }
-            frame.fill_text(self.label_text(
-                &mark.time_text,
-                Point::new(time_column_width, *mark_y),
-                Alignment::Right,
-                secondary_text_color(theme),
-            ));
-            frame.fill_text(self.label_text(
-                &mark.detail_text,
-                Point::new(detail_x, *mark_y),
-                Alignment::Left,
-                text_color(theme),
-            ));
         }
+    }
+
+    fn draw_event_ring(
+        &self,
+        frame: &mut canvas::Frame,
+        mark: &TimelineMark,
+        center: Point,
+        color: Color,
+    ) {
+        let Some(first_glyph) = mark.glyph_svgs.first() else {
+            return;
+        };
+        let size_px = self.label_face.size_px;
+        frame.stroke(
+            &canvas::Path::circle(
+                center,
+                size_px * EVENT_RING_SCALE / 2.0 - THIN_STROKE_PX / 2.0,
+            ),
+            Stroke::default()
+                .with_color(color)
+                .with_width(THIN_STROKE_PX / 1.5),
+        );
+        draw_glyph_sized(
+            frame,
+            first_glyph,
+            center,
+            color,
+            size_px * EVENT_GLYPH_SCALE,
+        );
     }
 
     fn label_text(
@@ -367,8 +428,10 @@ impl DurationTimeline {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct ColumnLayout {
     time_column_width: f32,
+    event_detail_x: f32,
     rail_x: f32,
-    detail_x: f32,
+    interval_glyph_x: f32,
+    interval_text_x: f32,
     natural_width: f32,
 }
 
@@ -403,6 +466,26 @@ impl RailGeometry {
             );
         }
     }
+}
+
+fn draw_glyph_sized(
+    frame: &mut canvas::Frame,
+    glyph_svg: &'static [u8],
+    center: Point,
+    color: Color,
+    size_px: f32,
+) {
+    frame.draw_svg(
+        Rectangle::new(
+            Point::new(center.x - size_px / 2.0, center.y - size_px / 2.0),
+            Size::new(size_px, size_px),
+        ),
+        Svg::new(svg::Handle::from_memory(glyph_svg)).color(color),
+    );
+}
+
+fn interval_label_text(mark: &TimelineMark) -> String {
+    mark.detail_text.clone()
 }
 
 fn padded_gaps(glyph_runs: &[PixelRun]) -> Vec<PixelRun> {

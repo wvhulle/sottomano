@@ -42,7 +42,7 @@ impl SessionFace<'_> {
             .map(|ScreenRun { since }| now - since)
     }
 
-    fn severity(&self, now: DateTime<Utc>) -> Severity {
+    pub(super) fn severity(&self, now: DateTime<Utc>) -> Severity {
         let config = self.accounting.config;
         let critical = config.session_critical;
         let warning = config.session_warning;
@@ -123,6 +123,26 @@ impl SessionFace<'_> {
         [self.current_session(now), self.session_alerts()]
     }
 
+    pub(super) fn long_session_alerts(
+        &self,
+        now: DateTime<Utc>,
+        locale: Locale,
+    ) -> IndicatorAlerts {
+        let body = match self.screen_run_summary(now, locale) {
+            Some(summary) => ToastBody::Text(summary),
+            None => ToastBody::Bodiless,
+        };
+        IndicatorAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Warning,
+                summary_text: "Long focus session",
+                body,
+                progress: ToastProgress::Unmeasured,
+            },
+            ..IndicatorAlerts::default()
+        }
+    }
+
     fn current_session(&self, now: DateTime<Utc>) -> Section {
         let last_break = self.accounting.last_break(now);
         let entries = [
@@ -174,10 +194,7 @@ impl<'a> SessionFace<'a> {
             .map(|run_length| TimeDelta::minutes(run_length.num_minutes()))
             .filter(|whole_minutes| !whole_minutes.is_zero())
             .map(|whole_minutes| duration_text(whole_minutes, locale));
-        let body = match self.screen_run_summary(clock.utc(), locale) {
-            Some(summary) => ToastBody::Text(summary),
-            None => ToastBody::Bodiless,
-        };
+        let alerts = self.long_session_alerts(clock.utc(), locale);
         GroupIndicator::glyph_only(
             "Current focus",
             Phosphor::UserFocus(Weight::Regular).into(),
@@ -191,15 +208,7 @@ impl<'a> SessionFace<'a> {
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         })
-        .with_alerts(IndicatorAlerts {
-            state_toast: StateToast::NotifyFromSeverity {
-                minimum_severity: Severity::Warning,
-                summary_text: "Long focus session",
-                body,
-                progress: ToastProgress::Unmeasured,
-            },
-            ..IndicatorAlerts::default()
-        })
+        .with_alerts(alerts)
         .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
     }
 

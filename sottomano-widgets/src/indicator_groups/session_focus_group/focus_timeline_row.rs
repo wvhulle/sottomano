@@ -1,39 +1,26 @@
-use std::time::Duration;
+use std::borrow::Cow;
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use corredo::{
     gauges::{
-        DurationTimeline, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark,
-        TimelineScale, TimelineSpan,
+        ClockSpan, DurationTimeline, EdgeEvent, EventGlyph, EventMeasure, RailPresence,
+        SpanCaption, SpanEdges, SpanInk, SpanWeight, TimePrecision, TimelineEvent,
+        WallClockTimeline,
     },
     theming::TextFace,
 };
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
-    Accounting, BreakCause, Interval, LAST_DAY, ScreenRun, TakenBreak,
+    Accounting, BreakCause, FocusRun, FocusUnit, Interval, LAST_DAY, ScreenRun, TakenBreak,
 };
 
 use super::session_face::SessionFace;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    widgets::{localized_durations::duration_text, localized_time::LocalizedTimeFormat},
+    widgets::{localized_durations::duration_text, localized_timeline_text::LocalizedTimelineText},
 };
 
-const FOCUS_TIMELINE_LOOKBACK: TimeDelta = TimeDelta::hours(4);
-const SPAN_END_MARGIN_DIVISOR: i32 = 12;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct TimelineWindow {
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-}
-
-impl TimelineWindow {
-    fn offset_of(self, at: DateTime<Utc>) -> Duration {
-        (at.clamp(self.start, self.end) - self.start)
-            .to_std()
-            .expect("a moment clamped into the window lies after its start")
-    }
-}
+const FOCUS_TIMELINE_LOOKBACK: TimeDelta = TimeDelta::hours(24);
+const END_MARGIN_FRACTION: f64 = 1.0 / 12.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SessionDue {
@@ -89,16 +76,45 @@ fn break_glyph(cause: BreakCause) -> Phosphor {
     }
 }
 
-fn break_span(window: TimelineWindow, taken: &TakenBreak) -> TimelineSpan {
-    let (ink, weight) = match taken.cause {
-        BreakCause::Asleep => (SpanInk::Strong, SpanWeight::Thick),
-        BreakCause::ScreenOff | BreakCause::LongIdle => (SpanInk::Strong, SpanWeight::Thin),
+fn focus_unit_glyph(unit: &FocusUnit) -> Phosphor {
+    match unit {
+        FocusUnit::Project(_) => Phosphor::FolderSimple(Weight::Regular),
+        FocusUnit::App(_) => Phosphor::AppWindow(Weight::Regular),
+    }
+}
+
+fn edge_event(glyph: Phosphor, title: &'static str) -> EdgeEvent {
+    EdgeEvent {
+        glyph: EventGlyph::Svg(glyph.svg_data()),
+        title: Cow::Borrowed(title),
+        ink: SpanInk::Strong,
+    }
+}
+
+fn break_start_title(cause: BreakCause) -> &'static str {
+    match cause {
+        BreakCause::LongIdle => "Idle",
+        BreakCause::ScreenOff => "Screen off",
+        BreakCause::Asleep => "Asleep",
+    }
+}
+
+fn break_span(taken: &TakenBreak) -> ClockSpan {
+    let Interval { from, until } = taken.interval;
+    let weight = match taken.cause {
+        BreakCause::Asleep => SpanWeight::Thick,
+        BreakCause::ScreenOff | BreakCause::LongIdle => SpanWeight::Thin,
     };
-    TimelineSpan {
-        from: window.offset_of(taken.interval.from),
-        until: window.offset_of(taken.interval.until),
-        ink,
+    ClockSpan {
+        from,
+        until,
+        ink: SpanInk::Strong,
         weight,
+        edges: SpanEdges::Marked {
+            start: edge_event(break_glyph(taken.cause), break_start_title(taken.cause)),
+            end: edge_event(Phosphor::Keyboard(Weight::Regular), "Active again"),
+        },
+        caption: SpanCaption::TitledLength(Cow::Borrowed("Break")),
     }
 }
 
@@ -109,19 +125,6 @@ pub(super) struct FocusTimeline<'a> {
 impl<'a> FocusTimeline<'a> {
     fn accounting(&self) -> Accounting<'a> {
         self.session_face.accounting
-    }
-
-    pub(super) fn window(&self, now: DateTime<Utc>) -> TimelineWindow {
-        let config = self.accounting().config;
-        let horizon = match self.accounting().screen_run(now) {
-            Some(ScreenRun { since }) => (since + config.session_critical).max(now),
-            None => now + config.session_warning,
-        };
-        let start = now - FOCUS_TIMELINE_LOOKBACK;
-        TimelineWindow {
-            start,
-            end: horizon + (horizon - start) / SPAN_END_MARGIN_DIVISOR,
-        }
     }
 
     pub(super) fn due_moments(&self, now: DateTime<Utc>) -> Vec<DueMoment> {
@@ -151,32 +154,122 @@ impl<'a> FocusTimeline<'a> {
         thresholds.into_iter().flatten().chain(snooze_end).collect()
     }
 
-    pub(super) fn breaks_in_window(&self, now: DateTime<Utc>) -> Vec<TakenBreak> {
-        let window_start = self.window(now).start;
+    pub(super) fn longest_past_session(&self, now: DateTime<Utc>) -> Option<Interval> {
+        let current_since = self
+            .accounting()
+            .screen_run(now)
+            .map(|ScreenRun { since }| since);
         self.accounting()
-            .taken_breaks_within(LAST_DAY.ending_at(now), now)
-            .into_iter()
-            .filter(|taken| taken.interval.until > window_start)
-            .collect()
+            .longest_session_within(LAST_DAY.ending_at(now), now)
+            .filter(|session| Some(session.from) != current_since)
     }
 
-    pub(super) fn timeline_spans(&self, now: DateTime<Utc>) -> Vec<TimelineSpan> {
-        let window = self.window(now);
+    pub(super) fn now_event(&self, now: DateTime<Utc>) -> TimelineEvent {
+        let (title, measure) = match self.accounting().screen_run(now) {
+            None => (Cow::Borrowed("Now on a break"), EventMeasure::Unmeasured),
+            Some(ScreenRun { since }) => (
+                match self.accounting().dominant_run(now) {
+                    Some(run) => Cow::Owned(format!("Now on {}", run.unit.label())),
+                    None => Cow::Borrowed("Now focused"),
+                },
+                EventMeasure::Lasting(now - since),
+            ),
+        };
+        TimelineEvent {
+            at: now,
+            precision: TimePrecision::Exact,
+            glyph: EventGlyph::Plain,
+            title,
+            measure,
+            ink: SpanInk::Strong,
+            rail_presence: RailPresence::LabeledColumnOnly,
+        }
+    }
+
+    pub(super) fn break_due_text(&self, now: DateTime<Utc>, locale: Locale) -> String {
+        let minutes_text =
+            |length: TimeDelta| duration_text(TimeDelta::minutes(length.num_minutes()), locale);
+        let Some(ScreenRun { since }) = self.accounting().screen_run(now) else {
+            return match self.accounting().last_break(now) {
+                Some(Interval { from, .. }) => format!("On break {}", minutes_text(now - from)),
+                None => "On break".to_owned(),
+            };
+        };
+        let break_due_at = since + self.accounting().config.session_warning;
+        match self.session_face.snoozed_until(now) {
+            Some(until) => format!("Break reminder in {}", minutes_text(until - now)),
+            None if break_due_at > now => {
+                format!("Break due in {}", minutes_text(break_due_at - now))
+            }
+            None => format!("Break overdue {}", minutes_text(now - break_due_at)),
+        }
+    }
+
+    fn due_event(moment: DueMoment) -> TimelineEvent {
+        TimelineEvent {
+            at: moment.at,
+            precision: TimePrecision::Exact,
+            glyph: EventGlyph::Svg(moment.due.glyph().svg_data()),
+            title: Cow::Borrowed(moment.due.title()),
+            measure: match moment.after_run_start {
+                RunOffset::Counted(offset) => EventMeasure::OffsetFromAnchor(offset),
+                RunOffset::Uncounted => EventMeasure::Unmeasured,
+            },
+            ink: moment.due.ink(),
+            rail_presence: RailPresence::OnCompactRail,
+        }
+    }
+
+    pub(super) fn clock_timeline(&self, now: DateTime<Utc>) -> WallClockTimeline {
         let break_spans = self
-            .breaks_in_window(now)
-            .into_iter()
-            .map(|taken| break_span(window, &taken))
+            .accounting()
+            .taken_breaks_within(LAST_DAY.ending_at(now), now)
+            .iter()
+            .map(break_span)
             .collect::<Vec<_>>();
+        let longest_session_span = self.longest_past_session(now).map(|session| ClockSpan {
+            from: session.from,
+            until: session.until,
+            ink: SpanInk::Accent,
+            weight: SpanWeight::Thin,
+            edges: SpanEdges::Unmarked,
+            caption: SpanCaption::TitledLength(Cow::Borrowed("Longest session")),
+        });
         let run_span = self
             .accounting()
             .screen_run(now)
-            .map(|ScreenRun { since }| TimelineSpan {
-                from: window.offset_of(since),
-                until: window.offset_of(now),
+            .map(|ScreenRun { since }| ClockSpan {
+                from: since,
+                until: now,
                 ink: SpanInk::Accent,
                 weight: SpanWeight::Thick,
+                edges: SpanEdges::Unmarked,
+                caption: SpanCaption::Hidden,
             });
-        break_spans.into_iter().chain(run_span).collect()
+        let run_events = self
+            .accounting()
+            .runs(now)
+            .into_iter()
+            .map(|FocusRun { unit, since }| TimelineEvent {
+                at: since,
+                precision: TimePrecision::Exact,
+                glyph: EventGlyph::Svg(focus_unit_glyph(&unit).svg_data()),
+                title: Cow::Owned(format!("On {} {}", unit.kind_label(), unit.label())),
+                measure: EventMeasure::Unmeasured,
+                ink: SpanInk::Accent,
+                rail_presence: RailPresence::LabeledColumnOnly,
+            });
+        let due_events = self.due_moments(now).into_iter().map(Self::due_event);
+        WallClockTimeline::new(now)
+            .lookback(FOCUS_TIMELINE_LOOKBACK)
+            .end_margin_fraction(END_MARGIN_FRACTION)
+            .clock_spans(
+                break_spans
+                    .into_iter()
+                    .chain(longest_session_span)
+                    .chain(run_span),
+            )
+            .events(run_events.chain([self.now_event(now)]).chain(due_events))
     }
 
     pub(super) fn timeline(
@@ -185,73 +278,8 @@ impl<'a> FocusTimeline<'a> {
         locale: Locale,
         label_face: TextFace,
     ) -> DurationTimeline {
-        let window = self.window(now);
-        let clock_text = |at: DateTime<Utc>| LocalizedTimeFormat::HourAndMinute.format(&at, locale);
-        let due_marks = self.due_moments(now).into_iter().map(|moment| {
-            let detail_text = match moment.after_run_start {
-                RunOffset::Counted(offset) => {
-                    format!(
-                        "{} · +{}",
-                        moment.due.title(),
-                        duration_text(offset, locale)
-                    )
-                }
-                RunOffset::Uncounted => moment.due.title().to_owned(),
-            };
-            TimelineMark {
-                at: window.offset_of(moment.at),
-                glyph_svgs: vec![moment.due.glyph().svg_data()],
-                time_text: clock_text(moment.at),
-                detail_text,
-                ink: moment.due.ink(),
-                rail_presence: RailPresence::OnCompactRail,
-            }
-        });
-        let break_marks = self.breaks_in_window(now).into_iter().map(|taken| {
-            let Interval { from, until } = taken.interval;
-            let detail_text = if until >= now {
-                format!("Break · {}, ongoing", taken.cause.label())
-            } else {
-                format!(
-                    "Break {} · {}",
-                    duration_text(until - from, locale),
-                    taken.cause.label()
-                )
-            };
-            TimelineMark {
-                at: window.offset_of(from),
-                glyph_svgs: vec![break_glyph(taken.cause).svg_data()],
-                time_text: clock_text(from),
-                detail_text,
-                ink: SpanInk::Strong,
-                rail_presence: RailPresence::LabeledColumnOnly,
-            }
-        });
-        let now_detail = match self.accounting().screen_run(now) {
-            Some(ScreenRun { since }) => format!(
-                "Now · focused {}",
-                duration_text(TimeDelta::minutes((now - since).num_minutes()), locale)
-            ),
-            None => "Now · on a break".to_owned(),
-        };
-        let now_mark = TimelineMark {
-            at: window.offset_of(now),
-            glyph_svgs: Vec::new(),
-            time_text: clock_text(now),
-            detail_text: now_detail,
-            ink: SpanInk::Strong,
-            rail_presence: RailPresence::LabeledColumnOnly,
-        };
-        DurationTimeline::new(
-            TimelineAxis {
-                span_end: window.offset_of(window.end),
-                scale: TimelineScale::Linear,
-            },
-            label_face,
-        )
-        .spans(self.timeline_spans(now))
-        .marks(break_marks.chain([now_mark]).chain(due_marks).collect())
-        .now_cursor(NowCursor::Shown(window.offset_of(now)))
+        self.clock_timeline(now)
+            .duration_timeline(label_face, &LocalizedTimelineText { locale })
     }
 }
 
@@ -259,10 +287,10 @@ impl<'a> FocusTimeline<'a> {
 mod tests {
     use std::time::Duration;
 
-    use chrono::{DateTime, TimeDelta, Utc};
+    use chrono::{DateTime, Locale, TimeDelta, Utc};
     use corredo::gauges::{SpanInk, SpanWeight, TimelineSpan};
     use sottomano_desktop_sources::login_session_presence::{
-        focus_time_ledger::{FocusLedger, FocusSignal, Focused, ScreenEdge},
+        focus_time_ledger::{FocusLedger, FocusSignal, Focused, Interval, ScreenEdge},
         logind_manager::SleepEdge,
     };
     use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
@@ -309,7 +337,7 @@ mod tests {
     }
 
     fn minutes_after_window_start(minutes: u64) -> Duration {
-        Duration::from_mins(minutes + 110)
+        Duration::from_mins(minutes - 20)
     }
 
     #[test]
@@ -323,7 +351,7 @@ mod tests {
             },
         };
         assert_eq!(
-            timeline.timeline_spans(at(130)),
+            timeline.clock_timeline(at(130)).spans(),
             vec![
                 TimelineSpan {
                     from: minutes_after_window_start(20),
@@ -372,7 +400,7 @@ mod tests {
                 },
             ]
         );
-        assert!(timeline.window(at(130)).end > at(190));
+        assert!(timeline.clock_timeline(at(130)).window().end > at(190));
     }
 
     #[test]
@@ -388,9 +416,67 @@ mod tests {
         assert_eq!(timeline.due_moments(at(80)), Vec::new());
         assert!(
             timeline
-                .timeline_spans(at(80))
+                .clock_timeline(at(80))
+                .spans()
                 .iter()
-                .all(|span| span.ink != SpanInk::Accent)
+                .all(|span| (span.ink, span.weight) != (SpanInk::Accent, SpanWeight::Thick))
         );
+    }
+
+    #[test]
+    fn the_row_says_when_a_break_is_due_or_how_long_the_break_lasts() {
+        let config = config();
+        let ledger = ledger_with_two_breaks();
+        let timeline = FocusTimeline {
+            session_face: SessionFace {
+                accounting: ledger.accounted(&config),
+                snooze: None,
+            },
+        };
+        assert_eq!(
+            timeline.break_due_text(at(130), Locale::en_US),
+            "Break due in 15m"
+        );
+        assert_eq!(
+            timeline.break_due_text(at(160), Locale::en_US),
+            "Break overdue 15m"
+        );
+        assert_eq!(
+            timeline.break_due_text(at(80), Locale::en_US),
+            "On break 20m"
+        );
+    }
+
+    #[test]
+    fn the_longest_past_session_gets_its_own_span() {
+        let config = config();
+        let ledger = ledger_with_two_breaks();
+        let timeline = FocusTimeline {
+            session_face: SessionFace {
+                accounting: ledger.accounted(&config),
+                snooze: None,
+            },
+        };
+        assert_eq!(
+            timeline.longest_past_session(at(80)),
+            Some(Interval {
+                from: at(35),
+                until: at(60),
+            })
+        );
+    }
+
+    #[test]
+    fn the_now_mark_names_the_unit_of_the_current_run() {
+        let config = config();
+        let ledger = ledger_with_two_breaks();
+        let timeline = FocusTimeline {
+            session_face: SessionFace {
+                accounting: ledger.accounted(&config),
+                snooze: None,
+            },
+        };
+        assert_eq!(timeline.now_event(at(130)).title, "Now on kitty");
+        assert_eq!(timeline.now_event(at(80)).title, "Now on a break");
     }
 }

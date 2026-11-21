@@ -9,7 +9,7 @@ use super::{
     chain_stage_rows::{
         HibernateDelayApply, hibernate_delay_failure_row, system_hibernate_delay_row,
     },
-    idle_timeline_row::idle_timeline,
+    idle_timeline_row::{first_stage_text, idle_timeline},
     pause_blocker_indicators::{
         PauseBlocker, ScheduledShutdownIndicator, blocker_sections, sleep_state_sections,
     },
@@ -19,8 +19,8 @@ use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_state::IndicatorState,
-        slider_control::SliderActivity, timeline_row::timeline_row,
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        indicator_state::IndicatorState, slider_control::SliderActivity,
     },
     hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
     indicator_groups::{
@@ -198,13 +198,19 @@ impl IdlePauseGroups {
         rows
     }
 
-    fn timeline_indicator<'a>(&'a self, config: &'a Config, clock: Clock) -> GroupIndicator<'a> {
-        timeline_row(
+    fn timeline_indicator<'a>(&'a self, config: &'a Config) -> GroupIndicator<'a> {
+        GroupIndicator::glyph_only(
             "Timeline",
             Phosphor::ClockCountdown(Weight::Regular).into(),
-            move || self.shown_idle_timeline(config, clock),
-            Box::new(move |card_clock| self.timeline_sections(config, card_clock)),
+            IndicatorState::Idle,
         )
+        .with_label(ReadoutLabel::Labeled(first_stage_text(
+            &self.chain_of(IdleTimer::shown_setting),
+            config.calendar.locale,
+        )))
+        .with_hover_card(Box::new(move |card_clock| {
+            self.timeline_sections(config, card_clock)
+        }))
     }
 
     fn headline_state(&self) -> IndicatorState {
@@ -221,7 +227,7 @@ impl IdlePauseGroups {
         config: &'a Config,
         clock: Clock,
     ) -> IndicatorGroupContent<'a> {
-        let rows = [self.timeline_indicator(config, clock)].into_iter().chain(
+        let rows = [self.timeline_indicator(config)].into_iter().chain(
             IdleAction::ALL
                 .into_iter()
                 .flat_map(|pause| self.stage_rows(pause, config, clock)),

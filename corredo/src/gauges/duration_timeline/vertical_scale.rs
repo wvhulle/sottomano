@@ -3,6 +3,7 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct VerticalMetrics {
     pub row_height_px: f32,
+    pub mark_spacing_px: f32,
     pub pixels_per_minute: f32,
     pub longest_gap_px: f32,
 }
@@ -73,7 +74,7 @@ impl VerticalScale {
                     }
                     let readable_gap = match (previous_kind, kind) {
                         (AnchorKind::Mark, AnchorKind::Mark) => {
-                            capped_gap.max(metrics.row_height_px)
+                            capped_gap.max(metrics.mark_spacing_px)
                         }
                         (AnchorKind::Edge | AnchorKind::Mark, _) => capped_gap,
                     };
@@ -135,6 +136,7 @@ mod tests {
 
     const METRICS: VerticalMetrics = VerticalMetrics {
         row_height_px: 20.0,
+        mark_spacing_px: 30.0,
         pixels_per_minute: 2.0,
         longest_gap_px: 80.0,
     };
@@ -151,9 +153,9 @@ mod tests {
     }
 
     #[test]
-    fn marks_at_the_same_time_get_a_line_each() {
+    fn marks_at_the_same_time_keep_a_spaced_line_each() {
         let scale = VerticalScale::laid_out(&[minutes(15), minutes(15)], minutes(20), METRICS);
-        assert_eq!(scale.mark_ys, vec![40.0, 60.0]);
+        assert_eq!(scale.mark_ys, vec![40.0, 70.0]);
     }
 
     #[test]

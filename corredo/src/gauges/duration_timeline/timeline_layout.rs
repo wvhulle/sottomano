@@ -61,9 +61,16 @@ pub struct TimelineSpan {
     pub weight: SpanWeight,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkShape {
+    PointEvent,
+    Interval { until: Duration },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimelineMark {
     pub at: Duration,
+    pub shape: MarkShape,
     pub glyph_svgs: Vec<&'static [u8]>,
     pub time_text: String,
     pub detail_text: String,
@@ -77,9 +84,25 @@ pub enum RailPresence {
     LabeledColumnOnly,
 }
 
+impl TimelineMark {
+    #[must_use]
+    pub fn label_anchor(&self) -> Duration {
+        match self.shape {
+            MarkShape::PointEvent => self.at,
+            MarkShape::Interval { until } => {
+                self.at
+                    + until
+                        .checked_sub(self.at)
+                        .expect("an interval ends after it starts")
+                        / 2
+            }
+        }
+    }
+}
+
 pub(super) fn marks_in_time_order(marks: Vec<TimelineMark>) -> Vec<TimelineMark> {
     let mut ordered_marks = marks;
-    ordered_marks.sort_by_key(|mark| mark.at);
+    ordered_marks.sort_by_key(TimelineMark::label_anchor);
     ordered_marks
 }
 
@@ -153,7 +176,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        PixelRun, RailPresence, SpanInk, TimelineAxis, TimelineMark, TimelineScale,
+        MarkShape, PixelRun, RailPresence, SpanInk, TimelineAxis, TimelineMark, TimelineScale,
         glyphs_merged_by_time, marks_in_time_order, runs_around_gaps,
     };
 
@@ -198,12 +221,34 @@ mod tests {
     fn mark_at(minutes: u64, glyph_svgs: &[&'static [u8]], detail_text: &str) -> TimelineMark {
         TimelineMark {
             at: Duration::from_mins(minutes),
+            shape: MarkShape::PointEvent,
             glyph_svgs: glyph_svgs.to_vec(),
             time_text: String::new(),
             detail_text: detail_text.to_owned(),
             ink: SpanInk::Strong,
             rail_presence: RailPresence::OnCompactRail,
         }
+    }
+
+    #[test]
+    fn durations_are_labeled_at_their_middle_and_ordered_among_events() {
+        let break_mark = TimelineMark {
+            shape: MarkShape::Interval {
+                until: Duration::from_mins(40),
+            },
+            ..mark_at(20, &[], "Break")
+        };
+        assert_eq!(break_mark.label_anchor(), Duration::from_mins(30));
+        let ordered = marks_in_time_order(vec![
+            break_mark,
+            mark_at(25, &[LOCK_SVG], "Lock"),
+            mark_at(35, &[SCREEN_SVG], "Screen off"),
+        ]);
+        let details: Vec<&str> = ordered
+            .iter()
+            .map(|mark| mark.detail_text.as_str())
+            .collect();
+        assert_eq!(details, ["Lock", "Break", "Screen off"]);
     }
 
     #[test]

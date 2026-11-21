@@ -1,7 +1,6 @@
 mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
-mod focus_run_indicator;
 mod focus_timeline_row;
 mod focus_tracker;
 mod session_face;
@@ -29,7 +28,10 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, timeline_row::timeline_row},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        indicator_state::IndicatorState,
+    },
     hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
     indicator_groups::{
         indicator_group_content::{
@@ -40,7 +42,6 @@ use crate::{
             break_log::BreakLog,
             context_switch_rate::ContextSwitchRate,
             daily_totals_gauge::DailyTotalsGauge,
-            focus_run_indicator::FocusRunIndicator,
             focus_timeline_row::FocusTimeline,
             focus_tracker::{FocusTracker, TrackerMessage},
             session_face::SessionFace,
@@ -199,45 +200,45 @@ impl SessionFocusGroup {
         }
     }
 
-    fn timeline_indicator<'a>(&'a self, config: &'a Config, clock: Clock) -> GroupIndicator<'a> {
+    fn focus_timeline_indicator<'a>(
+        &'a self,
+        config: &'a Config,
+        clock: Clock,
+    ) -> GroupIndicator<'a> {
         let locale = config.calendar.locale;
         let label_face = text_face_of(&config.theme.font);
-        timeline_row(
+        let session_face = self.session_face(config);
+        let severity = session_face.severity(clock.utc());
+        let alerts = session_face.long_session_alerts(clock.utc(), locale);
+        GroupIndicator::glyph_only(
             "Timeline",
             Phosphor::ChartBar(Weight::Regular).into(),
-            move || {
-                self.focus_timeline(config)
-                    .timeline(clock.utc(), locale, label_face)
-            },
-            Box::new(move |card_clock: Clock| {
-                [Section::new(
-                    "Last hours",
+            IndicatorState::Idle,
+        )
+        .with_label(ReadoutLabel::Labeled(
+            self.focus_timeline(config)
+                .break_due_text(clock.utc(), locale),
+        ))
+        .with_hover_card(Box::new(move |card_clock: Clock| {
+            let accounting = self
+                .tracker
+                .ledger
+                .accounted(&config.indicator_groups.session_focus);
+            vec![
+                Section::new(
+                    "Last 24 hours",
                     timeline_widget(self.focus_timeline(config).timeline(
                         card_clock.utc(),
                         locale,
                         label_face,
                     )),
-                )]
-                .into_iter()
-                .chain([BreakLog {
-                    accounting: self
-                        .tracker
-                        .ledger
-                        .accounted(&config.indicator_groups.session_focus),
-                }
-                .break_rules()])
-                .collect()
-            }),
-        )
-    }
-
-    fn focus_run_indicator<'a>(&'a self, config: &'a Config) -> FocusRunIndicator<'a> {
-        FocusRunIndicator {
-            accounting: self
-                .tracker
-                .ledger
-                .accounted(&config.indicator_groups.session_focus),
-        }
+                ),
+                BreakLog { accounting }.focus_settings(),
+            ]
+        }))
+        .in_state(severity.into())
+        .with_alerts(alerts)
+        .ongoing_toast_action_buttons(break_action_buttons())
     }
 
     fn context_switch_rate<'a>(&'a self, config: &'a Config) -> ContextSwitchRate<'a> {
@@ -300,32 +301,11 @@ impl SessionFocusGroup {
         clock: Clock,
     ) -> IndicatorGroupContent<'a> {
         let locale = config.calendar.locale;
-        let build_focus_session_indicator = || {
-            self.session_face(config)
-                .indicator(clock, locale)
-                .ongoing_toast_action_buttons([
-                    OngoingToastActionButton {
-                        button_label: "Lock screen".to_owned(),
-                        tint: ActionTint::Proceed,
-                        on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
-                    },
-                    OngoingToastActionButton {
-                        button_label: "Screen off".to_owned(),
-                        tint: ActionTint::Proceed,
-                        on_button_pressed: SessionFocusMessage::BreakStarted(
-                            SessionAction::ScreenOff,
-                        ),
-                    },
-                    OngoingToastActionButton {
-                        button_label: "Snooze".to_owned(),
-                        tint: ActionTint::Hold,
-                        on_button_pressed: SessionFocusMessage::WarningSnoozed,
-                    },
-                ])
-        };
-        let headline_indicator = build_focus_session_indicator()
+        let headline_indicator = self
+            .session_face(config)
+            .indicator(clock, locale)
+            .ongoing_toast_action_buttons(break_action_buttons())
             .with_headline_glyph(Phosphor::Crosshair(Weight::Regular).into());
-        let focus_run = self.focus_run_indicator(config).indicator(clock);
         let totals = self.daily_totals.indicator(locale);
         let switches = self.context_switch_rate(config).indicator(clock);
         IndicatorGroupContent::expandable(
@@ -334,12 +314,30 @@ impl SessionFocusGroup {
             &self.expansion,
             SessionFocusMessage::Expansion,
             [
-                self.timeline_indicator(config, clock),
-                build_focus_session_indicator(),
-                focus_run,
+                self.focus_timeline_indicator(config, clock),
                 totals,
                 switches,
             ],
         )
     }
+}
+
+fn break_action_buttons() -> [OngoingToastActionButton<SessionFocusMessage>; 3] {
+    [
+        OngoingToastActionButton {
+            button_label: "Lock screen".to_owned(),
+            tint: ActionTint::Proceed,
+            on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
+        },
+        OngoingToastActionButton {
+            button_label: "Screen off".to_owned(),
+            tint: ActionTint::Proceed,
+            on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::ScreenOff),
+        },
+        OngoingToastActionButton {
+            button_label: "Snooze".to_owned(),
+            tint: ActionTint::Hold,
+            on_button_pressed: SessionFocusMessage::WarningSnoozed,
+        },
+    ]
 }

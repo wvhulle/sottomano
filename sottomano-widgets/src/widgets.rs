@@ -15,6 +15,7 @@ pub mod layer_appearance_controls;
 pub mod localized_durations;
 pub mod localized_quantities;
 pub mod localized_time;
+pub mod localized_timeline_text;
 pub mod most_used_model;
 pub mod ongoing_toast;
 pub mod pointer_drag;

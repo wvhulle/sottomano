@@ -1,10 +1,11 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
-use chrono::Locale;
+use chrono::{Locale, TimeDelta};
 use corredo::{
     gauges::{
-        DurationTimeline, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark,
-        TimelineScale, TimelineSpan,
+        ClockScale, ClockSpan, DurationTimeline, EventGlyph, EventMeasure, RailPresence,
+        SpanCaption, SpanEdges, SpanInk, SpanWeight, TimePrecision, TimelineEvent, TimelineSpan,
+        WallClockTimeline,
     },
     theming::TextFace,
 };
@@ -16,7 +17,7 @@ use super::{
 };
 use crate::{
     clock::Clock,
-    widgets::{localized_durations::duration_text, localized_time::LocalizedTimeFormat},
+    widgets::{localized_durations::duration_text, localized_timeline_text::LocalizedTimelineText},
 };
 
 const EMPTY_CHAIN_SPAN: Duration = Duration::from_hours(1);
@@ -71,17 +72,6 @@ fn timed_stages(chain: &ResolvedIdleChain) -> Vec<TimedStage> {
         .collect()
 }
 
-fn timeline_span_end(stages: &[TimedStage]) -> Duration {
-    stages
-        .iter()
-        .map(|timed| timed.reached_after)
-        .max()
-        .filter(|latest| !latest.is_zero())
-        .map_or(EMPTY_CHAIN_SPAN, |latest| {
-            latest.mul_f64(1.0 + SPAN_END_MARGIN_FRACTION)
-        })
-}
-
 fn logarithmic_knee(stages: &[TimedStage]) -> Duration {
     stages
         .iter()
@@ -91,34 +81,28 @@ fn logarithmic_knee(stages: &[TimedStage]) -> Duration {
         .unwrap_or(EMPTY_CHAIN_SPAN)
 }
 
-fn stage_mark(timed: TimedStage, clock: Clock, locale: Locale) -> TimelineMark {
-    let reached_at = LocalizedTimeFormat::HourAndMinute
-        .format(&clock.advanced(timed.reached_after).local(), locale);
-    let offset_text = duration_text(timed.offset, locale);
-    let stage_title = pause_title(timed.stage);
-    let (time_text, detail_text) = match timed.timing {
-        StageTiming::Awake => (reached_at, format!("{stage_title} · +{offset_text}")),
-        StageTiming::AsleepUntilHibernate => (
-            format!("~{reached_at}"),
-            format!("{stage_title} · after {offset_text} asleep"),
-        ),
-    };
-    TimelineMark {
-        at: timed.reached_after,
-        glyph_svgs: vec![pause_glyph(timed.stage).svg_data()],
-        time_text,
-        detail_text,
+fn stage_event(timed: TimedStage, clock: Clock) -> TimelineEvent {
+    TimelineEvent {
+        at: clock.advanced(timed.reached_after).utc(),
+        precision: match timed.timing {
+            StageTiming::Awake => TimePrecision::Exact,
+            StageTiming::AsleepUntilHibernate => TimePrecision::Approximate,
+        },
+        glyph: EventGlyph::Svg(pause_glyph(timed.stage).svg_data()),
+        title: Cow::Borrowed(pause_title(timed.stage)),
+        measure: EventMeasure::OffsetFromAnchor(delta_of(timed.offset)),
         ink: SpanInk::Strong,
         rail_presence: RailPresence::OnCompactRail,
     }
 }
 
-fn last_input_mark(clock: Clock, locale: Locale) -> TimelineMark {
-    TimelineMark {
-        at: Duration::ZERO,
-        glyph_svgs: Vec::new(),
-        time_text: LocalizedTimeFormat::HourAndMinute.format(&clock.local(), locale),
-        detail_text: "Now · last input".to_owned(),
+fn last_input_event(clock: Clock) -> TimelineEvent {
+    TimelineEvent {
+        at: clock.utc(),
+        precision: TimePrecision::Exact,
+        glyph: EventGlyph::Plain,
+        title: Cow::Borrowed("Now · last input"),
+        measure: EventMeasure::Unmeasured,
         ink: SpanInk::Strong,
         rail_presence: RailPresence::LabeledColumnOnly,
     }
@@ -149,6 +133,23 @@ fn stage_spans(stages: &[TimedStage]) -> Vec<TimelineSpan> {
     [awake_span].into_iter().chain(asleep_spans).collect()
 }
 
+fn delta_of(duration: Duration) -> TimeDelta {
+    TimeDelta::from_std(duration).expect("an idle chain lasts far less than TimeDelta's range")
+}
+
+pub(super) fn first_stage_text(chain: &ResolvedIdleChain, locale: Locale) -> String {
+    timed_stages(chain).first().map_or_else(
+        || "No idle actions".to_owned(),
+        |first_stage| {
+            format!(
+                "{} after {} idle",
+                pause_title(first_stage.stage),
+                duration_text(first_stage.reached_after, locale)
+            )
+        },
+    )
+}
+
 pub(super) fn idle_timeline(
     chain: &ResolvedIdleChain,
     clock: Clock,
@@ -156,33 +157,38 @@ pub(super) fn idle_timeline(
     label_face: TextFace,
 ) -> DurationTimeline {
     let stages = timed_stages(chain);
-    DurationTimeline::new(
-        TimelineAxis {
-            span_end: timeline_span_end(&stages),
-            scale: TimelineScale::Logarithmic {
-                knee: logarithmic_knee(&stages),
-            },
-        },
-        label_face,
-    )
-    .spans(stage_spans(&stages))
-    .marks(
-        [last_input_mark(clock, locale)]
-            .into_iter()
-            .chain(stages.iter().map(|timed| stage_mark(*timed, clock, locale)))
-            .collect(),
-    )
-    .now_cursor(NowCursor::Shown(Duration::ZERO))
+    let clock_spans = stage_spans(&stages).into_iter().map(|span| ClockSpan {
+        from: clock.advanced(span.from).utc(),
+        until: clock.advanced(span.until).utc(),
+        ink: span.ink,
+        weight: span.weight,
+        edges: SpanEdges::Unmarked,
+        caption: SpanCaption::Hidden,
+    });
+    WallClockTimeline::new(clock.utc())
+        .minimum_span(delta_of(EMPTY_CHAIN_SPAN))
+        .end_margin_fraction(SPAN_END_MARGIN_FRACTION)
+        .scale(ClockScale::Logarithmic {
+            knee: delta_of(logarithmic_knee(&stages)),
+        })
+        .clock_spans(clock_spans)
+        .events(
+            [last_input_event(clock)]
+                .into_iter()
+                .chain(stages.iter().map(|timed| stage_event(*timed, clock))),
+        )
+        .duration_timeline(label_face, &LocalizedTimelineText { locale })
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
+    use chrono::Locale;
     use corredo::gauges::{SpanInk, SpanWeight, TimelineSpan};
     use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 
-    use super::{StageTiming, TimedStage, stage_spans, timed_stages};
+    use super::{StageTiming, TimedStage, first_stage_text, stage_spans, timed_stages};
     use crate::indicator_groups::idle_pause_groups::{
         ResolvedIdleChain, StageSetting, SuspendThenHibernateSupport,
     };
@@ -193,6 +199,21 @@ mod tests {
 
     fn resolved(settings: [StageSetting; 5]) -> ResolvedIdleChain {
         ResolvedIdleChain::resolve(settings, SuspendThenHibernateSupport::Permitted)
+    }
+
+    #[test]
+    fn the_row_names_the_first_stage_and_its_idle_time() {
+        let chain = resolved([
+            minutes(5),
+            minutes(0),
+            minutes(15),
+            minutes(180),
+            minutes(60),
+        ]);
+        assert_eq!(
+            first_stage_text(&chain, Locale::en_US),
+            "Lock after 5m idle"
+        );
     }
 
     #[test]

@@ -10,12 +10,13 @@ pub struct BreakLog<'a> {
 }
 
 impl BreakLog<'_> {
-    pub fn break_rules(&self) -> Section {
+    pub fn focus_settings(&self) -> Section {
         let config = self.accounting.config;
         Section::new(
             SectionTitle::captioned(
-                "How breaks count".to_owned(),
-                "Turning the screen off or suspending always counts as a break, however short."
+                "Settings".to_owned(),
+                "Turning the screen off or suspending always counts as a break, however short. \
+                 Alerts count from the end of the last break."
                     .to_owned(),
             ),
             dictionary_table([
@@ -27,6 +28,15 @@ impl BreakLog<'_> {
                     "Idle pause becomes a break after",
                     ValueCell::duration(config.idle_after),
                 ),
+                LabeledValue::new(
+                    "Warning after active for",
+                    ValueCell::duration(config.session_warning),
+                ),
+                LabeledValue::new(
+                    "Critical after active for",
+                    ValueCell::duration(config.session_critical),
+                ),
+                LabeledValue::new("Snooze lasts", ValueCell::duration(config.warning_snooze)),
             ]),
         )
     }
