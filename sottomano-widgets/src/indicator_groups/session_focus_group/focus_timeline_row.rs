@@ -4,8 +4,8 @@ use chrono::{DateTime, Locale, TimeDelta, Utc};
 use corredo::{
     gauges::{
         ClockSpan, DurationTimeline, EdgeEvent, EventGlyph, EventMeasure, RailPresence,
-        SpanCaption, SpanEdges, SpanInk, SpanWeight, TimePrecision, TimelineEvent,
-        WallClockTimeline,
+        SpanCaption, SpanEdges, SpanInk, SpanWeight, TimePrecision, TimelineDirection,
+        TimelineEvent, WallClockTimeline,
     },
     theming::TextFace,
 };
@@ -262,6 +262,7 @@ impl<'a> FocusTimeline<'a> {
         let due_events = self.due_moments(now).into_iter().map(Self::due_event);
         WallClockTimeline::new(now)
             .lookback(FOCUS_TIMELINE_LOOKBACK)
+            .direction(TimelineDirection::NewestFirst)
             .end_margin_fraction(END_MARGIN_FRACTION)
             .clock_spans(
                 break_spans

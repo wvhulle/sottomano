@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 
 use super::{
     DurationTimeline, MarkShape, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis,
-    TimelineMark, TimelineScale, TimelineSpan,
+    TimelineDirection, TimelineMark, TimelineScale, TimelineSpan,
 };
 use crate::theming::TextFace;
 
@@ -88,6 +88,7 @@ pub struct WallClockTimeline {
     minimum_span: TimeDelta,
     end_margin_fraction: f64,
     scale: ClockScale,
+    direction: TimelineDirection,
     events: Vec<TimelineEvent>,
     clock_spans: Vec<ClockSpan>,
 }
@@ -145,6 +146,7 @@ impl WallClockTimeline {
             minimum_span: TimeDelta::zero(),
             end_margin_fraction: 0.0,
             scale: ClockScale::Linear,
+            direction: TimelineDirection::OldestFirst,
             events: Vec::new(),
             clock_spans: Vec::new(),
         }
@@ -174,6 +176,11 @@ impl WallClockTimeline {
     #[must_use]
     pub fn scale(self, scale: ClockScale) -> Self {
         Self { scale, ..self }
+    }
+
+    #[must_use]
+    pub fn direction(self, direction: TimelineDirection) -> Self {
+        Self { direction, ..self }
     }
 
     #[must_use]
@@ -346,6 +353,7 @@ impl WallClockTimeline {
         .spans(self.spans())
         .marks(self.marks(window, text_format))
         .now_cursor(NowCursor::Shown(window.offset_of(self.now)))
+        .direction(self.direction)
     }
 }
 

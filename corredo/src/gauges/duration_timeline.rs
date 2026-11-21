@@ -54,6 +54,12 @@ pub enum NowCursor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineDirection {
+    OldestFirst,
+    NewestFirst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimelineDensity {
     CompactRail,
     LabeledColumn,
@@ -66,6 +72,7 @@ pub struct DurationTimeline {
     marks: Vec<TimelineMark>,
     now_cursor: NowCursor,
     density: TimelineDensity,
+    direction: TimelineDirection,
     label_face: TextFace,
 }
 
@@ -78,6 +85,7 @@ impl DurationTimeline {
             marks: Vec::new(),
             now_cursor: NowCursor::Hidden,
             density: TimelineDensity::LabeledColumn,
+            direction: TimelineDirection::OldestFirst,
             label_face,
         }
     }
@@ -98,6 +106,11 @@ impl DurationTimeline {
     #[must_use]
     pub fn now_cursor(self, now_cursor: NowCursor) -> Self {
         Self { now_cursor, ..self }
+    }
+
+    #[must_use]
+    pub fn direction(self, direction: TimelineDirection) -> Self {
+        Self { direction, ..self }
     }
 
     #[must_use]
@@ -184,7 +197,7 @@ impl DurationTimeline {
     fn vertical_scale(&self) -> VerticalScale {
         let row_height_px = self.row_height();
         let mark_times: Vec<Duration> = self.marks.iter().map(TimelineMark::label_anchor).collect();
-        VerticalScale::laid_out(
+        let oldest_first = VerticalScale::laid_out(
             &mark_times,
             self.axis.span_end,
             VerticalMetrics {
@@ -193,7 +206,11 @@ impl DurationTimeline {
                 pixels_per_minute: row_height_px / MINUTES_PER_ROW,
                 longest_gap_px: row_height_px * LONGEST_GAP_ROWS,
             },
-        )
+        );
+        match self.direction {
+            TimelineDirection::OldestFirst => oldest_first,
+            TimelineDirection::NewestFirst => oldest_first.newest_first(),
+        }
     }
 
     fn draw_glyph(
@@ -456,7 +473,11 @@ impl RailGeometry {
     }
 
     fn stroke_gapped(&self, frame: &mut canvas::Frame, run: PixelRun, stroke: Stroke<'static>) {
-        for visible_run in runs_around_gaps(run, &self.gaps) {
+        let ascending_run = PixelRun {
+            start: run.start.min(run.end),
+            end: run.start.max(run.end),
+        };
+        for visible_run in runs_around_gaps(ascending_run, &self.gaps) {
             frame.stroke(
                 &canvas::Path::line(
                     self.point_at(visible_run.start),

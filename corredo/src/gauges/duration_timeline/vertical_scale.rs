@@ -119,12 +119,37 @@ impl VerticalScale {
         preceding.y + progress * (following.y - preceding.y)
     }
 
+    #[must_use]
+    pub(super) fn newest_first(self) -> Self {
+        let flip = |y: f32| self.total_height - y;
+        Self {
+            anchors: self
+                .anchors
+                .iter()
+                .map(|anchor| ScaleAnchor {
+                    at: anchor.at,
+                    y: flip(anchor.y),
+                })
+                .collect(),
+            mark_ys: self.mark_ys.iter().copied().map(flip).collect(),
+            compressed_gap_ys: self.compressed_gap_ys.iter().copied().map(flip).collect(),
+            total_height: self.total_height,
+        }
+    }
+
     pub(super) fn top_y(&self) -> f32 {
-        self.anchors.first().map_or(0.0, |first| first.y)
+        self.anchors
+            .iter()
+            .map(|anchor| anchor.y)
+            .fold(f32::INFINITY, f32::min)
+            .min(self.total_height)
     }
 
     pub(super) fn bottom_y(&self) -> f32 {
-        self.anchors.last().map_or(0.0, |last| last.y)
+        self.anchors
+            .iter()
+            .map(|anchor| anchor.y)
+            .fold(0.0, f32::max)
     }
 }
 
@@ -164,6 +189,20 @@ mod tests {
         assert_eq!(scale.mark_ys, vec![30.0, 110.0]);
         assert_eq!(scale.compressed_gap_ys, vec![70.0]);
         assert!((scale.total_height - (110.0 + 20.0 + 10.0)).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn newest_first_mirrors_every_height_and_keeps_interpolation() {
+        let oldest_first =
+            VerticalScale::laid_out(&[minutes(10), minutes(200)], minutes(210), METRICS);
+        let total_height = oldest_first.total_height;
+        let newest_first = oldest_first.clone().newest_first();
+        assert_eq!(
+            newest_first.mark_ys,
+            vec![total_height - 30.0, total_height - 110.0]
+        );
+        assert!((newest_first.y_of(minutes(105)) - (total_height - 70.0)).abs() < 1e-3);
+        assert!(newest_first.top_y() < newest_first.bottom_y());
     }
 
     #[test]
