@@ -54,7 +54,11 @@ pub(crate) fn hyprland_layer_rule(
         ))
 }
 
-pub(crate) fn heated_window_rule(heat_index: usize, heated: &HeatedWindow) -> String {
+pub(crate) fn heated_window_rule(
+    heat_index: usize,
+    heated: &HeatedWindow,
+    focus_ring_color: &str,
+) -> String {
     let mut window_match = format!(
         "title = {}",
         lua_string(&format!(
@@ -72,7 +76,11 @@ pub(crate) fn heated_window_rule(heat_index: usize, heated: &HeatedWindow) -> St
     format!(
         "hl.window_rule({{\n    name = \"sottomano-switch-heat-{heat_index}\",\n    match = {{ \
          {window_match} }},\n    border_color = {},\n}})\n",
-        lua_string(&hyprland_color(&heated.border_color)),
+        lua_string(&format!(
+            "{} {}",
+            hyprland_color(focus_ring_color),
+            hyprland_color(&heated.border_color)
+        )),
     )
 }
 
@@ -145,7 +153,7 @@ hl.layer_rule({
         assert!(rendered.contains("active_border = \"rgb(95e6cb)\""));
         assert!(rendered.contains(
             "match = { title = \"^\\\\W*nvim \\\\(main\\\\)$\", class = \"^kitty$\" },\n    \
-             border_color = \"rgb(ffb454)\","
+             border_color = \"rgb(95e6cb) rgb(ffb454)\","
         ));
     }
 }

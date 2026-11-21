@@ -115,11 +115,20 @@ impl CompositorBackend for HyprlandBackend {
         let layer_rules = StyledSurface::ALL
             .into_iter()
             .filter_map(|surface| hyprland_layer_rule(surface, styling));
-        let window_rules = switch_heat
-            .heated_windows()
-            .iter()
-            .enumerate()
-            .map(|(heat_index, heated)| heated_window_rule(heat_index, heated));
+        let window_rules: Vec<String> = match switch_heat {
+            SwitchHeat::Hidden => Vec::new(),
+            SwitchHeat::Shown {
+                focus_ring_color,
+                windows,
+                ..
+            } => windows
+                .iter()
+                .enumerate()
+                .map(|(heat_index, heated)| {
+                    heated_window_rule(heat_index, heated, focus_ring_color)
+                })
+                .collect(),
+        };
         Ok([config]
             .into_iter()
             .chain(layer_rules)
