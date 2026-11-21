@@ -1,0 +1,7 @@
+id: bool-closure-parameter
+valid:
+  - "fn draw_switch(checked: bool) {}"
+  - "fn shade() { let pick = |hovered| 0; }"
+invalid:
+  - "fn shade() { let pick = |hovered: bool| 0; }"
+  - "impl Widget<Message> for Switch { fn draw(&self) { let shade = |hovered: bool| 0; } }"

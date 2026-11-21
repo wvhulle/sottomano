@@ -1,10 +1,19 @@
 id: tuple-struct
 language: rust
 severity: error
-message: Tuple structs hide what their fields mean.
+message: "Tuple struct `$NAME` hides what its fields mean."
+labels:
+  FIELDS:
+    style: primary
+    message: give each field a name
 note: "Name the field, as in struct Name { descriptive_field: Type }. If the struct only wraps a value to hang methods on it, pass the inner value and make the methods functions instead."
 rule:
   kind: struct_item
-  has:
-    field: body
-    kind: ordered_field_declaration_list
+  all:
+    - has:
+        field: name
+        pattern: $NAME
+    - has:
+        field: body
+        kind: ordered_field_declaration_list
+        pattern: $FIELDS

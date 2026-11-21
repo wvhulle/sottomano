@@ -1,7 +1,7 @@
 id: sourced-section-outside-holders
 language: rust
 severity: error
-message: Only the snapshot holders decide which source a section came from and how it was delivered.
+message: "`$CONSTRUCTION` decides which source a section came from outside the snapshot holders."
 note: Build sections with Section::new and let SubscribedSnapshot or HoverFetchedSnapshot stamp them with hover_card_with or sections_described_by.
 files:
   - sottomano-widgets/src/**/*.rs
@@ -15,13 +15,19 @@ ignores:
   - sottomano-widgets/src/widgets/hover_fetched_snapshot.rs
   - sottomano-widgets/src/group_indicators/snapshot_absence.rs
 rule:
+  pattern: $CONSTRUCTION
   any:
     - kind: struct_expression
       has:
         field: name
-        regex: '^(SectionSource::Snapshot|DeliveryStamp)$'
+        any:
+          - pattern: { context: "SectionSource::Snapshot {}", selector: scoped_type_identifier }
+          - pattern: { context: "DeliveryStamp {}", selector: type_identifier }
     - kind: scoped_identifier
-      regex: '^SourceDelivery::(Delivered|Loading|Failed)$'
+      any:
+        - pattern: SourceDelivery::Delivered
+        - pattern: SourceDelivery::Loading
+        - pattern: SourceDelivery::Failed
       not:
         inside:
           any:
@@ -32,8 +38,5 @@ rule:
           stopBy: end
   not:
     inside:
-      kind: mod_item
-      has:
-        field: name
-        regex: ^tests$
+      matches: rust-test-module
       stopBy: end

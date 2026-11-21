@@ -1,0 +1,8 @@
+id: from-prefix-constructor
+valid:
+  - "impl FromStr for Profile { type Err = UnknownProfile; fn from_str(name: &str) -> Result<Self, Self::Err> { todo!() } }"
+  - "impl FromIterator<Sample> for Table { fn from_iter<Samples: IntoIterator<Item = Sample>>(samples: Samples) -> Self { todo!() } }"
+  - "fn fromage() {}"
+invalid:
+  - "impl Delivery { fn from_cadence(cadence: Cadence) -> Self { todo!() } }"
+  - "fn from_compositor_layout(layout: &Layout) -> Snapshot { todo!() }"

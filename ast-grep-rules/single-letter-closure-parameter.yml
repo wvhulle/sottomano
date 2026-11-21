@@ -1,0 +1,17 @@
+id: single-letter-closure-parameter
+language: rust
+severity: error
+message: "Closure parameter `$NAME` hides which element the closure works on."
+note: Name it after the element it receives, as in |window| or |(key, value)|, and |error| in inspect_err and map_err. A deliberately unused parameter is written _.
+labels:
+  NAME:
+    style: primary
+    message: name it after the element
+rule:
+  kind: identifier
+  pattern: $NAME
+  regex: ^[a-z]$
+  inside:
+    kind: closure_parameters
+    stopBy:
+      kind: closure_expression

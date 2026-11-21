@@ -1,0 +1,9 @@
+id: option-tuple-payload
+valid:
+  - "enum KeyboardGrab { Released, Held(Id) }"
+  - "struct HoverArea { reported_anchor: Option<Rectangle> }"
+  - "#[derive(Deserialize)]\nenum Reply { Window(Option<String>) }"
+invalid:
+  - "struct Switch(Option<UnitActivity>);"
+  - "enum Payload { Figure(Option<String>) }"
+  - "enum Payload { Figure(u8, Option<String>) }"

@@ -1,10 +1,26 @@
 id: compositor-feature-cfg
 language: rust
 severity: error
-message: Gating code on a compositor feature spreads compositor-specific behaviour outside the dispatch in sottomano-compositors.
+message: "Gating code on the `$COMPOSITOR` feature spreads compositor-specific behaviour outside the dispatch in sottomano-compositors."
+labels:
+  COMPOSITOR:
+    style: primary
+    message: compositor feature gate
 note: Only sottomano-compositors selects backends by feature; add the behaviour to the CompositorBackend trait and implement it in each backend crate.
 ignores:
-  - sottomano-compositors/src/compositor_connection.rs
+  - sottomano-compositors/src/**/*.rs
 rule:
   kind: attribute_item
-  regex: 'feature\s*=\s*"(niri|hyprland|sway)"'
+  all:
+    - has:
+        stopBy: end
+        kind: identifier
+        pattern: feature
+    - has:
+        stopBy: end
+        kind: string_content
+        pattern: $COMPOSITOR
+        any:
+          - pattern: { context: '"niri"', selector: string_content }
+          - pattern: { context: '"hyprland"', selector: string_content }
+          - pattern: { context: '"sway"', selector: string_content }

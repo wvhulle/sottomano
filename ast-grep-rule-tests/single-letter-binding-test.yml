@@ -1,11 +1,12 @@
 id: single-letter-binding
 valid:
-  - "fn sizes(requests: Vec<IconRequest>) -> usize { requests.iter().filter(|icon_request| icon_request.is_named()).count() }"
+  - "fn sizes(requests: Vec<IconRequest>) -> usize { requests.iter().filter(|r| r.is_named()).count() }"
   - "fn unused() { let _ = launch(); }"
   - "fn coordinates() -> f32 { point.x }"
+  - "fn pairs() { entries.iter().map(|(k, value)| value); }"
 invalid:
-  - "fn sizes(requests: Vec<IconRequest>) -> usize { requests.iter().filter(|r| r.is_named()).count() }"
   - "fn scaled(s: f32) -> f32 { s * 2.0 }"
   - "fn width() { let w = 4; }"
   - "fn listed() { for d in directories {} }"
-  - "fn pairs() { entries.iter().map(|(k, value)| value); }"
+  - "fn corner() { let (x, y) = origin; }"
+  - "impl Display for Celsius { fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult { todo!() } }"

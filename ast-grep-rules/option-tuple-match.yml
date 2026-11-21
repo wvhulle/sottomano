@@ -1,7 +1,11 @@
 id: option-tuple-match
 language: rust
 severity: error
-message: Matching on a tuple of Options mixes independent absences into one table of cases.
+message: "`match $SCRUTINEE` on a tuple of Options mixes independent absences into one table of cases."
+labels:
+  SCRUTINEE:
+    style: primary
+    message: handle each Option on its own
 note: Bail out of each Option on its own with let-else, or match one Option and nest the next; when the combination is a real state, produce an enum for it where the values are read.
 rule:
   kind: match_expression
@@ -9,6 +13,7 @@ rule:
     - has:
         field: value
         kind: tuple_expression
+        pattern: $SCRUTINEE
     - has:
         field: body
         has:

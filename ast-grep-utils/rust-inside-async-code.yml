@@ -1,0 +1,16 @@
+id: rust-inside-async-code
+language: rust
+rule:
+  inside:
+    any:
+      - kind: async_block
+      - kind: function_item
+        has:
+          kind: function_modifiers
+          has:
+            pattern: async
+    stopBy:
+      any:
+        - kind: closure_expression
+        - kind: async_block
+        - kind: function_item

@@ -1,17 +1,23 @@
 id: single-letter-binding
 language: rust
 severity: error
-message: A single-letter name says nothing about the value it holds.
-note: Name it after what it is, as in theme_directory or icon_request. A deliberately unused binding is written _. The files list is a ratchet; widen it as modules are renamed.
+message: "`$NAME` says nothing about the value it holds."
+note: Name it after what it is, as in theme_directory, formatter or icon_request. A deliberately unused binding is written _.
+labels:
+  NAME:
+    style: primary
+    message: name it after the value
 rule:
   kind: identifier
+  pattern: $NAME
   regex: ^[a-z]$
   any:
     - inside:
-        kind: closure_parameters
-    - inside:
         kind: parameter
         field: pattern
+        not:
+          inside:
+            kind: closure_parameters
     - inside:
         kind: let_declaration
         field: pattern
@@ -22,7 +28,11 @@ rule:
         kind: tuple_pattern
         inside:
           any:
-            - kind: closure_parameters
             - kind: let_declaration
             - kind: for_expression
+            - kind: parameter
           stopBy: end
+        not:
+          inside:
+            kind: closure_parameters
+            stopBy: end

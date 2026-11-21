@@ -1,15 +1,17 @@
 id: icon-theme-name-literal
 language: rust
 severity: error
-message: Naming an icon theme in code assumes a theme the user may not have installed.
+message: "Naming the icon theme `$THEME` assumes a theme the user may not have installed."
+labels:
+  THEME:
+    style: primary
+    message: follow the settings portal instead
 note: Follow the icon theme from the settings portal (theme_icons/icon_theme_setting.rs); the only theme the code may name is FALLBACK_THEME_NAME, the freedesktop-mandated hicolor.
 rule:
   kind: string_content
+  pattern: $THEME
   regex: '^(?i)(colloid|breeze|papirus|adwaita|yaru|numix|tela|kora|candy-icons|oxygen)([-_ ].*)?$'
   not:
     inside:
-      kind: mod_item
-      has:
-        field: name
-        regex: ^tests$
+      matches: rust-test-module
       stopBy: end

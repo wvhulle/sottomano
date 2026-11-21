@@ -1,7 +1,7 @@
 id: hover-card-outside-card-lookup
 language: rust
 severity: error
-message: A hover card built outside the card lookup bypasses the one path from a hovered target to its card.
+message: "`HoverCard::new` outside the card lookup bypasses the one path from a hovered target to its card."
 note: Give the row its card with with_hover_card or its ReadingRow card; the shell and the showcase turn the hovered target into a HoverCard in their card lookup.
 files:
   - sottomano-widgets/src/**/*.rs
@@ -13,7 +13,6 @@ ignores:
   - sottomano-shell/src/indicator_groups/group_hover_cards.rs
   - sottomano-widget-showcase/src/showcased_group.rs
 rule:
-  kind: call_expression
-  has:
-    field: function
-    regex: '(^|::)HoverCard::new$'
+  any:
+    - pattern: HoverCard::new($$$)
+    - pattern: $PATH::HoverCard::new($$$)

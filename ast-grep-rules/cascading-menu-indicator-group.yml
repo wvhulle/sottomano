@@ -1,13 +1,14 @@
 id: cascading-menu-indicator-group
 language: rust
 severity: error
-message: A cascading menu built from indicator groups flattens submenus and drags in pins, toasts and panel rows it does not need.
+message: "`$CALL` builds an indicator group inside a cascading menu, which flattens submenus and drags in pins, toasts and panel rows the menu does not need."
 note: Cascading menus build MenuEntry trees and draw them through configured_nested_menu; only the settings switch in window_menu_bar/menu_bar_switch.rs is an indicator group.
 files:
   - sottomano-widgets/src/cascading_menus/**/*.rs
 ignores:
   - sottomano-widgets/src/cascading_menus/window_menu_bar/menu_bar_switch.rs
 rule:
+  pattern: $CALL
   any:
     - pattern: IndicatorGroupContent::$CONSTRUCTOR($$$)
     - pattern: GroupIndicator::$CONSTRUCTOR($$$)

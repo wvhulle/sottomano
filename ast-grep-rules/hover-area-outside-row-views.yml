@@ -1,7 +1,7 @@
 id: hover-area-outside-row-views
 language: rust
 severity: error
-message: A hover area outside the row, group face and standalone views gives one row several cards or targets.
+message: "`$CALL` creates a hover area outside the row, group face and standalone views, giving one row several cards or targets."
 note: A row has exactly one hover area, made by its row view from its IndicatorKey; declare a button's actions on the row with with_button_actions instead of wrapping the button in its own hover area.
 files:
   - sottomano-widgets/src/**/*.rs
@@ -17,6 +17,7 @@ ignores:
   - sottomano-widgets/src/indicator_groups/workspaces_group/workspace_slot.rs
 rule:
   kind: call_expression
+  pattern: $CALL
   has:
     field: function
     any:

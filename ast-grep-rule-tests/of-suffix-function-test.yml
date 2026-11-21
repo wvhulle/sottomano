@@ -1,14 +1,11 @@
-id: preposition-constructor
+id: of-suffix-function
 valid:
   - "impl From<&Wallpaper> for PlaceLabel { fn from(wallpaper: &Wallpaper) -> Self { todo!() } }"
   - "impl AppNames { fn process_app_name(&self, pid: u32) -> Option<String> { None } }"
   - "fn offset_slider(edge: ColorMode) -> u8 { 0 }"
   - "fn kind_offset(edge: ColorMode) -> u8 { 0 }"
-  - "impl FromStr for Profile { type Err = UnknownProfile; fn from_str(name: &str) -> Result<Self, Self::Err> { todo!() } }"
-  - "impl FromIterator<Sample> for Table { fn from_iter<Samples: IntoIterator<Item = Sample>>(samples: Samples) -> Self { todo!() } }"
+  - "fn offer(edge: ColorMode) -> u8 { 0 }"
 invalid:
   - "impl PlaceLabel { fn of(wallpaper: &Wallpaper) -> Self { todo!() } }"
   - "impl Target { const fn of_pid(pid: i32) -> Self { todo!() } }"
-  - "impl Delivery { fn from_cadence(cadence: Cadence) -> Self { todo!() } }"
-  - "impl Target { fn for_window(window: u64) -> Self { todo!() } }"
   - "fn niri_action_of(request: &CompositorRequest) -> Action { todo!() }"

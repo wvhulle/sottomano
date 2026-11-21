@@ -1,0 +1,19 @@
+id: for-prefix-function
+language: rust
+severity: error
+message: "`$NAME` is a bespoke constructor or lookup named after the key it takes."
+note: Build the value with a struct literal or implement From for the key type when it is a single cheap conversion; otherwise name the function after what it returns (rs-std-conversion-traits skill).
+labels:
+  NAME:
+    style: primary
+    message: name it after the returned value
+rule:
+  kind: function_item
+  has:
+    field: name
+    pattern: $NAME
+    regex: ^for_.+$
+  not:
+    inside:
+      matches: rust-trait-implementation
+      stopBy: end

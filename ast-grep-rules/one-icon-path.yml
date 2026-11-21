@@ -1,7 +1,11 @@
 id: one-icon-path
 language: rust
 severity: error
-message: Resolving theme icons outside the icon catalog splits icon loading, caching and theme switching across several paths.
+message: "`$NAME` resolves theme icons outside the icon catalog, splitting icon loading, caching and theme switching across several paths."
+labels:
+  NAME:
+    style: primary
+    message: request the icon from IconCatalog instead
 note: Request icons from IconCatalog with the *_icon_request constructors in theme_icons/icon_requests.rs, and draw the DrawableIcon it returns.
 ignores:
   - sottomano-desktop-sources/src/theme_icons/**/*.rs
@@ -9,4 +13,10 @@ ignores:
 rule:
   any:
     - kind: identifier
-      regex: '^(loaded_icon_file|matching_icon_file|indexed_icon_theme|resolved_icons|freedesktop_icons)$'
+      pattern: $NAME
+      any:
+        - pattern: loaded_icon_file
+        - pattern: matching_icon_file
+        - pattern: indexed_icon_theme
+        - pattern: resolved_icons
+        - pattern: freedesktop_icons

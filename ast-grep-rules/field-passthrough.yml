@@ -1,10 +1,17 @@
 id: field-passthrough
 language: rust
 severity: error
-message: A method that only forwards its parameters to a field or to another method is a passthrough.
+message: "`$PASSTHROUGH` only forwards its parameters to a field or another method."
+labels:
+  PASSTHROUGH:
+    style: primary
+    message: remove and call the target directly
 note: Remove the method and call the target directly; give a forwarded field the visibility the method had. Trait methods are exempt.
 rule:
   kind: function_item
+  has:
+    field: name
+    pattern: $PASSTHROUGH
   any:
     - all:
         - has:

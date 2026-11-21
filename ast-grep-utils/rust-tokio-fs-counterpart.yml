@@ -1,0 +1,21 @@
+id: rust-tokio-fs-counterpart
+language: rust
+rule:
+  kind: identifier
+  any:
+    - pattern: canonicalize
+    - pattern: copy
+    - pattern: create_dir
+    - pattern: create_dir_all
+    - pattern: hard_link
+    - pattern: metadata
+    - pattern: read
+    - pattern: read_link
+    - pattern: read_to_string
+    - pattern: remove_dir
+    - pattern: remove_dir_all
+    - pattern: remove_file
+    - pattern: rename
+    - pattern: set_permissions
+    - pattern: symlink_metadata
+    - pattern: write

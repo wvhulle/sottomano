@@ -1,7 +1,14 @@
 id: free-function-passthrough
 language: rust
 severity: error
-message: A function that only forwards its parameters to another function adds a name without adding behaviour.
+message: "`$PASSTHROUGH` only forwards its parameters to `$TARGET`; it adds a name without adding behaviour."
+labels:
+  PASSTHROUGH:
+    style: primary
+    message: remove this function
+  TARGET:
+    style: secondary
+    message: call this directly
 note: Call the target directly; when the forwarding exists to fix one argument, pass that argument at the call site or give the target a clearer name. Trait methods are exempt.
 constraints:
   TARGET:
@@ -11,6 +18,9 @@ constraints:
     regex: '(^|::)[a-z_][a-z0-9_]*$'
 rule:
   kind: function_item
+  has:
+    field: name
+    pattern: $PASSTHROUGH
   any:
     - all:
         - has:

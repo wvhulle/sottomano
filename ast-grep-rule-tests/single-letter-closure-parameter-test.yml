@@ -1,0 +1,10 @@
+id: single-letter-closure-parameter
+valid:
+  - "fn sorted(mut cores: Vec<Core>) { cores.sort_by_key(|core| core.index); }"
+  - "fn width(x: u8) {}"
+invalid:
+  - "fn sorted(mut cores: Vec<Core>) { cores.sort_by_key(|c| c.index); }"
+  - "fn sorted(mut cores: Vec<Core>) { cores.sort_by(|a, b| a.cmp(b)); }"
+  - "fn report(outcome: Result<(), Error>) { outcome.inspect_err(|e| tracing::warn!(%e)); }"
+  - "fn sorted(entries: Vec<(u8, u8)>) { entries.iter().map(|(k, value)| value); }"
+  - "fn sorted(entries: Vec<u8>) { entries.iter().map(|k: &u8| k); }"

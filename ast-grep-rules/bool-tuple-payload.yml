@@ -1,0 +1,29 @@
+id: bool-tuple-payload
+language: rust
+severity: error
+message: "`$OWNER` carries a bare bool payload: neither state has a name."
+note: Replace the payload with an enum whose variants name both states, or split the variant in two (rs-enums-over-booleans skill).
+ignores:
+  - "**/*_tests.rs"
+labels:
+  PAYLOAD:
+    style: primary
+    message: replace with an enum
+rule:
+  kind: ordered_field_declaration_list
+  has:
+    pattern:
+      context: "struct Probe(bool);"
+      selector: primitive_type
+    all:
+      - pattern: $PAYLOAD
+  inside:
+    any:
+      - kind: struct_item
+      - kind: enum_variant
+    has:
+      field: name
+      pattern: $OWNER
+    stopBy: end
+  not:
+    matches: rust-exempt-from-state-rules

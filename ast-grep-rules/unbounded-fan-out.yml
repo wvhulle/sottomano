@@ -1,7 +1,11 @@
 id: unbounded-fan-out
 language: rust
 severity: error
-message: Joining one future per collection element starts them all at once; a large collection exhausts file descriptors or floods the bus.
+message: "Joining one future per element of `$ELEMENTS` starts them all at once; a large collection exhausts file descriptors or floods the bus."
+labels:
+  ELEMENTS:
+    style: secondary
+    message: one future per element, all in flight together
 note: Use stream::iter(elements).map(..).buffered(NAMED_LIMIT) or buffer_unordered(NAMED_LIMIT) with a named in-flight constant. Joining a fixed handful of distinct futures with join!/try_join! stays fine.
 ignores:
   - sottomano-desktop-sources/src/desktop_windows_apps/dbusmenu_menu_bar_layout.rs

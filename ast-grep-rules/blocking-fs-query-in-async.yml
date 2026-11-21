@@ -1,0 +1,30 @@
+id: blocking-fs-query-in-async
+language: rust
+severity: error
+message: "`$CALL` touches the filesystem synchronously inside async code and stalls the executor thread every other task shares."
+note: Use tokio::fs (try_exists, metadata then is_file or is_dir, read_dir, canonicalize), or move the work into blocking(...) from blocking_background_work.
+labels:
+  CALL:
+    style: primary
+    message: blocking filesystem call
+constraints:
+  PATH:
+    not:
+      regex: '(?i)(metadata|file_type)$'
+  OPERATION:
+    not:
+      matches: rust-tokio-fs-counterpart
+rule:
+  pattern: $CALL
+  any:
+    - pattern: std::fs::$OPERATION($$$)
+    - pattern: $PATH.exists()
+    - pattern: $PATH.is_file()
+    - pattern: $PATH.is_dir()
+    - pattern: $PATH.read_dir()
+    - pattern: $PATH.canonicalize()
+  matches: rust-inside-async-code
+  not:
+    inside:
+      matches: rust-test-module
+      stopBy: end

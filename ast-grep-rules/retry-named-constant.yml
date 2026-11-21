@@ -1,7 +1,11 @@
 id: retry-named-constant
 language: rust
 severity: error
-message: Retry and backoff delays belong to the central reconnect policy.
+message: "`$NAME` is a retry or backoff delay outside the central reconnect policy."
+labels:
+  NAME:
+    style: primary
+    message: classify the failure instead
 note: Classify the failure instead and let protocol_peer_reconnects::subscribed choose the delay.
 ignores:
   - sottomano-desktop-sources/src/system_protocol_clients/protocol_peer_reconnects.rs
@@ -10,6 +14,7 @@ rule:
   all:
     - has:
         field: name
+        pattern: $NAME
         regex: (RETRY|BACKOFF|RECONNECT|REOPEN|RESUBSCRIBE|ATTEMPTS)
     - has:
         field: type

@@ -1,0 +1,6 @@
+id: for-prefix-function
+valid:
+  - "fn format_label() {}"
+  - "fn forward(window: u64) {}"
+invalid:
+  - "impl Target { fn for_window(window: u64) -> Self { todo!() } }"

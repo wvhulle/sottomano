@@ -1,0 +1,7 @@
+id: bool-tuple-payload
+valid:
+  - "struct Lookup { changed: bool }"
+  - "#[derive(Serialize)]\nstruct Pressed(bool);"
+invalid:
+  - "struct Pressed(bool);"
+  - "enum Toggle { Set(bool) }"

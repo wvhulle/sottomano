@@ -1,0 +1,19 @@
+id: of-suffix-function
+language: rust
+severity: error
+message: "`$NAME` is named after its argument, not after what it returns."
+note: Name the function after the value it returns (image_file_of(pid) becomes container_image_file(pid)). When it converts one value into the returned type cheaply, implement From or TryFrom instead (rs-std-conversion-traits skill).
+labels:
+  NAME:
+    style: primary
+    message: name it after the returned value
+rule:
+  kind: function_item
+  has:
+    field: name
+    pattern: $NAME
+    regex: ^(of|of_.+|.+_of)$
+  not:
+    inside:
+      matches: rust-trait-implementation
+      stopBy: end

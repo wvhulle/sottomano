@@ -1,0 +1,20 @@
+id: std-fs-in-async
+language: rust
+severity: error
+message: "`std::fs::$OPERATION` blocks the executor thread that every other task on it shares."
+note: The tokio::fs function of the same name takes the same arguments and returns the same io::Result once awaited; apply the fix, or move a batch of blocking work into blocking(...) from blocking_background_work.
+labels:
+  OPERATION:
+    style: primary
+    message: blocks inside async code
+fix: tokio::fs::$OPERATION($$$ARGUMENTS).await
+constraints:
+  OPERATION:
+    matches: rust-tokio-fs-counterpart
+rule:
+  pattern: std::fs::$OPERATION($$$ARGUMENTS)
+  matches: rust-inside-async-code
+  not:
+    inside:
+      matches: rust-test-module
+      stopBy: end

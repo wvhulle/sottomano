@@ -1,0 +1,21 @@
+id: from-prefix-constructor
+language: rust
+severity: error
+message: "`$NAME` is a hand-rolled conversion that generic code, `?` and `.into()` cannot use."
+note: |
+  Implement From (always succeeds), TryFrom (can fail) or FromStr (parses text) for the source type (rs-std-conversion-traits skill).
+  Keep a named constructor only when the trait would mislead: a bare primitive with its own meaning, two meanings for one source type, a const context, heavy IO, or more than one argument; then name it after what it builds.
+labels:
+  NAME:
+    style: primary
+    message: implement From, TryFrom or FromStr instead
+rule:
+  kind: function_item
+  has:
+    field: name
+    pattern: $NAME
+    regex: ^from_.+$
+  not:
+    inside:
+      matches: rust-trait-implementation
+      stopBy: end

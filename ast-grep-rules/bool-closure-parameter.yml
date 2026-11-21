@@ -1,0 +1,28 @@
+id: bool-closure-parameter
+language: rust
+severity: error
+message: "Closure parameter `$NAME: bool` turns a state that already exists upstream back into true or false."
+note: Pass the enum the caller already has, or match on it at the call and drop the closure (rs-enums-over-booleans skill).
+ignores:
+  - "**/*_tests.rs"
+labels:
+  NAME:
+    style: primary
+    message: take the enum instead
+rule:
+  kind: parameter
+  all:
+    - has:
+        field: pattern
+        pattern: $NAME
+    - has:
+        field: type
+        pattern:
+          context: "fn probe(flag: bool) {}"
+          selector: primitive_type
+    - inside:
+        kind: closure_parameters
+  not:
+    inside:
+      matches: rust-test-module
+      stopBy: end

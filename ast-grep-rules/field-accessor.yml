@@ -1,11 +1,18 @@
 id: field-accessor
 language: rust
 severity: error
-message: A method that only returns one of its fields is an accessor.
+message: "`$METHOD` only returns `self.$FIELD`; it is an accessor."
+labels:
+  METHOD:
+    style: primary
+    message: remove and read the field
 note: Remove the method, give the field the visibility the method had (pub or pub(crate)), and read the field at the call sites. Trait methods are exempt.
 rule:
   kind: function_item
   all:
+    - has:
+        field: name
+        pattern: $METHOD
     - has:
         field: parameters
         has:

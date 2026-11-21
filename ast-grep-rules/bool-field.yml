@@ -1,101 +1,37 @@
 id: bool-field
 language: rust
 severity: error
-message: A bool field or parameter names one state and leaves the other unnamed at every use.
-note: Model the two states as an enum at their source (rs-enums-over-booleans skill). A type that mirrors an external format through a serde, clap, zvariant or KDL derive, a D-Bus proxy or interface, and a trait implementation whose signature the trait fixes are exempt.
+message: "`$OWNER::$NAME` is a bool: it names one state and leaves the other unnamed at every use."
+note: |
+  Model the states as an enum at their source; correlated bools on one type become one enum (rs-enums-over-booleans skill).
+  Types that mirror an external format through a serde, clap, zvariant or KDL derive are exempt; convert them right after reading.
 ignores:
   - "**/*_tests.rs"
-utils:
-  bool-type:
-    pattern:
-      context: "struct Probe { field: bool }"
-      selector: primitive_type
-  external-format-attribute:
-    kind: attribute_item
-    has:
-      stopBy: end
-      kind: identifier
-      any:
-        - pattern: Deserialize
-        - pattern: Serialize
-        - pattern: KdlDeserialize
-        - pattern: KdlSerialize
-        - pattern: Parser
-        - pattern: Args
-        - pattern: Subcommand
-        - pattern: Type
-        - pattern: serde
-        - pattern: zvariant
-  external-format-mirror:
-    any:
-      - kind: struct_item
-      - kind: enum_item
-    follows:
-      matches: external-format-attribute
-      stopBy:
-        not:
-          kind: attribute_item
-  dbus-protocol-attribute:
-    kind: attribute_item
-    has:
-      kind: attribute
-      has:
-        any:
-          - pattern: proxy
-          - pattern: interface
-          - pattern: zbus::proxy
-          - pattern: zbus::interface
-  dbus-protocol-mirror:
-    any:
-      - kind: trait_item
-      - kind: impl_item
-    follows:
-      matches: dbus-protocol-attribute
-      stopBy:
-        not:
-          kind: attribute_item
-  trait-fixed-signature:
-    kind: parameters
-    inside:
-      kind: function_item
-      inside:
-        kind: declaration_list
-        inside:
-          kind: impl_item
-          has:
-            field: trait
-            any:
-              - kind: type_identifier
-              - kind: scoped_type_identifier
-              - kind: generic_type
-  test-module:
-    kind: mod_item
-    has:
-      field: name
-      pattern: tests
+labels:
+  NAME:
+    style: primary
+    message: replace with an enum naming both states
+  OWNER:
+    style: secondary
+    message: check this type for other bools describing the same thing
 rule:
-  any:
-    - kind: field_declaration
-      has:
+  kind: field_declaration
+  all:
+    - has:
+        field: name
+        pattern: $NAME
+    - has:
         field: type
-        matches: bool-type
-    - kind: parameter
-      has:
-        field: type
-        matches: bool-type
-    - kind: ordered_field_declaration_list
-      has:
-        matches: bool-type
+        pattern:
+          context: "struct Probe { field: bool }"
+          selector: primitive_type
+    - inside:
+        any:
+          - kind: struct_item
+          - kind: enum_variant
+        has:
+          field: name
+          pattern: $OWNER
+        stopBy: end
   not:
-    any:
-      - inside:
-          matches: test-module
-          stopBy: end
-      - inside:
-          matches: external-format-mirror
-          stopBy: end
-      - inside:
-          matches: dbus-protocol-mirror
-          stopBy: end
-      - inside:
-          matches: trait-fixed-signature
+    matches: rust-exempt-from-state-rules

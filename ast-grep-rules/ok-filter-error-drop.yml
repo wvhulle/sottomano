@@ -1,0 +1,18 @@
+id: ok-filter-error-drop
+language: rust
+severity: error
+message: "Filtering with `Result::ok` drops every error it skips without a trace."
+note: Collect into a Result with collect::<Result<Vec<_>, _>>() and pass it on, or log each error with inspect_err before filtering (rs-error-flow skill).
+rule:
+  kind: scoped_identifier
+  all:
+    - has:
+        field: path
+        pattern: Result
+    - has:
+        field: name
+        pattern: ok
+  not:
+    inside:
+      matches: rust-test-module
+      stopBy: end

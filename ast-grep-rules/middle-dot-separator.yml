@@ -12,8 +12,5 @@ rule:
   regex: '·'
   not:
     inside:
-      kind: mod_item
-      has:
-        field: name
-        regex: ^tests$
+      matches: rust-test-module
       stopBy: end

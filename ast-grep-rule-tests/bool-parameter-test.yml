@@ -1,0 +1,13 @@
+id: bool-parameter
+valid:
+  - "fn installed(path: &Path) -> bool { true }"
+  - "#[proxy(interface = \"org.freedesktop.login1.Manager\")]\ntrait Manager { fn suspend(&self, interactive: bool) -> zbus::Result<()>; }"
+  - "#[zbus::interface(name = \"org.kde.JobViewV2\")]\nimpl JobView { fn set_suspended(&self, suspended: bool) {} }"
+  - "impl Widget<Message> for Switch { fn draw(&self, focused: bool) {} }"
+  - "fn shade() { let pick = |hovered: bool| 0; }"
+  - "mod tests { fn fixture(pressed: bool) {} }"
+invalid:
+  - "fn draw_switch(checked: bool) {}"
+  - "impl Switch { fn draw(&self, focused: bool) {} }"
+  - "trait Drawable { fn draw(&self, focused: bool); }"
+  - "#[derive(Debug)]\n#[cfg(feature = \"interface\")]\ntrait Drawable { fn draw(&self, focused: bool); }"

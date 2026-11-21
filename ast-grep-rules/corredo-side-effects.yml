@@ -1,11 +1,12 @@
 id: corredo-side-effects
 language: rust
 severity: error
-message: corredo widgets are pure views; they must not touch files, processes, the environment, the network, threads or an async runtime.
+message: "`$EFFECT` performs a side effect; corredo widgets are pure views that must not touch files, processes, the environment, the network, threads or an async runtime."
 note: Let the program perform the effect and pass the result in as widget data, or return a message that asks the program to do it.
 files:
   - corredo/src/**/*.rs
 rule:
+  pattern: $EFFECT
   any:
     - kind: scoped_identifier
       regex: '^(std::)?(fs|process|net|env|thread)::'

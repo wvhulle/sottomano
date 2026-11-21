@@ -1,59 +1,38 @@
 id: option-field
 language: rust
 severity: error
-message: An Option field squeezes two kinds of value into one type.
-note: Use an enum variant per state, a separate constructor, or compute the value before constructing (rs-no-option-fields skill). A type that mirrors an external format through a serde, clap, zvariant or KDL derive is exempt; convert it into an internal type right after reading.
+message: "`$OWNER::$NAME` is an `Option<$INNER>`: one field holds two kinds of value, and every reader re-checks for None."
+note: |
+  Use an enum variant per state, a separate constructor, or compute the value before constructing (rs-no-option-fields skill).
+  When the outside world may not report the value, produce an enum whose absent variant names what absence means (Untitled, NotReported, Unlimited) where it is read.
+  Types that mirror an external format through a serde, clap, zvariant or KDL derive are exempt; convert them into internal types right after reading.
 ignores:
   - "**/*_tests.rs"
-utils:
-  option-type:
-    pattern:
-      context: "struct Probe { field: Option<$INNER> }"
-      selector: generic_type
-  external-format-attribute:
-    kind: attribute_item
-    has:
-      stopBy: end
-      kind: identifier
-      any:
-        - pattern: Deserialize
-        - pattern: Serialize
-        - pattern: KdlDeserialize
-        - pattern: KdlSerialize
-        - pattern: Parser
-        - pattern: Args
-        - pattern: Subcommand
-        - pattern: Type
-        - pattern: serde
-        - pattern: zvariant
-  external-format-mirror:
-    any:
-      - kind: struct_item
-      - kind: enum_item
-    follows:
-      matches: external-format-attribute
-      stopBy:
-        not:
-          kind: attribute_item
-  test-module:
-    kind: mod_item
-    has:
-      field: name
-      pattern: tests
+labels:
+  NAME:
+    style: primary
+    message: present in some states only
+  OWNER:
+    style: secondary
+    message: model the states of this type as enum variants
 rule:
-  any:
-    - kind: field_declaration
-      has:
+  kind: field_declaration
+  all:
+    - has:
+        field: name
+        pattern: $NAME
+    - has:
         field: type
-        matches: option-type
-    - kind: ordered_field_declaration_list
-      has:
-        matches: option-type
+        pattern:
+          context: "struct Probe { field: Option<$INNER> }"
+          selector: generic_type
+    - inside:
+        any:
+          - kind: struct_item
+          - kind: enum_variant
+        has:
+          field: name
+          pattern: $OWNER
+        stopBy: end
   not:
-    any:
-      - inside:
-          matches: test-module
-          stopBy: end
-      - inside:
-          matches: external-format-mirror
-          stopBy: end
+    matches: rust-exempt-from-state-rules

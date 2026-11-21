@@ -1,0 +1,25 @@
+id: rust-external-format-mirror
+language: rust
+rule:
+  any:
+    - kind: struct_item
+    - kind: enum_item
+  follows:
+    kind: attribute_item
+    has:
+      stopBy: end
+      kind: identifier
+      any:
+        - pattern: Deserialize
+        - pattern: Serialize
+        - pattern: KdlDeserialize
+        - pattern: KdlSerialize
+        - pattern: Parser
+        - pattern: Args
+        - pattern: Subcommand
+        - pattern: Type
+        - pattern: serde
+        - pattern: zvariant
+    stopBy:
+      not:
+        kind: attribute_item

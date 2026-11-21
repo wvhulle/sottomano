@@ -1,7 +1,6 @@
 id: option-field
 valid:
-  - "enum AnchorReport { Unreported, Reported { anchor: Rectangle, visible: bool } }"
-  - "enum KeyboardGrab { Released, Held(Id) }"
+  - "enum AnchorReport { Unreported, Reported { anchor: Rectangle } }"
   - "fn lookup(key: u8) -> Option<u8> { None }"
   - "mod tests { struct Fixture { label: Option<String> } }"
   - "#[derive(Debug, Deserialize)]\nstruct WindowReply { title: Option<String> }"
@@ -9,11 +8,10 @@ valid:
   - "#[derive(Debug, serde::Serialize)]\nenum Report { Window { title: Option<String> } }"
   - "#[derive(Parser)]\nstruct Arguments { output: Option<PathBuf> }"
   - "#[derive(Debug, Type, DeserializeDict)]\n#[zvariant(signature = \"dict\")]\nstruct Hints { urgency: Option<u8> }"
+  - "struct Switch(Option<UnitActivity>);"
 invalid:
   - "struct HoverArea { reported_anchor: Option<Rectangle> }"
-  - "struct Switch(Option<UnitActivity>);"
   - "enum Payload { Figure { label: Option<String> } }"
-  - "enum Payload { Figure(Option<String>) }"
   - "#[derive(Debug, Clone)]\nstruct Window { title: Option<String> }"
   - "#[derive(Deserialize)]\nstruct Reply { title: String }\nstruct Window { title: Option<String> }"
   - "#[cfg(feature = \"serde\")]\nstruct Window { title: Option<String> }"

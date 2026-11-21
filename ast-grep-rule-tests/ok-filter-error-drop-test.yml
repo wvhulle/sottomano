@@ -1,0 +1,6 @@
+id: ok-filter-error-drop
+valid:
+  - "fn width(text: &str) -> Option<u32> { text.parse().ok() }"
+  - "mod tests { fn widths(texts: Vec<String>) -> Vec<u32> { texts.iter().map(|text| text.parse()).filter_map(Result::ok).collect() } }"
+invalid:
+  - "fn widths(texts: Vec<String>) -> Vec<u32> { texts.iter().map(|text| text.parse()).filter_map(Result::ok).collect() }"

@@ -1,0 +1,17 @@
+id: ok-call-error-drop
+language: rust
+severity: error
+message: "`.ok()` turns the Result of `$RESULT` into an Option and drops its error without a trace."
+note: Pass the error on with ? or as a Result item; when None is the contract, log the error first with inspect_err, or expect when failure is a programming error (rs-error-flow skill).
+labels:
+  RESULT:
+    style: secondary
+    message: its error is lost here
+rule:
+  pattern: $RESULT.ok()
+  not:
+    any:
+      - pattern: $LOGGED.inspect_err($$$).ok()
+      - inside:
+          matches: rust-test-module
+          stopBy: end

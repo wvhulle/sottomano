@@ -1,10 +1,15 @@
 id: generic-module-name
 language: rust
 severity: error
-message: A module named after a language concept or a catch-all says nothing about the domain it holds.
+message: "Module `$NAME` is named after a language concept or a catch-all and says nothing about the domain it holds."
+labels:
+  NAME:
+    style: primary
+    message: name it after the domain
 note: Name the module after the domain it models, as in theme_icons or cascading_menus, and split it if no single domain name fits.
 rule:
   kind: mod_item
   has:
     field: name
+    pattern: $NAME
     regex: ^(utils?|helpers?|common|misc|types|traits|models|.*_operators|.*_utils|.*_helpers)$

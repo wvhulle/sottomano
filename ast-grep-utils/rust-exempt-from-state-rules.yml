@@ -1,0 +1,10 @@
+id: rust-exempt-from-state-rules
+language: rust
+rule:
+  any:
+    - inside:
+        matches: rust-test-module
+        stopBy: end
+    - inside:
+        matches: rust-external-format-mirror
+        stopBy: end

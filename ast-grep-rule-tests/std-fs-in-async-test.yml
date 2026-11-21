@@ -1,0 +1,10 @@
+id: std-fs-in-async
+valid:
+  - "fn read(path: &Path) -> io::Result<String> { std::fs::read_to_string(path) }"
+  - "async fn read(path: &Path) -> io::Result<String> { tokio::fs::read_to_string(path).await }"
+  - "async fn listed(path: &Path) -> io::Result<ReadDir> { std::fs::read_dir(path) }"
+  - "async fn read(path: PathBuf) -> String { blocking(\"read\", move || std::fs::read_to_string(path)).await }"
+  - "mod tests { async fn fixture(path: &Path) -> io::Result<String> { std::fs::read_to_string(path) } }"
+invalid:
+  - "async fn read(path: &Path) -> io::Result<String> { std::fs::read_to_string(path) }"
+  - "fn spawned(path: PathBuf) -> impl Future<Output = io::Result<()>> { async move { std::fs::remove_file(&path) } }"

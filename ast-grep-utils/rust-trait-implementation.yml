@@ -1,0 +1,10 @@
+id: rust-trait-implementation
+language: rust
+rule:
+  kind: impl_item
+  has:
+    field: trait
+    any:
+      - kind: type_identifier
+      - kind: scoped_type_identifier
+      - kind: generic_type

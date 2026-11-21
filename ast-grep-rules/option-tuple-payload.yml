@@ -1,0 +1,34 @@
+id: option-tuple-payload
+language: rust
+severity: error
+message: "`$OWNER` carries an `Option<$INNER>` payload: one variant or struct hides two cases."
+note: |
+  Split the variant into one per case, or move the varying part into its own enum (rs-no-option-fields skill).
+  Types that mirror an external format through a serde, clap, zvariant or KDL derive are exempt.
+ignores:
+  - "**/*_tests.rs"
+labels:
+  PAYLOAD:
+    style: primary
+    message: split into one variant per case
+  OWNER:
+    style: secondary
+    message: this type hides the absent case
+rule:
+  kind: ordered_field_declaration_list
+  has:
+    pattern:
+      context: "struct Probe(Option<$INNER>);"
+      selector: generic_type
+    all:
+      - pattern: $PAYLOAD
+  inside:
+    any:
+      - kind: struct_item
+      - kind: enum_variant
+    has:
+      field: name
+      pattern: $OWNER
+    stopBy: end
+  not:
+    matches: rust-exempt-from-state-rules

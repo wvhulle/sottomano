@@ -1,0 +1,10 @@
+id: rust-trait-fixed-parameters
+language: rust
+rule:
+  kind: parameters
+  inside:
+    kind: function_item
+    inside:
+      kind: declaration_list
+      inside:
+        matches: rust-trait-implementation

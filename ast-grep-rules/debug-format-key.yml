@@ -1,7 +1,14 @@
 id: debug-format-key
 language: rust
 severity: error
-message: Formatting a value with Debug to sort or deduplicate it depends on how Debug happens to print.
+message: "`$METHOD` keyed on `format!` output depends on how Debug happens to print."
+labels:
+  METHOD:
+    style: primary
+    message: sorted or deduplicated by formatted text
+  FORMATTED:
+    style: secondary
+    message: key built from formatted text
 note: Collect into a HashSet or BTreeSet, or derive Ord on the key type and sort by it.
 rule:
   kind: call_expression
@@ -11,12 +18,22 @@ rule:
         kind: field_expression
         has:
           field: field
-          regex: '^(sort_by_key|sort_unstable_by_key|sort_by_cached_key|dedup_by_key|max_by_key|min_by_key)$'
+          pattern: $METHOD
+          any:
+            - pattern: { context: "values.sort_by_key", selector: field_identifier }
+            - pattern: { context: "values.sort_unstable_by_key", selector: field_identifier }
+            - pattern: { context: "values.sort_by_cached_key", selector: field_identifier }
+            - pattern: { context: "values.dedup_by_key", selector: field_identifier }
+            - pattern: { context: "values.max_by_key", selector: field_identifier }
+            - pattern: { context: "values.min_by_key", selector: field_identifier }
     - has:
         field: arguments
         has:
           kind: closure_expression
           has:
             kind: macro_invocation
-            regex: '^format!'
+            pattern: $FORMATTED
+            has:
+              field: macro
+              pattern: format
             stopBy: end

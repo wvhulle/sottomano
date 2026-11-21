@@ -1,0 +1,7 @@
+id: rust-test-module
+language: rust
+rule:
+  kind: mod_item
+  has:
+    field: name
+    pattern: tests
