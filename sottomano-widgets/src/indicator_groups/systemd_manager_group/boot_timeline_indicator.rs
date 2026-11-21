@@ -157,11 +157,11 @@ pub(super) fn boot_timeline_indicator(
     base.with_label(ReadoutLabel::Labeled(label))
 }
 
-pub struct StartupUnits<'a> {
-    pub timeline: &'a BootTimeline,
+pub struct StartupUnits<'view> {
+    pub timeline: &'view BootTimeline,
 }
 
-impl<'a> StartupUnits<'a> {
+impl<'view> StartupUnits<'view> {
     fn slow_unit_count(&self) -> usize {
         self.timeline
             .system_startup
@@ -223,7 +223,7 @@ impl<'a> StartupUnits<'a> {
         sections
     }
 
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let badge = match self.slow_unit_count() {
             0 => ReadoutBadge::Unbadged,
             count => ReadoutBadge::Counted(count),

@@ -7,16 +7,18 @@ use sottomano_desktop_sources::cpu_memory_compute::{
 };
 
 use crate::widgets::{
+    hover_fetched_snapshot::HoverFetchedSnapshot,
     localized_quantities::{DisplayUnit, Quantity},
+    subscribed_snapshot::SubscribedSnapshot,
     value_cells::LabeledValue,
 };
 
 const LOOKUPS_PER_MILLION: f64 = 1_000_000.0;
 
-pub struct ChipletLiveState<'a> {
-    pub clock: Option<&'a CpuClock>,
-    pub temperature: Option<&'a Temperature>,
-    pub cache_traffic: Option<&'a L3CacheTraffic>,
+pub struct ChipletLiveState<'group> {
+    pub clock: &'group SubscribedSnapshot<CpuClock>,
+    pub temperature: &'group SubscribedSnapshot<Temperature>,
+    pub cache_traffic: &'group HoverFetchedSnapshot<L3CacheTraffic>,
 }
 
 impl ChipletLiveState<'_> {
@@ -28,7 +30,7 @@ impl ChipletLiveState<'_> {
     }
 
     fn scheduler_preference(&self, group: &CoreGroup) -> SchedulerPreference {
-        let Some(clock) = self.clock else {
+        let Some(clock) = self.clock.get() else {
             return SchedulerPreference::Ordinary;
         };
         let ranks: Vec<u32> = clock
@@ -49,7 +51,7 @@ impl ChipletLiveState<'_> {
     }
 
     pub fn temperature_rows(&self, group: &CoreGroup) -> Vec<LabeledValue> {
-        let Some(temperature) = self.temperature else {
+        let Some(temperature) = self.temperature.get() else {
             return Vec::new();
         };
         group
@@ -73,6 +75,7 @@ impl ChipletLiveState<'_> {
 
     pub fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<LabeledValue> {
         self.cache_traffic
+            .sample()
             .into_iter()
             .flat_map(|traffic| traffic.caches.iter())
             .filter(|cache| group.contains(cache.counted_on_cpu))

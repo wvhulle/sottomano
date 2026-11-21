@@ -1,31 +1,28 @@
 mod channel_level_control;
+mod pipewire_volume_writes;
 
-use std::{
-    collections::HashMap, convert::identity, env, ops::RangeInclusive, thread, time::Duration,
-};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Function, Subscription, Task};
-use sottomano_desktop_sinks::media_playback_audio::pipewire_level_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{
         self, AudioConnectError, AudioEvent, AudioState, ChannelLevels, Commands, DefaultChannel,
         DeviceDescription, Peaks, Target, WindowAudio,
     },
 };
 use sottomano_toml_config::Config;
-use tokio::task::spawn_blocking;
 
-use self::channel_level_control::{audio_output_icon, feed, input_glyph};
+use self::{
+    channel_level_control::{audio_output_icon, feed, input_glyph},
+    pipewire_volume_writes::PipewireCommandLink,
+};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
-        slider_control::{
-            Action, ControlMessage, SeverityDirection, SliderControl, as_percent, percent_f,
-        },
+        slider_control::{Action, ControlMessage, SeverityDirection, SliderControl, as_percent},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
@@ -66,7 +63,7 @@ impl ControlKind {
 
 pub struct AudioGroup {
     state: SubscribedSnapshot<AudioState>,
-    commands: Option<Commands>,
+    command_link: PipewireCommandLink,
     sink_control: SliderControl,
     source_control: SliderControl,
     expansion: IndicatorGroupExpansion,
@@ -76,7 +73,7 @@ impl Default for AudioGroup {
     fn default() -> Self {
         Self {
             state: SubscribedSnapshot::default(),
-            commands: None,
+            command_link: PipewireCommandLink::Disconnected,
             expansion: IndicatorGroupExpansion::default(),
             sink_control: SliderControl::new(
                 "Speaker volume",
@@ -112,7 +109,7 @@ impl AudioGroup {
     }
 
     pub fn toggle_window_mute(&self, pid: i32) -> Task<AudioMessage> {
-        self.mute(Target::AppStreams(pid))
+        self.command_link.toggle_mute(Target::AppStreams(pid))
     }
 }
 
@@ -141,18 +138,18 @@ impl AudioGroup {
     pub fn update(&mut self, msg: AudioMessage, clock: Clock) -> Task<AudioMessage> {
         match msg {
             AudioMessage::Connected(commands) => {
-                self.commands = Some(commands);
+                self.command_link = PipewireCommandLink::Connected(commands);
                 self.meter(Peaks::default());
                 Task::none()
             }
             AudioMessage::Disconnected => {
-                self.commands = None;
+                self.command_link = PipewireCommandLink::Disconnected;
                 self.state
                     .receive(SnapshotDelivery::SourceUnavailable, clock);
                 Task::none()
             }
             AudioMessage::ConnectFailed(failure) => {
-                self.commands = None;
+                self.command_link = PipewireCommandLink::Disconnected;
                 self.state
                     .receive(SnapshotDelivery::live_push(Err(failure)), clock);
                 Task::none()
@@ -169,12 +166,14 @@ impl AudioGroup {
                 self.meter(peaks);
                 Task::none()
             }
-            AudioMessage::Control(kind, m) => self.update_control(kind, m),
+            AudioMessage::Control(kind, control_message) => {
+                self.update_control(kind, control_message)
+            }
             AudioMessage::Expansion(IndicatorGroupExpansionMessage::HandleScrolled(delta)) => {
                 self.update_control(ControlKind::Sink, ControlMessage::Scroll(delta))
             }
-            AudioMessage::Expansion(m) => {
-                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
+            AudioMessage::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Task::none()
@@ -189,10 +188,14 @@ impl AudioGroup {
             .update(ControlMessage::Level(peaks.input));
     }
 
-    fn update_control(&mut self, kind: ControlKind, m: ControlMessage) -> Task<AudioMessage> {
+    fn update_control(
+        &mut self,
+        kind: ControlKind,
+        control_message: ControlMessage,
+    ) -> Task<AudioMessage> {
         let action = match kind {
-            ControlKind::Sink => self.sink_control.update(m),
-            ControlKind::Source => self.source_control.update(m),
+            ControlKind::Sink => self.sink_control.update(control_message),
+            ControlKind::Source => self.source_control.update(control_message),
         };
         let target = kind.target();
         match action {
@@ -203,58 +206,10 @@ impl AudioGroup {
                 }
                 Task::none()
             }
-            Action::Commit(value) => self.write(kind, target, value),
-            Action::Adjust(delta) => self.nudge(kind, target, delta),
-            Action::Right => self.mute(target),
+            Action::Commit(value) => self.command_link.write_volume(kind, target, value),
+            Action::Adjust(delta) => self.command_link.nudge_volume(kind, target, delta),
+            Action::Right => self.command_link.toggle_mute(target),
             Action::None => Task::none(),
-        }
-    }
-
-    fn write(&self, kind: ControlKind, target: Target, value: f32) -> Task<AudioMessage> {
-        let Some(commands) = self.commands.clone() else {
-            return Task::none();
-        };
-        let volume_write = spawn_blocking(move || {
-            slow_write_delay();
-            pipewire_level_commands::set_volume(&commands, target, as_percent(value)).map(drop)
-        });
-        ControlMessage::commit("audio set volume", value, async move {
-            volume_write
-                .await
-                .map_err(pipewire_level_commands::VolumeChangeFailure::from)
-                .and_then(identity)
-        })
-        .map(move |m| AudioMessage::Control(kind, m))
-    }
-
-    fn nudge(&self, kind: ControlKind, target: Target, delta: f32) -> Task<AudioMessage> {
-        let Some(commands) = self.commands.clone() else {
-            return Task::none();
-        };
-        let step = as_percent(delta);
-        Task::perform(
-            blocking("audio adjust volume", move || {
-                slow_write_delay();
-                pipewire_level_commands::adjust_volume(&commands, target, step)
-            }),
-            move |resolved| {
-                AudioMessage::Control(
-                    kind,
-                    resolved.map_or(ControlMessage::AdjustFailed, |percent| {
-                        ControlMessage::Adjusted(percent_f(percent))
-                    }),
-                )
-            },
-        )
-    }
-
-    fn mute(&self, target: Target) -> Task<AudioMessage> {
-        match self.commands.clone() {
-            Some(commands) => Task::future(blocking("audio toggle mute", move || {
-                pipewire_level_commands::toggle_mute(&commands, target)
-            }))
-            .discard(),
-            None => Task::none(),
         }
     }
 
@@ -275,8 +230,11 @@ impl AudioGroup {
             .hover_card_with(vec![Section::new("Level", dictionary_table(level_entries))])
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
-        let resolved_levels = |channel: &'a DefaultChannel| match channel {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
+        let resolved_levels = |channel: &'view DefaultChannel| match channel {
             DefaultChannel::Resolved(levels) => Some(levels),
             DefaultChannel::Unresolved => None,
         };
@@ -320,24 +278,28 @@ impl AudioGroup {
         if let Some(failure_placeholder) = self.state.failure() {
             rows.push(failure_placeholder.indicator(AUDIO_STATE_GLYPH.into()));
         }
-        IndicatorGroupContent::expandable(
-            IndicatorGroupFamily::Audio,
-            match sink {
-                Some(_) => self
-                    .sink_control
+        let audio_content = |headline_indicator| {
+            IndicatorGroupContent::expandable(
+                IndicatorGroupFamily::Audio,
+                headline_indicator,
+                &self.expansion,
+                AudioMessage::Expansion,
+                rows,
+            )
+        };
+        match sink {
+            Some(_) => audio_content(
+                self.sink_control
                     .indicator(config.calendar.locale)
                     .with_headline_glyph(Phosphor::Equalizer(Weight::Regular).into()),
-                None => GroupIndicator::glyph_only(
-                    IndicatorGroupFamily::Audio.title(),
-                    Phosphor::Equalizer(Weight::Regular).into(),
-                    self.sink_control.shown_state(),
-                ),
-            },
-            &self.expansion,
-            AudioMessage::Expansion,
-            rows,
-        )
-        .forwards_scroll(sink.map(|_| "change the output volume"))
+            )
+            .forwards_scroll("change the output volume"),
+            None => audio_content(GroupIndicator::glyph_only(
+                IndicatorGroupFamily::Audio.title(),
+                Phosphor::Equalizer(Weight::Regular).into(),
+                self.sink_control.shown_state(),
+            )),
+        }
     }
 
     pub fn collapse(&mut self) {
@@ -349,14 +311,6 @@ impl AudioGroup {
     fn close_sliders(&mut self) {
         self.sink_control.close();
         self.source_control.close();
-    }
-}
-
-fn slow_write_delay() {
-    if let Ok(raw) = env::var("SOTTOMANO_SLOW_WRITE_MS")
-        && let Ok(ms) = raw.parse::<u64>()
-    {
-        thread::sleep(Duration::from_millis(ms));
     }
 }
 

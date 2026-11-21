@@ -19,12 +19,12 @@ use crate::{
     },
 };
 
-pub struct LoginFace<'a> {
-    pub identity: &'a SessionIdentity,
+pub struct LoginFace<'view> {
+    pub identity: &'view SessionIdentity,
 }
 
-impl<'a> LoginFace<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> LoginFace<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = self.identity.login_manager.clone();
         let label = if label_text.is_empty() {
             ReadoutLabel::Unlabeled

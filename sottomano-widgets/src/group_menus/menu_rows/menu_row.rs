@@ -19,12 +19,12 @@ use crate::{
         SatelliteBlur, satellite_with_regions,
     },
     hover_cards::hover_card_surfaces::SWITCH_INTENT,
-    widgets::{shell_layer_appearance::LayerAppearance, text::text_face_of},
+    widgets::{shell_layer_appearance::LayerAppearance, text::resolved_text_face},
 };
 
 pub(crate) fn menu_metrics(config: &Config) -> MenuRowMetrics {
     MenuRowMetrics {
-        face: text_face_of(&config.theme.font),
+        face: resolved_text_face(&config.theme.font),
         row_height_px: config.desktop_panels.height + config.theme.spacing.item_gap,
         icon_slot_px: config.desktop_panels.height,
         item_spacing_px: config.theme.spacing.group_gap,
@@ -55,9 +55,9 @@ pub(crate) fn menu_style(
     }
 }
 
-pub(crate) fn phosphor_caret<'a, Message: 'a>(
+pub(crate) fn phosphor_caret<'view, Message: 'view>(
     config: &Config,
-) -> impl Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'a, Message> + 'a {
+) -> impl Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'view, Message> + 'view {
     let icon_size_px = config.theme.font.icon_size_px;
     move |pointing, color| {
         let caret = match pointing {
@@ -77,16 +77,16 @@ pub struct MenuAppearance {
     pub orientation: CascadeOrientation,
 }
 
-pub fn configured_nested_menu<'a, SubmenuKey, Message>(
-    entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+pub fn configured_nested_menu<'view, SubmenuKey, Message>(
+    entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
     menu_state: &NestedMenuState<SubmenuKey>,
-    on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a,
+    on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'view,
     config: &Config,
     appearance: MenuAppearance,
-) -> Option<NestedMenuSurfaces<'a, Message>>
+) -> Option<NestedMenuSurfaces<'view, Message>>
 where
-    SubmenuKey: Clone + PartialEq + 'a,
-    Message: Clone + 'a,
+    SubmenuKey: Clone + PartialEq + 'view,
+    Message: Clone + 'view,
 {
     let MenuAppearance {
         list_appearance,

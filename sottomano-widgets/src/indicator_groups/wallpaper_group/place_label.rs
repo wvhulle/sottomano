@@ -59,14 +59,20 @@ impl Place {
     }
 }
 
-impl Place {
-    pub(super) fn wallpaper_place(wallpaper: &Wallpaper) -> Option<Self> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum WallpaperPlace {
+    Named(Place),
+    Unnamed,
+}
+
+impl From<&Wallpaper> for WallpaperPlace {
+    fn from(wallpaper: &Wallpaper) -> Self {
         match &wallpaper.place {
-            PhotoPlaceName::Named(name) => Some(Self {
+            PhotoPlaceName::Named(name) => WallpaperPlace::Named(Place {
                 name: name.clone(),
                 position: wallpaper.position,
             }),
-            PhotoPlaceName::Unnamed => None,
+            PhotoPlaceName::Unnamed => WallpaperPlace::Unnamed,
         }
     }
 }

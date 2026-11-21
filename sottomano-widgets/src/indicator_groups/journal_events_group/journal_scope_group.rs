@@ -57,7 +57,10 @@ impl JournalScopeGroup {
         }
     }
 
-    pub(super) fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub(super) fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let unit_scope = self.unit_scope;
         let mut rows = Vec::new();
         self.push_kernel_log_indicators(&mut rows, config);
@@ -75,10 +78,10 @@ impl JournalScopeGroup {
         )
     }
 
-    fn push_kernel_log_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
-        config: &'a Config,
+    fn push_kernel_log_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+        config: &'view Config,
     ) {
         if !self.kernel.awaits_first_delivery() {
             let kernel_indicator = self.kernel.indicator(
@@ -91,10 +94,10 @@ impl JournalScopeGroup {
         }
     }
 
-    fn push_service_errors_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
-        config: &'a Config,
+    fn push_service_errors_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+        config: &'view Config,
     ) {
         if !self.service_errors.awaits_first_delivery() {
             let service_errors_row = self.wired_service_errors_indicator(
@@ -116,10 +119,10 @@ impl JournalScopeGroup {
         }
     }
 
-    fn push_coredump_log_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
-        config: &'a Config,
+    fn push_coredump_log_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+        config: &'view Config,
     ) {
         if !self.coredumps.awaits_first_delivery() {
             let coredump_indicator = self.coredumps.indicator(
@@ -132,10 +135,10 @@ impl JournalScopeGroup {
         }
     }
 
-    fn push_oom_kill_log_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
-        config: &'a Config,
+    fn push_oom_kill_log_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+        config: &'view Config,
     ) {
         if !self.oom_kills.awaits_first_delivery() {
             let oom_kill_indicator = self.oom_kills.indicator(

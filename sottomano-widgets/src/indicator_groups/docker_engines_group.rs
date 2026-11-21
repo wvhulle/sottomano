@@ -43,13 +43,13 @@ use crate::{
     widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
-struct UnreadableEngineIndicator<'a> {
-    engine: &'a DockerEngineSocket,
-    read_failure: &'a EngineReadError,
+struct UnreadableEngineIndicator<'view> {
+    engine: &'view DockerEngineSocket,
+    read_failure: &'view EngineReadError,
 }
 
-impl<'a> UnreadableEngineIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> UnreadableEngineIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.engine.owner.to_string(),
             Phosphor::Package(Weight::Regular).into(),
@@ -80,13 +80,13 @@ impl<'a> UnreadableEngineIndicator<'a> {
     }
 }
 
-struct ListedContainerIndicator<'a> {
-    engine: &'a DockerEngineSocket,
-    listed: &'a DockerContainerListing,
+struct ListedContainerIndicator<'view> {
+    engine: &'view DockerEngineSocket,
+    listed: &'view DockerContainerListing,
 }
 
-impl<'a> ListedContainerIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ListedContainerIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.listed.container_name, &self.engine.owner),
             Phosphor::Package(Weight::Regular).into(),
@@ -245,7 +245,7 @@ impl DockerEnginesGroup {
         Some(presence_count)
     }
 
-    fn readout_of(&self, engine: &DockerEngineSocket) -> Option<&EngineListing> {
+    fn engine_readout_listing(&self, engine: &DockerEngineSocket) -> Option<&EngineListing> {
         self.readouts.get(&engine.socket_path)?.get().map(
             |DockerEngineReadout {
                  engine_listing: listing,
@@ -257,15 +257,18 @@ impl DockerEnginesGroup {
         self.readouts.get(&engine.socket_path)?.fetch_failure()
     }
 
-    fn listing_of(&self, engine: &DockerEngineSocket) -> Option<&DockerEngineListing> {
+    fn engine_container_listing(
+        &self,
+        engine: &DockerEngineSocket,
+    ) -> Option<&DockerEngineListing> {
         self.listings.get(&engine.socket_path)?.get()
     }
 
-    fn running_container_indicators<'a>(
-        engine: &'a DockerEngineSocket,
-        listing: &'a EngineListing,
-        engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupIndicator<'a>> {
+    fn running_container_indicators<'view>(
+        engine: &'view DockerEngineSocket,
+        listing: &'view EngineListing,
+        engine_readout: &'view SubscribedSnapshot<DockerEngineReadout>,
+    ) -> Vec<GroupIndicator<'view>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -293,11 +296,11 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn stopped_container_indicators<'a>(
-        engine: &'a DockerEngineSocket,
-        listing: &'a EngineListing,
-        engine_readout: &'a SubscribedSnapshot<DockerEngineReadout>,
-    ) -> Vec<GroupIndicator<'a>> {
+    fn stopped_container_indicators<'view>(
+        engine: &'view DockerEngineSocket,
+        listing: &'view EngineListing,
+        engine_readout: &'view SubscribedSnapshot<DockerEngineReadout>,
+    ) -> Vec<GroupIndicator<'view>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -344,11 +347,14 @@ impl DockerEnginesGroup {
         )
     }
 
-    fn listed_indicators<'a>(&'a self, engine: &'a DockerEngineSocket) -> Vec<GroupIndicator<'a>> {
+    fn listed_indicators<'view>(
+        &'view self,
+        engine: &'view DockerEngineSocket,
+    ) -> Vec<GroupIndicator<'view>> {
         let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
             return Vec::new();
         };
-        self.listing_of(engine)
+        self.engine_container_listing(engine)
             .map(|listing| listing.listings.as_slice())
             .unwrap_or_default()
             .iter()
@@ -381,7 +387,7 @@ impl DockerEnginesGroup {
         let mut stopped_indicators = Vec::new();
         for engine in &self.engines {
             if let Some(engine_readout) = self.readouts.get(&engine.socket_path)
-                && let Some(listing) = self.readout_of(engine)
+                && let Some(listing) = self.engine_readout_listing(engine)
             {
                 running_indicators.extend(Self::running_container_indicators(
                     engine,

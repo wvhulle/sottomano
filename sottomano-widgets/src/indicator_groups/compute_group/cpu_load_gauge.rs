@@ -38,14 +38,19 @@ fn busy_level(busy: Ratio) -> Severity {
     }
 }
 
+enum CoreDeepIdle {
+    Measured(Ratio),
+    Unmeasured,
+}
+
 struct CoreLoadSample {
     core: u32,
     busy: Ratio,
     split: LoadSplit,
-    deep_idle: Option<Ratio>,
+    deep_idle: CoreDeepIdle,
 }
 
-fn mean_share<'a>(shares: impl Iterator<Item = Ratio> + 'a) -> Option<Ratio> {
+fn mean_share(shares: impl Iterator<Item = Ratio>) -> Option<Ratio> {
     let collected: Vec<Ratio> = shares.collect();
     let count = collected.len();
     (count > 0).then(|| collected.into_iter().sum::<Ratio>() / count as f64)
@@ -60,11 +65,10 @@ impl ChipletLiveState<'_> {
                 core: load.core,
                 busy: load.busy,
                 split: load.split,
-                deep_idle: loads
-                    .deep_idle
-                    .iter()
-                    .find(|idle| idle.core == load.core)
-                    .map(|idle| idle.share),
+                deep_idle: match loads.deep_idle.iter().find(|idle| idle.core == load.core) {
+                    Some(idle) => CoreDeepIdle::Measured(idle.share),
+                    None => CoreDeepIdle::Unmeasured,
+                },
             })
             .collect();
         let grid = CoreGridSection {
@@ -90,7 +94,11 @@ impl ChipletLiveState<'_> {
                     .map(|user| LabeledValue::new("User", Quantity::share(user)));
                 let kernel = mean(|sample| sample.split.system)
                     .map(|system| LabeledValue::new("Kernel", Quantity::share(system)));
-                let deep_idle = mean_share(members.iter().filter_map(|sample| sample.deep_idle))
+                let deep_idle =
+                    mean_share(members.iter().filter_map(|sample| match sample.deep_idle {
+                        CoreDeepIdle::Measured(share) => Some(share),
+                        CoreDeepIdle::Unmeasured => None,
+                    }))
                     .map(|idle| LabeledValue::new("Deep sleep", Quantity::share(idle)));
                 load.into_iter()
                     .chain(user)

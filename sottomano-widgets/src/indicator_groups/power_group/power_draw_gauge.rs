@@ -18,14 +18,20 @@ const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
 
+#[derive(Debug, Clone, Copy)]
+pub enum LaptopDrawEstimate {
+    NotModelled,
+    Modelled(Power),
+}
+
 pub struct PowerDraw {
     power: Power,
     status: ChargeStatus,
-    expected_laptop: Option<Power>,
+    expected_laptop: LaptopDrawEstimate,
 }
 
 impl PowerDraw {
-    pub fn battery_draw(battery: &Battery, expected_laptop: Option<Power>) -> Self {
+    pub fn battery_draw(battery: &Battery, expected_laptop: LaptopDrawEstimate) -> Self {
         PowerDraw {
             power: battery.power,
             status: battery.status,
@@ -57,14 +63,14 @@ impl PowerDraw {
     }
 
     fn charger_feeds_table(&self) -> SectionTable {
-        let laptop = self
-            .expected_laptop
-            .map(|laptop| LabeledValue::new("Laptop (estimated)", Quantity::power(laptop)));
-        dictionary_table(
-            laptop
-                .into_iter()
-                .chain([LabeledValue::new("Battery", Quantity::power(self.power))]),
-        )
+        let battery = LabeledValue::new("Battery", Quantity::power(self.power));
+        match self.expected_laptop {
+            LaptopDrawEstimate::Modelled(laptop) => dictionary_table([
+                LabeledValue::new("Laptop (estimated)", Quantity::power(laptop)),
+                battery,
+            ]),
+            LaptopDrawEstimate::NotModelled => dictionary_table([battery]),
+        }
     }
 }
 
@@ -141,7 +147,7 @@ mod tests {
         PowerDraw {
             power: Power::new::<watt>(19.7),
             status,
-            expected_laptop: Some(Power::new::<watt>(8.9)),
+            expected_laptop: LaptopDrawEstimate::Modelled(Power::new::<watt>(8.9)),
         }
     }
 

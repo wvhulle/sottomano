@@ -33,18 +33,18 @@ const FLOATING_SHADOW_ALPHA: f32 = 0.45;
 const FLOATING_SHADOW_OFFSET: Vector = Vector::new(0.0, 2.0);
 const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
 
-pub struct WorkspaceSchematic<'a> {
-    preview: &'a WorkspacePreview,
-    config: &'a Config,
-    favicons: &'a Favicons,
+pub struct WorkspaceSchematic<'view> {
+    preview: &'view WorkspacePreview,
+    config: &'view Config,
+    favicons: &'view Favicons,
 }
 
-impl<'a> WorkspaceSchematic<'a> {
+impl<'view> WorkspaceSchematic<'view> {
     #[must_use]
     pub fn new(
-        preview: &'a WorkspacePreview,
-        config: &'a Config,
-        assets: WindowAssets<'a>,
+        preview: &'view WorkspacePreview,
+        config: &'view Config,
+        assets: WindowAssets<'view>,
     ) -> Self {
         Self {
             preview,

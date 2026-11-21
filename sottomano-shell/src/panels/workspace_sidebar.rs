@@ -17,11 +17,11 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
 
 impl DesktopShell {
-    pub(crate) fn workspace_sidebar<'a>(
-        &'a self,
+    pub(crate) fn workspace_sidebar<'view>(
+        &'view self,
         window: Id,
         output: &str,
-    ) -> Element<'a, ShellInteraction> {
+    ) -> Element<'view, ShellInteraction> {
         let sidebar = self
             .indicator_groups
             .sidebar_settings_group
@@ -40,7 +40,7 @@ impl DesktopShell {
                 sidebar_column::vertical_view(
                     snapshot,
                     output,
-                    self.configured_workspaces.as_ref(),
+                    self.configured_workspaces.read_order(),
                     &self
                         .indicator_groups
                         .sidebar_settings_group

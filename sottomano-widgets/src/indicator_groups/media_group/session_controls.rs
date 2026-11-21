@@ -28,11 +28,11 @@ fn stop_indicator(media: &Media) -> Option<GroupIndicator<'_>> {
     })
 }
 
-fn quit_indicator<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    session: &'a PlayerSession,
-) -> Option<GroupIndicator<'a>> {
+fn quit_indicator<'view>(
+    config: &'view Config,
+    media: &'view Media,
+    session: &'view PlayerSession,
+) -> Option<GroupIndicator<'view>> {
     (media.capabilities.quit == CommandOffer::Offered).then(|| {
         let bus = media.bus.as_str();
         let quit_does = match session.quit_button.stage {
@@ -61,11 +61,11 @@ fn quit_indicator<'a>(
     })
 }
 
-pub(super) fn session_button_indicators<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    session: &'a PlayerSession,
-) -> impl Iterator<Item = GroupIndicator<'a>> {
+pub(super) fn session_button_indicators<'view>(
+    config: &'view Config,
+    media: &'view Media,
+    session: &'view PlayerSession,
+) -> impl Iterator<Item = GroupIndicator<'view>> {
     stop_indicator(media)
         .into_iter()
         .chain(quit_indicator(config, media, session))

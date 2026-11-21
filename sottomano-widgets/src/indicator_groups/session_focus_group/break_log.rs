@@ -5,8 +5,8 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct BreakLog<'a> {
-    pub accounting: Accounting<'a>,
+pub struct BreakLog<'view> {
+    pub accounting: Accounting<'view>,
 }
 
 impl BreakLog<'_> {

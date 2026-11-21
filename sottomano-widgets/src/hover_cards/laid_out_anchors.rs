@@ -10,8 +10,14 @@ pub struct WidgetAnchor {
     pub target: HoverTarget,
     pub opening: NestedMenuOpenTrigger,
     pub anchor: Rectangle,
-    pub visible: bool,
+    pub visibility: AnchorVisibility,
     pub presence: Weak<()>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnchorVisibility {
+    Visible,
+    Hidden,
 }
 
 impl WidgetAnchor {
@@ -70,7 +76,11 @@ impl LaidOutAnchors {
         }
     }
 
-    fn widget_of(&self, output: &str, target: &HoverTarget) -> Option<&WidgetAnchor> {
+    fn remembered_widget_anchor(
+        &self,
+        output: &str,
+        target: &HoverTarget,
+    ) -> Option<&WidgetAnchor> {
         self.anchors
             .iter()
             .find(|known| known.output == output && known.widget_anchor.target == *target)
@@ -78,20 +88,20 @@ impl LaidOutAnchors {
     }
 
     #[must_use]
-    pub fn anchor_of(&self, output: &str, target: &HoverTarget) -> Option<Rectangle> {
-        self.widget_of(output, target)
+    pub fn anchor_bounds(&self, output: &str, target: &HoverTarget) -> Option<Rectangle> {
+        self.remembered_widget_anchor(output, target)
             .map(|widget_anchor| widget_anchor.anchor)
     }
 
     #[must_use]
-    pub fn presence_of(&self, output: &str, target: &HoverTarget) -> Option<Weak<()>> {
-        self.widget_of(output, target)
+    pub fn widget_presence(&self, output: &str, target: &HoverTarget) -> Option<Weak<()>> {
+        self.remembered_widget_anchor(output, target)
             .map(|widget_anchor| widget_anchor.presence.clone())
     }
 
     #[must_use]
     pub fn anchored_widget_liveness(&self, output: &str, target: &HoverTarget) -> WidgetLiveness {
-        self.widget_of(output, target)
+        self.remembered_widget_anchor(output, target)
             .map_or(WidgetLiveness::Dropped, WidgetAnchor::widget_liveness)
     }
 
@@ -130,7 +140,7 @@ mod tests {
     use corredo::popovers::NestedMenuOpenTrigger;
     use iced::{Point, Rectangle, Size};
 
-    use super::{LaidOutAnchors, WidgetAnchor};
+    use super::{AnchorVisibility, LaidOutAnchors, WidgetAnchor};
     use crate::hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness};
 
     #[expect(
@@ -152,7 +162,7 @@ mod tests {
             target: workspace_card(),
             opening: NestedMenuOpenTrigger::Press,
             anchor: anchor_at(horizontal_position),
-            visible: true,
+            visibility: AnchorVisibility::Visible,
             presence: Arc::downgrade(&LIVE_WIDGET),
         }
     }
@@ -220,7 +230,7 @@ mod tests {
         assert_eq!(anchors.menu_handles_on("DP-1"), [anchor_at(2.0)]);
         assert_eq!(anchors.menu_handles_on("DP-2"), [anchor_at(1.0)]);
         assert_eq!(
-            anchors.anchor_of("DP-1", &workspace_card()),
+            anchors.anchor_bounds("DP-1", &workspace_card()),
             Some(anchor_at(2.0))
         );
     }

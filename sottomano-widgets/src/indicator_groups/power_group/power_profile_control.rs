@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    iter::once,
-    ops::RangeInclusive,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, iter::once, ops::RangeInclusive, time::Instant};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::battery_power_profiles::power_profile_selection;
@@ -26,7 +21,9 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     indicator_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        power_draw_gauge::LaptopDrawEstimate,
         profile_status_sections::profile_status_sections,
+        sample_spacing::SampleSpacing,
         sqlite_power_draw_regression,
     },
     widgets::{
@@ -50,12 +47,36 @@ const MIN_SAMPLE_W: f64 = 0.5;
 pub struct PowerProfileControl {
     pub control: SliderControl,
     pub status: SubscribedSnapshot<ProfileStatus>,
-    conditions: Option<Conditions>,
-    battery: Option<Battery>,
-    profile_models: Option<HashMap<Profile, RegressionState>>,
+    conditions: ReportedConditions,
+    battery: ObservedBattery,
+    profile_models: DrainModelLearning,
     estimates: HashMap<Profile, Option<Estimate>>,
-    load_started: bool,
-    previous_sample_at: Option<Instant>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ReportedConditions {
+    Unreported,
+    Reported(Conditions),
+}
+
+enum ObservedBattery {
+    NotObserved,
+    Observed(Battery),
+}
+
+enum DrainModelLearning {
+    NotLoaded,
+    Loading,
+    Learning {
+        models: HashMap<Profile, RegressionState>,
+        spacing: SampleSpacing,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProfileActivity {
+    Active,
+    Inactive,
 }
 
 impl Default for PowerProfileControl {
@@ -68,12 +89,10 @@ impl Default for PowerProfileControl {
                 .readout(|value, _| Profile::nearest_position_profile(value).title().to_string())
                 .glyph(|value, _| profile_face(Profile::nearest_position_profile(value))),
             status: SubscribedSnapshot::default(),
-            conditions: None,
-            battery: None,
-            profile_models: None,
+            conditions: ReportedConditions::Unreported,
+            battery: ObservedBattery::NotObserved,
+            profile_models: DrainModelLearning::NotLoaded,
             estimates: HashMap::new(),
-            load_started: false,
-            previous_sample_at: None,
         }
     }
 }
@@ -145,20 +164,23 @@ impl PowerProfileControl {
                     SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Ok(conditions),
                         ..
-                    } => Some(conditions),
+                    } => ReportedConditions::Reported(conditions),
                     SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Err(error),
                         ..
                     } => {
                         tracing::debug!("power conditions: {error}");
-                        None
+                        ReportedConditions::Unreported
                     }
-                    SnapshotDelivery::SourceUnavailable => None,
+                    SnapshotDelivery::SourceUnavailable => ReportedConditions::Unreported,
                     SnapshotDelivery::SnapshotUnchanged => self.conditions,
                 };
             }
             PowerProfileMessage::Loaded(models) => {
-                self.profile_models = Some(models);
+                self.profile_models = DrainModelLearning::Learning {
+                    models,
+                    spacing: SampleSpacing::Interrupted,
+                };
                 self.recompute();
             }
             PowerProfileMessage::ControlCommitted(control_message) => {
@@ -203,7 +225,7 @@ impl PowerProfileControl {
         now: Instant,
     ) -> Task<PowerProfileMessage> {
         let task = self.learn(battery, now);
-        self.battery = Some(battery.clone());
+        self.battery = ObservedBattery::Observed(battery.clone());
         self.recompute();
         task
     }
@@ -211,26 +233,26 @@ impl PowerProfileControl {
     fn drain_sample(&self, battery: &Battery) -> Option<DrainSample> {
         let measurable = battery.status == ChargeStatus::Discharging
             && battery.power > Power::new::<watt>(MIN_SAMPLE_W);
+        let ReportedConditions::Reported(conditions) = self.conditions else {
+            return None;
+        };
         Some(DrainSample {
             profile: self.active_profile()?,
-            conditions: self.conditions?,
+            conditions,
             draw: measurable.then_some(battery.power)?,
         })
     }
 
     fn learn(&mut self, battery: &Battery, now: Instant) -> Task<PowerProfileMessage> {
         let sample = self.drain_sample(battery);
-        let Some(models) = self.profile_models.as_mut() else {
+        let DrainModelLearning::Learning { models, spacing } = &mut self.profile_models else {
             return self.start_loading(&battery.serial);
         };
         let Some(sample) = sample else {
-            self.previous_sample_at = None;
+            *spacing = SampleSpacing::Interrupted;
             return Task::none();
         };
-        let since_previous = self
-            .previous_sample_at
-            .replace(now)
-            .map_or(Duration::ZERO, |previous| now - previous);
+        let since_previous = spacing.sampled_now(now);
         let next = models
             .remove(&sample.profile)
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
@@ -245,24 +267,32 @@ impl PowerProfileControl {
     }
 
     fn start_loading(&mut self, serial: &str) -> Task<PowerProfileMessage> {
-        if self.load_started || serial.is_empty() {
+        if matches!(self.profile_models, DrainModelLearning::Loading) || serial.is_empty() {
             return Task::none();
         }
-        self.load_started = true;
+        self.profile_models = DrainModelLearning::Loading;
         Task::future(sqlite_power_draw_regression::load(serial.to_string()))
             .map(PowerProfileMessage::Loaded)
     }
 
     fn drain_estimates(&self) -> Option<HashMap<Profile, Option<Estimate>>> {
-        let battery = self
-            .battery
-            .as_ref()
-            .filter(|battery| battery.status == ChargeStatus::Discharging)?;
+        let ObservedBattery::Observed(battery) = &self.battery else {
+            return None;
+        };
+        let ReportedConditions::Reported(conditions) = self.conditions else {
+            return None;
+        };
+        let DrainModelLearning::Learning { models, .. } = &self.profile_models else {
+            return None;
+        };
+        if battery.status != ChargeStatus::Discharging {
+            return None;
+        }
         Some(time_until_empty(
             battery,
             self.active_profile()?,
-            self.conditions?,
-            self.profile_models.as_ref()?,
+            conditions,
+            models,
         ))
     }
 
@@ -270,9 +300,25 @@ impl PowerProfileControl {
         self.estimates = self.drain_estimates().unwrap_or_default();
     }
 
-    pub fn expected_draw(&self) -> Option<Power> {
-        let model = self.profile_models.as_ref()?.get(&self.active_profile()?)?;
-        Some(model.expected_draw(self.conditions?)).filter(|draw| *draw > Power::default())
+    pub fn expected_draw(&self) -> LaptopDrawEstimate {
+        let DrainModelLearning::Learning { models, .. } = &self.profile_models else {
+            return LaptopDrawEstimate::NotModelled;
+        };
+        let ReportedConditions::Reported(conditions) = self.conditions else {
+            return LaptopDrawEstimate::NotModelled;
+        };
+        let Some(model) = self
+            .active_profile()
+            .and_then(|active_profile| models.get(&active_profile))
+        else {
+            return LaptopDrawEstimate::NotModelled;
+        };
+        let expected_draw = model.expected_draw(conditions);
+        if expected_draw > Power::default() {
+            LaptopDrawEstimate::Modelled(expected_draw)
+        } else {
+            LaptopDrawEstimate::NotModelled
+        }
     }
 
     pub fn active_estimate(&self) -> Option<Estimate> {
@@ -304,7 +350,11 @@ impl PowerProfileControl {
         );
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
-            active: profile == active_profile,
+            activity: if profile == active_profile {
+                ProfileActivity::Active
+            } else {
+                ProfileActivity::Inactive
+            },
             forecast: Forecast::estimated_or(
                 self.estimates.get(&profile).copied().flatten(),
                 Unforecastable::NoDrainHistory,
@@ -322,16 +372,15 @@ impl PowerProfileControl {
 
 struct ProfileLife {
     profile: Profile,
-    active: bool,
+    activity: ProfileActivity,
     forecast: Forecast,
 }
 
 impl ProfileLife {
     fn title(&self) -> String {
-        if self.active {
-            format!("{} (active)", self.profile.title())
-        } else {
-            self.profile.title().to_string()
+        match self.activity {
+            ProfileActivity::Active => format!("{} (active)", self.profile.title()),
+            ProfileActivity::Inactive => self.profile.title().to_string(),
         }
     }
 }

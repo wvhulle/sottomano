@@ -12,15 +12,15 @@ use iced::{
 
 use crate::widgets::typing_under_cards::CardBackgroundFade;
 
-pub struct ToastCardBackdrop<'a, Message> {
-    content: Element<'a, Message>,
+pub struct ToastCardBackdrop<'view, Message> {
+    content: Element<'view, Message>,
     resting_style: container::Style,
     background_fade: CardBackgroundFade,
 }
 
-impl<'a, Message> ToastCardBackdrop<'a, Message> {
+impl<'view, Message> ToastCardBackdrop<'view, Message> {
     pub fn new(
-        content: impl Into<Element<'a, Message>>,
+        content: impl Into<Element<'view, Message>>,
         resting_style: container::Style,
         background_fade: CardBackgroundFade,
     ) -> Self {
@@ -133,22 +133,22 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ToastCardBackdrop
             .mouse_interaction(tree, layout, cursor, viewport, renderer)
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content
             .as_widget_mut()
             .overlay(tree, layout, renderer, viewport, translation)
     }
 }
 
-impl<'a, Message: 'a> From<ToastCardBackdrop<'a, Message>> for Element<'a, Message> {
-    fn from(backdrop: ToastCardBackdrop<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<ToastCardBackdrop<'view, Message>> for Element<'view, Message> {
+    fn from(backdrop: ToastCardBackdrop<'view, Message>) -> Self {
         Element::new(backdrop)
     }
 }

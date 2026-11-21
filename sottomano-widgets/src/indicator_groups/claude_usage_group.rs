@@ -298,10 +298,10 @@ impl ClaudeUsageGroup {
         )
     }
 
-    fn enterprise_spend_indicator<'a>(
-        &'a self,
-        spend_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn enterprise_spend_indicator<'view>(
+        &'view self,
+        spend_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         spend_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
@@ -322,10 +322,10 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_periods_indicator<'a>(
-        &'a self,
-        periods_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn ccusage_periods_indicator<'view>(
+        &'view self,
+        periods_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         periods_indicator
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_periods.sections_described_by(|snapshot| {
@@ -337,10 +337,10 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn ccusage_block_indicator<'a>(
-        &'a self,
-        block_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn ccusage_block_indicator<'view>(
+        &'view self,
+        block_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         block_indicator
             .with_hover_card(Box::new(move |card_clock| {
                 self.ccusage_block.sections_described_by(|snapshot| {
@@ -352,10 +352,10 @@ impl ClaudeUsageGroup {
             ))
     }
 
-    fn usage_windows_indicator<'a>(
-        &'a self,
-        windows_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn usage_windows_indicator<'view>(
+        &'view self,
+        windows_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         windows_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.usage_windows.sections_described_by(|snapshot| {
@@ -393,7 +393,11 @@ impl ClaudeUsageGroup {
         .with_headline_glyph(SimpleIcon::Claude.into())
     }
 
-    fn list_usage_windows<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_usage_windows<'view>(
+        &'view self,
+        clock: Clock,
+        indicators: &mut Vec<GroupIndicator<'view>>,
+    ) {
         if !self.usage_windows.awaits_first_delivery() {
             indicators.insert(
                 0,
@@ -405,9 +409,9 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_enterprise_spend_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_enterprise_spend_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         clock: Clock,
     ) {
         if !self.enterprise_spend.awaits_first_delivery() {
@@ -421,9 +425,9 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_periods_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_ccusage_periods_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         clock: Clock,
     ) {
         if !self.ccusage_periods.awaits_first_delivery() {
@@ -437,7 +441,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_ccusage_block_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_ccusage_block_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if !self.ccusage_block.awaits_first_delivery() {
             let block_indicator = self.ccusage_block.indicator(
                 |held_snapshot| claude_ccusage_block_indicator(held_snapshot),
@@ -449,7 +453,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_model_ranking_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_model_ranking_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 ranking
@@ -464,7 +468,7 @@ impl ClaudeUsageGroup {
         }
     }
 
-    fn push_billed_ranking_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_billed_ranking_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(billed_ranking) = self.billed_model_ranking() {
             rows.push(
                 billed_ranking

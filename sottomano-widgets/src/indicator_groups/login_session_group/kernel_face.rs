@@ -20,12 +20,12 @@ use crate::{
     },
 };
 
-pub struct KernelFace<'a> {
-    pub system: &'a OperatingSystemIdentity,
+pub struct KernelFace<'view> {
+    pub system: &'view OperatingSystemIdentity,
 }
 
-impl<'a> KernelFace<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> KernelFace<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = DistributionIds {
             distribution_names: &self.system.distribution_ids,
         }

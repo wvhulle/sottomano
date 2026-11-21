@@ -35,10 +35,10 @@ pub fn inward_outlined_sides(panel_position: Position) -> OutlinedSides {
     }
 }
 
-pub fn panel_frame<'a, Message>(
-    content: impl Into<Element<'a, Message>>,
+pub fn panel_frame<'view, Message>(
+    content: impl Into<Element<'view, Message>>,
     frame: FrameStyle,
-) -> PanelFrame<'a, Message> {
+) -> PanelFrame<'view, Message> {
     PanelFrame {
         content: content.into(),
         frame,
@@ -47,8 +47,8 @@ pub fn panel_frame<'a, Message>(
     }
 }
 
-pub struct PanelFrame<'a, Message> {
-    content: Element<'a, Message>,
+pub struct PanelFrame<'view, Message> {
+    content: Element<'view, Message>,
     frame: FrameStyle,
     outlined_sides: OutlinedSides,
     backdrop_blur: BackdropBlur,
@@ -136,8 +136,8 @@ impl<Message> PanelFrame<'_, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<PanelFrame<'a, Message>> for Element<'a, Message> {
-    fn from(frame: PanelFrame<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<PanelFrame<'view, Message>> for Element<'view, Message> {
+    fn from(frame: PanelFrame<'view, Message>) -> Self {
         let content_size = frame.content.as_widget().size();
         let outline_clearance = frame.outline_clearance();
         let content_inside_outline = container(frame.content)
@@ -253,14 +253,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout,

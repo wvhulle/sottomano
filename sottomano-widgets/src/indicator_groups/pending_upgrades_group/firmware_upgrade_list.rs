@@ -33,11 +33,11 @@ use crate::{
 pub const LABEL: &str = "Firmware upgrades";
 
 impl PendingUpgradesGroup {
-    pub(super) fn firmware_upgrade_indicator<'a>(
-        &'a self,
-        upgrades: &'a [FirmwareUpgrade],
+    pub(super) fn firmware_upgrade_indicator<'view>(
+        &'view self,
+        upgrades: &'view [FirmwareUpgrade],
         config: &Config,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),

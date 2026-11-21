@@ -19,7 +19,10 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
-    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
+    widgets::{
+        hover_fetched_snapshot::HoverFetchedSnapshot, localized_quantities::Quantity,
+        value_cells::LabeledValue,
+    },
 };
 
 fn frequency_text(frequency: Frequency) -> String {
@@ -68,7 +71,11 @@ pub(super) fn cpu_clock_hover_card(cpu_clock: &CpuClock) -> Vec<Section> {
 }
 
 impl ChipletLiveState<'_> {
-    pub fn clock_sections(&self, clock: &CpuClock, loads: Option<&CpuCoreLoads>) -> Vec<Section> {
+    pub fn clock_sections(
+        &self,
+        clock: &CpuClock,
+        loads: &HoverFetchedSnapshot<CpuCoreLoads>,
+    ) -> Vec<Section> {
         let chiplet_temperature_rows: Vec<LabeledValue> = clock
             .topology
             .core_groups

@@ -86,7 +86,7 @@ pub struct MediaGroup {
 }
 
 struct PlayerSession {
-    cover_art: Option<CoverArt>,
+    cover_art: SessionCoverArt,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
     expansion: IndicatorGroupExpansion,
@@ -95,7 +95,7 @@ struct PlayerSession {
 impl Default for PlayerSession {
     fn default() -> Self {
         Self {
-            cover_art: None,
+            cover_art: SessionCoverArt::NotLoaded,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(ConfirmPolicy::ConfirmFirst),
             expansion: IndicatorGroupExpansion::default(),
@@ -106,6 +106,11 @@ impl Default for PlayerSession {
 struct CoverArt {
     url: String,
     handle: IconHandle,
+}
+
+enum SessionCoverArt {
+    NotLoaded,
+    Loaded(CoverArt),
 }
 
 #[derive(Debug)]
@@ -126,7 +131,7 @@ pub enum MediaMessage {
     ArtLoaded {
         bus: String,
         url: String,
-        handle: Option<IconHandle>,
+        handle: IconHandle,
     },
     ProgressAdvanced,
     PlayerFallback(MediaInteraction),
@@ -166,10 +171,10 @@ fn player_fallback_message(bus: &str, interaction: PlayerInteraction) -> MediaMe
     MediaMessage::PlayerFallback(player_interaction(bus, interaction))
 }
 
-fn lifted_to_player<'a>(
-    bus: &'a str,
-    element: Element<'a, PlayerInteraction>,
-) -> Element<'a, GroupEvent> {
+fn lifted_to_player<'view>(
+    bus: &'view str,
+    element: Element<'view, PlayerInteraction>,
+) -> Element<'view, GroupEvent> {
     element.map(move |interaction| GroupEvent::from(player_interaction(bus, interaction)))
 }
 
@@ -264,7 +269,7 @@ impl MediaGroup {
         }
     }
 
-    fn lyrics_of(&self, media: &Media) -> Option<&SubscribedSnapshot<TrackLyrics>> {
+    fn track_lyrics(&self, media: &Media) -> Option<&SubscribedSnapshot<TrackLyrics>> {
         self.lyrics_snapshots.get(&media.lyrics_query()?)
     }
 
@@ -294,7 +299,7 @@ impl MediaGroup {
         titled
     }
 
-    fn group_title_of(&self, media: &Media) -> IndicatorGroupTitle {
+    fn player_group_title(&self, media: &Media) -> IndicatorGroupTitle {
         let earlier_namesakes = self
             .titled_players()
             .into_iter()
@@ -336,10 +341,8 @@ impl MediaGroup {
                     .is_some_and(|media| {
                         matches!(&media.art_url, CoverArtUrl::Advertised(shown) if *shown == url)
                     });
-                if let Some(handle) = handle.filter(|_| still_shown)
-                    && let Some(session) = self.sessions.get_mut(&bus)
-                {
-                    session.cover_art = Some(CoverArt { url, handle });
+                if still_shown && let Some(session) = self.sessions.get_mut(&bus) {
+                    session.cover_art = SessionCoverArt::Loaded(CoverArt { url, handle });
                 }
             }
             MediaMessage::PlayerFallback(fallback_interaction) => {
@@ -384,14 +387,10 @@ impl MediaGroup {
                 continue;
             };
             session.seek_bar.player_reported(media, now);
-            if session
-                .cover_art
-                .as_ref()
-                .is_some_and(|art| {
-                    !matches!(&media.art_url, CoverArtUrl::Advertised(shown) if *shown == art.url)
-                })
+            if let SessionCoverArt::Loaded(art) = &session.cover_art
+                && !matches!(&media.art_url, CoverArtUrl::Advertised(shown) if *shown == art.url)
             {
-                session.cover_art = None;
+                session.cover_art = SessionCoverArt::NotLoaded;
             }
         }
     }
@@ -435,12 +434,12 @@ impl MediaGroup {
         )
     }
 
-    pub fn group_contents<'a>(
-        &'a self,
-        config: &'a Config,
-        desktop_entries: &'a DesktopEntries,
+    pub fn group_contents<'view>(
+        &'view self,
+        config: &'view Config,
+        desktop_entries: &'view DesktopEntries,
         clock: Clock,
-    ) -> impl Iterator<Item = IndicatorGroupContent<'a>> {
+    ) -> impl Iterator<Item = IndicatorGroupContent<'view>> {
         self.player_snapshots
             .iter()
             .filter_map(move |(bus, player_snapshot)| {
@@ -454,10 +453,10 @@ impl MediaGroup {
                 player_group(
                     config,
                     clock,
-                    self.group_title_of(media),
+                    self.player_group_title(media),
                     player_snapshot,
                     session,
-                    self.lyrics_of(media),
+                    self.track_lyrics(media),
                     desktop_entries,
                 )
             })
@@ -624,7 +623,7 @@ mod tests {
         let titles: Vec<String> = group
             .titled_players()
             .into_iter()
-            .map(|media| group.group_title_of(media).to_string())
+            .map(|media| group.player_group_title(media).to_string())
             .collect();
         assert_eq!(titles, ["Firefox", "Firefox 2", "Spotify"]);
     }
@@ -719,7 +718,7 @@ mod tests {
         assert_eq!(group.unfetched_lyrics_queries().count(), 1);
         assert!(
             group
-                .lyrics_of(&low_tide)
+                .track_lyrics(&low_tide)
                 .is_some_and(|lyrics_snapshot| lyrics_snapshot.failure().is_some())
         );
     }

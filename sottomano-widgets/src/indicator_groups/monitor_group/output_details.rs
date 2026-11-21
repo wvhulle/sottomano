@@ -15,15 +15,15 @@ use crate::widgets::{
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
 
-pub struct ConnectedOutput<'a> {
-    pub connector: &'a str,
-    pub info: &'a OutputInfo,
+pub struct ConnectedOutput<'view> {
+    pub connector: &'view str,
+    pub info: &'view OutputInfo,
 }
 
-impl<'a> ConnectedOutput<'a> {
+impl<'view> ConnectedOutput<'view> {
     pub fn driving(
         backlight: &Backlight,
-        outputs: &'a HashMap<String, OutputInfo>,
+        outputs: &'view HashMap<String, OutputInfo>,
     ) -> Option<Self> {
         outputs
             .iter()

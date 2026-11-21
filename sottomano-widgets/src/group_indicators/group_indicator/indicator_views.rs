@@ -35,16 +35,16 @@ use crate::{
     },
 };
 
-impl<'a> GroupIndicator<'a> {
+impl<'view> GroupIndicator<'view> {
     pub(crate) fn view(
         &self,
         config: &Config,
         reveal: f32,
         clock: Clock,
         hover_target: HoverTarget,
-        edge_line: Element<'a, GroupEvent>,
+        edge_line: Element<'view, GroupEvent>,
         panel_position: Position,
-    ) -> Element<'a, GroupEvent> {
+    ) -> Element<'view, GroupEvent> {
         let content = self.placed_view(config, reveal, clock, IndicatorPlacement::Panel);
         PanelSlot::new(content, edge_line).hovered(
             panel_position,
@@ -54,16 +54,20 @@ impl<'a> GroupIndicator<'a> {
         )
     }
 
-    pub(crate) fn table_cell_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
+    pub(crate) fn table_cell_view(
+        &self,
+        config: &Config,
+        clock: Clock,
+    ) -> Element<'view, GroupEvent> {
         self.placed_view(config, 1.0, clock, IndicatorPlacement::Table)
     }
 
-    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'a, GroupEvent> {
+    pub(crate) fn menu_icon(&self, config: &Config) -> Element<'view, GroupEvent> {
         face_icon(config, &self.face, 1.0).unwrap_or_else(|| Space::new().into())
     }
 
-    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
-        let empty = || -> Element<'a, GroupEvent> { Space::new().into() };
+    pub(crate) fn menu_value(&self, config: &Config, clock: Clock) -> Element<'view, GroupEvent> {
+        let empty = || -> Element<'view, GroupEvent> { Space::new().into() };
         match &self.value {
             RowValueControl::IndicatorReadout(readout) => {
                 readout_view(config, &self.face, readout, 1.0).unwrap_or_else(empty)
@@ -76,9 +80,9 @@ impl<'a> GroupIndicator<'a> {
     fn with_switch_indicator(
         &self,
         config: &Config,
-        switched_content: Element<'a, GroupEvent>,
+        switched_content: Element<'view, GroupEvent>,
         opacity: f32,
-    ) -> Element<'a, GroupEvent> {
+    ) -> Element<'view, GroupEvent> {
         let power_indicator = match self.power_control {
             IndicatorPowerControl::Absent => return switched_content,
             IndicatorPowerControl::Switch(switch_position) => {
@@ -98,7 +102,11 @@ impl<'a> GroupIndicator<'a> {
             .into()
     }
 
-    pub(crate) fn menu_row_value(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent> {
+    pub(crate) fn menu_row_value(
+        &self,
+        config: &Config,
+        clock: Clock,
+    ) -> Element<'view, GroupEvent> {
         self.with_switch_indicator(config, self.menu_value(config, clock), 1.0)
     }
 
@@ -114,7 +122,7 @@ impl<'a> GroupIndicator<'a> {
         }
     }
 
-    pub(crate) fn row_scroll(&self) -> RowScroll<'a> {
+    pub(crate) fn row_scroll(&self) -> RowScroll<'view> {
         match &self.value {
             RowValueControl::Slider {
                 adjust_by_scroll, ..
@@ -148,7 +156,7 @@ impl<'a> GroupIndicator<'a> {
         reveal: f32,
         clock: Clock,
         placement: IndicatorPlacement,
-    ) -> Element<'a, GroupEvent> {
+    ) -> Element<'view, GroupEvent> {
         let content = match &self.value {
             RowValueControl::IndicatorReadout(readout) => self.with_switch_indicator(
                 config,

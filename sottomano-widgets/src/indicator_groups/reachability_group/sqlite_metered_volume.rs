@@ -66,19 +66,21 @@ pub async fn add_and_reload(
     today: NaiveDate,
     cycle_start_day: u32,
     transferred: TransferTotals,
-) -> Option<MeteredVolumeTotals> {
+) -> MeteredVolumeTotals {
     with_state_store("metered volume: save failed", async |connection| {
         add_transferred(connection, today, transferred).await?;
         read_totals(connection, today, cycle_start(today, cycle_start_day)).await
     })
     .await
+    .unwrap_or_else(|| MeteredVolumeTotals::starting(today))
 }
 
-pub async fn load(today: NaiveDate, cycle_start_day: u32) -> Option<MeteredVolumeTotals> {
+pub async fn load(today: NaiveDate, cycle_start_day: u32) -> MeteredVolumeTotals {
     with_state_store("metered volume: load failed", async |connection| {
         read_totals(connection, today, cycle_start(today, cycle_start_day)).await
     })
     .await
+    .unwrap_or_else(|| MeteredVolumeTotals::starting(today))
 }
 
 fn stored_bytes(size: ByteSize) -> i64 {

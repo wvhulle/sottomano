@@ -61,11 +61,11 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
     }
 }
 
-fn instance_power_switch<'a>(
-    row: GroupIndicator<'a>,
+fn instance_power_switch<'view>(
+    row: GroupIndicator<'view>,
     instance_daemon: InstanceDaemon,
     listing: &DaemonInstanceListing,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let (switch_position, hint, run_change) = match listing.run_state {
         ContainerRunState::Running => (SwitchPosition::On, STOP_HINT, RunChange::Stop),
         ContainerRunState::Stopped => (SwitchPosition::Off, START_HINT, RunChange::Start),
@@ -97,13 +97,13 @@ fn daemon_instance_name(
     }
 }
 
-struct IncusInstanceIndicator<'a> {
+struct IncusInstanceIndicator<'view> {
     instance_daemon: InstanceDaemon,
-    instance: &'a DaemonInstance,
+    instance: &'view DaemonInstance,
 }
 
-impl<'a> IncusInstanceIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> IncusInstanceIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label =
             if self.instance.listing.run_state == ContainerRunState::Stopped {
                 Some(self.instance.listing.status_text.to_lowercase())
@@ -162,13 +162,13 @@ impl<'a> IncusInstanceIndicator<'a> {
     }
 }
 
-struct IncusInstanceListingIndicator<'a> {
+struct IncusInstanceListingIndicator<'view> {
     instance_daemon: InstanceDaemon,
-    listing: &'a DaemonInstanceListing,
+    listing: &'view DaemonInstanceListing,
 }
 
-impl<'a> IncusInstanceListingIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> IncusInstanceListingIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             daemon_instance_name(
                 self.instance_daemon,
@@ -199,13 +199,13 @@ impl<'a> IncusInstanceListingIndicator<'a> {
     }
 }
 
-struct UnreadableDaemonIndicator<'a> {
+struct UnreadableDaemonIndicator<'view> {
     instance_daemon: InstanceDaemon,
-    read_failure: &'a EngineReadError,
+    read_failure: &'view EngineReadError,
 }
 
-impl<'a> UnreadableDaemonIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> UnreadableDaemonIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.instance_daemon.product_name(),
             Phosphor::Package(Weight::Regular).into(),

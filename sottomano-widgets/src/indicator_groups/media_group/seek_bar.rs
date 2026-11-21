@@ -78,12 +78,12 @@ impl SeekBar {
         }
     }
 
-    pub fn view<'a>(
+    pub fn view<'view>(
         &self,
         config: &Config,
         media: &Media,
         now: Instant,
-    ) -> Option<Element<'a, SeekMessage>> {
+    ) -> Option<Element<'view, SeekMessage>> {
         if media.capabilities.seek == CommandOffer::NotOffered {
             return None;
         }
@@ -110,12 +110,12 @@ pub enum SeekAvailability {
     Fixed,
 }
 
-pub(super) fn seek_position_indicator<'a>(
-    config: &'a Config,
+pub(super) fn seek_position_indicator<'view>(
+    config: &'view Config,
     clock: Clock,
-    media: &'a Media,
-    session: &'a PlayerSession,
-) -> GroupIndicator<'a> {
+    media: &'view Media,
+    session: &'view PlayerSession,
+) -> GroupIndicator<'view> {
     let bus = media.bus.as_str();
     GroupIndicator::composed(
         "Position",

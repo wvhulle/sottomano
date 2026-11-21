@@ -13,8 +13,8 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub(super) struct MountAccessIndicator<'a> {
-    pub usage: &'a FilesystemUsage,
+pub(super) struct MountAccessIndicator<'view> {
+    pub usage: &'view FilesystemUsage,
 }
 
 fn access_text(access: MountAccess) -> &'static str {
@@ -24,8 +24,8 @@ fn access_text(access: MountAccess) -> &'static str {
     }
 }
 
-impl<'a> MountAccessIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> MountAccessIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "Mount",
             Phosphor::HardDrive(Weight::Regular).into(),

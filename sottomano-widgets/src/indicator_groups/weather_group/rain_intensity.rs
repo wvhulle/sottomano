@@ -95,8 +95,8 @@ impl RadarRainStrength {
 }
 
 impl Display for RadarRainStrength {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(match self {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.write_str(match self {
             RadarRainStrength::Dry => "Dry",
             RadarRainStrength::Light => "Light",
             RadarRainStrength::Moderate => "Moderate",
@@ -150,15 +150,15 @@ const TIMELINE_HEADINGS: [ColumnHeading; 3] = [
 ];
 
 #[derive(Debug, Clone, Copy)]
-enum PrecipitationTypeMarker<'a> {
+enum PrecipitationTypeMarker<'forecast> {
     Unmarked,
-    StartsQuarter(&'a ModelQuarterHour),
+    StartsQuarter(&'forecast ModelQuarterHour),
 }
 
 #[derive(Debug, Clone, Copy)]
-struct RainTimelineRow<'a> {
-    sample: RainRateIndicator<'a>,
-    type_marker: PrecipitationTypeMarker<'a>,
+struct RainTimelineRow<'forecast> {
+    sample: RainRateIndicator<'forecast>,
+    type_marker: PrecipitationTypeMarker<'forecast>,
     scale: RainIntensityScale,
 }
 
@@ -222,10 +222,10 @@ impl From<&RainTimelineRow<'_>> for TableRecord<3> {
     }
 }
 
-fn model_quarter_containing<'a>(
-    quarters: &[&'a ModelQuarterHour],
+fn model_quarter_containing<'forecast>(
+    quarters: &[&'forecast ModelQuarterHour],
     at: DateTime<Utc>,
-) -> Option<&'a ModelQuarterHour> {
+) -> Option<&'forecast ModelQuarterHour> {
     quarters
         .iter()
         .copied()
@@ -238,11 +238,11 @@ struct TimelineHour {
     hour: u32,
 }
 
-fn rain_timeline<'a>(
-    rate_sources: Vec<RankedRateSource<'a>>,
-    type_quarters: &[&'a ModelQuarterHour],
+fn rain_timeline<'forecast>(
+    rate_sources: Vec<RankedRateSource<'forecast>>,
+    type_quarters: &[&'forecast ModelQuarterHour],
     scale: RainIntensityScale,
-) -> Vec<RainTimelineRow<'a>> {
+) -> Vec<RainTimelineRow<'forecast>> {
     rate_indicators_by_rank(rate_sources)
         .into_iter()
         .scan(None, |previous_quarter_start, sample| {
@@ -274,32 +274,32 @@ fn rain_timeline_section(rows: &[RainTimelineRow<'_>]) -> Section {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum RainSources<'a> {
+pub enum RainSources<'forecast> {
     RadarAndModel {
-        radar: &'a Rain,
-        model: &'a PrecipitationModel,
+        radar: &'forecast Rain,
+        model: &'forecast PrecipitationModel,
     },
-    Radar(&'a Rain),
-    Model(&'a PrecipitationModel),
+    Radar(&'forecast Rain),
+    Model(&'forecast PrecipitationModel),
 }
 
-impl<'a> RainSources<'a> {
+impl<'forecast> RainSources<'forecast> {
     #[must_use]
-    fn radar(self) -> Option<&'a Rain> {
+    fn radar(self) -> Option<&'forecast Rain> {
         match self {
             RainSources::RadarAndModel { radar, .. } | RainSources::Radar(radar) => Some(radar),
             RainSources::Model(_) => None,
         }
     }
 
-    fn model(self) -> Option<&'a PrecipitationModel> {
+    fn model(self) -> Option<&'forecast PrecipitationModel> {
         match self {
             RainSources::RadarAndModel { model, .. } | RainSources::Model(model) => Some(model),
             RainSources::Radar(_) => None,
         }
     }
 
-    fn rate_sources(self, clock: Clock) -> Vec<RankedRateSource<'a>> {
+    fn rate_sources(self, clock: Clock) -> Vec<RankedRateSource<'forecast>> {
         let radar_source = self.radar().map(|rain| rain.ranked_rate_source(clock));
         let model_source = self.model().map(|model| model.ranked_rate_source(clock));
         radar_source.into_iter().chain(model_source).collect()
@@ -313,9 +313,9 @@ impl<'a> RainSources<'a> {
     }
 }
 
-pub struct RainForecast<'a> {
-    pub sources: RainSources<'a>,
-    pub alerts: &'a RainAlertsConfig,
+pub struct RainForecast<'forecast> {
+    pub sources: RainSources<'forecast>,
+    pub alerts: &'forecast RainAlertsConfig,
 }
 
 impl RainForecast<'_> {
@@ -410,8 +410,8 @@ fn method_source_key(method: RainForecastMethod) -> &'static str {
     }
 }
 
-impl<'a> RainForecast<'a> {
-    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
+impl<'forecast> RainForecast<'forecast> {
+    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'forecast> {
         let label = match self.label_text(clock, locale) {
             Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
             Some(_) | None => ReadoutLabel::Unlabeled,
@@ -493,13 +493,13 @@ impl<'a> RainForecast<'a> {
     }
 }
 
-pub struct RadarRainForecast<'a> {
-    pub rain: &'a Rain,
-    pub alerts: &'a RainAlertsConfig,
+pub struct RadarRainForecast<'forecast> {
+    pub rain: &'forecast Rain,
+    pub alerts: &'forecast RainAlertsConfig,
 }
 
-impl<'a> RadarRainForecast<'a> {
-    fn with_default_alerts(rain: &'a Rain) -> Self {
+impl<'forecast> RadarRainForecast<'forecast> {
+    fn with_default_alerts(rain: &'forecast Rain) -> Self {
         RadarRainForecast {
             rain,
             alerts: &DEFAULT_RAIN_ALERTS,
@@ -507,8 +507,8 @@ impl<'a> RadarRainForecast<'a> {
     }
 }
 
-impl<'a> RainForecast<'a> {
-    fn modelled_with_default_alerts(model: &'a PrecipitationModel) -> Self {
+impl<'forecast> RainForecast<'forecast> {
+    fn modelled_with_default_alerts(model: &'forecast PrecipitationModel) -> Self {
         RainForecast {
             sources: RainSources::Model(model),
             alerts: &DEFAULT_RAIN_ALERTS,
@@ -516,10 +516,10 @@ impl<'a> RainForecast<'a> {
     }
 }
 
-struct RainSpell<'a> {
+struct RainSpell<'forecast> {
     outlook: RainOutlook,
     starts_at: DateTime<Local>,
-    peak: &'a Downpour,
+    peak: &'forecast Downpour,
 }
 
 impl RadarRainForecast<'_> {
@@ -688,7 +688,7 @@ mod tests {
         .unwrap()
     }
 
-    fn severity_of(rain: &Rain, clock: Clock) -> Severity {
+    fn radar_alert_severity(rain: &Rain, clock: Clock) -> Severity {
         RadarRainForecast::with_default_alerts(rain).severity(clock.local())
     }
 
@@ -696,7 +696,7 @@ mod tests {
     fn a_dry_forecast_never_alerts() {
         let clock = Clock::real();
         assert_eq!(
-            severity_of(&radar_frames(clock, &[0.0, 0.0]), clock),
+            radar_alert_severity(&radar_frames(clock, &[0.0, 0.0]), clock),
             Severity::Normal
         );
     }
@@ -731,9 +731,9 @@ mod tests {
     fn rain_beyond_the_lead_time_waits_until_it_comes_closer() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0]);
-        assert_eq!(severity_of(&rain, clock), Severity::Normal);
+        assert_eq!(radar_alert_severity(&rain, clock), Severity::Normal);
         assert_eq!(
-            severity_of(&rain, clock.advanced(Duration::from_mins(30))),
+            radar_alert_severity(&rain, clock.advanced(Duration::from_mins(30))),
             Severity::Warning
         );
     }
@@ -742,18 +742,18 @@ mod tests {
     fn heavy_rain_within_the_lead_time_is_critical() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0, 12.0]);
-        assert_eq!(severity_of(&rain, clock), Severity::Critical);
+        assert_eq!(radar_alert_severity(&rain, clock), Severity::Critical);
     }
 
     #[test]
     fn drizzle_below_the_minimum_stays_quiet() {
         let clock = Clock::real();
         assert_eq!(
-            severity_of(&radar_frames(clock, &[0.2, 0.3, 0.2, 0.0]), clock),
+            radar_alert_severity(&radar_frames(clock, &[0.2, 0.3, 0.2, 0.0]), clock),
             Severity::Normal
         );
         assert_eq!(
-            severity_of(&radar_frames(clock, &[2.0, 2.0, 0.0]), clock),
+            radar_alert_severity(&radar_frames(clock, &[2.0, 2.0, 0.0]), clock),
             Severity::Warning
         );
     }
@@ -764,7 +764,7 @@ mod tests {
         let mut frames = vec![0.2; 20];
         frames.push(12.0);
         assert_eq!(
-            severity_of(&radar_frames(clock, &frames), clock),
+            radar_alert_severity(&radar_frames(clock, &frames), clock),
             Severity::Normal
         );
     }
@@ -776,7 +776,7 @@ mod tests {
         let body = RadarRainForecast::with_default_alerts(&rain)
             .toast_body(clock, Locale::default())
             .unwrap();
-        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert_eq!(radar_alert_severity(&rain, clock), Severity::Warning);
         assert!(body.contains("<dt>Starts</dt>"));
         assert!(body.contains("<dt>Peak</dt><dd>3.0 mm/h</dd>"));
     }
@@ -785,9 +785,9 @@ mod tests {
     fn a_forecast_kept_through_failed_fetches_ages_out() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[3.0, 3.0, 3.0]);
-        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert_eq!(radar_alert_severity(&rain, clock), Severity::Warning);
         assert_eq!(
-            severity_of(&rain, clock.advanced(Duration::from_mins(15))),
+            radar_alert_severity(&rain, clock.advanced(Duration::from_mins(15))),
             Severity::Normal
         );
     }
@@ -880,10 +880,6 @@ mod tests {
         .intensity_scale()
     }
 
-    fn timeline_of<'a>(forecast: &'a RainForecast<'a>, clock: Clock) -> Vec<RainTimelineRow<'a>> {
-        forecast.timeline(clock)
-    }
-
     fn type_cells(timeline: &[RainTimelineRow<'_>]) -> Vec<ValueCell> {
         timeline
             .iter()
@@ -940,7 +936,7 @@ mod tests {
             },
             alerts: &alerts,
         };
-        let timeline = timeline_of(&forecast, clock);
+        let timeline = forecast.timeline(clock);
         assert_eq!(
             type_cells(&timeline),
             [
@@ -973,7 +969,7 @@ mod tests {
             alerts: &alerts,
         };
         assert_eq!(
-            type_cells(&timeline_of(&forecast, clock)),
+            type_cells(&forecast.timeline(clock)),
             [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
         );
     }
@@ -991,7 +987,7 @@ mod tests {
             },
             alerts: &alerts,
         };
-        let timeline = timeline_of(&forecast, clock);
+        let timeline = forecast.timeline(clock);
         assert_eq!(
             type_cells(&timeline),
             [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
@@ -1011,7 +1007,7 @@ mod tests {
             &[WeatherCondition::Overcast, WeatherCondition::Overcast],
         );
         let forecast = RainForecast::modelled_with_default_alerts(&model);
-        let timeline = timeline_of(&forecast, clock);
+        let timeline = forecast.timeline(clock);
         assert_eq!(timeline.len(), 2);
         assert!(
             timeline
@@ -1028,7 +1024,7 @@ mod tests {
             sources: RainSources::Radar(&rain),
             alerts: &RainAlertsConfig::default(),
         };
-        let timeline = timeline_of(&forecast, clock);
+        let timeline = forecast.timeline(clock);
         assert_eq!(timeline.len(), 3);
         assert!(
             timeline

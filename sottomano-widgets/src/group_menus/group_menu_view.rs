@@ -67,10 +67,10 @@ pub fn panel_menu_handle(
     )
 }
 
-pub struct GroupMenuView<'a> {
-    group_menus: &'a GroupMenuState,
+pub struct GroupMenuView<'view> {
+    group_menus: &'view GroupMenuState,
     messenger: GroupMenuMessenger,
-    groups: Vec<IndicatorGroupContent<'a>>,
+    groups: Vec<IndicatorGroupContent<'view>>,
     handle_badge: MenuHandleBadge,
 }
 
@@ -81,10 +81,10 @@ pub enum MenuHandleBadge {
     ImageBadged(IconHandle),
 }
 
-pub struct InspectionCard<'c, 'a> {
-    pub sections: &'c [Section],
+pub struct InspectionCard<'sections, 'assets> {
+    pub sections: &'sections [Section],
     pub card_appearance: LayerAppearance,
-    pub assets: WindowAssets<'a>,
+    pub assets: WindowAssets<'assets>,
     pub clock: Clock,
 }
 
@@ -134,9 +134,9 @@ impl GroupMenuMessenger {
     }
 }
 
-pub(crate) struct MenuSections<'a> {
-    pub table_columns: Vec<QuantityTableColumn<'a>>,
-    pub group_rows: Vec<GroupMenuGroupRow<'a>>,
+pub(crate) struct MenuSections<'view> {
+    pub table_columns: Vec<QuantityTableColumn<'view>>,
+    pub group_rows: Vec<GroupMenuGroupRow<'view>>,
 }
 
 impl MenuSections<'_> {
@@ -148,11 +148,11 @@ impl MenuSections<'_> {
     }
 }
 
-impl<'a> GroupMenuView<'a> {
+impl<'view> GroupMenuView<'view> {
     pub fn new(
         topic: GroupMenuTopic,
-        group_menus: &'a GroupMenuState,
-        groups: impl IntoIterator<Item = IndicatorGroupContent<'a>>,
+        group_menus: &'view GroupMenuState,
+        groups: impl IntoIterator<Item = IndicatorGroupContent<'view>>,
     ) -> Self {
         Self {
             group_menus,
@@ -169,14 +169,14 @@ impl<'a> GroupMenuView<'a> {
     }
 
     #[must_use]
-    pub fn indicator(&self, indicator_key: &IndicatorKey) -> Option<&GroupIndicator<'a>> {
+    pub fn indicator(&self, indicator_key: &IndicatorKey) -> Option<&GroupIndicator<'view>> {
         self.groups
             .iter()
             .find_map(|group| group.indicator(indicator_key))
     }
 
     #[must_use]
-    pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'a>> {
+    pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'view>> {
         self.groups
             .iter()
             .find_map(|group| group.hovered_indicator(target))
@@ -230,10 +230,10 @@ impl<'a> GroupMenuView<'a> {
 
     fn handle_view(
         &self,
-        config: &'a Config,
+        config: &'view Config,
         panel_position: Position,
         handle_indicator: MenuHandleIndicator,
-    ) -> Element<'a, GroupEvent> {
+    ) -> Element<'view, GroupEvent> {
         let highest_alert_severity = self
             .groups
             .iter()
@@ -242,7 +242,7 @@ impl<'a> GroupMenuView<'a> {
             .unwrap_or_default();
         let icon_size = config.theme.font.icon_size_px;
         let topic_glyph = IconGlyph::from(self.messenger.topic.glyph()).view(icon_size, text_color);
-        let glyph: Element<'a, GroupEvent> = match &self.handle_badge {
+        let glyph: Element<'view, GroupEvent> = match &self.handle_badge {
             MenuHandleBadge::Unbadged => topic_glyph,
             MenuHandleBadge::ImageBadged(badge_image) => {
                 row![topic_glyph, badge_image.view(icon_size, 1.0)]
@@ -269,11 +269,11 @@ impl<'a> GroupMenuView<'a> {
 
     pub fn panel_views(
         self,
-        config: &'a Config,
+        config: &'view Config,
         panel_position: Position,
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
-    ) -> impl Iterator<Item = Element<'a, GroupEvent>> + 'a {
+    ) -> impl Iterator<Item = Element<'view, GroupEvent>> + 'view {
         let handle_slot = self.handle_view(config, panel_position, handle_indicator);
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;

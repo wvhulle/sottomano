@@ -25,11 +25,11 @@ use crate::{
 };
 
 impl DesktopShell {
-    pub(crate) fn panel_bar_view<'a>(
-        &'a self,
+    pub(crate) fn panel_bar_view<'view>(
+        &'view self,
         composition: &PanelBarComposition,
-        output: &'a str,
-    ) -> Element<'a, ShellInteraction> {
+        output: &'view str,
+    ) -> Element<'view, ShellInteraction> {
         let position = composition.position;
         let zone_indicator = |zone| {
             self.panel_zone_row(
@@ -52,12 +52,12 @@ impl DesktopShell {
         self.panel_band(position, panel_zone_rows)
     }
 
-    fn panel_entry_views<'a>(
-        &'a self,
+    fn panel_entry_views<'view>(
+        &'view self,
         entry: PanelZoneEntry,
         position: Position,
-        output: &'a str,
-    ) -> Vec<Element<'a, ShellInteraction>> {
+        output: &'view str,
+    ) -> Vec<Element<'view, ShellInteraction>> {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(GroupMenuTopic::WindowMenuBar)
@@ -84,7 +84,7 @@ impl DesktopShell {
                     .collect()
             }
             PanelZoneEntry::Menu(topic) => self
-                .group_menu_of(topic)
+                .topic_group_menu(topic)
                 .panel_views(
                     config,
                     position,
@@ -129,11 +129,11 @@ impl DesktopShell {
         }
     }
 
-    fn panel_band<'a>(
-        &'a self,
+    fn panel_band<'view>(
+        &'view self,
         position: Position,
-        content: impl Into<Element<'a, ShellInteraction>>,
-    ) -> Element<'a, ShellInteraction> {
+        content: impl Into<Element<'view, ShellInteraction>>,
+    ) -> Element<'view, ShellInteraction> {
         let panels = self
             .indicator_groups
             .panel_settings_group
@@ -170,11 +170,11 @@ impl DesktopShell {
         region_reporter(column![strip], roles).into()
     }
 
-    fn panel_zone_row<'a>(
-        &'a self,
+    fn panel_zone_row<'view>(
+        &'view self,
         position: Position,
-        groups: impl IntoIterator<Item = Element<'a, ShellInteraction>>,
-    ) -> Element<'a, ShellInteraction> {
+        groups: impl IntoIterator<Item = Element<'view, ShellInteraction>>,
+    ) -> Element<'view, ShellInteraction> {
         let config = &self.config;
         let panels = self
             .indicator_groups
@@ -214,11 +214,11 @@ impl DesktopShell {
             .into()
     }
 
-    fn inline_workspaces<'a>(
-        &'a self,
+    fn inline_workspaces<'view>(
+        &'view self,
         position: Position,
-        output: &'a str,
-    ) -> Option<Element<'a, ShellInteraction>> {
+        output: &'view str,
+    ) -> Option<Element<'view, ShellInteraction>> {
         match self
             .indicator_groups
             .sidebar_settings_group
@@ -228,7 +228,7 @@ impl DesktopShell {
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 &self.window_snapshot,
                 output,
-                self.configured_workspaces.as_ref(),
+                self.configured_workspaces.read_order(),
                 &self
                     .indicator_groups
                     .sidebar_settings_group
@@ -239,11 +239,11 @@ impl DesktopShell {
         }
     }
 
-    fn window_group_view<'a>(
-        &'a self,
+    fn window_group_view<'view>(
+        &'view self,
         position: Position,
-        output: &'a str,
-    ) -> Option<Element<'a, ShellInteraction>> {
+        output: &'view str,
+    ) -> Option<Element<'view, ShellInteraction>> {
         self.indicator_groups
             .window_group
             .view(

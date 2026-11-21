@@ -20,9 +20,9 @@ use crate::{
 
 const BCACHEFS_NO_COMPRESSION: &str = "none";
 
-pub(super) enum CompressionSettingIndicator<'a> {
-    Btrfs(&'a Compression),
-    Bcachefs(&'a BcachefsSpace),
+pub(super) enum CompressionSettingIndicator<'view> {
+    Btrfs(&'view Compression),
+    Bcachefs(&'view BcachefsSpace),
 }
 
 impl CompressionSettingIndicator<'_> {
@@ -61,8 +61,8 @@ fn compression_ratio(space: &BcachefsSpace) -> Option<f64> {
         .then(|| extents.uncompressed.as_u64() as f64 / extents.compressed.as_u64() as f64)
 }
 
-impl<'a> CompressionSettingIndicator<'a> {
-    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> CompressionSettingIndicator<'view> {
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'view> {
         let ratio = match self {
             CompressionSettingIndicator::Bcachefs(space) => compression_ratio(space),
             CompressionSettingIndicator::Btrfs(_) => None,

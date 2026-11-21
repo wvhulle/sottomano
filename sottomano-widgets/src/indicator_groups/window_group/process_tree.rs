@@ -29,7 +29,7 @@ use crate::{
     indicator_groups::window_group::{WindowGroupInteraction, window_list::WindowListInteraction},
     widgets::{
         localized_durations::duration_text,
-        text::{column_heading, font_faces_of, panel_text, text_face_of},
+        text::{column_heading, panel_text, resolved_font_faces, resolved_text_face},
     },
 };
 
@@ -141,19 +141,19 @@ fn cpu_level(share: Ratio) -> Severity {
     }
 }
 
-pub struct ProcessTree<'a> {
-    root: &'a Process,
-    folding: &'a Folding,
-    config: &'a Config,
+pub struct ProcessTree<'view> {
+    root: &'view Process,
+    folding: &'view Folding,
+    config: &'view Config,
     transition: TransitionStyle,
 }
 
-impl<'a> ProcessTree<'a> {
+impl<'view> ProcessTree<'view> {
     #[must_use]
     pub fn new(
-        root: &'a Process,
-        folding: &'a Folding,
-        config: &'a Config,
+        root: &'view Process,
+        folding: &'view Folding,
+        config: &'view Config,
         transition: TransitionStyle,
     ) -> Self {
         Self {
@@ -171,7 +171,7 @@ impl<'a> ProcessTree<'a> {
 
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
-        let bold = font_faces_of(&monospace).bold;
+        let bold = resolved_font_faces(&monospace).bold;
         let transition = self.transition;
         let copy_flash = self.copy_flash();
         let locale = self.config.calendar.locale;
@@ -194,7 +194,7 @@ impl<'a> ProcessTree<'a> {
                                 container(name).max_width(NAME_WIDTH_PX),
                                 listing.label(),
                                 transition,
-                                text_face_of(&monospace),
+                                resolved_text_face(&monospace),
                                 color,
                             )
                             .identified_by(&listing.pid);
@@ -257,7 +257,7 @@ impl<'a> ProcessTree<'a> {
                 panel_text(&font, text.clone()).style(styled_by(color)),
                 text.clone(),
                 transition,
-                text_face_of(&font),
+                resolved_text_face(&font),
                 color,
             )
             .identified_by(&listing.pid);

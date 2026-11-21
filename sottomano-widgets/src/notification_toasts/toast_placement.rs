@@ -27,8 +27,18 @@ pub enum ToastAnchor {
 pub struct ToastPlacement {
     pub window: ToastWindow,
     pub window_focus: AnchoredWindowFocus,
-    pub output: Option<String>,
+    pub output: WorkspaceOutput,
     pub anchor: ToastAnchor,
+}
+
+impl ToastPlacement {
+    #[must_use]
+    pub fn assigned_output(&self) -> Option<&str> {
+        match &self.output {
+            WorkspaceOutput::Assigned(output) => Some(output),
+            WorkspaceOutput::Unassigned => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,10 +56,10 @@ impl AnchoredWindowFocus {
     }
 }
 
-pub struct AnchoredToast<'a> {
+pub struct AnchoredToast<'view> {
     pub id: u32,
     pub anchor: ToastAnchor,
-    pub card: Element<'a, NotificationMessage>,
+    pub card: Element<'view, NotificationMessage>,
     pub motion: MotionState,
 }
 
@@ -129,7 +139,7 @@ pub fn placement_for(
         return ToastPlacement {
             window,
             window_focus,
-            output: fallback_output(placement),
+            output: placement.focused_output.clone(),
             anchor: ToastAnchor::Edge {
                 vertical: fallback_corner.vertical_edge(),
                 horizontal: fallback_corner.horizontal_edge(),
@@ -139,8 +149,8 @@ pub fn placement_for(
 
     let edge = placement.window_edge(id);
     let output = match edge.output {
-        WorkspaceOutput::Assigned(output) => Some(output),
-        WorkspaceOutput::Unassigned => fallback_output(placement),
+        WorkspaceOutput::Assigned(output) => WorkspaceOutput::Assigned(output),
+        WorkspaceOutput::Unassigned => placement.focused_output.clone(),
     };
     let anchor = match viewed_window_bounds(placement, id) {
         Some(bounds) => ToastAnchor::Window { id, bounds },
@@ -154,13 +164,6 @@ pub fn placement_for(
         window_focus,
         output,
         anchor,
-    }
-}
-
-fn fallback_output(placement: &Placement) -> Option<String> {
-    match &placement.focused_output {
-        WorkspaceOutput::Assigned(output) => Some(output.clone()),
-        WorkspaceOutput::Unassigned => None,
     }
 }
 

@@ -11,14 +11,14 @@ use crate::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn configured_confirm_button<'a, Message: 'a + Clone>(
+pub fn configured_confirm_button<'view, Message: 'view + Clone>(
     button: &ConfirmButton,
     config: &Config,
     opacity: f32,
     idle_glyph: Phosphor,
     on_press: Message,
     on_cancel: Message,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let size = config.theme.font.icon_size_px;
     let tinted_icon = |glyph: Phosphor, state: IndicatorState| {
         let tint = IndicatorStateTint { state, opacity };

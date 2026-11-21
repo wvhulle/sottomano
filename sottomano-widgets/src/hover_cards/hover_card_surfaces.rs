@@ -16,7 +16,7 @@ use crate::{
         hover_card_transition::{
             CardRetention, Departed, HoverCardTransition, LeaveIntent, Occupant,
         },
-        laid_out_anchors::{LaidOutAnchors, WidgetLiveness},
+        laid_out_anchors::{AnchorVisibility, LaidOutAnchors, WidgetLiveness},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
 };
@@ -72,7 +72,7 @@ pub struct HoverCardHost {
     pub transition: HoverCardTransition,
     deferred_switch: DeferredSwitch,
     pub hide_schedule: HideSchedule,
-    pointer_over_hover_card: bool,
+    hover_card_pointing: PointerPresence,
     keyboard_grab: KeyboardGrab,
     laid_out_anchors: LaidOutAnchors,
     toast_cards_by_output: BTreeMap<String, Vec<Rectangle>>,
@@ -83,14 +83,14 @@ impl HoverCardHost {
         match message {
             HoverCardMessage::Exit { target } => self.exit(&target, now),
             HoverCardMessage::EnterHoverCard => {
-                self.pointer_over_hover_card = true;
+                self.hover_card_pointing = PointerPresence::PointedAt;
                 self.deferred_switch = DeferredSwitch::Absent;
                 self.hide_schedule = HideSchedule::Unscheduled;
                 self.transition.cancel_leave();
                 None
             }
             HoverCardMessage::ExitHoverCard => {
-                self.pointer_over_hover_card = false;
+                self.hover_card_pointing = PointerPresence::NotPointedAt;
                 Some(self.leave_after_grace(now))
             }
             HoverCardMessage::ToastCardsLaidOut {
@@ -155,7 +155,7 @@ impl HoverCardHost {
         widget_anchor: WidgetAnchor,
         now: Instant,
     ) -> Option<Instant> {
-        let hid_the_shown_card = !widget_anchor.visible
+        let hid_the_shown_card = widget_anchor.visibility == AnchorVisibility::Hidden
             && self
                 .transition
                 .shown_target_on_output()
@@ -217,7 +217,7 @@ impl HoverCardHost {
     #[must_use]
     pub fn shown_anchor(&self) -> Option<Rectangle> {
         let (target, output) = self.transition.shown_target_on_output()?;
-        self.laid_out_anchors.anchor_of(output, target)
+        self.laid_out_anchors.anchor_bounds(output, target)
     }
 
     #[must_use]
@@ -232,7 +232,7 @@ impl HoverCardHost {
 
     fn occupy(&mut self, parent: &PanelEdge, target: HoverTarget, retention: CardRetention) {
         self.deferred_switch = DeferredSwitch::Absent;
-        self.pointer_over_hover_card = false;
+        self.hover_card_pointing = PointerPresence::NotPointedAt;
         self.transition.cancel_leave();
         if self
             .transition
@@ -258,7 +258,7 @@ impl HoverCardHost {
             self.deferred_switch = DeferredSwitch::Absent;
             return Some(self.leave_after_grace(now));
         }
-        if self.pointer_over_hover_card
+        if self.hover_card_pointing == PointerPresence::PointedAt
             || !self
                 .transition
                 .current()
@@ -283,13 +283,13 @@ impl HoverCardHost {
             && self.hide_schedule.elapsed_by(now)
         {
             self.hide_schedule = HideSchedule::Unscheduled;
-            self.pointer_over_hover_card = false;
+            self.hover_card_pointing = PointerPresence::NotPointedAt;
             self.transition.hide(departing, now);
         }
     }
 
     pub fn dismiss(&mut self, departing: Option<Departed>, now: Instant) {
-        self.pointer_over_hover_card = false;
+        self.hover_card_pointing = PointerPresence::NotPointedAt;
         if self.transition.current().is_some() {
             self.transition.hide(departing, now);
         }

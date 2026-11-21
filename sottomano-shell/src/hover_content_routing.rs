@@ -153,15 +153,15 @@ impl DesktopShell {
         }
     }
 
-    fn cascading_menu<'a, SubmenuKey, Message>(
+    fn cascading_menu<'view, SubmenuKey, Message>(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
         menu_state: &NestedMenuState<SubmenuKey>,
-        on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a,
-    ) -> Option<NestedMenuSurfaces<'a, ShellInteraction>>
+        on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'view,
+    ) -> Option<NestedMenuSurfaces<'view, ShellInteraction>>
     where
-        SubmenuKey: Clone + PartialEq + 'a,
-        Message: Clone + 'a,
+        SubmenuKey: Clone + PartialEq + 'view,
+        Message: Clone + 'view,
         GroupEvent: From<Message>,
     {
         configured_nested_menu(
@@ -204,7 +204,7 @@ impl DesktopShell {
         &self,
         topic: GroupMenuTopic,
     ) -> Option<NestedMenuSurfaces<'_, ShellInteraction>> {
-        let group_menu = self.group_menu_of(topic);
+        let group_menu = self.topic_group_menu(topic);
         let inspected_sections = self
             .indicator_groups
             .group_menus
@@ -233,7 +233,10 @@ impl DesktopShell {
         }
     }
 
-    pub(crate) fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, ShellInteraction> {
+    pub(crate) fn hover_card_layer<'view>(
+        &'view self,
+        output: &str,
+    ) -> Element<'view, ShellInteraction> {
         self.hover_card.view(
             output,
             &self.config,

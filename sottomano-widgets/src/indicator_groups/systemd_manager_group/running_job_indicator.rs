@@ -47,11 +47,11 @@ impl From<&SlowJob> for TableRecord<2> {
     }
 }
 
-pub(super) fn wired_slow_jobs_indicator<'a>(
-    jobs: &'a SlowJobs,
-    config: &'a Config,
+pub(super) fn wired_slow_jobs_indicator<'view>(
+    jobs: &'view SlowJobs,
+    config: &'view Config,
     clock: Clock,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let locale = config.calendar.locale;

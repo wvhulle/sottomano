@@ -24,7 +24,7 @@ pub fn logical_cpus() -> impl Iterator<Item = u32> {
     0..2 * PHYSICAL_CORE_COUNT
 }
 
-pub fn chiplet_of(logical_cpu: u32) -> usize {
+pub fn owning_chiplet(logical_cpu: u32) -> usize {
     usize::from(logical_cpu % PHYSICAL_CORE_COUNT >= CORES_PER_CHIPLET)
 }
 

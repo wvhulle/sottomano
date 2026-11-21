@@ -17,8 +17,8 @@ use crate::{
 
 const WRITABLE_MEMBER_STATE: &str = "rw";
 
-pub(super) struct BcachefsMemberIndicator<'a> {
-    pub device: &'a BcachefsDeviceSpace,
+pub(super) struct BcachefsMemberIndicator<'view> {
+    pub device: &'view BcachefsDeviceSpace,
 }
 
 impl BcachefsMemberIndicator<'_> {
@@ -42,8 +42,8 @@ impl BcachefsMemberIndicator<'_> {
     }
 }
 
-impl<'a> BcachefsMemberIndicator<'a> {
-    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> BcachefsMemberIndicator<'view> {
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.device.partition.clone(),
             Phosphor::HardDrives(Weight::Regular).into(),

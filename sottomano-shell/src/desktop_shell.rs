@@ -53,9 +53,50 @@ use crate::{
     sqlite_app_launches,
 };
 
+#[derive(Clone)]
+pub enum WaylandLink {
+    Unconnected,
+    Connected(wayland_client::Connection),
+}
+
+pub enum DesktopBusLink {
+    Disconnected,
+    Connected(DesktopBuses),
+}
+
+impl DesktopBusLink {
+    #[must_use]
+    pub fn connected_buses(&self) -> Option<&DesktopBuses> {
+        match self {
+            Self::Connected(buses) => Some(buses),
+            Self::Disconnected => None,
+        }
+    }
+}
+
+pub enum SpringLoad {
+    Idle,
+    Pending { _abort_on_drop: Handle },
+}
+
+pub enum ConfiguredWorkspaceOrder {
+    Unread,
+    Read(ConfiguredWorkspaces),
+}
+
+impl ConfiguredWorkspaceOrder {
+    #[must_use]
+    pub fn read_order(&self) -> Option<&ConfiguredWorkspaces> {
+        match self {
+            Self::Read(configured) => Some(configured),
+            Self::Unread => None,
+        }
+    }
+}
+
 pub struct DesktopShell {
-    pub wayland: Option<wayland_client::Connection>,
-    pub desktop_buses: Option<DesktopBuses>,
+    pub wayland: WaylandLink,
+    pub desktop_buses: DesktopBusLink,
     pub config_file: ConfigFile,
     pub clock: Clock,
     pub config: Config,
@@ -78,14 +119,14 @@ pub struct DesktopShell {
     pub controller_artwork: ControllerArtwork,
     pub pointer_drag: ShellDrag,
     pub typing_under_cards: TypingUnderCards,
-    pub spring_load: Option<Handle>,
+    pub spring_load: SpringLoad,
     pub config_home: PathBuf,
-    pub configured_workspaces: Option<ConfiguredWorkspaces>,
+    pub configured_workspaces: ConfiguredWorkspaceOrder,
 }
 
 impl DesktopShell {
     pub fn new(
-        wayland: Option<wayland_client::Connection>,
+        wayland: WaylandLink,
         config: Config,
         config_file: ConfigFile,
         secrets: SecretPaths,
@@ -118,12 +159,12 @@ impl DesktopShell {
             controller_artwork: ControllerArtwork::decoded(),
             pointer_drag: ShellDrag::Idle,
             typing_under_cards: TypingUnderCards::new(clock.instant, &config.overlay_surfaces),
-            spring_load: None,
+            spring_load: SpringLoad::Idle,
             config_home,
-            configured_workspaces: None,
+            configured_workspaces: ConfiguredWorkspaceOrder::Unread,
             theme: configured_theme(&config.theme.palette),
             wayland,
-            desktop_buses: None,
+            desktop_buses: DesktopBusLink::Disconnected,
             config,
             config_file,
             clock,
@@ -190,7 +231,7 @@ impl DesktopShell {
         };
         let open_menu = self
             .open_group_menu()
-            .map(|topic| self.group_menu_of(topic).open_group_menu());
+            .map(|topic| self.topic_group_menu(topic).open_group_menu());
         let widget_toasts = match alert_rescan {
             AlertRescanNeed::Rescans => self.rescan_group_alerts(open_menu),
             AlertRescanNeed::Skips => {

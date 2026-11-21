@@ -257,11 +257,11 @@ impl AppLauncherMenu {
         }
     }
 
-    fn jump_button<'a>(
+    fn jump_button<'view>(
         &self,
         app: &LaunchableApp,
         config: &Config,
-    ) -> Option<Element<'a, GroupEvent>> {
+    ) -> Option<Element<'view, GroupEvent>> {
         let open_windows = self.usage.open_windows.get(&app.app_id)?;
         Some(glyph_button(
             Phosphor::ArrowSquareOut(Weight::Regular),
@@ -273,13 +273,13 @@ impl AppLauncherMenu {
         ))
     }
 
-    fn app_entry<'a>(
+    fn app_entry<'view>(
         &self,
         app: &LaunchableApp,
         icon_catalog: &IconCatalog,
         config: &Config,
-        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
-    ) -> MenuEntry<'a, AppLauncherSubmenu, GroupEvent> {
+        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'view, GroupEvent>>,
+    ) -> MenuEntry<'view, AppLauncherSubmenu, GroupEvent> {
         let icon_size_px = config.theme.font.icon_size_px;
         let content = MenuRowContent::new(app.name.clone());
         let content = match icon_catalog.drawable_icon(&app_icon_request(&app.app_id)) {
@@ -333,23 +333,23 @@ impl AppLauncherMenu {
         frequent_apps_shown(frequent_apps, self.open_app_listing)
     }
 
-    fn submenu_header<'a>(
+    fn submenu_header<'view>(
         title: &'static str,
         glyph: Phosphor,
         config: &Config,
-    ) -> MenuRowContent<'a, GroupEvent> {
+    ) -> MenuRowContent<'view, GroupEvent> {
         MenuRowContent::new(title)
             .icon(IconGlyph::from(glyph).view(config.theme.font.icon_size_px, text_color))
     }
 
     #[must_use]
-    pub fn menu_entries<'a>(
+    pub fn menu_entries<'view>(
         &self,
         icon_catalog: &IconCatalog,
         config: &Config,
         output: &str,
-        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'a, GroupEvent>>,
-    ) -> Vec<MenuEntry<'a, AppLauncherSubmenu, GroupEvent>> {
+        card_view: &dyn Fn(Vec<Section>) -> Option<Element<'view, GroupEvent>>,
+    ) -> Vec<MenuEntry<'view, AppLauncherSubmenu, GroupEvent>> {
         let frequent_entries: Vec<_> = self
             .frequent_apps_on(output)
             .map(|app| self.app_entry(app, icon_catalog, config, card_view))

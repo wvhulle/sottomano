@@ -11,7 +11,7 @@ use crate::{
         toggle_control::SwitchPresses,
     },
     hover_cards::{MouseGesture, PressAction},
-    widgets::text::{font_faces_of, text_face_of},
+    widgets::text::{resolved_font_faces, resolved_text_face},
 };
 
 impl From<DaySelection> for IndicatorState {
@@ -23,8 +23,8 @@ impl From<DaySelection> for IndicatorState {
     }
 }
 
-pub struct WeekdayPicker<'c, Message> {
-    config: &'c Config,
+pub struct WeekdayPicker<'config, Message> {
+    config: &'config Config,
     chosen: WeekdaySet,
     reveal: f32,
     messages: WeekdayPickerMessages<Message>,
@@ -56,10 +56,10 @@ pub fn weekday_press_actions(
         .collect()
 }
 
-impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
+impl<'config, Message: Clone> WeekdayPicker<'config, Message> {
     #[must_use]
     pub fn new(
-        config: &'c Config,
+        config: &'config Config,
         chosen: WeekdaySet,
         reveal: f32,
         messages: WeekdayPickerMessages<Message>,
@@ -73,12 +73,12 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
     }
 }
 
-impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, Message> {
+impl<'view, Message: 'view + Clone> From<WeekdayPicker<'_, Message>> for Element<'view, Message> {
     fn from(picker: WeekdayPicker<'_, Message>) -> Self {
         let font = &picker.config.theme.font;
         let reveal = picker.reveal;
         themed_weekday_picker(picker.chosen, picker.messages.on_toggle)
-            .typeface(text_face_of(font), font_faces_of(font))
+            .typeface(resolved_text_face(font), resolved_font_faces(font))
             .spacing(picker.config.theme.spacing.item_gap)
             .locale(picker.config.calendar.locale)
             .day_color(move |day_selection, theme| {

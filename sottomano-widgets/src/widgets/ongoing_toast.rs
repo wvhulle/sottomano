@@ -40,7 +40,7 @@ pub fn moment_text(at: DateTime<Utc>, now: DateTime<Utc>, locale: Locale) -> Str
     }
 }
 
-pub fn definition_list<'a>(rows: impl IntoIterator<Item = (&'a str, String)>) -> String {
+pub fn definition_list<'row>(rows: impl IntoIterator<Item = (&'row str, String)>) -> String {
     let rows = rows
         .into_iter()
         .map(|(key, value)| format!("<dt>{key}</dt><dd>{value}</dd>"))
@@ -196,11 +196,11 @@ pub fn quota_pace_alert_severity(quota_windows: &[Quota]) -> Option<Severity> {
         .max()
 }
 
-pub struct RowNotice<'r, Message> {
+pub struct RowNotice<'alerts, Message> {
     pub indicator: IndicatorKey,
     pub widget_name: Cow<'static, str>,
     pub state: IndicatorState,
-    pub alerts: &'r IndicatorAlerts,
+    pub alerts: &'alerts IndicatorAlerts,
     pub on_body_clicked: Message,
 }
 

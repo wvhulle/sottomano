@@ -53,13 +53,6 @@ async fn forget_before(
     Ok(())
 }
 
-struct FacetRow {
-    window: u64,
-    started_at: DateTime<Utc>,
-    ended_at: DateTime<Utc>,
-    unit: Option<FocusUnit>,
-}
-
 async fn read_spans(
     connection: &turso::Connection,
     since: DateTime<Utc>,
@@ -75,7 +68,7 @@ async fn read_spans(
         )
         .await?;
     let columns = Columns::from(&rows);
-    let mut facet_rows = Vec::new();
+    let mut window_focus_spans: Vec<FocusSpan> = Vec::new();
     while let Some(row) = rows.next().await? {
         let stored = columns
             .optional_text(&row, "facet")
@@ -87,31 +80,25 @@ async fn read_spans(
         ) else {
             continue;
         };
-        facet_rows.push(FacetRow {
-            window: columns.integer(&row, "window_id")?.cast_unsigned(),
-            started_at,
-            ended_at,
-            unit: stored.and_then(|stored| {
-                FocusUnit::try_from(stored)
-                    .inspect_err(|facet_failure| {
-                        tracing::warn!("focus spans: skipping stored facet: {facet_failure}");
-                    })
-                    .ok()
-            }),
+        let decoded_unit = stored.and_then(|stored| {
+            FocusUnit::try_from(stored)
+                .inspect_err(|facet_failure| {
+                    tracing::warn!("focus spans: skipping stored facet: {facet_failure}");
+                })
+                .ok()
         });
+        match window_focus_spans.last_mut() {
+            Some(open_span) if open_span.started_at == started_at => {
+                open_span.units.extend(decoded_unit);
+            }
+            Some(_) | None => window_focus_spans.push(FocusSpan {
+                window: columns.integer(&row, "window_id")?.cast_unsigned(),
+                units: decoded_unit.into_iter().collect(),
+                started_at,
+                ended_at,
+            }),
+        }
     }
-    let window_focus_spans = facet_rows
-        .chunk_by(|previous, next| previous.started_at == next.started_at)
-        .filter_map(|rows| {
-            let first = rows.first()?;
-            Some(FocusSpan {
-                window: first.window,
-                units: rows.iter().filter_map(|row| row.unit.clone()).collect(),
-                started_at: first.started_at,
-                ended_at: first.ended_at,
-            })
-        })
-        .collect();
 
     let mut rows = connection
         .query(

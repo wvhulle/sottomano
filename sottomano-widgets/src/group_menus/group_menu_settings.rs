@@ -65,7 +65,10 @@ fn submenu_connector_toggle(presentation: NestedMenuPresentation) -> IconToggle 
 
 impl GroupMenuState {
     #[must_use]
-    pub fn settings_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn settings_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let presentation = self.presentation;
         let accordion_only_indicator =
             (presentation.layout == NestedMenuLayout::Accordion).then(|| {

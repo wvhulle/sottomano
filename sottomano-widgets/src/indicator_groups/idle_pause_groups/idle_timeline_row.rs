@@ -90,7 +90,7 @@ fn stage_event(timed: TimedStage, clock: Clock) -> TimelineEvent {
         },
         glyph: EventGlyph::Svg(pause_glyph(timed.stage).svg_data()),
         title: Cow::Borrowed(pause_title(timed.stage)),
-        measure: EventMeasure::OffsetFromAnchor(delta_of(timed.offset)),
+        measure: EventMeasure::OffsetFromAnchor(chrono_time_delta(timed.offset)),
         ink: SpanInk::Strong,
         rail_presence: RailPresence::OnCompactRail,
     }
@@ -133,7 +133,7 @@ fn stage_spans(stages: &[TimedStage]) -> Vec<TimelineSpan> {
     [awake_span].into_iter().chain(asleep_spans).collect()
 }
 
-fn delta_of(duration: Duration) -> TimeDelta {
+fn chrono_time_delta(duration: Duration) -> TimeDelta {
     TimeDelta::from_std(duration).expect("an idle chain lasts far less than TimeDelta's range")
 }
 
@@ -166,10 +166,10 @@ pub(super) fn idle_timeline(
         caption: SpanCaption::Hidden,
     });
     WallClockTimeline::new(clock.utc())
-        .minimum_span(delta_of(EMPTY_CHAIN_SPAN))
+        .minimum_span(chrono_time_delta(EMPTY_CHAIN_SPAN))
         .end_margin_fraction(SPAN_END_MARGIN_FRACTION)
         .scale(ClockScale::Logarithmic {
-            knee: delta_of(logarithmic_knee(&stages)),
+            knee: chrono_time_delta(logarithmic_knee(&stages)),
         })
         .clock_spans(clock_spans)
         .events(

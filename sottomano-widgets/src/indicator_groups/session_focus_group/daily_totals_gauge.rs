@@ -4,10 +4,9 @@ use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_desktop_sources::{
     ai_usage_spend::usage_quota::Quota,
     login_session_presence::focus_time_ledger::{
-        Accounting, BudgetStatus, FocusUnit, LAST_DAY, UnitTotal,
+        Accounting, BudgetStanding, FocusUnit, LAST_DAY, UnitTotal,
     },
 };
-use sottomano_toml_config::severity::Severity;
 
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -27,7 +26,7 @@ use crate::{
 pub struct DailyTotalsGauge {
     pub computed_at: DateTime<Utc>,
     screen_spent: TimeDelta,
-    screen_budget: Option<BudgetStatus>,
+    screen_budget: BudgetStanding,
     units: Vec<UnitSpendRecord>,
 }
 
@@ -37,12 +36,12 @@ impl DailyTotalsGauge {
         Self {
             computed_at: now,
             screen_spent: accounting.screen_spent(last_day, now),
-            screen_budget: accounting.screen_budget_status(now),
+            screen_budget: accounting.screen_budget_standing(now),
             units: accounting
                 .unit_totals(last_day, now)
                 .into_iter()
                 .map(|total| UnitSpendRecord {
-                    budget_status: total.budget_status(now),
+                    budget: total.budget_standing(now),
                     total,
                 })
                 .collect(),
@@ -50,9 +49,12 @@ impl DailyTotalsGauge {
     }
 
     fn worst(&self) -> Option<Quota> {
-        self.quotas()
-            .into_iter()
-            .max_by(|a, b| a.used.partial_cmp(&b.used).unwrap_or(Ordering::Equal))
+        self.quotas().into_iter().max_by(|left_quota, right_quota| {
+            left_quota
+                .used
+                .partial_cmp(&right_quota.used)
+                .unwrap_or(Ordering::Equal)
+        })
     }
 
     pub fn sections(&self) -> Vec<Section> {
@@ -67,15 +69,15 @@ impl DailyTotalsGauge {
     }
 
     fn screen(&self) -> Section {
-        let status = self.screen_budget.as_ref();
         let active = LabeledValue::new("Active (24h)", ValueCell::duration(self.screen_spent))
-            .level(
-                status
-                    .map(|status| status.quota.severity())
-                    .unwrap_or_default(),
-            );
-        let budget_entry = status
-            .map(|status| LabeledValue::new("Daily budget", ValueCell::duration(status.budget)));
+            .level(self.screen_budget.severity());
+        let entries = match &self.screen_budget {
+            BudgetStanding::Budgeted(status) => vec![
+                active,
+                LabeledValue::new("Daily budget", ValueCell::duration(status.budget)),
+            ],
+            BudgetStanding::Unbudgeted => vec![active],
+        };
         Section::new(
             SectionTitle::captioned(
                 "Screen".to_owned(),
@@ -83,21 +85,24 @@ impl DailyTotalsGauge {
                  app and project. A budget turns critical once that time exceeds it."
                     .to_owned(),
             ),
-            dictionary_table(once(active).chain(budget_entry)),
+            dictionary_table(entries),
         )
     }
 }
 
 struct UnitSpendRecord {
     total: UnitTotal,
-    budget_status: Option<BudgetStatus>,
+    budget: BudgetStanding,
 }
 
 impl UnitSpendRecord {
     fn section(records: &[&Self], title: &str) -> Option<Section> {
         if records.is_empty() {
             None
-        } else if records.iter().any(|record| record.budget_status.is_some()) {
+        } else if records
+            .iter()
+            .any(|record| matches!(record.budget, BudgetStanding::Budgeted(_)))
+        {
             Some(Section::new(
                 title,
                 headed_table(
@@ -119,15 +124,8 @@ impl UnitSpendRecord {
         }
     }
 
-    fn severity(&self) -> Severity {
-        self.budget_status
-            .as_ref()
-            .map(|status| status.quota.severity())
-            .unwrap_or_default()
-    }
-
     fn plain_record(&self) -> TableRecord<1> {
-        let level = self.severity();
+        let level = self.budget.severity();
         TableRecord::with_cells(
             self.total.unit.label().into_owned(),
             [ValueCell::duration(self.total.spent)],
@@ -136,16 +134,15 @@ impl UnitSpendRecord {
     }
 
     fn budgeted_record(&self) -> TableRecord<2> {
-        let level = self.severity();
+        let level = self.budget.severity();
         TableRecord::with_cells(
             self.total.unit.label().into_owned(),
             [
                 ValueCell::duration(self.total.spent),
-                self.budget_status
-                    .as_ref()
-                    .map_or(ValueCell::Blank, |status| {
-                        ValueCell::duration(status.budget)
-                    }),
+                match &self.budget {
+                    BudgetStanding::Budgeted(status) => ValueCell::duration(status.budget),
+                    BudgetStanding::Unbudgeted => ValueCell::Blank,
+                },
             ],
         )
         .level(level)
@@ -156,9 +153,12 @@ impl DailyTotalsGauge {
     pub fn quotas(&self) -> Vec<Quota> {
         self.units
             .iter()
-            .filter_map(|record| record.budget_status.as_ref())
-            .chain(&self.screen_budget)
-            .map(|status| status.quota.clone())
+            .map(|record| &record.budget)
+            .chain(once(&self.screen_budget))
+            .filter_map(|budget| match budget {
+                BudgetStanding::Budgeted(status) => Some(status.quota.clone()),
+                BudgetStanding::Unbudgeted => None,
+            })
             .collect()
     }
 }
@@ -168,8 +168,8 @@ impl DailyTotalsGauge {
         let coarse = |length| duration_text(length, locale);
         let spent = coarse(self.screen_spent);
         let label = match &self.screen_budget {
-            Some(status) => format!("{spent} / {}", coarse(status.budget)),
-            None => spent,
+            BudgetStanding::Budgeted(status) => format!("{spent} / {}", coarse(status.budget)),
+            BudgetStanding::Unbudgeted => spent,
         };
         let gauge = match self.worst() {
             Some(quota) => ReadoutGauge::Gauged {

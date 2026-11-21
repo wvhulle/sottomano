@@ -32,7 +32,7 @@ use crate::{
         fixed_panel_group::FixedPanelGroup,
         idle_pause_groups::{ResolvedIdleChain, ScheduledAfterIdle},
     },
-    widgets::{localized_durations::duration_text, text::text_face_of},
+    widgets::{localized_durations::duration_text, text::resolved_text_face},
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
@@ -45,9 +45,9 @@ struct SessionMenuEntry {
 }
 
 impl SessionMenuEntry {
-    fn menu_entry<'a>(self, config: &Config) -> MenuEntry<'a, SessionAction, SessionMessage> {
-        let idle_note = |note: String| -> Element<'a, SessionMessage> {
-            text_face_of(&config.theme.font)
+    fn menu_entry<'view>(self, config: &Config) -> MenuEntry<'view, SessionAction, SessionMessage> {
+        let idle_note = |note: String| -> Element<'view, SessionMessage> {
+            resolved_text_face(&config.theme.font)
                 .text(note)
                 .size(config.theme.font.small_text_size_px)
                 .style(|theme| text::Style {
@@ -155,11 +155,11 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn menu_entries<'a>(
+    pub fn menu_entries<'view>(
         &self,
-        config: &'a Config,
+        config: &'view Config,
         idle_chain: ResolvedIdleChain,
-    ) -> Vec<MenuEntry<'a, SessionAction, SessionMessage>> {
+    ) -> Vec<MenuEntry<'view, SessionAction, SessionMessage>> {
         self.permissions
             .allowed
             .iter()
@@ -184,7 +184,7 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a> {
+    pub fn group_content<'view>(&self) -> FixedPanelGroup<'view> {
         if self.permissions.allowed.is_empty() {
             return FixedPanelGroup::Empty;
         }

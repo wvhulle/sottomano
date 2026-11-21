@@ -18,35 +18,35 @@ use sottomano_toml_config::{
     },
 };
 
-pub fn column_heading<'a>(
+pub fn column_heading<'view>(
     font: &ResolvedFont,
-    title: impl IntoFragment<'a>,
-) -> Text<'a, iced::Theme, iced::Renderer> {
+    title: impl IntoFragment<'view>,
+) -> Text<'view, iced::Theme, iced::Renderer> {
     panel_text(font, title)
         .size(font.small_text_size_px)
         .style(text::secondary)
 }
 
-pub fn row_key_label<'a>(
+pub fn row_key_label<'view>(
     font: &ResolvedFont,
-    title: impl IntoFragment<'a>,
-) -> Text<'a, iced::Theme, iced::Renderer> {
+    title: impl IntoFragment<'view>,
+) -> Text<'view, iced::Theme, iced::Renderer> {
     panel_text(font, title).style(text::secondary)
 }
 
-pub fn panel_text<'a>(
+pub fn panel_text<'view>(
     font: &ResolvedFont,
-    content: impl IntoFragment<'a>,
-) -> Text<'a, iced::Theme, iced::Renderer> {
+    content: impl IntoFragment<'view>,
+) -> Text<'view, iced::Theme, iced::Renderer> {
     text(content)
         .size(font.text_size_px)
-        .font(font_faces_of(font).regular)
+        .font(resolved_font_faces(font).regular)
         .line_height(LINE_HEIGHT)
         .shaping(Shaping::Advanced)
 }
 
 #[must_use]
-pub fn font_faces_of(font: &ResolvedFont) -> FontFaces {
+pub fn resolved_font_faces(font: &ResolvedFont) -> FontFaces {
     FontFaces::from(match font.role {
         FontRole::Text => Family::SansSerif,
         FontRole::Monospace => Family::Monospace,
@@ -54,9 +54,9 @@ pub fn font_faces_of(font: &ResolvedFont) -> FontFaces {
 }
 
 #[must_use]
-pub fn text_face_of(font: &ResolvedFont) -> TextFace {
+pub fn resolved_text_face(font: &ResolvedFont) -> TextFace {
     TextFace {
-        font: font_faces_of(font).regular,
+        font: resolved_font_faces(font).regular,
         size_px: font.text_size_px,
     }
 }
@@ -69,7 +69,7 @@ pub fn point_generic_font_families_at(theme: &Theme) {
 }
 
 #[must_use]
-pub fn text_effects_of(loading: configured_effects::HoverCardLoading) -> TextEffects {
+pub fn hover_card_text_effects(loading: configured_effects::HoverCardLoading) -> TextEffects {
     TextEffects {
         placeholder: match loading.placeholder {
             configured_effects::PlaceholderEffect::Pulse { period } => {
@@ -124,12 +124,12 @@ mod tests {
     use corredo::changing_text::TextEffects;
     use sottomano_toml_config::hover_cards::HoverCardLoading;
 
-    use super::text_effects_of;
+    use super::hover_card_text_effects;
 
     #[test]
     fn default_configured_effects_match_the_widget_defaults() {
         assert_eq!(
-            text_effects_of(HoverCardLoading::default()),
+            hover_card_text_effects(HoverCardLoading::default()),
             TextEffects::default()
         );
     }

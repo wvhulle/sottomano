@@ -6,7 +6,7 @@ use sottomano_desktop_sources::media_playback_audio::{
 };
 use sottomano_toml_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::text_face_of;
+use crate::widgets::text::resolved_text_face;
 
 pub const INSTRUMENTAL_BREAK_MARK: &str = "♪";
 
@@ -17,20 +17,20 @@ pub struct PlaybackPosition {
     pub sampled_at: Instant,
 }
 
-pub struct KaraokeLyricLine<'a> {
-    line: &'a TimedLyricLine,
+pub struct KaraokeLyricLine<'view> {
+    line: &'view TimedLyricLine,
     playback: PlaybackPosition,
-    font: &'a ResolvedFont,
-    colors: KaraokeColors<'a>,
+    font: &'view ResolvedFont,
+    colors: KaraokeColors<'view>,
 }
 
-impl<'a> KaraokeLyricLine<'a> {
+impl<'view> KaraokeLyricLine<'view> {
     #[must_use]
     pub fn new(
-        line: &'a TimedLyricLine,
+        line: &'view TimedLyricLine,
         playback: PlaybackPosition,
-        font: &'a ResolvedFont,
-        colors: KaraokeColors<'a>,
+        font: &'view ResolvedFont,
+        colors: KaraokeColors<'view>,
     ) -> Self {
         Self {
             line,
@@ -41,8 +41,8 @@ impl<'a> KaraokeLyricLine<'a> {
     }
 }
 
-impl<'a, Message: 'a> From<KaraokeLyricLine<'a>> for Element<'a, Message> {
-    fn from(lyric_line: KaraokeLyricLine<'a>) -> Self {
+impl<'view, Message: 'view> From<KaraokeLyricLine<'view>> for Element<'view, Message> {
+    fn from(lyric_line: KaraokeLyricLine<'view>) -> Self {
         let KaraokeLyricLine {
             line,
             playback,
@@ -84,7 +84,7 @@ impl<'a, Message: 'a> From<KaraokeLyricLine<'a>> for Element<'a, Message> {
             sweep_at,
             motion,
             playback.sampled_at,
-            text_face_of(font),
+            resolved_text_face(font),
             colors,
         )
         .into()

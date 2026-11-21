@@ -294,10 +294,10 @@ impl CompositorStylingGroup {
         }
     }
 
-    fn with_unwritable_rules_warning<'a>(
-        &'a self,
-        styling_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn with_unwritable_rules_warning<'view>(
+        &'view self,
+        styling_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         if self.rules_file.unwritable().is_none() {
             return styling_indicator;
         }
@@ -370,7 +370,10 @@ impl CompositorStylingGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let styling_indicators = [
             (
                 StylingControl::WindowCornerRadius,

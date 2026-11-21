@@ -71,7 +71,13 @@ impl<Message> LevelToastRequest<Message> {
 
 pub struct LevelAnnouncement {
     summary_text: &'static str,
-    external_change_count: Option<u64>,
+    device_reports: DeviceReports,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeviceReports {
+    Unreported,
+    Reported { external_change_count: u64 },
 }
 
 impl LevelAnnouncement {
@@ -79,7 +85,7 @@ impl LevelAnnouncement {
     pub fn new(summary_text: &'static str) -> Self {
         Self {
             summary_text,
-            external_change_count: None,
+            device_reports: DeviceReports::Unreported,
         }
     }
 
@@ -88,21 +94,30 @@ impl LevelAnnouncement {
             LevelChangeOrigin::OutsidePanel => 1,
             LevelChangeOrigin::FromPanel => 0,
         };
-        self.external_change_count = Some(
-            self.external_change_count
-                .map_or(0, |count| count + external_increment),
-        );
+        self.device_reports = DeviceReports::Reported {
+            external_change_count: match self.device_reports {
+                DeviceReports::Unreported => 0,
+                DeviceReports::Reported {
+                    external_change_count,
+                } => external_change_count + external_increment,
+            },
+        };
     }
 
     #[must_use]
     pub fn level(&self, fill: Ratio, body_text: String) -> Option<AnnouncedLevel> {
-        self.external_change_count
-            .map(|external_change_count| AnnouncedLevel {
-                summary_text: self.summary_text,
-                body_text,
-                fill,
-                external_change_count,
-            })
+        let DeviceReports::Reported {
+            external_change_count,
+        } = self.device_reports
+        else {
+            return None;
+        };
+        Some(AnnouncedLevel {
+            summary_text: self.summary_text,
+            body_text,
+            fill,
+            external_change_count,
+        })
     }
 }
 

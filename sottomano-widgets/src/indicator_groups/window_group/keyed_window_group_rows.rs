@@ -24,7 +24,7 @@ use crate::{
         icon_handle::IconHandle,
         window_icons::{WindowAssets, window_icon},
     },
-    widgets::{shared_metrics::ACCENT_STROKE_PX, text::font_faces_of},
+    widgets::{shared_metrics::ACCENT_STROKE_PX, text::resolved_font_faces},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,37 +47,83 @@ impl From<WindowGroupKey<'_>> for GroupIconPlacement {
     }
 }
 
-struct WindowGroupIdentity<'a> {
-    group_key: Option<WindowGroupKey<'a>>,
-    icon: Option<&'a IconHandle>,
-    favicon_key: Option<&'a str>,
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum HeadingIcon<'window> {
+    Favicon(&'window str),
+    AppIcon(&'window IconHandle),
+    Bare,
+}
+
+enum WindowGroupIdentity<'window> {
+    Ungrouped,
+    Keyed {
+        group_key: WindowGroupKey<'window>,
+        heading_icon: HeadingIcon<'window>,
+    },
+}
+
+fn window_group_identity<'window>(
+    window_entry: &'window workspace_window_snapshot::WinEntry,
+    icons: WindowAssets<'window>,
+) -> WindowGroupIdentity<'window> {
+    let Some(group_key) = window_entry.group_key() else {
+        return WindowGroupIdentity::Ungrouped;
+    };
+    let heading_icon = match window_entry.caption.favicon_key() {
+        Some(favicon_key) => HeadingIcon::Favicon(favicon_key),
+        None => match icons.icon_for(window_entry) {
+            Some(drawable_icon) => HeadingIcon::AppIcon(&drawable_icon.handle),
+            None => HeadingIcon::Bare,
+        },
+    };
+    WindowGroupIdentity::Keyed {
+        group_key,
+        heading_icon,
+    }
+}
+
+fn shares_keyed_group(
+    previous: &WindowGroupIdentity<'_>,
+    current: &WindowGroupIdentity<'_>,
+) -> bool {
+    let WindowGroupIdentity::Keyed {
+        group_key: previous_group_key,
+        heading_icon: previous_heading_icon,
+    } = previous
+    else {
+        return false;
+    };
+    let WindowGroupIdentity::Keyed {
+        group_key: current_group_key,
+        heading_icon: current_heading_icon,
+    } = current
+    else {
+        return false;
+    };
+    if previous_group_key != current_group_key {
+        return false;
+    }
+    match GroupIconPlacement::from(*current_group_key) {
+        GroupIconPlacement::OnEachWindow => true,
+        GroupIconPlacement::OnHeading => previous_heading_icon == current_heading_icon,
+    }
 }
 
 fn keyed_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<usize>> {
     identities
-        .chunk_by(|previous, current| {
-            let Some(shared_group_key) = current
-                .group_key
-                .filter(|_| current.group_key == previous.group_key)
-            else {
-                return false;
-            };
-            match GroupIconPlacement::from(shared_group_key) {
-                GroupIconPlacement::OnEachWindow => true,
-                GroupIconPlacement::OnHeading => {
-                    current.icon == previous.icon && current.favicon_key == previous.favicon_key
-                }
-            }
-        })
+        .chunk_by(shares_keyed_group)
         .scan(0, |next_start, run| {
             let start = *next_start;
             *next_start += run.len();
             Some(start..*next_start)
         })
-        .filter(|positions| match identities[positions.start].group_key {
-            None => false,
-            Some(WindowGroupKey::Application(_)) => positions.len() >= 2,
-            Some(_) => true,
+        .filter(|positions| match identities[positions.start] {
+            WindowGroupIdentity::Ungrouped => false,
+            WindowGroupIdentity::Keyed {
+                group_key: WindowGroupKey::Application(_),
+                ..
+            } => positions.len() >= 2,
+            WindowGroupIdentity::Keyed { .. } => true,
         })
         .collect()
 }
@@ -115,11 +161,11 @@ fn keyed_group_heading_text(
     }
 }
 
-fn keyed_group_heading<'a>(
+fn keyed_group_heading<'view>(
     window_entry: &workspace_window_snapshot::WinEntry,
-    icons: WindowAssets<'a>,
+    icons: WindowAssets<'view>,
     config: &Config,
-) -> Option<Element<'a, WindowListInteraction>> {
+) -> Option<Element<'view, WindowListInteraction>> {
     let heading_text = keyed_group_heading_text(window_entry, icons)?;
     let tint = IndicatorStateTint {
         state: IndicatorState::Idle,
@@ -144,7 +190,7 @@ fn keyed_group_heading<'a>(
                 text(heading_text)
                     .size(config.theme.font.text_size_px)
                     .line_height(LINE_HEIGHT)
-                    .font(font_faces_of(&config.theme.font).regular)
+                    .font(resolved_font_faces(&config.theme.font).regular)
                     .style(tint.text_style()),
             )
             .spacing(config.theme.spacing.item_gap)
@@ -154,20 +200,14 @@ fn keyed_group_heading<'a>(
     )
 }
 
-pub(super) fn arranged_keyed_groups<'a>(
+pub(super) fn arranged_keyed_groups<'view>(
     order: &[&workspace_window_snapshot::WinEntry],
-    icons: WindowAssets<'a>,
+    icons: WindowAssets<'view>,
     slot_context: PanelSlotContext<'_>,
-) -> ArrangedWindowRows<'a> {
+) -> ArrangedWindowRows<'view> {
     let group_identities: Vec<_> = order
         .iter()
-        .map(|window_entry| WindowGroupIdentity {
-            group_key: window_entry.group_key(),
-            icon: icons
-                .icon_for(window_entry)
-                .map(|drawable_icon| &drawable_icon.handle),
-            favicon_key: window_entry.caption.favicon_key(),
-        })
+        .map(|window_entry| window_group_identity(window_entry, icons))
         .collect();
     let group_positions = keyed_group_positions(&group_identities);
     let tile_inset_thickness = ACCENT_STROKE_PX;
@@ -209,7 +249,8 @@ mod tests {
     use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowGroupKey;
 
     use super::{
-        WindowGroupIdentity, WindowSlotPresentation, keyed_group_positions, slot_presentations,
+        HeadingIcon, WindowGroupIdentity, WindowSlotPresentation, keyed_group_positions,
+        slot_presentations,
     };
     use crate::icon_catalog::icon_handle::IconHandle;
 
@@ -217,51 +258,43 @@ mod tests {
         IconHandle::at(Path::new(&format!("{icon_name}.svg")))
     }
 
-    fn identity<'a>(
-        group_key: Option<WindowGroupKey<'a>>,
-        icon: &'a IconHandle,
-    ) -> WindowGroupIdentity<'a> {
-        WindowGroupIdentity {
+    fn identity<'window>(
+        group_key: WindowGroupKey<'window>,
+        icon: &'window IconHandle,
+    ) -> WindowGroupIdentity<'window> {
+        WindowGroupIdentity::Keyed {
             group_key,
-            icon: Some(icon),
-            favicon_key: None,
+            heading_icon: HeadingIcon::AppIcon(icon),
         }
     }
 
     #[test]
     fn neighbouring_terminals_in_one_directory_form_one_group() {
-        let sottomano = Some(WindowGroupKey::WorkingDirectory("sottomano"));
+        let sottomano = WindowGroupKey::WorkingDirectory("sottomano");
         let (claude_icon, terminal_icon) = (named_icon("claude"), named_icon("terminal"));
-        let (files_icon, unknown_icon) = (named_icon("files"), named_icon("unknown"));
         let identities = [
             identity(sottomano, &claude_icon),
             identity(sottomano, &claude_icon),
             identity(sottomano, &terminal_icon),
             identity(sottomano, &terminal_icon),
-            identity(None, &files_icon),
-            identity(
-                Some(WindowGroupKey::WorkingDirectory("nix")),
-                &terminal_icon,
-            ),
-            identity(None, &unknown_icon),
+            WindowGroupIdentity::Ungrouped,
+            identity(WindowGroupKey::WorkingDirectory("nix"), &terminal_icon),
+            WindowGroupIdentity::Ungrouped,
         ];
         assert_eq!(keyed_group_positions(&identities), [0..4, 5..6]);
     }
 
     #[test]
     fn neighbouring_sites_with_different_favicons_stay_apart() {
-        let shared_icon = named_icon("firefox");
-        let github = Some(WindowGroupKey::WebSite("github.com"));
+        let github = WindowGroupKey::WebSite("github.com");
         let identities = [
-            WindowGroupIdentity {
+            WindowGroupIdentity::Keyed {
                 group_key: github,
-                icon: Some(&shared_icon),
-                favicon_key: Some("first"),
+                heading_icon: HeadingIcon::Favicon("first"),
             },
-            WindowGroupIdentity {
+            WindowGroupIdentity::Keyed {
                 group_key: github,
-                icon: Some(&shared_icon),
-                favicon_key: Some("second"),
+                heading_icon: HeadingIcon::Favicon("second"),
             },
         ];
         assert_eq!(keyed_group_positions(&identities), [0..1, 1..2]);
@@ -271,23 +304,20 @@ mod tests {
     fn a_directory_and_a_site_with_one_name_stay_apart() {
         let shared_icon = named_icon("icon");
         let identities = [
-            identity(
-                Some(WindowGroupKey::WorkingDirectory("github.com")),
-                &shared_icon,
-            ),
-            identity(Some(WindowGroupKey::WebSite("github.com")), &shared_icon),
+            identity(WindowGroupKey::WorkingDirectory("github.com"), &shared_icon),
+            identity(WindowGroupKey::WebSite("github.com"), &shared_icon),
         ];
         assert_eq!(keyed_group_positions(&identities), [0..1, 1..2]);
     }
 
     #[test]
     fn windows_grouped_only_by_their_app_need_a_neighbour() {
-        let dolphin = Some(WindowGroupKey::Application("org.kde.dolphin"));
+        let dolphin = WindowGroupKey::Application("org.kde.dolphin");
         let (dolphin_icon, spotify_icon) = (named_icon("dolphin"), named_icon("spotify"));
         let identities = [
             identity(dolphin, &dolphin_icon),
             identity(dolphin, &dolphin_icon),
-            identity(Some(WindowGroupKey::Application("spotify")), &spotify_icon),
+            identity(WindowGroupKey::Application("spotify"), &spotify_icon),
         ];
         assert_eq!(
             keyed_group_positions(&identities),

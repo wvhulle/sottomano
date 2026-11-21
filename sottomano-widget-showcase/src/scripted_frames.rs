@@ -12,19 +12,19 @@ use iced::{
     window,
 };
 
-pub fn scripted_frames<'a, Message: 'a>(
+pub fn scripted_frames<'view, Message: 'view>(
     now: Instant,
-    content: impl Into<Element<'a, Message>>,
-) -> Element<'a, Message> {
+    content: impl Into<Element<'view, Message>>,
+) -> Element<'view, Message> {
     Element::new(ScriptedFrames {
         now,
         content: content.into(),
     })
 }
 
-struct ScriptedFrames<'a, Message> {
+struct ScriptedFrames<'view, Message> {
     now: Instant,
-    content: Element<'a, Message>,
+    content: Element<'view, Message>,
 }
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ScriptedFrames<'_, Message> {
@@ -131,14 +131,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ScriptedFrames<'_
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),

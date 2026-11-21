@@ -289,10 +289,10 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_indicator<'a>(
-        &'a self,
-        membership_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn membership_indicator<'view>(
+        &'view self,
+        membership_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         membership_row
             .on_right_press(
                 "open the Tailscale admin console",
@@ -304,11 +304,11 @@ impl TailnetGroup {
             }))
     }
 
-    fn membership_switch_indicator<'a>(
-        &'a self,
-        membership_row: GroupIndicator<'a>,
+    fn membership_switch_indicator<'view>(
+        &'view self,
+        membership_row: GroupIndicator<'view>,
         tailscale: &Tailscale,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         let membership_indicator = self.membership_indicator(membership_row);
         match tailscale.switch() {
             TailscaleSwitch::Up => membership_indicator.on_switch_press(
@@ -380,10 +380,10 @@ impl TailnetGroup {
         }
     }
 
-    fn exit_node_choice_indicator<'a>(
-        exit_node_option: &'a ExitNodeOption,
-        exit_node_choices: &'a ExitNodeChoices,
-    ) -> GroupIndicator<'a> {
+    fn exit_node_choice_indicator<'view>(
+        exit_node_option: &'view ExitNodeOption,
+        exit_node_choices: &'view ExitNodeChoices,
+    ) -> GroupIndicator<'view> {
         let exit_node_indicator = ExitNodeChoiceIndicator {
             exit_node_option,
             exit_node_choices,

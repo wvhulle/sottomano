@@ -83,11 +83,11 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         }
     }
 
-    pub fn indicator<'a>(
-        &'a self,
-        describe: impl FnOnce(&'a S) -> GroupIndicator<'a>,
+    pub fn indicator<'view>(
+        &'view self,
+        describe: impl FnOnce(&'view S) -> GroupIndicator<'view>,
         absent_glyph: IconGlyph,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         match self {
             SubscribedSnapshot::Available {
                 snapshot,
@@ -269,8 +269,8 @@ mod tests {
     struct CountingFailure;
 
     impl Display for CountingFailure {
-        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-            write!(f, "counting failed")
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+            write!(formatter, "counting failed")
         }
     }
 

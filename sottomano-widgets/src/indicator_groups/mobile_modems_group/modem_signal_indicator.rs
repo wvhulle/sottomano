@@ -21,16 +21,16 @@ use crate::{
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub struct ModemSignalIndicator<'a> {
-    pub modem: &'a Mobile,
+pub struct ModemSignalIndicator<'view> {
+    pub modem: &'view Mobile,
 }
 
-pub struct ModemConnectionSwitch<'a> {
-    pub modem: &'a Mobile,
+pub struct ModemConnectionSwitch<'view> {
+    pub modem: &'view Mobile,
 }
 
-pub struct ModemDataIndicator<'a> {
-    pub modem: &'a Mobile,
+pub struct ModemDataIndicator<'view> {
+    pub modem: &'view Mobile,
 }
 
 pub struct AllMobileRadiosSwitch {
@@ -45,8 +45,8 @@ pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> &BearerAdd
     }
 }
 
-impl<'a> ModemSignalIndicator<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ModemSignalIndicator<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let (signal_severity, gauge) = match self.modem.signal {
             SignalQuality::Measured { percent, .. } => {
                 let fill = percent_fill(percent);
@@ -105,7 +105,7 @@ impl<'a> ModemSignalIndicator<'a> {
     }
 }
 
-impl<'a> ModemConnectionSwitch<'a> {
+impl<'view> ModemConnectionSwitch<'view> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
         if self.modem.link_state() == LinkPhase::Up {
@@ -115,7 +115,7 @@ impl<'a> ModemConnectionSwitch<'a> {
         }
     }
 
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = if self.modem.link_state() == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
@@ -146,8 +146,8 @@ impl<'a> ModemConnectionSwitch<'a> {
     }
 }
 
-impl<'a> ModemDataIndicator<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ModemDataIndicator<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "Mobile data",
             Phosphor::ArrowsDownUp(Weight::Regular).into(),

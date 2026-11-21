@@ -32,7 +32,7 @@ use sottomano_desktop_sources::{
     theme_icons::icon_requests::IconRequest,
 };
 use sottomano_toml_config::{Config, severity::Severity};
-use toast_card::{CardIcon, CardImage, ToastCard};
+use toast_card::{CardBadge, CardIcon, CardImage, ToastCard};
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, ToastKind, ToastPresence};
 use toast_placement::{AnchoredToast, ToastAnchor};
@@ -81,19 +81,19 @@ pub struct ToastSurfaceStyle {
     pub background_fade: CardBackgroundFade,
 }
 
-pub struct ToastContext<'a> {
+pub struct ToastContext<'config> {
     pub placement: Placement,
-    pub config: &'a Config,
+    pub config: &'config Config,
     pub notifications: NotificationSettings,
     pub quiet_phase: QuietPhase,
     pub clock: Clock,
 }
 
-impl<'a> ToastContext<'a> {
+impl<'config> ToastContext<'config> {
     #[must_use]
     pub fn new(
         compositor: &CompositorWindowState,
-        config: &'a Config,
+        config: &'config Config,
         notifications: NotificationSettings,
         quiet_phase: QuietPhase,
         clock: Clock,
@@ -137,13 +137,24 @@ pub(super) struct SnoozedOngoingToast {
     snoozed_at: Severity,
 }
 
+enum SignalConnection {
+    Awaiting,
+    Connected(NotificationSignals),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HoveredToast {
+    Unhovered,
+    Hovered(u32),
+}
+
 pub struct NotificationLayer<Routed> {
-    signals: Option<NotificationSignals>,
+    signal_connection: SignalConnection,
     sound_theme: SoundTheme,
     pub live: Vec<Notification<Routed>>,
     pub held: Vec<NotificationData>,
     next_seq: u64,
-    hovered: Option<u32>,
+    hovered: HoveredToast,
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
     previous_levels: Vec<LevelToastRequest<IndicatorGroupInteraction>>,
@@ -152,12 +163,12 @@ pub struct NotificationLayer<Routed> {
 impl<Routed> Default for NotificationLayer<Routed> {
     fn default() -> Self {
         Self {
-            signals: None,
+            signal_connection: SignalConnection::Awaiting,
             sound_theme: SoundTheme::default(),
             live: Vec::new(),
             held: Vec::new(),
             next_seq: 0,
-            hovered: None,
+            hovered: HoveredToast::Unhovered,
             reply_focus: ReplyFocus::default(),
             snoozed: Vec::new(),
             previous_levels: Vec::new(),
@@ -172,12 +183,16 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .iter()
             .flat_map(|notification| {
                 let image_icon = match &notification.icons.image {
-                    Some(CardImage::Icon(icon) | CardImage::Preview { icon, .. }) => Some(icon),
-                    None => None,
+                    CardImage::Icon(icon) | CardImage::Preview { icon, .. } => Some(icon),
+                    CardImage::Imageless => None,
+                };
+                let badge_icon = match &notification.icons.badge {
+                    CardBadge::Badged(icon) => Some(icon),
+                    CardBadge::Unbadged => None,
                 };
                 image_icon
                     .into_iter()
-                    .chain(notification.icons.badge.as_ref())
+                    .chain(badge_icon)
                     .filter_map(CardIcon::icon_request)
                     .cloned()
             })
@@ -185,24 +200,24 @@ impl<Routed: Clone> NotificationLayer<Routed> {
     }
 
     #[must_use]
-    pub fn anchored_toasts<'a>(
-        &'a self,
+    pub fn anchored_toasts<'view>(
+        &'view self,
         output: &str,
-        icon_catalog: &'a IconCatalog,
-        config: &'a Config,
-        theme: &'a Theme,
+        icon_catalog: &'view IconCatalog,
+        config: &'view Config,
+        theme: &'view Theme,
         ToastSurfaceStyle {
             overlay_appearance,
             panel_clearance,
             background_fade,
         }: ToastSurfaceStyle,
         clock: Clock,
-    ) -> WindowAnchoredToasts<'a> {
+    ) -> WindowAnchoredToasts<'view> {
         let now = clock.instant;
         let mut ordered: Vec<&Notification<Routed>> = self
             .live
             .iter()
-            .filter(|n| n.place.output.as_deref() == Some(output))
+            .filter(|toast| toast.place.assigned_output() == Some(output))
             .collect();
         ordered.sort_by_key(|notif| {
             Reverse((
@@ -224,7 +239,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                         overlay_appearance,
                         clock.wall,
                     )
-                    .pointer_presence(if self.hovered == Some(notif.data.id) {
+                    .pointer_presence(if self.hovered == HoveredToast::Hovered(notif.data.id) {
                         PointerPresence::PointedAt
                     } else {
                         PointerPresence::NotPointedAt
@@ -284,20 +299,20 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .filter(|notif| notif.presence() == ToastPresence::Shown)
     }
 
-    fn sender_of(&self, id: u32) -> Option<ToastSender> {
+    fn toast_sender_by_id(&self, id: u32) -> Option<ToastSender> {
         self.live
             .iter()
             .find(|notif| notif.data.id == id)
             .map(Notification::toast_sender)
     }
 
-    fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
-        let notif = self.showing().find(|n| n.data.id == id)?;
+    fn anchored_window_id(&self, id: u32, placement: &Placement) -> Option<u64> {
+        let notif = self.showing().find(|toast| toast.data.id == id)?;
         notif.place.window.open_in(placement)
     }
 
     fn routed_message_for(&self, toast_id: u32, action_key: &str) -> Option<Routed> {
-        let notif = self.showing().find(|n| n.data.id == toast_id)?;
+        let notif = self.showing().find(|toast| toast.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
             return match &notif.body_click {
                 BodyClick::Shell(message) => Some(message.as_ref().clone()),

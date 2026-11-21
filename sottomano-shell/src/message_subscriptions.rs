@@ -24,15 +24,14 @@ use sottomano_widgets::{
     hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
     widgets::typing_under_cards::CardVisibility,
 };
-use wayland_client::Connection;
 
 use crate::{
-    desktop_shell::DesktopShell,
+    desktop_shell::{DesktopShell, WaylandLink},
     shell_message::{Message, OutputChange},
 };
 
-fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
-    let Some(connection) = wayland else {
+fn outputs(wayland: &WaylandLink) -> Subscription<Message> {
+    let WaylandLink::Connected(connection) = wayland else {
         return Subscription::none();
     };
     output::listen(connection.clone()).filter_map(|event| {
@@ -71,16 +70,16 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     };
 
     Subscription::batch([
-        outputs(state.wayland.as_ref()),
+        outputs(&state.wayland),
         Subscription::run_with(state.config_file.clone(), |config_file| {
             changes(vec![WatchTarget::WrittenFile(config_file.path.clone())])
         })
         .map(Message::ConfigFileChanged),
         state
             .indicator_groups
-            .subscription(&state.config, state.desktop_buses.as_ref()),
+            .subscription(&state.config, state.desktop_buses.connected_buses()),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
-        state.desktop_buses.as_ref().map_or_else(
+        state.desktop_buses.connected_buses().map_or_else(
             || Subscription::run(fallback_icon_theme).map(Message::IconThemeChanged),
             |buses| {
                 Subscription::batch([

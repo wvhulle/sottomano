@@ -121,21 +121,21 @@ fn synced_lyrics_table(
     )
 }
 
-pub(super) fn singing_line<'a>(
-    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
+pub(super) fn singing_line<'view>(
+    lyrics_snapshot: &'view SubscribedSnapshot<TrackLyrics>,
     media: &Media,
     sampled_at: Instant,
-) -> Option<&'a TimedLyricLine> {
+) -> Option<&'view TimedLyricLine> {
     let played = media.progress.played(media.status, sampled_at)?;
     lyrics_snapshot.get()?.current_line(played)
 }
 
-pub(super) fn current_lyric_line<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    timed_line: &'a TimedLyricLine,
+pub(super) fn current_lyric_line<'view>(
+    config: &'view Config,
+    media: &'view Media,
+    timed_line: &'view TimedLyricLine,
     sampled_at: Instant,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let icon = IndicatorIcon::IconGlyph {
         glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
         state: IndicatorState::Idle,
@@ -163,13 +163,13 @@ pub(super) fn current_lyric_line<'a>(
     GroupIndicator::composed_pinnable("Lyrics", icon, value, Box::new(|_| Vec::new()))
 }
 
-pub(super) fn lyrics_row<'a>(
-    config: &'a Config,
-    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
-    media: &'a Media,
+pub(super) fn lyrics_row<'view>(
+    config: &'view Config,
+    lyrics_snapshot: &'view SubscribedSnapshot<TrackLyrics>,
+    media: &'view Media,
     now: Instant,
-) -> Option<GroupIndicator<'a>> {
-    let lyrics_card: DescribeCard<'a> =
+) -> Option<GroupIndicator<'view>> {
+    let lyrics_card: DescribeCard<'view> =
         Box::new(move |card_clock| lyrics_hover_card(lyrics_snapshot, media, card_clock));
     if let Some(timed_line) = singing_line(lyrics_snapshot, media, now) {
         return Some(

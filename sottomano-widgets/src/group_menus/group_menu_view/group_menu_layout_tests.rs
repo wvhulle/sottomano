@@ -77,12 +77,12 @@ impl MenuTestBench {
     }
 }
 
-impl<'a> GroupMenuView<'a> {
+impl<'view> GroupMenuView<'view> {
     pub(super) fn bench_surfaces(
         self,
-        bench: &'a MenuTestBench,
+        bench: &'view MenuTestBench,
         orientation: CascadeOrientation,
-    ) -> NestedMenuSurfaces<'a, GroupEvent> {
+    ) -> NestedMenuSurfaces<'view, GroupEvent> {
         self.surfaces(
             &bench.config,
             &ShellLayer::Overlays.default_appearance(),

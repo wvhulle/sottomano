@@ -21,17 +21,17 @@ use crate::{
     widgets::ongoing_toast::IndicatorAlerts,
 };
 
-impl<'a> GroupIndicator<'a> {
+impl<'view> GroupIndicator<'view> {
     pub fn slider<Interaction: Into<IndicatorGroupInteraction>>(
-        slider: &'a SliderControl,
-        config: &'a Config,
-        on_control: impl Fn(ControlMessage) -> Interaction + 'a,
+        slider: &'view SliderControl,
+        config: &'view Config,
+        on_control: impl Fn(ControlMessage) -> Interaction + 'view,
     ) -> Self {
         let locale = config.calendar.locale;
         let face = slider.indicator_face();
         let readout = slider.indicator_readout(locale);
         let alerts = slider.indicator_alerts(locale);
-        let card: DescribeCard<'a> = Box::new(|_| slider.readout_hover_card());
+        let card: DescribeCard<'view> = Box::new(|_| slider.readout_hover_card());
         let shown_indicator = SliderShownIndicator {
             face: face.clone(),
             readout: readout.clone(),
@@ -71,8 +71,8 @@ impl<'a> GroupIndicator<'a> {
     pub fn composed(
         name: impl Into<Cow<'static, str>>,
         icon: IndicatorIcon,
-        value: IndicatorValue<'a>,
-        card: DescribeCard<'a>,
+        value: IndicatorValue<'view>,
+        card: DescribeCard<'view>,
     ) -> Self {
         Self::assembled_row(
             IndicatorFace {
@@ -90,8 +90,8 @@ impl<'a> GroupIndicator<'a> {
     pub fn composed_pinnable(
         name: impl Into<Cow<'static, str>>,
         icon: IndicatorIcon,
-        value: IndicatorValue<'a>,
-        card: DescribeCard<'a>,
+        value: IndicatorValue<'view>,
+        card: DescribeCard<'view>,
     ) -> Self {
         Self {
             pinning: IndicatorPinning::Pinnable,

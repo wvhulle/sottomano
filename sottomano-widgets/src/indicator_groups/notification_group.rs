@@ -128,11 +128,11 @@ impl NotificationGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
+    pub fn group_content<'view>(
+        &'view self,
         status: NotificationStatus,
-        quiet_schedule: &'a QuietScheduleGroup,
-    ) -> IndicatorGroupContent<'a> {
+        quiet_schedule: &'view QuietScheduleGroup,
+    ) -> IndicatorGroupContent<'view> {
         let quiet_phase = status.quiet_phase;
         let build_pending_notifications_indicator = || status.indicator();
         let headline_indicator = build_pending_notifications_indicator()

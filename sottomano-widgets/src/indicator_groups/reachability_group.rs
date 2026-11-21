@@ -82,7 +82,7 @@ pub enum ReachabilityMessage {
     Throughput(SnapshotDelivery<InterfaceThroughput>),
     Latency(SnapshotDelivery<InternetLatency>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
-    MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
+    MeteredTotalsLoaded(MeteredVolumeTotals),
 }
 
 impl ReachabilityGroup {
@@ -135,11 +135,7 @@ impl ReachabilityGroup {
                 self.connectivity.receive(delivery, clock);
             }
             ReachabilityMessage::MeteredTotalsLoaded(loaded) => {
-                self.metered_volume.totals_loaded(
-                    loaded,
-                    clock.local().date_naive(),
-                    clock.instant,
-                );
+                self.metered_volume.totals_loaded(loaded, clock.instant);
             }
         }
         Task::none()
@@ -241,10 +237,10 @@ impl ReachabilityGroup {
         )
     }
 
-    fn wired_interface_throughput_indicator<'a>(
-        &'a self,
-        interface_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_interface_throughput_indicator<'view>(
+        &'view self,
+        interface_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         interface_indicator
             .with_hover_card(Box::new(move |_| {
                 self.throughput
@@ -255,10 +251,10 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn direction_throughput_indicator<'a>(
-        &'a self,
-        direction_throughput: &'a Throughput,
-    ) -> GroupIndicator<'a> {
+    fn direction_throughput_indicator<'view>(
+        &'view self,
+        direction_throughput: &'view Throughput,
+    ) -> GroupIndicator<'view> {
         throughput_indicator(direction_throughput)
             .with_hover_card(Box::new(move |_| {
                 self.direction_hover_card(direction_throughput)
@@ -268,10 +264,10 @@ impl ReachabilityGroup {
             ))
     }
 
-    fn wired_internet_latency_indicator<'a>(
-        &'a self,
-        latency_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_internet_latency_indicator<'view>(
+        &'view self,
+        latency_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         latency_indicator
             .with_hover_card(Box::new(move |_| {
                 self.latency

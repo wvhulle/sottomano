@@ -30,15 +30,15 @@ use crate::{
     widgets::{configured_scroll::configured_scroll, shell_layer_appearance::LayerAppearance},
 };
 
-impl<'a> GroupMenuView<'a> {
+impl<'view> GroupMenuView<'view> {
     #[must_use]
     pub fn surfaces(
         self,
-        config: &'a Config,
+        config: &'view Config,
         appearance: &LayerAppearance,
-        card: &InspectionCard<'_, 'a>,
+        card: &InspectionCard<'_, 'view>,
         orientation: CascadeOrientation,
-    ) -> Option<NestedMenuSurfaces<'a, GroupEvent>> {
+    ) -> Option<NestedMenuSurfaces<'view, GroupEvent>> {
         let GroupMenuView {
             group_menus,
             messenger,
@@ -114,11 +114,11 @@ impl<'a> GroupMenuView<'a> {
     }
 }
 
-fn group_menu_entries<'a>(
+fn group_menu_entries<'view>(
     row_context: &GroupMenuRowContext<'_>,
-    group_rows: Vec<GroupMenuGroupRow<'a>>,
-    card: &InspectionCard<'_, 'a>,
-) -> Vec<MenuEntry<'a, IndicatorGroupIdentity, GroupEvent>> {
+    group_rows: Vec<GroupMenuGroupRow<'view>>,
+    card: &InspectionCard<'_, 'view>,
+) -> Vec<MenuEntry<'view, IndicatorGroupIdentity, GroupEvent>> {
     let topic = row_context.menu.topic;
     let open_groups = row_context.group_menus.inspection.open_groups(topic);
     let inspected_indicator = row_context

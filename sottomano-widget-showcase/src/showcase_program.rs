@@ -36,7 +36,7 @@ use sottomano_widgets::{
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
-        text::{font_faces_of, point_generic_font_families_at},
+        text::{point_generic_font_families_at, resolved_font_faces},
     },
 };
 
@@ -45,7 +45,7 @@ use crate::{
     backdrop_photo::BackdropPhotos,
     demo_script::{DEMOS, Demo, DemoBackdrop, GroupShown},
     fixtures::{sample, showcase_epoch},
-    frosted_backdrop::{FrostedBackdrop, frosted_rows_of},
+    frosted_backdrop::{FrostedBackdrop, frosted_blur_rectangles},
     scripted_frames::scripted_frames,
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::{ShowcasedGroup, recorded_look},
@@ -286,7 +286,7 @@ impl Program for ShowcaseProgram {
 
     fn settings(&self) -> Settings {
         Settings {
-            default_font: font_faces_of(&self.config.theme.font).regular,
+            default_font: resolved_font_faces(&self.config.theme.font).regular,
             fonts: vec![Cow::Owned(self.config.theme.font.data.to_vec())],
             antialiasing: true,
             ..Settings::default()
@@ -311,7 +311,7 @@ impl Program for ShowcaseProgram {
     fn update(&self, state: &mut ShowcaseState, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         let message_task = match message {
             ShowcaseMessage::SurfaceRegionsCollected(surface_regions) => {
-                state.frosted_rows = frosted_rows_of(&surface_regions);
+                state.frosted_rows = frosted_blur_rectangles(&surface_regions);
                 return Task::none();
             }
             ShowcaseMessage::Frame(clock) => state.advance_frame(clock),
@@ -326,11 +326,11 @@ impl Program for ShowcaseProgram {
         }
     }
 
-    fn view<'a>(
+    fn view<'view>(
         &self,
-        state: &'a ShowcaseState,
+        state: &'view ShowcaseState,
         _window: window::Id,
-    ) -> Element<'a, ShowcaseMessage> {
+    ) -> Element<'view, ShowcaseMessage> {
         let gap = state.config.theme.spacing.item_gap;
         let panel_side = match state.group.position() {
             Position::Top => Vertical::Top,

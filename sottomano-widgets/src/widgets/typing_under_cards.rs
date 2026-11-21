@@ -1,7 +1,7 @@
 use corredo::transitions::MotionState;
 use iced::{
     Animation, Rectangle, Subscription,
-    animation::Easing,
+    animation::{Easing, Float},
     event::listen_with,
     futures::{Stream, StreamExt, stream},
     mouse,
@@ -55,14 +55,29 @@ pub enum CardVisibility {
     Hidden,
 }
 
-pub struct TypingUnderCards {
-    input_is_active: bool,
-    last_shell_pointer_motion: Instant,
-    background_fading: Animation<bool>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackgroundFade {
+    Unfaded,
+    Faded,
 }
 
-fn fading_animation(is_fading: bool, fade_duration: Duration) -> Animation<bool> {
-    Animation::new(is_fading)
+impl Float for BackgroundFade {
+    fn float_value(&self) -> f32 {
+        match self {
+            Self::Unfaded => 0.0,
+            Self::Faded => 1.0,
+        }
+    }
+}
+
+pub struct TypingUnderCards {
+    last_input_edge: IdleEdge,
+    last_shell_pointer_motion: Instant,
+    background_fading: Animation<BackgroundFade>,
+}
+
+fn fading_animation(fade: BackgroundFade, fade_duration: Duration) -> Animation<BackgroundFade> {
+    Animation::new(fade)
         .easing(Easing::EaseOutCubic)
         .duration(fade_duration)
 }
@@ -105,9 +120,12 @@ impl TypingUnderCards {
     #[must_use]
     pub fn new(now: Instant, overlay_surfaces: &OverlaySurfacesConfig) -> Self {
         Self {
-            input_is_active: false,
+            last_input_edge: IdleEdge::Idled,
             last_shell_pointer_motion: now,
-            background_fading: fading_animation(false, overlay_surfaces.surface_morph_duration),
+            background_fading: fading_animation(
+                BackgroundFade::Unfaded,
+                overlay_surfaces.surface_morph_duration,
+            ),
         }
     }
 
@@ -125,13 +143,18 @@ impl TypingUnderCards {
         overlay_surfaces: &OverlaySurfacesConfig,
     ) {
         match signal {
-            TypingSignal::InputEdge(edge) => self.input_is_active = edge == IdleEdge::Resumed,
+            TypingSignal::InputEdge(edge) => self.last_input_edge = edge,
             TypingSignal::ShellPointerMoved => self.last_shell_pointer_motion = now,
             TypingSignal::RecheckDue => {}
         }
-        let typing_suspected = self.input_is_active
-            && self.pointer_settled_at(overlay_surfaces.typing_idle_delay) <= now;
-        self.background_fading.go_mut(typing_suspected, now);
+        let background_fade = if self.last_input_edge == IdleEdge::Resumed
+            && self.pointer_settled_at(overlay_surfaces.typing_idle_delay) <= now
+        {
+            BackgroundFade::Faded
+        } else {
+            BackgroundFade::Unfaded
+        };
+        self.background_fading.go_mut(background_fade, now);
     }
 
     pub fn subscription(
@@ -165,7 +188,8 @@ impl TypingUnderCards {
     }
 
     fn next_recheck(&self, idle_delay: Duration) -> Option<Instant> {
-        (self.input_is_active && !self.background_fading.value())
+        (self.last_input_edge == IdleEdge::Resumed
+            && self.background_fading.value() == BackgroundFade::Unfaded)
             .then(|| self.pointer_settled_at(idle_delay))
     }
 
@@ -180,8 +204,13 @@ impl TypingUnderCards {
 
     fn fade_level(&self, now: Instant, overlay_surfaces: &OverlaySurfacesConfig) -> f32 {
         let kept_opacity = overlay_surfaces.typing_background_opacity.clamp(0.0, 1.0);
-        self.background_fading
-            .interpolate(0.0, 1.0 - kept_opacity, now)
+        self.background_fading.interpolate_with(
+            |background_fade| match background_fade {
+                BackgroundFade::Unfaded => 0.0,
+                BackgroundFade::Faded => 1.0 - kept_opacity,
+            },
+            now,
+        )
     }
 
     #[must_use]

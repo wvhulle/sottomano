@@ -4,11 +4,11 @@ pub use sottomano_simple_icons::SimpleIcon;
 use crate::glyph_icons::icon_glyph::IconGlyph;
 
 #[must_use]
-pub fn view_simple_icon<'a, Message: 'a>(
+pub fn view_simple_icon<'view, Message: 'view>(
     icon: SimpleIcon,
     size: f32,
-    color: impl Fn(&Theme) -> Color + 'a,
-) -> Element<'a, Message> {
+    color: impl Fn(&Theme) -> Color + 'view,
+) -> Element<'view, Message> {
     svg(svg::Handle::from_memory(icon.svg_data()))
         .width(size)
         .height(size)

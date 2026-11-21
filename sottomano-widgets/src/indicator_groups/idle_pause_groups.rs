@@ -31,7 +31,8 @@ use sottomano_desktop_sources::{
 use self::{
     chain_stage_rows::HibernateDelayApply,
     pause_blocker_indicators::{
-        PauseBlocker, PauseFacts, TimerArming, pause_blockers, pause_title,
+        PauseBlocker, ScreensaverFacts, TimerArming, pause_blockers_with_sleep_obstacles,
+        pause_title, screensaver_pause_blockers,
     },
     pause_group_elements::stage_slider_glyph,
     stage_schedule_cards::stage_caption,
@@ -42,6 +43,7 @@ pub use self::{
         SuspendThenHibernateSupport,
     },
     sqlite_idle_timeouts::Timeouts,
+    stage_schedule_cards::ScreenOffOverride,
 };
 use crate::{
     background_work::snapshot_subscription,
@@ -52,7 +54,7 @@ use crate::{
     },
     widgets::{
         idle::{
-            ArmedIdleChain, performed_idle_action_edges,
+            ArmedIdleChain, IdleTimeout, performed_idle_action_edges,
             timer::{IdleTimer, TimerChange},
         },
         subscribed_snapshot::SubscribedSnapshot,
@@ -86,7 +88,7 @@ pub struct IdlePauseGroups {
     hibernate: IdlePause,
     power_down: IdlePause,
     expansion: IndicatorGroupExpansion,
-    quiet_screen_off: Option<Duration>,
+    screen_off_override: ScreenOffOverride,
     idle_watch: IdleWatch,
     sleep_obstacles: SubscribedSnapshot<SleepObstacles>,
     idle_inhibitors: SubscribedSnapshot<ScreenSaverInhibitors>,
@@ -121,7 +123,7 @@ impl Default for IdlePauseGroups {
             hibernate: IdlePause::new(IdleAction::Hibernate),
             power_down: IdlePause::new(IdleAction::PowerOff),
             expansion: IndicatorGroupExpansion::default(),
-            quiet_screen_off: None,
+            screen_off_override: ScreenOffOverride::FollowsSlider,
             idle_watch: IdleWatch::Disarmed,
             sleep_obstacles: SubscribedSnapshot::default(),
             idle_inhibitors: SubscribedSnapshot::default(),
@@ -281,39 +283,48 @@ impl IdlePauseGroups {
 
     fn refresh_pause_blockers(&mut self) {
         let armed_chain = self.idle_chain().armed();
-        self.pause_blockers = pause_blockers(&PauseFacts {
-            obstacles: self.sleep_obstacles.get(),
+        let screensaver_facts = ScreensaverFacts {
             idle_inhibitors: self
                 .idle_inhibitors
                 .get()
                 .map_or(&[], |held| held.inhibitors.as_slice()),
             armed_triggers: &armed_chain.triggers,
-            hibernate_timer: match self.hibernate.timer.setting() {
-                StageSetting::After(_) => TimerArming::Armed,
-                StageSetting::Off | StageSetting::Unavailable => TimerArming::Unarmed,
-            },
-        });
+        };
+        self.pause_blockers = match self.sleep_obstacles.get() {
+            Some(obstacles) => pause_blockers_with_sleep_obstacles(
+                obstacles,
+                match self.hibernate.timer.setting() {
+                    StageSetting::After(_) => TimerArming::Armed,
+                    StageSetting::Off | StageSetting::Unavailable => TimerArming::Unarmed,
+                },
+                &screensaver_facts,
+            ),
+            None => screensaver_pause_blockers(&screensaver_facts),
+        };
     }
 
     #[must_use]
     pub fn timeouts(&self) -> Timeouts {
-        Timeouts {
-            lock_user: self.lock.timer.timeout,
-            screen_off: self.screen_off.timer.timeout,
-            sleep: self.sleep.timer.timeout,
-            hibernate: self.hibernate.timer.timeout,
-            power_down: self.power_down.timer.timeout,
-        }
+        IdleAction::ALL
+            .into_iter()
+            .filter_map(|action| match self.pause(action).timer.timeout {
+                IdleTimeout::After(timeout) => Some((action, timeout)),
+                IdleTimeout::Never => None,
+            })
+            .collect()
     }
 
-    fn blockers_of(&self, pause: IdleAction) -> impl Iterator<Item = &PauseBlocker> {
+    fn pause_blockers_for(&self, pause: IdleAction) -> impl Iterator<Item = &PauseBlocker> {
         self.pause_blockers
             .iter()
             .filter(move |blocker| blocker.pause == pause)
     }
 
-    pub fn override_screen_off(&mut self, timeout: Option<Duration>) -> Task<IdlePauseMessage> {
-        self.quiet_screen_off = timeout;
+    pub fn override_screen_off(
+        &mut self,
+        screen_off_override: ScreenOffOverride,
+    ) -> Task<IdlePauseMessage> {
+        self.screen_off_override = screen_off_override;
         self.rearm()
     }
 

@@ -107,11 +107,11 @@ fn sort_by_usage_toggle(category_app_order: CategoryAppOrder) -> IconToggle {
     )
 }
 
-fn option_entry<'a>(
+fn option_entry<'view>(
     toggle: IconToggle,
     message: AppLauncherMessage,
     config: &Config,
-) -> MenuEntry<'a, AppLauncherSubmenu, GroupEvent> {
+) -> MenuEntry<'view, AppLauncherSubmenu, GroupEvent> {
     let content = MenuRowContent::new(toggle.name)
         .icon(IconGlyph::from(toggle.icon).view(config.theme.font.icon_size_px, text_color))
         .value(indicator_toggle_switch(
@@ -123,11 +123,11 @@ fn option_entry<'a>(
     MenuItem::new(MenuRow::new(content).on_press(GroupEvent::from(message))).into()
 }
 
-pub(super) fn option_entries<'a>(
+pub(super) fn option_entries<'view>(
     open_app_listing: OpenAppListing,
     category_app_order: CategoryAppOrder,
     config: &Config,
-) -> [MenuEntry<'a, AppLauncherSubmenu, GroupEvent>; 2] {
+) -> [MenuEntry<'view, AppLauncherSubmenu, GroupEvent>; 2] {
     [
         option_entry(
             hide_open_apps_toggle(open_app_listing),

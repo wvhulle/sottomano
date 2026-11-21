@@ -261,11 +261,11 @@ impl EthernetPortsGroup {
         })
     }
 
-    fn port_group<'a>(
-        &'a self,
-        port_state: &'a PortState,
+    fn port_group<'view>(
+        &'view self,
+        port_state: &'view PortState,
         group_title: IndicatorGroupTitle,
-    ) -> Option<IndicatorGroupContent<'a>> {
+    ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&port_state.name)?;
         let build_port_link_indicator = || {
             PortLinkIndicator {

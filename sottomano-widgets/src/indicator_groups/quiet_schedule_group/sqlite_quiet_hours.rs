@@ -5,14 +5,32 @@ use sottomano_desktop_sources::sqlite_state_store::{
     StoreError, flag_set_when, in_state_store, singleton_row, with_state_store,
 };
 
-use crate::indicator_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
+use crate::{
+    group_indicators::slider_control::SliderActivity,
+    indicator_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenOffWhileQuiet {
+    After(Duration),
+    FollowsIdleTimer,
+}
+
+impl From<ScreenOffWhileQuiet> for SliderActivity {
+    fn from(screen_off: ScreenOffWhileQuiet) -> Self {
+        match screen_off {
+            ScreenOffWhileQuiet::After(_) => SliderActivity::Active,
+            ScreenOffWhileQuiet::FollowsIdleTimer => SliderActivity::Inactive,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuietHoursSchedule {
     pub schedule_adherence: QuietScheduleAdherence,
     pub start: NaiveTime,
     pub end: NaiveTime,
-    pub screen_off: Option<Duration>,
+    pub screen_off: ScreenOffWhileQuiet,
 }
 
 impl Default for QuietHoursSchedule {
@@ -21,7 +39,7 @@ impl Default for QuietHoursSchedule {
             schedule_adherence: QuietScheduleAdherence::Followed,
             start: NaiveTime::MIN + TimeDelta::hours(23),
             end: NaiveTime::MIN + TimeDelta::hours(7),
-            screen_off: Some(Duration::from_mins(1)),
+            screen_off: ScreenOffWhileQuiet::After(Duration::from_mins(1)),
         }
     }
 }
@@ -65,8 +83,10 @@ async fn read_schedule(connection: &turso::Connection) -> Result<QuietHoursSched
     Ok(stored.unwrap_or_default())
 }
 
-async fn read_screen_off(connection: &turso::Connection) -> Result<Option<Duration>, StoreError> {
-    singleton_row(
+async fn read_screen_off(
+    connection: &turso::Connection,
+) -> Result<ScreenOffWhileQuiet, StoreError> {
+    let stored_timeout = singleton_row(
         connection,
         "SELECT after_seconds FROM quiet_hours_screen_off WHERE id = 0",
         |columns, row| {
@@ -75,7 +95,11 @@ async fn read_screen_off(connection: &turso::Connection) -> Result<Option<Durati
             ))
         },
     )
-    .await
+    .await?;
+    Ok(stored_timeout.map_or(
+        ScreenOffWhileQuiet::FollowsIdleTimer,
+        ScreenOffWhileQuiet::After,
+    ))
 }
 
 async fn write_schedule(
@@ -100,7 +124,7 @@ async fn write_schedule(
     connection
         .execute("DELETE FROM quiet_hours_screen_off", ())
         .await?;
-    if let Some(timeout) = schedule.screen_off {
+    if let ScreenOffWhileQuiet::After(timeout) = schedule.screen_off {
         connection
             .execute(
                 "INSERT INTO quiet_hours_screen_off (id, after_seconds) VALUES (0, ?1)",
@@ -119,7 +143,7 @@ mod tests {
     use chrono::NaiveTime;
     use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{QuietHoursSchedule, read_schedule, write_schedule};
+    use super::{QuietHoursSchedule, ScreenOffWhileQuiet, read_schedule, write_schedule};
     use crate::indicator_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
 
     #[tokio::test]
@@ -129,7 +153,7 @@ mod tests {
             schedule_adherence: QuietScheduleAdherence::Ignored,
             start: NaiveTime::from_hms_opt(22, 15, 0).unwrap(),
             end: NaiveTime::from_hms_opt(6, 45, 0).unwrap(),
-            screen_off: Some(Duration::from_secs(30)),
+            screen_off: ScreenOffWhileQuiet::After(Duration::from_secs(30)),
         };
         write_schedule(&connection, schedule).await.unwrap();
 
@@ -140,7 +164,7 @@ mod tests {
     async fn disabled_screen_off_round_trips_as_null() {
         let connection = migrated_in_memory_store().await;
         let schedule = QuietHoursSchedule {
-            screen_off: None,
+            screen_off: ScreenOffWhileQuiet::FollowsIdleTimer,
             ..QuietHoursSchedule::default()
         };
         write_schedule(&connection, schedule).await.unwrap();

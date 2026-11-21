@@ -135,10 +135,10 @@ fn corner_inset(radius: i32, step: i32) -> i32 {
 
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegion> {
-    let x = rect.x.ceil() as i32;
-    let y = rect.y.ceil() as i32;
-    let width = (rect.x + rect.width).floor() as i32 - x;
-    let height = (rect.y + rect.height).floor() as i32 - y;
+    let left_edge = rect.x.ceil() as i32;
+    let top_edge = rect.y.ceil() as i32;
+    let width = (rect.x + rect.width).floor() as i32 - left_edge;
+    let height = (rect.y + rect.height).floor() as i32 - top_edge;
     if width <= 0 || height <= 0 {
         return Vec::new();
     }
@@ -148,7 +148,7 @@ pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegi
     let bottom_left = fitted(radius.bottom_left);
     let bottom_right = fitted(radius.bottom_right);
     let row = |top: i32, left: i32, right: i32| BlurRegion {
-        x: x + left,
+        x: left_edge + left,
         y: top,
         width: width - left - right,
         height: 1,
@@ -157,14 +157,14 @@ pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegi
     let bottom_rows = bottom_left.max(bottom_right);
     let top_corner_rows = (0..top_rows).map(|step| {
         row(
-            y + step,
+            top_edge + step,
             corner_inset(top_left, step),
             corner_inset(top_right, step),
         )
     });
     let bottom_corner_rows = (0..bottom_rows).map(|step| {
         row(
-            y + height - 1 - step,
+            top_edge + height - 1 - step,
             corner_inset(bottom_left, step),
             corner_inset(bottom_right, step),
         )
@@ -172,8 +172,8 @@ pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegi
     top_corner_rows
         .chain(bottom_corner_rows)
         .chain([BlurRegion {
-            x,
-            y: y + top_rows,
+            x: left_edge,
+            y: top_edge + top_rows,
             width,
             height: height - top_rows - bottom_rows,
         }])
@@ -181,33 +181,38 @@ pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegi
         .collect()
 }
 
-pub fn region_reporter<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub fn region_reporter<'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     roles: RegionRoles,
-) -> RegionReporter<'a, Message> {
+) -> RegionReporter<'view, Message> {
     RegionReporter {
         content: content.into(),
         roles,
-        on_width_change: None,
+        width_reporting: WidthReporting::Silent,
     }
 }
 
-pub struct RegionReporter<'a, Message> {
-    content: Element<'a, Message>,
+pub struct RegionReporter<'view, Message> {
+    content: Element<'view, Message>,
     roles: RegionRoles,
-    on_width_change: Option<Box<dyn Fn(f32) -> Message + 'a>>,
+    width_reporting: WidthReporting<'view, Message>,
 }
 
-impl<'a, Message> RegionReporter<'a, Message> {
+enum WidthReporting<'view, Message> {
+    Silent,
+    Reported(Box<dyn Fn(f32) -> Message + 'view>),
+}
+
+impl<'view, Message> RegionReporter<'view, Message> {
     #[must_use]
-    pub fn on_width_change(mut self, on_width_change: impl Fn(f32) -> Message + 'a) -> Self {
-        self.on_width_change = Some(Box::new(on_width_change));
+    pub fn on_width_change(mut self, on_width_change: impl Fn(f32) -> Message + 'view) -> Self {
+        self.width_reporting = WidthReporting::Reported(Box::new(on_width_change));
         self
     }
 }
 
-impl<'a, Message: 'a> From<RegionReporter<'a, Message>> for Element<'a, Message> {
-    fn from(reporter: RegionReporter<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<RegionReporter<'view, Message>> for Element<'view, Message> {
+    fn from(reporter: RegionReporter<'view, Message>) -> Self {
         Element::new(reporter)
     }
 }
@@ -221,9 +226,11 @@ fn region_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
         .map(|child| child.bounds())
 }
 
-#[derive(Default)]
-struct LastWidth {
-    measured_width: Option<f32>,
+#[derive(Default, PartialEq)]
+enum LastWidth {
+    #[default]
+    Unmeasured,
+    Measured(f32),
 }
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_, Message> {
@@ -314,7 +321,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
             shell,
             viewport,
         );
-        let Some(on_width_change) = &self.on_width_change else {
+        let WidthReporting::Reported(on_width_change) = &self.width_reporting else {
             return;
         };
         if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
@@ -323,9 +330,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
         let width = region_rects(layout)
             .map(|rect| rect.width)
             .fold(0.0, f32::max);
-        let last = tree.state.downcast_mut::<LastWidth>();
-        if last.measured_width != Some(width) {
-            last.measured_width = Some(width);
+        let last_width = tree.state.downcast_mut::<LastWidth>();
+        if *last_width != LastWidth::Measured(width) {
+            *last_width = LastWidth::Measured(width);
             shell.publish(on_width_change(width));
         }
     }
@@ -347,14 +354,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),

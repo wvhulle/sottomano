@@ -206,24 +206,24 @@ fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, spacing: &ToastAnchorS
 
 fn window_origin(bounds: Rectangle, size: Size, spacing: &ToastAnchorSpacing) -> Point {
     let from_right = spacing.card_gap;
-    let x = if bounds.width >= size.width + 2.0 * from_right {
+    let left_edge = if bounds.width >= size.width + 2.0 * from_right {
         bounds.x + bounds.width - size.width - from_right
     } else {
         bounds.center_x() - size.width / 2.0
     };
-    Point::new(x, bounds.y + spacing.edge_gap)
+    Point::new(left_edge, bounds.y + spacing.edge_gap)
 }
 
 fn overflowed_edge(
-    x: f32,
+    left_edge: f32,
     size: Size,
     area: Rectangle,
     spacing: &ToastAnchorSpacing,
 ) -> Option<HEdge> {
     let gap = spacing.edge_gap;
-    if x < area.x + gap {
+    if left_edge < area.x + gap {
         Some(HEdge::Left)
-    } else if x > area.x + area.width - size.width - gap {
+    } else if left_edge > area.x + area.width - size.width - gap {
         Some(HEdge::Right)
     } else {
         None
@@ -256,10 +256,10 @@ mod tests {
         card_gap: 14.0,
     };
 
-    fn window(id: u64, x: f32) -> ToastAnchor {
+    fn window(id: u64, left_edge: f32) -> ToastAnchor {
         ToastAnchor::Window {
             id,
-            bounds: Rectangle::new(Point::new(x, 40.0), Size::new(800.0, 1000.0)),
+            bounds: Rectangle::new(Point::new(left_edge, 40.0), Size::new(800.0, 1000.0)),
         }
     }
 

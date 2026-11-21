@@ -9,15 +9,15 @@ use crate::{
     indicator_groups::indicator_group_content::{GroupEvent, fixed_view},
 };
 
-pub enum FixedPanelGroup<'a> {
+pub enum FixedPanelGroup<'view> {
     Empty,
     Shown {
-        indicator: Box<GroupIndicator<'a>>,
+        indicator: Box<GroupIndicator<'view>>,
         hover_target: HoverTarget,
     },
 }
 
-impl<'a> FixedPanelGroup<'a> {
+impl<'view> FixedPanelGroup<'view> {
     #[must_use]
     pub fn handle_target(&self) -> Option<&HoverTarget> {
         match self {
@@ -43,12 +43,12 @@ impl<'a> FixedPanelGroup<'a> {
     #[must_use]
     pub fn view(
         self,
-        config: &'a Config,
+        config: &'view Config,
         panel_position: Position,
         open_trigger: NestedMenuOpenTrigger,
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
-    ) -> Option<Element<'a, GroupEvent>> {
+    ) -> Option<Element<'view, GroupEvent>> {
         let FixedPanelGroup::Shown {
             indicator,
             hover_target,

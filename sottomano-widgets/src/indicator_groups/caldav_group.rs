@@ -187,20 +187,20 @@ impl CaldavGroup {
         )
     }
 
-    fn wired_upcoming_events_indicator<'a>(
-        &'a self,
-        events_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_upcoming_events_indicator<'view>(
+        &'view self,
+        events_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         events_indicator.with_hover_card(Box::new(move |card_clock| {
             self.upcoming_events
                 .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
         }))
     }
 
-    fn wired_open_tasks_indicator<'a>(
-        &'a self,
-        tasks_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_open_tasks_indicator<'view>(
+        &'view self,
+        tasks_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         tasks_indicator.with_hover_card(Box::new(move |card_clock| {
             self.open_tasks
                 .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))

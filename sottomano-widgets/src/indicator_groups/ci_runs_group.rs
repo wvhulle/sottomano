@@ -116,7 +116,7 @@ fn runner_hover_card<S: CiRunnerSnapshot>(
     snapshot.hover_card_with(body)
 }
 
-fn watched_runners_of<S: CiRunnerSnapshot>(
+fn delivered_watched_runners<S: CiRunnerSnapshot>(
     watches: &CiRunnerWatches<S>,
 ) -> impl Iterator<Item = WatchedCiRunner<'_>> {
     watches
@@ -186,8 +186,8 @@ impl CiRunsGroup {
     }
 
     fn watched_runners(&self) -> Vec<WatchedCiRunner<'_>> {
-        watched_runners_of(&self.woodpecker_watches)
-            .chain(watched_runners_of(&self.forgejo_watches))
+        delivered_watched_runners(&self.woodpecker_watches)
+            .chain(delivered_watched_runners(&self.forgejo_watches))
             .collect()
     }
 
@@ -236,11 +236,11 @@ impl CiRunsGroup {
         )
     }
 
-    fn runner_failure_indicator<'a>(
-        &'a self,
-        failure_indicator: CiRunnerFailureIndicator<'a>,
+    fn runner_failure_indicator<'view>(
+        &'view self,
+        failure_indicator: CiRunnerFailureIndicator<'view>,
         failure_reference: CiRunnerReference,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         failure_indicator
             .indicator()
             .with_hover_card(Box::new(move |_| {
@@ -251,14 +251,14 @@ impl CiRunsGroup {
             }))
     }
 
-    fn ci_task_indicator<'a>(
-        &'a self,
+    fn ci_task_indicator<'view>(
+        &'view self,
         runner_kind: CiRunnerKind,
-        task: &'a CiTask,
+        task: &'view CiTask,
         task_reference: CiRunnerReference,
         clock: Clock,
         locale: Locale,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         let task_indicator = CiTaskIndicator {
             kind: runner_kind,
             task,

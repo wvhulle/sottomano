@@ -18,8 +18,8 @@ use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use self::{
-    clock_slider::{clock_at, clock_minutes, new_clock_slider},
-    sqlite_quiet_hours::QuietHoursSchedule,
+    clock_slider::{clock_at, clock_minutes, new_clock_slider, screen_off_at, screen_off_position},
+    sqlite_quiet_hours::{QuietHoursSchedule, ScreenOffWhileQuiet},
     sqlite_working_days::{MONDAY_TO_FRIDAY, with_day_toggled},
 };
 use crate::{
@@ -32,7 +32,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue},
         indicator_drawing::IndicatorIcon,
-        slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
+        slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -48,7 +48,7 @@ use crate::{
         },
     },
     widgets::{
-        idle::{MAX_POSITION, position, timeout_at},
+        idle::{IdleTimeout, MAX_POSITION, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         value_cells::{LabeledValue, ValueCell},
@@ -98,12 +98,28 @@ pub struct QuietUpdate {
 
 struct ManualOverride {
     phase: QuietPhase,
-    until: Option<DateTime<Local>>,
+    until: ManualOverrideEnd,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ManualOverrideEnd {
+    ScheduleEdge(DateTime<Local>),
+    NextToggle,
+}
+
+enum QuietControl {
+    Scheduled,
+    Manual(ManualOverride),
 }
 
 struct ArmedEdge {
     at: DateTime<Local>,
     _timer: task::Handle,
+}
+
+enum EdgeTimer {
+    Disarmed,
+    Armed(ArmedEdge),
 }
 
 pub struct QuietScheduleGroup {
@@ -112,9 +128,9 @@ pub struct QuietScheduleGroup {
     start_slider: SliderControl,
     end_slider: SliderControl,
     screen_off_slider: SliderControl,
-    manual: Option<ManualOverride>,
+    control: QuietControl,
     pub phase: QuietPhase,
-    armed_edge: Option<ArmedEdge>,
+    edge_timer: EdgeTimer,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -131,18 +147,17 @@ impl Default for QuietScheduleGroup {
                 0.0..=MAX_POSITION,
                 Phosphor::Monitor(Weight::Regular),
             )
-            .readout(|value, locale| {
-                timeout_at(value).map_or_else(
-                    || "∞".to_owned(),
-                    |offset| format!("+{}", duration_text(offset, locale)),
-                )
+            .readout(|value, locale| match timeout_at(value) {
+                IdleTimeout::After(offset) => format!("+{}", duration_text(offset, locale)),
+                IdleTimeout::Never => "∞".to_owned(),
             })
-            .label(|value, locale| {
-                timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
+            .label(|value, locale| match timeout_at(value) {
+                IdleTimeout::After(offset) => Some(format!("+{}", duration_text(offset, locale))),
+                IdleTimeout::Never => None,
             }),
-            manual: None,
+            control: QuietControl::Scheduled,
             phase: QuietPhase::Inactive,
-            armed_edge: None,
+            edge_timer: EdgeTimer::Disarmed,
             expansion: IndicatorGroupExpansion::default(),
         };
         quiet_schedule_group.adopt_schedule(defaults);
@@ -185,7 +200,7 @@ impl QuietScheduleGroup {
                     .synced_value
                     .reported_value(),
             ),
-            screen_off: timeout_at(
+            screen_off: screen_off_at(
                 self.screen_off_slider
                     .expanding_slider
                     .synced_value
@@ -204,7 +219,7 @@ impl QuietScheduleGroup {
                     .shown_value(),
             ),
             end: clock_at(self.end_slider.expanding_slider.synced_value.shown_value()),
-            screen_off: timeout_at(
+            screen_off: screen_off_at(
                 self.screen_off_slider
                     .expanding_slider
                     .synced_value
@@ -220,12 +235,11 @@ impl QuietScheduleGroup {
         self.end_slider
             .update(ControlMessage::Sample(clock_minutes(schedule.end)));
         self.screen_off_slider
-            .update(ControlMessage::Sample(position(schedule.screen_off)));
+            .update(ControlMessage::Sample(screen_off_position(
+                schedule.screen_off,
+            )));
         self.screen_off_slider
-            .update(ControlMessage::Activity(match schedule.screen_off {
-                Some(_) => SliderActivity::Active,
-                None => SliderActivity::Inactive,
-            }));
+            .update(ControlMessage::Activity(schedule.screen_off.into()));
     }
 
     fn window(&self) -> QuietWindow {
@@ -237,10 +251,15 @@ impl QuietScheduleGroup {
     }
 
     fn manual_at(&self, now: DateTime<Local>) -> Option<QuietPhase> {
-        self.manual
-            .as_ref()
-            .filter(|manual| manual.until.is_none_or(|until| now < until))
-            .map(|manual| manual.phase)
+        let QuietControl::Manual(manual) = &self.control else {
+            return None;
+        };
+        match manual.until {
+            ManualOverrideEnd::ScheduleEdge(until) if now >= until => None,
+            ManualOverrideEnd::ScheduleEdge(_) | ManualOverrideEnd::NextToggle => {
+                Some(manual.phase)
+            }
+        }
     }
 
     fn phase_at(&self, now: DateTime<Local>) -> QuietPhase {
@@ -255,7 +274,13 @@ impl QuietScheduleGroup {
     }
 
     fn next_change(&self, now: DateTime<Local>) -> Option<DateTime<Local>> {
-        let manual_expiry = self.manual.as_ref().and_then(|manual| manual.until);
+        let manual_expiry = match &self.control {
+            QuietControl::Manual(ManualOverride {
+                until: ManualOverrideEnd::ScheduleEdge(until),
+                ..
+            }) => Some(*until),
+            QuietControl::Manual(_) | QuietControl::Scheduled => None,
+        };
         let scheduled = match self.schedule_adherence {
             QuietScheduleAdherence::Followed => Some(self.window().next_edge(now)),
             QuietScheduleAdherence::Ignored => None,
@@ -279,12 +304,12 @@ impl QuietScheduleGroup {
     fn quiet_change_since(
         &self,
         phase_before: QuietPhase,
-        screen_off_before: Option<Duration>,
+        screen_off_before: ScreenOffWhileQuiet,
     ) -> QuietChange {
         let screen_off = self.schedule().screen_off;
         let screen_off_change = || match screen_off {
-            Some(timeout) => QuietChange::ScreenOffAfter(timeout),
-            None => QuietChange::ScreenOffFollowsIdleTimer,
+            ScreenOffWhileQuiet::After(timeout) => QuietChange::ScreenOffAfter(timeout),
+            ScreenOffWhileQuiet::FollowsIdleTimer => QuietChange::ScreenOffFollowsIdleTimer,
         };
         match (phase_before, self.phase) {
             (QuietPhase::Active, QuietPhase::Inactive) => QuietChange::Ended,
@@ -317,8 +342,8 @@ impl QuietScheduleGroup {
             }
             QuietScheduleMessage::EdgeDue => {
                 let now = clock.local();
-                if self.manual.is_some() && self.manual_at(now).is_none() {
-                    self.manual = None;
+                if self.manual_at(now).is_none() {
+                    self.control = QuietControl::Scheduled;
                 }
                 Task::none()
             }
@@ -328,15 +353,15 @@ impl QuietScheduleGroup {
             }
             QuietScheduleMessage::ToggleFollowsSchedule => {
                 self.schedule_adherence = self.schedule_adherence.toggled();
-                self.manual = None;
+                self.control = QuietControl::Scheduled;
                 logged_failure_task(
                     "quiet hours schedule: save".to_owned(),
                     sqlite_quiet_hours::save(self.requested_schedule()),
                 )
             }
             QuietScheduleMessage::Slider(slider, control) => self.update_slider(slider, control),
-            QuietScheduleMessage::Expansion(m) => {
-                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
+            QuietScheduleMessage::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Task::none()
@@ -347,12 +372,12 @@ impl QuietScheduleGroup {
     fn toggle_quiet_now(&mut self, now: DateTime<Local>) {
         let phase = self.phase_at(now).opposite();
         let until = match self.schedule_adherence {
-            QuietScheduleAdherence::Followed => {
-                Some(self.window().next_transition_into(phase.opposite(), now))
-            }
-            QuietScheduleAdherence::Ignored => None,
+            QuietScheduleAdherence::Followed => ManualOverrideEnd::ScheduleEdge(
+                self.window().next_transition_into(phase.opposite(), now),
+            ),
+            QuietScheduleAdherence::Ignored => ManualOverrideEnd::NextToggle,
         };
-        self.manual = Some(ManualOverride { phase, until });
+        self.control = QuietControl::Manual(ManualOverride { phase, until });
     }
 
     fn update_slider(
@@ -367,12 +392,8 @@ impl QuietScheduleGroup {
             }
             Action::Commit(value) => {
                 if slider == QuietSlider::ScreenOff {
-                    self.screen_off_slider.update(ControlMessage::Activity(
-                        match timeout_at(value) {
-                            Some(_) => SliderActivity::Active,
-                            None => SliderActivity::Inactive,
-                        },
-                    ));
+                    self.screen_off_slider
+                        .update(ControlMessage::Activity(screen_off_at(value).into()));
                 }
                 Task::future(sqlite_quiet_hours::save(self.requested_schedule())).map(
                     move |store_outcome| {
@@ -389,13 +410,15 @@ impl QuietScheduleGroup {
 
     fn rearm_edge(&mut self, now: DateTime<Local>) -> Task<QuietScheduleMessage> {
         let upcoming = self.next_change(now);
-        if self.armed_edge.as_ref().map(|armed| armed.at) == upcoming {
-            return Task::none();
-        }
         let Some(at) = upcoming else {
-            self.armed_edge = None;
+            self.edge_timer = EdgeTimer::Disarmed;
             return Task::none();
         };
+        if let EdgeTimer::Armed(armed) = &self.edge_timer
+            && armed.at == at
+        {
+            return Task::none();
+        }
         let remaining = (at - now)
             .max(TimeDelta::zero())
             .to_std()
@@ -403,7 +426,7 @@ impl QuietScheduleGroup {
         let (timer, handle) = Task::future(sleep(remaining + EDGE_TIMER_MARGIN))
             .map(|()| QuietScheduleMessage::EdgeDue)
             .abortable();
-        self.armed_edge = Some(ArmedEdge {
+        self.edge_timer = EdgeTimer::Armed(ArmedEdge {
             at,
             _timer: handle.abort_on_drop(),
         });
@@ -501,7 +524,10 @@ impl QuietScheduleGroup {
         )]
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let slider = |slider| {
             GroupIndicator::slider(
                 self.slider(slider),
@@ -570,10 +596,10 @@ mod tests {
     use super::{QuietChange, QuietScheduleGroup};
     use crate::indicator_groups::quiet_schedule_group::{
         quiet_window::{QuietPhase, QuietScheduleAdherence},
-        sqlite_quiet_hours::QuietHoursSchedule,
+        sqlite_quiet_hours::{QuietHoursSchedule, ScreenOffWhileQuiet},
     };
 
-    fn group_in_phase(phase: QuietPhase, screen_off: Option<Duration>) -> QuietScheduleGroup {
+    fn group_in_phase(phase: QuietPhase, screen_off: ScreenOffWhileQuiet) -> QuietScheduleGroup {
         let mut group = QuietScheduleGroup::default();
         group.adopt_schedule(QuietHoursSchedule {
             screen_off,
@@ -589,7 +615,7 @@ mod tests {
             schedule_adherence: QuietScheduleAdherence::Ignored,
             start: NaiveTime::from_hms_opt(21, 45, 0).unwrap(),
             end: NaiveTime::from_hms_opt(6, 15, 0).unwrap(),
-            screen_off: None,
+            screen_off: ScreenOffWhileQuiet::FollowsIdleTimer,
         };
         let mut quiet_schedule_group = QuietScheduleGroup::default();
         quiet_schedule_group.adopt_schedule(loaded);
@@ -598,36 +624,61 @@ mod tests {
 
     #[test]
     fn retiming_screen_off_while_quiet_overrides_the_idle_timer() {
-        let group = group_in_phase(QuietPhase::Active, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(QuietPhase::Active, Some(Duration::from_mins(10)));
+        let group = group_in_phase(
+            QuietPhase::Active,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
+        let change = group.quiet_change_since(
+            QuietPhase::Active,
+            ScreenOffWhileQuiet::After(Duration::from_mins(10)),
+        );
         assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
     }
 
     #[test]
     fn retiming_screen_off_outside_quiet_hours_changes_nothing() {
-        let group = group_in_phase(QuietPhase::Inactive, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(QuietPhase::Inactive, Some(Duration::from_mins(10)));
+        let group = group_in_phase(
+            QuietPhase::Inactive,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
+        let change = group.quiet_change_since(
+            QuietPhase::Inactive,
+            ScreenOffWhileQuiet::After(Duration::from_mins(10)),
+        );
         assert_eq!(change, QuietChange::Unchanged);
     }
 
     #[test]
     fn entering_quiet_hours_without_screen_off_follows_the_idle_timer() {
-        let group = group_in_phase(QuietPhase::Active, None);
-        let change = group.quiet_change_since(QuietPhase::Inactive, None);
+        let group = group_in_phase(QuietPhase::Active, ScreenOffWhileQuiet::FollowsIdleTimer);
+        let change =
+            group.quiet_change_since(QuietPhase::Inactive, ScreenOffWhileQuiet::FollowsIdleTimer);
         assert_eq!(change, QuietChange::ScreenOffFollowsIdleTimer);
     }
 
     #[test]
     fn entering_quiet_hours_applies_the_screen_off_timeout() {
-        let group = group_in_phase(QuietPhase::Active, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(QuietPhase::Inactive, Some(Duration::from_mins(1)));
+        let group = group_in_phase(
+            QuietPhase::Active,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
+        let change = group.quiet_change_since(
+            QuietPhase::Inactive,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
         assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
     }
 
     #[test]
     fn leaving_quiet_hours_ends_the_override() {
-        let group = group_in_phase(QuietPhase::Inactive, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(QuietPhase::Active, Some(Duration::from_mins(1)));
+        let group = group_in_phase(
+            QuietPhase::Inactive,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
+        let change = group.quiet_change_since(
+            QuietPhase::Active,
+            ScreenOffWhileQuiet::After(Duration::from_mins(1)),
+        );
         assert_eq!(change, QuietChange::Ended);
     }
 }

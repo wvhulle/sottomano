@@ -66,8 +66,16 @@ impl EmptyWorkspaces {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WorkspaceSwitch {
     Unchanged,
-    Step { landed_on_empty: bool },
+    StepToOccupied,
+    StepToEmpty,
     Jump,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum EmptyWorkspaceReveal {
+    #[default]
+    Hidden,
+    TemporarilyRevealed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,17 +88,18 @@ pub enum RevealFoldTimer {
 #[derive(Debug, Clone, Default)]
 pub struct EmptyWorkspaceFolding {
     pub mode: EmptyWorkspaces,
-    temporarily_revealed: bool,
+    reveal: EmptyWorkspaceReveal,
     active_workspace_by_output: HashMap<String, u64>,
 }
 
 impl EmptyWorkspaceFolding {
     #[must_use]
     pub fn press_actions(&self) -> Vec<PressAction> {
-        let does = if self.temporarily_revealed {
-            "hide the empty workspaces"
-        } else {
-            "show the empty workspaces until the next workspace switch"
+        let does = match self.reveal {
+            EmptyWorkspaceReveal::TemporarilyRevealed => "hide the empty workspaces",
+            EmptyWorkspaceReveal::Hidden => {
+                "show the empty workspaces until the next workspace switch"
+            }
         };
         vec![PressAction::new(MouseGesture::LeftClick, does)]
     }
@@ -108,13 +117,18 @@ impl EmptyWorkspaceFolding {
     }
 
     pub fn toggle_temporary_reveal(&mut self) {
-        self.temporarily_revealed =
-            self.mode == EmptyWorkspaces::Folded && !self.temporarily_revealed;
+        self.reveal = match (self.mode, self.reveal) {
+            (EmptyWorkspaces::Folded, EmptyWorkspaceReveal::Hidden) => {
+                EmptyWorkspaceReveal::TemporarilyRevealed
+            }
+            (EmptyWorkspaces::Folded, EmptyWorkspaceReveal::TemporarilyRevealed)
+            | (EmptyWorkspaces::Shown, _) => EmptyWorkspaceReveal::Hidden,
+        };
     }
 
     pub fn adopt_mode(&mut self, mode: EmptyWorkspaces) {
         self.mode = mode;
-        self.temporarily_revealed = false;
+        self.reveal = EmptyWorkspaceReveal::Hidden;
     }
 
     pub fn observe_workspace_switch(
@@ -142,16 +156,12 @@ impl EmptyWorkspaceFolding {
                     (WorkspaceSwitch::Unchanged, other) | (other, WorkspaceSwitch::Unchanged) => {
                         other
                     }
-                    (
-                        WorkspaceSwitch::Step {
-                            landed_on_empty: first_landed_on_empty,
-                        },
-                        WorkspaceSwitch::Step {
-                            landed_on_empty: second_landed_on_empty,
-                        },
-                    ) => WorkspaceSwitch::Step {
-                        landed_on_empty: first_landed_on_empty || second_landed_on_empty,
-                    },
+                    (WorkspaceSwitch::StepToEmpty, _) | (_, WorkspaceSwitch::StepToEmpty) => {
+                        WorkspaceSwitch::StepToEmpty
+                    }
+                    (WorkspaceSwitch::StepToOccupied, WorkspaceSwitch::StepToOccupied) => {
+                        WorkspaceSwitch::StepToOccupied
+                    }
                 }
             });
         self.active_workspace_by_output = active_workspace_by_output;
@@ -162,23 +172,25 @@ impl EmptyWorkspaceFolding {
         if self.mode == EmptyWorkspaces::Shown {
             return RevealFoldTimer::Stop;
         }
-        match workspace_switch {
-            WorkspaceSwitch::Step { landed_on_empty }
-                if landed_on_empty || self.temporarily_revealed =>
-            {
-                self.temporarily_revealed = true;
+        match (workspace_switch, self.reveal) {
+            (WorkspaceSwitch::StepToEmpty, _)
+            | (WorkspaceSwitch::StepToOccupied, EmptyWorkspaceReveal::TemporarilyRevealed) => {
+                self.reveal = EmptyWorkspaceReveal::TemporarilyRevealed;
                 RevealFoldTimer::Restart
             }
-            WorkspaceSwitch::Unchanged | WorkspaceSwitch::Step { .. } => RevealFoldTimer::Keep,
-            WorkspaceSwitch::Jump => {
-                self.temporarily_revealed = false;
+            (WorkspaceSwitch::Unchanged, _)
+            | (WorkspaceSwitch::StepToOccupied, EmptyWorkspaceReveal::Hidden) => {
+                RevealFoldTimer::Keep
+            }
+            (WorkspaceSwitch::Jump, _) => {
+                self.reveal = EmptyWorkspaceReveal::Hidden;
                 RevealFoldTimer::Stop
             }
         }
     }
 
     pub fn fold_temporary_reveal(&mut self) {
-        self.temporarily_revealed = false;
+        self.reveal = EmptyWorkspaceReveal::Hidden;
     }
 
     fn workspace_visibility(
@@ -187,7 +199,7 @@ impl EmptyWorkspaceFolding {
         workspace: &workspace_window_snapshot::WorkspaceIndicator,
     ) -> WorkspaceVisibility {
         if self.mode == EmptyWorkspaces::Folded
-            && !self.temporarily_revealed
+            && self.reveal == EmptyWorkspaceReveal::Hidden
             && workspace_usage(compositor, workspace) == WorkspaceUsage::Unused
         {
             WorkspaceVisibility::Hidden
@@ -219,12 +231,12 @@ fn classify_switch(
         Some(previous_position) => previous_position.abs_diff(position) == 1,
         None => true,
     };
-    if is_step {
-        WorkspaceSwitch::Step {
-            landed_on_empty: compositor.windows_on_workspace(workspace_id).is_empty(),
-        }
-    } else {
+    if !is_step {
         WorkspaceSwitch::Jump
+    } else if compositor.windows_on_workspace(workspace_id).is_empty() {
+        WorkspaceSwitch::StepToEmpty
+    } else {
+        WorkspaceSwitch::StepToOccupied
     }
 }
 
@@ -248,11 +260,11 @@ fn workspace_usage(
 }
 
 #[must_use]
-pub fn shown_workspaces<'s>(
-    compositor: &'s workspace_window_snapshot::Snapshot,
+pub fn shown_workspaces<'snapshot>(
+    compositor: &'snapshot workspace_window_snapshot::Snapshot,
     output: &str,
     folding: &EmptyWorkspaceFolding,
-) -> Vec<&'s workspace_window_snapshot::WorkspaceIndicator> {
+) -> Vec<&'snapshot workspace_window_snapshot::WorkspaceIndicator> {
     compositor
         .workspaces_for_output(output)
         .iter()
@@ -272,13 +284,13 @@ fn focused_by_wheel(slot: DraggedPanelSlot) -> WorkspacesMessage {
     }
 }
 
-fn empty_workspaces_toggle<'a>(
+fn empty_workspaces_toggle<'view>(
     compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     folding: &EmptyWorkspaceFolding,
     config: &Config,
     edge: Position,
-) -> Option<Element<'a, WorkspacesMessage>> {
+) -> Option<Element<'view, WorkspacesMessage>> {
     if folding.mode == EmptyWorkspaces::Shown {
         return None;
     }
@@ -291,15 +303,16 @@ fn empty_workspaces_toggle<'a>(
         return None;
     }
     let font = &config.theme.font;
-    let face: Element<'a, WorkspacesMessage> = if folding.temporarily_revealed {
-        IconGlyph::from(Phosphor::CaretUp(Weight::Regular))
-            .view(font.icon_size_px, secondary_text_color)
-    } else {
-        panel_text(font, format!("+{unused_count}"))
+    let face: Element<'view, WorkspacesMessage> = match folding.reveal {
+        EmptyWorkspaceReveal::TemporarilyRevealed => {
+            IconGlyph::from(Phosphor::CaretUp(Weight::Regular))
+                .view(font.icon_size_px, secondary_text_color)
+        }
+        EmptyWorkspaceReveal::Hidden => panel_text(font, format!("+{unused_count}"))
             .style(|theme| text::Style {
                 color: Some(secondary_text_color(theme)),
             })
-            .into()
+            .into(),
     };
     Some(glyph_slot(
         button(face)
@@ -330,12 +343,12 @@ fn glyph_slot(
 }
 
 #[must_use]
-pub fn drag_ghost<'a>(
+pub fn drag_ghost<'view>(
     compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     workspace_id: u64,
     slot_context: PanelSlotContext<'_>,
-) -> Option<Element<'a, WorkspacesMessage>> {
+) -> Option<Element<'view, WorkspacesMessage>> {
     let PanelSlotContext { config, drag, .. } = slot_context;
     let workspace = compositor
         .workspaces_for_output(output)
@@ -365,13 +378,13 @@ pub fn workspace_order_press_actions() -> Vec<PressAction> {
     )]
 }
 
-fn order_restore<'a>(
+fn order_restore<'view>(
     configured: Option<&ConfiguredWorkspaces>,
     workspaces: &[workspace_window_snapshot::WorkspaceIndicator],
     output: &str,
     config: &Config,
     edge: Position,
-) -> Option<Element<'a, WorkspacesMessage>> {
+) -> Option<Element<'view, WorkspacesMessage>> {
     configured.filter(|configured| {
         configured.order_status_on(workspaces) == ConfiguredOrderStatus::Diverged
     })?;
@@ -398,7 +411,8 @@ enum WorkspaceVisibility {
 #[cfg(test)]
 mod tests {
     use super::{
-        EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer, WorkspaceSwitch, classify_switch,
+        EmptyWorkspaceFolding, EmptyWorkspaceReveal, EmptyWorkspaces, RevealFoldTimer,
+        WorkspaceSwitch, classify_switch,
     };
     use crate::desktop_panels::panel_slot_drag::pager_drag_simulation::{
         SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, three_workspaces_three_windows,
@@ -418,15 +432,11 @@ mod tests {
         let [first, second, _] = SIMULATED_WORKSPACE_IDS;
         assert_eq!(
             switch_between(Some(first), second),
-            WorkspaceSwitch::Step {
-                landed_on_empty: true
-            }
+            WorkspaceSwitch::StepToEmpty
         );
         assert_eq!(
             switch_between(Some(second), first),
-            WorkspaceSwitch::Step {
-                landed_on_empty: false
-            }
+            WorkspaceSwitch::StepToOccupied
         );
     }
 
@@ -447,9 +457,7 @@ mod tests {
         let [_, second, _] = SIMULATED_WORKSPACE_IDS;
         assert_eq!(
             switch_between(Some(99), second),
-            WorkspaceSwitch::Step {
-                landed_on_empty: true
-            }
+            WorkspaceSwitch::StepToEmpty
         );
     }
 
@@ -457,67 +465,57 @@ mod tests {
     fn stepping_onto_an_empty_reveals_all_until_the_fold() {
         let mut folding = EmptyWorkspaceFolding::default();
         assert_eq!(
-            folding.apply_switch(WorkspaceSwitch::Step {
-                landed_on_empty: true
-            }),
+            folding.apply_switch(WorkspaceSwitch::StepToEmpty),
             RevealFoldTimer::Restart
         );
-        assert!(folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::TemporarilyRevealed);
         folding.fold_temporary_reveal();
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
     }
 
     #[test]
     fn stepping_between_used_workspaces_reveals_nothing() {
         let mut folding = EmptyWorkspaceFolding::default();
         assert_eq!(
-            folding.apply_switch(WorkspaceSwitch::Step {
-                landed_on_empty: false
-            }),
+            folding.apply_switch(WorkspaceSwitch::StepToOccupied),
             RevealFoldTimer::Keep
         );
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
     }
 
     #[test]
     fn stepping_on_from_an_empty_keeps_the_reveal_open() {
         let mut folding = EmptyWorkspaceFolding::default();
-        folding.apply_switch(WorkspaceSwitch::Step {
-            landed_on_empty: true,
-        });
+        folding.apply_switch(WorkspaceSwitch::StepToEmpty);
         assert_eq!(
-            folding.apply_switch(WorkspaceSwitch::Step {
-                landed_on_empty: false
-            }),
+            folding.apply_switch(WorkspaceSwitch::StepToOccupied),
             RevealFoldTimer::Restart
         );
-        assert!(folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::TemporarilyRevealed);
     }
 
     #[test]
     fn jumping_folds_immediately() {
         let mut folding = EmptyWorkspaceFolding::default();
-        folding.apply_switch(WorkspaceSwitch::Step {
-            landed_on_empty: true,
-        });
+        folding.apply_switch(WorkspaceSwitch::StepToEmpty);
         assert_eq!(
             folding.apply_switch(WorkspaceSwitch::Jump),
             RevealFoldTimer::Stop
         );
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
     }
 
     #[test]
     fn a_pressed_reveal_keeps_the_mode_and_folds_on_a_jump() {
         let mut folding = EmptyWorkspaceFolding::default();
         folding.toggle_temporary_reveal();
-        assert!(folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::TemporarilyRevealed);
         assert_eq!(folding.mode, EmptyWorkspaces::Folded);
         assert_eq!(
             folding.apply_switch(WorkspaceSwitch::Jump),
             RevealFoldTimer::Stop
         );
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
     }
 
     #[test]
@@ -525,9 +523,7 @@ mod tests {
         let mut folding = EmptyWorkspaceFolding::default();
         folding.toggle_temporary_reveal();
         assert_eq!(
-            folding.apply_switch(WorkspaceSwitch::Step {
-                landed_on_empty: false
-            }),
+            folding.apply_switch(WorkspaceSwitch::StepToOccupied),
             RevealFoldTimer::Restart
         );
     }
@@ -537,14 +533,14 @@ mod tests {
         let mut folding = EmptyWorkspaceFolding::default();
         folding.toggle_temporary_reveal();
         folding.toggle_temporary_reveal();
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
     }
 
     #[test]
     fn showing_all_empties_ignores_a_reveal_press() {
         let mut folding = EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown);
         folding.toggle_temporary_reveal();
-        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.reveal, EmptyWorkspaceReveal::Hidden);
         assert_eq!(folding.mode, EmptyWorkspaces::Shown);
     }
 
@@ -552,9 +548,7 @@ mod tests {
     fn showing_all_empties_never_arms_the_fold() {
         let mut folding = EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown);
         assert_eq!(
-            folding.apply_switch(WorkspaceSwitch::Step {
-                landed_on_empty: true
-            }),
+            folding.apply_switch(WorkspaceSwitch::StepToEmpty),
             RevealFoldTimer::Stop
         );
     }

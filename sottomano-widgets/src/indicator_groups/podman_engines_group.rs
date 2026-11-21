@@ -43,12 +43,12 @@ use crate::{
     },
 };
 
-struct UnreadableEngineIndicator<'a> {
-    engine: &'a DiscoveredPodmanEngine,
-    read_failure: &'a EngineReadError,
+struct UnreadableEngineIndicator<'view> {
+    engine: &'view DiscoveredPodmanEngine,
+    read_failure: &'view EngineReadError,
 }
 
-impl<'a> UnreadableEngineIndicator<'a> {
+impl<'view> UnreadableEngineIndicator<'view> {
     fn hover_card(&self) -> Vec<Section> {
         vec![
             Section::new(
@@ -65,7 +65,7 @@ impl<'a> UnreadableEngineIndicator<'a> {
         ]
     }
 
-    fn indicator(self) -> GroupIndicator<'a> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label = ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned());
         let base = GroupIndicator::glyph_only(
             self.engine.owner.to_string(),
@@ -167,11 +167,11 @@ impl PodmanEnginesGroup {
         }
     }
 
-    fn running_container_indicators<'a>(
-        engine: &'a DiscoveredPodmanEngine,
-        listing: &'a EngineListing,
-        sample: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupIndicator<'a>> {
+    fn running_container_indicators<'view>(
+        engine: &'view DiscoveredPodmanEngine,
+        listing: &'view EngineListing,
+        sample: &'view SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupIndicator<'view>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,
@@ -199,11 +199,11 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn stopped_container_indicators<'a>(
-        engine: &'a DiscoveredPodmanEngine,
-        listing: &'a EngineListing,
-        sample: &'a SubscribedSnapshot<EngineListing>,
-    ) -> Vec<GroupIndicator<'a>> {
+    fn stopped_container_indicators<'view>(
+        engine: &'view DiscoveredPodmanEngine,
+        listing: &'view EngineListing,
+        sample: &'view SubscribedSnapshot<EngineListing>,
+    ) -> Vec<GroupIndicator<'view>> {
         let engine_containers = EngineContainers {
             socket_path: &engine.socket_path,
             owner: &engine.owner,

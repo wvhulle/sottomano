@@ -37,7 +37,7 @@ use crate::{
         localized_durations::relative_moment_text,
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,
-        text::{font_faces_of, panel_text, text_face_of},
+        text::{panel_text, resolved_font_faces, resolved_text_face},
         typing_under_cards::CardBackgroundFade,
     },
 };
@@ -113,6 +113,13 @@ impl CardIcon {
 pub enum CardImage {
     Preview { icon: CardIcon, file: PathBuf },
     Icon(CardIcon),
+    Imageless,
+}
+
+#[derive(Debug, Clone)]
+pub enum CardBadge {
+    Badged(CardIcon),
+    Unbadged,
 }
 
 impl CardImage {
@@ -136,15 +143,15 @@ impl CardImage {
 
 #[derive(Debug, Clone)]
 pub struct CardIcons {
-    pub image: Option<CardImage>,
-    pub badge: Option<CardIcon>,
+    pub image: CardImage,
+    pub badge: CardBadge,
 }
 
 impl CardIcons {
     pub fn previewed_file(&self) -> Option<&Path> {
-        match self.image.as_ref()? {
+        match &self.image {
             CardImage::Preview { file, .. } => Some(file),
-            CardImage::Icon(_) => None,
+            CardImage::Icon(_) | CardImage::Imageless => None,
         }
     }
 }
@@ -152,8 +159,8 @@ impl CardIcons {
 impl From<IconGlyph> for CardIcons {
     fn from(glyph: IconGlyph) -> Self {
         Self {
-            image: Some(CardImage::Icon(CardIcon::IconGlyph(glyph))),
-            badge: None,
+            image: CardImage::Icon(CardIcon::IconGlyph(glyph)),
+            badge: CardBadge::Unbadged,
         }
     }
 }
@@ -161,13 +168,13 @@ impl From<IconGlyph> for CardIcons {
 #[must_use]
 pub fn resolve_icons(data: &NotificationData) -> CardIcons {
     let image = match &data.image {
-        SpecImage::ImageData(pixels) | SpecImage::LegacyIconData(pixels) => Some(CardImage::Icon(
-            CardIcon::Handle(IconHandle::from(pixels.as_ref())),
-        )),
-        SpecImage::ImagePath(icon_reference) | SpecImage::AppIcon(icon_reference) => {
-            Some(CardImage::referenced(icon_reference, data.image_role))
+        SpecImage::ImageData(pixels) | SpecImage::LegacyIconData(pixels) => {
+            CardImage::Icon(CardIcon::Handle(IconHandle::from(pixels.as_ref())))
         }
-        SpecImage::Absent => None,
+        SpecImage::ImagePath(icon_reference) | SpecImage::AppIcon(icon_reference) => {
+            CardImage::referenced(icon_reference, data.image_role)
+        }
+        SpecImage::Absent => CardImage::Imageless,
     };
     let badge_app_icon = match &data.image {
         SpecImage::AppIcon(_) => None,
@@ -183,17 +190,18 @@ pub fn resolve_icons(data: &NotificationData) -> CardIcons {
         DesktopEntryHint::Entry(entry) => Some(entry.as_str()),
         DesktopEntryHint::Unhinted => None,
     };
-    let badge = badge_app_icon
-        .or(desktop_entry)
-        .map(|app_id| CardIcon::Themed(app_icon_request(app_id)));
+    let badge = match badge_app_icon.or(desktop_entry) {
+        Some(app_id) => CardBadge::Badged(CardIcon::Themed(app_icon_request(app_id))),
+        None => CardBadge::Unbadged,
+    };
     CardIcons { image, badge }
 }
 
-pub struct ToastCard<'a, Routed> {
-    notif: &'a Notification<Routed>,
-    icon_catalog: &'a IconCatalog,
-    config: &'a Config,
-    theme: &'a Theme,
+pub struct ToastCard<'toast, Routed> {
+    notif: &'toast Notification<Routed>,
+    icon_catalog: &'toast IconCatalog,
+    config: &'toast Config,
+    theme: &'toast Theme,
     overlay_appearance: LayerAppearance,
     now: SystemTime,
     pointer_presence: PointerPresence,
@@ -201,12 +209,12 @@ pub struct ToastCard<'a, Routed> {
     background_fade: CardBackgroundFade,
 }
 
-impl<'a, Routed> ToastCard<'a, Routed> {
+impl<'toast, Routed> ToastCard<'toast, Routed> {
     pub fn new(
-        notif: &'a Notification<Routed>,
-        icon_catalog: &'a IconCatalog,
-        config: &'a Config,
-        theme: &'a Theme,
+        notif: &'toast Notification<Routed>,
+        icon_catalog: &'toast IconCatalog,
+        config: &'toast Config,
+        theme: &'toast Theme,
         overlay_appearance: LayerAppearance,
         now: SystemTime,
     ) -> Self {
@@ -317,7 +325,7 @@ impl<Routed> ToastCard<'_, Routed> {
 impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupText::new(body, text_face_of(font), self.urgency_pair().color)
+        MarkupText::new(body, resolved_text_face(font), self.urgency_pair().color)
             .size(font.small_text_size_px)
             .block_spacing(self.config.theme.spacing.item_gap)
             .column_gap(self.config.theme.spacing.group_gap)
@@ -325,14 +333,16 @@ impl<Routed> ToastCard<'_, Routed> {
             .into()
     }
 
-    fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
+    fn column<'view>(&self, text: Color) -> Column<'view, NotificationMessage> {
         let data = &self.notif.data;
         let font = &self.config.theme.font;
 
         let button_actions: Vec<&NotifAction> = data
             .actions
             .iter()
-            .filter(|a| a.key != "default" && !a.label.trim().is_empty())
+            .filter(|offered_action| {
+                offered_action.key != "default" && !offered_action.label.trim().is_empty()
+            })
             .filter(|offered_action| {
                 offered_action.key != "move"
                     || !self.notif.place.window_focus.makes_move_pointless()
@@ -351,13 +361,11 @@ impl<Routed> ToastCard<'_, Routed> {
             DateTime::from(now),
             self.config.calendar.locale,
         );
-        let reltime_span = |visible: bool| {
-            visible.then(|| {
-                panel_text(font, reltime.clone())
-                    .size(font.small_text_size_px)
-                    .font(font_faces_of(font).regular)
-                    .color(text)
-            })
+        let reltime_span = || {
+            panel_text(font, reltime.clone())
+                .size(font.small_text_size_px)
+                .font(resolved_font_faces(font).regular)
+                .color(text)
         };
 
         let mut title = Row::new()
@@ -366,19 +374,19 @@ impl<Routed> ToastCard<'_, Routed> {
             .push(
                 panel_text(font, data.summary.clone())
                     .color(text)
-                    .font(font_faces_of(font).bold)
+                    .font(resolved_font_faces(font).bold)
                     .width(Length::Fill),
             );
         if let NotifyingAppName::Named(app_name) = &data.app_name {
             title = title.push(
                 panel_text(font, app_name.clone())
                     .size(font.small_text_size_px)
-                    .font(font_faces_of(font).regular)
+                    .font(resolved_font_faces(font).regular)
                     .color(text),
             );
         }
-        if let Some(time) = reltime_span(!has_actions && !has_body) {
-            title = title.push(time);
+        if !has_actions && !has_body {
+            title = title.push(reltime_span());
         }
 
         let mut column = Column::new()
@@ -389,12 +397,13 @@ impl<Routed> ToastCard<'_, Routed> {
                 .spacing(self.config.theme.spacing.group_gap)
                 .align_y(Alignment::End)
                 .push(self.body(body));
-            column = column.push(match reltime_span(!has_actions) {
-                Some(time) => body.push(time),
-                None => body,
+            column = column.push(if has_actions {
+                body
+            } else {
+                body.push(reltime_span())
             });
         }
-        if let Some(CardImage::Preview { icon, .. }) = &self.notif.icons.image {
+        if let CardImage::Preview { icon, .. } = &self.notif.icons.image {
             column = column.push(preview_widget(
                 icon,
                 self.icon_catalog,
@@ -421,19 +430,16 @@ impl<Routed> ToastCard<'_, Routed> {
             let actions = self
                 .actions_row(&button_actions, previewed_file)
                 .push(space::horizontal());
-            column = column.push(match reltime_span(true) {
-                Some(time) => actions.push(time),
-                None => actions,
-            });
+            column = column.push(actions.push(reltime_span()));
         }
         column
     }
 
-    fn actions_row<'b>(
+    fn actions_row<'view>(
         &self,
         button_actions: &[&NotifAction],
         previewed_file: Option<&Path>,
-    ) -> Row<'b, NotificationMessage> {
+    ) -> Row<'view, NotificationMessage> {
         let id = self.notif.data.id;
         let palette = self.theme.extended_palette();
         let proceed = action_family(palette, ActionTint::Proceed);
@@ -469,14 +475,18 @@ impl<Routed> ToastCard<'_, Routed> {
             .align_y(Alignment::Center)
     }
 
-    fn reply_row<'b>(&self, placeholder: &str, submit: String) -> Element<'b, NotificationMessage> {
+    fn reply_row<'view>(
+        &self,
+        placeholder: &str,
+        submit: String,
+    ) -> Element<'view, NotificationMessage> {
         let id = self.notif.data.id;
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.frame.corner_radius_px;
         let reply = move |message| NotificationMessage::Reply { id, message };
         let family = self.urgency_family();
         let field = text_input(placeholder, &self.notif.reply_draft)
-            .font(font_faces_of(font).regular)
+            .font(resolved_font_faces(font).regular)
             .size(font.text_size_px)
             .padding([
                 self.config.theme.spacing.item_gap,
@@ -509,12 +519,12 @@ impl<Routed> ToastCard<'_, Routed> {
             .into()
     }
 
-    fn action_button<'b>(
+    fn action_button<'view>(
         &self,
         label: String,
         message: NotificationMessage,
         tint: FamilyShades,
-    ) -> Element<'b, NotificationMessage> {
+    ) -> Element<'view, NotificationMessage> {
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.frame.corner_radius_px;
         button(panel_text(font, label))
@@ -540,20 +550,26 @@ impl<Routed> ToastCard<'_, Routed> {
     }
 }
 
-fn icon_slot<'a>(
+fn icon_slot<'view>(
     icons: &CardIcons,
     icon_catalog: &IconCatalog,
     reveal: f32,
     text: Color,
-) -> Option<Element<'a, NotificationMessage>> {
-    let Some(CardImage::Icon(image)) = &icons.image else {
-        return icons
-            .badge
-            .as_ref()
-            .map(|badge| icon_widget(badge, icon_catalog, TOAST_ICON_SIZE_PX, reveal, text));
+) -> Option<Element<'view, NotificationMessage>> {
+    let CardImage::Icon(image) = &icons.image else {
+        return match &icons.badge {
+            CardBadge::Badged(badge) => Some(icon_widget(
+                badge,
+                icon_catalog,
+                TOAST_ICON_SIZE_PX,
+                reveal,
+                text,
+            )),
+            CardBadge::Unbadged => None,
+        };
     };
     let main = icon_widget(image, icon_catalog, TOAST_ICON_SIZE_PX, reveal, text);
-    let Some(badge) = &icons.badge else {
+    let CardBadge::Badged(badge) = &icons.badge else {
         return Some(main);
     };
     let overlay = container(icon_widget(
@@ -568,14 +584,14 @@ fn icon_slot<'a>(
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 
-fn preview_widget<'a>(
+fn preview_widget<'view>(
     icon: &CardIcon,
     icon_catalog: &IconCatalog,
     max_height: f32,
     reveal: f32,
     text: Color,
-) -> Element<'a, NotificationMessage> {
-    let preview: Element<'a, NotificationMessage> = match icon {
+) -> Element<'view, NotificationMessage> {
+    let preview: Element<'view, NotificationMessage> = match icon {
         CardIcon::Handle(handle) => handle.scaled_down(reveal),
         CardIcon::IconGlyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
         CardIcon::Themed(request) => match icon_catalog.drawable_icon(request) {
@@ -587,11 +603,11 @@ fn preview_widget<'a>(
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn progress_widget<'a>(
+fn progress_widget<'view>(
     progress: Ratio,
     text: Color,
     track: Color,
-) -> Element<'a, NotificationMessage> {
+) -> Element<'view, NotificationMessage> {
     progress_bar(0.0..=1.0, progress.get::<ratio>() as f32)
         .girth(ACCENT_STROKE_PX)
         .style(move |_| progress_bar::Style {
@@ -602,13 +618,13 @@ fn progress_widget<'a>(
         .into()
 }
 
-fn icon_widget<'a>(
+fn icon_widget<'view>(
     icon: &CardIcon,
     icon_catalog: &IconCatalog,
     size: f32,
     reveal: f32,
     text: Color,
-) -> Element<'a, NotificationMessage> {
+) -> Element<'view, NotificationMessage> {
     match icon {
         CardIcon::IconGlyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
@@ -658,9 +674,7 @@ mod tests {
         assert_eq!(card_icons.previewed_file(), None);
         assert!(matches!(
             card_icons.image,
-            Some(CardImage::Icon(CardIcon::Themed(
-                IconRequest::IconFile { .. }
-            )))
+            CardImage::Icon(CardIcon::Themed(IconRequest::IconFile { .. }))
         ));
     }
 
@@ -674,9 +688,7 @@ mod tests {
         ));
         assert!(matches!(
             card_icons.image,
-            Some(CardImage::Icon(CardIcon::Themed(
-                IconRequest::NamedIcon { .. }
-            )))
+            CardImage::Icon(CardIcon::Themed(IconRequest::NamedIcon { .. }))
         ));
     }
 
@@ -688,6 +700,6 @@ mod tests {
             app_icon: SpecAppIcon::Given(app_icon),
             ..NotificationData::default()
         });
-        assert!(card_icons.badge.is_none());
+        assert!(matches!(card_icons.badge, CardBadge::Unbadged));
     }
 }

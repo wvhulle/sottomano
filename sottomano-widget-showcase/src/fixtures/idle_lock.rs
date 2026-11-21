@@ -2,9 +2,13 @@ use std::time::Duration;
 
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    login_session_presence::kernel_sleep_obstacles::{
-        IdleActionSetting, KernelHibernation, LogindCapability, ResumeDevice, SecretMemoryHolder,
-        ShutdownSchedule, SleepObstacles, SleepState, SleepStateSupport, WindowOwnership,
+    login_session_presence::{
+        idle_session_actions::IdleAction,
+        kernel_sleep_obstacles::{
+            IdleActionSetting, KernelHibernation, LogindCapability, ResumeDevice,
+            SecretMemoryHolder, ShutdownSchedule, SleepObstacles, SleepState, SleepStateSupport,
+            WindowOwnership,
+        },
     },
 };
 use sottomano_widgets::{
@@ -17,13 +21,11 @@ use crate::showcased_group::ShowcasedGroup;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = IdlePauseGroups::default();
     let _ = group.update(
-        IdlePauseMessage::Loaded(Timeouts {
-            lock_user: Some(Duration::from_mins(15)),
-            screen_off: Some(Duration::from_mins(5)),
-            sleep: Some(Duration::from_mins(40)),
-            hibernate: None,
-            power_down: None,
-        }),
+        IdlePauseMessage::Loaded(Timeouts::from_iter([
+            (IdleAction::Lock, Duration::from_mins(15)),
+            (IdleAction::ScreenOff, Duration::from_mins(5)),
+            (IdleAction::Sleep, Duration::from_mins(40)),
+        ])),
         clock,
     );
     let _ = group.update(

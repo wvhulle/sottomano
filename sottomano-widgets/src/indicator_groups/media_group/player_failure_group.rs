@@ -20,11 +20,11 @@ fn unreadable_player_glyph() -> IconGlyph {
     Phosphor::MusicNotes(Weight::Regular).into()
 }
 
-pub(super) fn player_failure_group<'a>(
-    bus: &'a str,
-    read_failure: &'a AbsenceCause<Media>,
-    session: &'a PlayerSession,
-) -> IndicatorGroupContent<'a> {
+pub(super) fn player_failure_group<'view>(
+    bus: &'view str,
+    read_failure: &'view AbsenceCause<Media>,
+    session: &'view PlayerSession,
+) -> IndicatorGroupContent<'view> {
     let player_name = mpris_player_name(bus);
     IndicatorGroupContent::expandable_instance(
         IndicatorGroupIdentity {

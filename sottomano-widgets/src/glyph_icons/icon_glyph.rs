@@ -29,11 +29,11 @@ impl IconGlyph {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(
+    pub fn view<'view, Message: 'view>(
         self,
         size: f32,
-        color: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
+        color: impl Fn(&Theme) -> Color + 'view,
+    ) -> Element<'view, Message> {
         match self {
             IconGlyph::Phosphor(icon) => view_phosphor(icon, size, color),
             IconGlyph::SimpleIcon(icon) => view_simple_icon(icon, size, color),

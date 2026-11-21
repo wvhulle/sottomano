@@ -31,10 +31,12 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         match message {
             ReplyMessage::PointerEntered => self.claim_keyboard(id, toast_surface_on),
-            ReplyMessage::PointerLeft if self.draft_of(id).is_empty() => self.release_keyboard(),
+            ReplyMessage::PointerLeft if self.reply_draft_text(id).is_empty() => {
+                self.release_keyboard()
+            }
             ReplyMessage::PointerLeft => Task::none(),
             ReplyMessage::Edited(text) => {
-                if let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) {
+                if let Some(notif) = self.live.iter_mut().find(|toast| toast.data.id == id) {
                     notif.reply_draft = text;
                 }
                 self.sync_countdowns(context.clock.instant);
@@ -46,18 +48,18 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     pub(super) fn release_orphaned_keyboard(&mut self) -> Task<Routed> {
         match self.reply_focus {
-            ReplyFocus::Typing { id, .. } if !self.showing().any(|n| n.data.id == id) => {
+            ReplyFocus::Typing { id, .. } if !self.showing().any(|toast| toast.data.id == id) => {
                 self.release_keyboard()
             }
             ReplyFocus::Typing { .. } | ReplyFocus::Idle => Task::none(),
         }
     }
 
-    fn draft_of(&self, id: u32) -> &str {
+    fn reply_draft_text(&self, id: u32) -> &str {
         self.live
             .iter()
-            .find(|n| n.data.id == id)
-            .map_or("", |n| n.reply_draft.as_str())
+            .find(|toast| toast.data.id == id)
+            .map_or("", |toast| toast.reply_draft.as_str())
     }
 
     fn claim_keyboard(
@@ -70,8 +72,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         }
         let toast_surface = self
             .showing()
-            .find(|n| n.data.id == id)
-            .and_then(|n| n.place.output.as_deref())
+            .find(|toast| toast.data.id == id)
+            .and_then(|toast| toast.place.assigned_output())
             .and_then(toast_surface_on);
         let Some(toast_surface) = toast_surface else {
             return Task::none();
@@ -97,8 +99,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let text = self
             .live
             .iter_mut()
-            .find(|n| n.data.id == id)
-            .map(|n| mem::take(&mut n.reply_draft))
+            .find(|toast| toast.data.id == id)
+            .map(|toast| mem::take(&mut toast.reply_draft))
             .unwrap_or_default();
         if text.trim().is_empty() {
             return Task::none();
@@ -111,7 +113,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         );
         let closed = withdrawn
             .into_iter()
-            .filter(|id| self.sender_of(*id) == Some(ToastSender::DbusClient))
+            .filter(|id| self.toast_sender_by_id(*id) == Some(ToastSender::DbusClient))
             .map(|id| Outbound::Closed {
                 id,
                 reason: close_reason::DISMISSED,

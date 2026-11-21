@@ -38,9 +38,9 @@ use crate::{
 
 const LISTED_EVENTS: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
-struct EventRow<'a> {
-    event: &'a UpcomingEvent,
-    provider: &'a CaldavProvider,
+struct EventRow<'snapshot> {
+    event: &'snapshot UpcomingEvent,
+    provider: &'snapshot CaldavProvider,
 }
 
 impl EventRow<'_> {

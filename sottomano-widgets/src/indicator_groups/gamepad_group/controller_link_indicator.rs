@@ -33,10 +33,10 @@ pub enum WiredFallback {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BandSharing<'a> {
+pub enum BandSharing<'snapshot> {
     NoConflict,
     SharedWithWifi {
-        network_name: &'a str,
+        network_name: &'snapshot str,
         frequency: Frequency,
         wired_fallback: WiredFallback,
     },
@@ -61,11 +61,11 @@ fn gap_label(longest_gap: Duration) -> String {
     format!("{} ms", longest_gap.as_millis().max(1))
 }
 
-pub struct ControllerLinkIndicator<'a> {
+pub struct ControllerLinkIndicator<'view> {
     pub transport: GamepadTransport,
     pub report_timing: MeasuredReportTiming,
-    pub kernel_errors: Vec<&'a DeviceKernelError>,
-    pub band_sharing: BandSharing<'a>,
+    pub kernel_errors: Vec<&'view DeviceKernelError>,
+    pub band_sharing: BandSharing<'view>,
 }
 
 impl ControllerLinkIndicator<'_> {
@@ -138,8 +138,8 @@ impl ControllerLinkIndicator<'_> {
     }
 }
 
-impl<'a> ControllerLinkIndicator<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ControllerLinkIndicator<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let (glyph, state) = if self.link_stability() == LinkStability::Unstable {
             (
                 Phosphor::LinkBreak(Weight::Regular),

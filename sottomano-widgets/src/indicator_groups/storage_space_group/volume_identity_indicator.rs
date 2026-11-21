@@ -13,8 +13,8 @@ use crate::{
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub(super) struct VolumeIdentityIndicator<'a> {
-    pub usage: &'a FilesystemUsage,
+pub(super) struct VolumeIdentityIndicator<'view> {
+    pub usage: &'view FilesystemUsage,
 }
 
 fn property_title(kind: VolumePropertyKind) -> &'static str {
@@ -25,8 +25,8 @@ fn property_title(kind: VolumePropertyKind) -> &'static str {
     }
 }
 
-impl<'a> VolumeIdentityIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> VolumeIdentityIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         let volume = &self.usage.volume;
         let fs_type = &self.usage.mount.fs_type;
         let format_text = match volume.property_value(VolumePropertyKind::Version) {

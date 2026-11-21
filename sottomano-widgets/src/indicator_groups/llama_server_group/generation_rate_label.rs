@@ -14,13 +14,13 @@ use crate::{
     },
 };
 
-pub struct GenerationRate<'a> {
+pub struct GenerationRate<'view> {
     pub rate: Frequency,
-    pub server: &'a str,
+    pub server: &'view str,
 }
 
-impl<'a> GenerationRate<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> GenerationRate<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             format!("{} generation rate", self.server),
             Phosphor::Lightning(Weight::Regular).into(),

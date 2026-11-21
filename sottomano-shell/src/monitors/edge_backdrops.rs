@@ -95,10 +95,10 @@ fn backdrop_strip(rendering: EdgeShadowRendering, panel_height: u32) -> Backdrop
     }
 }
 
-pub(crate) fn backdrop_view<'a, Interaction: 'a>(
+pub(crate) fn backdrop_view<'view, Interaction: 'view>(
     rendering: EdgeShadowRendering,
     position: Position,
-) -> Element<'a, Interaction> {
+) -> Element<'view, Interaction> {
     match rendering {
         EdgeShadowRendering::CompositorShadow => {
             container(Space::new().width(Length::Fill).height(Length::Fill))
@@ -109,7 +109,9 @@ pub(crate) fn backdrop_view<'a, Interaction: 'a>(
     }
 }
 
-fn self_drawn_shadow_view<'a, Interaction: 'a>(position: Position) -> Element<'a, Interaction> {
+fn self_drawn_shadow_view<'view, Interaction: 'view>(
+    position: Position,
+) -> Element<'view, Interaction> {
     let reach_px = self_drawn_falloff_reach_px() as f32;
     let last_stop_index = (FALLOFF_GRADIENT_STOP_COUNT - 1) as f32;
     let falloff_gradient = (0..FALLOFF_GRADIENT_STOP_COUNT).fold(

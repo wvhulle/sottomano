@@ -91,7 +91,10 @@ impl PendingUpgradesGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let mut rows = Vec::new();
         if let Some(upgrades) = self
             .firmware

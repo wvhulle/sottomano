@@ -26,12 +26,12 @@ use crate::{
 pub const SHOWN_RUNNER: &str = "codeberg";
 pub const HOVERED_RUN: &str = "#185";
 
-fn runner_service<'a>(
-    unit: &'a str,
-    program_name: &'a str,
-    arguments: &'a [&'a str],
-    docker_host: &'a [(&'a str, &'a str)],
-) -> ShownService<'a> {
+fn runner_service<'fixture>(
+    unit: &'fixture str,
+    program_name: &'fixture str,
+    arguments: &'fixture [&'fixture str],
+    docker_host: &'fixture [(&'fixture str, &'fixture str)],
+) -> ShownService<'fixture> {
     ShownService {
         unit,
         program_name,

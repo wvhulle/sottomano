@@ -21,13 +21,13 @@ pub enum PortMarking {
     SharedAttachment { ordinal: u8 },
 }
 
-pub struct PortLinkIndicator<'a> {
-    pub port_state: &'a PortState,
+pub struct PortLinkIndicator<'view> {
+    pub port_state: &'view PortState,
     pub marking: PortMarking,
 }
 
-pub struct PortConnectionSwitch<'a> {
-    pub port_state: &'a PortState,
+pub struct PortConnectionSwitch<'view> {
+    pub port_state: &'view PortState,
 }
 
 fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
@@ -37,9 +37,9 @@ fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
     }
 }
 
-impl<'a> PortLinkIndicator<'a> {
+impl<'view> PortLinkIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let icon = match self.port_state.attachment {
             InterfaceAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
             InterfaceAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
@@ -84,9 +84,9 @@ impl PortConnectionSwitch<'_> {
     }
 }
 
-impl<'a> PortConnectionSwitch<'a> {
+impl<'view> PortConnectionSwitch<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let icon = if self.port_state.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {

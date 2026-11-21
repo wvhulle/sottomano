@@ -218,24 +218,30 @@ pub struct CardTitleClash {
     pub clashing_title: String,
 }
 
-pub struct IndicatorGroupContent<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HandleScrollForwarding {
+    NotForwarded,
+    Forwarded(&'static str),
+}
+
+pub struct IndicatorGroupContent<'view> {
     pub(crate) group_identity: IndicatorGroupIdentity,
     pub(crate) group_title: IndicatorGroupTitle,
-    expansion: &'a IndicatorGroupExpansion,
-    on_expansion: Rc<dyn Fn(IndicatorGroupExpansionMessage) -> IndicatorGroupInteraction + 'a>,
-    headline_indicator: GroupIndicator<'a>,
-    scroll_does: Option<&'static str>,
-    pub(crate) indicators: Vec<GroupIndicator<'a>>,
+    expansion: &'view IndicatorGroupExpansion,
+    on_expansion: Rc<dyn Fn(IndicatorGroupExpansionMessage) -> IndicatorGroupInteraction + 'view>,
+    headline_indicator: GroupIndicator<'view>,
+    scroll_forwarding: HandleScrollForwarding,
+    pub(crate) indicators: Vec<GroupIndicator<'view>>,
     panel_pin: PanelPinOrigin,
 }
 
-impl<'a> IndicatorGroupContent<'a> {
+impl<'view> IndicatorGroupContent<'view> {
     pub fn expandable<Interaction: Into<IndicatorGroupInteraction>>(
         family: IndicatorGroupFamily,
-        headline_indicator: GroupIndicator<'a>,
-        expansion: &'a IndicatorGroupExpansion,
-        on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'a,
-        indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
+        headline_indicator: GroupIndicator<'view>,
+        expansion: &'view IndicatorGroupExpansion,
+        on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'view,
+        indicators: impl IntoIterator<Item = GroupIndicator<'view>>,
     ) -> Self {
         Self::expandable_instance(
             IndicatorGroupIdentity::sole(family),
@@ -250,10 +256,10 @@ impl<'a> IndicatorGroupContent<'a> {
     pub fn expandable_instance<Interaction: Into<IndicatorGroupInteraction>>(
         group_identity: IndicatorGroupIdentity,
         group_title: IndicatorGroupTitle,
-        headline_indicator: GroupIndicator<'a>,
-        expansion: &'a IndicatorGroupExpansion,
-        on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'a,
-        indicators: impl IntoIterator<Item = GroupIndicator<'a>>,
+        headline_indicator: GroupIndicator<'view>,
+        expansion: &'view IndicatorGroupExpansion,
+        on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'view,
+        indicators: impl IntoIterator<Item = GroupIndicator<'view>>,
     ) -> Self {
         Self {
             group_identity,
@@ -261,7 +267,7 @@ impl<'a> IndicatorGroupContent<'a> {
             expansion,
             on_expansion: Rc::new(move |message| on_expansion(message).into()),
             headline_indicator,
-            scroll_does: None,
+            scroll_forwarding: HandleScrollForwarding::NotForwarded,
             indicators: indicators.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
         }
@@ -341,9 +347,9 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn forwards_scroll(self, scroll_does: Option<&'static str>) -> Self {
+    pub fn forwards_scroll(self, scroll_does: &'static str) -> Self {
         Self {
-            scroll_does,
+            scroll_forwarding: HandleScrollForwarding::Forwarded(scroll_does),
             ..self
         }
     }
@@ -387,7 +393,7 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn indicator(&self, indicator_key: &IndicatorKey) -> Option<&GroupIndicator<'a>> {
+    pub fn indicator(&self, indicator_key: &IndicatorKey) -> Option<&GroupIndicator<'view>> {
         if indicator_key.group != self.group_identity {
             return None;
         }
@@ -405,7 +411,7 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 
     #[must_use]
-    pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'a>> {
+    pub fn hovered_indicator(&self, target: &HoverTarget) -> Option<&GroupIndicator<'view>> {
         match target.headline_group() {
             Some(group_identity) if *group_identity == self.group_identity => {
                 Some(&self.headline_indicator)
@@ -421,10 +427,12 @@ impl<'a> IndicatorGroupContent<'a> {
         let face_actions = self.headline_indicator.press_actions();
         let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
             .into_iter()
-            .chain(
-                self.scroll_does
-                    .map(|scroll_does| PressAction::new(MouseGesture::Scroll, scroll_does)),
-            )
+            .chain(match self.scroll_forwarding {
+                HandleScrollForwarding::Forwarded(scroll_does) => {
+                    Some(PressAction::new(MouseGesture::Scroll, scroll_does))
+                }
+                HandleScrollForwarding::NotForwarded => None,
+            })
             .filter(|handle_action| {
                 face_actions
                     .iter()
@@ -472,10 +480,10 @@ impl<'a> IndicatorGroupContent<'a> {
         self,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
-        config: &'a Config,
+        config: &'view Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Vec<Element<'a, GroupEvent>> {
+    ) -> Vec<Element<'view, GroupEvent>> {
         let promotion_severity = config.group_menus.alert_promotion_severity;
         self.indicators
             .iter()
@@ -503,12 +511,12 @@ impl<'a> IndicatorGroupContent<'a> {
 
     pub(crate) fn extend_menu_sections(
         self,
-        config: &'a Config,
+        config: &'view Config,
         clock: Clock,
         _group_menus: &GroupMenuState,
         _menu: GroupMenuTopic,
-        mut sections: MenuSections<'a>,
-    ) -> MenuSections<'a> {
+        mut sections: MenuSections<'view>,
+    ) -> MenuSections<'view> {
         let IndicatorGroupContent {
             group_identity,
             group_title,
@@ -547,10 +555,10 @@ impl<'a> IndicatorGroupContent<'a> {
     #[must_use]
     pub fn view_events(
         self,
-        config: &'a Config,
+        config: &'view Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Option<Element<'a, GroupEvent>> {
+    ) -> Option<Element<'view, GroupEvent>> {
         self.indicators.first()?;
         let highest_alert_severity = self.highest_alert_severity();
         let IndicatorGroupContent {
@@ -559,7 +567,7 @@ impl<'a> IndicatorGroupContent<'a> {
             expansion,
             on_expansion,
             headline_indicator,
-            scroll_does,
+            scroll_forwarding,
             indicators,
             panel_pin,
             ..
@@ -577,7 +585,7 @@ impl<'a> IndicatorGroupContent<'a> {
         let handle_indicator = expansion.handle_indicator();
         let expansion_duration = config.indicator_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
-            let handle: Element<'a, GroupEvent> =
+            let handle: Element<'view, GroupEvent> =
                 button(headline_indicator.handle_view(config, reveal))
                     .padding(0)
                     .style(flat_button(text_color))
@@ -593,15 +601,16 @@ impl<'a> IndicatorGroupContent<'a> {
                 handle_target.clone(),
                 GroupEvent::from,
             );
-            let handle = if scroll_does.is_some() {
-                let expansion_event = expansion_event.clone();
-                mouse_area(handle)
-                    .on_scroll(move |delta| {
-                        expansion_event(IndicatorGroupExpansionMessage::HandleScrolled(delta))
-                    })
-                    .into()
-            } else {
-                handle
+            let handle = match scroll_forwarding {
+                HandleScrollForwarding::Forwarded(_) => {
+                    let expansion_event = expansion_event.clone();
+                    mouse_area(handle)
+                        .on_scroll(move |delta| {
+                            expansion_event(IndicatorGroupExpansionMessage::HandleScrolled(delta))
+                        })
+                        .into()
+                }
+                HandleScrollForwarding::NotForwarded => handle,
             };
             Row::new()
                 .push(handle)
@@ -627,15 +636,15 @@ impl<'a> IndicatorGroupContent<'a> {
     }
 }
 
-pub(crate) fn fixed_view<'a>(
-    indicator: &GroupIndicator<'a>,
+pub(crate) fn fixed_view<'view>(
+    indicator: &GroupIndicator<'view>,
     hover_target: HoverTarget,
     highest_alert_severity: Severity,
     handle_indicator: MenuHandleIndicator,
-    config: &'a Config,
+    config: &'view Config,
     panel_position: Position,
     clock: Clock,
-) -> Element<'a, GroupEvent> {
+) -> Element<'view, GroupEvent> {
     let edge_indicator_view = edge_indicator(
         highest_alert_severity,
         handle_indicator,
@@ -651,11 +660,11 @@ pub(crate) fn fixed_view<'a>(
     )
 }
 
-pub(crate) fn edge_indicator<'a, Message: 'a>(
+pub(crate) fn edge_indicator<'view, Message: 'view>(
     highest_alert_severity: Severity,
     handle: MenuHandleIndicator,
     reveal: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let thickness = ACCENT_STROKE_PX;
     let base = match handle.pointing {
         PointerPresence::PointedAt => 0.5,
@@ -693,14 +702,14 @@ pub(crate) fn edge_indicator<'a, Message: 'a>(
     }
 }
 
-fn indicators_row<'r, 'a: 'r>(
+fn indicators_row<'rows, 'view: 'rows>(
     config: &Config,
     group_identity: &IndicatorGroupIdentity,
-    rows: impl IntoIterator<Item = &'r GroupIndicator<'a>>,
+    rows: impl IntoIterator<Item = &'rows GroupIndicator<'view>>,
     reveal: f32,
     clock: Clock,
     panel_position: Position,
-) -> Element<'a, GroupEvent> {
+) -> Element<'view, GroupEvent> {
     Row::with_children(rows.into_iter().map(|indicator| {
         indicator.view(
             config,
@@ -720,11 +729,11 @@ fn indicators_row<'r, 'a: 'r>(
     .into()
 }
 
-fn revealed_content<'a, Message: 'a>(
+fn revealed_content<'view, Message: 'view>(
     config: &Config,
     reveal_fraction: f32,
-    content: Element<'a, Message>,
-) -> Element<'a, Message> {
+    content: Element<'view, Message>,
+) -> Element<'view, Message> {
     let gap = config.theme.spacing.item_gap;
     reveal(
         container(content).padding(Padding::ZERO.left(gap)),

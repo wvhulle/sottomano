@@ -170,7 +170,7 @@ impl MonitorGroup {
     fn sync_backlight_sliders(&mut self) {
         let list = self.backlights.get().into_iter().flatten();
         self.sliders
-            .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
+            .retain(|serial, _| list.clone().any(|backlight| &backlight.serial == serial));
         for backlight in list {
             self.sliders
                 .entry(backlight.serial.clone())
@@ -188,16 +188,20 @@ impl MonitorGroup {
         }
     }
 
-    fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
+    fn update_backlight(
+        &mut self,
+        serial: String,
+        control_message: ControlMessage,
+    ) -> Task<MonitorMessage> {
         let write_settled = matches!(
-            m,
+            control_message,
             ControlMessage::DeviceAccepted {
                 write_outcome: Ok(()),
                 ..
             }
         );
         let action = match self.sliders.get_mut(&serial) {
-            Some(control) => control.update(m),
+            Some(control) => control.update(control_message),
             None => return Task::none(),
         };
         match action {
@@ -253,11 +257,11 @@ impl MonitorGroup {
             ))
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        outputs: &'a HashMap<String, OutputInfo>,
-    ) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+        outputs: &'view HashMap<String, OutputInfo>,
+    ) -> IndicatorGroupContent<'view> {
         let mut rows: Vec<_> = self
             .sliders
             .iter()
@@ -290,7 +294,7 @@ impl MonitorGroup {
                 });
             }
         }
-        IndicatorGroupContent::expandable(
+        let monitor_content = IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Monitor,
             match self.sliders.values().next() {
                 Some(first_backlight) => first_backlight
@@ -305,14 +309,18 @@ impl MonitorGroup {
             &self.expansion,
             MonitorInteraction::Expansion,
             rows,
-        )
-        .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
+        );
+        if self.sliders.is_empty() {
+            monitor_content
+        } else {
+            monitor_content.forwards_scroll("change every backlight")
+        }
     }
 
-    fn wired_auto_brightness_indicator<'a>(
-        &'a self,
-        brightness_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_auto_brightness_indicator<'view>(
+        &'view self,
+        brightness_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         brightness_indicator
             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
             .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(

@@ -229,7 +229,10 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let gamma_available = self.gamma.get().is_some();
         let mut rows = Vec::new();
         if gamma_available {
@@ -273,24 +276,29 @@ impl ColorTemperatureGroup {
                     )),
             );
         }
-        IndicatorGroupContent::expandable(
-            IndicatorGroupFamily::ColorTemperature,
-            if gamma_available {
+        let warmth_content = |headline_indicator| {
+            IndicatorGroupContent::expandable(
+                IndicatorGroupFamily::ColorTemperature,
+                headline_indicator,
+                &self.expansion,
+                ColorTemperatureInteraction::Expansion,
+                rows,
+            )
+        };
+        if gamma_available {
+            warmth_content(
                 self.warmth
                     .indicator(config.calendar.locale)
-                    .with_headline_glyph(Phosphor::ThermometerHot(Weight::Regular).into())
-            } else {
-                GroupIndicator::glyph_only(
-                    IndicatorGroupFamily::ColorTemperature.title(),
-                    Phosphor::ThermometerHot(Weight::Regular).into(),
-                    IndicatorState::Idle,
-                )
-            },
-            &self.expansion,
-            ColorTemperatureInteraction::Expansion,
-            rows,
-        )
-        .forwards_scroll(gamma_available.then_some("change the screen warmth"))
+                    .with_headline_glyph(Phosphor::ThermometerHot(Weight::Regular).into()),
+            )
+            .forwards_scroll("change the screen warmth")
+        } else {
+            warmth_content(GroupIndicator::glyph_only(
+                IndicatorGroupFamily::ColorTemperature.title(),
+                Phosphor::ThermometerHot(Weight::Regular).into(),
+                IndicatorState::Idle,
+            ))
+        }
     }
 }
 

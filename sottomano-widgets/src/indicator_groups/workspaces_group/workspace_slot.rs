@@ -30,7 +30,7 @@ use crate::{
     hover_cards::{HoverTarget, hoverable},
     widgets::{
         pointer_drag::{DragActivity, DraggedPanelSlot},
-        screen_edge::screen_edge_of,
+        screen_edge::panel_edge,
         shared_metrics::{ACCENT_STROKE_PX, WINDOW_MARKER_LENGTH_PX, pill_corners},
         text::panel_text,
     },
@@ -98,20 +98,20 @@ pub(super) fn active_highlight_color(
     }
 }
 
-pub(super) struct WorkspaceSlot<'s> {
-    workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
-    compositor: &'s workspace_window_snapshot::Snapshot,
+pub(super) struct WorkspaceSlot<'snapshot> {
+    workspace: &'snapshot workspace_window_snapshot::WorkspaceIndicator,
+    compositor: &'snapshot workspace_window_snapshot::Snapshot,
     tone: SlotTone,
     position_in_panel: usize,
-    slot_context: PanelSlotContext<'s>,
+    slot_context: PanelSlotContext<'snapshot>,
 }
 
-impl<'s> WorkspaceSlot<'s> {
+impl<'snapshot> WorkspaceSlot<'snapshot> {
     pub(super) fn new(
-        workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
-        compositor: &'s workspace_window_snapshot::Snapshot,
+        workspace: &'snapshot workspace_window_snapshot::WorkspaceIndicator,
+        compositor: &'snapshot workspace_window_snapshot::Snapshot,
         position_in_panel: usize,
-        slot_context: PanelSlotContext<'s>,
+        slot_context: PanelSlotContext<'snapshot>,
     ) -> Self {
         let slot_key = workspace_slot_key(workspace);
         let tone = match slot_context.drag.drag {
@@ -130,9 +130,9 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     pub(super) fn ghost(
-        workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
-        compositor: &'s workspace_window_snapshot::Snapshot,
-        slot_context: PanelSlotContext<'s>,
+        workspace: &'snapshot workspace_window_snapshot::WorkspaceIndicator,
+        compositor: &'snapshot workspace_window_snapshot::Snapshot,
+        slot_context: PanelSlotContext<'snapshot>,
     ) -> Self {
         Self {
             tone: SlotTone::Regular,
@@ -164,14 +164,14 @@ impl<'s> WorkspaceSlot<'s> {
         }
     }
 
-    fn superscript<'a>(&self) -> Text<'a> {
+    fn superscript<'view>(&self) -> Text<'view> {
         let font = &self.slot_context.config.theme.font;
         panel_text(font, self.workspace.idx.to_string())
             .size(font.small_text_size_px)
             .style(tinted_text(self.tone.tint(secondary_text_color)))
     }
 
-    pub(super) fn label<'a>(&self) -> Element<'a, WorkspacesMessage> {
+    pub(super) fn label<'view>(&self) -> Element<'view, WorkspacesMessage> {
         let name = panel_text(&self.slot_context.config.theme.font, self.display_name())
             .style(tinted_text(self.tone.tint(text_color)));
         if self.superscript_label() == SuperscriptLabel::Omitted {
@@ -195,7 +195,7 @@ impl<'s> WorkspaceSlot<'s> {
         }
     }
 
-    fn edge_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
+    fn edge_line<'view>(&self) -> Element<'view, WorkspacesMessage> {
         let PanelSlotContext {
             config,
             edge,
@@ -225,13 +225,13 @@ impl<'s> WorkspaceSlot<'s> {
         }
     }
 
-    fn urgency_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
+    fn urgency_line<'view>(&self) -> Element<'view, WorkspacesMessage> {
         let opacity = match self.workspace.urgency {
             Urgency::Urgent => 1.0,
             Urgency::NotUrgent => 0.0,
         };
         activity_line(
-            screen_edge_of(self.slot_context.edge).running_axis(),
+            panel_edge(self.slot_context.edge).running_axis(),
             self.tone.tint(danger_color),
             opacity,
             ACCENT_STROKE_PX,
@@ -265,10 +265,10 @@ impl<'s> WorkspaceSlot<'s> {
         )
     }
 
-    fn hit_area<'a>(
+    fn hit_area<'view>(
         &self,
-        content: Element<'a, WorkspacesMessage>,
-    ) -> Element<'a, WorkspacesMessage> {
+        content: Element<'view, WorkspacesMessage>,
+    ) -> Element<'view, WorkspacesMessage> {
         let press = SlotPress {
             item: self.key(),
             position: self.position_in_panel,
@@ -287,7 +287,7 @@ impl<'s> WorkspaceSlot<'s> {
         .into()
     }
 
-    pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
+    pub(super) fn inline_view<'view>(&self) -> Element<'view, WorkspacesMessage> {
         let PanelSlotContext { config, edge, .. } = self.slot_context;
         let panel_slot = PanelSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
@@ -305,10 +305,10 @@ impl<'s> WorkspaceSlot<'s> {
         )
     }
 
-    pub(super) fn sidebar_view<'a>(
+    pub(super) fn sidebar_view<'view>(
         &self,
         highlight_radius: Radius,
-    ) -> Element<'a, WorkspacesMessage> {
+    ) -> Element<'view, WorkspacesMessage> {
         let config = self.slot_context.config;
         let label_over_markers =
             column![self.label(), self.window_markers(Position::Bottom).view()]
@@ -332,10 +332,10 @@ impl<'s> WorkspaceSlot<'s> {
         )
     }
 
-    fn hovered<'a>(
+    fn hovered<'view>(
         &self,
-        content: Element<'a, WorkspacesMessage>,
-    ) -> Element<'a, WorkspacesMessage> {
+        content: Element<'view, WorkspacesMessage>,
+    ) -> Element<'view, WorkspacesMessage> {
         hoverable(
             NestedMenuOpenTrigger::Hover,
             content,

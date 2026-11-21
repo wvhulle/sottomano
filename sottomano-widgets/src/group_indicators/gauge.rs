@@ -51,7 +51,7 @@ fn bar_reach(fill: Ratio) -> f32 {
     fill.get::<ratio>() as f32
 }
 
-impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
+impl<'view, Message: 'view> From<Gauge> for Element<'view, Message> {
     fn from(gauge: Gauge) -> Self {
         let tint = gauge.tint;
         FillGauge::new(

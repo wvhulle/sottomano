@@ -19,7 +19,7 @@ use super::{ExpansionState, HIDE_GRACE, HideSchedule, HoverCardHost, KeyboardGra
 use crate::{
     clock::Clock,
     hover_cards::{
-        HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
+        AnchorVisibility, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
         hover_card_surfaces::HoverEffect, hover_card_transition::CardRetention,
         laid_out_anchors::WidgetLiveness,
     },
@@ -92,7 +92,7 @@ fn widget_at(horizontal_position: f32, opening: NestedMenuOpenTrigger) -> Widget
         target: workspace_card(),
         opening,
         anchor: anchor_at(horizontal_position),
-        visible: true,
+        visibility: AnchorVisibility::Visible,
         presence: Arc::downgrade(&LIVE_WIDGET),
     }
 }
@@ -198,7 +198,7 @@ fn a_shown_card_leaves_when_its_widget_is_hidden_even_with_the_pointer_on_it() {
         .remember_anchor(
             "DP-1",
             WidgetAnchor {
-                visible: false,
+                visibility: AnchorVisibility::Hidden,
                 ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
             },
             now,
@@ -221,7 +221,7 @@ fn a_hidden_widget_on_another_output_leaves_the_card_alone() {
     let hide_due = host.remember_anchor(
         "DP-2",
         WidgetAnchor {
-            visible: false,
+            visibility: AnchorVisibility::Hidden,
             ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
         },
         now,
@@ -236,7 +236,7 @@ fn a_held_open_menu_stays_when_its_handle_is_hidden() {
     let due = host.remember_anchor(
         "DP-1",
         WidgetAnchor {
-            visible: false,
+            visibility: AnchorVisibility::Hidden,
             ..widget_at(1.0, NestedMenuOpenTrigger::Press)
         },
         now,

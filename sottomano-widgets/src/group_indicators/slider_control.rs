@@ -45,7 +45,7 @@ use crate::{
         announced_level::{LevelAnnouncement, LevelChangeOrigin},
         ongoing_toast::{IndicatorAlerts, LevelNotice},
         slider_look::slider_look,
-        text::{panel_text, row_key_label, text_face_of},
+        text::{panel_text, resolved_text_face, row_key_label},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
     },
 };
@@ -85,7 +85,7 @@ pub struct SliderControl {
     slider_activity: SliderActivity,
     live: f32,
     readout: fn(f32, Locale) -> String,
-    gauge: bool,
+    gauge: SliderGauge,
     label_format: SliderLabelFormat,
     icon: IconGlyph,
     glyph_source: SliderGlyphSource,
@@ -93,6 +93,12 @@ pub struct SliderControl {
     right_click: SliderRightClick,
     level_announcing: SliderLevelAnnouncing,
     pub caption: SliderCaption,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SliderGauge {
+    Gauged,
+    Ungauged,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,7 +246,7 @@ impl SliderControl {
             slider_activity: SliderActivity::Active,
             live: 1.0,
             readout: |value, _| format!("{value:.0}"),
-            gauge: true,
+            gauge: SliderGauge::Gauged,
             label_format: SliderLabelFormat::Unlabeled,
             icon: icon.into(),
             glyph_source: SliderGlyphSource::FixedIcon,
@@ -276,7 +282,7 @@ impl SliderControl {
     #[must_use]
     pub fn label(mut self, format: fn(f32, Locale) -> Option<String>) -> Self {
         self.label_format = SliderLabelFormat::Labeled(format);
-        self.gauge = false;
+        self.gauge = SliderGauge::Ungauged;
         self
     }
 
@@ -288,7 +294,7 @@ impl SliderControl {
 
     #[must_use]
     pub fn icon_only(mut self) -> Self {
-        self.gauge = false;
+        self.gauge = SliderGauge::Ungauged;
         self
     }
 
@@ -420,7 +426,7 @@ impl SliderControl {
     }
 
     fn shown_gauge(&self) -> ReadoutGauge {
-        if !self.gauge {
+        if self.gauge == SliderGauge::Ungauged {
             return ReadoutGauge::Ungauged;
         }
         let fill = self.range_fill();
@@ -504,7 +510,7 @@ impl SliderControl {
                 self.expanding_slider
                     .update(SliderMessage::AbsoluteWritten {
                         value,
-                        outcome: write_outcome_of(&write_outcome),
+                        outcome: slider_write_outcome(&write_outcome),
                     }),
             ),
             ControlMessage::Persisted {
@@ -515,7 +521,7 @@ impl SliderControl {
                     .expanding_slider
                     .update(SliderMessage::AbsoluteWritten {
                         value,
-                        outcome: write_outcome_of(&write_outcome),
+                        outcome: slider_write_outcome(&write_outcome),
                     });
                 match write_outcome {
                     Ok(()) => {
@@ -582,12 +588,12 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn view<'view>(
+        &'view self,
+        config: &'view Config,
         shown_indicator: SliderShownIndicator,
         reveal: f32,
-    ) -> Element<'a, ControlMessage> {
+    ) -> Element<'view, ControlMessage> {
         let SliderShownIndicator { face, readout } = shown_indicator;
         self.expanding_slider.view(
             ExpandingSliderParts {
@@ -606,12 +612,12 @@ impl SliderControl {
                 gap_px: config.theme.spacing.item_gap,
                 expansion_duration: config.group_items.slider_expansion_duration,
             },
-            control_message_of,
+            ControlMessage::from,
         )
     }
 
     #[must_use]
-    pub fn always_open_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+    pub fn always_open_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
         let opened = Row::with_children([self.state_glyph(config), self.menu_view(config)])
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center);
@@ -623,12 +629,12 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn menu_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+    pub fn menu_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
         let open_row = self.expanding_slider.open_row(
             slider_look(config, self.severity()),
             self.readout_view(config),
             config.theme.spacing.item_gap,
-            control_message_of,
+            ControlMessage::from,
         );
         match &self.caption {
             SliderCaption::Uncaptioned => open_row,
@@ -647,7 +653,7 @@ impl SliderControl {
         }
     }
 
-    fn state_glyph<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+    fn state_glyph<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
         let state = self.shown_state();
         self.effective_icon()
             .with_weight(state.weight())
@@ -656,7 +662,7 @@ impl SliderControl {
             })
     }
 
-    fn readout_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+    fn readout_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
         steady_width_text(
             MeasuredReadout::new(
                 ReadoutLabels {
@@ -666,7 +672,7 @@ impl SliderControl {
                     format: self.readout,
                     context: config.calendar.locale,
                 },
-                text_face_of(&config.theme.font),
+                resolved_text_face(&config.theme.font),
             ),
             panel_text(
                 &config.theme.font,
@@ -681,17 +687,19 @@ impl SliderControl {
     }
 }
 
-fn control_message_of(gesture: SliderGesture) -> ControlMessage {
-    match gesture {
-        SliderGesture::Toggle => ControlMessage::Press,
-        SliderGesture::Scroll(delta) => ControlMessage::Scroll(delta),
-        SliderGesture::Drag(position) => ControlMessage::Set(position),
-        SliderGesture::Release => ControlMessage::Release,
-        SliderGesture::SecondaryPress => ControlMessage::Right,
+impl From<SliderGesture> for ControlMessage {
+    fn from(gesture: SliderGesture) -> Self {
+        match gesture {
+            SliderGesture::Toggle => Self::Press,
+            SliderGesture::Scroll(delta) => Self::Scroll(delta),
+            SliderGesture::Drag(position) => Self::Set(position),
+            SliderGesture::Release => Self::Release,
+            SliderGesture::SecondaryPress => Self::Right,
+        }
     }
 }
 
-fn write_outcome_of(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOutcome {
+fn slider_write_outcome(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOutcome {
     match write_outcome {
         Ok(()) => WriteOutcome::Accepted,
         Err(_) => WriteOutcome::Rejected,

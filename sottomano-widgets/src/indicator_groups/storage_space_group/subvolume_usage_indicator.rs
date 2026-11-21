@@ -18,8 +18,8 @@ use crate::{
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub(super) struct SubvolumeUsageIndicator<'a> {
-    pub subvolume: &'a BcachefsSubvolume,
+pub(super) struct SubvolumeUsageIndicator<'view> {
+    pub subvolume: &'view BcachefsSubvolume,
     pub pool_total: ByteSize,
 }
 
@@ -34,8 +34,8 @@ impl SubvolumeUsageIndicator<'_> {
     }
 }
 
-impl<'a> SubvolumeUsageIndicator<'a> {
-    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> SubvolumeUsageIndicator<'view> {
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.subvolume.path.display().to_string(),
             Phosphor::FolderSimple(Weight::Regular).into(),

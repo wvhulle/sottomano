@@ -15,7 +15,7 @@ use crate::backdrop_photo::BackdropPhotos;
 
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
-pub fn frosted_rows_of(surface_regions: &SurfaceRegionsCollector) -> Vec<Rectangle> {
+pub fn frosted_blur_rectangles(surface_regions: &SurfaceRegionsCollector) -> Vec<Rectangle> {
     surface_regions
         .blur
         .iter()
@@ -41,14 +41,14 @@ fn covering_photo_bounds(photo_size: Size, canvas: Rectangle) -> Rectangle {
     )
 }
 
-pub struct FrostedBackdrop<'a> {
-    photos: &'a BackdropPhotos,
-    frosted_rows: &'a [Rectangle],
+pub struct FrostedBackdrop<'view> {
+    photos: &'view BackdropPhotos,
+    frosted_rows: &'view [Rectangle],
 }
 
-impl<'a> FrostedBackdrop<'a> {
+impl<'view> FrostedBackdrop<'view> {
     #[must_use]
-    pub fn new(photos: &'a BackdropPhotos, frosted_rows: &'a [Rectangle]) -> Self {
+    pub fn new(photos: &'view BackdropPhotos, frosted_rows: &'view [Rectangle]) -> Self {
         FrostedBackdrop {
             photos,
             frosted_rows,
@@ -91,8 +91,10 @@ impl<Message, Theme> Widget<Message, Theme, iced::Renderer> for FrostedBackdrop<
     }
 }
 
-impl<'a, Message: 'a, Theme: 'a> From<FrostedBackdrop<'a>> for Element<'a, Message, Theme> {
-    fn from(backdrop: FrostedBackdrop<'a>) -> Self {
+impl<'view, Message: 'view, Theme: 'view> From<FrostedBackdrop<'view>>
+    for Element<'view, Message, Theme>
+{
+    fn from(backdrop: FrostedBackdrop<'view>) -> Self {
         Element::new(backdrop)
     }
 }

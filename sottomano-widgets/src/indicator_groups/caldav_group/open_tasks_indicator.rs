@@ -33,10 +33,10 @@ use crate::{
 
 const LISTED_TASKS: NonZeroUsize = NonZeroUsize::new(16).unwrap();
 
-struct TaskRow<'a> {
-    task: &'a OpenTask,
+struct TaskRow<'snapshot> {
+    task: &'snapshot OpenTask,
     now: DateTime<Local>,
-    provider: &'a CaldavProvider,
+    provider: &'snapshot CaldavProvider,
 }
 
 impl TaskRow<'_> {

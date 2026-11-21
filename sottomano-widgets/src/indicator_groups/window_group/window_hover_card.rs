@@ -234,9 +234,13 @@ fn command(inspected: &Inspection) -> Vec<LabeledValue> {
 }
 
 fn beyond_binary(launched: &Launch) -> impl Iterator<Item = &String> {
-    let echoes_binary = match (&launched.binary, launched.arguments.first()) {
-        (LaunchBinary::Resolved(binary), Some(first)) => binary.as_os_str() == first.as_str(),
-        (LaunchBinary::Resolved(_) | LaunchBinary::Unreadable, _) => false,
+    let echoed_binary_count = match &launched.binary {
+        LaunchBinary::Resolved(binary) => launched
+            .arguments
+            .first()
+            .filter(|first| binary.as_os_str() == first.as_str())
+            .map_or(0, |_| 1),
+        LaunchBinary::Unreadable => 0,
     };
-    launched.arguments.iter().skip(usize::from(echoes_binary))
+    launched.arguments.iter().skip(echoed_binary_count)
 }

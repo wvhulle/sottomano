@@ -44,11 +44,11 @@ impl WeatherIcon {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(
+    pub fn view<'view, Message: 'view>(
         self,
         ink_size: f32,
-        color: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
+        color: impl Fn(&Theme) -> Color + 'view,
+    ) -> Element<'view, Message> {
         tinted_svg_icon(self.svg_data(), ink_size / INK_FRACTION, color)
     }
 }

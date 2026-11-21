@@ -18,7 +18,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ScreenOffOverride {
+pub enum ScreenOffOverride {
     QuietHours(Duration),
     FollowsSlider,
 }

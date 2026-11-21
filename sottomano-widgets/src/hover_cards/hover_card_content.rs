@@ -60,7 +60,10 @@ use crate::{
     widgets::{
         configured_scroll::configured_scroll,
         localized_durations::duration_text,
-        text::{column_heading, font_faces_of, panel_text, text_effects_of, text_face_of},
+        text::{
+            column_heading, hover_card_text_effects, panel_text, resolved_font_faces,
+            resolved_text_face,
+        },
         value_cells::{ValueCell, ValueCellPressMessages, ValueCellView, wrapped_text},
     },
 };
@@ -69,20 +72,20 @@ const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const VALUE_COLUMN_WIDTH_PX: f32 = 620.0;
 
 #[derive(Clone, Copy)]
-pub struct HoverCardContent<'a> {
-    hover_card: &'a HoverCard,
-    config: &'a Config,
-    assets: WindowAssets<'a>,
+pub struct HoverCardContent<'card> {
+    hover_card: &'card HoverCard,
+    config: &'card Config,
+    assets: WindowAssets<'card>,
     clock: Clock,
     presence: TextPresence,
 }
 
-impl<'a> HoverCardContent<'a> {
+impl<'card> HoverCardContent<'card> {
     #[must_use]
     pub fn new(
-        hover_card: &'a HoverCard,
-        config: &'a Config,
-        assets: WindowAssets<'a>,
+        hover_card: &'card HoverCard,
+        config: &'card Config,
+        assets: WindowAssets<'card>,
         clock: Clock,
     ) -> Self {
         Self {
@@ -104,7 +107,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn transition(&self, presence: TextPresence) -> TransitionStyle {
         TransitionStyle {
-            effects: text_effects_of(self.config.hover_cards.loading),
+            effects: hover_card_text_effects(self.config.hover_cards.loading),
             presence,
             highlight: success_color,
         }
@@ -320,7 +323,7 @@ impl<'a> HoverCardContent<'a> {
                 .height(line_height_px),
             String::new(),
             self.transition(TextPresence::Placeholder),
-            text_face_of(font),
+            resolved_text_face(font),
             secondary_text_color,
         )
         .into()
@@ -427,7 +430,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn bold_title(&self, title: &str) -> Text<'static> {
         panel_text(&self.config.theme.font, title.to_owned())
-            .font(font_faces_of(&self.config.theme.font).bold)
+            .font(resolved_font_faces(&self.config.theme.font).bold)
             .style(text::base)
     }
 

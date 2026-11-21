@@ -7,11 +7,11 @@ use crate::glyph_icons::icon_glyph::IconGlyph;
 const INK_FRACTION: f32 = 208.0 / 256.0;
 
 #[must_use]
-pub fn view_phosphor<'a, Message: 'a>(
+pub fn view_phosphor<'view, Message: 'view>(
     icon: Phosphor,
     ink_size: f32,
-    color: impl Fn(&Theme) -> Color + 'a,
-) -> Element<'a, Message> {
+    color: impl Fn(&Theme) -> Color + 'view,
+) -> Element<'view, Message> {
     tinted_svg_icon(icon.svg_data(), ink_size / INK_FRACTION, color)
 }
 

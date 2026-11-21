@@ -10,7 +10,9 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::DesktopShell, monitors::monitor_surfaces::SurfaceRole, pointer_drag::ShellDrag,
+    desktop_shell::{ConfiguredWorkspaceOrder, DesktopBusLink, DesktopShell},
+    monitors::monitor_surfaces::SurfaceRole,
+    pointer_drag::ShellDrag,
     shell_message::Message,
 };
 
@@ -113,12 +115,12 @@ impl DesktopShell {
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::CompositorRequestFailed(failure) => self.show_compositor_failure(&failure),
             Message::DesktopBus(Ok(DesktopBusEvent::Connected(buses))) => {
-                self.desktop_buses = Some(buses);
+                self.desktop_buses = DesktopBusLink::Connected(buses);
                 Task::none()
             }
             Message::DesktopBus(Ok(DesktopBusEvent::Disconnected)) => {
                 tracing::warn!("desktop buses: connection closed, reconnecting");
-                self.desktop_buses = None;
+                self.desktop_buses = DesktopBusLink::Disconnected;
                 Task::none()
             }
             Message::DesktopBus(Err(failure)) => {
@@ -135,7 +137,7 @@ impl DesktopShell {
                     .map(Message::from)
             }
             Message::ConfiguredWorkspacesRead(Ok(configured)) => {
-                self.configured_workspaces = Some(configured);
+                self.configured_workspaces = ConfiguredWorkspaceOrder::Read(configured);
                 Task::none()
             }
             Message::ConfiguredWorkspacesRead(Err(reason)) => {

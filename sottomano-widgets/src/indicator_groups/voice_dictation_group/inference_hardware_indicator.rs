@@ -12,26 +12,28 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-fn inference_device_of(engine: &DictationEngine) -> InferenceDevice {
-    let backend = engine.compute_device.as_str();
-    let device_name = engine.compute_device_name.as_str();
-    let mentions = |vendor_words: &[&str]| {
-        vendor_words
-            .iter()
-            .any(|vendor_word| device_name.contains(vendor_word))
-    };
-    if backend.starts_with("CUDA") || mentions(&["NVIDIA", "GeForce"]) {
-        InferenceDevice::NvidiaGpu
-    } else if backend.starts_with("Metal") {
-        InferenceDevice::AppleGpu
-    } else if mentions(&["AMD", "Radeon"]) {
-        InferenceDevice::AmdGpu
-    } else if mentions(&["Intel"]) {
-        InferenceDevice::IntelGpu
-    } else if device_name.is_empty() {
-        InferenceDevice::Processor
-    } else {
-        InferenceDevice::OtherGpu
+impl From<&DictationEngine> for InferenceDevice {
+    fn from(engine: &DictationEngine) -> Self {
+        let backend = engine.compute_device.as_str();
+        let device_name = engine.compute_device_name.as_str();
+        let mentions = |vendor_words: &[&str]| {
+            vendor_words
+                .iter()
+                .any(|vendor_word| device_name.contains(vendor_word))
+        };
+        if backend.starts_with("CUDA") || mentions(&["NVIDIA", "GeForce"]) {
+            InferenceDevice::NvidiaGpu
+        } else if backend.starts_with("Metal") {
+            InferenceDevice::AppleGpu
+        } else if mentions(&["AMD", "Radeon"]) {
+            InferenceDevice::AmdGpu
+        } else if mentions(&["Intel"]) {
+            InferenceDevice::IntelGpu
+        } else if device_name.is_empty() {
+            InferenceDevice::Processor
+        } else {
+            InferenceDevice::OtherGpu
+        }
     }
 }
 
@@ -65,7 +67,7 @@ pub fn inference_hardware_hover_card(engine: &DictationEngine) -> Vec<Section> {
 }
 
 fn inference_device_glyph(engine: &DictationEngine) -> IconGlyph {
-    match inference_device_of(engine) {
+    match InferenceDevice::from(engine) {
         InferenceDevice::NvidiaGpu => SimpleIcon::NVIDIA.into(),
         InferenceDevice::AppleGpu => SimpleIcon::Apple.into(),
         InferenceDevice::AmdGpu => SimpleIcon::AMD.into(),

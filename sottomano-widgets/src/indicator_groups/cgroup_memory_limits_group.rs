@@ -38,9 +38,15 @@ fn bound_text(memory_bound: MemoryBound) -> String {
     }
 }
 
-struct LimitedCgroupIndicator<'a> {
-    cgroup: &'a LimitedCgroup,
-    killed_this_session: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionOomKills {
+    NoneSinceFirstSeen,
+    KilledSinceFirstSeen,
+}
+
+struct LimitedCgroupIndicator<'view> {
+    cgroup: &'view LimitedCgroup,
+    session_oom_kills: SessionOomKills,
 }
 
 impl LimitedCgroupIndicator<'_> {
@@ -87,10 +93,10 @@ impl LimitedCgroupIndicator<'_> {
     }
 }
 
-impl<'a> LimitedCgroupIndicator<'a> {
+impl<'view> LimitedCgroupIndicator<'view> {
     fn state(&self) -> IndicatorState {
         let memory = &self.cgroup.memory;
-        if self.killed_this_session {
+        if self.session_oom_kills == SessionOomKills::KilledSinceFirstSeen {
             IndicatorState::Critical
         } else if memory.exceeds_high()
             || matches!(
@@ -119,7 +125,7 @@ impl<'a> LimitedCgroupIndicator<'a> {
         )]
     }
 
-    fn indicator(self) -> GroupIndicator<'a> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.cgroup.unit_name.clone(),
             Phosphor::Gauge(Weight::Regular).into(),
@@ -208,17 +214,25 @@ impl CgroupMemoryLimitsGroup {
             .unwrap_or_default()
     }
 
-    fn cgroup_indicator<'a>(&self, cgroup: &'a LimitedCgroup) -> LimitedCgroupIndicator<'a> {
+    fn cgroup_indicator<'view>(
+        &self,
+        cgroup: &'view LimitedCgroup,
+    ) -> LimitedCgroupIndicator<'view> {
         LimitedCgroupIndicator {
             cgroup,
-            killed_this_session: self
-                .first_seen_oom_kills
-                .get(&cgroup.cgroup_path)
-                .is_some_and(|first_seen| cgroup.memory.event_counts.oom_kills > *first_seen),
+            session_oom_kills: match self.first_seen_oom_kills.get(&cgroup.cgroup_path) {
+                Some(first_seen) if cgroup.memory.event_counts.oom_kills > *first_seen => {
+                    SessionOomKills::KilledSinceFirstSeen
+                }
+                _ => SessionOomKills::NoneSinceFirstSeen,
+            },
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             self.cgroup_indicator(cgroup)
                 .indicator()
@@ -314,7 +328,7 @@ mod tests {
         let cgroup = capped_cgroup(ByteSize::gib(6), 0);
         let row = LimitedCgroupIndicator {
             cgroup: &cgroup,
-            killed_this_session: false,
+            session_oom_kills: SessionOomKills::NoneSinceFirstSeen,
         };
         assert_eq!(
             row.usage_text(),
@@ -328,7 +342,7 @@ mod tests {
         let cgroup = capped_cgroup(ByteSize::gib(11), 0);
         let row = LimitedCgroupIndicator {
             cgroup: &cgroup,
-            killed_this_session: false,
+            session_oom_kills: SessionOomKills::NoneSinceFirstSeen,
         };
         assert_eq!(row.state(), IndicatorState::Warning);
     }

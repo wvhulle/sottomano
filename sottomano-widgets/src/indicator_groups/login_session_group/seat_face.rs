@@ -14,13 +14,13 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct SeatFace<'a> {
-    pub seat: &'a str,
+pub struct SeatFace<'view> {
+    pub seat: &'view str,
     pub virtual_terminal: VirtualTerminal,
 }
 
-impl<'a> SeatFace<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> SeatFace<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = match self.virtual_terminal {
             VirtualTerminal::Console(console) => format!("tty{console}"),
             VirtualTerminal::NoConsole => self.seat.to_owned(),

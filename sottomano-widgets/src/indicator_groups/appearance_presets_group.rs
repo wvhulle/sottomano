@@ -24,10 +24,10 @@ pub enum AppearancePresetsMessage {
     Expansion(IndicatorGroupExpansionMessage),
 }
 
-fn preset_group_indicator<'a>(
+fn preset_group_indicator<'view>(
     preset: AppearancePreset,
     current: &ShellAppearance,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let display_state = match preset.applied_to(*current).look_comparison(current) {
         LookComparison::Matching => IndicatorState::On,
         LookComparison::Differing => IndicatorState::Idle,
@@ -64,7 +64,10 @@ impl AppearancePresetsGroup {
         self.expansion.update(message);
     }
 
-    pub fn group_content<'a>(&'a self, current: &ShellAppearance) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        current: &ShellAppearance,
+    ) -> IndicatorGroupContent<'view> {
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::AppearancePresets,
             GroupIndicator::glyph_only(

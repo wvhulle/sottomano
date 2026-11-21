@@ -18,15 +18,15 @@ use crate::{
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
     icon_catalog::icon_handle::IconHandle,
-    widgets::text::{font_faces_of, panel_text},
+    widgets::text::{panel_text, resolved_font_faces},
 };
 
-pub(crate) fn state_glyph_view<'a, Message: 'a>(
+pub(crate) fn state_glyph_view<'view, Message: 'view>(
     glyph: IconGlyph,
     state: IndicatorState,
     config: &Config,
     opacity: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let tint = IndicatorStateTint { state, opacity };
     glyph
         .with_weight(state.weight())
@@ -54,11 +54,11 @@ impl IndicatorIcon {
         }
     }
 
-    pub(crate) fn view<'a, Message: 'a>(
+    pub(crate) fn view<'view, Message: 'view>(
         &self,
         config: &Config,
         opacity: f32,
-    ) -> Option<Element<'a, Message>> {
+    ) -> Option<Element<'view, Message>> {
         let side = config.theme.font.icon_size_px;
         match self {
             IndicatorIcon::IconGlyph { glyph, state } => {
@@ -123,12 +123,12 @@ enum ReadoutPreference {
     LabelOnly,
 }
 
-pub fn indicator_drawing<'a, Message: 'a>(
+pub fn indicator_drawing<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     readout: &IndicatorReadout,
     opacity: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     composed_indicator(
         config,
         face,
@@ -138,22 +138,22 @@ pub fn indicator_drawing<'a, Message: 'a>(
     )
 }
 
-pub fn labeled_indicator<'a, Message: 'a>(
+pub fn labeled_indicator<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     readout: &IndicatorReadout,
     opacity: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     composed_indicator(config, face, readout, opacity, ReadoutPreference::LabelOnly)
 }
 
-fn composed_indicator<'a, Message: 'a>(
+fn composed_indicator<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     readout: &IndicatorReadout,
     opacity: f32,
     preference: ReadoutPreference,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let tint = face.tint(opacity);
     let icon = face_icon(config, face, opacity).unwrap_or_else(|| Row::new().into());
     let sample = match preferred_value(config, face, readout, tint, preference) {
@@ -169,11 +169,11 @@ fn composed_indicator<'a, Message: 'a>(
     badged(config, sample, readout.badge, tint)
 }
 
-pub fn face_icon<'a, Message: 'a>(
+pub fn face_icon<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     opacity: f32,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'view, Message>> {
     let icon = face.icon.view(config, opacity)?;
     Some(match face.ordinal {
         IdentityOrdinal::Numbered(ordinal) => superscripted(
@@ -189,22 +189,22 @@ pub fn face_icon<'a, Message: 'a>(
     })
 }
 
-pub(crate) fn badged_face_icon<'a, Message: 'a>(
+pub(crate) fn badged_face_icon<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     badge: ReadoutBadge,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let icon = face_icon(config, face, 1.0).unwrap_or_else(|| Row::new().into());
     badged(config, icon, badge, face.tint(1.0))
 }
 
 #[must_use]
-pub fn readout_view<'a, Message: 'a>(
+pub fn readout_view<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     readout: &IndicatorReadout,
     opacity: f32,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'view, Message>> {
     preferred_value(
         config,
         face,
@@ -214,13 +214,13 @@ pub fn readout_view<'a, Message: 'a>(
     )
 }
 
-fn preferred_value<'a, Message: 'a>(
+fn preferred_value<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     readout: &IndicatorReadout,
     tint: IndicatorStateTint,
     preference: ReadoutPreference,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'view, Message>> {
     if face.icon.display_state() == IndicatorState::Failed {
         return Some(failure_marker(config, tint));
     }
@@ -237,12 +237,12 @@ fn preferred_value<'a, Message: 'a>(
     }
 }
 
-fn label_text<'a, Message: 'a>(
+fn label_text<'view, Message: 'view>(
     config: &Config,
     face: &IndicatorFace,
     label: &ReadoutLabel,
     tint: IndicatorStateTint,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'view, Message>> {
     let ReadoutLabel::Labeled(label) = label else {
         return None;
     };
@@ -259,37 +259,37 @@ fn label_text<'a, Message: 'a>(
     )
 }
 
-fn failure_marker<'a, Message: 'a>(
+fn failure_marker<'view, Message: 'view>(
     config: &Config,
     tint: IndicatorStateTint,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     IconGlyph::from(Phosphor::Warning(Weight::Thin))
         .view(config.theme.font.icon_size_px, move |theme| {
             tint.color(theme)
         })
 }
 
-fn badged<'a, Message: 'a>(
+fn badged<'view, Message: 'view>(
     config: &Config,
-    sample: Element<'a, Message>,
+    sample: Element<'view, Message>,
     badge: ReadoutBadge,
     tint: IndicatorStateTint,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     match badge {
         ReadoutBadge::Counted(count) => superscripted(config, sample, count.to_string(), tint),
         ReadoutBadge::Unbadged => sample,
     }
 }
 
-fn superscripted<'a, Message: 'a>(
+fn superscripted<'view, Message: 'view>(
     config: &Config,
-    marked: Element<'a, Message>,
+    marked: Element<'view, Message>,
     digits: String,
     tint: IndicatorStateTint,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let superscript = text(digits)
         .size(config.theme.font.small_text_size_px)
-        .font(font_faces_of(&config.theme.font).regular)
+        .font(resolved_font_faces(&config.theme.font).regular)
         .style(tint.text_style());
     Row::with_children([marked, superscript.into()])
         .align_y(Alignment::Start)

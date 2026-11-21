@@ -11,17 +11,28 @@ use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::{
     hover_cards::hover_card_body::{SectionTable, headed_table},
     widgets::{
+        hover_fetched_snapshot::HoverFetchedSnapshot,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         value_cells::ValueCell,
     },
 };
 
+enum CoreBusyShare {
+    Sampled(Ratio),
+    NotSampled,
+}
+
+enum CoreCeilingDeviation {
+    SharedCeiling,
+    DistinctCeiling(Frequency),
+}
+
 struct PhysicalCoreClock {
     first_thread: u32,
     clock: Frequency,
-    busy: Option<Ratio>,
-    distinct_cap: Option<Frequency>,
+    busy: CoreBusyShare,
+    ceiling_deviation: CoreCeilingDeviation,
     own_causes: Vec<FrequencyLimitCause>,
 }
 
@@ -59,15 +70,22 @@ impl PhysicalCoreClock {
                 .iter()
                 .map(|thread| thread.frequency)
                 .reduce(Frequency::max)?,
-            busy: loads.and_then(|loads| {
+            busy: match loads.and_then(|loads| {
                 loads
                     .cores
                     .iter()
                     .filter(|load| core.threads.contains(&load.core))
                     .map(|load| load.busy)
                     .reduce(Ratio::max)
-            }),
-            distinct_cap: (clock.shared_ceiling() != Some(lowest_cap)).then_some(lowest_cap),
+            }) {
+                Some(busiest_thread) => CoreBusyShare::Sampled(busiest_thread),
+                None => CoreBusyShare::NotSampled,
+            },
+            ceiling_deviation: if clock.shared_ceiling() == Some(lowest_cap) {
+                CoreCeilingDeviation::SharedCeiling
+            } else {
+                CoreCeilingDeviation::DistinctCeiling(lowest_cap)
+            },
             own_causes,
         })
     }
@@ -88,14 +106,16 @@ impl From<PhysicalCoreClock> for TableRecord<4> {
             format!("Core {}", physical_core_clock.first_thread),
             [
                 Quantity::clock_gigahertz(physical_core_clock.clock).into(),
-                physical_core_clock
-                    .busy
-                    .map_or(ValueCell::Blank, |busy| Quantity::share(busy).into()),
-                physical_core_clock
-                    .distinct_cap
-                    .map_or(ValueCell::Blank, |cap| {
+                match physical_core_clock.busy {
+                    CoreBusyShare::Sampled(busy) => Quantity::share(busy).into(),
+                    CoreBusyShare::NotSampled => ValueCell::Blank,
+                },
+                match physical_core_clock.ceiling_deviation {
+                    CoreCeilingDeviation::DistinctCeiling(cap) => {
                         Quantity::clock_gigahertz(cap).into()
-                    }),
+                    }
+                    CoreCeilingDeviation::SharedCeiling => ValueCell::Blank,
+                },
                 causes_text(&physical_core_clock.own_causes).map_or(ValueCell::Blank, Into::into),
             ],
         )
@@ -103,10 +123,10 @@ impl From<PhysicalCoreClock> for TableRecord<4> {
     }
 }
 
-pub struct ChipletClockTable<'a> {
-    pub clock: &'a CpuClock,
-    pub loads: Option<&'a CpuCoreLoads>,
-    pub group: &'a CoreGroup,
+pub struct ChipletClockTable<'snapshot> {
+    pub clock: &'snapshot CpuClock,
+    pub loads: &'snapshot HoverFetchedSnapshot<CpuCoreLoads>,
+    pub group: &'snapshot CoreGroup,
 }
 
 impl ChipletClockTable<'_> {
@@ -116,7 +136,7 @@ impl ChipletClockTable<'_> {
             .physical_cores
             .iter()
             .filter_map(|core| {
-                PhysicalCoreClock::fastest_thread_clock(core, self.clock, self.loads)
+                PhysicalCoreClock::fastest_thread_clock(core, self.clock, self.loads.sample())
             })
             .collect();
         rows.sort_by_key(|row| row.first_thread);

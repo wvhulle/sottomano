@@ -15,13 +15,13 @@ use crate::{
     widgets::pointer_drag::{PanelSlotList, reorderable_list::reorderable_list},
 };
 
-pub fn inline_view<'a>(
+pub fn inline_view<'view>(
     compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
     slot_context: PanelSlotContext<'_>,
-) -> Option<Element<'a, WorkspacesMessage>> {
+) -> Option<Element<'view, WorkspacesMessage>> {
     let PanelSlotContext {
         config, edge, drag, ..
     } = slot_context;

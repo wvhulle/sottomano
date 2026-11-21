@@ -49,20 +49,16 @@ fn preferred_address(ip_addresses: &[IpAddr]) -> Option<&IpAddr> {
         .or_else(|| ip_addresses.first())
 }
 
-struct NspawnContainerIndicator<'a> {
-    container: &'a NspawnContainer,
-    switched_activity: Option<UnitActivity>,
+struct NspawnContainerIndicator<'view> {
+    container: &'view NspawnContainer,
+    shown_activity: UnitActivity,
 }
 
 impl NspawnContainerIndicator<'_> {
-    fn shown_activity(&self) -> UnitActivity {
-        self.switched_activity.unwrap_or(self.container.activity)
-    }
-
     fn detail_entries(&self, clock: Clock) -> Vec<LabeledValue> {
         let mut detail_entries = vec![LabeledValue::new(
             "State",
-            activity_text(self.shown_activity()),
+            activity_text(self.shown_activity),
         )];
         if !self.container.unit_name.is_empty() {
             detail_entries.push(LabeledValue::new("Unit", self.container.unit_name.clone()));
@@ -104,9 +100,9 @@ impl NspawnContainerIndicator<'_> {
     }
 }
 
-impl<'a> NspawnContainerIndicator<'a> {
+impl<'view> NspawnContainerIndicator<'view> {
     fn label(&self) -> Option<String> {
-        match self.shown_activity() {
+        match self.shown_activity {
             UnitActivity::Running => self
                 .container
                 .registered_machine()
@@ -117,7 +113,7 @@ impl<'a> NspawnContainerIndicator<'a> {
     }
 
     fn state(&self) -> IndicatorState {
-        match self.shown_activity() {
+        match self.shown_activity {
             UnitActivity::Running => IndicatorState::On,
             UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
             UnitActivity::Stopped => IndicatorState::Off,
@@ -131,7 +127,7 @@ impl<'a> NspawnContainerIndicator<'a> {
         )]
     }
 
-    fn indicator(self) -> GroupIndicator<'a> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label = match self.label() {
             Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
             Some(_) | None => ReadoutLabel::Unlabeled,
@@ -282,16 +278,17 @@ impl NspawnContainersGroup {
         }
     }
 
-    fn container_indicator<'a>(
-        &'a self,
-        container: &'a NspawnContainer,
-    ) -> NspawnContainerIndicator<'a> {
+    fn container_indicator<'view>(
+        &'view self,
+        container: &'view NspawnContainer,
+    ) -> NspawnContainerIndicator<'view> {
         NspawnContainerIndicator {
             container,
-            switched_activity: self
+            shown_activity: self
                 .service_switches
                 .get(&container.machine_name)
-                .and_then(|service_switch| service_switch.unit_switch.activity()),
+                .and_then(|service_switch| service_switch.unit_switch.activity())
+                .unwrap_or(container.activity),
         }
     }
 
@@ -375,7 +372,7 @@ mod tests {
         let container = running_container(SystemTime::UNIX_EPOCH);
         let row = NspawnContainerIndicator {
             container: &container,
-            switched_activity: None,
+            shown_activity: container.activity,
         };
         assert_eq!(row.label(), Some("10.200.0.2".to_owned()));
     }
@@ -385,7 +382,7 @@ mod tests {
         let container = running_container(SystemTime::UNIX_EPOCH);
         let row = NspawnContainerIndicator {
             container: &container,
-            switched_activity: Some(UnitActivity::Stopping),
+            shown_activity: UnitActivity::Stopping,
         };
         assert_eq!(row.label(), Some("stopping".to_owned()));
         assert_eq!(row.state(), IndicatorState::Pending);
@@ -402,7 +399,7 @@ mod tests {
         };
         let row = NspawnContainerIndicator {
             container: &container,
-            switched_activity: None,
+            shown_activity: container.activity,
         };
         assert_eq!(row.detail_entries(clock).len(), 2);
         assert_eq!(row.state(), IndicatorState::Off);
@@ -415,7 +412,7 @@ mod tests {
         let container = running_container(started_at);
         let row = NspawnContainerIndicator {
             container: &container,
-            switched_activity: None,
+            shown_activity: container.activity,
         };
         assert!(row.detail_entries(clock).contains(&LabeledValue::new(
             "Uptime",

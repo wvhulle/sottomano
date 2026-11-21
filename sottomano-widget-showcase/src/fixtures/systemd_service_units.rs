@@ -10,11 +10,11 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::widgets::discovered_systemd_services::ScopedServiceCommands;
 
-pub struct ShownService<'a> {
-    pub unit: &'a str,
-    pub program_name: &'a str,
-    pub arguments: &'a [&'a str],
-    pub environment: &'a [(&'a str, &'a str)],
+pub struct ShownService<'fixture> {
+    pub unit: &'fixture str,
+    pub program_name: &'fixture str,
+    pub arguments: &'fixture [&'fixture str],
+    pub environment: &'fixture [(&'fixture str, &'fixture str)],
     pub account: ServiceAccount,
 }
 
@@ -38,9 +38,9 @@ impl ShownService<'_> {
     }
 }
 
-pub fn services_delivered<'a>(
+pub fn services_delivered<'fixture>(
     scope: SystemdUnitScope,
-    shown_services: impl IntoIterator<Item = ShownService<'a>>,
+    shown_services: impl IntoIterator<Item = ShownService<'fixture>>,
 ) -> ScopedServiceCommands {
     ScopedServiceCommands {
         scope,

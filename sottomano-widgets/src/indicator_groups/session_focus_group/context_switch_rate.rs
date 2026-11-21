@@ -18,8 +18,8 @@ use crate::{
     },
 };
 
-pub struct ContextSwitchRate<'a> {
-    pub accounting: Accounting<'a>,
+pub struct ContextSwitchRate<'view> {
+    pub accounting: Accounting<'view>,
 }
 
 impl ContextSwitchRate<'_> {
@@ -109,8 +109,8 @@ impl ContextSwitchRate<'_> {
     }
 }
 
-impl<'a> ContextSwitchRate<'a> {
-    pub fn indicator(self, clock: Clock) -> GroupIndicator<'a> {
+impl<'view> ContextSwitchRate<'view> {
+    pub fn indicator(self, clock: Clock) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "Context switches",
             Phosphor::Shuffle(Weight::Regular).into(),

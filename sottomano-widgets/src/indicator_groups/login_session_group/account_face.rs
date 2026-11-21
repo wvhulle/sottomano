@@ -11,12 +11,12 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub struct AccountFace<'a> {
-    pub identity: &'a SessionIdentity,
+pub struct AccountFace<'view> {
+    pub identity: &'view SessionIdentity,
 }
 
-impl<'a> AccountFace<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> AccountFace<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = self.identity.user.clone();
         let label = if label_text.is_empty() {
             ReadoutLabel::Unlabeled

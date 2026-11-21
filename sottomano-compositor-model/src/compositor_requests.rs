@@ -1,5 +1,7 @@
 use std::{error::Error, fmt};
 
+use sottomano_toml_config::indicator_groups::gamepad_bindings::CompositorAction;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompositorRequest {
     FocusWindow(u64),
@@ -38,6 +40,28 @@ pub enum CompositorRequest {
     PowerOffMonitors,
     Quit,
     ReloadConfig,
+}
+
+impl From<CompositorAction> for CompositorRequest {
+    fn from(action: CompositorAction) -> Self {
+        match action {
+            CompositorAction::FocusLeft => Self::FocusLeft,
+            CompositorAction::FocusRight => Self::FocusRight,
+            CompositorAction::FocusUp => Self::FocusUp,
+            CompositorAction::FocusDown => Self::FocusDown,
+            CompositorAction::FocusWorkspaceUp => Self::FocusWorkspaceUp,
+            CompositorAction::FocusWorkspaceDown => Self::FocusWorkspaceDown,
+            CompositorAction::FocusPreviousWindow => Self::FocusPreviousWindow,
+            CompositorAction::MoveLeft => Self::MoveLeft,
+            CompositorAction::MoveRight => Self::MoveRight,
+            CompositorAction::MoveWindowToWorkspaceUp => Self::MoveFocusedWindowToWorkspaceUp,
+            CompositorAction::MoveWindowToWorkspaceDown => Self::MoveFocusedWindowToWorkspaceDown,
+            CompositorAction::ToggleOverview => Self::ToggleOverview,
+            CompositorAction::Maximize => Self::MaximizeFocused,
+            CompositorAction::Center => Self::CenterFocused,
+            CompositorAction::CloseWindow => Self::CloseFocusedWindow,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

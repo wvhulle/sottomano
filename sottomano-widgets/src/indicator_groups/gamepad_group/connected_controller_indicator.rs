@@ -37,9 +37,9 @@ use crate::{
 const DIRECTION_ARROWS: &[char] = &['←', '→', '↑', '↓', ' '];
 
 #[derive(Debug, Clone, Copy)]
-pub enum ControllerMarking<'a> {
-    PlayerLights(&'a LitPlayer),
-    PairedAlias(&'a str),
+pub enum ControllerMarking<'snapshot> {
+    PlayerLights(&'snapshot LitPlayer),
+    PairedAlias(&'snapshot str),
     IconOnly,
 }
 
@@ -95,11 +95,11 @@ impl ControllerMarking<'_> {
     }
 }
 
-pub struct ConnectedControllerIndicator<'a> {
-    pub gamepad: &'a ConnectedGamepad,
-    pub bindings: &'a GamepadBindingsConfig,
+pub struct ConnectedControllerIndicator<'view> {
+    pub gamepad: &'view ConnectedGamepad,
+    pub bindings: &'view GamepadBindingsConfig,
     pub custody: ControllerCustody,
-    pub marking: ControllerMarking<'a>,
+    pub marking: ControllerMarking<'view>,
 }
 
 fn axis_label(
@@ -290,8 +290,8 @@ impl ConnectedControllerIndicator<'_> {
     }
 }
 
-impl<'a> ConnectedControllerIndicator<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ConnectedControllerIndicator<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let state = match self.custody {
             ControllerCustody::Compositor => IndicatorState::On,
             ControllerCustody::HandedOver => IndicatorState::Off,

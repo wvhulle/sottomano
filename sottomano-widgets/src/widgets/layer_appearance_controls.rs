@@ -347,11 +347,11 @@ impl LayerAppearanceControls {
         )
     }
 
-    pub fn indicators<'a, M: Into<IndicatorGroupInteraction> + 'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn indicators<'view, M: Into<IndicatorGroupInteraction> + 'view>(
+        &'view self,
+        config: &'view Config,
         lift: fn(AppearanceMessage) -> M,
-    ) -> [GroupIndicator<'a>; 8] {
+    ) -> [GroupIndicator<'view>; 8] {
         [
             GroupIndicator::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))

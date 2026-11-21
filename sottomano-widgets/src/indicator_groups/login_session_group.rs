@@ -199,7 +199,10 @@ impl LoginSessionGroup {
         }
     }
 
-    fn identity_indicators<'a>(&'a self, identity: &'a SessionIdentity) -> [GroupIndicator<'a>; 6] {
+    fn identity_indicators<'view>(
+        &'view self,
+        identity: &'view SessionIdentity,
+    ) -> [GroupIndicator<'view>; 6] {
         [
             SeatFace {
                 seat: &identity.seat,

@@ -6,7 +6,7 @@ use iced::{
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::Config;
 
-use crate::widgets::text::font_faces_of;
+use crate::widgets::text::resolved_font_faces;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupKeyPlacement {
@@ -15,9 +15,9 @@ enum GroupKeyPlacement {
     AboveTitle,
 }
 
-pub struct WindowTitle<'a> {
-    label: &'a WindowLabel,
-    config: &'a Config,
+pub struct WindowTitle<'label> {
+    label: &'label WindowLabel,
+    config: &'label Config,
     size: f32,
     opacity: f32,
     wrapping: Wrapping,
@@ -25,9 +25,9 @@ pub struct WindowTitle<'a> {
     color: fn(&Theme) -> Color,
 }
 
-impl<'a> WindowTitle<'a> {
+impl<'label> WindowTitle<'label> {
     #[must_use]
-    pub fn new(label: &'a WindowLabel, config: &'a Config) -> Self {
+    pub fn new(label: &'label WindowLabel, config: &'label Config) -> Self {
         Self {
             label,
             config,
@@ -75,10 +75,10 @@ impl<'a> WindowTitle<'a> {
         Self { color, ..self }
     }
 
-    fn styled_text<'b>(&self, content: &str, color: fn(&Theme) -> Color) -> Text<'b> {
+    fn styled_text<'view>(&self, content: &str, color: fn(&Theme) -> Color) -> Text<'view> {
         let opacity = self.opacity;
         text(content.to_owned())
-            .font(font_faces_of(&self.config.theme.font).regular)
+            .font(resolved_font_faces(&self.config.theme.font).regular)
             .size(self.size)
             .line_height(LINE_HEIGHT)
             .wrapping(self.wrapping)
@@ -88,7 +88,7 @@ impl<'a> WindowTitle<'a> {
     }
 }
 
-impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
+impl<'view, Message: 'view> From<WindowTitle<'_>> for Element<'view, Message> {
     fn from(title: WindowTitle<'_>) -> Self {
         let subject_text = title.styled_text(title.label.subject_text(), title.color);
         let Some(group_key) = title.label.group_key() else {

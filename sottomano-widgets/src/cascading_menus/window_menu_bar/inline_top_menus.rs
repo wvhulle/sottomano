@@ -52,13 +52,13 @@ impl WindowMenuBar {
             .collect()
     }
 
-    pub fn inline_handle_views<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn inline_handle_views<'view>(
+        &'view self,
+        config: &'view Config,
         panel_position: Position,
         open_trigger: NestedMenuOpenTrigger,
         handle_indicator: impl Fn(&HoverTarget) -> MenuHandleIndicator,
-    ) -> Vec<Element<'a, GroupEvent>> {
+    ) -> Vec<Element<'view, GroupEvent>> {
         self.top_menus()
             .iter()
             .filter_map(|top_menu| {

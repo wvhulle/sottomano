@@ -24,7 +24,7 @@ pub use self::{
     presence_accounting::{BreakCause, FocusRun, ScreenRun, TakenBreak},
     recorded_spans::{FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
     time_intervals::{Interval, LAST_DAY, LAST_HOUR, TrailingPeriod},
-    unit_accounting::{BudgetStatus, UnitTotal},
+    unit_accounting::{BudgetStanding, BudgetStatus, UnitTotal},
 };
 use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
 

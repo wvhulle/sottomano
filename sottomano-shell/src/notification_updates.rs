@@ -5,6 +5,7 @@ use sottomano_widgets::{
     group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
     hover_cards::PopupMessage,
     indicator_groups::{
+        idle_pause_groups::ScreenOffOverride,
         indicator_group_content::GroupToastRequests,
         indicator_group_interaction::IndicatorGroupInteraction,
         notification_group,
@@ -64,7 +65,7 @@ impl DesktopShell {
     pub(crate) fn scan_group_alerts(&self) -> GroupAlertScan {
         let locale = self.config.calendar.locale;
         let group_menus: Vec<_> = composed_menu_topics()
-            .map(|topic| self.group_menu_of(topic))
+            .map(|topic| self.topic_group_menu(topic))
             .collect();
         let toast_requests = composed_standalone_groups()
             .map(|group| {
@@ -134,12 +135,12 @@ impl DesktopShell {
             QuietChange::ScreenOffAfter(timeout) => self
                 .indicator_groups
                 .idle_pause_groups
-                .override_screen_off(Some(timeout))
+                .override_screen_off(ScreenOffOverride::QuietHours(timeout))
                 .map(Message::IdleTimeouts),
             QuietChange::ScreenOffFollowsIdleTimer => self
                 .indicator_groups
                 .idle_pause_groups
-                .override_screen_off(None)
+                .override_screen_off(ScreenOffOverride::FollowsSlider)
                 .map(Message::IdleTimeouts),
             QuietChange::Ended => {
                 let released = self
@@ -156,7 +157,7 @@ impl DesktopShell {
                     released,
                     self.indicator_groups
                         .idle_pause_groups
-                        .override_screen_off(None)
+                        .override_screen_off(ScreenOffOverride::FollowsSlider)
                         .map(Message::IdleTimeouts),
                 ])
             }

@@ -49,17 +49,18 @@ use crate::{
             window_usage::WindowUsage,
         },
     },
-    widgets::{ongoing_toast::OngoingToastActionButton, text::text_face_of},
+    widgets::{ongoing_toast::OngoingToastActionButton, text::resolved_text_face},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WarningSnooze {
-    pub until: DateTime<Utc>,
+pub enum WarningSnooze {
+    NotSnoozed,
+    SnoozedUntil(DateTime<Utc>),
 }
 
 pub struct SessionFocusGroup {
     tracker: FocusTracker,
-    snooze: Option<WarningSnooze>,
+    snooze: WarningSnooze,
     expansion: IndicatorGroupExpansion,
     daily_totals: DailyTotalsGauge,
 }
@@ -79,7 +80,7 @@ impl SessionFocusGroup {
         let daily_totals = DailyTotalsGauge::new(&tracker.ledger.accounted(config), now);
         Self {
             tracker,
-            snooze: None,
+            snooze: WarningSnooze::NotSnoozed,
             expansion: IndicatorGroupExpansion::default(),
             daily_totals,
         }
@@ -173,9 +174,7 @@ impl SessionFocusGroup {
             ),
             SessionFocusMessage::WarningSnoozed => {
                 let snooze_length = config.warning_snooze;
-                self.snooze = Some(WarningSnooze {
-                    until: clock.utc() + snooze_length,
-                });
+                self.snooze = WarningSnooze::SnoozedUntil(clock.utc() + snooze_length);
                 Task::none()
             }
             SessionFocusMessage::Expansion(expansion) => {
@@ -185,7 +184,7 @@ impl SessionFocusGroup {
         }
     }
 
-    fn session_face<'a>(&'a self, config: &'a Config) -> SessionFace<'a> {
+    fn session_face<'view>(&'view self, config: &'view Config) -> SessionFace<'view> {
         SessionFace {
             accounting: self
                 .tracker
@@ -195,19 +194,19 @@ impl SessionFocusGroup {
         }
     }
 
-    fn focus_timeline<'a>(&'a self, config: &'a Config) -> FocusTimeline<'a> {
+    fn focus_timeline<'view>(&'view self, config: &'view Config) -> FocusTimeline<'view> {
         FocusTimeline {
             session_face: self.session_face(config),
         }
     }
 
-    fn focus_timeline_indicator<'a>(
-        &'a self,
-        config: &'a Config,
+    fn focus_timeline_indicator<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         let locale = config.calendar.locale;
-        let label_face = text_face_of(&config.theme.font);
+        let label_face = resolved_text_face(&config.theme.font);
         let session_face = self.session_face(config);
         let severity = session_face.severity(clock.utc());
         let alerts = session_face.long_session_alerts(clock.utc(), locale);
@@ -242,7 +241,7 @@ impl SessionFocusGroup {
         .ongoing_toast_action_buttons(break_action_buttons())
     }
 
-    fn context_switch_rate<'a>(&'a self, config: &'a Config) -> ContextSwitchRate<'a> {
+    fn context_switch_rate<'view>(&'view self, config: &'view Config) -> ContextSwitchRate<'view> {
         ContextSwitchRate {
             accounting: self
                 .tracker
@@ -298,11 +297,11 @@ impl SessionFocusGroup {
         usage.body(clock.utc()).into_iter().collect()
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let headline_indicator = self
             .session_face(config)

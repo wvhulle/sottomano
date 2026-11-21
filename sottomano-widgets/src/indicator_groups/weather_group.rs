@@ -184,7 +184,10 @@ impl WeatherGroup {
         }
     }
 
-    fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
+    fn rain_forecast<'forecast>(
+        &'forecast self,
+        config: &'forecast Config,
+    ) -> Option<RainForecast<'forecast>> {
         let visible_radar = self.rain.get();
         let visible_model = self.precipitation_model.get();
         let sources = match visible_radar {
@@ -225,11 +228,11 @@ impl WeatherGroup {
         sections
     }
 
-    fn rain_indicator<'a>(
-        &'a self,
-        config: &'a Config,
-        rain_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn rain_indicator<'view>(
+        &'view self,
+        config: &'view Config,
+        rain_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         rain_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.rain_hover_card(config, card_clock)
@@ -237,10 +240,10 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Rain))
     }
 
-    fn wired_temperature_indicator<'a>(
-        &'a self,
-        temperature_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_temperature_indicator<'view>(
+        &'view self,
+        temperature_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         temperature_row
             .with_hover_card(Box::new(move |_| {
                 self.temperature
@@ -249,7 +252,10 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Temperature))
     }
 
-    fn wired_wind_indicator<'a>(&'a self, wind_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn wired_wind_indicator<'view>(
+        &'view self,
+        wind_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         wind_row
             .with_hover_card(Box::new(move |_| {
                 self.wind.sections_described_by(wind_hover_card)
@@ -257,10 +263,10 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Wind))
     }
 
-    fn wired_location_indicator<'a>(
-        &'a self,
-        location_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_location_indicator<'view>(
+        &'view self,
+        location_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         location_row
             .with_hover_card(Box::new(move |_| {
                 self.location.sections_described_by(location_hover_card)
@@ -276,7 +282,7 @@ impl WeatherGroup {
         .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into())
     }
 
-    fn list_temperature<'a>(&'a self, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_temperature<'view>(&'view self, indicators: &mut Vec<GroupIndicator<'view>>) {
         if !self.temperature.awaits_first_delivery() {
             indicators.insert(
                 0,
@@ -288,11 +294,11 @@ impl WeatherGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let headline_indicator = self.temperature_headline();
         let mut rows = Vec::new();

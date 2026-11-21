@@ -50,7 +50,7 @@ impl DistroSetupCommand {
         Ok(match self {
             DistroSetupCommand::Ubuntu(_) => DistroSetup {
                 admin_group: "sudo".to_string(),
-                runtime_tools: Some(
+                runtime_tools: RuntimeTools::InstalledBy(
                     "apt install -y iproute2 network-manager modemmanager bluez inxi pipewire \
                      wireplumber wireguard-tools xdg-utils wl-clipboard fwupd upower \
                      power-profiles-daemon",
@@ -58,14 +58,14 @@ impl DistroSetupCommand {
             },
             DistroSetupCommand::Fedora(_) => DistroSetup {
                 admin_group: "wheel".to_string(),
-                runtime_tools: Some(
+                runtime_tools: RuntimeTools::InstalledBy(
                     "dnf install -y iproute NetworkManager ModemManager bluez inxi pipewire \
                      wireplumber wireguard-tools xdg-utils wl-clipboard fwupd upower tuned-ppd",
                 ),
             },
             DistroSetupCommand::Linux(_) => DistroSetup {
                 admin_group: auto_detected_admin_group()?,
-                runtime_tools: None,
+                runtime_tools: RuntimeTools::LeftToUser,
             },
         })
     }
@@ -102,7 +102,12 @@ fn run_command_step(summary: &str, argv: &[&str], failure: CommandFailure) -> Se
 
 struct DistroSetup {
     admin_group: String,
-    runtime_tools: Option<&'static str>,
+    runtime_tools: RuntimeTools,
+}
+
+enum RuntimeTools {
+    InstalledBy(&'static str),
+    LeftToUser,
 }
 
 fn auto_detected_admin_group() -> io::Result<String> {
@@ -174,7 +179,7 @@ fn setup_steps(distro_setup: &DistroSetup, skipped: &[SetupStepName]) -> Vec<Set
             contents: "kernel.perf_event_paranoid = 0\n".to_string(),
         });
     }
-    if let Some(runtime_tools) = distro_setup.runtime_tools
+    if let RuntimeTools::InstalledBy(runtime_tools) = distro_setup.runtime_tools
         && !skipped.contains(&SetupStepName::RuntimeTools)
     {
         let runtime_tools_argv = runtime_tools

@@ -39,21 +39,25 @@ impl DrawableIcon {
         }
     }
 
-    pub fn view<'a, Message: 'a>(&self, side_px: f32, opacity: f32) -> Element<'a, Message> {
-        self.handle.view(side_px, self.shown_opacity(opacity))
-    }
-
-    pub fn view_with_symbolic_tint<'a, Message: 'a>(
+    pub fn view<'view, Message: 'view>(
         &self,
         side_px: f32,
         opacity: f32,
-        symbolic_tint: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
+    ) -> Element<'view, Message> {
+        self.handle.view(side_px, self.shown_opacity(opacity))
+    }
+
+    pub fn view_with_symbolic_tint<'view, Message: 'view>(
+        &self,
+        side_px: f32,
+        opacity: f32,
+        symbolic_tint: impl Fn(&Theme) -> Color + 'view,
+    ) -> Element<'view, Message> {
         self.handle
             .view_with_symbolic_tint(side_px, self.shown_opacity(opacity), symbolic_tint)
     }
 
-    pub fn scaled_down<'a, Message: 'a>(&self, opacity: f32) -> Element<'a, Message> {
+    pub fn scaled_down<'view, Message: 'view>(&self, opacity: f32) -> Element<'view, Message> {
         self.handle.scaled_down(self.shown_opacity(opacity))
     }
 }

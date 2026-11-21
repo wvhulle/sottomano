@@ -30,13 +30,13 @@ fn lan_access_entry(exit_node_choices: &ExitNodeChoices) -> LabeledValue {
     )
 }
 
-pub(super) struct ExitNodeChoiceIndicator<'a> {
-    pub(super) exit_node_option: &'a ExitNodeOption,
-    pub(super) exit_node_choices: &'a ExitNodeChoices,
+pub(super) struct ExitNodeChoiceIndicator<'view> {
+    pub(super) exit_node_option: &'view ExitNodeOption,
+    pub(super) exit_node_choices: &'view ExitNodeChoices,
 }
 
-impl<'a> ExitNodeChoiceIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ExitNodeChoiceIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         let label = match self
             .exit_node_choices
             .control_for_option(self.exit_node_option)
@@ -95,12 +95,12 @@ impl<'a> ExitNodeChoiceIndicator<'a> {
     }
 }
 
-pub(super) struct ExitNodeLanAccessIndicator<'a> {
-    pub(super) exit_node_choices: &'a ExitNodeChoices,
+pub(super) struct ExitNodeLanAccessIndicator<'view> {
+    pub(super) exit_node_choices: &'view ExitNodeChoices,
 }
 
-impl<'a> ExitNodeLanAccessIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ExitNodeLanAccessIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "LAN while exiting",
             Phosphor::HouseLine(Weight::Regular).into(),

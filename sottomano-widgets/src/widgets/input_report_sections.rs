@@ -25,8 +25,8 @@ pub enum MeasuredReportTiming {
     Measured(ReportTiming),
 }
 
-pub struct KernelErrorListing<'a> {
-    pub kernel_errors: &'a [&'a DeviceKernelError],
+pub struct KernelErrorListing<'errors> {
+    pub kernel_errors: &'errors [&'errors DeviceKernelError],
 }
 
 #[must_use]

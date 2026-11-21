@@ -45,11 +45,11 @@ fn anchor_hover_cards_on_surface(
 }
 
 impl DesktopShell {
-    pub(crate) fn monitor_layout<'a>(
-        &'a self,
+    pub(crate) fn monitor_layout<'view>(
+        &'view self,
         window: Id,
-        output: &'a str,
-    ) -> Element<'a, ShellInteraction> {
+        output: &'view str,
+    ) -> Element<'view, ShellInteraction> {
         let float = self.indicator_groups.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
@@ -73,11 +73,11 @@ impl DesktopShell {
         .into()
     }
 
-    fn drag_ghost_layer<'a>(
-        &'a self,
+    fn drag_ghost_layer<'view>(
+        &'view self,
         window: Id,
-        output: &'a str,
-    ) -> Option<Element<'a, ShellInteraction>> {
+        output: &'view str,
+    ) -> Option<Element<'view, ShellInteraction>> {
         let slot_context = self.panel_slot_context(Position::Bottom);
         let view = slot_context.drag;
         let DragActivity::Dragging(drag) = view.drag else {

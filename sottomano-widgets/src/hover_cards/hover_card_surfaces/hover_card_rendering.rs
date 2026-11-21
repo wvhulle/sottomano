@@ -23,9 +23,9 @@ use crate::{
 
 impl HoverCardHost {
     #[must_use]
-    pub fn departure<'a, Message>(
+    pub fn departure<'view, Message>(
         &self,
-        content_of: impl FnOnce(&HoverTarget) -> Option<HoverContent<'a, Message>>,
+        content_of: impl FnOnce(&HoverTarget) -> Option<HoverContent<'view, Message>>,
     ) -> Option<Departed> {
         let current = self.transition.current()?;
         let departed_content = match content_of(&current.target)? {
@@ -58,23 +58,23 @@ impl HoverCardHost {
         }
     }
 
-    pub fn view<'a, Message: From<PopupMessage> + Clone + 'a>(
+    pub fn view<'view, Message: From<PopupMessage> + Clone + 'view>(
         &self,
         output: &str,
-        config: &'a Config,
+        config: &'view Config,
         surface_style: HoverCardSurfaceStyle,
-        assets: WindowAssets<'a>,
-        content_of: impl Fn(&HoverTarget) -> Option<HoverContent<'a, Message>>,
+        assets: WindowAssets<'view>,
+        content_of: impl Fn(&HoverTarget) -> Option<HoverContent<'view, Message>>,
         clock: Clock,
-    ) -> Element<'a, Message> {
-        let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
+    ) -> Element<'view, Message> {
+        let describe = move |hover_card: &HoverCard| -> Element<'view, Message> {
             Element::from(
                 HoverCardContent::new(hover_card, config, assets, clock)
                     .view(surface_style.popup.overlay.frame),
             )
             .map(Message::from)
         };
-        let render = |content: HoverContent<'a, Message>| match content {
+        let render = |content: HoverContent<'view, Message>| match content {
             HoverContent::Described(hover_card) => Rendered::framed(describe(&hover_card)),
             HoverContent::Cascading {
                 primary,
@@ -126,7 +126,7 @@ impl HoverCardHost {
         }
         let shown_presence = self.transition.current().and_then(|current| {
             self.laid_out_anchors
-                .presence_of(&current.placement.output, &current.target)
+                .widget_presence(&current.placement.output, &current.target)
         });
         let card = container(anchored_popup(
             renderings,
@@ -157,22 +157,22 @@ impl HoverCardHost {
     }
 }
 
-pub enum HoverContent<'a, Message> {
+pub enum HoverContent<'view, Message> {
     Described(HoverCard),
     Cascading {
-        primary: Element<'a, Message>,
-        satellites: Vec<Element<'a, Message>>,
+        primary: Element<'view, Message>,
+        satellites: Vec<Element<'view, Message>>,
         orientation: CascadeOrientation,
     },
 }
 
-struct Rendered<'a, Message> {
-    element: Element<'a, Message>,
+struct Rendered<'view, Message> {
+    element: Element<'view, Message>,
     framing: PopupFraming,
 }
 
-impl<'a, Message> Rendered<'a, Message> {
-    fn framed(element: Element<'a, Message>) -> Self {
+impl<'view, Message> Rendered<'view, Message> {
+    fn framed(element: Element<'view, Message>) -> Self {
         Self {
             element,
             framing: PopupFraming::WholeContent,
@@ -186,9 +186,9 @@ pub struct HoverCardSurfaceStyle {
     pub float_offset_px: f32,
 }
 
-fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
-    content: Element<'a, Message>,
-) -> Element<'a, Message> {
+fn hoverable_content<'view, Message: From<PopupMessage> + Clone + 'view>(
+    content: Element<'view, Message>,
+) -> Element<'view, Message> {
     mouse_area(content)
         .on_enter(Message::from(PopupMessage::HoverCard(
             HoverCardMessage::EnterHoverCard,

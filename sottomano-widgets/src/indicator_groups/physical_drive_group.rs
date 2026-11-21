@@ -264,10 +264,10 @@ impl PhysicalDriveGroup {
             })
     }
 
-    fn transfer_indicators<'a>(
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-    ) -> impl Iterator<Item = GroupIndicator<'a>> {
+    fn transfer_indicators<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> impl Iterator<Item = GroupIndicator<'view>> {
         samples
             .activity
             .get()
@@ -292,11 +292,11 @@ impl PhysicalDriveGroup {
             })
     }
 
-    fn member_indicators<'a>(
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
+    fn member_indicators<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupIndicator<'a>> {
+    ) -> impl Iterator<Item = GroupIndicator<'view>> {
         samples
             .space
             .get()
@@ -317,12 +317,12 @@ impl PhysicalDriveGroup {
             })
     }
 
-    fn disk_group<'a>(
-        &'a self,
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
+    fn disk_group<'view>(
+        &'view self,
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
         locale: Locale,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let headline_indicator = self.disk_space_headline(disk, samples);
         let mut rows: Vec<_> = Self::member_indicators(disk, samples, locale).collect();
         Self::push_drive_health_indicators(&mut rows, disk, samples);
@@ -342,11 +342,11 @@ impl PhysicalDriveGroup {
         )
     }
 
-    fn disk_space_headline<'a>(
+    fn disk_space_headline<'view>(
         &self,
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-    ) -> GroupIndicator<'a> {
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> GroupIndicator<'view> {
         Self::wired_disk_space_indicator(
             disk,
             samples,
@@ -358,11 +358,11 @@ impl PhysicalDriveGroup {
         .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into())
     }
 
-    fn list_disk_space<'a>(
+    fn list_disk_space<'view>(
         &self,
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-        indicators: &mut Vec<GroupIndicator<'a>>,
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        indicators: &mut Vec<GroupIndicator<'view>>,
     ) {
         if !samples.space.awaits_first_delivery() {
             indicators.insert(
@@ -381,10 +381,10 @@ impl PhysicalDriveGroup {
         }
     }
 
-    fn push_drive_health_indicators<'a>(
-        rows: &mut Vec<GroupIndicator<'a>>,
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
+    fn push_drive_health_indicators<'view>(
+        rows: &mut Vec<GroupIndicator<'view>>,
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
     ) {
         if !samples.drive_health.awaits_first_delivery() {
             let health_indicator = samples.drive_health.indicator(
@@ -401,10 +401,10 @@ impl PhysicalDriveGroup {
         }
     }
 
-    fn push_disk_activity_indicators<'a>(
-        rows: &mut Vec<GroupIndicator<'a>>,
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
+    fn push_disk_activity_indicators<'view>(
+        rows: &mut Vec<GroupIndicator<'view>>,
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
     ) {
         if !samples.activity.awaits_first_delivery() {
             let activity_indicator = samples.activity.indicator(
@@ -421,11 +421,11 @@ impl PhysicalDriveGroup {
         }
     }
 
-    fn wired_disk_space_indicator<'a>(
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-        space_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_disk_space_indicator<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        space_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         space_indicator
             .with_hover_card(Box::new(move |_| {
                 samples.space.sections_described_by(disk_space_hover_card)
@@ -435,11 +435,11 @@ impl PhysicalDriveGroup {
             )))
     }
 
-    fn wired_drive_health_indicator<'a>(
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-        health_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_drive_health_indicator<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        health_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         health_indicator
             .with_hover_card(Box::new(move |_| {
                 samples
@@ -451,11 +451,11 @@ impl PhysicalDriveGroup {
             )))
     }
 
-    fn wired_disk_activity_indicator<'a>(
-        disk: &'a KernelDevice,
-        samples: &'a PhysicalDiskSamples,
-        activity_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_disk_activity_indicator<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        activity_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         activity_indicator
             .with_hover_card(Box::new(move |_| {
                 samples
@@ -465,10 +465,10 @@ impl PhysicalDriveGroup {
             .refreshed_by(refresh_activity(disk))
     }
 
-    fn mount_discovery_indicator<'a>(
-        &'a self,
-        discovery_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn mount_discovery_indicator<'view>(
+        &'view self,
+        discovery_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         discovery_row
             .with_hover_card(Box::new(move |_| {
                 self.discovery

@@ -14,31 +14,31 @@ use crate::icon_catalog::{
 };
 
 #[derive(Clone, Copy)]
-pub struct WindowAssets<'a> {
-    pub icon_catalog: &'a IconCatalog,
-    pub desktop_entries: &'a DesktopEntries,
-    pub favicons: &'a Favicons,
-    pub controller_artwork: &'a ControllerArtwork,
+pub struct WindowAssets<'assets> {
+    pub icon_catalog: &'assets IconCatalog,
+    pub desktop_entries: &'assets DesktopEntries,
+    pub favicons: &'assets Favicons,
+    pub controller_artwork: &'assets ControllerArtwork,
 }
 
-impl<'a> WindowAssets<'a> {
+impl<'assets> WindowAssets<'assets> {
     #[must_use]
     pub fn icon_for(
         &self,
         window_entry: &workspace_window_snapshot::WinEntry,
-    ) -> Option<&'a DrawableIcon> {
+    ) -> Option<&'assets DrawableIcon> {
         resolved_window_icon(self.icon_catalog, window_entry)
     }
 }
 
 #[must_use]
-pub fn window_icon<'a, Message: 'a>(
+pub fn window_icon<'view, Message: 'view>(
     favicons: &Favicons,
     favicon_key: Option<&str>,
     icon: Option<&DrawableIcon>,
     side: f32,
     opacity: f32,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'view, Message>> {
     if let Some(favicon) = favicon_key.and_then(|key| favicons.cached.get(key)) {
         return Some(favicon.view(side, opacity));
     }
@@ -46,10 +46,10 @@ pub fn window_icon<'a, Message: 'a>(
 }
 
 #[must_use]
-pub fn resolved_window_icon<'a>(
-    icon_catalog: &'a IconCatalog,
+pub fn resolved_window_icon<'assets>(
+    icon_catalog: &'assets IconCatalog,
     window_entry: &workspace_window_snapshot::WinEntry,
-) -> Option<&'a DrawableIcon> {
+) -> Option<&'assets DrawableIcon> {
     window_entry
         .icon_candidates()
         .into_iter()

@@ -368,10 +368,10 @@ impl StorageSpaceGroup {
         )
     }
 
-    fn wired_filesystem_usage_indicator<'a>(
-        filesystem: &'a MountedFilesystem,
-        usage_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_filesystem_usage_indicator<'view>(
+        filesystem: &'view MountedFilesystem,
+        usage_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         usage_indicator
             .with_hover_card(Box::new(move |_| {
                 filesystem
@@ -383,10 +383,10 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn subvolume_failure_indicator<'a>(
-        filesystem: &'a MountedFilesystem,
-        failure_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn subvolume_failure_indicator<'view>(
+        filesystem: &'view MountedFilesystem,
+        failure_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         failure_indicator
             .with_hover_card(Box::new(move |_| {
                 filesystem
@@ -410,7 +410,10 @@ impl StorageSpaceGroup {
             )))
     }
 
-    fn discovery_indicator<'a>(&'a self, discovery_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn discovery_indicator<'view>(
+        &'view self,
+        discovery_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         discovery_row
             .with_hover_card(Box::new(move |_| {
                 self.discovery

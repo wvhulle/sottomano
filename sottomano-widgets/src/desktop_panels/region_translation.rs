@@ -15,17 +15,18 @@ use iced::{
     mouse::Cursor,
 };
 
-type PayloadTranslation<'a, Payload> = Box<dyn Fn(&Payload, &mut dyn Operation) + Send + Sync + 'a>;
+type PayloadTranslation<'view, Payload> =
+    Box<dyn Fn(&Payload, &mut dyn Operation) + Send + Sync + 'view>;
 
-pub(crate) struct RegionTranslation<'a, Message, Payload> {
-    content: Element<'a, Message>,
-    translate: PayloadTranslation<'a, Payload>,
+pub(crate) struct RegionTranslation<'view, Message, Payload> {
+    content: Element<'view, Message>,
+    translate: PayloadTranslation<'view, Payload>,
 }
 
-pub(crate) fn translated_regions<'a, Message: 'a, Payload: 'static>(
-    content: impl Into<Element<'a, Message>>,
-    translate: impl Fn(&Payload, &mut dyn Operation) + Send + Sync + 'a,
-) -> Element<'a, Message> {
+pub(crate) fn translated_regions<'view, Message: 'view, Payload: 'static>(
+    content: impl Into<Element<'view, Message>>,
+    translate: impl Fn(&Payload, &mut dyn Operation) + Send + Sync + 'view,
+) -> Element<'view, Message> {
     Element::new(RegionTranslation {
         content: content.into(),
         translate: Box::new(translate),

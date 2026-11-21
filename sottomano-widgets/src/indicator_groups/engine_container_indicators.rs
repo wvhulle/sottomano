@@ -93,13 +93,13 @@ pub(crate) fn engine_container_name(
     }
 }
 
-pub(crate) struct RunningContainerIndicator<'a> {
-    pub(crate) container: &'a RunningContainer,
-    pub(crate) owner: &'a EngineOwner,
+pub(crate) struct RunningContainerIndicator<'view> {
+    pub(crate) container: &'view RunningContainer,
+    pub(crate) owner: &'view EngineOwner,
 }
 
-impl<'a> RunningContainerIndicator<'a> {
-    pub(crate) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> RunningContainerIndicator<'view> {
+    pub(crate) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.container.container_name, self.owner),
             Phosphor::Package(Weight::Regular).into(),
@@ -135,13 +135,13 @@ impl<'a> RunningContainerIndicator<'a> {
     }
 }
 
-pub(crate) struct StoppedContainerIndicator<'a> {
-    pub(crate) container: &'a StoppedContainer,
-    pub(crate) owner: &'a EngineOwner,
+pub(crate) struct StoppedContainerIndicator<'view> {
+    pub(crate) container: &'view StoppedContainer,
+    pub(crate) owner: &'view EngineOwner,
 }
 
-impl<'a> StoppedContainerIndicator<'a> {
-    pub(crate) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> StoppedContainerIndicator<'view> {
+    pub(crate) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             engine_container_name(&self.container.container_name, self.owner),
             Phosphor::Package(Weight::Regular).into(),
@@ -194,13 +194,13 @@ impl HiddenContainersIndicator {
     }
 }
 
-pub(crate) struct EngineContainers<'a> {
-    pub(crate) socket_path: &'a Path,
-    pub(crate) owner: &'a EngineOwner,
-    pub(crate) listing: &'a EngineListing,
+pub(crate) struct EngineContainers<'view> {
+    pub(crate) socket_path: &'view Path,
+    pub(crate) owner: &'view EngineOwner,
+    pub(crate) listing: &'view EngineListing,
 }
 
-impl<'a> EngineContainers<'a> {
+impl<'view> EngineContainers<'view> {
     fn container_address(&self, container_id: &str) -> EngineContainerAddress {
         EngineContainerAddress {
             socket_path: Cow::Owned(self.socket_path.display().to_string()),
@@ -211,7 +211,7 @@ impl<'a> EngineContainers<'a> {
     pub(crate) fn running_indicators<Message: Into<IndicatorGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupIndicator<'a>> {
+    ) -> Vec<GroupIndicator<'view>> {
         let owner = self.owner;
         self.listing
             .running
@@ -231,7 +231,7 @@ impl<'a> EngineContainers<'a> {
     pub(crate) fn stopped_indicators<Message: Into<IndicatorGroupInteraction>>(
         &self,
         switched: fn(ContainerSwitchRequest) -> Message,
-    ) -> Vec<GroupIndicator<'a>> {
+    ) -> Vec<GroupIndicator<'view>> {
         let owner = self.owner;
         self.listing
             .stopped

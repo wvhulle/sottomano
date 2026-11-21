@@ -31,7 +31,7 @@ use crate::{
         },
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
-        text::{font_faces_of, panel_text, text_face_of},
+        text::{panel_text, resolved_font_faces, resolved_text_face},
     },
 };
 
@@ -272,7 +272,7 @@ impl<Message: 'static> ValueCellView<Message> {
     fn styled_face(&self, font: &ResolvedFont) -> Font {
         Font {
             style: self.font_style,
-            ..font_faces_of(font).regular
+            ..resolved_font_faces(font).regular
         }
     }
 
@@ -303,7 +303,7 @@ impl<Message: 'static> ValueCellView<Message> {
             .max_width(self.max_width),
             text,
             self.transition,
-            text_face_of(font),
+            resolved_text_face(font),
             color,
         )
         .identified_by(row)
@@ -327,7 +327,7 @@ impl<Message: 'static> ValueCellView<Message> {
             unwrapped,
             text.clone(),
             self.transition,
-            text_face_of(&self.prose_font),
+            resolved_text_face(&self.prose_font),
             color,
         )
         .identified_by(row);
@@ -362,7 +362,7 @@ impl<Message: 'static> ValueCellView<Message> {
             underlined,
             label,
             self.transition,
-            text_face_of(&self.prose_font),
+            resolved_text_face(&self.prose_font),
             color,
         )
         .identified_by(link_cell)

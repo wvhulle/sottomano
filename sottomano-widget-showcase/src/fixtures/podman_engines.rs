@@ -26,11 +26,11 @@ const ROOTLESS_SOCKET: &str = "/run/user/1000/podman/podman.sock";
 const WOODPECKER_SOCKET: &str = "/run/woodpecker-agent-codeberg/podman.sock";
 const FORGEJO_SOCKET: &str = "/run/forgejo-runner-codeberg/podman.sock";
 
-fn podman_service<'a>(
-    unit: &'a str,
-    arguments: &'a [&'a str],
+fn podman_service<'fixture>(
+    unit: &'fixture str,
+    arguments: &'fixture [&'fixture str],
     account: ServiceAccount,
-) -> ShownService<'a> {
+) -> ShownService<'fixture> {
     ShownService {
         unit,
         program_name: "podman",

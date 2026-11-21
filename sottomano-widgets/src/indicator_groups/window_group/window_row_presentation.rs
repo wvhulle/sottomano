@@ -59,10 +59,10 @@ impl WindowSlotPresentation {
     }
 }
 
-pub(super) struct ArrangedWindowRows<'a> {
-    pub(super) groups: Vec<SlotGroup<'a, WindowListInteraction>>,
+pub(super) struct ArrangedWindowRows<'view> {
+    pub(super) groups: Vec<SlotGroup<'view, WindowListInteraction>>,
     pub(super) presentations: Vec<WindowSlotPresentation>,
-    pub(super) ungrouped_slot_look: UngroupedSlotLook<'a>,
+    pub(super) ungrouped_slot_look: UngroupedSlotLook<'view>,
 }
 
 #[cfg(test)]

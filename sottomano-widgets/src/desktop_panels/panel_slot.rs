@@ -13,37 +13,42 @@ use crate::{
     widgets::shared_metrics::ACCENT_STROKE_PX,
 };
 
-pub(crate) fn dragged_slot_content<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub(crate) fn dragged_slot_content<'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     config: &Config,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     container(content)
         .padding([0.0, config.theme.spacing.item_gap])
         .center_y(config.desktop_panels.height)
         .into()
 }
 
-pub struct PanelSlot<'a, Message> {
-    content: Element<'a, Message>,
-    indicator: Element<'a, Message>,
-    ticks: Option<Element<'a, Message>>,
+pub struct PanelSlot<'view, Message> {
+    content: Element<'view, Message>,
+    indicator: Element<'view, Message>,
+    ticks: SlotTicks<'view, Message>,
     along_panel_padding: f32,
 }
 
-impl<'a, Message: 'a> PanelSlot<'a, Message> {
+enum SlotTicks<'view, Message> {
+    Unticked,
+    Ticked(Element<'view, Message>),
+}
+
+impl<'view, Message: 'view> PanelSlot<'view, Message> {
     #[must_use]
-    pub fn new(content: Element<'a, Message>, indicator: Element<'a, Message>) -> Self {
+    pub fn new(content: Element<'view, Message>, indicator: Element<'view, Message>) -> Self {
         Self {
             content,
             indicator,
-            ticks: None,
+            ticks: SlotTicks::Unticked,
             along_panel_padding: 0.0,
         }
     }
 
     #[must_use]
-    pub fn ticks(mut self, ticks: Element<'a, Message>) -> Self {
-        self.ticks = Some(ticks);
+    pub fn ticks(mut self, ticks: Element<'view, Message>) -> Self {
+        self.ticks = SlotTicks::Ticked(ticks);
         self
     }
 
@@ -54,7 +59,7 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
     }
 
     #[must_use]
-    pub fn view(self, position: Position) -> Element<'a, Message> {
+    pub fn view(self, position: Position) -> Element<'view, Message> {
         self.arranged(position, identity)
     }
 
@@ -64,8 +69,8 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
         position: Position,
         opening: NestedMenuOpenTrigger,
         target: HoverTarget,
-        wrap: impl Fn(HoverCardMessage) -> Message + 'a,
-    ) -> Element<'a, Message> {
+        wrap: impl Fn(HoverCardMessage) -> Message + 'view,
+    ) -> Element<'view, Message> {
         self.arranged(position, |label_with_edge_line| {
             hoverable(opening, label_with_edge_line, target, wrap)
         })
@@ -74,8 +79,8 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
     fn arranged(
         self,
         position: Position,
-        wrap_target: impl FnOnce(Element<'a, Message>) -> Element<'a, Message>,
-    ) -> Element<'a, Message> {
+        wrap_target: impl FnOnce(Element<'view, Message>) -> Element<'view, Message>,
+    ) -> Element<'view, Message> {
         let band = ACCENT_STROKE_PX;
         let Self {
             content,
@@ -99,7 +104,10 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
                 ])),
             ]),
             Position::Left => Row::with_children([
-                ticks.unwrap_or_else(|| Space::new().width(band).into()),
+                match ticks {
+                    SlotTicks::Ticked(ticks) => ticks,
+                    SlotTicks::Unticked => Space::new().width(band).into(),
+                },
                 wrap_target(
                     Row::with_children([
                         container(content)
@@ -117,9 +125,9 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
     }
 }
 
-fn stacked<'a, Message: 'a, const BAND_COUNT: usize>(
-    bands: [Element<'a, Message>; BAND_COUNT],
-) -> Element<'a, Message> {
+fn stacked<'view, Message: 'view, const BAND_COUNT: usize>(
+    bands: [Element<'view, Message>; BAND_COUNT],
+) -> Element<'view, Message> {
     Column::with_children(bands)
         .width(Length::Shrink)
         .height(Length::Fill)
@@ -127,10 +135,10 @@ fn stacked<'a, Message: 'a, const BAND_COUNT: usize>(
         .into()
 }
 
-fn label_across_bar<'a, Message: 'a>(
-    content: Element<'a, Message>,
+fn label_across_bar<'view, Message: 'view>(
+    content: Element<'view, Message>,
     along_panel_padding: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     container(content)
         .padding(Padding::ZERO.horizontal(along_panel_padding))
         .height(Length::Fill)
@@ -138,15 +146,15 @@ fn label_across_bar<'a, Message: 'a>(
         .into()
 }
 
-fn ticks_across<'a, Message: 'a>(
-    ticks: Option<Element<'a, Message>>,
+fn ticks_across<'view, Message: 'view>(
+    ticks: SlotTicks<'view, Message>,
     band: f32,
     edge: Vertical,
-) -> Element<'a, Message> {
-    ticks.map_or_else(
-        || Space::new().height(band).into(),
-        |ticks| container(ticks).height(band).align_y(edge).into(),
-    )
+) -> Element<'view, Message> {
+    match ticks {
+        SlotTicks::Ticked(ticks) => container(ticks).height(band).align_y(edge).into(),
+        SlotTicks::Unticked => Space::new().height(band).into(),
+    }
 }
 
 #[cfg(test)]

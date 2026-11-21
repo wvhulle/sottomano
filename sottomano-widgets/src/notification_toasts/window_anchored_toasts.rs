@@ -32,11 +32,11 @@ use crate::{
     widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
 };
 
-impl<'a> WindowAnchoredToasts<'a> {
+impl<'view> WindowAnchoredToasts<'view> {
     #[must_use]
     pub fn new(
         output: &str,
-        toasts: Vec<AnchoredToast<'a>>,
+        toasts: Vec<AnchoredToast<'view>>,
         panel_clearance: Padding,
         overlays: &LayerAppearance,
         background_fade: CardBackgroundFade,
@@ -75,20 +75,20 @@ impl<'a> WindowAnchoredToasts<'a> {
     }
 }
 
-impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
-    fn from(toasts: WindowAnchoredToasts<'a>) -> Self {
+impl<'view> From<WindowAnchoredToasts<'view>> for Element<'view, NotificationMessage> {
+    fn from(toasts: WindowAnchoredToasts<'view>) -> Self {
         Element::new(toasts)
     }
 }
 
-pub struct WindowAnchoredToasts<'a> {
+pub struct WindowAnchoredToasts<'view> {
     output: String,
     panel_clearance: Padding,
     card_roles: RegionRoles,
     ids: Vec<u32>,
     settled_ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
-    cards: Vec<Element<'a, NotificationMessage>>,
+    cards: Vec<Element<'view, NotificationMessage>>,
     background_fade: CardBackgroundFade,
     motion: Duration,
     anchor_spacing: ToastAnchorSpacing,
@@ -132,9 +132,16 @@ fn motion(value: f32, duration: Duration) -> Animation<f32> {
 struct FieldState {
     order: ChildOrder,
     drift: Drifts,
-    frame: Option<Instant>,
+    last_redraw: LastRedraw,
     published_cards: Vec<Rectangle>,
     reported_settled_ids: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum LastRedraw {
+    #[default]
+    NotYetRedrawn,
+    RedrawnAt(Instant),
 }
 
 #[derive(Default)]
@@ -201,13 +208,13 @@ impl Drifts {
 }
 
 fn snapped(bounds: Rectangle) -> Rectangle {
-    let x = bounds.x.ceil();
-    let y = bounds.y.ceil();
+    let left_edge = bounds.x.ceil();
+    let top_edge = bounds.y.ceil();
     Rectangle {
-        x,
-        y,
-        width: (bounds.x + bounds.width).floor() - x,
-        height: (bounds.y + bounds.height).floor() - y,
+        x: left_edge,
+        y: top_edge,
+        width: (bounds.x + bounds.width).floor() - left_edge,
+        height: (bounds.y + bounds.height).floor() - top_edge,
     }
 }
 
@@ -217,12 +224,12 @@ fn card_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
         .map(|card_layout| snapped(card_layout.bounds()))
 }
 
-impl<'a> WindowAnchoredToasts<'a> {
-    fn views<'t>(
-        &'t self,
-        tree: &'t Tree,
-        layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, NotificationMessage>> {
+impl<'view> WindowAnchoredToasts<'view> {
+    fn views<'tree>(
+        &'tree self,
+        tree: &'tree Tree,
+        layout: Layout<'tree>,
+    ) -> impl DoubleEndedIterator<Item = ChildView<'tree, 'view, NotificationMessage>> {
         self.cards
             .iter()
             .zip(&tree.children)
@@ -234,11 +241,11 @@ impl<'a> WindowAnchoredToasts<'a> {
             })
     }
 
-    fn views_mut<'t>(
-        &'t mut self,
-        tree: &'t mut Tree,
-        layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, NotificationMessage>> {
+    fn views_mut<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
+    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'tree, 'view, NotificationMessage>> {
         self.cards
             .iter_mut()
             .zip(&mut tree.children)
@@ -412,11 +419,11 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
                 toast_ids: newly_settled_ids,
             });
         }
-        if state.frame == Some(*frame) {
+        if state.last_redraw == LastRedraw::RedrawnAt(*frame) {
             shell.request_redraw();
             return;
         }
-        state.frame = Some(*frame);
+        state.last_redraw = LastRedraw::RedrawnAt(*frame);
         let drift_motion = state.drift.advance(*frame);
         if drift_motion == MotionState::Moving {
             shell.invalidate_layout();
@@ -448,14 +455,14 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             .unwrap_or_default()
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, NotificationMessage, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, NotificationMessage, iced::Theme, iced::Renderer>> {
         overlay::from_children(
             &mut self.cards,
             tree,

@@ -172,14 +172,14 @@ impl WindowGroup {
     }
 
     #[must_use]
-    pub fn view<'a>(
-        &'a self,
+    pub fn view<'view>(
+        &'view self,
         compositor: &workspace_window_snapshot::Snapshot,
-        icons: WindowAssets<'a>,
+        icons: WindowAssets<'view>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
-        slot_context: PanelSlotContext<'a>,
-    ) -> Option<Element<'a, GroupEvent>> {
+        slot_context: PanelSlotContext<'view>,
+    ) -> Option<Element<'view, GroupEvent>> {
         self.window_list
             .view(compositor, icons, audio, output, slot_context)
             .map(|element| {

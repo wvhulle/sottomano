@@ -51,13 +51,13 @@ const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
     },
 };
 
-struct MicrovmUnitIndicator<'a> {
-    unit: &'a MicrovmUnit,
+struct MicrovmUnitIndicator<'view> {
+    unit: &'view MicrovmUnit,
     activity: UnitActivity,
 }
 
-impl<'a> MicrovmUnitIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> MicrovmUnitIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let state = match self.activity {
             UnitActivity::Running => IndicatorState::On,
             UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
@@ -87,12 +87,12 @@ impl<'a> MicrovmUnitIndicator<'a> {
     }
 }
 
-struct MicrovmGuestListingIndicator<'a> {
-    listing: &'a MicrovmGuestListing,
+struct MicrovmGuestListingIndicator<'view> {
+    listing: &'view MicrovmGuestListing,
 }
 
-impl<'a> MicrovmGuestListingIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> MicrovmGuestListingIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.listing.machine_name.clone(),
             Phosphor::Lightning(Weight::Regular).into(),
@@ -121,8 +121,8 @@ fn managed_by(machine: &MicrovmGuest, unit: &MicrovmUnit) -> bool {
     matches!(&machine.enclosing_unit, EnclosingUnit::Service(unit_name) if *unit_name == unit.unit_name)
 }
 
-struct MicrovmGuestIndicator<'a> {
-    machine: &'a MicrovmGuest,
+struct MicrovmGuestIndicator<'view> {
+    machine: &'view MicrovmGuest,
 }
 
 impl MicrovmGuestIndicator<'_> {
@@ -156,8 +156,8 @@ impl MicrovmGuestIndicator<'_> {
     }
 }
 
-impl<'a> MicrovmGuestIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> MicrovmGuestIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.machine.listing.machine_name.clone(),
             Phosphor::Lightning(Weight::Regular).into(),
@@ -352,7 +352,7 @@ impl MicrovmGuestsGroup {
             .unwrap_or(UnitActivity::Stopped)
     }
 
-    fn running_guest_of(&self, unit: &MicrovmUnit) -> Option<&MicrovmGuest> {
+    fn managed_running_guest(&self, unit: &MicrovmUnit) -> Option<&MicrovmGuest> {
         self.detail
             .get()?
             .details
@@ -383,8 +383,8 @@ impl MicrovmGuestsGroup {
         rows
     }
 
-    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupIndicator<'a> {
-        let row = match self.running_guest_of(unit) {
+    fn unit_row<'view>(&'view self, unit: &'view MicrovmUnit) -> GroupIndicator<'view> {
+        let row = match self.managed_running_guest(unit) {
             Some(machine) => MicrovmGuestIndicator { machine }
                 .indicator()
                 .with_hover_card(Box::new(move |clock| {
@@ -411,10 +411,10 @@ impl MicrovmGuestsGroup {
         }
     }
 
-    fn unmanaged_guest_indicators<'a>(
-        &'a self,
-        units: &'a [MicrovmUnit],
-    ) -> Vec<GroupIndicator<'a>> {
+    fn unmanaged_guest_indicators<'view>(
+        &'view self,
+        units: &'view [MicrovmUnit],
+    ) -> Vec<GroupIndicator<'view>> {
         let managed_by_unit =
             |machine: &MicrovmGuest| units.iter().any(|unit| managed_by(machine, unit));
         if let Some(detail) = self.detail.get() {

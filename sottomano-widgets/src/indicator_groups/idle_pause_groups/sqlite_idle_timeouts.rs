@@ -1,29 +1,42 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use sottomano_desktop_sources::{
     login_session_presence::idle_session_actions::IdleAction,
     sqlite_state_store::{Columns, StoreError, in_state_store, with_state_store},
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+use crate::widgets::idle::IdleTimeout;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Timeouts {
-    pub lock_user: Option<Duration>,
-    pub screen_off: Option<Duration>,
-    pub sleep: Option<Duration>,
-    pub hibernate: Option<Duration>,
-    pub power_down: Option<Duration>,
+    enabled_timeouts: HashMap<IdleAction, Duration>,
+}
+
+impl FromIterator<(IdleAction, Duration)> for Timeouts {
+    fn from_iter<Enabled: IntoIterator<Item = (IdleAction, Duration)>>(enabled: Enabled) -> Self {
+        Self {
+            enabled_timeouts: enabled.into_iter().collect(),
+        }
+    }
 }
 
 impl Timeouts {
     #[must_use]
-    pub fn timeout_for(self, action: IdleAction) -> Option<Duration> {
-        match action {
-            IdleAction::Lock => self.lock_user,
-            IdleAction::ScreenOff => self.screen_off,
-            IdleAction::Sleep => self.sleep,
-            IdleAction::Hibernate => self.hibernate,
-            IdleAction::PowerOff => self.power_down,
+    pub fn timeout_for(&self, action: IdleAction) -> IdleTimeout {
+        match self.enabled_timeouts.get(&action) {
+            Some(timeout) => IdleTimeout::After(*timeout),
+            None => IdleTimeout::Never,
         }
+    }
+}
+
+fn idle_action_store_key(action: IdleAction) -> &'static str {
+    match action {
+        IdleAction::Lock => "lock_user",
+        IdleAction::ScreenOff => "screen_off",
+        IdleAction::Sleep => "sleep",
+        IdleAction::Hibernate => "hibernate",
+        IdleAction::PowerOff => "power_down",
     }
 }
 
@@ -34,7 +47,7 @@ pub async fn load() -> Timeouts {
 }
 
 pub async fn save(timeouts: Timeouts) -> Result<(), StoreError> {
-    in_state_store(async |connection| write_timeouts(connection, timeouts).await).await
+    in_state_store(async |connection| write_timeouts(connection, &timeouts).await).await
 }
 
 async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {
@@ -45,50 +58,38 @@ async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, Store
         )
         .await?;
     let columns = Columns::from(&rows);
-    let mut timeouts = Timeouts::default();
+    let mut enabled_timeouts = HashMap::new();
     while let Some(row) = rows.next().await? {
-        let after = Some(Duration::from_secs(
-            columns.ranged_integer(&row, "after_seconds")?,
-        ));
-        match columns.text(&row, "idle_action")?.as_str() {
-            "lock_user" => timeouts.lock_user = after,
-            "screen_off" => timeouts.screen_off = after,
-            "sleep" => timeouts.sleep = after,
-            "hibernate" => timeouts.hibernate = after,
-            "power_down" => timeouts.power_down = after,
-            _ => {}
+        let after = Duration::from_secs(columns.ranged_integer(&row, "after_seconds")?);
+        let stored_key = columns.text(&row, "idle_action")?;
+        if let Some(action) = IdleAction::ALL
+            .into_iter()
+            .find(|action| idle_action_store_key(*action) == stored_key)
+        {
+            enabled_timeouts.insert(action, after);
         }
     }
-    Ok(timeouts)
+    Ok(Timeouts { enabled_timeouts })
 }
 
 async fn write_timeouts(
     connection: &turso::Connection,
-    timeouts: Timeouts,
+    timeouts: &Timeouts,
 ) -> Result<(), StoreError> {
     connection
         .execute("DELETE FROM idle_action_offsets", ())
         .await?;
-    let enabled_actions = [
-        ("lock_user", timeouts.lock_user),
-        ("screen_off", timeouts.screen_off),
-        ("sleep", timeouts.sleep),
-        ("hibernate", timeouts.hibernate),
-        ("power_down", timeouts.power_down),
-    ];
-    for (idle_action, timeout) in enabled_actions {
-        if let Some(duration) = timeout {
-            connection
-                .execute(
-                    "INSERT INTO idle_action_offsets (idle_action, after_seconds) VALUES (?1, ?2)",
-                    (
-                        idle_action,
-                        i64::try_from(duration.as_secs())
-                            .expect("an idle offset is shorter than i64::MAX seconds"),
-                    ),
-                )
-                .await?;
-        }
+    for (action, duration) in &timeouts.enabled_timeouts {
+        connection
+            .execute(
+                "INSERT INTO idle_action_offsets (idle_action, after_seconds) VALUES (?1, ?2)",
+                (
+                    idle_action_store_key(*action),
+                    i64::try_from(duration.as_secs())
+                        .expect("an idle offset is shorter than i64::MAX seconds"),
+                ),
+            )
+            .await?;
     }
     Ok(())
 }
@@ -97,21 +98,23 @@ async fn write_timeouts(
 mod tests {
     use std::time::Duration;
 
-    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
+    use sottomano_desktop_sources::{
+        login_session_presence::idle_session_actions::IdleAction,
+        sqlite_state_store::migrated_in_memory_store,
+    };
 
     use super::{Timeouts, read_timeouts, write_timeouts};
 
     #[tokio::test]
     async fn timeouts_survive_a_round_trip() {
         let connection = migrated_in_memory_store().await;
-        let timeouts = Timeouts {
-            lock_user: Some(Duration::from_secs(60)),
-            screen_off: None,
-            sleep: Some(Duration::from_secs(600)),
-            hibernate: Some(Duration::from_mins(30)),
-            power_down: Some(Duration::from_secs(3600)),
-        };
-        write_timeouts(&connection, timeouts).await.unwrap();
+        let timeouts = Timeouts::from_iter([
+            (IdleAction::Lock, Duration::from_secs(60)),
+            (IdleAction::Sleep, Duration::from_secs(600)),
+            (IdleAction::Hibernate, Duration::from_mins(30)),
+            (IdleAction::PowerOff, Duration::from_secs(3600)),
+        ]);
+        write_timeouts(&connection, &timeouts).await.unwrap();
 
         assert_eq!(read_timeouts(&connection).await.unwrap(), timeouts);
     }
@@ -122,20 +125,18 @@ mod tests {
 
         assert_eq!(
             read_timeouts(&connection).await.unwrap(),
-            Timeouts {
-                lock_user: Some(Duration::from_mins(5)),
-                screen_off: Some(Duration::ZERO),
-                sleep: Some(Duration::from_mins(15)),
-                hibernate: None,
-                power_down: None,
-            }
+            Timeouts::from_iter([
+                (IdleAction::Lock, Duration::from_mins(5)),
+                (IdleAction::ScreenOff, Duration::ZERO),
+                (IdleAction::Sleep, Duration::from_mins(15)),
+            ])
         );
     }
 
     #[tokio::test]
     async fn disabling_every_timeout_survives_a_reload() {
         let connection = migrated_in_memory_store().await;
-        write_timeouts(&connection, Timeouts::default())
+        write_timeouts(&connection, &Timeouts::default())
             .await
             .unwrap();
 

@@ -59,8 +59,8 @@ const fn suited_work(preference: X3dCachePreference) -> &'static str {
     }
 }
 
-pub struct ChipletRoles<'a> {
-    pub topology: &'a CpuTopology,
+pub struct ChipletRoles<'snapshot> {
+    pub topology: &'snapshot CpuTopology,
 }
 
 impl ChipletRoles<'_> {

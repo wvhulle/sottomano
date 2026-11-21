@@ -47,11 +47,11 @@ impl From<&CoredumpEntry> for TableRecord<4> {
 pub(super) const COREDUMP_LOG_GLYPH: Phosphor = Phosphor::Bug(Weight::Regular);
 
 impl JournalScopeGroup {
-    pub(super) fn wired_coredump_log_indicator<'a>(
-        &'a self,
+    pub(super) fn wired_coredump_log_indicator<'view>(
+        &'view self,
         config: &Config,
-        coredump_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+        coredump_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         coredump_indicator
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

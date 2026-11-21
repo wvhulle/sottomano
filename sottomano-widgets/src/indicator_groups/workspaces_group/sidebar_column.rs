@@ -17,14 +17,14 @@ use crate::{
     widgets::pointer_drag::{PanelSlotList, reorderable_list::reorderable_list},
 };
 
-pub fn vertical_view<'a>(
+pub fn vertical_view<'view>(
     compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
     frame_corners: Radius,
     slot_context: PanelSlotContext<'_>,
-) -> Option<Element<'a, WorkspacesMessage>> {
+) -> Option<Element<'view, WorkspacesMessage>> {
     let slot_context = PanelSlotContext {
         edge: Position::Left,
         ..slot_context

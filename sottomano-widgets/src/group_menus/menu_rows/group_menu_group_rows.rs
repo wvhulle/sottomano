@@ -21,20 +21,20 @@ use crate::{
     widgets::glyph_button,
 };
 
-pub(crate) struct GroupMenuGroupRow<'a> {
+pub(crate) struct GroupMenuGroupRow<'view> {
     pub group_identity: IndicatorGroupIdentity,
     pub group_title: IndicatorGroupTitle,
-    pub headline_indicator: GroupIndicator<'a>,
-    pub indicators: Vec<GroupIndicator<'a>>,
+    pub headline_indicator: GroupIndicator<'view>,
+    pub indicators: Vec<GroupIndicator<'view>>,
 }
 
-pub(crate) fn one_row_per_identity<'a>(
-    rows: impl IntoIterator<Item = GroupMenuGroupRow<'a>>,
-) -> Vec<GroupMenuGroupRow<'a>> {
+pub(crate) fn one_row_per_identity<'view>(
+    rows: impl IntoIterator<Item = GroupMenuGroupRow<'view>>,
+) -> Vec<GroupMenuGroupRow<'view>> {
     rows.into_iter().fold(Vec::new(), |mut merged, row| {
         match merged
             .iter_mut()
-            .find(|existing: &&mut GroupMenuGroupRow<'a>| {
+            .find(|existing: &&mut GroupMenuGroupRow<'view>| {
                 existing.group_identity == row.group_identity
             }) {
             Some(existing) => existing.indicators.extend(row.indicators),
@@ -44,20 +44,20 @@ pub(crate) fn one_row_per_identity<'a>(
     })
 }
 
-pub(crate) struct GroupMenuRowContext<'p> {
-    pub config: &'p Config,
-    pub menu: &'p GroupMenuMessenger,
-    pub group_menus: &'p GroupMenuState,
+pub(crate) struct GroupMenuRowContext<'menu> {
+    pub config: &'menu Config,
+    pub menu: &'menu GroupMenuMessenger,
+    pub group_menus: &'menu GroupMenuState,
     pub clock: Clock,
 }
 
-pub(crate) fn group_header<'a>(
+pub(crate) fn group_header<'view>(
     layout: &GroupMenuRowContext<'_>,
     entry_identity: &IndicatorGroupIdentity,
     group_title: &IndicatorGroupTitle,
-    headline_indicator: &GroupIndicator<'a>,
+    headline_indicator: &GroupIndicator<'view>,
     emphasis: MenuRowEmphasis,
-) -> MenuRowContent<'a, GroupEvent> {
+) -> MenuRowContent<'view, GroupEvent> {
     let pinned_entry = GroupMenuPin::Group(entry_identity.clone());
     let pin = anchor_marker(
         glyph_button(
@@ -74,11 +74,11 @@ pub(crate) fn group_header<'a>(
         .trailing([pin])
 }
 
-pub(crate) fn indicator_entry<'a>(
+pub(crate) fn indicator_entry<'view>(
     layout: &GroupMenuRowContext<'_>,
     group_identity: &IndicatorGroupIdentity,
-    indicator: &GroupIndicator<'a>,
-) -> MenuItem<'a, GroupEvent> {
+    indicator: &GroupIndicator<'view>,
+) -> MenuItem<'view, GroupEvent> {
     let emphasis = indicator.row_emphasis(
         group_identity,
         layout
@@ -157,7 +157,7 @@ mod tests {
         indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
     };
 
-    fn row_of<'row>(
+    fn glyph_group_row<'row>(
         group_identity: IndicatorGroupIdentity,
         title: &str,
     ) -> GroupMenuGroupRow<'row> {
@@ -176,18 +176,21 @@ mod tests {
     #[test]
     fn groups_of_one_identity_share_a_row() {
         let gpu = IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu);
-        let rows = one_row_per_identity([row_of(gpu.clone(), "GPU"), row_of(gpu, "GPU")]);
+        let rows = one_row_per_identity([
+            glyph_group_row(gpu.clone(), "GPU"),
+            glyph_group_row(gpu, "GPU"),
+        ]);
         assert_eq!(rows.len(), 1);
     }
 
     #[test]
     fn instances_of_one_family_keep_their_own_rows() {
         let rows = one_row_per_identity([
-            row_of(
+            glyph_group_row(
                 IndicatorGroupIdentity::durable(IndicatorGroupFamily::PhysicalDrive, "sda"),
                 "a",
             ),
-            row_of(
+            glyph_group_row(
                 IndicatorGroupIdentity::durable(IndicatorGroupFamily::PhysicalDrive, "sdb"),
                 "b",
             ),
@@ -198,11 +201,11 @@ mod tests {
     #[test]
     fn a_player_named_audio_keeps_its_own_row() {
         let rows = one_row_per_identity([
-            row_of(
+            glyph_group_row(
                 IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio),
                 "Audio",
             ),
-            row_of(
+            glyph_group_row(
                 IndicatorGroupIdentity::durable(IndicatorGroupFamily::Media, "Audio"),
                 "Audio",
             ),

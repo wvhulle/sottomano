@@ -93,7 +93,13 @@ pub fn duration_text(length: impl LengthOfTime, locale: Locale) -> String {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct DurationFormatterKey {
     locale: Locale,
-    shows_zero_seconds: bool,
+    span_length: SpanLength,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum SpanLength {
+    Zero,
+    NonZero,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -115,7 +121,7 @@ thread_local! {
 fn new_duration_formatter(key: DurationFormatterKey) -> DurationFormatter {
     let mut options = DurationFormatterOptions::default();
     options.base = BaseStyle::Narrow;
-    if key.shows_zero_seconds {
+    if key.span_length == SpanLength::Zero {
         options.second_visibility = Some(FieldDisplay::Always);
     }
     let validated = ValidatedDurationFormatterOptions::validate(options)
@@ -127,7 +133,11 @@ fn new_duration_formatter(key: DurationFormatterKey) -> DurationFormatter {
 fn formatted_span(span: Span, locale: Locale) -> String {
     let key = DurationFormatterKey {
         locale,
-        shows_zero_seconds: span.is_zero(),
+        span_length: if span.is_zero() {
+            SpanLength::Zero
+        } else {
+            SpanLength::NonZero
+        },
     };
     let mut duration = IcuDuration::new();
     duration.days = u64::from(span.get_days().unsigned_abs());

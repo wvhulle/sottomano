@@ -40,11 +40,11 @@ use crate::{
     },
 };
 
-pub(super) fn wired_failed_units_indicator<'a>(
-    failed: &'a FailedUnits,
-    config: &'a Config,
+pub(super) fn wired_failed_units_indicator<'view>(
+    failed: &'view FailedUnits,
+    config: &'view Config,
     clock: Clock,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {

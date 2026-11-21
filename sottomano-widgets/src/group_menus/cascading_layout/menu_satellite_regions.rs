@@ -12,10 +12,10 @@ pub(crate) struct SatelliteBlur {
     pub beside: BackdropBlur,
 }
 
-pub(crate) fn satellite_with_regions<'a, Message: 'a>(
-    satellite: Element<'a, Message>,
+pub(crate) fn satellite_with_regions<'view, Message: 'view>(
+    satellite: Element<'view, Message>,
     satellite_blur: SatelliteBlur,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     translated_regions(
         satellite,
         move |regions: &NotchedPanelRegions, operation| {

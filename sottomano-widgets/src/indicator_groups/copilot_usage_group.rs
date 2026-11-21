@@ -211,7 +211,7 @@ impl CopilotUsageGroup {
         .with_headline_glyph(SimpleIcon::GitHubCopilot.into())
     }
 
-    fn list_metered<'a>(&'a self, clock: Clock, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_metered<'view>(&'view self, clock: Clock, indicators: &mut Vec<GroupIndicator<'view>>) {
         if !self.metered.awaits_first_delivery() {
             indicators.insert(
                 0,
@@ -223,7 +223,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_free_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_free_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if !self.free.awaits_first_delivery() {
             let free_row = self.free.indicator(
                 |held_snapshot| copilot_free_indicator(held_snapshot),
@@ -235,7 +235,11 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_cli_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>, clock: Clock) {
+    fn push_cli_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+        clock: Clock,
+    ) {
         if !self.cli.awaits_first_delivery() {
             let cli_row = self.cli.indicator(
                 |held_snapshot| copilot_ccusage_indicator(held_snapshot, clock),
@@ -247,7 +251,7 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn push_model_ranking_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_model_ranking_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(ranking) = self.model_ranking() {
             rows.push(
                 ranking
@@ -268,7 +272,10 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn metered_indicator<'a>(&'a self, metered_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn metered_indicator<'view>(
+        &'view self,
+        metered_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         metered_row
             .with_hover_card(Box::new(move |_| {
                 self.metered
@@ -279,7 +286,10 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn free_indicator<'a>(&'a self, free_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn free_indicator<'view>(
+        &'view self,
+        free_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         free_row
             .with_hover_card(Box::new(move |_| {
                 self.free.sections_described_by(copilot_free_hover_card)
@@ -289,7 +299,7 @@ impl CopilotUsageGroup {
             ))
     }
 
-    fn cli_indicator<'a>(&'a self, cli_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn cli_indicator<'view>(&'view self, cli_row: GroupIndicator<'view>) -> GroupIndicator<'view> {
         cli_row
             .with_hover_card(Box::new(move |_| {
                 self.cli.sections_described_by(copilot_ccusage_hover_card)

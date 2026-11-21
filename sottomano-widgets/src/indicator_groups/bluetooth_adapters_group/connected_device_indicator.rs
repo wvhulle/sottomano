@@ -37,11 +37,11 @@ pub enum InputReports {
     Streamed(MeasuredReportTiming),
 }
 
-pub struct ConnectedDeviceIndicator<'a> {
-    pub device: &'a ConnectedDevice,
+pub struct ConnectedDeviceIndicator<'view> {
+    pub device: &'view ConnectedDevice,
     pub short_label: String,
     pub recent_reconnects: usize,
-    pub kernel_errors: Vec<&'a DeviceKernelError>,
+    pub kernel_errors: Vec<&'view DeviceKernelError>,
     pub input_reports: InputReports,
 }
 
@@ -174,9 +174,9 @@ impl ConnectedDeviceIndicator<'_> {
     }
 }
 
-impl<'a> ConnectedDeviceIndicator<'a> {
+impl<'view> ConnectedDeviceIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let state =
             if self.battery_drain_to(CRITICAL_BATTERY_PERCENT) == BatteryDrain::BelowThreshold {
                 IndicatorState::Critical
@@ -263,7 +263,7 @@ mod tests {
         }
     }
 
-    fn labels_of(devices: &[ConnectedDevice]) -> Vec<String> {
+    fn device_short_labels(devices: &[ConnectedDevice]) -> Vec<String> {
         devices
             .iter()
             .map(|device| short_label(device, devices))
@@ -277,7 +277,7 @@ mod tests {
             named_device("Red DualSense Wireless Controller"),
             named_device("WH-1000XM4"),
         ];
-        assert_eq!(labels_of(&devices), ["Blue", "Red", "WH-1000X"]);
+        assert_eq!(device_short_labels(&devices), ["Blue", "Red", "WH-1000X"]);
     }
 
     #[test]
@@ -286,6 +286,9 @@ mod tests {
             named_device("DualSense Blue"),
             named_device("DualSense Red"),
         ];
-        assert_eq!(labels_of(&devices), ["DualSense Blue", "DualSense Red"]);
+        assert_eq!(
+            device_short_labels(&devices),
+            ["DualSense Blue", "DualSense Red"]
+        );
     }
 }

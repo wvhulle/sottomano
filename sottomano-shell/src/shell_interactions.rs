@@ -13,7 +13,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::DesktopShell,
+    desktop_shell::{DesktopBusLink, DesktopShell},
     shell_message::{Message, ShellInteraction},
 };
 
@@ -91,7 +91,7 @@ impl DesktopShell {
     fn interact_group(&mut self, group_interaction: IndicatorGroupInteraction) -> Task<Message> {
         match IndicatorGroupBusRequest::try_from(group_interaction) {
             Ok(bus_request) => {
-                let Some(buses) = &self.desktop_buses else {
+                let DesktopBusLink::Connected(buses) = &self.desktop_buses else {
                     return Task::none();
                 };
                 self.indicator_groups

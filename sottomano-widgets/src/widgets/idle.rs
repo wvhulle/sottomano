@@ -40,16 +40,28 @@ pub const MAX_POSITION: f32 = LADDER.len() as f32;
 
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
-pub fn position(timeout: Option<Duration>) -> f32 {
-    timeout
-        .and_then(|timeout| (0..LADDER.len()).min_by_key(|rung| LADDER[*rung].abs_diff(timeout)))
+pub fn position(timeout: IdleTimeout) -> f32 {
+    let IdleTimeout::After(timeout) = timeout else {
+        return MAX_POSITION;
+    };
+    (0..LADDER.len())
+        .min_by_key(|rung| LADDER[*rung].abs_diff(timeout))
         .map_or(MAX_POSITION, |rung| rung as f32)
 }
 
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 #[must_use]
-pub fn timeout_at(position: f32) -> Option<Duration> {
-    LADDER.get(position.round().max(0.0) as usize).copied()
+pub fn timeout_at(position: f32) -> IdleTimeout {
+    match LADDER.get(position.round().max(0.0) as usize) {
+        Some(timeout) => IdleTimeout::After(*timeout),
+        None => IdleTimeout::Never,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdleTimeout {
+    Never,
+    After(Duration),
 }
 
 pub type ActionTrigger = IdleTrigger<IdleAction>;

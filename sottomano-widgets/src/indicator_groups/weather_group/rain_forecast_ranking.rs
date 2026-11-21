@@ -27,8 +27,8 @@ pub enum RainForecastMethod {
 }
 
 impl Display for RainForecastMethod {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(match self {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.write_str(match self {
             RainForecastMethod::NumericalWeatherModel => "model",
             RainForecastMethod::RadarNowcast => "radar",
         })
@@ -36,9 +36,9 @@ impl Display for RainForecastMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RainRateIndicator<'a> {
-    RadarFrame(&'a Downpour),
-    ModelQuarter(&'a ModelQuarterHour),
+pub enum RainRateIndicator<'forecast> {
+    RadarFrame(&'forecast Downpour),
+    ModelQuarter(&'forecast ModelQuarterHour),
 }
 
 impl RainRateIndicator<'_> {
@@ -74,10 +74,10 @@ impl RainRateIndicator<'_> {
     }
 }
 
-pub struct RankedRateSource<'a> {
+pub struct RankedRateSource<'forecast> {
     pub method: RainForecastMethod,
     pub provider_name: &'static str,
-    pub samples: Vec<RainRateIndicator<'a>>,
+    pub samples: Vec<RainRateIndicator<'forecast>>,
 }
 
 pub trait RankedRainProvider {

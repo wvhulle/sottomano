@@ -14,7 +14,8 @@ use sottomano_toml_config::Config;
 use uom::si::f64::Ratio;
 
 use super::{
-    MediaMessage, PlayerInteraction, PlayerSession, RAISE_PLAYER_HINT, player_interaction,
+    MediaMessage, PlayerInteraction, PlayerSession, RAISE_PLAYER_HINT, SessionCoverArt,
+    player_interaction,
 };
 use crate::{
     glyph_icons::{
@@ -30,7 +31,8 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     icon_catalog::icon_handle::IconHandle,
     widgets::{
-        subscribed_snapshot::SubscribedSnapshot, text::font_faces_of, value_cells::LabeledValue,
+        subscribed_snapshot::SubscribedSnapshot, text::resolved_font_faces,
+        value_cells::LabeledValue,
     },
 };
 
@@ -42,20 +44,20 @@ fn playback_state(media: &Media) -> IndicatorState {
     }
 }
 
-pub(super) fn track_indicator<'a>(
-    config: &'a Config,
-    media: &'a Media,
-    cover_art: Option<&IconHandle>,
-) -> GroupIndicator<'a> {
+pub(super) fn track_indicator<'view>(
+    config: &'view Config,
+    media: &'view Media,
+    cover_art: &SessionCoverArt,
+) -> GroupIndicator<'view> {
     let raisable = media.owner != OwnerProcess::Unidentified
         || media.capabilities.raise == CommandOffer::Offered;
-    let icon = cover_art.map_or_else(
-        || IndicatorIcon::IconGlyph {
+    let icon = match cover_art {
+        SessionCoverArt::Loaded(art) => IndicatorIcon::Image(art.handle.clone()),
+        SessionCoverArt::NotLoaded => IndicatorIcon::IconGlyph {
             glyph: Phosphor::VinylRecord(Weight::Regular).into(),
             state: playback_state(media),
         },
-        |art| IndicatorIcon::Image(art.clone()),
-    );
+    };
     let track = GroupIndicator::composed(
         "Track",
         icon,
@@ -84,10 +86,10 @@ pub(super) fn track_indicator<'a>(
     }
 }
 
-pub(super) fn player_headline_indicator<'a>(
+pub(super) fn player_headline_indicator<'view>(
     media: &Media,
     gauge_fraction: Option<Ratio>,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     let glyph = match SimpleIcon::titled(&media.identity) {
         Some(brand_icon) => IconGlyph::from(brand_icon),
         None => Phosphor::MusicNotes(Weight::Regular).into(),
@@ -102,12 +104,12 @@ pub(super) fn player_headline_indicator<'a>(
     GroupIndicator::glyph_only("Player", glyph, playback_state(media)).with_gauge(gauge)
 }
 
-pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {
+pub(super) fn label_spans<'view>(config: &Config, media: &Media) -> Vec<Span<'view>> {
     let title = match &media.title {
         TrackTitle::Titled(title) => title,
         TrackTitle::Untitled => &media.identity,
     };
-    vec![span(title.clone()).font(font_faces_of(&config.theme.font).regular)]
+    vec![span(title.clone()).font(resolved_font_faces(&config.theme.font).regular)]
 }
 
 pub(super) fn player_hover_card(
@@ -127,7 +129,7 @@ pub(super) fn cover_art_load(media: &Media, session: &PlayerSession) -> Option<T
     let CoverArtUrl::Advertised(url) = media.art_url.clone() else {
         return None;
     };
-    if session.cover_art.is_some() {
+    if let SessionCoverArt::Loaded(_) = session.cover_art {
         return None;
     }
     let bus = media.bus.clone();
@@ -135,12 +137,12 @@ pub(super) fn cover_art_load(media: &Media, session: &PlayerSession) -> Option<T
         let url = url.clone();
         async move { mpris_players::load_art(&url).await }
     };
-    Some(Task::perform(loading, move |pixels| {
-        MediaMessage::ArtLoaded {
+    Some(Task::future(loading).and_then(move |pixels| {
+        Task::done(MediaMessage::ArtLoaded {
             bus: bus.clone(),
             url: url.clone(),
-            handle: pixels.as_ref().map(IconHandle::from),
-        }
+            handle: IconHandle::from(&pixels),
+        })
     }))
 }
 

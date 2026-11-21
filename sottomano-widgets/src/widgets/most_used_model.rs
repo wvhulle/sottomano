@@ -24,20 +24,23 @@ use crate::{
 const LISTED_MODELS: usize = 6;
 
 #[derive(Debug, Clone, Copy)]
-pub struct RankedSpan<'a> {
+pub struct RankedSpan<'ranking> {
     pub heading: &'static str,
-    pub models: &'a ModelRanking,
+    pub models: &'ranking ModelRanking,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ModelSpendRanking<'a, const SPANS: usize> {
+pub struct ModelSpendRanking<'ranking, const SPANS: usize> {
     source: &'static str,
-    narrowest_to_widest: [RankedSpan<'a>; SPANS],
+    narrowest_to_widest: [RankedSpan<'ranking>; SPANS],
 }
 
-impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
+impl<'ranking, const SPANS: usize> ModelSpendRanking<'ranking, SPANS> {
     #[must_use]
-    pub fn new(source: &'static str, narrowest_to_widest: [RankedSpan<'a>; SPANS]) -> Option<Self> {
+    pub fn new(
+        source: &'static str,
+        narrowest_to_widest: [RankedSpan<'ranking>; SPANS],
+    ) -> Option<Self> {
         let ranking = Self {
             source,
             narrowest_to_widest,
@@ -135,7 +138,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     #[must_use]
-    pub fn most_used_model_indicator(self) -> GroupIndicator<'a> {
+    pub fn most_used_model_indicator(self) -> GroupIndicator<'ranking> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend.model.clone()),
             None => ReadoutLabel::Unlabeled,
@@ -154,7 +157,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     }
 
     #[must_use]
-    pub fn most_used_spend_indicator(self) -> GroupIndicator<'a> {
+    pub fn most_used_spend_indicator(self) -> GroupIndicator<'ranking> {
         let label = match self.top() {
             Some(spend) => ReadoutLabel::Labeled(spend_text(&spend.cost)),
             None => ReadoutLabel::Unlabeled,

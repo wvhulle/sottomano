@@ -1,11 +1,12 @@
 mod auto_switch_toggle;
 mod offset_slider;
+mod scheduled_switch_timer;
 mod sqlite_dark_mode_schedule;
 mod umbra_dark_mode;
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, TimeDelta, Utc};
-use iced::{Function, Subscription, Task, task};
+use chrono::{DateTime, Utc};
+use iced::{Function, Subscription, Task};
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes::set_mode;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -16,11 +17,11 @@ use sottomano_desktop_sources::{
     weather::situo_location_fix::Location,
 };
 use sottomano_toml_config::Config;
-use tokio::time::sleep;
 use umbra_dark_mode::dark_mode_indicator;
 
 use self::{
     offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
+    scheduled_switch_timer::SwitchTimer,
     sqlite_dark_mode_schedule::DarkModeSchedule,
 };
 use crate::{
@@ -37,7 +38,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
     },
     indicator_groups::{
-        dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
+        dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, SwitchDecision},
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
             IndicatorGroupExpansionMessage,
@@ -63,13 +64,8 @@ pub struct DarkModeGroup {
     auto_switch_toggle: AutoSwitchToggle,
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
-    armed_switch: Option<ArmedSwitch>,
+    switch_timer: SwitchTimer,
     expansion: IndicatorGroupExpansion,
-}
-
-struct ArmedSwitch {
-    at: DateTime<Utc>,
-    _timer: task::Handle,
 }
 
 #[derive(Debug)]
@@ -99,7 +95,7 @@ impl DarkModeGroup {
             auto_switch_toggle: AutoSwitchToggle::new(clock),
             sunrise_offset_slider: new_offset_slider("Sunrise offset", WeatherIcon::Sunrise),
             sunset_offset_slider: new_offset_slider("Sunset offset", WeatherIcon::Sunset),
-            armed_switch: None,
+            switch_timer: SwitchTimer::Unarmed,
             expansion: IndicatorGroupExpansion::default(),
         }
     }
@@ -142,38 +138,6 @@ impl DarkModeGroup {
             .sample
             .get()
             .map_or(ColorMode::Dark, |dark_mode| dark_mode.color_mode)
-    }
-
-    fn upcoming_switch(&self, clock: Clock) -> Option<DateTime<Utc>> {
-        match self.auto_switch_toggle.status_at(clock.utc()) {
-            ScheduleStatus::Following { upcoming, .. } => Some(upcoming.switch_time),
-            ScheduleStatus::Disarmed
-            | ScheduleStatus::AwaitingLocationFix
-            | ScheduleStatus::NoSunEvents => None,
-        }
-    }
-
-    fn rearm_switch(&mut self, clock: Clock) -> Task<DarkModeMessage> {
-        let upcoming = self.upcoming_switch(clock);
-        if self.armed_switch.as_ref().map(|armed| armed.at) == upcoming {
-            return Task::none();
-        }
-        let Some(at) = upcoming else {
-            self.armed_switch = None;
-            return Task::none();
-        };
-        let remaining = (at - clock.utc())
-            .max(TimeDelta::zero())
-            .to_std()
-            .expect("a non-negative time delta fits a std duration");
-        let (timer, handle) = Task::future(sleep(remaining + SWITCH_TIMER_MARGIN))
-            .map(|()| DarkModeMessage::SwitchDue)
-            .abortable();
-        self.armed_switch = Some(ArmedSwitch {
-            at,
-            _timer: handle.abort_on_drop(),
-        });
-        timer
     }
 
     fn close_controls(&mut self) {
@@ -330,11 +294,11 @@ impl DarkModeGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let offset_slider = |edge| {
             GroupIndicator::slider(
@@ -388,10 +352,10 @@ impl DarkModeGroup {
         )
     }
 
-    fn mode_toggle_indicator<'a>(
-        &'a self,
-        mode_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn mode_toggle_indicator<'view>(
+        &'view self,
+        mode_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         mode_indicator
             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))

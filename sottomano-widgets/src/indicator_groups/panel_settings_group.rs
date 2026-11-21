@@ -376,7 +376,10 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::PanelSettings,
             GroupIndicator::glyph_only(

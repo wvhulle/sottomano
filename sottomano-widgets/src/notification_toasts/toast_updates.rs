@@ -44,7 +44,8 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, LoadError, severity::Severity};
 
 use super::{
-    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
+    DEFAULT_ACTION, HoveredToast, NotificationLayer, SignalConnection, SnoozedOngoingToast,
+    ToastContext,
     toast_card::{self, CardIcons},
     toast_chimes::arrival_chime,
     toast_lifecycle::{
@@ -94,7 +95,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         match message {
             NotificationMessage::Connected(signals) => {
-                self.signals = Some(signals);
+                self.signal_connection = SignalConnection::Connected(signals);
                 Task::none()
             }
             NotificationMessage::Served(data) => self.serve(
@@ -116,9 +117,9 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 pointer_presence,
             } => {
                 match pointer_presence {
-                    PointerPresence::PointedAt => self.hovered = Some(id),
-                    PointerPresence::NotPointedAt if self.hovered == Some(id) => {
-                        self.hovered = None;
+                    PointerPresence::PointedAt => self.hovered = HoveredToast::Hovered(id),
+                    PointerPresence::NotPointedAt if self.hovered == HoveredToast::Hovered(id) => {
+                        self.hovered = HoveredToast::Unhovered;
                     }
                     PointerPresence::NotPointedAt => {}
                 }
@@ -170,7 +171,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     fn previewed_file(&self, id: u32) -> Option<String> {
         self.showing()
-            .find(|n| n.data.id == id)?
+            .find(|toast| toast.data.id == id)?
             .icons
             .previewed_file()
             .and_then(|file| {
@@ -245,12 +246,12 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         });
         let cleared: Vec<u32> = self
             .showing()
-            .filter(|n| {
-                matches!(&n.kind, ToastKind::Ongoing { key: shown, .. }
+            .filter(|toast| {
+                matches!(&toast.kind, ToastKind::Ongoing { key: shown, .. }
                     if matches!(shown, OngoingKey::Sample(_) | OngoingKey::SampleDetail { .. })
                         && !active.iter().any(|toast| toast.key == *shown))
             })
-            .map(|n| n.data.id)
+            .map(|toast| toast.data.id)
             .collect();
         let closed = self.close_all(
             cleared,
@@ -285,7 +286,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let shown = self
             .showing()
             .find(|notif| notif.ongoing_key() == Some(&toast.key))
-            .map(|n| (n.data.id, n.ongoing_since()));
+            .map(|toast| (toast.data.id, toast.ongoing_since()));
         let toast_id = match shown {
             Some((id, since)) => {
                 toast.since = since.unwrap_or(toast.since);
@@ -304,7 +305,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let toast_id = self
             .showing()
             .find(|notif| notif.announced_indicator() == Some(&sample.indicator))
-            .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
+            .map_or_else(|| self.fresh_shell_toast_id(), |toast| toast.data.id);
         self.serve(
             ToastContent::level_announcement(sample, toast_id, context.clock.wall),
             context,
@@ -423,7 +424,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let shown: Vec<u32> = self
             .showing()
             .filter(|notif| notif.ongoing_key() == Some(&OngoingKey::ConfigFile))
-            .map(|n| n.data.id)
+            .map(|toast| toast.data.id)
             .collect();
         self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
     }
@@ -484,11 +485,11 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     fn snooze_ongoing_toast(&mut self, toast_id: u32) {
         let snoozed = self
             .showing()
-            .find(|n| n.data.id == toast_id)
-            .and_then(|n| match &n.kind {
+            .find(|toast| toast.data.id == toast_id)
+            .and_then(|toast| match &toast.kind {
                 ToastKind::Ongoing { key, .. } => Some(SnoozedOngoingToast {
                     key: key.clone(),
-                    snoozed_at: n.data.severity,
+                    snoozed_at: toast.data.severity,
                 }),
                 ToastKind::Event { .. } => None,
             });
@@ -617,7 +618,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
     pub fn prune(&mut self, now: Instant) {
         self.live
-            .retain(|n| n.fade_state(now) == FadeState::Visible);
+            .retain(|toast| toast.fade_state(now) == FadeState::Visible);
     }
 
     fn expire(&mut self, context: &ToastContext) -> Task<Routed> {
@@ -637,8 +638,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub(super) fn sync_countdowns(&mut self, now: Instant) {
         let hovered = self.hovered;
         self.live.iter_mut().for_each(|notification| {
-            let held =
-                hovered == Some(notification.data.id) || !notification.reply_draft.is_empty();
+            let held = hovered == HoveredToast::Hovered(notification.data.id)
+                || !notification.reply_draft.is_empty();
             notification.countdown = if held {
                 notification.countdown.paused(now)
             } else {
@@ -656,12 +657,12 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Vec<u32> {
         let closing: Vec<u32> = candidates
             .into_iter()
-            .filter(|id| self.showing().any(|n| n.data.id == *id))
+            .filter(|id| self.showing().any(|toast| toast.data.id == *id))
             .collect();
         self.live
             .iter_mut()
-            .filter(|n| closing.contains(&n.data.id))
-            .for_each(|n| n.withdraw(now, pace, config));
+            .filter(|toast| closing.contains(&toast.data.id))
+            .for_each(|toast| toast.withdraw(now, pace, config));
         self.prune_hover();
         closing
     }
@@ -676,15 +677,18 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let closed = self
             .withdraw_showing(candidates, reason.into(), config, now)
             .into_iter()
-            .filter(|id| self.sender_of(*id) == Some(ToastSender::DbusClient))
+            .filter(|id| self.toast_sender_by_id(*id) == Some(ToastSender::DbusClient))
             .map(|id| Outbound::Closed { id, reason })
             .collect();
         self.emit_in_order(closed)
     }
 
     fn prune_hover(&mut self) {
-        let hovered = self.hovered;
-        self.hovered = hovered.filter(|id| self.showing().any(|n| n.data.id == *id));
+        if let HoveredToast::Hovered(id) = self.hovered
+            && !self.showing().any(|toast| toast.data.id == id)
+        {
+            self.hovered = HoveredToast::Unhovered;
+        }
     }
 
     fn activate_action(
@@ -721,9 +725,9 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
 
         let survives_action_invocation = self
             .showing()
-            .any(|n| n.data.id == id && n.data.residency == Residency::Resident);
+            .any(|toast| toast.data.id == id && toast.data.residency == Residency::Resident);
         let window_action = self
-            .window_of(id, placement)
+            .anchored_window_id(id, placement)
             .and_then(|window| action_on_window(key, window, placement));
         let activation = match window_action {
             Some(task) => task,
@@ -753,8 +757,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let toast_surface = self
             .showing()
-            .find(|n| n.data.id == id)
-            .and_then(|n| n.place.output.as_deref())
+            .find(|toast| toast.data.id == id)
+            .and_then(|toast| toast.place.assigned_output())
             .and_then(toast_surface_on);
         let Some(toast_surface) = toast_surface else {
             return Task::done(Routed::from(NotificationMessage::DefaultActivated {
@@ -780,7 +784,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let survives_action_invocation = self
             .showing()
-            .any(|n| n.data.id == id && n.data.residency == Residency::Resident);
+            .any(|toast| toast.data.id == id && toast.data.residency == Residency::Resident);
         let action_invoked = Outbound::ActionInvoked {
             id,
             key: DEFAULT_ACTION.to_owned(),
@@ -813,8 +817,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     }
 
     pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Routed> {
-        match &self.signals {
-            Some(signals) if !outbound.is_empty() => Task::future(
+        match &self.signal_connection {
+            SignalConnection::Connected(signals) if !outbound.is_empty() => Task::future(
                 stream::iter(outbound)
                     .map(Ok)
                     .forward(notification_signal_sink(signals.clone())),

@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
-    LlamaModel, LlamaModelProps, LlamaModelStatus,
+    LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer,
 };
 
 use crate::{
@@ -39,25 +39,21 @@ pub fn llama_model_state(model: &LlamaModel) -> IndicatorState {
     }
 }
 
-pub fn llama_model_hover_card(model: &LlamaModel) -> Vec<Section> {
-    vec![Section::new(
-        "Status",
-        dictionary_table([LabeledValue::new("Status", model.status)]),
-    )]
+pub struct ServedModel<'view> {
+    pub server_snapshot: &'view LlamaServer,
+    pub server: &'view str,
 }
 
-pub struct ServedModel<'a> {
-    pub resident: Option<&'a LlamaModel>,
-    pub server: &'a str,
-}
-
-impl<'a> ServedModel<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
-        let label = match self.resident {
-            Some(resident) if !resident.id.is_empty() => ReadoutLabel::Labeled(resident.id.clone()),
-            Some(_) | None => ReadoutLabel::Unlabeled,
+impl<'view> ServedModel<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
+        let (label, state) = match self.server_snapshot.resident_model() {
+            Some(resident) if !resident.id.is_empty() => (
+                ReadoutLabel::Labeled(resident.id.clone()),
+                llama_model_state(resident),
+            ),
+            Some(resident) => (ReadoutLabel::Unlabeled, llama_model_state(resident)),
+            None => (ReadoutLabel::Unlabeled, IndicatorState::Off),
         };
-        let state = self.resident.map_or(IndicatorState::Off, llama_model_state);
         GroupIndicator::glyph_only(
             format!("{} loaded model", self.server),
             Phosphor::Brain(Weight::Regular).into(),
@@ -68,11 +64,6 @@ impl<'a> ServedModel<'a> {
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         })
-        .with_hover_card(Box::new(move |_clock| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        self.resident.map_or_else(Vec::new, llama_model_hover_card)
     }
 }
 

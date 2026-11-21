@@ -20,7 +20,7 @@ use sottomano_widgets::{
 use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
-    pub(crate) fn group_menu_of(&self, topic: GroupMenuTopic) -> GroupMenuView<'_> {
+    pub(crate) fn topic_group_menu(&self, topic: GroupMenuTopic) -> GroupMenuView<'_> {
         match topic {
             GroupMenuTopic::Applications | GroupMenuTopic::WindowMenuBar => {
                 self.group_menu(topic, empty())
@@ -39,11 +39,11 @@ impl DesktopShell {
         }
     }
 
-    fn group_menu<'a>(
-        &'a self,
+    fn group_menu<'view>(
+        &'view self,
         topic: GroupMenuTopic,
-        groups: impl IntoIterator<Item = IndicatorGroupContent<'a>>,
-    ) -> GroupMenuView<'a> {
+        groups: impl IntoIterator<Item = IndicatorGroupContent<'view>>,
+    ) -> GroupMenuView<'view> {
         GroupMenuView::new(topic, &self.indicator_groups.group_menus, groups)
     }
 

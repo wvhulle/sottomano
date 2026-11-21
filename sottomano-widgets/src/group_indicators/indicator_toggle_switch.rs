@@ -5,12 +5,12 @@ use sottomano_toml_config::Config;
 use crate::group_indicators::toggle_control::SwitchPosition;
 
 #[must_use]
-pub fn indicator_toggle_switch<'a, Message: 'a>(
+pub fn indicator_toggle_switch<'view, Message: 'view>(
     config: &Config,
     switch_position: SwitchPosition,
     response: SwitchResponse,
     opacity: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     toggle_switch(match switch_position {
         SwitchPosition::On => TogglePosition::On,
         SwitchPosition::Off => TogglePosition::Off,

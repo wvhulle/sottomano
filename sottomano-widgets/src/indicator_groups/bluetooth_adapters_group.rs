@@ -161,8 +161,12 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn adapter_indicator<'a>(&'a self, adapter: &'a BluetoothAdapter) -> AdapterRadioIndicator<'a> {
-        let kernel_device = AdapterRadioIndicator::kernel_device_of(&adapter.controller_name);
+    fn adapter_indicator<'view>(
+        &'view self,
+        adapter: &'view BluetoothAdapter,
+    ) -> AdapterRadioIndicator<'view> {
+        let kernel_device =
+            AdapterRadioIndicator::controller_kernel_device(&adapter.controller_name);
         AdapterRadioIndicator {
             adapter,
             naming: self.adapter_naming(adapter),
@@ -174,13 +178,13 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn device_indicator<'a>(
-        &'a self,
-        device: &'a ConnectedDevice,
+    fn device_indicator<'view>(
+        &'view self,
+        device: &'view ConnectedDevice,
         siblings: &[ConnectedDevice],
         input_reports: InputReports,
         clock: Clock,
-    ) -> ConnectedDeviceIndicator<'a> {
+    ) -> ConnectedDeviceIndicator<'view> {
         ConnectedDeviceIndicator {
             device,
             short_label: short_label(device, siblings),
@@ -196,12 +200,12 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn adapter_group<'a>(
-        &'a self,
-        adapter: &'a BluetoothAdapter,
+    fn adapter_group<'view>(
+        &'view self,
+        adapter: &'view BluetoothAdapter,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<IndicatorGroupContent<'a>> {
+    ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&adapter.controller_name)?;
         let build_adapter_radio_indicator = || {
             self.adapter_indicator(adapter)
@@ -227,7 +231,7 @@ impl BluetoothAdaptersGroup {
                     .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
             }));
         let siblings = adapter.power.connected_devices();
-        let device_indicators: Vec<GroupIndicator<'a>> = siblings
+        let device_indicators: Vec<GroupIndicator<'view>> = siblings
             .iter()
             .map(|device| {
                 let input_reports = report_timing_for(&device.address)

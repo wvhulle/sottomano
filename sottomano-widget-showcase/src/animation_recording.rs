@@ -59,7 +59,7 @@ const LOSSLESS_METHOD: usize = 4;
 const EMULATOR_EVENT_CAPACITY: usize = 256;
 
 struct CapturedFrame {
-    content: Option<ContentRows>,
+    content: FrameContent,
     captured_at: Instant,
 }
 
@@ -341,7 +341,7 @@ impl<'session> DemoRecorder<'session> {
         self.deliver_layout_reports();
         let rgba = self.screenshot();
         CapturedFrame {
-            content: ContentRows::differing_from(
+            content: FrameContent::differing_from(
                 self.background,
                 &rgba,
                 FrameSize::from(self.canvas),
@@ -424,20 +424,26 @@ struct ContentRows {
     rgba: Vec<u8>,
 }
 
-impl ContentRows {
-    fn differing_from(background: [u8; 4], rgba: &[u8], canvas: FrameSize) -> Option<Self> {
+#[derive(PartialEq)]
+enum FrameContent {
+    BackgroundOnly,
+    Drawn(ContentRows),
+}
+
+impl FrameContent {
+    fn differing_from(background: [u8; 4], rgba: &[u8], canvas: FrameSize) -> Self {
         let row_bytes = usize::from(canvas.width) * 4;
-        let (rows, columns) = rgba
+        let Some((rows, columns)) = rgba
             .chunks_exact(row_bytes)
             .enumerate()
-            .filter_map(|(y, row)| {
+            .filter_map(|(row_index, row)| {
                 let pixels = row.as_chunks::<4>().0;
                 let first_x = pixels.iter().position(|pixel| *pixel != background)?;
                 let last_x = pixels.iter().rposition(|pixel| *pixel != background)?;
                 let pixel_position =
                     |position: usize| u16::try_from(position).expect("pixel fits a recording");
                 Some((
-                    PixelSpan::single(pixel_position(y)),
+                    PixelSpan::single(pixel_position(row_index)),
                     PixelSpan {
                         first: pixel_position(first_x),
                         last: pixel_position(last_x),
@@ -446,19 +452,24 @@ impl ContentRows {
             })
             .reduce(|(rows, columns), (row, row_columns)| {
                 (rows.union(row), columns.union(row_columns))
-            })?;
+            })
+        else {
+            return Self::BackgroundOnly;
+        };
         let start = usize::from(rows.first) * row_bytes;
         let end = (usize::from(rows.last) + 1) * row_bytes;
-        Some(ContentRows {
+        Self::Drawn(ContentRows {
             rows,
             columns,
             rgba: rgba[start..end].to_vec(),
         })
     }
+}
 
-    fn row(&self, y: u16, row_bytes: usize) -> Option<&[u8]> {
-        self.rows.contains(y).then(|| {
-            let start = usize::from(y - self.rows.first) * row_bytes;
+impl ContentRows {
+    fn row(&self, row_index: u16, row_bytes: usize) -> Option<&[u8]> {
+        self.rows.contains(row_index).then(|| {
+            let start = usize::from(row_index - self.rows.first) * row_bytes;
             &self.rgba[start..start + row_bytes]
         })
     }
@@ -500,7 +511,12 @@ impl ContentCrop {
     ) -> Self {
         let all_rows = PixelSpan::whole(canvas.height);
         let all_columns = PixelSpan::whole(canvas.width);
-        let contents = || frames.iter().filter_map(|frame| frame.content.as_ref());
+        let contents = || {
+            frames.iter().filter_map(|frame| match &frame.content {
+                FrameContent::Drawn(content) => Some(content),
+                FrameContent::BackgroundOnly => None,
+            })
+        };
         let shown_rows = contents()
             .map(|content| content.rows)
             .reduce(PixelSpan::union)
@@ -526,14 +542,14 @@ impl ContentCrop {
 
     fn crop(&self, frame: &CapturedFrame) -> Vec<u8> {
         (self.shown_rows.first..=self.shown_rows.last)
-            .flat_map(|y| {
-                frame
-                    .content
-                    .as_ref()
-                    .and_then(|content| content.row(y, self.row_bytes))
-                    .unwrap_or(&self.background_row)[self.shown_columns.byte_range()]
-                .iter()
-                .copied()
+            .flat_map(|row_index| {
+                let drawn_row = match &frame.content {
+                    FrameContent::Drawn(content) => content.row(row_index, self.row_bytes),
+                    FrameContent::BackgroundOnly => None,
+                };
+                drawn_row.unwrap_or(&self.background_row)[self.shown_columns.byte_range()]
+                    .iter()
+                    .copied()
             })
             .collect()
     }

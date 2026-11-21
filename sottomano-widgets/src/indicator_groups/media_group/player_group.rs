@@ -37,15 +37,15 @@ fn player_group_identity(media: &Media, bus: &str) -> IndicatorGroupIdentity {
     }
 }
 
-pub(super) fn player_group<'a>(
-    config: &'a Config,
+pub(super) fn player_group<'view>(
+    config: &'view Config,
     clock: Clock,
     group_title: IndicatorGroupTitle,
-    player_snapshot: &'a SubscribedSnapshot<Media>,
-    session: &'a PlayerSession,
-    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
-    desktop_entries: &'a DesktopEntries,
-) -> Option<IndicatorGroupContent<'a>> {
+    player_snapshot: &'view SubscribedSnapshot<Media>,
+    session: &'view PlayerSession,
+    lyrics_snapshot: Option<&'view SubscribedSnapshot<TrackLyrics>>,
+    desktop_entries: &'view DesktopEntries,
+) -> Option<IndicatorGroupContent<'view>> {
     let media = player_snapshot.get()?;
     let bus = media.bus.as_str();
     let seek_availability = SeekBar::seek_availability(media, clock.instant);
@@ -63,14 +63,9 @@ pub(super) fn player_group<'a>(
         )
         .with_hover_card(Box::new(move |_| player_hover_card(player_snapshot, media)));
     let mut rows = vec![
-        track_indicator(
-            config,
-            media,
-            session.cover_art.as_ref().map(|art| &art.handle),
-        )
-        .with_hover_card(Box::new(move |card_clock| {
-            track_hover_card(player_snapshot, media, desktop_entries, card_clock)
-        })),
+        track_indicator(config, media, &session.cover_art).with_hover_card(Box::new(
+            move |card_clock| track_hover_card(player_snapshot, media, desktop_entries, card_clock),
+        )),
     ];
     rows.extend(
         lyrics_snapshot
@@ -81,17 +76,16 @@ pub(super) fn player_group<'a>(
     }
     rows.extend(transport_button_indicators(media));
     rows.extend(session_button_indicators(config, media, session));
-    Some(
-        IndicatorGroupContent::expandable_instance(
-            player_group_identity(media, bus),
-            group_title,
-            headline_indicator,
-            &session.expansion,
-            move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
-            rows,
-        )
-        .forwards_scroll(
-            (seek_availability == SeekAvailability::Seekable).then_some("seek in the track"),
-        ),
-    )
+    let player_content = IndicatorGroupContent::expandable_instance(
+        player_group_identity(media, bus),
+        group_title,
+        headline_indicator,
+        &session.expansion,
+        move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
+        rows,
+    );
+    Some(match seek_availability {
+        SeekAvailability::Seekable => player_content.forwards_scroll("seek in the track"),
+        SeekAvailability::Fixed => player_content,
+    })
 }

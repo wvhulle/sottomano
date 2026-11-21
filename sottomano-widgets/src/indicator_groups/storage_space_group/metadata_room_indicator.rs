@@ -79,9 +79,9 @@ impl From<&BtrfsSpace> for MetadataPressure {
     }
 }
 
-pub(super) enum MetadataRoomIndicator<'a> {
-    Btrfs(&'a BtrfsSpace),
-    Bcachefs(&'a BcachefsSpace),
+pub(super) enum MetadataRoomIndicator<'view> {
+    Btrfs(&'view BtrfsSpace),
+    Bcachefs(&'view BcachefsSpace),
 }
 
 impl MetadataRoomIndicator<'_> {
@@ -100,8 +100,8 @@ impl MetadataRoomIndicator<'_> {
     }
 }
 
-impl<'a> MetadataRoomIndicator<'a> {
-    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> MetadataRoomIndicator<'view> {
+    pub(super) fn indicator(self, locale: Locale) -> GroupIndicator<'view> {
         let label = Quantity::size(self.room()).localized_text(locale);
         GroupIndicator::glyph_only(
             "Metadata room",

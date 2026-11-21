@@ -97,8 +97,8 @@ fn qmp_socket_text(machine: &RunningVirtualMachine) -> Option<String> {
     }
 }
 
-struct VirtualMachineIndicator<'a> {
-    machine: &'a RunningVirtualMachine,
+struct VirtualMachineIndicator<'view> {
+    machine: &'view RunningVirtualMachine,
 }
 
 impl VirtualMachineIndicator<'_> {
@@ -149,12 +149,12 @@ impl VirtualMachineIndicator<'_> {
     }
 }
 
-struct InactiveDomainIndicator<'a> {
-    domain_name: &'a str,
+struct InactiveDomainIndicator<'view> {
+    domain_name: &'view str,
 }
 
-impl<'a> InactiveDomainIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> InactiveDomainIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.domain_name.to_owned(),
             Phosphor::DesktopTower(Weight::Regular).into(),
@@ -182,8 +182,8 @@ impl<'a> InactiveDomainIndicator<'a> {
     }
 }
 
-impl<'a> VirtualMachineIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> VirtualMachineIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let machine = self.machine;
         let name = match &machine.launch_context {
             LaunchContext::Named(launch_context) => format!(

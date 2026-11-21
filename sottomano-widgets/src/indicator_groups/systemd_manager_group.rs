@@ -72,23 +72,23 @@ fn unit_toast_key(row_name: Cow<'static, str>, unit_name: String) -> OngoingKey 
     }
 }
 
-fn slow_jobs_entry<'a>(
-    snapshot: &'a SubscribedSnapshot<SlowJobs>,
-    jobs: &'a SlowJobs,
-    config: &'a Config,
+fn slow_jobs_entry<'view>(
+    snapshot: &'view SubscribedSnapshot<SlowJobs>,
+    jobs: &'view SlowJobs,
+    config: &'view Config,
     clock: Clock,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     wired_slow_jobs_indicator(jobs, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(slow_jobs_hover_card)
     }))
 }
 
-fn failed_units_entry<'a>(
-    snapshot: &'a SubscribedSnapshot<FailedUnits>,
-    failed: &'a FailedUnits,
-    config: &'a Config,
+fn failed_units_entry<'view>(
+    snapshot: &'view SubscribedSnapshot<FailedUnits>,
+    failed: &'view FailedUnits,
+    config: &'view Config,
     clock: Clock,
-) -> GroupIndicator<'a> {
+) -> GroupIndicator<'view> {
     wired_failed_units_indicator(failed, config, clock).with_hover_card(Box::new(move |_| {
         snapshot.sections_described_by(failed_units_hover_card)
     }))
@@ -213,11 +213,11 @@ impl SystemdManagerGroup {
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let mut rows = Vec::new();
         if let Some(timeline) = self.boot.get() {
@@ -279,11 +279,11 @@ impl SystemdManagerGroup {
         )
     }
 
-    fn wired_last_shutdown_indicator<'a>(
-        &'a self,
-        last_shutdown: &'a LastShutdown,
-        config: &'a Config,
-    ) -> GroupIndicator<'a> {
+    fn wired_last_shutdown_indicator<'view>(
+        &'view self,
+        last_shutdown: &'view LastShutdown,
+        config: &'view Config,
+    ) -> GroupIndicator<'view> {
         last_shutdown_indicator(last_shutdown, config.calendar.locale)
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

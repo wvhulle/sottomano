@@ -261,7 +261,11 @@ impl MemoryBoardGroup {
         .with_headline_glyph(Phosphor::Database(Weight::Regular).into())
     }
 
-    fn list_memory_usage<'a>(&'a self, locale: Locale, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_memory_usage<'view>(
+        &'view self,
+        locale: Locale,
+        indicators: &mut Vec<GroupIndicator<'view>>,
+    ) {
         if !self.memory.awaits_first_delivery() {
             indicators.insert(
                 0,
@@ -273,9 +277,9 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn push_memory_growth_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_memory_growth_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         locale: Locale,
     ) {
         if !self.memory_growth.awaits_first_delivery() {
@@ -289,9 +293,9 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn push_stall_pressure_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_stall_pressure_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         locale: Locale,
     ) {
         if !self.stall_pressure.awaits_first_delivery() {
@@ -305,9 +309,9 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn push_swap_activity_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_swap_activity_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         locale: Locale,
     ) {
         if !self.swap_activity.awaits_first_delivery() {
@@ -321,10 +325,10 @@ impl MemoryBoardGroup {
         }
     }
 
-    fn memory_usage_indicator<'a>(
-        &'a self,
-        usage_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn memory_usage_indicator<'view>(
+        &'view self,
+        usage_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         usage_indicator
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.memory.sections_described_by(memory_hover_card);
@@ -341,10 +345,10 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
     }
 
-    fn wired_memory_growth_indicator<'a>(
-        &'a self,
-        growth_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_memory_growth_indicator<'view>(
+        &'view self,
+        growth_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         growth_indicator
             .with_hover_card(Box::new(move |_| {
                 self.memory_growth
@@ -353,10 +357,10 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
     }
 
-    fn stall_pressure_indicator<'a>(
-        &'a self,
-        pressure_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn stall_pressure_indicator<'view>(
+        &'view self,
+        pressure_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         pressure_indicator
             .with_hover_card(Box::new(move |_| {
                 self.stall_pressure
@@ -365,10 +369,10 @@ impl MemoryBoardGroup {
             .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
     }
 
-    fn wired_swap_activity_indicator<'a>(
-        &'a self,
-        swap_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_swap_activity_indicator<'view>(
+        &'view self,
+        swap_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         swap_indicator
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self

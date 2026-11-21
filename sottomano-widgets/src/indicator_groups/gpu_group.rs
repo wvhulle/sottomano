@@ -320,11 +320,11 @@ impl GpuGroup {
         }
     }
 
-    fn device_headline<'a>(
-        &'a self,
-        bus: &'a PciBusId,
-        device: &'a GpuDevice,
-    ) -> GroupIndicator<'a> {
+    fn device_headline<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+    ) -> GroupIndicator<'view> {
         match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => self
                 .wired_gpu_load_indicator(
@@ -350,11 +350,11 @@ impl GpuGroup {
         }
     }
 
-    fn list_device<'a>(
-        &'a self,
-        bus: &'a PciBusId,
-        device: &'a GpuDevice,
-        indicators: &mut Vec<GroupIndicator<'a>>,
+    fn list_device<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+        indicators: &mut Vec<GroupIndicator<'view>>,
     ) {
         match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => {
@@ -393,13 +393,13 @@ impl GpuGroup {
             .sections_described_by(|_| vec![Section::from(&device.model)])
     }
 
-    fn wired_gpu_load_indicator<'a>(
-        &'a self,
-        bus: &'a PciBusId,
-        device: &'a GpuDevice,
-        snapshot: &'a SubscribedSnapshot<GpuSnapshot>,
-        load_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_gpu_load_indicator<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+        snapshot: &'view SubscribedSnapshot<GpuSnapshot>,
+        load_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         load_indicator
             .with_hover_card(Box::new(move |_| {
                 snapshot
@@ -411,11 +411,11 @@ impl GpuGroup {
             .refreshed_by(GpuInteraction::Refresh(bus.clone()))
     }
 
-    fn device_indicators<'a>(
-        &'a self,
-        bus: &'a PciBusId,
-        device: &'a GpuDevice,
-    ) -> Vec<GroupIndicator<'a>> {
+    fn device_indicators<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+    ) -> Vec<GroupIndicator<'view>> {
         let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
             return Vec::new();
         };
@@ -530,7 +530,7 @@ mod tests {
 
     use super::{IndicatorGroupTitle, PciBusId, gpu_group_identity};
 
-    fn titles_of(product_names: &[&str]) -> Vec<String> {
+    fn numbered_gpu_titles(product_names: &[&str]) -> Vec<String> {
         let discovered_names: Vec<GpuNames> = product_names
             .iter()
             .map(|product_name| GpuNames::Product((*product_name).to_owned()))
@@ -557,13 +557,16 @@ mod tests {
 
     #[test]
     fn a_gpu_is_titled_by_its_name() {
-        assert_eq!(titles_of(&["GeForce RTX 4090"]), ["GeForce RTX 4090"]);
+        assert_eq!(
+            numbered_gpu_titles(&["GeForce RTX 4090"]),
+            ["GeForce RTX 4090"]
+        );
     }
 
     #[test]
     fn different_gpus_are_not_numbered() {
         assert_eq!(
-            titles_of(&["GeForce RTX 4090", "Arc A770"]),
+            numbered_gpu_titles(&["GeForce RTX 4090", "Arc A770"]),
             ["GeForce RTX 4090", "Arc A770"]
         );
     }
@@ -571,7 +574,7 @@ mod tests {
     #[test]
     fn only_later_namesakes_are_numbered() {
         assert_eq!(
-            titles_of(&["GeForce RTX 4090", "Arc A770", "GeForce RTX 4090"]),
+            numbered_gpu_titles(&["GeForce RTX 4090", "Arc A770", "GeForce RTX 4090"]),
             ["GeForce RTX 4090", "Arc A770", "GeForce RTX 4090 2"]
         );
     }

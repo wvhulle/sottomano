@@ -200,7 +200,11 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    fn list_spend<'a>(&'a self, clock: Clock, lead_indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_spend<'view>(
+        &'view self,
+        clock: Clock,
+        lead_indicators: &mut Vec<GroupIndicator<'view>>,
+    ) {
         if !self.spend.awaits_first_delivery() {
             lead_indicators.push(self.wired_spend_indicator(self.spend.indicator(
                 |held_snapshot| spend_indicator(held_snapshot, clock),
@@ -264,7 +268,10 @@ impl OpenRouterCreditGroup {
         )
     }
 
-    fn wired_spend_indicator<'a>(&'a self, spend_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn wired_spend_indicator<'view>(
+        &'view self,
+        spend_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         spend_row
             .with_hover_card(Box::new(move |card_clock| {
                 self.spend
@@ -273,10 +280,10 @@ impl OpenRouterCreditGroup {
             .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
     }
 
-    fn wired_strict_budget_indicator<'a>(
-        &'a self,
-        budget_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_strict_budget_indicator<'view>(
+        &'view self,
+        budget_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         budget_indicator
             .with_hover_card(Box::new(move |_| {
                 self.strict_budget
@@ -287,10 +294,10 @@ impl OpenRouterCreditGroup {
             ))
     }
 
-    fn model_rankings_indicator<'a>(
-        &'a self,
-        rankings_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn model_rankings_indicator<'view>(
+        &'view self,
+        rankings_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         rankings_indicator
             .with_hover_card(Box::new(move |_| {
                 self.model_rankings

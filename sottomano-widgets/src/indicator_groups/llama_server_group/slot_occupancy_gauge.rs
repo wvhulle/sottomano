@@ -12,12 +12,12 @@ use crate::{
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub struct SlotOccupancy<'a> {
-    pub slots: &'a [LlamaSlot],
-    pub server: &'a str,
+pub struct SlotOccupancy<'view> {
+    pub slots: &'view [LlamaSlot],
+    pub server: &'view str,
 }
 
-impl<'a> SlotOccupancy<'a> {
+impl<'view> SlotOccupancy<'view> {
     fn busy(&self) -> usize {
         self.slots
             .iter()
@@ -26,7 +26,7 @@ impl<'a> SlotOccupancy<'a> {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let busy = self.busy();
         let fill = Ratio::new::<ratio>(busy as f64 / self.slots.len() as f64);
         let state = if busy > 0 {

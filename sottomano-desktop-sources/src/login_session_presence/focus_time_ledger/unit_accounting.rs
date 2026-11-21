@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use chrono::{DateTime, TimeDelta, Utc};
+use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
@@ -145,30 +146,47 @@ impl Accounting<'_> {
     }
 
     #[must_use]
-    pub fn screen_budget_status(&self, now: DateTime<Utc>) -> Option<BudgetStatus> {
-        self.screen_budget().map(|budget| {
-            BudgetStatus::within_last_day(
-                Cow::Borrowed("Screen"),
-                self.screen_spent(LAST_DAY.ending_at(now), now),
-                budget,
-                now,
-            )
-        })
+    pub fn screen_budget_standing(&self, now: DateTime<Utc>) -> BudgetStanding {
+        let Some(budget) = self.screen_budget() else {
+            return BudgetStanding::Unbudgeted;
+        };
+        BudgetStanding::Budgeted(BudgetStatus::within_last_day(
+            Cow::Borrowed("Screen"),
+            self.screen_spent(LAST_DAY.ending_at(now), now),
+            budget,
+            now,
+        ))
     }
 }
 
 impl UnitTotal {
     #[must_use]
-    pub fn budget_status(&self, now: DateTime<Utc>) -> Option<BudgetStatus> {
+    pub fn budget_standing(&self, now: DateTime<Utc>) -> BudgetStanding {
         let DailyBudget::Limited(budget) = self.budget else {
-            return None;
+            return BudgetStanding::Unbudgeted;
         };
-        Some(BudgetStatus::within_last_day(
+        BudgetStanding::Budgeted(BudgetStatus::within_last_day(
             Cow::Owned(self.unit.label().into_owned()),
             self.spent,
             budget,
             now,
         ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BudgetStanding {
+    Unbudgeted,
+    Budgeted(BudgetStatus),
+}
+
+impl BudgetStanding {
+    #[must_use]
+    pub fn severity(&self) -> Severity {
+        match self {
+            BudgetStanding::Budgeted(status) => status.quota.severity(),
+            BudgetStanding::Unbudgeted => Severity::default(),
+        }
     }
 }
 
@@ -259,7 +277,10 @@ mod tests {
             accounted
                 .unit_totals(LAST_DAY.ending_at(now), now)
                 .iter()
-                .filter_map(|total| total.budget_status(now))
+                .filter_map(|total| match total.budget_standing(now) {
+                    BudgetStanding::Budgeted(status) => Some(status),
+                    BudgetStanding::Unbudgeted => None,
+                })
                 .map(|status| status.quota.severity())
                 .collect::<Vec<_>>()
         };

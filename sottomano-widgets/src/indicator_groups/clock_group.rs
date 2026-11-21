@@ -176,10 +176,10 @@ impl ClockGroup {
         )
     }
 
-    fn local_time_indicator<'a>(
-        &'a self,
-        time_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn local_time_indicator<'view>(
+        &'view self,
+        time_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         time_indicator
             .with_hover_card(Box::new(|card_clock| {
                 self.time
@@ -188,10 +188,10 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
     }
 
-    fn local_date_indicator<'a>(
-        &'a self,
-        date_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn local_date_indicator<'view>(
+        &'view self,
+        date_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         date_indicator
             .with_hover_card(Box::new(|card_clock| {
                 self.date
@@ -200,11 +200,11 @@ impl ClockGroup {
             .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
     }
 
-    fn zone_time_indicator<'a>(
+    fn zone_time_indicator<'view>(
         zone: Tz,
-        zone_time: &'a SubscribedSnapshot<ZoneTime>,
-        zone_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+        zone_time: &'view SubscribedSnapshot<ZoneTime>,
+        zone_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         zone_indicator
             .with_hover_card(Box::new(|card_clock| {
                 zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))

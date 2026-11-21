@@ -30,7 +30,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    widgets::{idle::timer::IdleTimer, text::text_face_of},
+    widgets::{idle::timer::IdleTimer, text::resolved_text_face},
 };
 
 const IDLE_CHAIN_INSTANCE: &str = "chain";
@@ -68,11 +68,11 @@ fn headline_rank(state: IndicatorState) -> u8 {
 
 impl IdlePauseGroups {
     fn screen_off_override(&self, kind: IdleAction) -> ScreenOffOverride {
-        match self.quiet_screen_off {
-            Some(quiet_offset) if kind == IdleAction::ScreenOff => {
-                ScreenOffOverride::QuietHours(quiet_offset)
+        match kind {
+            IdleAction::ScreenOff => self.screen_off_override,
+            IdleAction::Lock | IdleAction::Sleep | IdleAction::Hibernate | IdleAction::PowerOff => {
+                ScreenOffOverride::FollowsSlider
             }
-            _ => ScreenOffOverride::FollowsSlider,
         }
     }
 
@@ -84,7 +84,8 @@ impl IdlePauseGroups {
     ) -> Section {
         schedule_section(
             section_title,
-            self.chain_of(IdleTimer::shown_setting).stage(kind),
+            self.resolved_chain_with(IdleTimer::shown_setting)
+                .stage(kind),
             self.screen_off_override(kind),
             self.hibernate_delay.get().copied(),
             clock,
@@ -102,7 +103,7 @@ impl IdlePauseGroups {
                 };
                 sleep_states
                     .into_iter()
-                    .chain(blocker_sections(self.blockers_of(kind)))
+                    .chain(blocker_sections(self.pause_blockers_for(kind)))
                     .collect()
             }))
             .collect()
@@ -110,10 +111,10 @@ impl IdlePauseGroups {
 
     fn shown_idle_timeline(&self, config: &Config, clock: Clock) -> DurationTimeline {
         idle_timeline(
-            &self.chain_of(IdleTimer::shown_setting),
+            &self.resolved_chain_with(IdleTimer::shown_setting),
             clock,
             config.calendar.locale,
-            text_face_of(&config.theme.font),
+            resolved_text_face(&config.theme.font),
         )
     }
 
@@ -126,10 +127,13 @@ impl IdlePauseGroups {
 
     fn blocker_group_sections(&self, pause: IdleAction) -> Vec<Section> {
         self.sleep_obstacles
-            .hover_card_with(blocker_sections(self.blockers_of(pause)))
+            .hover_card_with(blocker_sections(self.pause_blockers_for(pause)))
     }
 
-    fn hibernate_delay_rows<'a>(&'a self, config: &'a Config) -> Vec<GroupIndicator<'a>> {
+    fn hibernate_delay_rows<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> Vec<GroupIndicator<'view>> {
         let StageSchedule::AsleepAfterStandby { asleep_for } =
             self.idle_chain().stage(IdleAction::Hibernate).schedule
         else {
@@ -160,12 +164,12 @@ impl IdlePauseGroups {
         rows
     }
 
-    fn stage_rows<'a>(
-        &'a self,
+    fn stage_rows<'view>(
+        &'view self,
         pause: IdleAction,
-        config: &'a Config,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<GroupIndicator<'a>> {
+    ) -> Vec<GroupIndicator<'view>> {
         let timeout_slider =
             GroupIndicator::slider(&self.pause(pause).timer.control, config, move |message| {
                 IdlePauseInteraction::Timer(pause, message)
@@ -174,7 +178,7 @@ impl IdlePauseGroups {
                 self.pause_sections(pause, card_clock)
             }));
         let mut rows = vec![timeout_slider];
-        rows.extend(self.blockers_of(pause).map(move |blocker| {
+        rows.extend(self.pause_blockers_for(pause).map(move |blocker| {
             blocker
                 .indicator()
                 .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)))
@@ -199,14 +203,14 @@ impl IdlePauseGroups {
         rows
     }
 
-    fn timeline_indicator<'a>(&'a self, config: &'a Config) -> GroupIndicator<'a> {
+    fn timeline_indicator<'view>(&'view self, config: &'view Config) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "Timeline",
             Phosphor::ClockCountdown(Weight::Regular).into(),
             IndicatorState::Idle,
         )
         .with_label(ReadoutLabel::Labeled(first_stage_text(
-            &self.chain_of(IdleTimer::shown_setting),
+            &self.resolved_chain_with(IdleTimer::shown_setting),
             config.calendar.locale,
         )))
         .with_hover_card(Box::new(move |card_clock| {
@@ -223,11 +227,11 @@ impl IdlePauseGroups {
     }
 
     #[must_use]
-    pub fn idle_chain_group<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn idle_chain_group<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let rows = [self.timeline_indicator(config)].into_iter().chain(
             IdleAction::ALL
                 .into_iter()

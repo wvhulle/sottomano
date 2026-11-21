@@ -5,6 +5,7 @@ mod estimate_columns;
 mod power_draw_gauge;
 mod power_profile_control;
 mod profile_status_sections;
+mod sample_spacing;
 mod sqlite_charge_power_curve;
 mod sqlite_power_draw_regression;
 
@@ -65,7 +66,6 @@ pub enum PowerBusRequest {
 #[derive(Default)]
 pub struct PowerGroup {
     battery: SubscribedSnapshot<Battery>,
-    time: Option<BatteryTime>,
     time_indicator: BatteryTimeIndicator,
     power_profile: PowerProfileControl,
     charger: HoverFetchedSnapshot<ChargerSupply>,
@@ -129,7 +129,7 @@ impl PowerGroup {
     }
 
     pub fn update(&mut self, power_message: PowerMessage, clock: Clock) -> Task<PowerMessage> {
-        let task = match power_message {
+        match power_message {
             PowerMessage::Battery(sample) => {
                 self.battery.receive(sample, clock);
                 self.observe_battery(clock)
@@ -150,9 +150,7 @@ impl PowerGroup {
                 .power_profile
                 .update(profile_message, clock)
                 .map(PowerMessage::PowerProfile),
-        };
-        self.estimate_time_left();
-        task
+        }
     }
 
     pub fn interact(
@@ -161,7 +159,7 @@ impl PowerGroup {
         config: &Config,
         clock: Clock,
     ) -> Task<PowerMessage> {
-        let task = match interaction {
+        match interaction {
             PowerInteraction::PowerProfile(profile_interaction) => self
                 .power_profile
                 .interact(profile_interaction)
@@ -182,17 +180,12 @@ impl PowerGroup {
                 Task::none()
             }
             PowerInteraction::OnBuses(_) => Task::none(),
-        };
-        self.estimate_time_left();
-        task
+        }
     }
 
-    fn estimate_time_left(&mut self) {
-        let battery = self.battery.get();
-        self.time = battery.and_then(|battery| {
-            self.time_indicator
-                .time_for(battery, self.power_profile.active_estimate())
-        });
+    fn battery_time(&self) -> Option<BatteryTime> {
+        self.time_indicator
+            .time_for(self.battery.get()?, self.power_profile.active_estimate())
     }
 
     fn draw(&self) -> Option<PowerDraw> {
@@ -216,7 +209,10 @@ impl PowerGroup {
         ])
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let switch_to_saving_profiles =
             self.power_profile
@@ -259,7 +255,7 @@ impl PowerGroup {
         if let Some(draw) = self.draw() {
             rows.push(self.power_draw_indicator(draw));
         }
-        if let Some(time) = &self.time {
+        if let Some(time) = self.battery_time() {
             rows.push(
                 time.indicator(locale)
                     .ongoing_toast_action_buttons(switch_to_saving_profiles)
@@ -278,7 +274,7 @@ impl PowerGroup {
         )
     }
 
-    fn power_profile_indicator<'a>(&'a self, config: &'a Config) -> GroupIndicator<'a> {
+    fn power_profile_indicator<'view>(&'view self, config: &'view Config) -> GroupIndicator<'view> {
         GroupIndicator::slider(&self.power_profile.control, config, |control_message| {
             PowerInteraction::PowerProfile(PowerProfileInteraction::Control(control_message))
         })
@@ -296,10 +292,10 @@ impl PowerGroup {
         )))
     }
 
-    fn battery_charge_indicator<'a>(
-        &'a self,
-        charge_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn battery_charge_indicator<'view>(
+        &'view self,
+        charge_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         charge_indicator
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self.battery.sections_described_by(battery_hover_card);

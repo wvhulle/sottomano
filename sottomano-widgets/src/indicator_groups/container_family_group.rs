@@ -32,8 +32,8 @@ pub enum RowPower<PowerRequest> {
     Stoppable(PowerRequest),
 }
 
-pub struct FamilyIndicator<'a, Family: ContainerFamily> {
-    pub indicator: GroupIndicator<'a>,
+pub struct FamilyIndicator<'view, Family: ContainerFamily> {
+    pub indicator: GroupIndicator<'view>,
     pub power: RowPower<Family::PowerRequest>,
 }
 
@@ -232,10 +232,10 @@ fn refused_power_change<Family: ContainerFamily>(
         .and_then(|refusal| Task::done(ContainerFamilyMessage::PowerChangeRefused(refusal)))
 }
 
-fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
-    source: &'a SubscribedSnapshot<Source>,
-    row: FamilyIndicator<'a, Family>,
-) -> FamilyIndicator<'a, Family> {
+fn stamped_by_source<'view, Family: ContainerFamily, Source: SnapshotSource>(
+    source: &'view SubscribedSnapshot<Source>,
+    row: FamilyIndicator<'view, Family>,
+) -> FamilyIndicator<'view, Family> {
     FamilyIndicator {
         indicator: row.indicator.wrap_hover_card(|indicator_card| {
             Box::new(move |clock| source.hover_card_with(indicator_card(clock)))

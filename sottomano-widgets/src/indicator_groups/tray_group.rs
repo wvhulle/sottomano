@@ -74,10 +74,17 @@ mod tray_group_tests;
 const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
 
 #[derive(Default)]
+enum TrayHostConnection {
+    #[default]
+    Disconnected,
+    Connected(TrayHost),
+}
+
+#[derive(Default)]
 pub struct TrayGroup {
     items: SubscribedSnapshot<Vec<TrayItem>>,
     pixmap_handles: PixmapHandles,
-    host: Option<TrayHost>,
+    host: TrayHostConnection,
     pub menu_state: NestedMenuState<i32>,
     expansion: IndicatorGroupExpansion,
 }
@@ -177,7 +184,7 @@ impl TrayGroup {
     pub fn update(&mut self, message: TrayMessage, clock: Clock) -> Action {
         match message {
             TrayMessage::Update(TrayUpdate::Connected(host)) => {
-                self.host = Some(host);
+                self.host = TrayHostConnection::Connected(host);
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
@@ -189,13 +196,13 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::HostFailed(failure)) => {
-                self.host = None;
+                self.host = TrayHostConnection::Disconnected;
                 self.items
                     .receive(SnapshotDelivery::live_push(Err(failure)), clock);
                 Action::None
             }
-            TrayMessage::Expansion(m) => {
-                self.expansion.update(m);
+            TrayMessage::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
                 Action::None
             }
             TrayMessage::Activate(address) => {
@@ -300,9 +307,10 @@ impl TrayGroup {
     }
 
     fn command(&self, command: TrayCommand, token: ActivationTokenOutcome) -> Task<TrayMessage> {
-        let Some(host) = self.host.clone() else {
+        let TrayHostConnection::Connected(host) = &self.host else {
             return Task::none();
         };
+        let host = host.clone();
         match token {
             ActivationTokenOutcome::Issued(activation_token) => logged_failure_task(
                 "tray: activate".to_owned(),
@@ -316,7 +324,7 @@ impl TrayGroup {
     }
 
     #[must_use]
-    pub fn visible<'a>(&'a self, config: &Config) -> Vec<&'a TrayItem> {
+    pub fn visible<'group>(&'group self, config: &Config) -> Vec<&'group TrayItem> {
         self.items
             .get()
             .into_iter()
@@ -327,12 +335,12 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        icon_catalog: &'a IconCatalog,
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+        icon_catalog: &'view IconCatalog,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
-    ) -> IndicatorGroupContent<'a> {
+    ) -> IndicatorGroupContent<'view> {
         let group_indicators: Vec<_> = self
             .visible(config)
             .into_iter()
@@ -442,19 +450,19 @@ fn tray_item_drawable(
     }
 }
 
-fn item_view<'a>(
+fn item_view<'view>(
     config: &Config,
     icon_sources: DrawableIconSources<'_>,
     item: &TrayItem,
     item_window: &TrayItemWindow,
     reveal: f32,
-) -> Element<'a, GroupEvent> {
+) -> Element<'view, GroupEvent> {
     let side = config.theme.font.icon_size_px;
     let tint = IndicatorStateTint {
         state: IndicatorState::Idle,
         opacity: reveal,
     };
-    let glyph: Element<'a, GroupEvent> = match tray_item_drawable(icon_sources, &item.icon) {
+    let glyph: Element<'view, GroupEvent> = match tray_item_drawable(icon_sources, &item.icon) {
         Some(drawable_icon) => {
             drawable_icon.view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
         }
@@ -462,7 +470,7 @@ fn item_view<'a>(
             .view(side, move |theme| tint.color(theme)),
     };
 
-    let marked: Element<'a, GroupEvent> = if item.status == Status::NeedsAttention {
+    let marked: Element<'view, GroupEvent> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
             container(activity_line(

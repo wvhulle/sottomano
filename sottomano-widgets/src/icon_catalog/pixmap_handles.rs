@@ -17,7 +17,10 @@ pub struct PixmapHandles {
 
 impl PixmapHandles {
     #[must_use]
-    pub fn refreshed<'a>(&self, pixmaps: impl IntoIterator<Item = &'a Arc<RgbaImage>>) -> Self {
+    pub fn refreshed<'pixmaps>(
+        &self,
+        pixmaps: impl IntoIterator<Item = &'pixmaps Arc<RgbaImage>>,
+    ) -> Self {
         Self {
             converted: pixmaps
                 .into_iter()

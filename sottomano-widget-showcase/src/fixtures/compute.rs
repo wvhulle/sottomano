@@ -38,8 +38,8 @@ use crate::{
     fixtures::{
         cycled,
         host_hardware::{
-            self, CORES_PER_CHIPLET, HIGH_CLOCK_CHIPLET, PHYSICAL_CORE_COUNT, chiplet_of,
-            dual_chiplet_topology, logical_cpus,
+            self, CORES_PER_CHIPLET, HIGH_CLOCK_CHIPLET, PHYSICAL_CORE_COUNT,
+            dual_chiplet_topology, logical_cpus, owning_chiplet,
         },
         sample,
     },
@@ -189,7 +189,7 @@ fn every_seconds(seconds: u64) -> DeliveryCadence {
     DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(seconds)))
 }
 
-fn physical_core_of(logical_cpu: u32) -> u32 {
+fn physical_core_index(logical_cpu: u32) -> u32 {
     logical_cpu % PHYSICAL_CORE_COUNT
 }
 
@@ -199,8 +199,8 @@ fn thread_busy_percent(logical_cpu: u32, tick: u32) -> f64 {
     } else {
         0
     };
-    let wave = (physical_core_of(logical_cpu) * 17 + tick * 11 + sibling_offset) % 70;
-    let chiplet_bias = if chiplet_of(logical_cpu) == HIGH_CLOCK_CHIPLET {
+    let wave = (physical_core_index(logical_cpu) * 17 + tick * 11 + sibling_offset) % 70;
+    let chiplet_bias = if owning_chiplet(logical_cpu) == HIGH_CLOCK_CHIPLET {
         -12.0
     } else {
         8.0
@@ -246,10 +246,11 @@ fn cpu_clock(tick: u32) -> CpuClock {
     CpuClock {
         cores: logical_cpus()
             .map(|logical_cpu| {
-                let chiplet = chiplet_of(logical_cpu);
+                let chiplet = owning_chiplet(logical_cpu);
                 let peak = CHIPLET_PEAK_MEGAHERTZ[chiplet];
-                let busy_share = thread_busy_percent(physical_core_of(logical_cpu), tick) / 100.0;
-                let position_in_chiplet = physical_core_of(logical_cpu) % CORES_PER_CHIPLET;
+                let busy_share =
+                    thread_busy_percent(physical_core_index(logical_cpu), tick) / 100.0;
+                let position_in_chiplet = physical_core_index(logical_cpu) % CORES_PER_CHIPLET;
                 CoreFreq {
                     core: logical_cpu,
                     frequency: Frequency::new::<megahertz>(
@@ -291,8 +292,8 @@ fn core_temperatures(tick: u32) -> CpuCoreTemperatures {
     CpuCoreTemperatures {
         cores: logical_cpus()
             .map(|logical_cpu| {
-                let physical_core = physical_core_of(logical_cpu);
-                let chiplet_offset = if chiplet_of(logical_cpu) == HIGH_CLOCK_CHIPLET {
+                let physical_core = physical_core_index(logical_cpu);
+                let chiplet_offset = if owning_chiplet(logical_cpu) == HIGH_CLOCK_CHIPLET {
                     -2.0
                 } else {
                     -7.0

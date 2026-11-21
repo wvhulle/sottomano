@@ -10,7 +10,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{SecretPaths, secrets::StoredSecret};
 
-use self::wallpaper_lookup::Lookup;
+use self::{
+    article_label::WallpaperArticle, place_label::WallpaperPlace, wallpaper_lookup::Lookup,
+};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
@@ -97,12 +99,12 @@ impl WallpaperGroup {
         }
         let mut rows = Vec::new();
         if let Some(lookup) = self.lookup.get() {
-            if let Some(place) = &lookup.place {
+            if let WallpaperPlace::Named(place) = &lookup.place {
                 rows.push(place.indicator().with_hover_card(Box::new(move |_| {
                     self.lookup.hover_card_with(place.hover_card())
                 })));
             }
-            if let Some(article) = &lookup.article {
+            if let WallpaperArticle::Found(article) = &lookup.article {
                 rows.push(article.indicator().with_hover_card(Box::new(move |_| {
                     self.lookup.hover_card_with(article.hover_card())
                 })));

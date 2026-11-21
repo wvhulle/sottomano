@@ -9,6 +9,7 @@ use sottomano_desktop_sources::login_session_presence::{
 use super::{
     HibernateDelayDemand, IdlePauseGroups, IdlePauseMessage, ResolvedIdleChain, StageSetting,
     SuspendThenHibernateSupport, chain_stage_rows::HibernateDelayApply,
+    stage_schedule_cards::ScreenOffOverride,
 };
 use crate::widgets::idle::timer::{ActionAvailability, IdleTimer};
 
@@ -51,13 +52,13 @@ impl IdlePauseGroups {
         }
     }
 
-    pub(super) fn chain_of(
+    pub(super) fn resolved_chain_with(
         &self,
         setting_of: impl Fn(&IdleTimer) -> StageSetting,
     ) -> ResolvedIdleChain {
         let settings = IdleAction::ALL.map(|stage| {
             let stage_setting = setting_of(&self.pause(stage).timer);
-            let Some(quiet_offset) = self.quiet_screen_off else {
+            let ScreenOffOverride::QuietHours(quiet_offset) = self.screen_off_override else {
                 return stage_setting;
             };
             match (stage, stage_setting) {
@@ -72,6 +73,6 @@ impl IdlePauseGroups {
 
     #[must_use]
     pub fn idle_chain(&self) -> ResolvedIdleChain {
-        self.chain_of(IdleTimer::setting)
+        self.resolved_chain_with(IdleTimer::setting)
     }
 }

@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::{
-    ArticleSummary, WikipediaArticle,
+    ArticleSummary, PlaceArticle, WikipediaArticle,
 };
 
 use crate::{
@@ -70,6 +70,21 @@ impl From<&WikipediaArticle> for Article {
             title: article.title.clone(),
             url: article.url.clone(),
             summary: article.summary.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum WallpaperArticle {
+    Found(Article),
+    Unmatched,
+}
+
+impl From<&PlaceArticle> for WallpaperArticle {
+    fn from(place_article: &PlaceArticle) -> Self {
+        match place_article {
+            PlaceArticle::Found(article) => WallpaperArticle::Found(Article::from(article)),
+            PlaceArticle::Unmatched => WallpaperArticle::Unmatched,
         }
     }
 }

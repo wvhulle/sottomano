@@ -5,7 +5,6 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use chrono::NaiveDate;
 use sottomano_desktop_sources::{
     network_connectivity::{
         interface_throughput::{InterfaceByteCounters, InterfaceThroughput},
@@ -111,18 +110,13 @@ impl MeteredVolumeTally {
         }
     }
 
-    pub fn totals_loaded(
-        &mut self,
-        loaded: Option<MeteredVolumeTotals>,
-        today: NaiveDate,
-        now: Instant,
-    ) {
+    pub fn totals_loaded(&mut self, loaded: MeteredVolumeTotals, now: Instant) {
         let last_saved_at = match self.stored {
             StoredTotals::Loaded { last_saved_at, .. } => last_saved_at,
             StoredTotals::NotLoaded | StoredTotals::Loading => now,
         };
         self.stored = StoredTotals::Loaded {
-            totals: loaded.unwrap_or_else(|| MeteredVolumeTotals::starting(today)),
+            totals: loaded,
             last_saved_at,
         };
     }
@@ -138,6 +132,7 @@ impl MeteredVolumeTally {
 
 #[cfg(test)]
 mod tests {
+    use chrono::NaiveDate;
     use sottomano_desktop_sources::network_connectivity::{
         interface_throughput::{NetworkTrafficDirection, Throughput},
         network_manager_proxies::Metering,
@@ -181,7 +176,7 @@ mod tests {
             tally.observe(&throughput_at(1_000, 100, Metering::Metered), started_at),
             TallyFollowUp::LoadTotals
         );
-        tally.totals_loaded(None, today(), started_at);
+        tally.totals_loaded(MeteredVolumeTotals::starting(today()), started_at);
         tally
     }
 

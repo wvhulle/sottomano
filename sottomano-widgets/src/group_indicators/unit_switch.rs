@@ -85,10 +85,10 @@ impl UnitSwitchIndicator {
         }
     }
 
-    pub fn wired_switch_indicator<'a>(
+    pub fn wired_switch_indicator<'view>(
         self,
         pressed: impl Into<IndicatorGroupInteraction>,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         let switch_position = self.toggle.switch_position;
         let press_does = self.toggle.press_does();
         self.indicator()
@@ -257,11 +257,11 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn attach_switch_press<'a>(
+    pub fn attach_switch_press<'view>(
         &self,
-        group_indicator: GroupIndicator<'a>,
+        group_indicator: GroupIndicator<'view>,
         pressed: impl Into<IndicatorGroupInteraction>,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         match self.switch_indicator(ServiceReadiness::Serving) {
             Some(sample) => group_indicator.on_switch_press(
                 sample.toggle.switch_position,

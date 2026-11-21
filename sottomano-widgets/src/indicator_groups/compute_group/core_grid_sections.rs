@@ -16,13 +16,13 @@ pub trait PerCoreSample {
     fn thread_cell(&self) -> ThreadCell;
 }
 
-pub struct CoreGridSection<'a, Sample> {
-    pub topology: &'a CpuTopology,
-    pub samples: &'a [Sample],
+pub struct CoreGridSection<'snapshot, Sample> {
+    pub topology: &'snapshot CpuTopology,
+    pub samples: &'snapshot [Sample],
 }
 
 impl<Sample: PerCoreSample> CoreGridSection<'_, Sample> {
-    pub fn members<'r>(&'r self, group: &CoreGroup) -> Vec<&'r Sample> {
+    pub fn members<'section>(&'section self, group: &CoreGroup) -> Vec<&'section Sample> {
         self.samples
             .iter()
             .filter(|sample| group.contains(sample.core_index()))

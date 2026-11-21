@@ -196,7 +196,10 @@ pub enum ShownSettingItems {
 }
 
 impl ShowcasedShellSettings {
-    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<IndicatorGroupContent<'a>> {
+    fn group_contents<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> Vec<IndicatorGroupContent<'view>> {
         let inert_settings = [
             self.panels.group_content(config),
             self.sidebar.group_content(config),
@@ -243,7 +246,7 @@ pub enum TerminalLine {
 }
 
 impl TerminalLine {
-    fn view<'a>(&self) -> Element<'a, ShowcaseInteraction> {
+    fn view<'view>(&self) -> Element<'view, ShowcaseInteraction> {
         match self {
             TerminalLine::Prompt { directory, command } => {
                 terminal_row(directory, primary_color, command)
@@ -253,11 +256,11 @@ impl TerminalLine {
     }
 }
 
-fn terminal_row<'a>(
+fn terminal_row<'view>(
     lead: &'static str,
     lead_color: fn(&Theme) -> Color,
     rest: &'static str,
-) -> Element<'a, ShowcaseInteraction> {
+) -> Element<'view, ShowcaseInteraction> {
     Row::with_children([
         text(lead)
             .font(Font::MONOSPACE)
@@ -329,11 +332,11 @@ pub struct ShowcasedDesktopSession {
 }
 
 impl ShowcasedDesktopSession {
-    fn sidebar_groups<'a>(
-        &'a self,
-        config: &'a Config,
+    fn sidebar_groups<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseInteraction>> {
+    ) -> Vec<Element<'view, ShowcaseInteraction>> {
         sidebar_column::vertical_view(
             &self.snapshot,
             SHOWCASE_OUTPUT,
@@ -349,11 +352,11 @@ impl ShowcasedDesktopSession {
         .collect()
     }
 
-    fn workspaces_and_windows<'a>(
-        &'a self,
-        config: &'a Config,
+    fn workspaces_and_windows<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseInteraction>> {
+    ) -> Vec<Element<'view, ShowcaseInteraction>> {
         let snapshot = &self.snapshot;
         let workspaces = inline_strip::inline_view(
             snapshot,
@@ -461,11 +464,11 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn group_contents<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn group_contents<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'view>> {
         match self {
             ShowcasedGroup::AppLauncher(_) => Vec::new(),
             ShowcasedGroup::MenuMembers(groups) => groups
@@ -480,11 +483,11 @@ impl ShowcasedGroup {
         }
     }
 
-    fn interactive_group_contents<'a>(
-        &'a self,
-        config: &'a Config,
+    fn interactive_group_contents<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'view>> {
         let locale = config.calendar.locale;
         let sole_group = match self {
             ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
@@ -509,11 +512,11 @@ impl ShowcasedGroup {
         vec![sole_group]
     }
 
-    fn listed_group_contents<'a>(
-        &'a self,
-        config: &'a Config,
+    fn listed_group_contents<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'view>> {
         match self {
             ShowcasedGroup::Media(media) => media
                 .group
@@ -529,11 +532,11 @@ impl ShowcasedGroup {
         }
     }
 
-    fn guest_group_contents<'a>(
-        &'a self,
-        config: &'a Config,
+    fn guest_group_contents<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'a>> {
+    ) -> Vec<IndicatorGroupContent<'view>> {
         let locale = config.calendar.locale;
         let guest_group = match self {
             ShowcasedGroup::PodmanEngines(group) => group.group_content(),
@@ -555,11 +558,11 @@ impl ShowcasedGroup {
         vec![guest_group]
     }
 
-    pub fn panel_groups<'a>(
-        &'a self,
-        config: &'a Config,
+    pub fn panel_groups<'view>(
+        &'view self,
+        config: &'view Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseInteraction>> {
+    ) -> Vec<Element<'view, ShowcaseInteraction>> {
         let position = self.position();
         match self {
             ShowcasedGroup::BottomPanel(session) => session.workspaces_and_windows(config, clock),

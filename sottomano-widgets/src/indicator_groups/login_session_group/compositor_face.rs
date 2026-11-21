@@ -18,11 +18,11 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct CompositorFace<'a> {
-    pub identity: &'a SessionIdentity,
+pub struct CompositorFace<'view> {
+    pub identity: &'view SessionIdentity,
 }
 
-impl<'a> CompositorFace<'a> {
+impl<'view> CompositorFace<'view> {
     fn glyph(&self) -> IconGlyph {
         let DesktopName::Named(desktop_name) = &self.identity.desktop else {
             return Phosphor::AppWindow(Weight::Regular).into();
@@ -38,7 +38,7 @@ impl<'a> CompositorFace<'a> {
         }
     }
 
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = self.glyph();
         let label = match self.identity.desktop.clone() {
             DesktopName::Named(desktop_name) => ReadoutLabel::Labeled(desktop_name),

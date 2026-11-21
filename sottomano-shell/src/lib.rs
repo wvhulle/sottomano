@@ -29,7 +29,7 @@ use std::{
 
 use clap::Parser;
 use command_line::CommandLine;
-use desktop_shell::DesktopShell;
+use desktop_shell::{DesktopShell, WaylandLink};
 use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
@@ -37,7 +37,7 @@ use iced_exwlshell::{
 use sottomano_compositors::compositor_connection::CompositorKind;
 use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
 use sottomano_toml_config::{Config, ConfigFile, SecretPaths};
-use sottomano_widgets::widgets::text::font_faces_of;
+use sottomano_widgets::widgets::text::resolved_font_faces;
 use tracing_chrome::{ChromeLayerBuilder, FlushGuard};
 use tracing_subscriber::{
     EnvFilter, Layer, fmt, fmt::format::FmtSpan, layer::SubscriberExt, registry::LookupSpan,
@@ -114,20 +114,27 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         .map_or_else(|_| Config::default(), Config::clone);
     let loaded = loaded.map(Box::new).map_err(Arc::new);
 
-    let wayland = wayland_client::Connection::connect_to_env()
-        .inspect_err(|e| {
-            tracing::error!("wayland: no connection, outputs will not be tracked: {e}");
-        })
-        .ok();
+    let wayland = match wayland_client::Connection::connect_to_env() {
+        Ok(connection) => WaylandLink::Connected(connection),
+        Err(connection_error) => {
+            tracing::error!(
+                "wayland: no connection, outputs will not be tracked: {connection_error}"
+            );
+            WaylandLink::Unconnected
+        }
+    };
     let wl_settings = ExWlSettings {
         layer_settings: LayerShellSettings {
             start_mode: StartMode::Background,
             ..Default::default()
         },
-        with_connection: wayland.clone().map(Into::into),
+        with_connection: match &wayland {
+            WaylandLink::Connected(connection) => Some(connection.clone().into()),
+            WaylandLink::Unconnected => None,
+        },
         ..Default::default()
     };
-    let default_font = font_faces_of(&config.theme.font).regular;
+    let default_font = resolved_font_faces(&config.theme.font).regular;
     let font_data = config.theme.font.data.to_vec();
 
     daemon(

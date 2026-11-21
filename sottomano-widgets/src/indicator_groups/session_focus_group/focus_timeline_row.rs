@@ -118,12 +118,12 @@ fn break_span(taken: &TakenBreak) -> ClockSpan {
     }
 }
 
-pub(super) struct FocusTimeline<'a> {
-    pub session_face: SessionFace<'a>,
+pub(super) struct FocusTimeline<'view> {
+    pub session_face: SessionFace<'view>,
 }
 
-impl<'a> FocusTimeline<'a> {
-    fn accounting(&self) -> Accounting<'a> {
+impl<'view> FocusTimeline<'view> {
+    fn accounting(&self) -> Accounting<'view> {
         self.session_face.accounting
     }
 
@@ -299,7 +299,7 @@ mod tests {
     use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
 
     use super::{DueMoment, FocusTimeline, RunOffset, SessionDue};
-    use crate::indicator_groups::session_focus_group::session_face::SessionFace;
+    use crate::indicator_groups::session_focus_group::{WarningSnooze, session_face::SessionFace};
 
     fn at(minutes: i64) -> DateTime<Utc> {
         "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
@@ -350,7 +350,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(
@@ -385,7 +385,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(
@@ -413,7 +413,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(timeline.due_moments(at(80)), Vec::new());
@@ -433,7 +433,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(
@@ -457,7 +457,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(
@@ -476,7 +476,7 @@ mod tests {
         let timeline = FocusTimeline {
             session_face: SessionFace {
                 accounting: ledger.accounted(&config),
-                snooze: None,
+                snooze: WarningSnooze::NotSnoozed,
             },
         };
         assert_eq!(timeline.now_event(at(130)).title, "Now on kitty");

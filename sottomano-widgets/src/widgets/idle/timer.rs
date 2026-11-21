@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     glyph_icons::phosphor::Phosphor,
     group_indicators::slider_control::{
@@ -7,7 +5,7 @@ use crate::{
     },
     indicator_groups::idle_pause_groups::StageSetting,
     widgets::{
-        idle::{MAX_POSITION, position, timeout_at},
+        idle::{IdleTimeout, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
     },
 };
@@ -19,7 +17,7 @@ pub enum TimerChange {
 }
 
 pub struct IdleTimer {
-    pub timeout: Option<Duration>,
+    pub timeout: IdleTimeout,
     pub control: SliderControl,
     availability: ActionAvailability,
 }
@@ -34,37 +32,39 @@ impl IdleTimer {
                 glyph(0.0, SliderActivity::Inactive),
             )
             .glyph(glyph)
-            .readout(|value, locale| {
-                timeout_at(value).map_or_else(
-                    || "∞".to_owned(),
-                    |offset| format!("+{}", duration_text(offset, locale)),
-                )
+            .readout(|value, locale| match timeout_at(value) {
+                IdleTimeout::After(offset) => format!("+{}", duration_text(offset, locale)),
+                IdleTimeout::Never => "∞".to_owned(),
             })
-            .label(|value, locale| {
-                timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
+            .label(|value, locale| match timeout_at(value) {
+                IdleTimeout::After(offset) => Some(format!("+{}", duration_text(offset, locale))),
+                IdleTimeout::Never => None,
             }),
-            timeout: None,
+            timeout: IdleTimeout::Never,
             availability: ActionAvailability::Available,
         }
     }
 
     #[must_use]
     pub fn setting(&self) -> StageSetting {
-        Self::setting_of(self.timeout, self.availability)
+        Self::stage_setting(self.timeout, self.availability)
     }
 
     #[must_use]
     pub fn shown_setting(&self) -> StageSetting {
-        Self::setting_of(
+        Self::stage_setting(
             timeout_at(self.control.expanding_slider.synced_value.shown_value()),
             self.availability,
         )
     }
 
-    fn setting_of(timeout: Option<Duration>, availability: ActionAvailability) -> StageSetting {
-        match availability {
-            ActionAvailability::Unavailable => StageSetting::Unavailable,
-            ActionAvailability::Available => timeout.map_or(StageSetting::Off, StageSetting::After),
+    fn stage_setting(timeout: IdleTimeout, availability: ActionAvailability) -> StageSetting {
+        match (availability, timeout) {
+            (ActionAvailability::Unavailable, _) => StageSetting::Unavailable,
+            (ActionAvailability::Available, IdleTimeout::Never) => StageSetting::Off,
+            (ActionAvailability::Available, IdleTimeout::After(timeout)) => {
+                StageSetting::After(timeout)
+            }
         }
     }
 
@@ -85,7 +85,9 @@ impl IdleTimer {
 
     fn show_as_off_when_inactive(&mut self) {
         self.control.update(ControlMessage::Activity(
-            if self.timeout.is_none() || self.availability == ActionAvailability::Unavailable {
+            if self.timeout == IdleTimeout::Never
+                || self.availability == ActionAvailability::Unavailable
+            {
                 SliderActivity::Inactive
             } else {
                 SliderActivity::Active
@@ -93,7 +95,7 @@ impl IdleTimer {
         ));
     }
 
-    pub fn set_timeout(&mut self, timeout: Option<Duration>) {
+    pub fn set_timeout(&mut self, timeout: IdleTimeout) {
         self.timeout = timeout;
         self.control
             .update(ControlMessage::Sample(position(timeout)));

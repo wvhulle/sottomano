@@ -13,11 +13,11 @@ use sottomano_desktop_sources::{
     system_protocol_clients::{dbus_desktop_buses::OnBus, shell_command_output},
     wallpaper_place_article::{
         self, DisplayedWallpaper,
-        unsplash_photo_article::{self, PlaceArticle, Wallpaper},
+        unsplash_photo_article::{self, Wallpaper},
     },
 };
 
-use super::{article_label::Article, photo_credit::Photo, place_label::Place};
+use super::{article_label::WallpaperArticle, photo_credit::Photo, place_label::WallpaperPlace};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
@@ -27,19 +27,16 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lookup {
-    pub(super) place: Option<Place>,
-    pub(super) article: Option<Article>,
+    pub(super) place: WallpaperPlace,
+    pub(super) article: WallpaperArticle,
     pub(super) photo: Photo,
 }
 
 impl From<&Wallpaper> for Lookup {
     fn from(wallpaper: &Wallpaper) -> Self {
         Self {
-            place: Place::wallpaper_place(wallpaper),
-            article: match &wallpaper.article {
-                PlaceArticle::Found(article) => Some(Article::from(article)),
-                PlaceArticle::Unmatched => None,
-            },
+            place: WallpaperPlace::from(wallpaper),
+            article: WallpaperArticle::from(&wallpaper.article),
             photo: Photo::from(wallpaper),
         }
     }
@@ -52,10 +49,10 @@ pub enum Failure {
 }
 
 impl Display for Failure {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Failure::Query(error) => write!(f, "awww: {error}"),
-            Failure::Resolve(error) => write!(f, "{error}"),
+            Failure::Query(error) => write!(formatter, "awww: {error}"),
+            Failure::Resolve(error) => write!(formatter, "{error}"),
         }
     }
 }

@@ -49,8 +49,8 @@ struct CauseSpread {
     cpus: Vec<u32>,
 }
 
-pub struct ClockLimitCauses<'a> {
-    pub clock: &'a CpuClock,
+pub struct ClockLimitCauses<'view> {
+    pub clock: &'view CpuClock,
 }
 
 impl ClockLimitCauses<'_> {
@@ -90,7 +90,7 @@ impl ClockLimitCauses<'_> {
     }
 }
 
-impl<'a> ClockLimitCauses<'a> {
+impl<'view> ClockLimitCauses<'view> {
     pub fn panel_visibility(&self) -> PanelVisibility {
         if self.clock.limited_cores() > 0 {
             PanelVisibility::Shown
@@ -109,7 +109,7 @@ impl<'a> ClockLimitCauses<'a> {
         )]
     }
 
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let spreads = self.spreads();
         let label = match spreads.first() {
             Some(most_severe) => ReadoutLabel::Labeled(match spreads.len() - 1 {

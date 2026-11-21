@@ -146,9 +146,9 @@ impl ComputeGroup {
 
     fn live(&self) -> ChipletLiveState<'_> {
         ChipletLiveState {
-            clock: self.cpu_clock.get(),
-            temperature: self.cpu_temperature.get(),
-            cache_traffic: self.cache_traffic.sample(),
+            clock: &self.cpu_clock,
+            temperature: &self.cpu_temperature,
+            cache_traffic: &self.cache_traffic,
         }
     }
 
@@ -280,7 +280,7 @@ impl ComputeGroup {
         .with_headline_glyph(Phosphor::Circuitry(Weight::Regular).into())
     }
 
-    fn list_cpu_load<'a>(&'a self, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_cpu_load<'view>(&'view self, indicators: &mut Vec<GroupIndicator<'view>>) {
         if !self.cpu_load.awaits_first_delivery() {
             indicators.insert(
                 0,
@@ -292,7 +292,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_clock_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_cpu_clock_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if self.cpu_clock.awaits_first_delivery() {
             return;
         }
@@ -313,9 +313,9 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_temperature_indicators<'a>(
-        &'a self,
-        rows: &mut Vec<GroupIndicator<'a>>,
+    fn push_cpu_temperature_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
         clock: Clock,
         locale: Locale,
     ) {
@@ -330,7 +330,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_power_draw_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_cpu_power_draw_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(power) = self.cpu_power_draw.get() {
             let power_indicator = cpu_power_indicator(power);
             if power_indicator.panel_visibility == PanelVisibility::Shown {
@@ -339,7 +339,7 @@ impl ComputeGroup {
         }
     }
 
-    fn push_cpu_model_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_cpu_model_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(hardware) = self.host_hardware.get() {
             let model_indicator = cpu_model_indicator(&hardware.cpu);
             if model_indicator.panel_visibility == PanelVisibility::Shown {
@@ -350,7 +350,10 @@ impl ComputeGroup {
         }
     }
 
-    fn push_x3d_cache_preference_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_x3d_cache_preference_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+    ) {
         let subscribed = &self.x3d_cache_preference.sample;
         if subscribed.awaits_first_delivery() {
             return;
@@ -372,7 +375,10 @@ impl ComputeGroup {
         }
     }
 
-    fn cpu_load_indicator<'a>(&'a self, load_indicator: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn cpu_load_indicator<'view>(
+        &'view self,
+        load_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         load_indicator
             .with_hover_card(Box::new(move |_| self.cpu_load_card()))
             .fetching_on_hover(
@@ -382,10 +388,10 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
     }
 
-    fn wired_cpu_clock_indicator<'a>(
-        &'a self,
-        clock_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_cpu_clock_indicator<'view>(
+        &'view self,
+        clock_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         clock_indicator
             .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
             .fetching_on_hover(
@@ -395,19 +401,19 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_clock_limits_indicator<'a>(
-        &'a self,
-        limits_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn cpu_clock_limits_indicator<'view>(
+        &'view self,
+        limits_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         limits_indicator
             .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
 
-    fn cpu_temperature_indicator<'a>(
-        &'a self,
-        temperature_row: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn cpu_temperature_indicator<'view>(
+        &'view self,
+        temperature_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         temperature_row
             .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
             .fetching_on_hover(
@@ -417,10 +423,10 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
     }
 
-    fn cpu_power_draw_indicator<'a>(
-        &'a self,
-        power_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn cpu_power_draw_indicator<'view>(
+        &'view self,
+        power_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         power_indicator
             .with_hover_card(Box::new(move |_| {
                 self.cpu_power_draw
@@ -429,10 +435,10 @@ impl ComputeGroup {
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
     }
 
-    fn wired_x3d_cache_preference_indicator<'a>(
-        &'a self,
-        preference_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn wired_x3d_cache_preference_indicator<'view>(
+        &'view self,
+        preference_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         preference_indicator
             .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
             .refreshed_by(ComputeInteraction::Refresh(
@@ -457,9 +463,11 @@ impl ComputeGroup {
     fn cpu_clock_card(&self) -> Vec<Section> {
         let live = self.live();
         let mut sections = self.cpu_clock.sections_described_by(cpu_clock_hover_card);
-        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
-            live.clock_sections(cpu_clock, self.core_loads.sample())
-        }));
+        sections.extend(
+            self.cpu_clock.sections_described_by(|cpu_clock| {
+                live.clock_sections(cpu_clock, &self.core_loads)
+            }),
+        );
         sections
     }
 

@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-impl<'a> GroupIndicator<'a> {
+impl<'view> GroupIndicator<'view> {
     #[must_use]
     pub fn ongoing_toasts<Interaction: Into<IndicatorGroupInteraction>>(
         self,
@@ -49,12 +49,15 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn with_hover_card(self, card: DescribeCard<'a>) -> Self {
+    pub fn with_hover_card(self, card: DescribeCard<'view>) -> Self {
         Self { card, ..self }
     }
 
     #[must_use]
-    pub fn wrap_hover_card(self, wrap: impl FnOnce(DescribeCard<'a>) -> DescribeCard<'a>) -> Self {
+    pub fn wrap_hover_card(
+        self,
+        wrap: impl FnOnce(DescribeCard<'view>) -> DescribeCard<'view>,
+    ) -> Self {
         Self {
             card: wrap(self.card),
             ..self

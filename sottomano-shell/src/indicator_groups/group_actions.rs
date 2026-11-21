@@ -33,7 +33,10 @@ use sottomano_widgets::{
     widgets::app_window_focus::AppWindowFocus,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{DesktopBusLink, DesktopShell},
+    shell_message::Message,
+};
 
 impl DesktopShell {
     pub(crate) fn open_url(&mut self, url: String) -> Task<Message> {
@@ -260,7 +263,7 @@ impl DesktopShell {
     }
 
     fn send_window_menu_bar_request(&self, request: WindowMenuBarRequest) -> Task<Message> {
-        let Some(buses) = &self.desktop_buses else {
+        let DesktopBusLink::Connected(buses) = &self.desktop_buses else {
             return Task::none();
         };
         logged_failure_task(

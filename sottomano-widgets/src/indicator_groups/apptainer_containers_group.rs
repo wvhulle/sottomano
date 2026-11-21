@@ -35,12 +35,12 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub struct ApptainerContainerListingIndicator<'a> {
-    listing: &'a ApptainerContainerListing,
+pub struct ApptainerContainerListingIndicator<'view> {
+    listing: &'view ApptainerContainerListing,
 }
 
-impl<'a> ApptainerContainerListingIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ApptainerContainerListingIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let name = format!(
             "{} pid {}",
             self.listing.container_name, self.listing.runtime_pid
@@ -67,12 +67,12 @@ impl<'a> ApptainerContainerListingIndicator<'a> {
     }
 }
 
-pub struct ApptainerContainerIndicator<'a> {
-    container: &'a ApptainerContainer,
+pub struct ApptainerContainerIndicator<'view> {
+    container: &'view ApptainerContainer,
 }
 
-impl<'a> ApptainerContainerIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ApptainerContainerIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let container = self.container;
         let name = format!(
             "{} pid {}",

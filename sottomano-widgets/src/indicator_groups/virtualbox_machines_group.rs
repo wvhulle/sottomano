@@ -33,9 +33,9 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub enum VirtualBoxListedIndicator<'a> {
-    Running(&'a VirtualBoxMachineListing),
-    Stopped(&'a RegisteredVirtualBoxMachine),
+pub enum VirtualBoxListedIndicator<'view> {
+    Running(&'view VirtualBoxMachineListing),
+    Stopped(&'view RegisteredVirtualBoxMachine),
 }
 
 impl VirtualBoxListedIndicator<'_> {
@@ -47,9 +47,9 @@ impl VirtualBoxListedIndicator<'_> {
     }
 }
 
-impl<'a> VirtualBoxListedIndicator<'a> {
+impl<'view> VirtualBoxListedIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let name = match &self {
             VirtualBoxListedIndicator::Running(listing) => {
                 format!("{} pid {}", listing.machine_name, listing.pid)
@@ -90,13 +90,13 @@ impl<'a> VirtualBoxListedIndicator<'a> {
     }
 }
 
-pub struct VirtualBoxMachineIndicator<'a> {
-    machine: &'a VirtualBoxMachine,
+pub struct VirtualBoxMachineIndicator<'view> {
+    machine: &'view VirtualBoxMachine,
 }
 
-impl<'a> VirtualBoxMachineIndicator<'a> {
+impl<'view> VirtualBoxMachineIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let name = format!(
             "{} pid {}",
             self.machine.listing.machine_name, self.machine.listing.pid

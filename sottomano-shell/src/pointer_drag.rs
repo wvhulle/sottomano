@@ -25,7 +25,10 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep;
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{ConfiguredWorkspaceOrder, DesktopShell, SpringLoad},
+    shell_message::Message,
+};
 
 pub type ShellDrag = PointerDrag<SlotClick>;
 
@@ -132,11 +135,13 @@ impl DesktopShell {
                     ))
                     .map(move |()| Message::PointerDrag(DragMessage::HoverSpringLoaded(hover)))
                     .abortable();
-                    self.spring_load = Some(handle.abort_on_drop());
+                    self.spring_load = SpringLoad::Pending {
+                        _abort_on_drop: handle.abort_on_drop(),
+                    };
                     task
                 }
                 DraggedPanelSlot::Window { .. } => {
-                    self.spring_load = None;
+                    self.spring_load = SpringLoad::Idle;
                     Task::none()
                 }
             },
@@ -199,7 +204,7 @@ impl DesktopShell {
     }
 
     pub fn restore_workspace_order(&self, output: &str) -> Task<Message> {
-        let Some(configured) = &self.configured_workspaces else {
+        let ConfiguredWorkspaceOrder::Read(configured) = &self.configured_workspaces else {
             return Task::none();
         };
         let snapshot = &self.window_snapshot;

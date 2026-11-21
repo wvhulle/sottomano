@@ -114,8 +114,8 @@ impl VendorLogo for BusId {
     }
 }
 
-pub struct DistributionIds<'a> {
-    pub distribution_names: &'a [String],
+pub struct DistributionIds<'view> {
+    pub distribution_names: &'view [String],
 }
 
 impl VendorLogo for DistributionIds<'_> {
@@ -156,8 +156,8 @@ fn distribution_logo(distribution_id: &str) -> Option<SimpleIcon> {
     }
 }
 
-pub struct PnpManufacturerName<'a> {
-    pub manufacturer_name: &'a str,
+pub struct PnpManufacturerName<'view> {
+    pub manufacturer_name: &'view str,
 }
 
 impl VendorLogo for PnpManufacturerName<'_> {

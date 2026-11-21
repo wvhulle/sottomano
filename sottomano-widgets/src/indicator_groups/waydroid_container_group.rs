@@ -58,13 +58,13 @@ const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
 };
 
 #[derive(Clone, Copy)]
-enum ShownWaydroid<'a> {
-    Detailed(&'a WaydroidReadout),
-    Listed(&'a WaydroidListing),
+enum ShownWaydroid<'view> {
+    Detailed(&'view WaydroidReadout),
+    Listed(&'view WaydroidListing),
 }
 
-impl<'a> ShownWaydroid<'a> {
-    fn state(self) -> &'a WaydroidState {
+impl<'view> ShownWaydroid<'view> {
+    fn state(self) -> &'view WaydroidState {
         match self {
             ShownWaydroid::Detailed(readout) => &readout.state,
             ShownWaydroid::Listed(listing) => &listing.state,
@@ -76,12 +76,12 @@ impl<'a> ShownWaydroid<'a> {
     }
 }
 
-struct WaydroidContainerIndicator<'a> {
-    shown: ShownWaydroid<'a>,
+struct WaydroidContainerIndicator<'view> {
+    shown: ShownWaydroid<'view>,
 }
 
-impl<'a> WaydroidContainerIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> WaydroidContainerIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label = match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
                 memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
@@ -125,12 +125,12 @@ impl<'a> WaydroidContainerIndicator<'a> {
     }
 }
 
-struct WaydroidSessionIndicator<'a> {
-    state: &'a WaydroidState,
+struct WaydroidSessionIndicator<'view> {
+    state: &'view WaydroidState,
 }
 
-impl<'a> WaydroidSessionIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> WaydroidSessionIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label = match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
             WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
@@ -330,7 +330,10 @@ impl WaydroidContainerGroup {
         )
     }
 
-    fn container_indicator<'a>(&'a self, shown: ShownWaydroid<'a>) -> GroupIndicator<'a> {
+    fn container_indicator<'view>(
+        &'view self,
+        shown: ShownWaydroid<'view>,
+    ) -> GroupIndicator<'view> {
         let row = WaydroidContainerIndicator { shown }
             .indicator()
             .with_hover_card(Box::new(move |_| {

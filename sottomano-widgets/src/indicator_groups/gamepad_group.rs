@@ -47,7 +47,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::indicator_groups::gamepad_bindings::{
-    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
+    ButtonRole, GamepadBindingsConfig, GamepadButton,
 };
 use uom::si::f64::Frequency;
 
@@ -366,7 +366,7 @@ impl GamepadGroup {
                 .flick_action(stick, direction)
                 .filter(|_| self.controller_custody(slot) == ControllerCustody::Compositor)
                 .map_or(Action::Idle, |action| {
-                    Action::Compositor(compositor_request_of(action))
+                    Action::Compositor(CompositorRequest::from(action))
                 }),
             GamepadMessage::KernelErrors(kernel_errors) => {
                 self.kernel_errors = kernel_errors;
@@ -529,11 +529,11 @@ impl GamepadGroup {
         ordered
     }
 
-    fn controller_marking<'a>(
+    fn controller_marking<'view>(
         &self,
         gamepad: &ConnectedGamepad,
-        link: &'a PhysicalGamepadLink,
-    ) -> ControllerMarking<'a> {
+        link: &'view PhysicalGamepadLink,
+    ) -> ControllerMarking<'view> {
         let unlit_controller_count = self
             .physical_controllers()
             .filter(|(_, other_link)| matches!(other_link.player_indicator, PlayerIndicator::Unlit))
@@ -549,12 +549,12 @@ impl GamepadGroup {
         }
     }
 
-    fn face_indicator<'a>(
-        &'a self,
-        gamepad: &'a ConnectedGamepad,
-        link: &'a PhysicalGamepadLink,
-        bindings: &'a GamepadBindingsConfig,
-    ) -> ConnectedControllerIndicator<'a> {
+    fn face_indicator<'view>(
+        &'view self,
+        gamepad: &'view ConnectedGamepad,
+        link: &'view PhysicalGamepadLink,
+        bindings: &'view GamepadBindingsConfig,
+    ) -> ConnectedControllerIndicator<'view> {
         ConnectedControllerIndicator {
             gamepad,
             bindings,
@@ -563,11 +563,11 @@ impl GamepadGroup {
         }
     }
 
-    fn link_indicator<'a>(
-        &'a self,
+    fn link_indicator<'view>(
+        &'view self,
         slot: usize,
-        link: &'a PhysicalGamepadLink,
-    ) -> ControllerLinkIndicator<'a> {
+        link: &'view PhysicalGamepadLink,
+    ) -> ControllerLinkIndicator<'view> {
         ControllerLinkIndicator {
             transport: link.transport,
             report_timing: self.report_timings.get(&slot).copied().map_or(
@@ -645,13 +645,13 @@ impl GamepadGroup {
         ))
     }
 
-    fn controller_group<'a>(
-        &'a self,
-        gamepad: &'a ConnectedGamepad,
-        link: &'a PhysicalGamepadLink,
+    fn controller_group<'view>(
+        &'view self,
+        gamepad: &'view ConnectedGamepad,
+        link: &'view PhysicalGamepadLink,
         group_title: IndicatorGroupTitle,
-        bindings: &'a GamepadBindingsConfig,
-    ) -> Option<IndicatorGroupContent<'a>> {
+        bindings: &'view GamepadBindingsConfig,
+    ) -> Option<IndicatorGroupContent<'view>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.expansions.get(&slot)?;
         let battery_indicator = ControllerBatteryIndicator {
@@ -711,10 +711,10 @@ impl GamepadGroup {
     }
 
     #[must_use]
-    pub fn group_contents<'a>(
-        &'a self,
-        bindings: &'a GamepadBindingsConfig,
-    ) -> Vec<IndicatorGroupContent<'a>> {
+    pub fn group_contents<'view>(
+        &'view self,
+        bindings: &'view GamepadBindingsConfig,
+    ) -> Vec<IndicatorGroupContent<'view>> {
         let controllers = self.controllers_in_player_order();
         let titles = IndicatorGroupTitle::numbered_namesakes(
             controllers.iter().map(|(gamepad, _)| gamepad.name.clone()),
@@ -781,7 +781,7 @@ fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
             Some(Action::Compositor(spawned(typed_key_command(key))))
         }
         (ButtonRole::Compositor(action), ButtonEdge::Pressed) => {
-            Some(Action::Compositor(compositor_request_of(action)))
+            Some(Action::Compositor(CompositorRequest::from(action)))
         }
         (ButtonRole::Command(command), ButtonEdge::Pressed) => {
             Some(Action::Compositor(spawned(command.iter().cloned())))
@@ -791,30 +791,6 @@ fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
             ButtonRole::TypedKey(_) | ButtonRole::Compositor(_) | ButtonRole::Command(_),
             ButtonEdge::Released,
         ) => None,
-    }
-}
-
-fn compositor_request_of(action: CompositorAction) -> CompositorRequest {
-    match action {
-        CompositorAction::FocusLeft => CompositorRequest::FocusLeft,
-        CompositorAction::FocusRight => CompositorRequest::FocusRight,
-        CompositorAction::FocusUp => CompositorRequest::FocusUp,
-        CompositorAction::FocusDown => CompositorRequest::FocusDown,
-        CompositorAction::FocusWorkspaceUp => CompositorRequest::FocusWorkspaceUp,
-        CompositorAction::FocusWorkspaceDown => CompositorRequest::FocusWorkspaceDown,
-        CompositorAction::FocusPreviousWindow => CompositorRequest::FocusPreviousWindow,
-        CompositorAction::MoveLeft => CompositorRequest::MoveLeft,
-        CompositorAction::MoveRight => CompositorRequest::MoveRight,
-        CompositorAction::MoveWindowToWorkspaceUp => {
-            CompositorRequest::MoveFocusedWindowToWorkspaceUp
-        }
-        CompositorAction::MoveWindowToWorkspaceDown => {
-            CompositorRequest::MoveFocusedWindowToWorkspaceDown
-        }
-        CompositorAction::ToggleOverview => CompositorRequest::ToggleOverview,
-        CompositorAction::Maximize => CompositorRequest::MaximizeFocused,
-        CompositorAction::Center => CompositorRequest::CenterFocused,
-        CompositorAction::CloseWindow => CompositorRequest::CloseFocusedWindow,
     }
 }
 
@@ -1108,7 +1084,7 @@ mod tests {
         );
     }
 
-    fn marking_of(group: &GamepadGroup, slot: usize) -> ControllerMarking<'_> {
+    fn pad_marking_in_slot(group: &GamepadGroup, slot: usize) -> ControllerMarking<'_> {
         group.controller_marking(
             group
                 .controllers
@@ -1123,11 +1099,11 @@ mod tests {
     fn a_lit_pad_is_marked_by_its_player_number_instead_of_its_alias() {
         let group = group_with_two_pads_and_a_virtual_one();
         assert!(matches!(
-            marking_of(&group, DUALSENSE),
+            pad_marking_in_slot(&group, DUALSENSE),
             ControllerMarking::PlayerLights(LitPlayer { number: 2, .. })
         ));
         assert!(matches!(
-            marking_of(&group, SECOND_PAD),
+            pad_marking_in_slot(&group, SECOND_PAD),
             ControllerMarking::PlayerLights(LitPlayer { number: 1, .. })
         ));
     }
@@ -1143,7 +1119,7 @@ mod tests {
             &GamepadBindingsConfig::default(),
         );
         assert!(matches!(
-            marking_of(&group, DUALSENSE),
+            pad_marking_in_slot(&group, DUALSENSE),
             ControllerMarking::IconOnly
         ));
         group.update(
@@ -1151,7 +1127,7 @@ mod tests {
             &GamepadBindingsConfig::default(),
         );
         assert!(matches!(
-            marking_of(&group, DUALSENSE),
+            pad_marking_in_slot(&group, DUALSENSE),
             ControllerMarking::PairedAlias("Pad 31")
         ));
     }

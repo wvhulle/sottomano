@@ -44,10 +44,10 @@ impl CiRunnerKind {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct WatchedCiRunner<'a> {
+pub(super) struct WatchedCiRunner<'snapshot> {
     pub kind: CiRunnerKind,
-    pub runner_label: &'a str,
-    pub runner: &'a CiRunnerTasks,
+    pub runner_label: &'snapshot str,
+    pub runner: &'snapshot CiRunnerTasks,
 }
 
 impl WatchedCiRunner<'_> {
@@ -91,12 +91,12 @@ fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
     }
 }
 
-pub(super) struct CiRunnerFailureIndicator<'a> {
-    pub watched: WatchedCiRunner<'a>,
+pub(super) struct CiRunnerFailureIndicator<'view> {
+    pub watched: WatchedCiRunner<'view>,
 }
 
-impl<'a> CiRunnerFailureIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> CiRunnerFailureIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.watched.runner_label.to_owned(),
             self.watched.kind.runner_icon(),
@@ -117,7 +117,7 @@ impl<'a> CiRunnerFailureIndicator<'a> {
             .collect::<Vec<_>>()
     }
 
-    pub(super) fn failing_runner(watched: WatchedCiRunner<'a>) -> Option<Self> {
+    pub(super) fn failing_runner(watched: WatchedCiRunner<'view>) -> Option<Self> {
         match watched.runner.access {
             RunnerAccess::Complete => None,
             RunnerAccess::EngineUnreadable(_) | RunnerAccess::AgentUnreachable(_) => {
@@ -141,7 +141,7 @@ fn task_full_name(task: &CiTask) -> String {
     }
 }
 
-fn elapsed_of(task: &CiTask, clock: Clock) -> Duration {
+fn task_elapsed_time(task: &CiTask, clock: Clock) -> Duration {
     clock
         .wall
         .duration_since(task.started_at)
@@ -164,20 +164,23 @@ fn web_log_entry(web_log: &TaskWebLog) -> Option<LabeledValue> {
     }
 }
 
-pub(super) struct CiTaskIndicator<'a> {
+pub(super) struct CiTaskIndicator<'view> {
     pub kind: CiRunnerKind,
-    pub task: &'a CiTask,
+    pub task: &'view CiTask,
 }
 
-impl<'a> CiTaskIndicator<'a> {
-    pub(super) fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> CiTaskIndicator<'view> {
+    pub(super) fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             task_indicator_name(self.task),
             self.kind.runner_icon(),
             IndicatorState::Live,
         )
         .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(duration_text(elapsed_of(self.task, clock), locale)),
+            label: ReadoutLabel::Labeled(duration_text(
+                task_elapsed_time(self.task, clock),
+                locale,
+            )),
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
         })
@@ -295,7 +298,7 @@ mod tests {
             wall: UNIX_EPOCH,
             ..Clock::real()
         };
-        assert_eq!(elapsed_of(&future, clock), Duration::ZERO);
+        assert_eq!(task_elapsed_time(&future, clock), Duration::ZERO);
     }
 
     #[test]

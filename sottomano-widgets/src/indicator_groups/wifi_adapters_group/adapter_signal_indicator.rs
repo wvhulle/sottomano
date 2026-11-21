@@ -18,21 +18,21 @@ use crate::{
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub struct AdapterSignalIndicator<'a> {
-    pub adapter: &'a WifiAdapter,
+pub struct AdapterSignalIndicator<'view> {
+    pub adapter: &'view WifiAdapter,
     pub radio_power: RadioPower,
 }
 
-pub struct AdapterConnectionSwitch<'a> {
-    pub adapter: &'a WifiAdapter,
+pub struct AdapterConnectionSwitch<'view> {
+    pub adapter: &'view WifiAdapter,
 }
 
 pub struct AllWifiRadiosSwitch {
     pub radio_power: RadioPower,
 }
 
-impl<'a> AdapterSignalIndicator<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> AdapterSignalIndicator<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let (state, gauge) = match &self.adapter.link {
             AccessPointAssociation::Associated(link) => {
                 let fill = percent_fill(link.signal);
@@ -88,7 +88,7 @@ impl<'a> AdapterSignalIndicator<'a> {
     }
 }
 
-impl<'a> AdapterConnectionSwitch<'a> {
+impl<'view> AdapterConnectionSwitch<'view> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
         if self.adapter.link_state == LinkPhase::Up {
@@ -98,7 +98,7 @@ impl<'a> AdapterConnectionSwitch<'a> {
         }
     }
 
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = if self.adapter.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {

@@ -11,8 +11,8 @@ use crate::{
     },
 };
 
-pub struct WindowUsage<'a> {
-    pub accounting: Accounting<'a>,
+pub struct WindowUsage<'view> {
+    pub accounting: Accounting<'view>,
     pub window: u64,
 }
 

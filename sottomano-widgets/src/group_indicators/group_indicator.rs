@@ -39,7 +39,7 @@ mod indicator_controls;
 mod indicator_toasts;
 mod indicator_views;
 
-pub type DescribeCard<'a> = Box<dyn Fn(Clock) -> Vec<Section> + 'a>;
+pub type DescribeCard<'view> = Box<dyn Fn(Clock) -> Vec<Section> + 'view>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelVisibility {
@@ -47,14 +47,15 @@ pub enum PanelVisibility {
     Hidden,
 }
 
-type DrawItem<'a> = Box<dyn Fn(f32) -> Element<'a, GroupEvent> + 'a>;
-type DrawControl<'a> = Box<dyn Fn(f32, Clock, IndicatorPlacement) -> Element<'a, GroupEvent> + 'a>;
+type DrawItem<'view> = Box<dyn Fn(f32) -> Element<'view, GroupEvent> + 'view>;
+type DrawControl<'view> =
+    Box<dyn Fn(f32, Clock, IndicatorPlacement) -> Element<'view, GroupEvent> + 'view>;
 
-type AdjustByScroll<'a> = Rc<dyn Fn(ScrollDelta) -> IndicatorGroupInteraction + 'a>;
+type AdjustByScroll<'view> = Rc<dyn Fn(ScrollDelta) -> IndicatorGroupInteraction + 'view>;
 
-pub(crate) enum RowScroll<'a> {
+pub(crate) enum RowScroll<'view> {
     Inert,
-    AdjustsValue(AdjustByScroll<'a>),
+    AdjustsValue(AdjustByScroll<'view>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,17 +93,17 @@ pub struct RowHoverCard {
     pub header: CardHeader,
 }
 
-pub enum IndicatorValue<'a> {
+pub enum IndicatorValue<'view> {
     Nothing,
-    Drawn(DrawItem<'a>),
+    Drawn(DrawItem<'view>),
 }
 
-impl<'a> IndicatorValue<'a> {
-    pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent> + 'a) -> Self {
+impl<'view> IndicatorValue<'view> {
+    pub fn drawn(draw: impl Fn(f32) -> Element<'view, GroupEvent> + 'view) -> Self {
         IndicatorValue::Drawn(Box::new(draw))
     }
 
-    fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent>> {
+    fn view(&self, reveal: f32) -> Option<Element<'view, GroupEvent>> {
         match self {
             IndicatorValue::Nothing => None,
             IndicatorValue::Drawn(draw) => Some(draw(reveal)),
@@ -110,13 +111,13 @@ impl<'a> IndicatorValue<'a> {
     }
 }
 
-enum RowValueControl<'a> {
+enum RowValueControl<'view> {
     IndicatorReadout(IndicatorReadout),
     Slider {
-        draw: DrawControl<'a>,
-        adjust_by_scroll: AdjustByScroll<'a>,
+        draw: DrawControl<'view>,
+        adjust_by_scroll: AdjustByScroll<'view>,
     },
-    Drawn(IndicatorValue<'a>),
+    Drawn(IndicatorValue<'view>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,11 +139,11 @@ pub(crate) fn named_test_indicator<'indicator>(name: &'static str) -> GroupIndic
         .with_hover_card(Box::new(|_| Vec::new()))
 }
 
-pub struct GroupIndicator<'a> {
+pub struct GroupIndicator<'view> {
     pub(crate) face: IndicatorFace,
-    value: RowValueControl<'a>,
+    value: RowValueControl<'view>,
     pub(crate) pinning: IndicatorPinning,
-    pub card: DescribeCard<'a>,
+    pub card: DescribeCard<'view>,
     pub(crate) alerts: IndicatorAlerts,
     pub(crate) gestures: IndicatorGestures,
     control_actions: Vec<PressAction>,
@@ -157,12 +158,12 @@ pub struct GroupIndicator<'a> {
     pub panel_visibility: PanelVisibility,
 }
 
-impl<'a> GroupIndicator<'a> {
+impl<'view> GroupIndicator<'view> {
     fn assembled_row(
         face: IndicatorFace,
-        value: RowValueControl<'a>,
+        value: RowValueControl<'view>,
         pinning: IndicatorPinning,
-        card: DescribeCard<'a>,
+        card: DescribeCard<'view>,
         alerts: IndicatorAlerts,
     ) -> Self {
         Self {
@@ -229,9 +230,9 @@ impl<'a> GroupIndicator<'a> {
 
     pub(crate) fn handle_view(
         &self,
-        config: &'a Config,
+        config: &'view Config,
         reveal_fraction: f32,
-    ) -> Element<'a, GroupEvent> {
+    ) -> Element<'view, GroupEvent> {
         let (badge, value) = match &self.value {
             RowValueControl::IndicatorReadout(readout) => (
                 readout.badge,
@@ -241,7 +242,7 @@ impl<'a> GroupIndicator<'a> {
             RowValueControl::Slider { .. } => (ReadoutBadge::Unbadged, None),
         };
         let hidden = 1.0 - reveal_fraction;
-        let collapsing_value: Element<'a, GroupEvent> = match value {
+        let collapsing_value: Element<'view, GroupEvent> = match value {
             Some(value) if hidden > 0.0 => reveal(
                 container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
                 hidden,

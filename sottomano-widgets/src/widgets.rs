@@ -39,12 +39,12 @@ use iced::{Color, Element, Theme, widget::button};
 
 use crate::glyph_icons::icon_glyph::IconGlyph;
 
-pub fn glyph_button<'a, Message: Clone + 'a>(
+pub fn glyph_button<'view, Message: Clone + 'view>(
     glyph: impl Into<IconGlyph>,
     size: f32,
-    color: impl Fn(&Theme) -> Color + Copy + 'a,
+    color: impl Fn(&Theme) -> Color + Copy + 'view,
     on_press: Message,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     button(glyph.into().view(size, color))
         .padding(0)
         .style(flat_button(color))

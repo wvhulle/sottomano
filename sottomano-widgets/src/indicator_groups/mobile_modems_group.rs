@@ -146,11 +146,11 @@ impl MobileModemsGroup {
             .hover_card_with(ModemConnectionSwitch { modem }.hover_card())
     }
 
-    fn modem_group<'a>(
-        &'a self,
-        modem: &'a Mobile,
+    fn modem_group<'view>(
+        &'view self,
+        modem: &'view Mobile,
         group_title: IndicatorGroupTitle,
-    ) -> Option<IndicatorGroupContent<'a>> {
+    ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let build_modem_signal_indicator = || {

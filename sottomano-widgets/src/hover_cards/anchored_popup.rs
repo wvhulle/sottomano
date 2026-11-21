@@ -13,7 +13,7 @@ use crate::{
         region_translation::translated_regions,
     },
     hover_cards::hover_card_transition::ShownTarget,
-    widgets::{screen_edge::screen_edge_of, shell_layer_appearance::LayerAppearance},
+    widgets::{screen_edge::panel_edge, shell_layer_appearance::LayerAppearance},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -75,15 +75,15 @@ fn report_shell_regions(
 }
 
 #[must_use]
-pub fn anchored_popup<'a, Message: Clone + 'a>(
-    renderings: Vec<PopupRendering<'a, Message>>,
+pub fn anchored_popup<'view, Message: Clone + 'view>(
+    renderings: Vec<PopupRendering<'view, Message>>,
     anchor: Rectangle,
     position: Position,
     morph: PopupMorph,
     press_catcher: PressCatcher<Message>,
     config: &Config,
     appearances: PopupAppearances,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let PressCatcher {
         outside_press,
         catch_area_holes,
@@ -98,7 +98,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         appearances.overlay
     };
     let popup = AnchoredPopup::with_renderings(renderings, anchor)
-        .side(screen_edge_of(position).opposite())
+        .side(panel_edge(position).opposite())
         .gap(config.theme.spacing.item_gap)
         .leading_alignment(
             config.theme.spacing.surface_inset + config.theme.font.icon_size_px / 2.0,

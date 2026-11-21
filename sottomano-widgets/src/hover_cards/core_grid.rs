@@ -15,14 +15,14 @@ use crate::{
     widgets::shared_metrics::{OUTLINE_WIDTH_PX, SMALL_CORNER_RADIUS_PX},
 };
 
-pub struct CoreCellGrid<'a> {
-    cores: &'a [PhysicalCoreCells],
-    config: &'a Config,
+pub struct CoreCellGrid<'cores> {
+    cores: &'cores [PhysicalCoreCells],
+    config: &'cores Config,
 }
 
-impl<'a> CoreCellGrid<'a> {
+impl<'cores> CoreCellGrid<'cores> {
     #[must_use]
-    pub fn new(cores: &'a [PhysicalCoreCells], config: &'a Config) -> Self {
+    pub fn new(cores: &'cores [PhysicalCoreCells], config: &'cores Config) -> Self {
         Self { cores, config }
     }
 

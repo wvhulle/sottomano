@@ -2,7 +2,7 @@ use corredo::drag_reorder::UngroupedSlotLook;
 
 use super::window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation};
 
-pub(super) fn arranged_flat_rows<'a>(window_count: usize) -> ArrangedWindowRows<'a> {
+pub(super) fn arranged_flat_rows<'view>(window_count: usize) -> ArrangedWindowRows<'view> {
     ArrangedWindowRows {
         groups: Vec::new(),
         presentations: vec![WindowSlotPresentation::Flat; window_count],

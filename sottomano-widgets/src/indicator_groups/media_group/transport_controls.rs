@@ -17,7 +17,7 @@ struct TransportButton {
 }
 
 impl TransportButton {
-    fn indicator<'a>(self, bus: &str) -> GroupIndicator<'a> {
+    fn indicator<'view>(self, bus: &str) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(self.name, self.glyph.into(), self.state).on_press(
             self.does,
             player_interaction(bus, PlayerInteraction::Command(self.command)),

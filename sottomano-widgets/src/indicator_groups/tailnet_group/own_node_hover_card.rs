@@ -21,12 +21,12 @@ const UNGROUPED_FEATURES_LABEL: &str = "Features";
 const SHARED_WORD_MINIMUM: usize = 2;
 
 #[derive(Clone, Copy)]
-pub(super) struct OwnNodeIndicator<'a> {
-    tailnet: &'a Tailnet,
+pub(super) struct OwnNodeIndicator<'view> {
+    tailnet: &'view Tailnet,
 }
 
-impl<'a> OwnNodeIndicator<'a> {
-    pub(super) fn running_own_node(tailscale: &'a Tailscale) -> Option<Self> {
+impl<'view> OwnNodeIndicator<'view> {
+    pub(super) fn running_own_node(tailscale: &'view Tailscale) -> Option<Self> {
         match tailscale {
             Tailscale::Running(tailnet) => Some(Self { tailnet }),
             Tailscale::Stopped | Tailscale::Starting => None,
@@ -40,7 +40,7 @@ impl<'a> OwnNodeIndicator<'a> {
         }
     }
 
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             "This machine",
             Phosphor::IdentificationBadge(Weight::Regular).into(),

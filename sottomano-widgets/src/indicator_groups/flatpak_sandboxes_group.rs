@@ -34,12 +34,12 @@ fn sandbox_icon() -> IconGlyph {
     IconGlyph::SimpleIcon(SimpleIcon::Flatpak)
 }
 
-pub struct FlatpakSandboxListingIndicator<'a> {
-    listing: &'a FlatpakSandboxListing,
+pub struct FlatpakSandboxListingIndicator<'view> {
+    listing: &'view FlatpakSandboxListing,
 }
 
-impl<'a> FlatpakSandboxListingIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> FlatpakSandboxListingIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             format!(
                 "{} {}",
@@ -67,12 +67,12 @@ impl<'a> FlatpakSandboxListingIndicator<'a> {
     }
 }
 
-pub struct FlatpakSandboxIndicator<'a> {
-    sandbox: &'a FlatpakSandbox,
+pub struct FlatpakSandboxIndicator<'view> {
+    sandbox: &'view FlatpakSandbox,
 }
 
-impl<'a> FlatpakSandboxIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> FlatpakSandboxIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let label = match self.sandbox.memory_in_use {
             ContainerMemoryUse::Measured(memory_in_use) => {
                 ReadoutLabel::Labeled(approximate_memory_text(memory_in_use))

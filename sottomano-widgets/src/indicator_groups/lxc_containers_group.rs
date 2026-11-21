@@ -29,12 +29,12 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub struct LxcContainerListingIndicator<'a> {
-    listing: &'a LxcContainerListing,
+pub struct LxcContainerListingIndicator<'view> {
+    listing: &'view LxcContainerListing,
 }
 
-impl<'a> LxcContainerListingIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> LxcContainerListingIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let listing = self.listing;
         GroupIndicator::glyph_only(
             listing.container_name.clone(),
@@ -55,12 +55,12 @@ impl<'a> LxcContainerListingIndicator<'a> {
     }
 }
 
-pub struct LxcContainerIndicator<'a> {
-    container: &'a LxcContainer,
+pub struct LxcContainerIndicator<'view> {
+    container: &'view LxcContainer,
 }
 
-impl<'a> LxcContainerIndicator<'a> {
-    fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> LxcContainerIndicator<'view> {
+    fn indicator(self) -> GroupIndicator<'view> {
         let container = self.container;
         let label = match container.listing.run_state {
             ContainerRunState::Stopped => ContainerRunState::Stopped.label().to_owned(),

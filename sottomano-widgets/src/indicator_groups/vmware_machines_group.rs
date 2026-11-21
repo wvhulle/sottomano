@@ -32,13 +32,13 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub struct VmwareMachineListingIndicator<'a> {
-    listing: &'a VmwareMachineListing,
+pub struct VmwareMachineListingIndicator<'view> {
+    listing: &'view VmwareMachineListing,
 }
 
-impl<'a> VmwareMachineListingIndicator<'a> {
+impl<'view> VmwareMachineListingIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.listing.machine_name.clone(),
             Phosphor::Desktop(Weight::Regular).into(),
@@ -64,13 +64,13 @@ impl<'a> VmwareMachineListingIndicator<'a> {
     }
 }
 
-pub struct VmwareMachineIndicator<'a> {
-    machine: &'a VmwareMachine,
+pub struct VmwareMachineIndicator<'view> {
+    machine: &'view VmwareMachine,
 }
 
-impl<'a> VmwareMachineIndicator<'a> {
+impl<'view> VmwareMachineIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             self.machine.listing.machine_name.clone(),
             Phosphor::Desktop(Weight::Regular).into(),

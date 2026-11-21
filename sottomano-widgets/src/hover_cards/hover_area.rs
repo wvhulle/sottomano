@@ -13,14 +13,15 @@ use iced::{
 
 use crate::hover_cards::{
     AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
+    laid_out_anchors::AnchorVisibility,
 };
 
-pub fn hoverable<'a, M: 'a>(
+pub fn hoverable<'view, M: 'view>(
     opening: NestedMenuOpenTrigger,
-    content: Element<'a, M>,
+    content: Element<'view, M>,
     target: HoverTarget,
-    wrap: impl Fn(HoverCardMessage) -> M + 'a,
-) -> Element<'a, M> {
+    wrap: impl Fn(HoverCardMessage) -> M + 'view,
+) -> Element<'view, M> {
     Element::new(HoverArea {
         content,
         target,
@@ -29,17 +30,20 @@ pub fn hoverable<'a, M: 'a>(
     })
 }
 
-struct HoverArea<'a, M> {
-    content: Element<'a, M>,
+struct HoverArea<'view, M> {
+    content: Element<'view, M>,
     target: HoverTarget,
     opening: NestedMenuOpenTrigger,
-    wrap: Box<dyn Fn(HoverCardMessage) -> M + 'a>,
+    wrap: Box<dyn Fn(HoverCardMessage) -> M + 'view>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum AnchorReport {
     Unreported,
-    Reported { anchor: Rectangle, visible: bool },
+    Reported {
+        anchor: Rectangle,
+        visibility: AnchorVisibility,
+    },
 }
 
 struct HoverState {
@@ -92,8 +96,12 @@ impl<M> HoverArea<'_, M> {
         let reports = self.opening == NestedMenuOpenTrigger::Press
             || pointed_at
             || state.anchor_report != AnchorReport::Unreported;
-        let visible = pointed_at || anchor.intersection(viewport).is_some();
-        let anchor_report = AnchorReport::Reported { anchor, visible };
+        let visibility = if pointed_at || anchor.intersection(viewport).is_some() {
+            AnchorVisibility::Visible
+        } else {
+            AnchorVisibility::Hidden
+        };
+        let anchor_report = AnchorReport::Reported { anchor, visibility };
         if !reports || state.anchor_report == anchor_report {
             return None;
         }
@@ -103,7 +111,7 @@ impl<M> HoverArea<'_, M> {
                 target: self.target.clone(),
                 opening: self.opening,
                 anchor,
-                visible,
+                visibility,
                 presence: Arc::downgrade(&state.presence),
             },
         ))))
@@ -289,14 +297,14 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         }
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, M, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, M, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout,
@@ -320,13 +328,13 @@ mod tests {
     use super::{HoverArea, HoverState, hoverable};
     use crate::hover_cards::{
         AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
-        laid_out_anchors::WidgetLiveness,
+        laid_out_anchors::{AnchorVisibility, WidgetLiveness},
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
     const OUTSIDE_AREA: Point = Point::new(100.0, 100.0);
 
-    fn press_toggled_area<'a>() -> iced::Element<'a, HoverCardMessage> {
+    fn press_toggled_area<'view>() -> iced::Element<'view, HoverCardMessage> {
         hoverable(
             NestedMenuOpenTrigger::Press,
             container(Space::new()).width(40.0).height(40.0).into(),
@@ -335,7 +343,7 @@ mod tests {
         )
     }
 
-    fn hovered_area<'a>() -> iced::Element<'a, HoverCardMessage> {
+    fn hovered_area<'view>() -> iced::Element<'view, HoverCardMessage> {
         hoverable(
             NestedMenuOpenTrigger::Hover,
             container(Space::new()).width(40.0).height(40.0).into(),
@@ -422,7 +430,7 @@ mod tests {
         );
     }
 
-    fn area_of(
+    fn hover_area_with(
         target: HoverTarget,
         opening: NestedMenuOpenTrigger,
     ) -> HoverArea<'static, HoverCardMessage> {
@@ -435,7 +443,7 @@ mod tests {
     }
 
     fn area_opening_on(opening: NestedMenuOpenTrigger) -> HoverArea<'static, HoverCardMessage> {
-        area_of(HoverTarget::Workspace(7), opening)
+        hover_area_with(HoverTarget::Workspace(7), opening)
     }
 
     fn fresh_state() -> HoverState {
@@ -450,7 +458,7 @@ mod tests {
         Rectangle::new(Point::new(0.0, 0.0), Size::new(1000.0, 40.0))
     }
 
-    fn report_of(
+    fn laid_out_report(
         area: &HoverArea<'_, HoverCardMessage>,
         state: &mut HoverState,
         pointer_presence: PointerPresence,
@@ -464,7 +472,7 @@ mod tests {
         let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
@@ -473,7 +481,7 @@ mod tests {
             .is_none()
         );
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
@@ -488,7 +496,7 @@ mod tests {
         let area = area_opening_on(NestedMenuOpenTrigger::Press);
         let mut state = fresh_state();
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
@@ -503,7 +511,7 @@ mod tests {
         let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::PointedAt,
@@ -512,7 +520,7 @@ mod tests {
             .is_some()
         );
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::PointedAt,
@@ -521,7 +529,7 @@ mod tests {
             .is_none()
         );
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::PointedAt,
@@ -530,7 +538,7 @@ mod tests {
             .is_some()
         );
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
@@ -539,7 +547,7 @@ mod tests {
             .is_none()
         );
         assert!(
-            report_of(
+            laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
@@ -554,7 +562,7 @@ mod tests {
         let mut state = fresh_state();
         let first = area_opening_on(NestedMenuOpenTrigger::Hover);
         assert!(
-            report_of(
+            laid_out_report(
                 &first,
                 &mut state,
                 PointerPresence::PointedAt,
@@ -562,10 +570,10 @@ mod tests {
             )
             .is_some()
         );
-        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
+        let second = hover_area_with(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let _replaced = second.exit_of_replaced_target(&mut state);
         assert!(matches!(
-            report_of(
+            laid_out_report(
                 &second,
                 &mut state,
                 PointerPresence::PointedAt,
@@ -582,7 +590,7 @@ mod tests {
 
     #[test]
     fn a_replaced_target_exits_only_if_it_was_hovered() {
-        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
+        let second = hover_area_with(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let mut unhovered = fresh_state();
         assert!(second.exit_of_replaced_target(&mut unhovered).is_none());
         let mut hovered = HoverState {
@@ -601,7 +609,7 @@ mod tests {
 
     #[test]
     fn a_replaced_menu_handle_stops_being_pointed_at() {
-        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Press);
+        let second = hover_area_with(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Press);
         let mut hovered = HoverState {
             pointer_presence: PointerPresence::PointedAt,
             ..fresh_state()
@@ -620,7 +628,7 @@ mod tests {
     fn dropping_the_state_shows_in_the_reported_presence() {
         let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
+        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = laid_out_report(
             &area,
             &mut state,
             PointerPresence::PointedAt,
@@ -637,7 +645,7 @@ mod tests {
     fn a_replaced_target_no_longer_counts_as_the_old_widget() {
         let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
+        let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = laid_out_report(
             &area,
             &mut state,
             PointerPresence::PointedAt,
@@ -645,7 +653,7 @@ mod tests {
         ) else {
             panic!("a hovered area reports");
         };
-        let replacement = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
+        let replacement = hover_area_with(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let _exit = replacement.exit_of_replaced_target(&mut state);
         assert_eq!(widget_anchor.widget_liveness(), WidgetLiveness::Dropped);
     }
@@ -656,36 +664,36 @@ mod tests {
         let mut state = fresh_state();
         let visibility = |message: Option<HoverCardMessage>| match message {
             Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) => {
-                Some(widget_anchor.visible)
+                Some(widget_anchor.visibility)
             }
             _ => None,
         };
         assert_eq!(
-            visibility(report_of(
+            visibility(laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::PointedAt,
                 anchor_at(0.0)
             )),
-            Some(true)
+            Some(AnchorVisibility::Visible)
         );
         assert_eq!(
-            visibility(report_of(
+            visibility(laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::NotPointedAt,
                 anchor_at(5000.0)
             )),
-            Some(false)
+            Some(AnchorVisibility::Hidden)
         );
         assert_eq!(
-            visibility(report_of(
+            visibility(laid_out_report(
                 &area,
                 &mut state,
                 PointerPresence::PointedAt,
                 anchor_at(6000.0)
             )),
-            Some(true)
+            Some(AnchorVisibility::Visible)
         );
     }
 }

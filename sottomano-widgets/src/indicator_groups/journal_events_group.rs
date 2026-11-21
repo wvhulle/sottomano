@@ -221,12 +221,18 @@ impl JournalEventsGroup {
     }
 
     #[must_use]
-    pub fn system_journal_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn system_journal_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         self.system_journal.group_content(config)
     }
 
     #[must_use]
-    pub fn user_journal_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn user_journal_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         self.user_journal.group_content(config)
     }
 }

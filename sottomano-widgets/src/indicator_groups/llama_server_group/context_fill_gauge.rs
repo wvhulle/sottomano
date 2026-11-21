@@ -24,14 +24,14 @@ fn context_fill(task: &SlotTask, context: u32) -> Ratio {
 }
 
 #[derive(Clone, Copy)]
-pub struct ContextFill<'a> {
-    pub slots: &'a [LlamaSlot],
+pub struct ContextFill<'view> {
+    pub slots: &'view [LlamaSlot],
     pub fullest: Ratio,
-    pub server: &'a str,
+    pub server: &'view str,
 }
 
-impl<'a> ContextFill<'a> {
-    pub fn fullest_busy_slot(slots: &'a [LlamaSlot], server: &'a str) -> Option<Self> {
+impl<'view> ContextFill<'view> {
+    pub fn fullest_busy_slot(slots: &'view [LlamaSlot], server: &'view str) -> Option<Self> {
         let fullest = slots
             .iter()
             .filter(|slot| slot.work == SlotWork::Processing)
@@ -73,8 +73,8 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
     )
 }
 
-impl<'a> ContextFill<'a> {
-    pub fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ContextFill<'view> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         GroupIndicator::glyph_only(
             format!("{} context fill", self.server),
             Phosphor::Scroll(Weight::Regular).into(),

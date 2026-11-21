@@ -28,6 +28,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     indicator_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        sample_spacing::SampleSpacing,
         sqlite_charge_power_curve,
     },
     widgets::{
@@ -43,46 +44,51 @@ const EMPTY_CRITICAL: Duration = Duration::from_mins(10);
 const EMPTY_WARNING: Duration = Duration::from_mins(20);
 
 #[derive(Default)]
-pub struct BatteryTimeIndicator {
-    curve: Option<ChargeCurve>,
-    load_started: bool,
-    previous_sample_at: Option<Instant>,
+pub enum BatteryTimeIndicator {
+    #[default]
+    NotLoaded,
+    Loading,
+    Learning {
+        curve: Box<ChargeCurve>,
+        spacing: SampleSpacing,
+    },
 }
 
 impl BatteryTimeIndicator {
     pub fn learn(&mut self, battery: &Battery, now: Instant) -> Task<Box<ChargeCurve>> {
-        let Some(curve) = &self.curve else {
+        let BatteryTimeIndicator::Learning { curve, spacing } = self else {
             return self.start_loading(&battery.serial);
         };
         let Some(sample) = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W)) else {
-            self.previous_sample_at = None;
+            *spacing = SampleSpacing::Interrupted;
             return Task::none();
         };
-        let since_previous = self
-            .previous_sample_at
-            .replace(now)
-            .map_or(Duration::ZERO, |previous| now - previous);
-        let curve = curve
-            .clone()
-            .observe(sample.state_of_charge, sample.power, since_previous);
-        self.curve = Some(curve.clone());
+        let since_previous = spacing.sampled_now(now);
+        **curve =
+            curve
+                .as_ref()
+                .clone()
+                .observe(sample.state_of_charge, sample.power, since_previous);
         Task::future(sqlite_charge_power_curve::save(
             battery.serial.clone(),
             charge_bin_index(sample.state_of_charge),
-            curve,
+            curve.as_ref().clone(),
         ))
         .discard()
     }
 
     pub fn loaded(&mut self, curve: Box<ChargeCurve>) {
-        self.curve = Some(*curve);
+        *self = BatteryTimeIndicator::Learning {
+            curve,
+            spacing: SampleSpacing::Interrupted,
+        };
     }
 
     fn start_loading(&mut self, serial: &str) -> Task<Box<ChargeCurve>> {
-        if self.load_started || serial.is_empty() {
+        if matches!(self, BatteryTimeIndicator::Loading) || serial.is_empty() {
             return Task::none();
         }
-        self.load_started = true;
+        *self = BatteryTimeIndicator::Loading;
         Task::future(sqlite_charge_power_curve::load(serial.to_string()))
     }
 
@@ -115,7 +121,7 @@ impl BatteryTimeIndicator {
     }
 
     fn charge_forecast(&self, battery: &Battery) -> Forecast {
-        let Some(curve) = &self.curve else {
+        let BatteryTimeIndicator::Learning { curve, .. } = self else {
             return Forecast::Unavailable(Unforecastable::LoadingHistory);
         };
         if curve.history() == CurveHistory::Empty {

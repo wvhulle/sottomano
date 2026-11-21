@@ -44,10 +44,10 @@ impl FilesystemProperty {
             .collect()
     }
 
-    pub(super) fn row<'a>(
+    pub(super) fn row<'view>(
         &self,
-        usage: &'a FilesystemUsage,
-    ) -> Option<FilesystemPropertyIndicator<'a>> {
+        usage: &'view FilesystemUsage,
+    ) -> Option<FilesystemPropertyIndicator<'view>> {
         match (self, &usage.filesystem) {
             (FilesystemProperty::Mount, _) => {
                 Some(FilesystemPropertyIndicator::Mount(MountAccessIndicator {
@@ -102,18 +102,18 @@ fn enabled_compression(
         ))
 }
 
-pub(super) enum FilesystemPropertyIndicator<'a> {
-    Mount(MountAccessIndicator<'a>),
-    Volume(VolumeIdentityIndicator<'a>),
+pub(super) enum FilesystemPropertyIndicator<'view> {
+    Mount(MountAccessIndicator<'view>),
+    Volume(VolumeIdentityIndicator<'view>),
     Inodes(InodeUsageIndicator),
-    MetadataRoom(MetadataRoomIndicator<'a>),
-    Compression(CompressionSettingIndicator<'a>),
+    MetadataRoom(MetadataRoomIndicator<'view>),
+    Compression(CompressionSettingIndicator<'view>),
     Ext4Errors(Ext4ErrorCountIndicator),
     Ext4Writes(Ext4LifetimeWritesIndicator),
 }
 
-impl<'a> FilesystemPropertyIndicator<'a> {
-    pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> FilesystemPropertyIndicator<'view> {
+    pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'view> {
         match self {
             FilesystemPropertyIndicator::Mount(row) => row.indicator(),
             FilesystemPropertyIndicator::Volume(row) => row.indicator(),
@@ -161,7 +161,11 @@ mod tests {
         free: 900_000,
     };
 
-    fn usage_of(fs_type: &str, volume: VolumeIdentity, filesystem: Filesystem) -> FilesystemUsage {
+    fn mounted_filesystem_usage(
+        fs_type: &str,
+        volume: VolumeIdentity,
+        filesystem: Filesystem,
+    ) -> FilesystemUsage {
         FilesystemUsage {
             mount: FilesystemMount {
                 devices: Vec::new(),
@@ -218,21 +222,21 @@ mod tests {
             written_since_mount: ByteSize::mib(1),
         };
         vec![
-            usage_of(
+            mounted_filesystem_usage(
                 "vfat",
                 fat32_volume(),
                 Filesystem::Other {
                     fs_type: "vfat".to_owned(),
                 },
             ),
-            usage_of(
+            mounted_filesystem_usage(
                 "xfs",
                 VolumeIdentity::default(),
                 Filesystem::Xfs {
                     inodes: PLENTY_OF_INODES,
                 },
             ),
-            usage_of(
+            mounted_filesystem_usage(
                 "ext4",
                 VolumeIdentity::default(),
                 Filesystem::Ext4 {
@@ -240,7 +244,7 @@ mod tests {
                     inodes: PLENTY_OF_INODES,
                 },
             ),
-            usage_of(
+            mounted_filesystem_usage(
                 "btrfs",
                 VolumeIdentity::default(),
                 Filesystem::Btrfs(BtrfsSpace {
@@ -254,7 +258,7 @@ mod tests {
                     metadata_chunk: ByteSize::mib(256),
                 }),
             ),
-            usage_of(
+            mounted_filesystem_usage(
                 "bcachefs",
                 VolumeIdentity::default(),
                 Filesystem::Bcachefs(bcachefs_space()),

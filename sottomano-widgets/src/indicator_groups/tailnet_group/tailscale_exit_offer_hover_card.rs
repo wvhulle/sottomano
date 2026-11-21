@@ -24,12 +24,12 @@ pub(super) fn exit_offer_text(exit_offer: ExitNodeOffer) -> &'static str {
     }
 }
 
-pub(super) struct ExitOfferIndicator<'a> {
-    pub(super) tailnet: &'a Tailnet,
+pub(super) struct ExitOfferIndicator<'view> {
+    pub(super) tailnet: &'view Tailnet,
 }
 
-impl<'a> ExitOfferIndicator<'a> {
-    pub(super) fn indicator(self) -> GroupIndicator<'a> {
+impl<'view> ExitOfferIndicator<'view> {
+    pub(super) fn indicator(self) -> GroupIndicator<'view> {
         let label = match self.tailnet.offer_control() {
             ExitOfferControl::Switchable(_) => ReadoutLabel::Unlabeled,
             ExitOfferControl::BlockedByExitNodeInUse => ReadoutLabel::Labeled("blocked".to_owned()),

@@ -315,12 +315,12 @@ impl VoiceDictationGroup {
         sections
     }
 
-    fn dictation_indicator<'a>(
-        &'a self,
-        dictation_row: GroupIndicator<'a>,
+    fn dictation_indicator<'view>(
+        &'view self,
+        dictation_row: GroupIndicator<'view>,
         switch_position: SwitchPosition,
         press_text: &'static str,
-    ) -> GroupIndicator<'a> {
+    ) -> GroupIndicator<'view> {
         dictation_row
             .on_switch_press(
                 switch_position,
@@ -334,10 +334,10 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
     }
 
-    fn interface_mismatch_indicator<'a>(
-        &'a self,
-        mismatch_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn interface_mismatch_indicator<'view>(
+        &'view self,
+        mismatch_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         mismatch_indicator
             .with_hover_card(Box::new(move |_| {
                 self.interface_mismatch
@@ -348,7 +348,10 @@ impl VoiceDictationGroup {
             ))
     }
 
-    fn pipeline_indicator<'a>(&'a self, pipeline_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn pipeline_indicator<'view>(
+        &'view self,
+        pipeline_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         pipeline_row
             .with_hover_card(Box::new(move |_| {
                 self.pipeline
@@ -357,7 +360,10 @@ impl VoiceDictationGroup {
             .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
     }
 
-    fn engine_indicator<'a>(&'a self, engine_row: GroupIndicator<'a>) -> GroupIndicator<'a> {
+    fn engine_indicator<'view>(
+        &'view self,
+        engine_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         let engine_indicator = engine_row
             .with_hover_card(Box::new(move |_| {
                 let mut sections = self
@@ -379,10 +385,10 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn output_problems_indicator<'a>(
-        &'a self,
-        problems_indicator: GroupIndicator<'a>,
-    ) -> GroupIndicator<'a> {
+    fn output_problems_indicator<'view>(
+        &'view self,
+        problems_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
         problems_indicator
             .with_hover_card(Box::new(move |_| {
                 self.output_problems
@@ -414,7 +420,7 @@ impl VoiceDictationGroup {
             .with_headline_glyph(Phosphor::ChatTeardropText(Weight::Regular).into())
     }
 
-    fn list_dictation<'a>(&'a self, indicators: &mut Vec<GroupIndicator<'a>>) {
+    fn list_dictation<'view>(&'view self, indicators: &mut Vec<GroupIndicator<'view>>) {
         if !self.dictation.awaits_first_delivery() {
             indicators.insert(0, self.switchable_dictation_indicator());
         }
@@ -439,7 +445,10 @@ impl VoiceDictationGroup {
         )
     }
 
-    fn push_interface_mismatch_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_interface_mismatch_indicators<'view>(
+        &'view self,
+        rows: &mut Vec<GroupIndicator<'view>>,
+    ) {
         if !self.interface_mismatch.awaits_first_delivery() {
             let mismatch_indicator = self.interface_mismatch.indicator(
                 |held_snapshot| notulist_interface_mismatch_indicator(held_snapshot),
@@ -451,7 +460,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_pipeline_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_pipeline_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         let dictation = self.dictation.get();
         let pipeline_active = dictation.is_some_and(|held_dictation| {
             matches!(
@@ -472,7 +481,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_runtime_switch_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_runtime_switch_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         let dictation = self.dictation.get();
         let runtime_glyph = self
             .loaded_engine()
@@ -491,7 +500,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_engine_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_engine_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if !self.engine.awaits_first_delivery() {
             let engine_row = self.engine.indicator(
                 |held_snapshot| notulist_engine_indicator(held_snapshot),
@@ -503,7 +512,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_loaded_engine_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_loaded_engine_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if let Some(loaded) = self.loaded_engine() {
             rows.push(
                 runtime_configuration_indicator(loaded)
@@ -524,7 +533,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn push_output_problems_indicators<'a>(&'a self, rows: &mut Vec<GroupIndicator<'a>>) {
+    fn push_output_problems_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
         if !self.output_problems.awaits_first_delivery() {
             let problems_indicator = self.output_problems.indicator(
                 |held_snapshot| notulist_output_problems_indicator(held_snapshot),

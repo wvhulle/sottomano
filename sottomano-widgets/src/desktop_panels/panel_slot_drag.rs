@@ -24,8 +24,8 @@ pub type SlotPress = pointer_drag::SlotPress<SlotClick>;
 pub type SlotDragEvent = DragEvent<SlotClick>;
 
 #[derive(Clone, Copy)]
-pub struct PanelSlotContext<'a> {
-    pub config: &'a Config,
+pub struct PanelSlotContext<'config> {
+    pub config: &'config Config,
     pub edge: Position,
     pub drag: DragView,
     pub clock: Clock,

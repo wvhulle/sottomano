@@ -40,16 +40,16 @@ impl IconHandle {
         }
     }
 
-    pub fn view<'a, Message: 'a>(&self, side: f32, opacity: f32) -> Element<'a, Message> {
+    pub fn view<'view, Message: 'view>(&self, side: f32, opacity: f32) -> Element<'view, Message> {
         self.view_with_symbolic_tint(side, opacity, text_color)
     }
 
-    pub fn view_with_symbolic_tint<'a, Message: 'a>(
+    pub fn view_with_symbolic_tint<'view, Message: 'view>(
         &self,
         side: f32,
         opacity: f32,
-        symbolic_tint: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
+        symbolic_tint: impl Fn(&Theme) -> Color + 'view,
+    ) -> Element<'view, Message> {
         match self {
             Self::Raster(handle) => image(handle.clone())
                 .width(side)
@@ -72,7 +72,7 @@ impl IconHandle {
         }
     }
 
-    pub fn scaled_down<'a, Message: 'a>(&self, opacity: f32) -> Element<'a, Message> {
+    pub fn scaled_down<'view, Message: 'view>(&self, opacity: f32) -> Element<'view, Message> {
         match self {
             Self::Raster(handle) => image(handle.clone())
                 .width(Length::Fill)

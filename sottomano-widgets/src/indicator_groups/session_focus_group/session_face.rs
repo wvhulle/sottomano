@@ -25,16 +25,17 @@ use crate::{
     },
 };
 
-pub struct SessionFace<'a> {
-    pub accounting: Accounting<'a>,
-    pub snooze: Option<WarningSnooze>,
+pub struct SessionFace<'view> {
+    pub accounting: Accounting<'view>,
+    pub snooze: WarningSnooze,
 }
 
 impl SessionFace<'_> {
     pub(super) fn snoozed_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-        self.snooze
-            .map(|WarningSnooze { until }| until)
-            .filter(|until| now < *until)
+        match self.snooze {
+            WarningSnooze::SnoozedUntil(until) if now < until => Some(until),
+            WarningSnooze::SnoozedUntil(_) | WarningSnooze::NotSnoozed => None,
+        }
     }
 
     fn run_length(&self, now: DateTime<Utc>) -> Option<TimeDelta> {
@@ -192,8 +193,8 @@ impl SessionFace<'_> {
     }
 }
 
-impl<'a> SessionFace<'a> {
-    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'a> {
+impl<'view> SessionFace<'view> {
+    pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'view> {
         let label = self
             .run_length(clock.utc())
             .map(|run_length| TimeDelta::minutes(run_length.num_minutes()))
@@ -267,7 +268,7 @@ mod tests {
         let ledger = ledger_after([(focused(1, "kitty"), 0)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            snooze: Some(WarningSnooze { until: at(60) }),
+            snooze: WarningSnooze::SnoozedUntil(at(60)),
         };
         assert_eq!(face.severity(at(50)), Severity::Normal);
         assert_eq!(face.severity(at(61)), Severity::Warning);
@@ -279,7 +280,7 @@ mod tests {
         let ledger = ledger_after([(focused(1, "firefox"), 0), (focused(2, "kitty"), 40)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            snooze: None,
+            snooze: WarningSnooze::NotSnoozed,
         };
         let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();
         assert!(summary.contains("<dt>App</dt><dd>firefox</dd>"));

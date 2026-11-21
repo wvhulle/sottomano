@@ -117,8 +117,13 @@ pub struct SidebarSettingsGroup {
     expansion: IndicatorGroupExpansion,
     pub workspaces_placement: WorkspacesPlacement,
     pub empty_workspace_folding: EmptyWorkspaceFolding,
-    reveal_fold_timer: Option<task::Handle>,
+    reveal_fold_timer: RevealFoldCountdown,
     pub layer: LayerAppearanceControls,
+}
+
+enum RevealFoldCountdown {
+    Stopped,
+    Running { _timer: task::Handle },
 }
 
 impl Default for SidebarSettingsGroup {
@@ -127,7 +132,7 @@ impl Default for SidebarSettingsGroup {
             expansion: IndicatorGroupExpansion::default(),
             workspaces_placement: WorkspacesPlacement::Sidebar,
             empty_workspace_folding: EmptyWorkspaceFolding::default(),
-            reveal_fold_timer: None,
+            reveal_fold_timer: RevealFoldCountdown::Stopped,
             layer: LayerAppearanceControls::new(ShellLayer::Sidebar),
         }
     }
@@ -159,14 +164,16 @@ impl SidebarSettingsGroup {
         {
             RevealFoldTimer::Keep => Task::none(),
             RevealFoldTimer::Stop => {
-                self.reveal_fold_timer = None;
+                self.reveal_fold_timer = RevealFoldCountdown::Stopped;
                 Task::none()
             }
             RevealFoldTimer::Restart => {
                 let (timer, handle) = Task::future(sleep(REVEAL_FOLD_DELAY))
                     .map(|()| SidebarSettingsMessage::FoldTemporaryReveal)
                     .abortable();
-                self.reveal_fold_timer = Some(handle.abort_on_drop());
+                self.reveal_fold_timer = RevealFoldCountdown::Running {
+                    _timer: handle.abort_on_drop(),
+                };
                 timer
             }
         }
@@ -195,12 +202,12 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleEmptyWorkspaces => {
                 self.empty_workspace_folding.toggle_temporary_reveal();
-                self.reveal_fold_timer = None;
+                self.reveal_fold_timer = RevealFoldCountdown::Stopped;
                 Task::none()
             }
             SidebarSettingsMessage::ToggleAutoCollapseWorkspaces => {
                 self.empty_workspace_folding.toggle_mode();
-                self.reveal_fold_timer = None;
+                self.reveal_fold_timer = RevealFoldCountdown::Stopped;
                 logged_failure_task(
                     "singleton flag: save".to_owned(),
                     sqlite_singleton_flag::save(self.empty_workspace_folding.mode),
@@ -208,7 +215,7 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::FoldTemporaryReveal => {
                 self.empty_workspace_folding.fold_temporary_reveal();
-                self.reveal_fold_timer = None;
+                self.reveal_fold_timer = RevealFoldCountdown::Stopped;
                 Task::none()
             }
             SidebarSettingsMessage::Appearance(msg) => self
@@ -222,13 +229,16 @@ impl SidebarSettingsGroup {
             SidebarSettingsMessage::EmptyWorkspacesModeLoaded(empty_workspaces_mode) => {
                 self.empty_workspace_folding
                     .adopt_mode(empty_workspaces_mode);
-                self.reveal_fold_timer = None;
+                self.reveal_fold_timer = RevealFoldCountdown::Stopped;
                 Task::none()
             }
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
+    pub fn group_content<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorGroupContent<'view> {
         let mut rows = vec![
             GroupIndicator::toggle(
                 workspaces_sidebar_toggle(self.workspaces_placement),

@@ -259,11 +259,11 @@ impl ScopedLlamaServers {
         self.servers.get(unit)?.server.get()?.resident_model()
     }
 
-    pub fn indicators<'a>(
-        &'a self,
+    pub fn indicators<'view>(
+        &'view self,
         lift: fn(ScopedServersInteraction) -> LlamaServerInteraction,
-        model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
-    ) -> impl Iterator<Item = GroupIndicator<'a>> + 'a {
+        model_sections: impl Fn() -> Vec<Section> + Copy + 'view,
+    ) -> impl Iterator<Item = GroupIndicator<'view>> + 'view {
         self.servers.values().flat_map(move |samples| {
             let unit = &samples.discovered.unit.unit_name;
             let server_label = samples.server_label.as_str();
@@ -273,7 +273,7 @@ impl ScopedLlamaServers {
             {
                 rows.push(
                     ServedModel {
-                        resident: server.resident_model(),
+                        server_snapshot: server,
                         server: server_label,
                     }
                     .indicator()

@@ -239,12 +239,12 @@ impl WifiAdaptersGroup {
         })
     }
 
-    fn adapter_group<'a>(
-        &'a self,
-        adapter: &'a WifiAdapter,
+    fn adapter_group<'view>(
+        &'view self,
+        adapter: &'view WifiAdapter,
         radio_power: RadioPower,
         group_title: IndicatorGroupTitle,
-    ) -> Option<IndicatorGroupContent<'a>> {
+    ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&adapter.device)?;
         let build_adapter_signal_indicator = || {
             AdapterSignalIndicator {

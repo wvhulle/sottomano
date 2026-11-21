@@ -26,14 +26,14 @@ pub enum AdapterNaming {
     OneOfSeveral { label: String },
 }
 
-pub struct AdapterRadioIndicator<'a> {
-    pub adapter: &'a BluetoothAdapter,
+pub struct AdapterRadioIndicator<'view> {
+    pub adapter: &'view BluetoothAdapter,
     pub naming: AdapterNaming,
-    pub kernel_errors: Vec<&'a DeviceKernelError>,
+    pub kernel_errors: Vec<&'view DeviceKernelError>,
 }
 
-pub struct AdapterPowerSwitch<'a> {
-    pub adapter: &'a BluetoothAdapter,
+pub struct AdapterPowerSwitch<'view> {
+    pub adapter: &'view BluetoothAdapter,
 }
 
 fn power_description(power: &AdapterPower) -> &'static str {
@@ -47,7 +47,7 @@ fn power_description(power: &AdapterPower) -> &'static str {
 
 impl AdapterRadioIndicator<'_> {
     #[must_use]
-    pub fn kernel_device_of(controller_name: &str) -> String {
+    pub fn controller_kernel_device(controller_name: &str) -> String {
         format!("+bluetooth:{controller_name}")
     }
 
@@ -72,9 +72,9 @@ impl AdapterRadioIndicator<'_> {
     }
 }
 
-impl<'a> AdapterRadioIndicator<'a> {
+impl<'view> AdapterRadioIndicator<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = match self.adapter.power {
             AdapterPower::On(_) | AdapterPower::SwitchingOn => {
                 Phosphor::Bluetooth(Weight::Regular).into()
@@ -144,9 +144,9 @@ impl From<&AdapterPower> for SwitchPosition {
     }
 }
 
-impl<'a> AdapterPowerSwitch<'a> {
+impl<'view> AdapterPowerSwitch<'view> {
     #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'a> {
+    pub fn indicator(self) -> GroupIndicator<'view> {
         let state = match self.adapter.power {
             AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => IndicatorState::Pending,
             AdapterPower::Off => IndicatorState::Off,
