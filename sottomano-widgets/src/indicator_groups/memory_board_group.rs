@@ -27,7 +27,7 @@ use sottomano_toml_config::{
 
 use self::{
     growth_trend_label::{memory_growth_hover_card, memory_growth_indicator},
-    memory_slot_indicator::MemorySlotIndicator,
+    memory_slot_indicator::{MemorySlotIndicator, matching_module_banks},
     memory_usage_gauge::{memory_hover_card, memory_indicator},
     module_temperature_indicator::MemoryModuleTemperatureIndicator,
     stall_pressure_label::{memory_stall_hover_card, memory_stall_indicator},
@@ -189,14 +189,13 @@ impl MemoryBoardGroup {
     fn slot_indicators(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
-            hardware
-                .memory
-                .iter()
+            matching_module_banks(&hardware.memory)
+                .into_iter()
                 .enumerate()
-                .map(move |(slot_index, slot_module)| {
+                .map(move |(bank_index, matching_module_bank)| {
                     let slot_indicator = MemorySlotIndicator {
-                        slot_module: slot_module.clone(),
-                        machine: if slot_index == 0 {
+                        matching_module_bank,
+                        machine: if bank_index == 0 {
                             machine.clone()
                         } else {
                             MachineInfo::default()
