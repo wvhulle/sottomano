@@ -37,7 +37,6 @@ use crate::{
 };
 
 const LISTED_EVENTS: NonZeroUsize = NonZeroUsize::new(10).unwrap();
-const LABEL_CHARACTERS: usize = 28;
 
 struct EventRow<'a> {
     event: &'a UpcomingEvent,
@@ -50,7 +49,7 @@ impl EventRow<'_> {
     }
 }
 
-impl From<&EventRow<'_>> for TableRecord<4> {
+impl From<&EventRow<'_>> for TableRecord<3> {
     fn from(event_row: &EventRow<'_>) -> Self {
         let details_link = event_row
             .provider
@@ -65,7 +64,6 @@ impl From<&EventRow<'_>> for TableRecord<4> {
             [
                 event_date_cell(event_row.event.start),
                 event_time_cell(event_row.event.start),
-                ValueCell::Hint(event_row.event.calendar.clone()),
                 if event_row.event.location.is_empty() {
                     ValueCell::Blank
                 } else {
@@ -152,10 +150,7 @@ pub(crate) fn upcoming_events_indicator(
 ) -> GroupIndicator<'_> {
     let now = clock.local();
     let label = match upcoming_events.next_event(now) {
-        Some(event) => {
-            let summary: String = event.summary.chars().take(LABEL_CHARACTERS).collect();
-            format!("{}: {summary}", starts_label(event.start, now, locale))
-        }
+        Some(event) => starts_label(event.start, now, locale),
         None => empty_agenda_label(&upcoming_events.failed_subscription_names),
     };
     let state = if upcoming_events
@@ -221,7 +216,6 @@ pub(crate) fn upcoming_events_hover_card(
                     [
                         ColumnHeading::titled("Date"),
                         ColumnHeading::titled("Time"),
-                        ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
                         ColumnHeading::titled("Location").align_x(Horizontal::Left),
                     ],
                     rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
@@ -242,9 +236,14 @@ pub(crate) fn upcoming_events_hover_card(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Locale;
+    use std::time::SystemTime;
+
+    use chrono::{Local, Locale, TimeDelta, TimeZone};
     use sottomano_desktop_sources::caldav_tasks_events::{
-        caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
+        agenda_moment_zones::AgendaMoment,
+        caldav_event_query::{EventOrigin, UpcomingEvent},
+        caldav_server_provider::CaldavProvider,
+        caldav_upcoming_events::UpcomingEventList,
     };
 
     use crate::{
@@ -256,7 +255,7 @@ mod tests {
         indicator_groups::caldav_group::upcoming_events_indicator::{
             UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_indicator,
         },
-        widgets::subscribed_snapshot::SubscribedSnapshot,
+        widgets::{localized_time::LocalizedTimeFormat, subscribed_snapshot::SubscribedSnapshot},
     };
 
     fn event_list_without_events(failed_subscription_names: Vec<String>) -> UpcomingEventList {
@@ -298,6 +297,39 @@ mod tests {
             .map(|section| section.title.text().to_owned())
             .collect();
         assert_eq!(card_titles, ["Loading".to_owned()]);
+    }
+
+    #[test]
+    fn an_event_later_today_is_labeled_by_its_start_time_alone() {
+        let morning = Local
+            .with_ymd_and_hms(2026, 11, 21, 9, 0, 0)
+            .single()
+            .expect("an unambiguous local morning");
+        let morning_clock = Clock {
+            wall: SystemTime::from(morning),
+            ..Clock::real()
+        };
+        let starts_at = morning.naive_local() + TimeDelta::hours(2);
+        let late_morning_event = UpcomingEvent {
+            summary: "Bewakingscamera's in kaart brengen".to_owned(),
+            calendar: "Personal".to_owned(),
+            origin: EventOrigin::SubscriptionFeed,
+            start: AgendaMoment::Floating(starts_at),
+            end: AgendaMoment::Floating(starts_at + TimeDelta::hours(1)),
+            location: String::new(),
+        };
+        let event_list = UpcomingEventList {
+            events: vec![late_morning_event.clone()],
+            ..event_list_without_events(Vec::new())
+        };
+        let row = upcoming_events_indicator(&event_list, morning_clock, Locale::en_US);
+        assert_eq!(
+            row.shown_readout().expect("a readout indicator").label,
+            ReadoutLabel::Labeled(
+                LocalizedTimeFormat::HourAndMinute
+                    .format(&late_morning_event.start.starts_at(), Locale::en_US)
+            ),
+        );
     }
 
     #[test]
