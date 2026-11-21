@@ -737,15 +737,12 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         if survives_action_invocation {
             activation
         } else {
-            Task::batch([
-                activation,
-                self.close_all(
-                    [id],
-                    close_reason::DISMISSED,
-                    context.config,
-                    context.clock.instant,
-                ),
-            ])
+            activation.chain(self.close_all(
+                [id],
+                close_reason::DISMISSED,
+                context.config,
+                context.clock.instant,
+            ))
         }
     }
 

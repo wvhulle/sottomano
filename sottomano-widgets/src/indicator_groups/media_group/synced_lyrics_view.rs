@@ -34,7 +34,7 @@ use crate::{
 };
 
 const LINES_BEFORE_CURRENT: usize = 2;
-const LINES_AFTER_CURRENT: usize = 3;
+const LINES_AFTER_CURRENT: usize = 4;
 
 pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
