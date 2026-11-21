@@ -6,10 +6,10 @@ use std::{
 };
 
 use futures::Stream;
-use rusqlite::{Connection, OpenFlags};
 use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 
 use crate::{
+    blocking_background_work::blocking,
     delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::window_title_labels::{
         WindowLabel, firefox_page_titles::strip_unread_badge,
@@ -48,54 +48,64 @@ pub fn firefox_keys(compositor: &CompositorWindowState) -> Vec<String> {
     keys
 }
 
-pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
-    let mut out = HashMap::new();
+pub async fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
+    let mut favicons_by_title = HashMap::new();
     if titles.is_empty() {
-        return out;
+        return favicons_by_title;
     }
+    let Some(database_copies) = blocking("favicons", fresh_database_copies).await else {
+        return favicons_by_title;
+    };
+    let Some(places_database) = open_read_only(&database_copies.places).await else {
+        return favicons_by_title;
+    };
+    let Some(favicons_database) = open_read_only(&database_copies.favicons).await else {
+        return favicons_by_title;
+    };
+
+    for title in titles {
+        if let Some(favicon) = resolve_one(
+            &places_database.connection,
+            &favicons_database.connection,
+            &title,
+        )
+        .await
+        {
+            favicons_by_title.insert(title, favicon);
+        }
+    }
+    favicons_by_title
+}
+
+struct ProfileDatabaseCopies {
+    places: PathBuf,
+    favicons: PathBuf,
+}
+
+fn fresh_database_copies() -> Option<ProfileDatabaseCopies> {
     let Some(cache_dir) = state_dir() else {
         tracing::debug!("favicons: no writable state directory");
-        return out;
+        return None;
     };
     let Some(profile) = profile_dir() else {
         tracing::debug!("favicons: no Firefox profile under ~/.mozilla/firefox");
-        return out;
+        return None;
     };
     let Some(places) = fresh_copy(&profile, &cache_dir, PLACES_DB) else {
         tracing::debug!(
             "favicons: cannot copy {PLACES_DB} from {}",
             profile.display()
         );
-        return out;
+        return None;
     };
-    let Some(favicons_db) = fresh_copy(&profile, &cache_dir, FAVICONS_DB) else {
+    let Some(favicons) = fresh_copy(&profile, &cache_dir, FAVICONS_DB) else {
         tracing::debug!(
             "favicons: cannot copy {FAVICONS_DB} from {}",
             profile.display()
         );
-        return out;
+        return None;
     };
-    let places_conn = match open_read_only(&places) {
-        Ok(connection) => connection,
-        Err(error) => {
-            tracing::debug!("favicons: cannot open {}: {error}", places.display());
-            return out;
-        }
-    };
-    let favicons_conn = match open_read_only(&favicons_db) {
-        Ok(connection) => connection,
-        Err(error) => {
-            tracing::debug!("favicons: cannot open {}: {error}", favicons_db.display());
-            return out;
-        }
-    };
-
-    for title in titles {
-        if let Some(favicon) = resolve_one(&places_conn, &favicons_conn, &title) {
-            out.insert(title, favicon);
-        }
-    }
-    out
+    Some(ProfileDatabaseCopies { places, favicons })
 }
 
 const PAGE_ICON_QUERY: &str = "SELECT i.data FROM moz_pages_w_icons p JOIN moz_icons_to_pages m \
@@ -109,23 +119,34 @@ const ORIGIN_ICON_QUERY: &str = "SELECT i.data FROM moz_pages_w_icons p JOIN moz
 const ROOT_ICON_QUERY: &str = "SELECT data FROM moz_icons WHERE root = 1 AND icon_url = ?1 || \
                                '/favicon.ico' ORDER BY width DESC LIMIT 1";
 
-fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Option<RawFavicon> {
-    let urls = candidate_urls(places, title);
+async fn resolve_one(
+    places: &turso::Connection,
+    favicons: &turso::Connection,
+    title: &str,
+) -> Option<RawFavicon> {
+    let urls = candidate_urls(places, title).await;
     if urls.is_empty() {
         tracing::debug!("favicons: no history title matches {title:?}");
         return None;
     }
 
-    let blob = urls
-        .iter()
-        .find_map(|url| icon_blob(favicons, PAGE_ICON_QUERY, url))
-        .or_else(|| {
-            let origin = origin_of(urls.first()?)?;
-            icon_blob(favicons, ORIGIN_ICON_QUERY, origin)
-                .or_else(|| icon_blob(favicons, ROOT_ICON_QUERY, origin))
-        });
+    let mut icon_bytes = None;
+    for url in &urls {
+        icon_bytes = icon_blob(favicons, PAGE_ICON_QUERY, url).await;
+        if icon_bytes.is_some() {
+            break;
+        }
+    }
+    if icon_bytes.is_none()
+        && let Some(origin) = urls.first().and_then(|first_url| origin_of(first_url))
+    {
+        icon_bytes = icon_blob(favicons, ORIGIN_ICON_QUERY, origin).await;
+        if icon_bytes.is_none() {
+            icon_bytes = icon_blob(favicons, ROOT_ICON_QUERY, origin).await;
+        }
+    }
 
-    if let Some(bytes) = blob {
+    if let Some(bytes) = icon_bytes {
         let kind = classify(&bytes);
         Some(RawFavicon { bytes, kind })
     } else {
@@ -137,48 +158,59 @@ fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Optio
     }
 }
 
-fn candidate_urls(places: &Connection, title: &str) -> Vec<String> {
-    let mut statement = match places.prepare(
-        "SELECT url, title FROM moz_places WHERE title = ?1 OR (title LIKE '(%' AND title LIKE \
-         '%' || ?1) ORDER BY last_visit_date DESC LIMIT 32",
-    ) {
-        Ok(statement) => statement,
-        Err(error) => {
-            tracing::debug!("favicons: history query failed: {error}");
+async fn candidate_urls(places: &turso::Connection, title: &str) -> Vec<String> {
+    let mut history_rows = match places
+        .query(
+            "SELECT url, title FROM moz_places WHERE title = ?1 OR (title LIKE '(%' AND title \
+             LIKE '%' || ?1) ORDER BY last_visit_date DESC LIMIT 32",
+            [title],
+        )
+        .await
+    {
+        Ok(history_rows) => history_rows,
+        Err(query_failure) => {
+            tracing::debug!("favicons: history query failed: {query_failure}");
             return Vec::new();
         }
     };
-    let rows = match statement.query_map([title], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    }) {
-        Ok(rows) => rows,
-        Err(error) => {
-            tracing::debug!("favicons: history query failed: {error}");
-            return Vec::new();
-        }
-    };
-    rows.filter_map(|history_row| {
-        history_row
-            .inspect_err(|row_failure| {
+    let mut matching_urls = Vec::new();
+    loop {
+        let history_row = match history_rows.next().await {
+            Ok(Some(history_row)) => history_row,
+            Ok(None) => break,
+            Err(row_failure) => {
                 tracing::warn!("favicons: invalid history row: {row_failure}");
-            })
-            .ok()
-    })
-    .filter(|(_, stored)| strip_unread_badge(stored) == title)
-    .map(|(url, _)| url)
-    .collect()
+                break;
+            }
+        };
+        match (history_row.get::<String>(0), history_row.get::<String>(1)) {
+            (Ok(url), Ok(stored_title)) => {
+                if strip_unread_badge(&stored_title) == title {
+                    matching_urls.push(url);
+                }
+            }
+            (Err(row_failure), _) | (_, Err(row_failure)) => {
+                tracing::warn!("favicons: invalid history row: {row_failure}");
+            }
+        }
+    }
+    matching_urls
 }
 
-fn icon_blob(favicons: &Connection, query: &str, parameter: &str) -> Option<Vec<u8>> {
-    favicons
-        .query_row(query, [parameter], |row| row.get::<_, Vec<u8>>(0))
+async fn icon_blob(favicons: &turso::Connection, query: &str, parameter: &str) -> Option<Vec<u8>> {
+    let first_icon_row = async { favicons.query(query, [parameter]).await?.next().await }
+        .await
         .inspect_err(|query_failure| {
-            if !matches!(query_failure, rusqlite::Error::QueryReturnedNoRows) {
-                tracing::warn!("favicons: icon query for {parameter}: {query_failure}");
-            }
+            tracing::warn!("favicons: icon query for {parameter}: {query_failure}");
+        })
+        .ok()??;
+    first_icon_row
+        .get::<Vec<u8>>(0)
+        .inspect_err(|column_failure| {
+            tracing::warn!("favicons: icon column for {parameter}: {column_failure}");
         })
         .ok()
-        .filter(|blob| !blob.is_empty())
+        .filter(|icon_bytes| !icon_bytes.is_empty())
 }
 
 fn origin_of(url: &str) -> Option<&str> {
@@ -257,11 +289,39 @@ pub fn profile_changes() -> impl Stream<Item = Result<(), ChangeWatchFailure>> +
     changes(written)
 }
 
-fn open_read_only(database: &Path) -> rusqlite::Result<Connection> {
-    Connection::open_with_flags(
-        database,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
+struct OpenedProfileDatabase {
+    connection: turso::Connection,
+    _database: turso::Database,
+}
+
+async fn open_read_only(database_file: &Path) -> Option<OpenedProfileDatabase> {
+    let Some(database_path_text) = database_file.to_str() else {
+        tracing::debug!(
+            "favicons: non-unicode database path {}",
+            database_file.display()
+        );
+        return None;
+    };
+    let opened_database = async {
+        let database = turso::Builder::new_local(database_path_text)
+            .read_only(true)
+            .build()
+            .await?;
+        let connection = database.connect()?;
+        Ok::<_, turso::Error>(OpenedProfileDatabase {
+            connection,
+            _database: database,
+        })
+    }
+    .await;
+    opened_database
+        .inspect_err(|open_failure| {
+            tracing::debug!(
+                "favicons: cannot open {}: {open_failure}",
+                database_file.display()
+            );
+        })
+        .ok()
 }
 
 fn fresh_copy(profile: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {

@@ -31,6 +31,7 @@
         env =
           desktopRuntime.allocatorEnv
           // desktopRuntime.iconAssetEnv
+          // desktopRuntime.linkedSystemLibraryEnv
           // {
             LD_LIBRARY_PATH = "${lib.makeLibraryPath (lib.remove pkgs.openssl commonArgs.buildInputs)}:${pkgs.addDriverRunpath.driverLink}/lib";
             SHOWCASE_APP_ICONS = desktopRuntime.showcaseAppIcons;

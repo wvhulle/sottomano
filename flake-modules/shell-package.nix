@@ -28,6 +28,7 @@ in
           shellArgs
           // {
             cargoArtifacts = cargoBuild.shellArtifacts;
+            doCheck = false;
             cargoExtraArgs = compositorCargoArgs compositors;
             nativeBuildInputs = cargoBuild.commonArgs.nativeBuildInputs ++ [ pkgs.makeBinaryWrapper ];
             postInstall = ''

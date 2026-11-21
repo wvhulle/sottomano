@@ -75,11 +75,25 @@
             checkoutDrv;
       };
 
-      commonArgs = iconAssetEnv // {
+      awsLcInstallPrefix = pkgs.symlinkJoin {
+        name = "aws-lc-install-prefix";
+        paths = [
+          pkgs.aws-lc.dev
+          pkgs.aws-lc.out
+        ];
+      };
+
+      linkedSystemLibraryEnv = {
+        AWS_LC_SYS_SYSTEM_DIR = "${awsLcInstallPrefix}";
+        ZSTD_SYS_USE_PKG_CONFIG = "1";
+      };
+
+      dependencyBuildArgs = linkedSystemLibraryEnv // {
         inherit src;
         cargoVendorDir = vendoredCargoDeps;
         version = (lib.importTOML ../Cargo.toml).workspace.package.version;
         strictDeps = true;
+        NIX_OUTPATH_USED_AS_RANDOM_SEED = "sottomanos";
         nativeBuildInputs = [
           pkgs.pkg-config
           pkgs.autoAddDriverRunpath
@@ -90,8 +104,27 @@
           pkgs.pipewire
           pkgs.openssl
           pkgs.libvirt
+          pkgs.zstd
         ];
       };
+
+      commonArgs = iconAssetEnv // dependencyBuildArgs;
+
+      releaseDependencyArtifacts = craneLib.buildDepsOnly (
+        dependencyBuildArgs
+        // {
+          pname = "sottomano-release";
+          cargoExtraArgs = "--locked --workspace";
+        }
+      );
+
+      devDependencyArtifacts = craneLib.buildDepsOnly (
+        dependencyBuildArgs
+        // {
+          pname = workspaceArgs.pname;
+          inherit (workspaceArgs) cargoExtraArgs CARGO_PROFILE CARGO_PROFILE_DEV_DEBUG;
+        }
+      );
 
       shellArgs = commonArgs // {
         pname = "sottomano";
@@ -176,9 +209,9 @@
             workspaceArgs
             showcaseFonts
             ;
-          shellArtifacts = craneLib.buildDepsOnly shellArgs;
-          workspaceArtifacts = craneLib.buildDepsOnly workspaceArgs;
-          showcaseArtifacts = craneLib.buildDepsOnly (showcaseArgs // showcaseFonts);
+          shellArtifacts = releaseDependencyArtifacts;
+          workspaceArtifacts = devDependencyArtifacts;
+          showcaseArtifacts = releaseDependencyArtifacts;
         };
 
         desktopRuntime = {
@@ -186,6 +219,7 @@
             runtimeDlopenLibraries
             allocatorEnv
             iconAssetEnv
+            linkedSystemLibraryEnv
             showcaseAppIcons
             ;
 

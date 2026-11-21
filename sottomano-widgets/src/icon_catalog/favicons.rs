@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use iced::{Task, task::Handle};
 use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking,
-    desktop_windows_apps::{firefox_favicon_lookup, firefox_favicon_lookup::RawFavicon},
+use sottomano_desktop_sources::desktop_windows_apps::{
+    firefox_favicon_lookup, firefox_favicon_lookup::RawFavicon,
 };
 
 use crate::icon_catalog::icon_handle::IconHandle;
@@ -86,10 +85,7 @@ impl Favicons {
         if unresolved.is_empty() {
             return Task::none();
         }
-        let (task, handle) = Task::future(blocking("favicons", move || {
-            firefox_favicon_lookup::resolve(unresolved)
-        }))
-        .abortable();
+        let (task, handle) = Task::future(firefox_favicon_lookup::resolve(unresolved)).abortable();
         self.lookup = Lookup::Running {
             _aborts_on_drop: handle.abort_on_drop(),
             profile_changes: ProfileChanges::Unchanged,
