@@ -34,12 +34,17 @@ use super::{
 use crate::{
     desktop_notifications::notification_data::Residency,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{OwnerProcess, prop},
+    system_protocol_clients::{
+        dbus_desktop_buses::{OwnerProcess, prop},
+        procfs_process_ancestry::process_ancestry,
+    },
 };
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
 const INLINE_REPLY: &str = "inline-reply";
+const WINDOW_ID_HINT: &str = "x-window-id";
+const NIRI_WINDOW_ID_HINT: &str = "x-niri-window-id";
 
 struct NotificationServer {
     next_id: AtomicU32,
@@ -97,9 +102,15 @@ impl NotificationServer {
             actions,
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::client_requested_millis(expire_timeout),
-            window_id_hint: CompositorKind::detected()
-                .and_then(CompositorKind::notification_window_id_hint)
-                .and_then(|hint_key| hint_window_id(&hints, hint_key)),
+            window_id_hint: CompositorKind::detected().and_then(|compositor| {
+                hinted_window_id(&hints, |hint_text| {
+                    compositor.notification_window_id(hint_text)
+                })
+            }),
+            sender_ancestry: match sender {
+                OwnerProcess::Identified(pid) => process_ancestry(pid),
+                OwnerProcess::Unidentified => Vec::new(),
+            },
             sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),
             sound_request: sound_request(&hints),
@@ -287,6 +298,16 @@ fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Severity {
     }
 }
 
+fn hinted_window_id(
+    hints: &HashMap<String, OwnedValue>,
+    parse_window_text: impl Fn(&str) -> Option<u64>,
+) -> Option<u64> {
+    hint_str(hints, WINDOW_ID_HINT)
+        .and_then(|hint_text| parse_window_text(&hint_text))
+        .or_else(|| hint_window_id(hints, WINDOW_ID_HINT))
+        .or_else(|| hint_window_id(hints, NIRI_WINDOW_ID_HINT))
+}
+
 fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
     let signed_window_id = prop::<i32>(hints, key)?;
     u64::try_from(signed_window_id)
@@ -323,7 +344,41 @@ mod tests {
     use uom::si::{f64::Ratio, ratio::percent};
     use zbus::zvariant::{OwnedValue, Str};
 
-    use super::{ActionTint, NotifAction, ReplyPrompt, clamped_progress, reply_prompt};
+    use super::{
+        ActionTint, NotifAction, ReplyPrompt, clamped_progress, hinted_window_id, reply_prompt,
+    };
+
+    fn decimal_window(hint_text: &str) -> Option<u64> {
+        hint_text.parse().ok()
+    }
+
+    #[test]
+    fn a_textual_window_hint_is_parsed_by_the_compositor() {
+        let hints = HashMap::from([("x-window-id".to_owned(), text("0x2a"))]);
+        let hexadecimal_window =
+            |hint_text: &str| u64::from_str_radix(hint_text.trim_start_matches("0x"), 16).ok();
+        assert_eq!(hinted_window_id(&hints, hexadecimal_window), Some(42));
+    }
+
+    #[test]
+    fn an_integer_window_hint_is_taken_as_is() {
+        let hints = HashMap::from([("x-window-id".to_owned(), OwnedValue::from(7_i32))]);
+        assert_eq!(hinted_window_id(&hints, decimal_window), Some(7));
+    }
+
+    #[test]
+    fn the_niri_window_hint_is_still_understood() {
+        let hints = HashMap::from([("x-niri-window-id".to_owned(), OwnedValue::from(9_i32))]);
+        assert_eq!(hinted_window_id(&hints, decimal_window), Some(9));
+    }
+
+    #[test]
+    fn an_unparsable_or_negative_window_hint_names_no_window() {
+        let textual = HashMap::from([("x-window-id".to_owned(), text("kitty"))]);
+        let negative = HashMap::from([("x-window-id".to_owned(), OwnedValue::from(-1_i32))]);
+        assert_eq!(hinted_window_id(&textual, decimal_window), None);
+        assert_eq!(hinted_window_id(&negative, decimal_window), None);
+    }
 
     #[test]
     fn progress_hint_is_clamped_to_percent_range() {

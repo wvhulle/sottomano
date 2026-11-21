@@ -88,7 +88,7 @@ async fn queried<Reply: DeserializeOwned>(command: &str) -> io::Result<Reply> {
     Ok(serde_json::from_str(&hyprland_request(command).await?)?)
 }
 
-fn parsed_window_id(address: &str) -> Option<u64> {
+pub(crate) fn parsed_window_id(address: &str) -> Option<u64> {
     let hex_digits = address.trim_start_matches("0x");
     if hex_digits.is_empty() {
         return None;

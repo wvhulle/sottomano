@@ -92,14 +92,14 @@ impl CompositorKind {
     }
 
     #[must_use]
-    pub fn notification_window_id_hint(self) -> Option<&'static str> {
+    pub fn notification_window_id(self, hint_text: &str) -> Option<u64> {
         match self.backend {
             #[cfg(feature = "niri")]
-            CompiledBackend::Niri => NiriBackend::NOTIFICATION_WINDOW_ID_HINT,
+            CompiledBackend::Niri => NiriBackend::notification_window_id(hint_text),
             #[cfg(feature = "sway")]
-            CompiledBackend::Sway => SwayBackend::NOTIFICATION_WINDOW_ID_HINT,
+            CompiledBackend::Sway => SwayBackend::notification_window_id(hint_text),
             #[cfg(feature = "hyprland")]
-            CompiledBackend::Hyprland => HyprlandBackend::NOTIFICATION_WINDOW_ID_HINT,
+            CompiledBackend::Hyprland => HyprlandBackend::notification_window_id(hint_text),
         }
     }
 

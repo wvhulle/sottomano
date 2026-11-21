@@ -168,6 +168,39 @@ impl Placement {
         });
         unique(&mut matching).map(|window| window.id)
     }
+
+    #[must_use]
+    pub fn process_owns_window(&self, pid: u32) -> bool {
+        self.windows.iter().any(|window| {
+            window
+                .pid
+                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(pid))
+        })
+    }
+
+    #[must_use]
+    pub fn window_of_process_ancestry(&self, ancestry: &[u32]) -> Option<u64> {
+        ancestry
+            .iter()
+            .find_map(|&ancestor_pid| {
+                let mut owned = self.windows.iter().filter(|window| {
+                    window
+                        .pid
+                        .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(ancestor_pid))
+                });
+                let first_owned = owned.next()?;
+                Some(owned.next().is_none().then_some(first_owned.id))
+            })
+            .flatten()
+    }
+
+    #[must_use]
+    pub fn window_on_focused_workspace(&self, id: u64) -> bool {
+        self.active_workspace_for_move()
+            .is_some_and(|focused_workspace| {
+                self.workspace_of_window(id) == Some(focused_workspace)
+            })
+    }
 }
 
 struct OutputActiveWorkspace {
@@ -231,5 +264,73 @@ fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
     match iter.next() {
         Some(_) => None,
         None => Some(first),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_compositor_model::{
+        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_state::{CompositorWindow, CompositorWindowState},
+    };
+
+    use super::Placement;
+
+    const TERMINAL_PID: i32 = 300;
+
+    fn window_of_process(id: u64, pid: i32, workspace: u64) -> CompositorWindow {
+        CompositorWindow {
+            pid: Some(pid),
+            workspace_id: Some(workspace),
+            ..unplaced_compositor_window(id)
+        }
+    }
+
+    fn placement_with(windows: Vec<CompositorWindow>) -> Placement {
+        let mut other_workspace = unnamed_compositor_workspace(2);
+        other_workspace.is_focused = false;
+        Placement::derive(&CompositorWindowState::indexed_by_id(
+            [unnamed_compositor_workspace(1), other_workspace],
+            windows,
+        ))
+    }
+
+    #[test]
+    fn the_nearest_window_owning_ancestor_is_the_sender_window() {
+        let placement = placement_with(vec![window_of_process(10, TERMINAL_PID, 1)]);
+        let notify_send_ancestry = [500, 400, 300, 200];
+        assert_eq!(
+            placement.window_of_process_ancestry(&notify_send_ancestry),
+            Some(10)
+        );
+    }
+
+    #[test]
+    fn an_ancestor_owning_several_windows_is_not_guessed() {
+        let placement = placement_with(vec![
+            window_of_process(10, TERMINAL_PID, 1),
+            window_of_process(11, TERMINAL_PID, 1),
+            window_of_process(12, 200, 1),
+        ]);
+        assert_eq!(placement.window_of_process_ancestry(&[400, 300, 200]), None);
+    }
+
+    #[test]
+    fn a_windowless_ancestry_has_no_sender_window() {
+        let placement = placement_with(vec![window_of_process(10, TERMINAL_PID, 1)]);
+        assert_eq!(placement.window_of_process_ancestry(&[400, 200]), None);
+    }
+
+    #[test]
+    fn a_window_shares_the_focused_workspace_only_when_its_workspace_holds_focus() {
+        let mut focused = window_of_process(10, TERMINAL_PID, 1);
+        focused.is_focused = true;
+        let placement = placement_with(vec![
+            focused,
+            window_of_process(11, 200, 1),
+            window_of_process(12, 201, 2),
+        ]);
+        assert!(placement.window_on_focused_workspace(11));
+        assert!(!placement.window_on_focused_workspace(12));
     }
 }

@@ -76,6 +76,7 @@ pub struct NotificationData {
     pub expire_timeout: ExpireTimeout,
     pub window_id_hint: Option<u64>,
     pub sender: OwnerProcess,
+    pub sender_ancestry: Vec<u32>,
     pub desktop_entry: Option<String>,
     pub image: SpecImage,
     pub image_role: ImageRole,

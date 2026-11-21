@@ -32,7 +32,6 @@ impl CompositorBackend for SwayBackend {
     const FEATURE_NAME: &'static str = "sway";
     const SESSION_VARIABLE: &'static str = SWAY_SOCKET_ENV;
     const RULES_FILE_NAME: &'static str = "sway.conf";
-    const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str> = None;
     const EDGE_SHADOW_RENDERING: EdgeShadowRendering = EdgeShadowRendering::SelfDrawnFalloff;
 
     fn overview_support() -> CompositorFeatureSupport {

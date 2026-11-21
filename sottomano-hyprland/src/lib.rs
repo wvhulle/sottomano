@@ -28,6 +28,7 @@ use crate::{
     hyprland_socket_connection::HYPRLAND_SIGNATURE_ENV,
     hyprland_socket_events::{
         hyprland_compositor_updates, hyprland_outputs, hyprland_version, hyprland_window_pids,
+        parsed_window_id,
     },
     hyprland_workspace_identity::hyprland_workspace_with_key,
 };
@@ -39,8 +40,11 @@ impl CompositorBackend for HyprlandBackend {
     const FEATURE_NAME: &'static str = "hyprland";
     const SESSION_VARIABLE: &'static str = HYPRLAND_SIGNATURE_ENV;
     const RULES_FILE_NAME: &'static str = "hyprland.lua";
-    const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str> = None;
     const EDGE_SHADOW_RENDERING: EdgeShadowRendering = EdgeShadowRendering::SelfDrawnFalloff;
+
+    fn notification_window_id(hint_text: &str) -> Option<u64> {
+        parsed_window_id(hint_text.trim())
+    }
 
     fn overview_support() -> CompositorFeatureSupport {
         CompositorFeatureSupport::Available
@@ -128,5 +132,27 @@ impl CompositorBackend for HyprlandBackend {
         _config_home: &Path,
     ) -> impl Future<Output = Option<Result<Vec<String>, String>>> + Send + use<> {
         async { None }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_compositor_model::compositor_backend::CompositorBackend;
+
+    use super::HyprlandBackend;
+
+    #[test]
+    fn a_hyprctl_address_hint_names_that_window() {
+        assert_eq!(
+            HyprlandBackend::notification_window_id("0x55d4a3b2c1e0"),
+            Some(0x55d4_a3b2_c1e0)
+        );
+    }
+
+    #[test]
+    fn an_unparsable_or_null_address_hint_names_no_window() {
+        assert_eq!(HyprlandBackend::notification_window_id("kitty"), None);
+        assert_eq!(HyprlandBackend::notification_window_id("0x0"), None);
+        assert_eq!(HyprlandBackend::notification_window_id(""), None);
     }
 }

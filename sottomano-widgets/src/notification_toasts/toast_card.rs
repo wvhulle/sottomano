@@ -326,6 +326,10 @@ impl<Routed> ToastCard<'_, Routed> {
             .actions
             .iter()
             .filter(|a| a.key != "default" && !a.label.trim().is_empty())
+            .filter(|offered_action| {
+                offered_action.key != "move"
+                    || !self.notif.place.window_focus.makes_move_pointless()
+            })
             .collect();
         let previewed_file = self.notif.icons.previewed_file();
         let has_actions = !button_actions.is_empty() || previewed_file.is_some();

@@ -22,8 +22,18 @@ pub trait CompositorBackend {
     const FEATURE_NAME: &'static str;
     const SESSION_VARIABLE: &'static str;
     const RULES_FILE_NAME: &'static str;
-    const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str>;
     const EDGE_SHADOW_RENDERING: EdgeShadowRendering;
+
+    #[must_use]
+    fn notification_window_id(hint_text: &str) -> Option<u64> {
+        hint_text
+            .trim()
+            .parse()
+            .inspect_err(|parse_failure| {
+                tracing::debug!("notification window hint {hint_text:?}: {parse_failure}");
+            })
+            .ok()
+    }
 
     fn overview_support() -> CompositorFeatureSupport;
 

@@ -34,7 +34,6 @@ impl CompositorBackend for NiriBackend {
     const FEATURE_NAME: &'static str = "niri";
     const SESSION_VARIABLE: &'static str = SOCKET_PATH_ENV;
     const RULES_FILE_NAME: &'static str = "niri.kdl";
-    const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str> = Some("x-niri-window-id");
     const EDGE_SHADOW_RENDERING: EdgeShadowRendering = EdgeShadowRendering::CompositorShadow;
 
     fn overview_support() -> CompositorFeatureSupport {
@@ -107,5 +106,23 @@ impl CompositorBackend for NiriBackend {
     ) -> impl Future<Output = Option<Result<Vec<String>, String>>> + Send + use<> {
         let configured_names = configured_niri_workspace_names(config_home);
         async move { Some(configured_names.await) }
+    }
+}
+
+#[cfg(test)]
+mod notification_hint_tests {
+    use sottomano_compositor_model::compositor_backend::CompositorBackend;
+
+    use super::NiriBackend;
+
+    #[test]
+    fn a_decimal_window_id_hint_names_that_window() {
+        assert_eq!(NiriBackend::notification_window_id("42"), Some(42));
+    }
+
+    #[test]
+    fn a_non_decimal_window_id_hint_names_no_window() {
+        assert_eq!(NiriBackend::notification_window_id("0x2a"), None);
+        assert_eq!(NiriBackend::notification_window_id("-3"), None);
     }
 }

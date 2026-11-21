@@ -51,7 +51,7 @@ use super::{
         BodyClick, CardStart, Countdown, EventSource, ExitPace, Notification, ToastContent,
         ToastKind, ToastPresence, lifetime,
     },
-    toast_placement::{ToastWindow, placement_for},
+    toast_placement::{AnchoredWindowFocus, ToastWindow, delegated_sender_window, placement_for},
 };
 use crate::{
     background_work::compositor_request,
@@ -509,11 +509,11 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let data = &toast.data;
         let id = data.id;
         let mut tasks = Vec::new();
-        if let Some(window) = data.window_id_hint {
+        if let Some(window) = delegated_sender_window(data, placement) {
             let superseded: Vec<u32> = self
                 .showing()
                 .filter(|shown| shown.data.id != id)
-                .filter(|shown| shown.data.window_id_hint == Some(window))
+                .filter(|shown| shown.place.window == ToastWindow::Anchored(window))
                 .filter(|shown| shown.data.app_name == data.app_name)
                 .map(|shown| shown.data.id)
                 .collect();
@@ -600,9 +600,19 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             })
             .map(|notif| notif.data.id)
             .collect();
+        let returned_to: Vec<u32> = self
+            .showing()
+            .filter(|notif| notif.data.residency == Residency::Transient)
+            .filter(|notif| notif.place.window_focus != AnchoredWindowFocus::Focused)
+            .filter(|notif| {
+                notif.place.window.focus_within(placement) == AnchoredWindowFocus::Focused
+            })
+            .map(|notif| notif.data.id)
+            .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED, config, now);
+        let dismissed = self.close_all(returned_to, close_reason::DISMISSED, config, now);
         self.reposition(placement, config, notifications);
-        Task::batch([closed, self.release_orphaned_keyboard()])
+        Task::batch([closed, dismissed, self.release_orphaned_keyboard()])
     }
 
     pub fn prune(&mut self, now: Instant) {
