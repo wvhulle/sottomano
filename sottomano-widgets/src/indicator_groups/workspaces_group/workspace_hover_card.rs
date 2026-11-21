@@ -1,11 +1,16 @@
-use iced::Size;
+use iced::{Size, Vector};
 use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
-use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot::{
+    self, WorkspacePlacement,
+};
 
 use crate::{
     hover_cards::hover_card_body::{
         Section,
-        hover_card_figure_payloads::{PreviewTile, TileCaption, TileIcon, WorkspacePreview},
+        hover_card_figure_payloads::{
+            PlacedPreviewTile, PreviewTile, TileCaption, TileIcon, WorkspaceArrangement,
+            WorkspacePreview,
+        },
     },
     icon_catalog::{drawable_icon_catalog::IconCatalog, window_icons::resolved_window_icon},
 };
@@ -21,10 +26,25 @@ pub fn hover_card(
     if windows.is_empty() {
         return Vec::new();
     }
-    let tile = |window| preview_tile(icon_catalog, window);
     vec![Section::new(
         "Layout",
         WorkspacePreview {
+            arrangement: workspace_arrangement(icon_catalog, windows),
+            app_window_layout,
+        },
+    )]
+}
+
+fn workspace_arrangement(
+    icon_catalog: &IconCatalog,
+    windows: &[workspace_window_snapshot::WinEntry],
+) -> WorkspaceArrangement {
+    let tile = |window| preview_tile(icon_catalog, window);
+    let has_scrolling_columns = windows
+        .iter()
+        .any(|window| !window.layout.is_floating && window.layout.column().is_some());
+    if has_scrolling_columns {
+        return WorkspaceArrangement::ScrollingColumns {
             columns: scrolling_columns(windows)
                 .into_iter()
                 .map(|column| column.into_iter().map(&tile).collect())
@@ -34,9 +54,50 @@ pub fn hover_card(
                 .filter(|window| window.layout.is_floating)
                 .map(&tile)
                 .collect(),
-            app_window_layout,
-        },
-    )]
+        };
+    }
+    WorkspaceArrangement::ScreenGeometry {
+        tiles: screen_offsets(windows)
+            .into_iter()
+            .map(|(window, offset)| PlacedPreviewTile {
+                tile: tile(window),
+                offset,
+            })
+            .collect(),
+    }
+}
+
+fn screen_offsets(
+    windows: &[workspace_window_snapshot::WinEntry],
+) -> Vec<(&workspace_window_snapshot::WinEntry, Vector)> {
+    let positioned: Vec<_> = windows
+        .iter()
+        .filter_map(|window| match window.layout.placement {
+            WorkspacePlacement::ScreenPosition {
+                horizontal,
+                vertical,
+            } => Some((window, horizontal, vertical)),
+            WorkspacePlacement::ScrollingTile { .. } | WorkspacePlacement::Unplaced => None,
+        })
+        .collect();
+    let leftmost_edge = positioned
+        .iter()
+        .map(|(_, horizontal, _)| *horizontal)
+        .fold(f64::INFINITY, f64::min);
+    let topmost_edge = positioned
+        .iter()
+        .map(|(_, _, vertical)| *vertical)
+        .fold(f64::INFINITY, f64::min);
+    positioned
+        .into_iter()
+        .map(|(window, horizontal, vertical)| {
+            let offset = Vector::new(
+                (horizontal - leftmost_edge) as f32,
+                (vertical - topmost_edge) as f32,
+            );
+            (window, offset)
+        })
+        .collect()
 }
 
 fn scrolling_columns(
@@ -47,7 +108,7 @@ fn scrolling_columns(
         .filter(|window| !window.layout.is_floating)
         .collect();
     tiled
-        .chunk_by(|left, right| left.layout.column == right.layout.column)
+        .chunk_by(|left, right| left.layout.column() == right.layout.column())
         .map(<[&workspace_window_snapshot::WinEntry]>::to_vec)
         .collect()
 }
@@ -81,6 +142,18 @@ mod tests {
     use super::*;
 
     fn window(id: u64, column: Option<usize>) -> workspace_window_snapshot::WinEntry {
+        let placement = match column {
+            Some(column) => WorkspacePlacement::ScrollingTile { column, tile: 1 },
+            None => WorkspacePlacement::Unplaced,
+        };
+        placed_window(id, placement, column.is_none())
+    }
+
+    fn placed_window(
+        id: u64,
+        placement: WorkspacePlacement,
+        is_floating: bool,
+    ) -> workspace_window_snapshot::WinEntry {
         workspace_window_snapshot::WinEntry {
             id,
             app_id: Some("kitty".to_owned()),
@@ -89,9 +162,9 @@ mod tests {
             is_urgent: false,
             label: None,
             layout: workspace_window_snapshot::WinLayout {
-                column,
+                placement,
                 tile_size: (800.0, 600.0),
-                is_floating: column.is_none(),
+                is_floating,
             },
         }
     }
@@ -109,5 +182,35 @@ mod tests {
         assert_eq!(columns[0].len(), 2);
         assert_eq!(columns[1].len(), 1);
         assert_eq!(columns[1][0].id, 3);
+    }
+
+    fn screen_position(horizontal: f64, vertical: f64) -> WorkspacePlacement {
+        WorkspacePlacement::ScreenPosition {
+            horizontal,
+            vertical,
+        }
+    }
+
+    #[test]
+    fn screen_offsets_start_at_the_top_left_tile() {
+        let windows = [
+            placed_window(3, screen_position(10.0, 10.0), false),
+            placed_window(2, screen_position(10.0, 550.0), false),
+            placed_window(1, screen_position(970.0, 550.0), false),
+            placed_window(4, screen_position(-40.0, 300.0), true),
+        ];
+        let offsets: Vec<(u64, Vector)> = screen_offsets(&windows)
+            .into_iter()
+            .map(|(window, offset)| (window.id, offset))
+            .collect();
+        assert_eq!(
+            offsets,
+            [
+                (3, Vector::new(50.0, 0.0)),
+                (2, Vector::new(50.0, 540.0)),
+                (1, Vector::new(1010.0, 540.0)),
+                (4, Vector::new(0.0, 290.0)),
+            ]
+        );
     }
 }

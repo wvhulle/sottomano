@@ -3,10 +3,12 @@ use corredo::theming::{
     secondary_text_color, text_color,
 };
 use iced::{
-    Border, Color, Element, Shadow, Theme, Vector,
+    Border, Color, Element, Padding, Shadow, Theme, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
+    widget::{
+        Column, Row as RowWidget, Stack, button, button::Status, container, text::Wrapping,
+    },
 };
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::Config;
@@ -15,7 +17,8 @@ use crate::{
     hover_cards::{
         PopupMessage,
         hover_card_body::hover_card_figure_payloads::{
-            PreviewTile, TileCaption, TileIcon, WorkspacePreview,
+            PlacedPreviewTile, PreviewTile, TileCaption, TileIcon, WorkspaceArrangement,
+            WorkspacePreview,
         },
     },
     icon_catalog::{
@@ -52,24 +55,47 @@ impl<'a> WorkspaceSchematic<'a> {
 
     #[must_use]
     pub fn view(self) -> Element<'static, PopupMessage> {
+        match &self.preview.arrangement {
+            WorkspaceArrangement::ScrollingColumns { columns, floating } => {
+                self.scrolling_columns_view(columns, floating)
+            }
+            WorkspaceArrangement::ScreenGeometry { tiles } => self.screen_geometry_view(tiles),
+        }
+    }
+
+    fn scrolling_columns_view(
+        &self,
+        columns: &[Vec<PreviewTile>],
+        floating: &[PreviewTile],
+    ) -> Element<'static, PopupMessage> {
         let mut rows = vec![
-            RowWidget::with_children(
-                self.preview
-                    .columns
-                    .iter()
-                    .map(|column| self.column(column)),
-            )
-            .spacing(self.tile_gap())
-            .into(),
+            RowWidget::with_children(columns.iter().map(|column| self.column(column)))
+                .spacing(self.tile_gap())
+                .into(),
         ];
-        if !self.preview.floating.is_empty() {
+        if !floating.is_empty() {
             rows.push(
-                RowWidget::with_children(self.preview.floating.iter().map(|tile| self.tile(tile)))
+                RowWidget::with_children(floating.iter().map(|tile| self.tile(tile)))
                     .spacing(self.tile_gap())
                     .into(),
             );
         }
         Column::with_children(rows).spacing(self.tile_gap()).into()
+    }
+
+    fn screen_geometry_view(&self, tiles: &[PlacedPreviewTile]) -> Element<'static, PopupMessage> {
+        let scale = self.config.indicator_groups.workspaces.preview_scale;
+        Stack::with_children(tiles.iter().map(|placed| {
+            container(self.tile(&placed.tile))
+                .padding(Padding {
+                    top: placed.offset.y * scale,
+                    left: placed.offset.x * scale,
+                    right: 0.0,
+                    bottom: 0.0,
+                })
+                .into()
+        }))
+        .into()
     }
 
     fn tile_gap(&self) -> f32 {

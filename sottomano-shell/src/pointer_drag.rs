@@ -184,7 +184,7 @@ impl DesktopShell {
                 let Some(index) = snapshot
                     .windows_on_workspace(workspace)
                     .get(to)
-                    .and_then(|target| target.layout.column)
+                    .and_then(|target| target.layout.column())
                 else {
                     return Task::none();
                 };

@@ -829,12 +829,13 @@ impl WindowSlot<'_> {
                 SlotClick::FocusWindow(self.window_entry.id)
             },
         };
-        let hover_reorder =
-            if self.window_entry.layout.column.is_some() && !self.window_entry.layout.is_floating {
-                HoverReorder::ReordersOnHover
-            } else {
-                HoverReorder::StaysOnHover
-            };
+        let hover_reorder = if self.window_entry.layout.column().is_some()
+            && !self.window_entry.layout.is_floating
+        {
+            HoverReorder::ReordersOnHover
+        } else {
+            HoverReorder::StaysOnHover
+        };
         let pressable = draggable_slot(
             self.panel_slot(icons),
             press,

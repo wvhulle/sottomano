@@ -1,5 +1,5 @@
 use corredo::gauges::{DurationTimeline, TimelineDensity};
-use iced::Size;
+use iced::{Size, Vector};
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
@@ -77,9 +77,25 @@ pub enum TileIcon {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkspacePreview {
-    pub columns: Vec<Vec<PreviewTile>>,
-    pub floating: Vec<PreviewTile>,
+    pub arrangement: WorkspaceArrangement,
     pub app_window_layout: AppWindowLayout,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum WorkspaceArrangement {
+    ScrollingColumns {
+        columns: Vec<Vec<PreviewTile>>,
+        floating: Vec<PreviewTile>,
+    },
+    ScreenGeometry {
+        tiles: Vec<PlacedPreviewTile>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacedPreviewTile {
+    pub tile: PreviewTile,
+    pub offset: Vector,
 }
 
 impl From<WorkspacePreview> for SectionWidget {

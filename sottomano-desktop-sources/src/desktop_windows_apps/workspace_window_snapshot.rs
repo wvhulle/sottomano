@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use sottomano_compositor_model::compositor_window_state::{
-    CompositorWindow, CompositorWindowState,
+    CompositorWindow, CompositorWindowLayout, CompositorWindowState,
 };
 
 use crate::desktop_windows_apps::{
@@ -55,27 +55,19 @@ impl Snapshot {
             indicators.sort_by_key(|indicator| indicator.idx);
         }
 
-        let mut grouped: HashMap<u64, Vec<&CompositorWindow>> = HashMap::new();
-        for w in state.windows.values() {
-            let Some(workspace) = w.workspace_id else {
+        let mut windows: HashMap<u64, Vec<WinEntry>> = HashMap::new();
+        for compositor_window in state.windows.values() {
+            let Some(workspace) = compositor_window.workspace_id else {
                 continue;
             };
-            grouped.entry(workspace).or_default().push(w);
+            windows
+                .entry(workspace)
+                .or_default()
+                .push(win_entry(compositor_window, processes));
         }
-        let windows = grouped
-            .into_iter()
-            .map(|(workspace, mut group)| {
-                group.sort_by_key(|w| {
-                    let (col, tile) = w
-                        .layout
-                        .scrolling_position
-                        .unwrap_or((usize::MAX, usize::MAX));
-                    (col, tile, w.id)
-                });
-                let entries = group.into_iter().map(|w| win_entry(w, processes)).collect();
-                (workspace, entries)
-            })
-            .collect();
+        for entries in windows.values_mut() {
+            entries.sort_by(compare_reading_order);
+        }
 
         Self {
             workspaces,
@@ -166,7 +158,7 @@ impl Snapshot {
             .values()
             .flatten()
             .find(|entry| entry.id == window)
-            .and_then(|entry| entry.layout.column)
+            .and_then(|entry| entry.layout.column())
         else {
             return self;
         };
@@ -174,15 +166,15 @@ impl Snapshot {
             let holds_window = entries.iter().any(|entry| entry.id == window);
             entries.iter_mut().for_each(|entry| {
                 entry.is_focused = entry.id == window;
-                if holds_window {
-                    entry.layout.column = entry
-                        .layout
-                        .column
-                        .map(|column| column_after_move(column, from_column, to_column));
+                if holds_window
+                    && let WorkspacePlacement::ScrollingTile { column, .. } =
+                        &mut entry.layout.placement
+                {
+                    *column = column_after_move(*column, from_column, to_column);
                 }
             });
             if holds_window {
-                entries.sort_by_key(column_order);
+                entries.sort_by(compare_reading_order);
             }
         });
         self
@@ -199,24 +191,41 @@ impl Snapshot {
         let target = self.windows.entry(workspace).or_default();
         let next_column = target
             .iter()
-            .filter_map(|entry| entry.layout.column)
+            .filter_map(|entry| entry.layout.column())
             .max()
             .map_or(1, |column| column + 1);
+        let placement = match moved.layout.placement {
+            WorkspacePlacement::ScrollingTile { .. } => WorkspacePlacement::ScrollingTile {
+                column: next_column,
+                tile: 1,
+            },
+            WorkspacePlacement::ScreenPosition { .. } | WorkspacePlacement::Unplaced => {
+                WorkspacePlacement::Unplaced
+            }
+        };
         target.push(WinEntry {
             is_focused: false,
             layout: WinLayout {
-                column: moved.layout.column.map(|_| next_column),
+                placement,
                 ..moved.layout.clone()
             },
             ..moved
         });
-        target.sort_by_key(column_order);
+        target.sort_by(compare_reading_order);
         self
     }
 }
 
-fn column_order(entry: &WinEntry) -> usize {
-    entry.layout.column.unwrap_or(usize::MAX)
+fn compare_reading_order(left: &WinEntry, right: &WinEntry) -> Ordering {
+    left.layout
+        .is_floating
+        .cmp(&right.layout.is_floating)
+        .then_with(|| {
+            left.layout
+                .placement
+                .compare_reading_order(&right.layout.placement)
+        })
+        .then_with(|| left.id.cmp(&right.id))
 }
 
 fn column_after_move(column: usize, from: usize, to: usize) -> usize {
@@ -231,11 +240,84 @@ fn column_after_move(column: usize, from: usize, to: usize) -> usize {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum WorkspacePlacement {
+    ScrollingTile {
+        column: usize,
+        tile: usize,
+    },
+    ScreenPosition {
+        horizontal: f64,
+        vertical: f64,
+    },
+    #[default]
+    Unplaced,
+}
+
+impl WorkspacePlacement {
+    fn from_compositor_layout(layout: &CompositorWindowLayout) -> Self {
+        match (layout.scrolling_position, layout.tile_position_in_view) {
+            (Some((column, tile)), _) => WorkspacePlacement::ScrollingTile { column, tile },
+            (None, Some((horizontal, vertical))) => WorkspacePlacement::ScreenPosition {
+                horizontal,
+                vertical,
+            },
+            (None, None) => WorkspacePlacement::Unplaced,
+        }
+    }
+
+    fn reading_rank(self) -> u8 {
+        match self {
+            WorkspacePlacement::ScrollingTile { .. } => 0,
+            WorkspacePlacement::ScreenPosition { .. } => 1,
+            WorkspacePlacement::Unplaced => 2,
+        }
+    }
+
+    fn compare_reading_order(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (
+                WorkspacePlacement::ScrollingTile {
+                    column: left_column,
+                    tile: left_tile,
+                },
+                WorkspacePlacement::ScrollingTile {
+                    column: right_column,
+                    tile: right_tile,
+                },
+            ) => (left_column, left_tile).cmp(&(right_column, right_tile)),
+            (
+                WorkspacePlacement::ScreenPosition {
+                    horizontal: left_horizontal,
+                    vertical: left_vertical,
+                },
+                WorkspacePlacement::ScreenPosition {
+                    horizontal: right_horizontal,
+                    vertical: right_vertical,
+                },
+            ) => left_horizontal
+                .total_cmp(right_horizontal)
+                .then_with(|| left_vertical.total_cmp(right_vertical)),
+            _ => self.reading_rank().cmp(&other.reading_rank()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct WinLayout {
-    pub column: Option<usize>,
+    pub placement: WorkspacePlacement,
     pub tile_size: (f64, f64),
     pub is_floating: bool,
+}
+
+impl WinLayout {
+    #[must_use]
+    pub fn column(&self) -> Option<usize> {
+        match self.placement {
+            WorkspacePlacement::ScrollingTile { column, .. } => Some(column),
+            WorkspacePlacement::ScreenPosition { .. } | WorkspacePlacement::Unplaced => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -300,9 +382,77 @@ fn win_entry(w: &CompositorWindow, processes: &WindowProcesses) -> WinEntry {
         is_urgent: w.is_urgent,
         label,
         layout: WinLayout {
-            column: w.layout.scrolling_position.map(|(column, _)| column),
+            placement: WorkspacePlacement::from_compositor_layout(&w.layout),
             tile_size: w.layout.tile_size,
             is_floating: w.is_floating,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_compositor_model::compositor_window_state::{
+        CompositorWindow, CompositorWindowLayout, CompositorWindowState,
+    };
+
+    use super::Snapshot;
+    use crate::desktop_windows_apps::terminal_emulator_windows::WindowProcesses;
+
+    const SHARED_WORKSPACE: u64 = 1;
+
+    fn placed_window(
+        id: u64,
+        scrolling_position: Option<(usize, usize)>,
+        tile_position_in_view: Option<(f64, f64)>,
+        is_floating: bool,
+    ) -> CompositorWindow {
+        CompositorWindow {
+            id,
+            title: None,
+            app_id: Some("kitty".to_owned()),
+            pid: None,
+            workspace_id: Some(SHARED_WORKSPACE),
+            is_focused: false,
+            is_floating,
+            is_urgent: false,
+            layout: CompositorWindowLayout {
+                scrolling_position,
+                tile_position_in_view,
+                tile_size: (800.0, 600.0),
+                ..CompositorWindowLayout::default()
+            },
+            focused_at_monotonic: None,
+        }
+    }
+
+    fn ordered_window_ids(windows: Vec<CompositorWindow>) -> Vec<u64> {
+        let state = CompositorWindowState::indexed_by_id([], windows);
+        Snapshot::derive(&state, &WindowProcesses::default())
+            .windows_on_workspace(SHARED_WORKSPACE)
+            .iter()
+            .map(|window_entry| window_entry.id)
+            .collect()
+    }
+
+    #[test]
+    fn hyprland_windows_read_left_to_right_then_top_to_bottom_with_floating_last() {
+        let ordered = ordered_window_ids(vec![
+            placed_window(1, None, Some((100.0, 50.0)), true),
+            placed_window(2, None, Some((960.0, 540.0)), false),
+            placed_window(3, None, Some((960.0, 10.0)), false),
+            placed_window(4, None, Some((10.0, 10.0)), false),
+        ]);
+        assert_eq!(ordered, [4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn niri_windows_keep_their_column_and_tile_order() {
+        let ordered = ordered_window_ids(vec![
+            placed_window(1, Some((2, 1)), Some((0.0, 0.0)), false),
+            placed_window(2, Some((1, 2)), Some((900.0, 0.0)), false),
+            placed_window(3, Some((1, 1)), Some((900.0, 900.0)), false),
+            placed_window(4, None, Some((0.0, 0.0)), true),
+        ]);
+        assert_eq!(ordered, [3, 2, 1, 4]);
     }
 }
