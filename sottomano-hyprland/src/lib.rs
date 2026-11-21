@@ -13,7 +13,9 @@ use sottomano_compositor_model::{
     },
     compositor_output_facts::OutputInfo,
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
-    compositor_styling_model::{CompositorStyling, StyledSurface, StylingControl, SwitchHeat},
+    compositor_styling_model::{
+        CompositorStyling, EdgeShadowRendering, StyledSurface, StylingControl, SwitchHeat,
+    },
     compositor_window_state::CompositorUpdate,
     systemd_run_launches::launch_in_user_service,
 };
@@ -38,6 +40,7 @@ impl CompositorBackend for HyprlandBackend {
     const SESSION_VARIABLE: &'static str = HYPRLAND_SIGNATURE_ENV;
     const RULES_FILE_NAME: &'static str = "hyprland.lua";
     const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str> = None;
+    const EDGE_SHADOW_RENDERING: EdgeShadowRendering = EdgeShadowRendering::SelfDrawnFalloff;
 
     fn overview_support() -> CompositorFeatureSupport {
         CompositorFeatureSupport::Available

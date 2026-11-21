@@ -12,7 +12,9 @@ use sottomano_compositor_model::{
     compositor_backend::{CompositorBackend, CompositorFeatureSupport, logged_query},
     compositor_output_facts::OutputInfo,
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
-    compositor_styling_model::{CompositorStyling, StylingControl, SwitchHeat},
+    compositor_styling_model::{
+        CompositorStyling, EdgeShadowRendering, StylingControl, SwitchHeat,
+    },
     compositor_window_state::CompositorUpdate,
 };
 use tokio::task::spawn_blocking;
@@ -33,6 +35,7 @@ impl CompositorBackend for NiriBackend {
     const SESSION_VARIABLE: &'static str = SOCKET_PATH_ENV;
     const RULES_FILE_NAME: &'static str = "niri.kdl";
     const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str> = Some("x-niri-window-id");
+    const EDGE_SHADOW_RENDERING: EdgeShadowRendering = EdgeShadowRendering::CompositorShadow;
 
     fn overview_support() -> CompositorFeatureSupport {
         CompositorFeatureSupport::Available

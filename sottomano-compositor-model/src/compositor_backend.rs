@@ -5,7 +5,9 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     compositor_output_facts::OutputInfo,
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
-    compositor_styling_model::{CompositorStyling, StylingControl, SwitchHeat},
+    compositor_styling_model::{
+        CompositorStyling, EdgeShadowRendering, StylingControl, SwitchHeat,
+    },
     compositor_window_state::CompositorUpdate,
 };
 
@@ -21,6 +23,7 @@ pub trait CompositorBackend {
     const SESSION_VARIABLE: &'static str;
     const RULES_FILE_NAME: &'static str;
     const NOTIFICATION_WINDOW_ID_HINT: Option<&'static str>;
+    const EDGE_SHADOW_RENDERING: EdgeShadowRendering;
 
     fn overview_support() -> CompositorFeatureSupport;
 

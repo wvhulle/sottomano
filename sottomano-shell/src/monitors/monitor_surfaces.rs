@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iced::{Padding, Task, window::Id};
-pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_compositor_model::compositor_styling_model::StyledSurface;
 use sottomano_compositors::compositor_connection;
@@ -13,23 +12,9 @@ use sottomano_widgets::{
 
 use crate::{
     desktop_shell::DesktopShell,
+    monitors::edge_backdrops::{panel_edge_anchor, panel_edge_strip_size},
     shell_message::{Message, OutputChange},
 };
-
-fn panel_edge_anchor(position: Position) -> Anchor {
-    match position {
-        Position::Top => Anchor::Top | Anchor::Left | Anchor::Right,
-        Position::Bottom => Anchor::Bottom | Anchor::Left | Anchor::Right,
-        Position::Left => Anchor::Left | Anchor::Top | Anchor::Bottom,
-    }
-}
-
-fn panel_edge_strip_size(position: Position, thickness: u32) -> LayerSize {
-    match position {
-        Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
-        Position::Left => LayerSize::fill_height(thickness),
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceRole {
@@ -154,36 +139,6 @@ fn reservation_settings(
         layer,
         events_transparent: true,
         ..base_settings(Some(output), "sottomano-reservation")
-    }
-}
-
-fn backdrop_margin(position: Position, height: u32) -> Margin {
-    let offscreen = -height.cast_signed();
-    match position {
-        Position::Top => Margin {
-            top: offscreen,
-            ..Margin::default()
-        },
-        Position::Bottom => Margin {
-            bottom: offscreen,
-            ..Margin::default()
-        },
-        Position::Left => Margin {
-            left: offscreen,
-            ..Margin::default()
-        },
-    }
-}
-
-fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: panel_edge_strip_size(position, height),
-        exclusive_zone: Some(-1),
-        anchor: panel_edge_anchor(position),
-        layer: Layer::Background,
-        margin: Some(backdrop_margin(position, height)),
-        events_transparent: true,
-        ..base_settings(Some(output), StyledSurface::Backdrop(position).namespace())
     }
 }
 
@@ -387,31 +342,6 @@ impl DesktopShell {
         Task::batch(closes.into_iter().chain(opens))
     }
 
-    fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.desktop_panels.height as u32;
-        let settings = backdrop_settings(output, position, height);
-        let id = Id::unique();
-        self.backdrops.insert(id, position);
-        Task::done(Message::NewLayerShell { settings, id })
-    }
-
-    pub fn resize_backdrops(&self) -> Task<Message> {
-        let height = self.config.desktop_panels.height as u32;
-        Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
-            [
-                Task::done(Message::LayoutChange {
-                    id,
-                    anchor: panel_edge_anchor(position),
-                    size: panel_edge_strip_size(position, height),
-                }),
-                Task::done(Message::MarginChange {
-                    id,
-                    margin: backdrop_margin(position, height),
-                }),
-            ]
-        }))
-    }
-
     fn open_monitor_surfaces_once(&mut self, output: &str) -> Task<Message> {
         let _span = tracing::debug_span!("open monitor surfaces", output).entered();
         if self
@@ -486,7 +416,7 @@ mod tests {
             .collect()
     }
 
-    fn layer_of(surfaces: &BTreeMap<Id, Surface>, output: &str, role: SurfaceRole) -> Layer {
+    fn surface_layer(surfaces: &BTreeMap<Id, Surface>, output: &str, role: SurfaceRole) -> Layer {
         surfaces
             .values()
             .find(|surface| surface.output == output && surface.role == role)
@@ -500,16 +430,19 @@ mod tests {
         let changes = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
         assert_eq!(changes.len(), 2);
         assert_eq!(
-            layer_of(&surfaces, "DP-1", SurfaceRole::Panel),
+            surface_layer(&surfaces, "DP-1", SurfaceRole::Panel),
             Layer::Overlay
         );
         assert_eq!(
-            layer_of(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
+            surface_layer(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
             Layer::Top
         );
-        assert_eq!(layer_of(&surfaces, "DP-2", SurfaceRole::Panel), Layer::Top);
         assert_eq!(
-            layer_of(&surfaces, "DP-2", SurfaceRole::NotificationToasts),
+            surface_layer(&surfaces, "DP-2", SurfaceRole::Panel),
+            Layer::Top
+        );
+        assert_eq!(
+            surface_layer(&surfaces, "DP-2", SurfaceRole::NotificationToasts),
             Layer::Overlay
         );
     }
@@ -589,9 +522,12 @@ mod tests {
         let _lifted = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
         let restored = restack_around_hover_card(&mut surfaces, hover_card_closed);
         assert_eq!(restored.len(), 2);
-        assert_eq!(layer_of(&surfaces, "DP-1", SurfaceRole::Panel), Layer::Top);
         assert_eq!(
-            layer_of(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
+            surface_layer(&surfaces, "DP-1", SurfaceRole::Panel),
+            Layer::Top
+        );
+        assert_eq!(
+            surface_layer(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
             Layer::Overlay
         );
     }

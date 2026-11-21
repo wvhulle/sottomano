@@ -5,17 +5,13 @@ use std::{
 };
 
 use corredo::theming::text_color;
-use iced::{
-    Color, Element, Length, Task,
-    task::Handle,
-    theme::Style,
-    widget::{Space, container},
-    window::Id,
-};
+use iced::{Color, Element, Length, Task, task::Handle, theme::Style, widget::Space, window::Id};
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_compositor_model::{
-    compositor_output_facts, compositor_window_state::CompositorWindowState,
+    compositor_output_facts, compositor_styling_model::EdgeShadowRendering,
+    compositor_window_state::CompositorWindowState,
 };
+use sottomano_compositors::compositor_connection::CompositorKind;
 use sottomano_desktop_sinks::{
     compositor_rule_files::CompositorRulesFile,
     desktop_notifications::alert_sound_player::SoundTheme,
@@ -46,7 +42,10 @@ use sottomano_widgets::{
 use crate::{
     compositor_updates::{SwitchHeatEffect, report_missing_compositor, switch_heat_effect},
     indicator_groups::ShellIndicatorGroups,
-    monitors::monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+    monitors::{
+        edge_backdrops::backdrop_view,
+        monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+    },
     notification_updates::{AlertRescanNeed, GroupAlertScan, alert_rescan_need},
     pointer_drag::ShellDrag,
     shell_message::{Message, ShellInteraction},
@@ -67,6 +66,7 @@ pub struct DesktopShell {
     pub outputs: HashMap<String, compositor_output_facts::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
+    pub edge_shadow_rendering: EdgeShadowRendering,
     pub sidebar_widths: HashMap<Id, f32>,
     pub hover_card: HoverCardHost,
     pub active_hover_fetch: HoverFetch,
@@ -103,6 +103,10 @@ impl DesktopShell {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
+            edge_shadow_rendering: CompositorKind::detected().map_or(
+                EdgeShadowRendering::SelfDrawnFalloff,
+                CompositorKind::edge_shadow_rendering,
+            ),
             sidebar_widths: HashMap::new(),
             hover_card: HoverCardHost::default(),
             active_hover_fetch: HoverFetch::NothingToFetch,
@@ -235,10 +239,8 @@ impl DesktopShell {
     fn interaction_view(&self, window: Id) -> Element<'_, ShellInteraction> {
         let _span = tracing::trace_span!("view", ?window).entered();
         let blank = || Space::new().width(Length::Fill).height(Length::Fill);
-        if self.backdrops.contains_key(&window) {
-            return container(blank())
-                .style(|_| container::background(Color::BLACK))
-                .into();
+        if let Some(&position) = self.backdrops.get(&window) {
+            return backdrop_view(self.edge_shadow_rendering, position);
         }
         match self.surfaces.get(&window) {
             Some(Surface {

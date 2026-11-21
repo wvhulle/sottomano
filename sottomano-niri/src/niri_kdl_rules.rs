@@ -1,6 +1,7 @@
 use club_kdl::{KdlDeserialize, KdlSerialize};
 use sottomano_compositor_model::compositor_styling_model::{
-    CompositorStyling, HeatedWindow, ShellBlurDepth, StyledSurface, SwitchHeat, escaped_for_regex,
+    CompositorStyling, HeatedWindow, PANEL_EDGE_SHADOW, ShellBlurDepth, StyledSurface, SwitchHeat,
+    escaped_for_regex,
 };
 use sottomano_toml_config::screen_edges::Position;
 
@@ -76,17 +77,21 @@ struct BackdropShadow {
 
 impl From<Position> for BackdropShadow {
     fn from(position: Position) -> Self {
-        let lift = match position {
-            Position::Top => -3,
-            Position::Bottom => 3,
+        let lift = PANEL_EDGE_SHADOW.lift_px as i64;
+        let offscreen_lift = match position {
+            Position::Top => -lift,
+            Position::Bottom => lift,
             Position::Left => 0,
         };
         Self {
             on: SwitchedOn {},
-            softness: 27,
-            spread: 25,
-            color: "#00000060".to_owned(),
-            offset: ShadowOffset { x: 0, y: lift },
+            softness: PANEL_EDGE_SHADOW.softness_px as i64,
+            spread: PANEL_EDGE_SHADOW.spread_px as i64,
+            color: format!("#000000{:02x}", PANEL_EDGE_SHADOW.alpha),
+            offset: ShadowOffset {
+                x: 0,
+                y: offscreen_lift,
+            },
         }
     }
 }

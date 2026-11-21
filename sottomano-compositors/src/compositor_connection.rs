@@ -5,7 +5,9 @@ use sottomano_compositor_model::{
     compositor_backend::{CompositorBackend, CompositorFeatureSupport},
     compositor_output_facts::OutputInfo,
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
-    compositor_styling_model::{CompositorStyling, StylingControl, SwitchHeat},
+    compositor_styling_model::{
+        CompositorStyling, EdgeShadowRendering, StylingControl, SwitchHeat,
+    },
     compositor_window_state::CompositorUpdate,
 };
 #[cfg(feature = "hyprland")]
@@ -90,6 +92,18 @@ impl CompositorKind {
             CompiledBackend::Sway => SwayBackend::NOTIFICATION_WINDOW_ID_HINT,
             #[cfg(feature = "hyprland")]
             CompiledBackend::Hyprland => HyprlandBackend::NOTIFICATION_WINDOW_ID_HINT,
+        }
+    }
+
+    #[must_use]
+    pub fn edge_shadow_rendering(self) -> EdgeShadowRendering {
+        match self.0 {
+            #[cfg(feature = "niri")]
+            CompiledBackend::Niri => NiriBackend::EDGE_SHADOW_RENDERING,
+            #[cfg(feature = "sway")]
+            CompiledBackend::Sway => SwayBackend::EDGE_SHADOW_RENDERING,
+            #[cfg(feature = "hyprland")]
+            CompiledBackend::Hyprland => HyprlandBackend::EDGE_SHADOW_RENDERING,
         }
     }
 
@@ -335,5 +349,53 @@ mod tests {
             assert_eq!(entry.session_variable, compositor.session_variable());
             assert!(entry.compiled_in);
         }
+    }
+
+    fn default_styling_rules(compositor: CompositorKind) -> String {
+        compositor
+            .rendered_rules(CompositorStyling::default(), &SwitchHeat::Hidden)
+            .expect("default styling renders")
+    }
+
+    #[cfg(feature = "niri")]
+    #[test]
+    fn niri_alone_draws_the_edge_shadow_through_its_rules() {
+        assert_eq!(
+            CompositorKind(CompiledBackend::Niri).edge_shadow_rendering(),
+            EdgeShadowRendering::CompositorShadow
+        );
+        let rules = default_styling_rules(CompositorKind(CompiledBackend::Niri));
+        assert!(rules.contains("namespace=\"^sottomano-backdrop-top$\""));
+        assert!(rules.contains("softness 27"));
+        assert!(rules.contains("spread 25"));
+        assert!(rules.contains("color \"#00000060\""));
+        assert!(rules.contains("offset x=0 y=-3"));
+        assert!(rules.contains("offset x=0 y=3"));
+    }
+
+    #[cfg(feature = "hyprland")]
+    #[test]
+    fn hyprland_leaves_the_edge_shadow_to_sottomano() {
+        assert_eq!(
+            CompositorKind(CompiledBackend::Hyprland).edge_shadow_rendering(),
+            EdgeShadowRendering::SelfDrawnFalloff
+        );
+        assert!(
+            !default_styling_rules(CompositorKind(CompiledBackend::Hyprland))
+                .contains("sottomano-backdrop")
+        );
+    }
+
+    #[cfg(feature = "sway")]
+    #[test]
+    fn sway_leaves_the_edge_shadow_to_sottomano() {
+        assert_eq!(
+            CompositorKind(CompiledBackend::Sway).edge_shadow_rendering(),
+            EdgeShadowRendering::SelfDrawnFalloff
+        );
+        assert!(
+            !default_styling_rules(CompositorKind(CompiledBackend::Sway))
+                .contains("sottomano-backdrop")
+        );
     }
 }
