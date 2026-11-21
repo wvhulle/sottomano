@@ -2,22 +2,58 @@ id: option-field
 language: rust
 severity: error
 message: An Option field squeezes two kinds of value into one type.
-note: Use an enum variant per state, a separate constructor, or compute the value before constructing (rs-no-option-fields skill). The files list is a ratchet; widen it as modules are cleaned.
+note: Use an enum variant per state, a separate constructor, or compute the value before constructing (rs-no-option-fields skill). A type that mirrors an external format through a serde, clap, zvariant or KDL derive is exempt; convert it into an internal type right after reading.
+ignores:
+  - "**/*_tests.rs"
+utils:
+  option-type:
+    pattern:
+      context: "struct Probe { field: Option<$INNER> }"
+      selector: generic_type
+  external-format-attribute:
+    kind: attribute_item
+    has:
+      stopBy: end
+      kind: identifier
+      any:
+        - pattern: Deserialize
+        - pattern: Serialize
+        - pattern: KdlDeserialize
+        - pattern: KdlSerialize
+        - pattern: Parser
+        - pattern: Args
+        - pattern: Subcommand
+        - pattern: Type
+        - pattern: serde
+        - pattern: zvariant
+  external-format-mirror:
+    any:
+      - kind: struct_item
+      - kind: enum_item
+    follows:
+      matches: external-format-attribute
+      stopBy:
+        not:
+          kind: attribute_item
+  test-module:
+    kind: mod_item
+    has:
+      field: name
+      pattern: tests
 rule:
   any:
     - kind: field_declaration
       has:
         field: type
-        kind: generic_type
-        regex: '^Option<'
+        matches: option-type
     - kind: ordered_field_declaration_list
       has:
-        kind: generic_type
-        regex: '^Option<'
+        matches: option-type
   not:
-    inside:
-      kind: mod_item
-      has:
-        field: name
-        regex: ^tests$
-      stopBy: end
+    any:
+      - inside:
+          matches: test-module
+          stopBy: end
+      - inside:
+          matches: external-format-mirror
+          stopBy: end

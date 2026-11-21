@@ -20,6 +20,8 @@ rule:
               has:
                 any:
                   - kind: tuple_struct_pattern
-                    regex: '^Some\('
+                    has:
+                      field: type
+                      pattern: Some
                   - kind: identifier
-                    regex: '^None$'
+                    pattern: None

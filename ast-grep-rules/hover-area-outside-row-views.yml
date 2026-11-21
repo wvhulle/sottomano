@@ -19,4 +19,10 @@ rule:
   kind: call_expression
   has:
     field: function
-    regex: '(^|::)hoverable$'
+    any:
+      - kind: identifier
+        pattern: hoverable
+      - kind: scoped_identifier
+        has:
+          field: name
+          pattern: hoverable
