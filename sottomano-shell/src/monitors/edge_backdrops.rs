@@ -1,6 +1,9 @@
+use std::f32::consts::{FRAC_PI_2, PI, SQRT_2};
+
 use iced::{
-    Color, Element, Length, Shadow, Task, Vector,
-    widget::{Space, column, container, row},
+    Background, Color, Element, Gradient, Length, Radians, Task,
+    gradient::Linear,
+    widget::{Space, container},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, Margin, NewLayerShellSettings};
@@ -12,9 +15,33 @@ use sottomano_widgets::layer_surfaces::base_settings;
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
-const SELF_DRAWN_CASTER_DEPTH_PX: f32 = PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px;
+const SHADOW_HALF_STRENGTH_DEPTH_PX: f32 = PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px;
 
-const ICED_SHADOW_OPACITY_AT_CASTER_EDGE: f32 = 0.5;
+const SHADOW_GAUSSIAN_SIGMA_PX: f32 = PANEL_EDGE_SHADOW.softness_px / 2.0;
+
+const SHADOW_TAIL_SIGMA_COUNT: f32 = 3.0;
+
+const FALLOFF_GRADIENT_STOP_COUNT: usize = 8;
+
+fn self_drawn_falloff_reach_px() -> u32 {
+    (SHADOW_HALF_STRENGTH_DEPTH_PX + SHADOW_TAIL_SIGMA_COUNT * SHADOW_GAUSSIAN_SIGMA_PX).ceil()
+        as u32
+}
+
+fn edge_shadow_alpha_at(distance_from_screen_edge_px: f32) -> f32 {
+    let peak_alpha = f32::from(PANEL_EDGE_SHADOW.alpha) / 255.0;
+    let normalized_distance = (distance_from_screen_edge_px - SHADOW_HALF_STRENGTH_DEPTH_PX)
+        / (SHADOW_GAUSSIAN_SIGMA_PX * SQRT_2);
+    peak_alpha * 0.5 * libm::erfcf(normalized_distance)
+}
+
+fn falloff_away_from_edge(position: Position) -> Radians {
+    match position {
+        Position::Top => Radians(PI),
+        Position::Bottom => Radians(0.0),
+        Position::Left => Radians(FRAC_PI_2),
+    }
+}
 
 pub(crate) fn panel_edge_anchor(position: Position) -> Anchor {
     match position {
@@ -61,14 +88,10 @@ fn backdrop_strip(rendering: EdgeShadowRendering, panel_height: u32) -> Backdrop
             thickness: panel_height,
             offscreen_depth: panel_height,
         },
-        EdgeShadowRendering::SelfDrawnFalloff => {
-            let caster_depth = SELF_DRAWN_CASTER_DEPTH_PX.ceil() as u32;
-            BackdropStrip {
-                thickness: caster_depth
-                    + (SELF_DRAWN_CASTER_DEPTH_PX + PANEL_EDGE_SHADOW.softness_px).ceil() as u32,
-                offscreen_depth: caster_depth,
-            }
-        }
+        EdgeShadowRendering::SelfDrawnFalloff => BackdropStrip {
+            thickness: self_drawn_falloff_reach_px(),
+            offscreen_depth: 0,
+        },
     }
 }
 
@@ -87,34 +110,23 @@ pub(crate) fn backdrop_view<'a, Interaction: 'a>(
 }
 
 fn self_drawn_shadow_view<'a, Interaction: 'a>(position: Position) -> Element<'a, Interaction> {
-    let depth = SELF_DRAWN_CASTER_DEPTH_PX;
-    let caster = match position {
-        Position::Top | Position::Bottom => {
-            container(Space::new()).width(Length::Fill).height(depth)
-        }
-        Position::Left => container(Space::new()).width(depth).height(Length::Fill),
-    }
-    .style(move |_| container::Style {
-        background: Some(Color::BLACK.into()),
-        shadow: Shadow {
-            color: Color::BLACK.scale_alpha(
-                f32::from(PANEL_EDGE_SHADOW.alpha) / 255.0 / ICED_SHADOW_OPACITY_AT_CASTER_EDGE,
-            ),
-            offset: match position {
-                Position::Top => Vector::new(0.0, depth),
-                Position::Bottom => Vector::new(0.0, -depth),
-                Position::Left => Vector::new(depth, 0.0),
-            },
-            blur_radius: PANEL_EDGE_SHADOW.softness_px,
+    let reach_px = self_drawn_falloff_reach_px() as f32;
+    let last_stop_index = (FALLOFF_GRADIENT_STOP_COUNT - 1) as f32;
+    let falloff_gradient = (0..FALLOFF_GRADIENT_STOP_COUNT).fold(
+        Linear::new(falloff_away_from_edge(position)),
+        |gradient, stop_index| {
+            let stop_offset = stop_index as f32 / last_stop_index;
+            gradient.add_stop(
+                stop_offset,
+                Color::BLACK.scale_alpha(edge_shadow_alpha_at(stop_offset * reach_px)),
+            )
         },
-        ..container::Style::default()
-    });
-    let onscreen = Space::new().width(Length::Fill).height(Length::Fill);
-    match position {
-        Position::Top => column![caster, onscreen].into(),
-        Position::Bottom => column![onscreen, caster].into(),
-        Position::Left => row![caster, onscreen].into(),
-    }
+    );
+    container(Space::new().width(Length::Fill).height(Length::Fill))
+        .style(move |_| {
+            container::background(Background::Gradient(Gradient::Linear(falloff_gradient)))
+        })
+        .into()
 }
 
 impl DesktopShell {
@@ -167,7 +179,14 @@ mod tests {
         EdgeShadowRendering, PANEL_EDGE_SHADOW,
     };
 
-    use super::{BackdropStrip, backdrop_strip};
+    use super::{
+        BackdropStrip, SHADOW_HALF_STRENGTH_DEPTH_PX, backdrop_strip, edge_shadow_alpha_at,
+        self_drawn_falloff_reach_px,
+    };
+
+    fn peak_alpha() -> f32 {
+        f32::from(PANEL_EDGE_SHADOW.alpha) / 255.0
+    }
 
     #[test]
     fn a_compositor_shadow_caster_sits_just_beyond_the_screen_edge() {
@@ -181,15 +200,34 @@ mod tests {
     }
 
     #[test]
-    fn a_self_drawn_caster_hides_beyond_the_edge_and_shadows_the_screen() {
-        let caster_depth = (PANEL_EDGE_SHADOW.spread_px - PANEL_EDGE_SHADOW.lift_px) as u32;
-        let onscreen_reach = caster_depth + PANEL_EDGE_SHADOW.softness_px as u32;
+    fn a_self_drawn_falloff_starts_at_the_screen_edge_and_spans_the_gaussian_tail() {
         assert_eq!(
             backdrop_strip(EdgeShadowRendering::SelfDrawnFalloff, 40),
             BackdropStrip {
-                thickness: caster_depth + onscreen_reach,
-                offscreen_depth: caster_depth,
+                thickness: self_drawn_falloff_reach_px(),
+                offscreen_depth: 0,
             }
         );
+    }
+
+    #[test]
+    fn the_falloff_reaches_half_strength_where_niri_spreads_the_caster() {
+        let half_strength = edge_shadow_alpha_at(SHADOW_HALF_STRENGTH_DEPTH_PX);
+        assert!((half_strength - peak_alpha() / 2.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_falloff_is_darkest_at_the_edge_and_vanishes_at_its_reach() {
+        assert!(edge_shadow_alpha_at(0.0) > 0.9 * peak_alpha());
+        assert!(edge_shadow_alpha_at(self_drawn_falloff_reach_px() as f32) < 0.002 * peak_alpha());
+    }
+
+    #[test]
+    fn the_falloff_decreases_steadily_without_a_flat_band() {
+        let reach_px = self_drawn_falloff_reach_px();
+        let alphas: Vec<f32> = (0..=reach_px)
+            .map(|distance_px| edge_shadow_alpha_at(distance_px as f32))
+            .collect();
+        assert!(alphas.windows(2).all(|neighbours| neighbours[1] < neighbours[0]));
     }
 }

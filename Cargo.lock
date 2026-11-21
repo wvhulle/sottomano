@@ -6831,6 +6831,7 @@ dependencies = [
  "iced_controller_diagram",
  "iced_exwlshell",
  "iced_wayland_subscriber",
+ "libm",
  "reqwest",
  "rustix 1.1.5",
  "signal-hook",
