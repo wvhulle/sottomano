@@ -110,11 +110,23 @@
 
       commonArgs = iconAssetEnv // dependencyBuildArgs;
 
-      releaseDependencyArtifacts = craneLib.buildDepsOnly (
+      shellDependencyArtifacts = craneLib.buildDepsOnly (
         dependencyBuildArgs
         // {
-          pname = "sottomano-release";
-          cargoExtraArgs = "--locked --workspace";
+          inherit (shellArgs) pname cargoExtraArgs;
+          cargoCheckCommand = "true";
+          doCheck = false;
+        }
+      );
+
+      showcaseDependencyArtifacts = craneLib.mkCargoDerivation (
+        dependencyBuildArgs
+        // {
+          pname = "${showcaseArgs.pname}-deps";
+          src = craneLib.mkDummySrc { inherit src; };
+          cargoArtifacts = shellDependencyArtifacts;
+          buildPhaseCargoCommand = "cargoWithProfile build ${showcaseArgs.cargoExtraArgs}";
+          doInstallCargoArtifacts = true;
         }
       );
 
@@ -209,9 +221,9 @@
             workspaceArgs
             showcaseFonts
             ;
-          shellArtifacts = releaseDependencyArtifacts;
+          shellArtifacts = shellDependencyArtifacts;
           workspaceArtifacts = devDependencyArtifacts;
-          showcaseArtifacts = releaseDependencyArtifacts;
+          showcaseArtifacts = showcaseDependencyArtifacts;
         };
 
         desktopRuntime = {
