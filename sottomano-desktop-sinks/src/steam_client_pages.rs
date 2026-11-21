@@ -10,6 +10,7 @@ const STEAM_LAUNCHER: &str = "steam";
 pub enum SteamClientPage {
     Downloads,
     GameDetails(SteamAppId),
+    GameLaunch(SteamAppId),
     ControllerConfiguration(SteamAppId),
 }
 
@@ -19,6 +20,9 @@ impl SteamClientPage {
             SteamClientPage::Downloads => "steam://open/downloads".to_owned(),
             SteamClientPage::GameDetails(app_id) => {
                 format!("steam://nav/games/details/{}", app_id.number)
+            }
+            SteamClientPage::GameLaunch(app_id) => {
+                format!("steam://rungameid/{}", app_id.number)
             }
             SteamClientPage::ControllerConfiguration(app_id) => {
                 format!("steam://controllerconfig/{}", app_id.number)

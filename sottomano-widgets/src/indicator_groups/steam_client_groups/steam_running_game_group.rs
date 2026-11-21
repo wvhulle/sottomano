@@ -98,8 +98,8 @@ pub(super) fn running_game_group<'game>(
     locale: Locale,
 ) -> IndicatorGroupContent<'game> {
     let app_id = game.app_id;
-    let headline_indicator =
-        launch_indicator(game).with_headline_glyph(Phosphor::GameController(Weight::Regular).into());
+    let headline_indicator = launch_indicator(game)
+        .with_headline_glyph(Phosphor::GameController(Weight::Regular).into());
     IndicatorGroupContent::expandable_instance(
         IndicatorGroupIdentity::durable(
             IndicatorGroupFamily::SteamRunningGame,

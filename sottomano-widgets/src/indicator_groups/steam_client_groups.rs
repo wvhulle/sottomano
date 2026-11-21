@@ -69,7 +69,11 @@ impl SteamClientGroups {
         ])
     }
 
-    pub fn update(&mut self, message: SteamClientMessage, clock: Clock) -> Task<SteamClientMessage> {
+    pub fn update(
+        &mut self,
+        message: SteamClientMessage,
+        clock: Clock,
+    ) -> Task<SteamClientMessage> {
         match message {
             SteamClientMessage::RunningGames(delivery) => {
                 self.running_games.receive(delivery, clock);

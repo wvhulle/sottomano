@@ -78,26 +78,35 @@ fn downloading_indicator(installed_app: &InstalledSteamApp, locale: Locale) -> G
                         "To download",
                         Quantity::size(ByteSize::b(installed_app.bytes_to_download)),
                     ),
-                    LabeledValue::new(
-                        "Progress",
-                        Quantity::share(share).localized_text(locale),
-                    ),
+                    LabeledValue::new("Progress", Quantity::share(share).localized_text(locale)),
                 ]),
             )]
         })),
     )
 }
 
-fn waiting_indicator(entry: &SteamContentEntry, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
+fn waiting_indicator(
+    entry: &SteamContentEntry,
+    clock: Clock,
+    locale: Locale,
+) -> GroupIndicator<'_> {
     let (installed_app, glyph, label) = match entry {
         SteamContentEntry::Queued {
             installed_app,
             hold: QueuedUpdateHold::Waiting,
-        } => (installed_app, Phosphor::Queue(Weight::Regular), "queued".to_owned()),
+        } => (
+            installed_app,
+            Phosphor::Queue(Weight::Regular),
+            "queued".to_owned(),
+        ),
         SteamContentEntry::Queued {
             installed_app,
             hold: QueuedUpdateHold::Suspended,
-        } => (installed_app, Phosphor::Pause(Weight::Regular), "paused".to_owned()),
+        } => (
+            installed_app,
+            Phosphor::Pause(Weight::Regular),
+            "paused".to_owned(),
+        ),
         SteamContentEntry::Delayed {
             installed_app,
             update_due_at,
@@ -108,7 +117,11 @@ fn waiting_indicator(entry: &SteamContentEntry, clock: Clock, locale: Locale) ->
             } else {
                 "update due".to_owned()
             };
-            (installed_app, Phosphor::ClockCountdown(Weight::Regular), label)
+            (
+                installed_app,
+                Phosphor::ClockCountdown(Weight::Regular),
+                label,
+            )
         }
         SteamContentEntry::Downloading(installed_app) => (
             installed_app,
@@ -117,8 +130,12 @@ fn waiting_indicator(entry: &SteamContentEntry, clock: Clock, locale: Locale) ->
         ),
     };
     opens_downloads(
-        GroupIndicator::glyph_only(installed_app.name.clone(), glyph.into(), IndicatorState::Idle)
-            .with_label(ReadoutLabel::Labeled(label)),
+        GroupIndicator::glyph_only(
+            installed_app.name.clone(),
+            glyph.into(),
+            IndicatorState::Idle,
+        )
+        .with_label(ReadoutLabel::Labeled(label)),
     )
 }
 
