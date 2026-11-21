@@ -12,17 +12,13 @@ use crate::{
         region_translation::translated_regions,
     },
     hover_cards::hover_card_transition::ShownTarget,
-    widgets::{
-        screen_edge::screen_edge_of, shell_layer_appearance::LayerAppearance,
-        typing_under_cards::CardBackgroundFade,
-    },
+    widgets::{screen_edge::screen_edge_of, shell_layer_appearance::LayerAppearance},
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct PopupAppearances {
     pub overlay: LayerAppearance,
     pub menu: LayerAppearance,
-    pub background_fade: CardBackgroundFade,
 }
 
 pub struct PressCatcher<Message> {
@@ -101,10 +97,6 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     } else {
         appearances.overlay
     };
-    let background_fade = appearances.background_fade;
-    let appearance_over = move |popup: Rectangle| {
-        appearance.with_background_faded(background_fade.fade_level_over(popup))
-    };
     let shown = match morph.shown {
         ShownTarget::Nothing => None,
         target @ ShownTarget::Target(_) => Some(target),
@@ -116,12 +108,16 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
             config.theme.spacing.surface_inset + config.theme.font.icon_size_px / 2.0,
         )
         .morph_duration(morph.duration)
-        .frame_over(move |popup| appearance_over(popup).frame)
+        .frame_over(move |_| appearance.frame)
         .outside_press(outside_press)
         .identified_by(shown);
     translated_regions(popup, move |regions: &PopupRegions, operation| {
-        let backdrop_blur = appearance_over(regions.popup_bounds).backdrop_blur;
-        report_shell_regions(regions, backdrop_blur, &catch_area_holes, operation);
+        report_shell_regions(
+            regions,
+            appearance.backdrop_blur,
+            &catch_area_holes,
+            operation,
+        );
     })
 }
 
@@ -142,8 +138,8 @@ mod tests {
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
-        CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph,
-        PopupRendering, PressCatcher, anchored_popup,
+        OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering, PressCatcher,
+        anchored_popup,
     };
     use crate::{
         clock::Clock,
@@ -235,7 +231,6 @@ mod tests {
             PopupAppearances {
                 overlay: appearance,
                 menu: appearance,
-                background_fade: CardBackgroundFade::Resting,
             },
         )
     }
@@ -371,7 +366,6 @@ mod tests {
             PopupAppearances {
                 overlay: ShellLayer::Overlays.default_appearance(),
                 menu: ShellLayer::Overlays.default_appearance(),
-                background_fade: CardBackgroundFade::Resting,
             },
         );
         let messages = messages_after_pressing(popup, |_| Point::new(500.0, 500.0));
@@ -392,7 +386,6 @@ mod tests {
             PopupAppearances {
                 overlay: appearance,
                 menu: appearance,
-                background_fade: CardBackgroundFade::Resting,
             },
         );
         let messages = messages_after_pressing(popup, |_| {

@@ -34,8 +34,9 @@ use sottomano_widgets::{
     load_tally::{WorkKind, WorkMeasurement, record_update, record_view},
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widgets::{
-        configured_theme::configured_theme, text::point_generic_font_families_at,
-        typing_under_cards::TypingUnderCards,
+        configured_theme::configured_theme,
+        text::point_generic_font_families_at,
+        typing_under_cards::{CardBackgroundFade, TypingUnderCards},
     },
 };
 
@@ -229,6 +230,15 @@ impl DesktopShell {
             .map(Message::from)
     }
 
+    fn toast_background_fade(&self, output: &str) -> CardBackgroundFade {
+        self.typing_under_cards.background_fade_on(
+            output,
+            &self.compositor,
+            self.clock.instant,
+            &self.config.overlay_surfaces,
+        )
+    }
+
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         let measurement = WorkMeasurement::start();
         let viewed = self.interaction_view(window).map(Message::from);
@@ -265,7 +275,7 @@ impl DesktopShell {
                             .layer
                             .appearance(),
                         panel_clearance: self.panel_clearance(output),
-                        background_fade: self.card_background_fade(output),
+                        background_fade: self.toast_background_fade(output),
                     },
                     self.clock,
                 ),

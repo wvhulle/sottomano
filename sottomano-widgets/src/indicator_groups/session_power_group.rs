@@ -1,11 +1,8 @@
 use std::{iter::once, time::Duration};
 
 use corredo::{
-    popovers::{
-        MenuEntry, MenuItem, MenuRow, MenuRowContent, NestedMenuAction, NestedMenuPresentation,
-        NestedMenuState, SubmenuConnector, nested_menu,
-    },
-    theming::{FrameStyle, background_strong_color, text_color},
+    popovers::{MenuEntry, MenuItem, MenuRow, MenuRowContent, NestedMenuAction, NestedMenuState},
+    theming::{background_strong_color, text_color},
 };
 use iced::{
     Element, Task,
@@ -30,7 +27,6 @@ use crate::{
         indicator_drawing::IndicatorIcon,
         indicator_state::IndicatorState,
     },
-    group_menus::menu_rows::menu_row::{MenuFrames, menu_metrics, menu_style},
     hover_cards::HoverTarget,
     indicator_groups::{
         fixed_panel_group::FixedPanelGroup,
@@ -113,7 +109,7 @@ pub fn session_action_icon(action: SessionAction) -> Phosphor {
 #[derive(Default)]
 pub struct SessionPowerGroup {
     permissions: Permissions,
-    menu_state: NestedMenuState<SessionAction>,
+    pub menu_state: NestedMenuState<SessionAction>,
 }
 
 #[derive(Debug, Clone)]
@@ -157,14 +153,12 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn menu_panel<'a>(
+    pub fn menu_entries<'a>(
         &self,
         config: &'a Config,
-        list_frame: FrameStyle,
         idle_chain: ResolvedIdleChain,
-    ) -> Element<'a, SessionMessage> {
-        let entries = self
-            .permissions
+    ) -> Vec<MenuEntry<'a, SessionAction, SessionMessage>> {
+        self.permissions
             .allowed
             .iter()
             .map(|allowed| SessionMenuEntry {
@@ -183,23 +177,8 @@ impl SessionPowerGroup {
                         .chain(once(entry.menu_entry(config))),
                 )
             })
-            .flatten();
-        nested_menu(
-            entries,
-            &self.menu_state,
-            NestedMenuPresentation::default(),
-            SessionMessage::Menu,
-        )
-        .metrics(menu_metrics(config))
-        .style(menu_style(
-            config,
-            MenuFrames {
-                list_frame,
-                beside_frame: list_frame,
-            },
-            SubmenuConnector::Hidden,
-        ))
-        .into()
+            .flatten()
+            .collect()
     }
 
     #[must_use]

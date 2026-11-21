@@ -241,13 +241,6 @@ impl DesktopShell {
         )
     }
 
-    pub(crate) fn hover_card_output(&self) -> Option<&str> {
-        self.hover_card
-            .transition
-            .placement()
-            .map(|placement| placement.output.as_str())
-    }
-
     fn track_new_surface(&mut self, output: &str, role: SurfaceRole) -> TrackedSurface {
         let id = Id::unique();
         let layer = role.layer(self.hover_card.presence_on(output));

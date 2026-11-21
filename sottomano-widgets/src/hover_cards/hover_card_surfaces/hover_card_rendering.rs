@@ -30,9 +30,7 @@ impl HoverCardHost {
         let current = self.transition.current()?;
         let departed_content = match content_of(&current.target)? {
             HoverContent::Described(hover_card) => DepartedContent::Described(hover_card),
-            HoverContent::Interactive { .. } | HoverContent::Cascading { .. } => {
-                DepartedContent::Interactive
-            }
+            HoverContent::Cascading { .. } => DepartedContent::Interactive,
         };
         Some(Departed {
             target: current.target.clone(),
@@ -78,7 +76,6 @@ impl HoverCardHost {
         };
         let render = |content: HoverContent<'a, Message>| match content {
             HoverContent::Described(hover_card) => Rendered::framed(describe(&hover_card)),
-            HoverContent::Interactive { panel } => Rendered::framed(panel),
             HoverContent::Cascading {
                 primary,
                 satellites,
@@ -162,9 +159,6 @@ impl HoverCardHost {
 
 pub enum HoverContent<'a, Message> {
     Described(HoverCard),
-    Interactive {
-        panel: Element<'a, Message>,
-    },
     Cascading {
         primary: Element<'a, Message>,
         satellites: Vec<Element<'a, Message>>,

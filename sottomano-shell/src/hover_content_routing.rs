@@ -18,10 +18,9 @@ use sottomano_widgets::{
     indicator_groups::{
         indicator_group_content::GroupEvent,
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-        indicator_group_interaction::IndicatorGroupInteraction,
+        session_power_group::SessionMessage,
         tray_group::TrayMessage,
     },
-    widgets::typing_under_cards::CardBackgroundFade,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -42,12 +41,8 @@ impl DesktopShell {
                 orientation: self.group_menu_orientation(),
             });
         }
-        match self.interactive_panel(target) {
-            Some(panel) => Some(HoverContent::Interactive { panel }),
-            None => self
-                .described_hover_card(target)
-                .map(HoverContent::Described),
-        }
+        self.described_hover_card(target)
+            .map(HoverContent::Described)
     }
 
     fn group_menu_orientation(&self) -> CascadeOrientation {
@@ -133,6 +128,13 @@ impl DesktopShell {
                 )
             }
             HoverTarget::GroupMenu(topic) => self.group_menu_surfaces(*topic),
+            HoverTarget::SessionMenu => self.cascading_menu(
+                groups
+                    .session_power_group
+                    .menu_entries(&self.config, groups.idle_pause_groups.idle_chain()),
+                &groups.session_power_group.menu_state,
+                SessionMessage::Menu,
+            ),
             HoverTarget::Indicator(indicator_key)
                 if indicator_key.group
                     == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>
@@ -174,20 +176,13 @@ impl DesktopShell {
 
     fn menu_appearance(&self) -> MenuAppearance {
         let group_menus = &self.indicator_groups.group_menus;
-        let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
-            self.card_background_fade(output).fade_level_anywhere()
-        });
         MenuAppearance {
-            list_appearance: group_menus
-                .layer
-                .appearance()
-                .with_background_faded(satellite_fade_level),
+            list_appearance: group_menus.layer.appearance(),
             beside_appearance: self
                 .indicator_groups
                 .overlay_settings_group
                 .layer
-                .appearance()
-                .with_background_faded(satellite_fade_level),
+                .appearance(),
             presentation: group_menus.presentation,
             orientation: self.group_menu_orientation(),
         }
@@ -228,28 +223,6 @@ impl DesktopShell {
             .map(|surfaces| surfaces.map(ShellInteraction::from))
     }
 
-    fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, ShellInteraction>> {
-        let HoverTarget::SessionMenu = target else {
-            return None;
-        };
-        Some(
-            self.indicator_groups
-                .session_power_group
-                .menu_panel(
-                    &self.config,
-                    self.indicator_groups
-                        .overlay_settings_group
-                        .layer
-                        .appearance()
-                        .frame,
-                    self.indicator_groups.idle_pause_groups.idle_chain(),
-                )
-                .map(|session_message| {
-                    ShellInteraction::Group(IndicatorGroupInteraction::Session(session_message))
-                }),
-        )
-    }
-
     #[must_use]
     pub fn window_assets(&self) -> WindowAssets<'_> {
         WindowAssets {
@@ -260,21 +233,11 @@ impl DesktopShell {
         }
     }
 
-    pub(crate) fn card_background_fade(&self, output: &str) -> CardBackgroundFade {
-        self.typing_under_cards.background_fade_on(
-            output,
-            &self.compositor,
-            self.clock.instant,
-            &self.config.overlay_surfaces,
-        )
-    }
-
     pub(crate) fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, ShellInteraction> {
         self.hover_card.view(
             output,
             &self.config,
-            self.indicator_groups
-                .hover_card_surface_style(self.card_background_fade(output)),
+            self.indicator_groups.hover_card_surface_style(),
             self.window_assets(),
             |target: &HoverTarget| self.hover_content(target),
             self.clock,

@@ -38,14 +38,6 @@ impl CardBackgroundFade {
             Self::Fading { .. } | Self::Resting => 0.0,
         }
     }
-
-    #[must_use]
-    pub fn fade_level_anywhere(self) -> f32 {
-        match self {
-            Self::Fading { fade_level, .. } => fade_level,
-            Self::Resting => 0.0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
