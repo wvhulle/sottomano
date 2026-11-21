@@ -11,7 +11,7 @@ use super::{
 use crate::{
     orientation::Axis,
     theming::background_strong_color,
-    transitions::{MotionState, eased_animation, motion_of},
+    transitions::{MotionState, combined_motion, eased_animation},
 };
 
 pub(super) struct HoverGlow {
@@ -56,7 +56,7 @@ impl SlotPainter for HoverGlow {
                 .go_mut(pointed_slot == Some(slot_position), now);
             slot_glow.level = slot_glow.fade.interpolate(0.0, 1.0, now);
         }
-        motion_of(slot_glows.iter().map(|slot_glow| &slot_glow.fade), now)
+        combined_motion(slot_glows.iter().map(|slot_glow| &slot_glow.fade), now)
     }
 
     fn pointer_motion(

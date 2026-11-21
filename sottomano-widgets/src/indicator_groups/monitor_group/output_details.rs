@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use sottomano_compositor_model::compositor_output_facts::{OutputInfo, OutputMode};
+use sottomano_compositor_model::compositor_output_facts::{
+    EdidProductText, OutputInfo, OutputMode, OutputModeReport,
+};
 use sottomano_desktop_sources::screen_brightness_color::clightd_backlight::{
     Backlight, BacklightKind,
 };
@@ -29,57 +31,54 @@ impl<'a> ConnectedOutput<'a> {
                 BacklightKind::Internal => INTERNAL_CONNECTOR_PREFIXES
                     .iter()
                     .any(|prefix| connector.starts_with(prefix)),
-                BacklightKind::External => info.serial.as_ref() == Some(&backlight.serial),
+                BacklightKind::External => {
+                    matches!(&info.serial, EdidProductText::Reported(serial) if *serial == backlight.serial)
+                }
             })
             .map(|(connector, info)| Self { connector, info })
     }
 
     pub fn entries(&self) -> Vec<LabeledValue> {
-        let mode_entries = self.info.mode.into_iter().flat_map(
-            |OutputMode {
-                 width,
-                 height,
-                 refresh_hz,
-             }| {
-                [
-                    LabeledValue::new("Resolution", format!("{width}x{height}")),
-                    LabeledValue::new(
-                        "Refresh",
-                        Quantity::measured(refresh_hz, DisplayUnit::Hertz, 2),
-                    ),
-                ]
-            },
-        );
-        [LabeledValue::new("Output", self.connector)]
-            .into_iter()
-            .chain(mode_entries)
-            .chain([LabeledValue::new(
-                "Scale",
-                Quantity::measured(self.info.scale, DisplayUnit::Unitless, 2),
-            )])
-            .collect()
+        let mut entries = vec![LabeledValue::new("Output", self.connector)];
+        if let OutputModeReport::Current(OutputMode {
+            width,
+            height,
+            refresh_hz,
+        }) = self.info.mode
+        {
+            entries.push(LabeledValue::new("Resolution", format!("{width}x{height}")));
+            entries.push(LabeledValue::new(
+                "Refresh",
+                Quantity::measured(refresh_hz, DisplayUnit::Hertz, 2),
+            ));
+        }
+        entries.push(LabeledValue::new(
+            "Scale",
+            Quantity::measured(self.info.scale, DisplayUnit::Unitless, 2),
+        ));
+        entries
     }
 }
 
 impl ConnectedOutput<'_> {
     pub fn hardware_entries(&self) -> Vec<LabeledValue> {
-        let make = self.info.make.as_deref().map(|make| {
-            LabeledValue::logo_prefixed(
+        let mut entries = Vec::new();
+        if let EdidProductText::Reported(make) = &self.info.make {
+            entries.push(LabeledValue::logo_prefixed(
                 "Make",
                 PnpManufacturerName {
                     manufacturer_name: make,
                 }
                 .vendor_logo(),
-                make,
-            )
-        });
-        make.into_iter()
-            .chain(
-                [("Model", &self.info.model), ("Serial", &self.info.serial)]
-                    .into_iter()
-                    .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
-            )
-            .collect()
+                make.as_str(),
+            ));
+        }
+        for (key, value) in [("Model", &self.info.model), ("Serial", &self.info.serial)] {
+            if let EdidProductText::Reported(value) = value {
+                entries.push(LabeledValue::new(key, value.as_str()));
+            }
+        }
+        entries
     }
 }
 
@@ -92,10 +91,10 @@ mod tests {
         HashMap::from([(
             "eDP-1".to_owned(),
             OutputInfo {
-                make: Some("LG Display".to_owned()),
-                model: None,
-                serial: None,
-                mode: Some(OutputMode {
+                make: EdidProductText::Reported("LG Display".to_owned()),
+                model: EdidProductText::Unreported,
+                serial: EdidProductText::Unreported,
+                mode: OutputModeReport::Current(OutputMode {
                     width: 1920,
                     height: 1200,
                     refresh_hz: 60.0,

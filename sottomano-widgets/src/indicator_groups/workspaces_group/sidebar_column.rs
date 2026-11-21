@@ -54,10 +54,13 @@ pub fn vertical_view<'a>(
         });
     let pager = reorderable_list(rows, Position::Left, config)
         .spacing(config.theme.spacing.item_gap)
-        .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)
         .draggable(PanelSlotList::Workspaces, &drag, dragged)
         .on_wheel_select(focused_by_wheel);
+    let pager = match active_workspace_key(&order) {
+        Some(active_key) => pager.highlight(active_key, active_highlight_color(&order)),
+        None => pager,
+    };
     let workspace_column = Column::new()
         .extend(order_restore(
             configured,

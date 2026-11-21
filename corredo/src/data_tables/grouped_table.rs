@@ -312,7 +312,7 @@ impl<CellValue, RowLevel> Clone for ColumnedRow<CellValue, RowLevel> {
     }
 }
 
-pub fn table_separator<'a, Message: 'a>() -> Element<'a, Message> {
+pub fn table_separator<'view, Message: 'view>() -> Element<'view, Message> {
     rule::horizontal(OUTLINE_WIDTH_PX)
         .style(rule::default)
         .into()

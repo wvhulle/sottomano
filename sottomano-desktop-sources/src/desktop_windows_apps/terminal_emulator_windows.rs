@@ -15,8 +15,9 @@ use std::{
 use futures::{Stream, StreamExt, future::ready, stream};
 use futures_rx::RxExt;
 use pty_shell_sessions::ShellSession;
-use sottomano_compositor_model::compositor_window_state::{
-    CompositorChange, CompositorWindow, CompositorWindowState,
+use sottomano_compositor_model::{
+    compositor_window_facts::{WindowAppId, WindowPid, WindowTitle},
+    compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
 };
 use sottomano_compositors::compositor_connection::compositor_updates;
 use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
@@ -355,8 +356,14 @@ impl Pairing {
             .windows
             .values()
             .filter_map(|window| {
-                let agent = TerminalAgent::serving(window.app_id.as_deref()?, &self.agents)?;
-                Some((window.pid?, agent, window.id))
+                let WindowAppId::Reported(app_id) = &window.app_id else {
+                    return None;
+                };
+                let WindowPid::Reported(pid) = window.pid else {
+                    return None;
+                };
+                let agent = TerminalAgent::serving(app_id, &self.agents)?;
+                Some((pid, agent, window.id))
             })
             .fold(
                 HashMap::new(),
@@ -414,7 +421,10 @@ impl Pairing {
             marker,
             target: terminal_window.probe_target.clone(),
             titles_before: windows_of_process(compositor, key.process)
-                .filter_map(|window| Some((window.id, window.title.clone()?)))
+                .filter_map(|window| match &window.title {
+                    WindowTitle::Titled(title) => Some((window.id, title.clone())),
+                    WindowTitle::Untitled => None,
+                })
                 .collect(),
             sent_at: now,
         });
@@ -433,7 +443,7 @@ impl Pairing {
                 continue;
             }
             let marked_window = windows_of_process(compositor, process)
-                .find(|window| window.title.as_deref() == Some(probe.marker.as_str()))
+                .find(|window| matches!(&window.title, WindowTitle::Titled(title) if *title == probe.marker))
                 .map(|window| window.id);
             match marked_window {
                 Some(compositor_window) => {
@@ -477,11 +487,14 @@ fn windows_of_process(
     compositor
         .windows
         .values()
-        .filter(move |window| window.pid == Some(process))
+        .filter(move |window| window.pid == WindowPid::Reported(process))
 }
 
 fn window_title(compositor: &CompositorWindowState, compositor_window: u64) -> Option<&str> {
-    compositor.windows.get(&compositor_window)?.title.as_deref()
+    match &compositor.windows.get(&compositor_window)?.title {
+        WindowTitle::Titled(title) => Some(title),
+        WindowTitle::Untitled => None,
+    }
 }
 
 struct PairingWorker {
@@ -549,6 +562,7 @@ mod tests {
 
     use sottomano_compositor_model::{
         compositor_test_windows::unplaced_compositor_window,
+        compositor_window_facts::{WindowAppId, WindowPid, WindowTitle},
         compositor_window_state::{CompositorWindow, CompositorWindowState},
     };
     use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
@@ -613,9 +627,9 @@ mod tests {
 
     fn ghostty_windows(titles: &[(u64, &str)]) -> CompositorWindowState {
         let ghostty_windows = titles.iter().map(|&(window_id, title)| CompositorWindow {
-            pid: Some(GHOSTTY_PID),
-            app_id: Some("com.mitchellh.ghostty".to_owned()),
-            title: Some(title.to_owned()),
+            pid: WindowPid::Reported(GHOSTTY_PID),
+            app_id: WindowAppId::Reported("com.mitchellh.ghostty".to_owned()),
+            title: WindowTitle::Titled(title.to_owned()),
             ..unplaced_compositor_window(window_id)
         });
         CompositorWindowState::indexed_by_id([], ghostty_windows)

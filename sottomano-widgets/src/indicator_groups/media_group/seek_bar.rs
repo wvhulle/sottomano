@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 
-use corredo::value_controls::{PlaybackTimeline, SeekBar as PlaybackSeekBar, SeekMessage};
+use corredo::value_controls::{
+    PlaybackProgress, PlaybackTimeline, SeekAcceptance, SeekBar as PlaybackSeekBar, SeekMessage,
+};
 use iced::{Element, Task, widget::Row};
 use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
@@ -27,24 +29,42 @@ pub struct SeekBar {
     playback: PlaybackSeekBar<SeekMode>,
 }
 
-fn timeline_of(media: &Media, now: Instant) -> PlaybackTimeline<SeekMode> {
-    let played = media.progress.played(media.status, now);
+fn playback_progress(media: &Media, now: Instant) -> PlaybackProgress {
+    let Some(played) = media.progress.played(media.status, now) else {
+        return PlaybackProgress::Untimed;
+    };
+    let Some(length) = media.progress.length() else {
+        return PlaybackProgress::Untimed;
+    };
+    PlaybackProgress::Timed { played, length }
+}
+
+fn playback_timeline(media: &Media, now: Instant) -> PlaybackTimeline<SeekMode> {
+    let progress = playback_progress(media, now);
+    let seek_acceptance = match (progress, &media.seek_mode) {
+        (PlaybackProgress::Timed { .. }, _) | (_, SeekMode::Absolute(_)) => {
+            SeekAcceptance::Accepted
+        }
+        (PlaybackProgress::Untimed, SeekMode::Relative) => SeekAcceptance::Refused,
+    };
     PlaybackTimeline {
-        played,
-        length: media.progress.length(),
+        progress,
         session: media.seek_mode.clone(),
-        accepts_seek: played.is_some() || matches!(media.seek_mode, SeekMode::Absolute(_)),
+        seek_acceptance,
     }
 }
 
 impl SeekBar {
     pub fn update(&mut self, message: SeekMessage, media: &Media, now: Instant) -> Option<Command> {
-        let target = self.playback.update(message, &timeline_of(media, now))?;
+        let target = self
+            .playback
+            .update(message, &playback_timeline(media, now))?;
         seek_to(media, target, now)
     }
 
     pub fn player_reported(&mut self, media: &Media, now: Instant) {
-        self.playback.player_reported(&timeline_of(media, now));
+        self.playback
+            .player_reported(&playback_timeline(media, now));
     }
 
     pub fn seek_availability(media: &Media, now: Instant) -> SeekAvailability {
@@ -67,8 +87,10 @@ impl SeekBar {
         if !media.capabilities.seek {
             return None;
         }
-        self.playback
-            .view(config.theme.font.icon_size_px, &timeline_of(media, now))
+        self.playback.view(
+            config.theme.font.icon_size_px,
+            &playback_timeline(media, now),
+        )
     }
 }
 

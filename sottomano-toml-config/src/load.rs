@@ -112,11 +112,11 @@ pub enum LoadError {
     Font(FontError),
 }
 
-pub struct OffendingLine<'a> {
+pub struct OffendingLine<'source> {
     pub number: usize,
-    pub before: &'a str,
-    pub offending: &'a str,
-    pub after: &'a str,
+    pub before: &'source str,
+    pub offending: &'source str,
+    pub after: &'source str,
 }
 
 impl LoadError {
@@ -151,12 +151,12 @@ impl LoadError {
 }
 
 impl fmt::Display for LoadError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unreadable(e) => write!(f, "cannot be read: {e}"),
-            Self::Invalid { error, .. } => write!(f, "{error}"),
-            Self::UnknownLocale(locale) => write!(f, "unknown locale {locale:?}"),
-            Self::Font(e) => write!(f, "{e}"),
+            Self::Unreadable(read_error) => write!(formatter, "cannot be read: {read_error}"),
+            Self::Invalid { error, .. } => write!(formatter, "{error}"),
+            Self::UnknownLocale(locale) => write!(formatter, "unknown locale {locale:?}"),
+            Self::Font(font_error) => write!(formatter, "{font_error}"),
         }
     }
 }

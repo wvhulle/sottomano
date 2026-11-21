@@ -21,12 +21,12 @@ impl GhostPlacement {
 }
 
 #[must_use]
-pub fn drag_ghost<'a, Message: 'a, SlotId>(
-    card: Element<'a, Message>,
+pub fn drag_ghost<'view, Message: 'view, SlotId>(
+    card: Element<'view, Message>,
     drag: &ActiveDrag<SlotId>,
     placement: GhostPlacement,
     scale: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let lifted = float(card)
         .scale(scale)
         .translate(move |bounds, _viewport| placement.offset_from_cursor(bounds.size()));

@@ -6,7 +6,12 @@ use std::{
 use futures::{Stream, TryStreamExt, stream};
 use serde::{Deserialize, de::DeserializeOwned};
 use sottomano_compositor_model::{
-    compositor_output_facts::{OutputInfo, OutputMode, product_field},
+    compositor_output_facts::{OutputInfo, OutputMode, OutputModeReport, product_field},
+    compositor_window_facts::{
+        FocusTimestamp, ScrollingPosition, TileViewPosition, Urgency, WindowAppId, WindowFocus,
+        WindowPid, WindowTiling, WindowTitle, WindowWorkspace, WorkspaceActiveWindow,
+        WorkspaceActivity, WorkspaceName, WorkspaceOutput,
+    },
     compositor_window_state::{
         CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
         CompositorWindowState, CompositorWorkspace,
@@ -161,19 +166,31 @@ fn compositor_state(
                         .expect("fewer than 255 workspaces share one monitor");
                 })
                 .or_insert(1);
-            let is_active = monitor_named(&workspace.monitor).is_some_and(|monitor| {
-                regular_workspace_key(&monitor.active_workspace) == Some(id)
-            });
+            let activity = match monitor_named(&workspace.monitor) {
+                Some(monitor) if regular_workspace_key(&monitor.active_workspace) == Some(id) => {
+                    if monitor.focused {
+                        WorkspaceActivity::Focused
+                    } else {
+                        WorkspaceActivity::Active
+                    }
+                }
+                _ => WorkspaceActivity::Inactive,
+            };
             CompositorWorkspace {
                 id,
                 index: *index,
-                name: (workspace.name != id.to_string()).then(|| workspace.name.clone()),
-                output: Some(workspace.monitor.clone()),
-                is_urgent: false,
-                is_active,
-                is_focused: is_active
-                    && monitor_named(&workspace.monitor).is_some_and(|monitor| monitor.focused),
-                active_window_id: parsed_window_id(&workspace.last_window),
+                name: if workspace.name == id.to_string() {
+                    WorkspaceName::Unnamed
+                } else {
+                    WorkspaceName::Named(workspace.name.clone())
+                },
+                output: WorkspaceOutput::Assigned(workspace.monitor.clone()),
+                urgency: Urgency::NotUrgent,
+                activity,
+                active_window: parsed_window_id(&workspace.last_window).map_or(
+                    WorkspaceActiveWindow::NoWindow,
+                    WorkspaceActiveWindow::Window,
+                ),
             }
         })
         .collect();
@@ -187,24 +204,33 @@ fn compositor_state(
                 .map_or((0, 0), |monitor| (monitor.x, monitor.y));
             Some(CompositorWindow {
                 id: parsed_window_id(&client.address)?,
-                title: Some(client.title.clone()),
-                app_id: Some(client.class.clone()).filter(|class| !class.is_empty()),
-                pid: Some(client.pid).filter(|pid| *pid > 0),
-                workspace_id: regular_workspace_key(&client.workspace),
-                is_focused: client.focus_history_id == 0,
-                is_floating: client.floating,
-                is_urgent: false,
+                title: WindowTitle::from(Some(client.title.clone())),
+                app_id: WindowAppId::from(Some(client.class.clone())),
+                pid: WindowPid::from(Some(client.pid)),
+                workspace: regular_workspace_key(&client.workspace)
+                    .map_or(WindowWorkspace::Unplaced, WindowWorkspace::OnWorkspace),
+                focus: if client.focus_history_id == 0 {
+                    WindowFocus::Focused
+                } else {
+                    WindowFocus::Unfocused
+                },
+                tiling: if client.floating {
+                    WindowTiling::Floating
+                } else {
+                    WindowTiling::Tiled
+                },
+                urgency: Urgency::NotUrgent,
                 layout: CompositorWindowLayout {
-                    scrolling_position: None,
+                    scrolling_position: ScrollingPosition::OutsideScrolling,
                     tile_size: (f64::from(client.size[0]), f64::from(client.size[1])),
                     window_size: (client.size[0], client.size[1]),
-                    tile_position_in_view: Some((
-                        f64::from(client.at[0] - monitor_origin.0),
-                        f64::from(client.at[1] - monitor_origin.1),
-                    )),
+                    tile_position_in_view: TileViewPosition::InView {
+                        horizontal: f64::from(client.at[0] - monitor_origin.0),
+                        vertical: f64::from(client.at[1] - monitor_origin.1),
+                    },
                     window_offset_in_tile: (0.0, 0.0),
                 },
-                focused_at_monotonic: None,
+                focused_at_monotonic: FocusTimestamp::NeverFocused,
             })
         })
         .collect::<Vec<_>>();
@@ -281,7 +307,7 @@ fn hyprland_output_facts(monitor: HyprlandMonitor) -> (String, OutputInfo) {
         make: product_field(monitor.make),
         model: product_field(monitor.model),
         serial: product_field(monitor.serial),
-        mode: Some(OutputMode {
+        mode: OutputModeReport::Current(OutputMode {
             width: monitor.width,
             height: monitor.height,
             refresh_hz: monitor.refresh_rate,
@@ -308,80 +334,12 @@ pub async fn hyprland_window_pids() -> io::Result<Vec<i32>> {
     Ok(state
         .windows
         .values()
-        .filter_map(|window| window.pid)
+        .filter_map(|window| match window.pid {
+            WindowPid::Reported(pid) => Some(pid),
+            WindowPid::Unreported => None,
+        })
         .collect())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{HyprlandClient, HyprlandMonitor, HyprlandWorkspace, compositor_state};
-    use crate::hyprland_workspace_identity::RegularHyprlandWorkspace;
-
-    const HYPRLAND_CLIENTS: &str = r#"[
-        {"address": "0x5a1", "mapped": true, "at": [1290, 10], "size": [600, 400],
-         "workspace": {"id": 2, "name": "web"}, "floating": false, "monitor": 1,
-         "class": "firefox", "title": "Inbox", "pid": 300, "focusHistoryID": 0},
-        {"address": "0x5a2", "mapped": true, "at": [10, 10], "size": [600, 400],
-         "workspace": {"id": -98, "name": "special:scratch"}, "floating": true, "monitor": 0,
-         "class": "", "title": "notes", "pid": 301, "focusHistoryID": 1}
-    ]"#;
-
-    const HYPRLAND_WORKSPACES: &str = r#"[
-        {"address": "2", "id": 2, "type": "normal", "name": "web", "monitor": "DP-2", "lastwindow": "0x5a1"},
-        {"address": "Games", "type": "normal", "name": "Games", "monitor": "DP-1", "lastwindow": "0x0", "ispersistent": true},
-        {"address": "1", "id": 1, "type": "normal", "name": "1", "monitor": "DP-1", "lastwindow": "0x0"},
-        {"address": "special:scratch", "type": "special", "name": "scratch", "monitor": "DP-1", "lastwindow": "0x5a2"}
-    ]"#;
-
-    const HYPRLAND_MONITORS: &str = r#"[
-        {"id": 0, "name": "DP-1", "width": 1280, "height": 800, "refreshRate": 60.0, "x": 0, "y": 0,
-         "activeWorkspace": {"id": 1, "name": "1"}, "specialWorkspace": {"address": "", "name": ""},
-         "scale": 1.0, "focused": false},
-        {"id": 1, "name": "DP-2", "width": 1920, "height": 1080, "refreshRate": 60.0, "x": 1280, "y": 0,
-         "activeWorkspace": {"id": 2, "name": "web"}, "scale": 1.5, "focused": true}
-    ]"#;
-
-    fn parsed_state() -> super::CompositorWindowState {
-        let clients: Vec<HyprlandClient> = serde_json::from_str(HYPRLAND_CLIENTS).unwrap();
-        let workspaces: Vec<HyprlandWorkspace> = serde_json::from_str(HYPRLAND_WORKSPACES).unwrap();
-        let monitors: Vec<HyprlandMonitor> = serde_json::from_str(HYPRLAND_MONITORS).unwrap();
-        compositor_state(&clients, &workspaces, &monitors)
-    }
-
-    #[test]
-    fn regular_workspaces_are_kept_with_their_monitor_flags() {
-        let state = parsed_state();
-
-        let games_key = RegularHyprlandWorkspace::Addressed {
-            address: "Games".to_owned(),
-        }
-        .workspace_key();
-        let mut workspace_ids: Vec<u64> = state.workspaces.keys().copied().collect();
-        workspace_ids.sort_unstable();
-        assert_eq!(workspace_ids, [1, 2, games_key]);
-        let web = &state.workspaces[&2];
-        assert_eq!(web.name.as_deref(), Some("web"));
-        assert!(web.is_active && web.is_focused);
-        assert_eq!(web.active_window_id, Some(0x5a1));
-        assert_eq!(state.workspaces[&1].name, None);
-        assert_eq!(state.workspaces[&1].active_window_id, None);
-        assert!(!state.workspaces[&1].is_focused);
-        let games = &state.workspaces[&games_key];
-        assert_eq!(games.name.as_deref(), Some("Games"));
-        assert_eq!(games.index, 2);
-        assert!(!games.is_active);
-    }
-
-    #[test]
-    fn windows_carry_their_hex_address_and_position_on_their_monitor() {
-        let state = parsed_state();
-
-        let browser = &state.windows[&0x5a1];
-        assert!(browser.is_focused);
-        assert_eq!(browser.workspace_id, Some(2));
-        assert_eq!(browser.layout.tile_position_in_view, Some((10.0, 10.0)));
-        let scratch = &state.windows[&0x5a2];
-        assert_eq!(scratch.workspace_id, None);
-        assert_eq!(scratch.app_id, None);
-    }
-}
+mod hyprland_socket_events_tests;

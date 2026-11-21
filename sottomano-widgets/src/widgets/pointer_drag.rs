@@ -35,6 +35,7 @@ pub type DragEvent<Click> = generic_drag::DragEvent<DraggedPanelSlot, PanelSlotL
 pub type DragOutcome<Click> = generic_drag::DragOutcome<DraggedPanelSlot, Click>;
 pub type DragTransition<Click> = generic_drag::DragTransition<DraggedPanelSlot, Click>;
 pub type DragView = generic_drag::DragView<DraggedPanelSlot>;
+pub type DragActivity = generic_drag::DragActivity<DraggedPanelSlot>;
 
 pub fn advance<Click: Copy>(
     drag: PointerDrag<Click>,

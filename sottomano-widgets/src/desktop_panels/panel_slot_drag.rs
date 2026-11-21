@@ -1,15 +1,21 @@
 use corredo::theming::FrameStyle;
+use sottomano_compositor_model::compositor_window_facts::WorkspaceActivity;
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,
     indicator_groups::window_group::{WindowRowLayout, WindowTitleLength},
-    widgets::pointer_drag::{self, DragEvent, DragView, DraggedPanelSlot, ForeignHover},
+    widgets::pointer_drag::{
+        self, DragActivity, DragEvent, DragView, DraggedPanelSlot, ForeignHover,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]
 pub enum SlotClick {
-    Workspace { id: u64, is_active: bool },
+    Workspace {
+        id: u64,
+        activity: WorkspaceActivity,
+    },
     FocusWindow(u64),
     MaximizeColumn,
 }
@@ -39,7 +45,10 @@ pub enum DragMessage {
 
 #[must_use]
 pub fn window_source_workspace(drag: &DragView) -> Option<u64> {
-    match drag.drag?.item {
+    let DragActivity::Dragging(active_drag) = drag.drag else {
+        return None;
+    };
+    match active_drag.item {
         DraggedPanelSlot::Window { workspace, .. } => Some(workspace),
         DraggedPanelSlot::Workspace(_) => None,
     }

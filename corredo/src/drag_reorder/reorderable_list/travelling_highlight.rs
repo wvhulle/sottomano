@@ -16,7 +16,7 @@ use crate::{
     drag_reorder::slot_group::SlotTileInset,
     orientation::{Axis, Edge},
     theming::{ThemedColor, style_metrics::pill_corners},
-    transitions::{MotionState, eased_animation, motion_of},
+    transitions::{MotionState, combined_motion, eased_animation},
 };
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
@@ -33,16 +33,21 @@ pub(super) enum HighlightMark {
     },
 }
 
-pub(super) struct HighlightedSlot<'a> {
+pub(super) struct HighlightedSlot<'view> {
     pub(super) slot_position: usize,
     pub(super) mark: HighlightMark,
-    pub(super) color: ThemedColor<'a>,
+    pub(super) color: ThemedColor<'view>,
 }
 
-pub(super) struct TravellingHighlight<'a> {
+pub(super) struct TravellingHighlight<'view> {
     pub(super) pager_axis: Axis,
     pub(super) travel_duration: Duration,
-    pub(super) highlighted_slot: Option<HighlightedSlot<'a>>,
+    pub(super) highlight_target: HighlightTarget<'view>,
+}
+
+pub(super) enum HighlightTarget<'view> {
+    Unhighlighted,
+    Slot(HighlightedSlot<'view>),
 }
 
 #[derive(Clone, Copy)]
@@ -51,7 +56,7 @@ struct TravelledSpan {
     extent: f32,
 }
 
-struct SpanTravel {
+pub(super) struct SpanTravel {
     start: Animation<f32>,
     extent: Animation<f32>,
 }
@@ -70,7 +75,7 @@ impl SpanTravel {
     }
 
     fn motion_state(&self, now: Instant) -> MotionState {
-        motion_of([&self.start, &self.extent], now)
+        combined_motion([&self.start, &self.extent], now)
     }
 
     fn travelled(&self, now: Instant) -> TravelledSpan {
@@ -82,13 +87,17 @@ impl SpanTravel {
 }
 
 #[derive(Default)]
-pub(super) struct HighlightTravelState {
-    span_travel: Option<SpanTravel>,
-    frame: Option<Instant>,
+pub(super) enum HighlightTravelState {
+    #[default]
+    Unstarted,
+    Travelling {
+        span_travel: Box<SpanTravel>,
+        frame: Instant,
+    },
 }
 
 impl TravellingHighlight<'_> {
-    fn span_of(&self, slot: Rectangle) -> TravelledSpan {
+    fn slot_travelled_span(&self, slot: Rectangle) -> TravelledSpan {
         match self.pager_axis {
             Axis::Vertical => TravelledSpan {
                 start: slot.y,
@@ -120,7 +129,9 @@ impl TravellingHighlight<'_> {
         &self,
         painted_row: &PaintedRow<'_, HighlightTravelState>,
     ) -> Option<(&HighlightedSlot<'_>, Rectangle)> {
-        let highlighted_slot = self.highlighted_slot.as_ref()?;
+        let HighlightTarget::Slot(highlighted_slot) = &self.highlight_target else {
+            return None;
+        };
         let resting_slot = *painted_row
             .child_bounds
             .get(highlighted_slot.slot_position)?;
@@ -133,13 +144,10 @@ impl TravellingHighlight<'_> {
         resting_slot: Rectangle,
         travel_state: &HighlightTravelState,
     ) -> Rectangle {
-        let Some(span_travel) = &travel_state.span_travel else {
+        let HighlightTravelState::Travelling { span_travel, frame } = travel_state else {
             return resting_slot;
         };
-        let Some(frame) = travel_state.frame else {
-            return resting_slot;
-        };
-        self.slot_spanning(resting_slot, span_travel.travelled(frame))
+        self.slot_spanning(resting_slot, span_travel.travelled(*frame))
     }
 }
 
@@ -180,20 +188,32 @@ impl SlotPainter for TravellingHighlight<'_> {
         _cursor: Cursor,
         now: Instant,
     ) -> MotionState {
-        travel_state.frame = Some(now);
-        let Some(resting_slot) = self
-            .highlighted_slot
-            .as_ref()
-            .and_then(|highlighted_slot| child_bounds.get(highlighted_slot.slot_position))
-        else {
+        if let HighlightTravelState::Travelling { frame, .. } = travel_state {
+            *frame = now;
+        }
+        let HighlightTarget::Slot(highlighted_slot) = &self.highlight_target else {
             return MotionState::Settled;
         };
-        let span = self.span_of(*resting_slot);
-        let span_travel = travel_state
-            .span_travel
-            .get_or_insert_with(|| SpanTravel::resting_at(span, self.travel_duration));
-        span_travel.aim(span, now);
-        span_travel.motion_state(now)
+        let Some(resting_slot) = child_bounds.get(highlighted_slot.slot_position) else {
+            return MotionState::Settled;
+        };
+        let span = self.slot_travelled_span(*resting_slot);
+        match travel_state {
+            HighlightTravelState::Travelling { span_travel, .. } => {
+                span_travel.aim(span, now);
+                span_travel.motion_state(now)
+            }
+            HighlightTravelState::Unstarted => {
+                let mut span_travel = Box::new(SpanTravel::resting_at(span, self.travel_duration));
+                span_travel.aim(span, now);
+                let motion_state = span_travel.motion_state(now);
+                *travel_state = HighlightTravelState::Travelling {
+                    span_travel,
+                    frame: now,
+                };
+                motion_state
+            }
+        }
     }
 
     fn draw_under(

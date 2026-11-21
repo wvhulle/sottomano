@@ -2,6 +2,10 @@ use iced::{Element, Event, Point, Settings, Size, mouse, window};
 use iced_test::Simulator;
 use sottomano_compositor_model::{
     compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+    compositor_window_facts::{
+        ScrollingPosition, WindowFocus, WindowTitle, WindowWorkspace, WorkspaceActivity,
+        WorkspaceOutput,
+    },
     compositor_window_state::{
         CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
     },
@@ -11,7 +15,7 @@ use sottomano_desktop_sources::desktop_windows_apps::{
 };
 
 use crate::widgets::{
-    pointer_drag::{ActiveDrag, DragTarget, DragView, DraggedPanelSlot},
+    pointer_drag::{ActiveDrag, DragActivity, DragTarget, DragView, DraggedPanelSlot},
     shell_layer_appearance::ShellLayer,
 };
 
@@ -24,9 +28,12 @@ const SIMULATED_BAR_WIDTH_PX: f32 = 1024.0;
 fn simulated_workspace(workspace_id: u64, active_workspace_id: u64) -> CompositorWorkspace {
     CompositorWorkspace {
         index: u8::try_from(workspace_id).expect("few simulated workspaces"),
-        output: Some(SIMULATED_OUTPUT.to_owned()),
-        is_active: workspace_id == active_workspace_id,
-        is_focused: workspace_id == active_workspace_id,
+        output: WorkspaceOutput::Assigned(SIMULATED_OUTPUT.to_owned()),
+        activity: if workspace_id == active_workspace_id {
+            WorkspaceActivity::Focused
+        } else {
+            WorkspaceActivity::Inactive
+        },
         ..unnamed_compositor_workspace(workspace_id)
     }
 }
@@ -34,11 +41,15 @@ fn simulated_workspace(workspace_id: u64, active_workspace_id: u64) -> Composito
 fn simulated_tiled_window(column: usize, window_id: u64) -> CompositorWindow {
     let unplaced = unplaced_compositor_window(window_id);
     CompositorWindow {
-        title: Some(format!("window {window_id}")),
-        workspace_id: Some(SIMULATED_WORKSPACE_IDS[0]),
-        is_focused: column == 1,
+        title: WindowTitle::Titled(format!("window {window_id}")),
+        workspace: WindowWorkspace::OnWorkspace(SIMULATED_WORKSPACE_IDS[0]),
+        focus: if column == 1 {
+            WindowFocus::Focused
+        } else {
+            WindowFocus::Unfocused
+        },
         layout: CompositorWindowLayout {
-            scrolling_position: Some((column, 1)),
+            scrolling_position: ScrollingPosition::Tile { column, tile: 1 },
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
             ..unplaced.layout
@@ -65,7 +76,7 @@ pub(crate) fn three_workspaces_three_windows_on(active_workspace_id: u64) -> Sna
 
 pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot) -> DragView {
     DragView {
-        drag: Some(ActiveDrag {
+        drag: DragActivity::Dragging(ActiveDrag {
             item: dragged_item,
             surface: window::Id::unique(),
             cursor: Point::ORIGIN,

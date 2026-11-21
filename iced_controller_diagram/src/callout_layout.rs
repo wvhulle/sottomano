@@ -58,7 +58,9 @@ fn stacked_tops(
     let mut members: Vec<usize> = (0..anchors.len())
         .filter(|&index| CalloutSide::nearest_body_half(model, anchors[index]) == side)
         .collect();
-    members.sort_by(|&a, &b| desired_top(anchors[a]).total_cmp(&desired_top(anchors[b])));
+    members.sort_by(|&upper_index, &lower_index| {
+        desired_top(anchors[upper_index]).total_cmp(&desired_top(anchors[lower_index]))
+    });
     let pitch = metrics.row_height + metrics.row_gap;
     let block_top = |block: &[usize]| {
         let mean = block

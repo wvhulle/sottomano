@@ -9,22 +9,22 @@ use iced::{
     mouse::{Cursor, Interaction},
 };
 
-pub fn equal_width_column<'a, Message>(
-    rows: impl IntoIterator<Item = impl Into<Element<'a, Message>>>,
-) -> EqualWidthColumn<'a, Message> {
+pub fn equal_width_column<'view, Message>(
+    rows: impl IntoIterator<Item = impl Into<Element<'view, Message>>>,
+) -> EqualWidthColumn<'view, Message> {
     EqualWidthColumn {
         rows: rows.into_iter().map(Into::into).collect(),
         spacing: 0.0,
     }
 }
 
-pub struct EqualWidthColumn<'a, Message> {
-    rows: Vec<Element<'a, Message>>,
+pub struct EqualWidthColumn<'view, Message> {
+    rows: Vec<Element<'view, Message>>,
     spacing: f32,
 }
 
-impl<'a, Message: 'a> From<EqualWidthColumn<'a, Message>> for Element<'a, Message> {
-    fn from(column: EqualWidthColumn<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<EqualWidthColumn<'view, Message>> for Element<'view, Message> {
+    fn from(column: EqualWidthColumn<'view, Message>) -> Self {
         Element::new(column)
     }
 }
@@ -176,14 +176,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for EqualWidthColumn<
         });
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         overlay::from_children(
             &mut self.rows,
             tree,

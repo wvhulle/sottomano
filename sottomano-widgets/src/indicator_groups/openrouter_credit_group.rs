@@ -23,7 +23,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, secrets::StoredSecret};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -67,7 +67,7 @@ pub struct OpenRouterCreditGroup {
     spend: SubscribedSnapshot<OpenRouterSpend>,
     strict_budget: SubscribedSnapshot<OpenRouterStrictBudget>,
     model_rankings: SubscribedSnapshot<OpenRouterModelRankings>,
-    management_key: Option<PathBuf>,
+    management_key: StoredSecret,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -84,7 +84,7 @@ impl OpenRouterCreditGroup {
     }
 
     #[must_use]
-    pub fn new(management_key: Option<PathBuf>) -> Self {
+    pub fn new(management_key: StoredSecret) -> Self {
         Self {
             spend: SubscribedSnapshot::default(),
             strict_budget: SubscribedSnapshot::default(),
@@ -101,27 +101,24 @@ impl OpenRouterCreditGroup {
         buses: &DesktopBuses,
     ) -> Task<OpenRouterCreditMessage> {
         let OpenRouterCreditBusRequest::Refresh(source) = request;
+        let StoredSecret::Present(key) = self.management_key.clone() else {
+            return Task::none();
+        };
         match source {
             OpenRouterCreditSource::Spend => {
-                self.management_key.clone().map_or_else(Task::none, |key| {
-                    first_delivery::<OpenRouterSpend>(account(key, config, buses))
-                        .map(OpenRouterCreditMessage::SoftBudget)
-                })
+                first_delivery::<OpenRouterSpend>(account(key, config, buses))
+                    .map(OpenRouterCreditMessage::SoftBudget)
             }
             OpenRouterCreditSource::StrictBudget => {
-                self.management_key.clone().map_or_else(Task::none, |key| {
-                    first_delivery::<OpenRouterStrictBudget>(OnBus {
-                        buses: buses.clone(),
-                        inputs: key,
-                    })
-                    .map(OpenRouterCreditMessage::StrictBudget)
+                first_delivery::<OpenRouterStrictBudget>(OnBus {
+                    buses: buses.clone(),
+                    inputs: key,
                 })
+                .map(OpenRouterCreditMessage::StrictBudget)
             }
             OpenRouterCreditSource::ModelRankings => {
-                self.management_key.clone().map_or_else(Task::none, |key| {
-                    first_delivery::<OpenRouterModelRankings>(ranking_inputs(key, config, buses))
-                        .map(OpenRouterCreditMessage::ModelRankings)
-                })
+                first_delivery::<OpenRouterModelRankings>(ranking_inputs(key, config, buses))
+                    .map(OpenRouterCreditMessage::ModelRankings)
             }
         }
     }
@@ -134,21 +131,20 @@ impl OpenRouterCreditGroup {
         let Some(buses) = buses else {
             return Subscription::none();
         };
-        Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
-            [
-                snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config, buses))
-                    .map(OpenRouterCreditMessage::SoftBudget),
-                snapshot_subscription::<OpenRouterStrictBudget>(OnBus {
-                    buses: buses.clone(),
-                    inputs: key.clone(),
-                })
-                .map(OpenRouterCreditMessage::StrictBudget),
-                snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(
-                    key, config, buses,
-                ))
+        let StoredSecret::Present(key) = self.management_key.clone() else {
+            return Subscription::none();
+        };
+        Subscription::batch([
+            snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config, buses))
+                .map(OpenRouterCreditMessage::SoftBudget),
+            snapshot_subscription::<OpenRouterStrictBudget>(OnBus {
+                buses: buses.clone(),
+                inputs: key.clone(),
+            })
+            .map(OpenRouterCreditMessage::StrictBudget),
+            snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(key, config, buses))
                 .map(OpenRouterCreditMessage::ModelRankings),
-            ]
-        }))
+        ])
     }
 
     pub fn update(

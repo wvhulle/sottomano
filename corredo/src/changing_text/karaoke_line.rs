@@ -17,7 +17,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     theming::{LINE_HEIGHT, TextFace, ThemedColor},
-    transitions::MotionState,
+    transitions::{MotionState, RedrawClock},
 };
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
@@ -35,19 +35,19 @@ pub enum SweepMotion {
     Held,
 }
 
-pub struct KaraokeColors<'a> {
-    pub sung: ThemedColor<'a>,
-    pub unsung: ThemedColor<'a>,
+pub struct KaraokeColors<'view> {
+    pub sung: ThemedColor<'view>,
+    pub unsung: ThemedColor<'view>,
 }
 
-pub struct KaraokeLine<'a> {
-    text: &'a str,
-    sweep_at: Box<dyn Fn(Instant) -> LineSweep + 'a>,
+pub struct KaraokeLine<'view> {
+    text: &'view str,
+    sweep_at: Box<dyn Fn(Instant) -> LineSweep + 'view>,
     motion: SweepMotion,
     sampled_at: Instant,
     font: Font,
     size: f32,
-    colors: KaraokeColors<'a>,
+    colors: KaraokeColors<'view>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -58,20 +58,20 @@ struct MeasuredLine {
 }
 
 struct State {
-    measured_line: Option<MeasuredLine>,
+    measured_line: MeasuredLine,
     paragraph: MeasuredParagraph,
-    latest_frame: Option<Instant>,
+    redraw_clock: RedrawClock,
 }
 
-impl<'a> KaraokeLine<'a> {
+impl<'view> KaraokeLine<'view> {
     #[must_use]
     pub fn new(
-        text: &'a str,
-        sweep_at: impl Fn(Instant) -> LineSweep + 'a,
+        text: &'view str,
+        sweep_at: impl Fn(Instant) -> LineSweep + 'view,
         motion: SweepMotion,
         sampled_at: Instant,
         face: TextFace,
-        colors: KaraokeColors<'a>,
+        colors: KaraokeColors<'view>,
     ) -> Self {
         Self {
             text,
@@ -93,9 +93,10 @@ impl<'a> KaraokeLine<'a> {
     }
 
     fn frame(&self, state: &State) -> Instant {
-        state.latest_frame.map_or(self.sampled_at, |latest_frame| {
-            latest_frame.max(self.sampled_at)
-        })
+        match state.redraw_clock {
+            RedrawClock::FrameAt(latest_frame) => latest_frame.max(self.sampled_at),
+            RedrawClock::AwaitingFirstFrame => self.sampled_at,
+        }
     }
 
     fn sweep_motion(&self, state: &State) -> MotionState {
@@ -151,8 +152,8 @@ fn text_direction(paragraph: &MeasuredParagraph) -> TextDirection {
     }
 }
 
-impl<'a, Message: 'a> From<KaraokeLine<'a>> for Element<'a, Message> {
-    fn from(lyric_line: KaraokeLine<'a>) -> Self {
+impl<'view, Message: 'view> From<KaraokeLine<'view>> for Element<'view, Message> {
+    fn from(lyric_line: KaraokeLine<'view>) -> Self {
         Element::new(lyric_line)
     }
 }
@@ -163,10 +164,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
     }
 
     fn state(&self) -> tree::State {
+        let measured_line = self.measured_line();
         tree::State::new(State {
-            measured_line: None,
-            paragraph: MeasuredParagraph::default(),
-            latest_frame: None,
+            paragraph: shaped_line(&measured_line.text, measured_line.size, measured_line.font),
+            measured_line,
+            redraw_clock: RedrawClock::AwaitingFirstFrame,
         })
     }
 
@@ -177,10 +179,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
     fn layout(&mut self, tree: &mut Tree, _renderer: &iced::Renderer, limits: &Limits) -> Node {
         let state = tree.state.downcast_mut::<State>();
         let measured_line = self.measured_line();
-        if state.measured_line.as_ref() != Some(&measured_line) {
+        if state.measured_line != measured_line {
             state.paragraph =
                 shaped_line(&measured_line.text, measured_line.size, measured_line.font);
-            state.measured_line = Some(measured_line);
+            state.measured_line = measured_line;
         }
         Node::new(limits.resolve(Length::Shrink, Length::Shrink, state.paragraph.min_bounds()))
     }
@@ -239,7 +241,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
             return;
         };
         let state = tree.state.downcast_mut::<State>();
-        state.latest_frame = Some(*now);
+        state.redraw_clock = RedrawClock::FrameAt(*now);
         if self.sweep_motion(state) == MotionState::Moving {
             shell.request_redraw();
         }

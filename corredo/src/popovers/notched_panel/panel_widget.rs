@@ -88,7 +88,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
                     &screen_room.limits_within(remaining_width),
                 );
                 let extent = drawn_extent(&node);
-                let x = match side {
+                let horizontal_offset = match side {
                     NotchSide::Left => node_size.width + *placed_width,
                     NotchSide::Right => -*placed_width - extent.width,
                 };
@@ -98,7 +98,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
                         extent.size(),
                         vec![node.move_to(Point::new(-extent.x, -extent.y))],
                     )
-                    .move_to(Point::new(x, extent.y)),
+                    .move_to(Point::new(horizontal_offset, extent.y)),
                 )
             })
             .collect();

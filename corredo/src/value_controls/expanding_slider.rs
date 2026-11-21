@@ -14,7 +14,7 @@ use crate::{
     transitions::{ExpansionState, expand_transition, reveal},
     value_controls::{
         SliderAccents, inline_slider,
-        synced_value::{Nudge, SyncedValue, ValueWrite},
+        synced_value::{Nudge, SourceLag, SyncedValue, ValueWrite},
     },
 };
 
@@ -63,19 +63,20 @@ pub enum SliderEffect {
     Write(ValueWrite),
 }
 
-pub struct SliderLook<'a> {
+pub struct SliderLook<'view> {
     pub icon_size_px: f32,
-    pub accents: SliderAccents<'a>,
+    pub accents: SliderAccents<'view>,
 }
 
-type ElementPart<'a, Message> = Box<dyn Fn() -> Element<'a, Message> + 'a>;
+type ElementPart<'view, Message> = Box<dyn Fn() -> Element<'view, Message> + 'view>;
 
-pub struct ExpandingSliderParts<'a, Message> {
-    pub collapsed: ElementPart<'a, Message>,
-    pub face: ElementPart<'a, Message>,
-    pub readout: ElementPart<'a, Message>,
-    pub look: Box<dyn Fn() -> SliderLook<'a> + 'a>,
-    pub decorate: Box<dyn Fn(Element<'a, Message>, ExpansionState) -> Element<'a, Message> + 'a>,
+pub struct ExpandingSliderParts<'view, Message> {
+    pub collapsed: ElementPart<'view, Message>,
+    pub face: ElementPart<'view, Message>,
+    pub readout: ElementPart<'view, Message>,
+    pub look: Box<dyn Fn() -> SliderLook<'view> + 'view>,
+    pub decorate:
+        Box<dyn Fn(Element<'view, Message>, ExpansionState) -> Element<'view, Message> + 'view>,
     pub gap_px: f32,
     pub expansion_duration: Duration,
 }
@@ -95,7 +96,7 @@ pub struct ExpandingSlider {
 #[derive(Debug, Clone, Copy)]
 struct SliderPosition {
     shown: f32,
-    lagging: Option<f32>,
+    source_lag: SourceLag,
     step: f32,
 }
 
@@ -225,16 +226,16 @@ impl ExpandingSlider {
     fn position(&self) -> SliderPosition {
         SliderPosition {
             shown: self.synced_value.shown_value(),
-            lagging: self.synced_value.lagging_reported_value(self.slider_step),
+            source_lag: self.synced_value.source_lag(self.slider_step),
             step: self.slider_step,
         }
     }
 
-    pub fn slider<'a, Message: Clone + 'a>(
+    pub fn slider<'view, Message: Clone + 'view>(
         &self,
-        look: SliderLook<'a>,
-        on_message: impl Fn(SliderGesture) -> Message + 'a,
-    ) -> Element<'a, Message> {
+        look: SliderLook<'view>,
+        on_message: impl Fn(SliderGesture) -> Message + 'view,
+    ) -> Element<'view, Message> {
         slider_element(
             self.range.clone(),
             self.position(),
@@ -243,14 +244,14 @@ impl ExpandingSlider {
         )
     }
 
-    pub fn open_row<'a, Message: Clone + 'a>(
+    pub fn open_row<'view, Message: Clone + 'view>(
         &self,
-        look: SliderLook<'a>,
-        readout: Element<'a, Message>,
+        look: SliderLook<'view>,
+        readout: Element<'view, Message>,
         gap_px: f32,
-        on_message: impl Fn(SliderGesture) -> Message + 'a,
-    ) -> Element<'a, Message> {
-        let on_message: Rc<dyn Fn(SliderGesture) -> Message + 'a> = Rc::new(on_message);
+        on_message: impl Fn(SliderGesture) -> Message + 'view,
+    ) -> Element<'view, Message> {
+        let on_message: Rc<dyn Fn(SliderGesture) -> Message + 'view> = Rc::new(on_message);
         let scrolled = Rc::clone(&on_message);
         let row = Row::with_children([
             slider_element(
@@ -268,12 +269,12 @@ impl ExpandingSlider {
             .into()
     }
 
-    pub fn view<'a, Message: Clone + 'a>(
+    pub fn view<'view, Message: Clone + 'view>(
         &self,
-        parts: ExpandingSliderParts<'a, Message>,
-        on_message: impl Fn(SliderGesture) -> Message + 'a,
-    ) -> Element<'a, Message> {
-        let on_message: Rc<dyn Fn(SliderGesture) -> Message + 'a> = Rc::new(on_message);
+        parts: ExpandingSliderParts<'view, Message>,
+        on_message: impl Fn(SliderGesture) -> Message + 'view,
+    ) -> Element<'view, Message> {
+        let on_message: Rc<dyn Fn(SliderGesture) -> Message + 'view> = Rc::new(on_message);
         let range = self.range.clone();
         let position = self.position();
         let secondary_press = self.secondary_press;
@@ -289,7 +290,7 @@ impl ExpandingSlider {
         expand_transition(self.expansion_state, expansion_duration, move |expand| {
             let toggle = on_message(SliderGesture::Toggle);
             let (content, stage) = if expand > 0.0 {
-                let closing_button = |content: Element<'a, Message>| -> Element<'a, Message> {
+                let closing_button = |content| -> Element<'view, Message> {
                     button(content)
                         .padding(0)
                         .style(flat_button(text_color))
@@ -333,19 +334,19 @@ impl ExpandingSlider {
     }
 }
 
-fn slider_element<'a, Message: Clone + 'a>(
+fn slider_element<'view, Message: Clone + 'view>(
     range: RangeInclusive<f32>,
     position: SliderPosition,
-    look: SliderLook<'a>,
-    on_message: Rc<dyn Fn(SliderGesture) -> Message + 'a>,
-) -> Element<'a, Message> {
+    look: SliderLook<'view>,
+    on_message: Rc<dyn Fn(SliderGesture) -> Message + 'view>,
+) -> Element<'view, Message> {
     let released = on_message(SliderGesture::Release);
     let dragged = Rc::clone(&on_message);
     inline_slider(range, position.shown, move |value| {
         dragged(SliderGesture::Drag(value))
     })
     .icon_size(look.icon_size_px)
-    .lagging_behind(position.lagging)
+    .lagging_behind(position.source_lag)
     .step(position.step)
     .accents(look.accents)
     .on_release(released)

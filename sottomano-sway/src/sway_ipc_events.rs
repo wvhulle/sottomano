@@ -6,7 +6,12 @@ use std::{
 
 use futures::{Stream, TryStreamExt, stream};
 use sottomano_compositor_model::{
-    compositor_output_facts::{OutputInfo, OutputMode, product_field},
+    compositor_output_facts::{OutputInfo, OutputMode, OutputModeReport, product_field},
+    compositor_window_facts::{
+        FocusTimestamp, ScrollingPosition, TileViewPosition, Urgency, WindowAppId, WindowFocus,
+        WindowPid, WindowTiling, WindowTitle, WindowWorkspace, WorkspaceActiveWindow,
+        WorkspaceActivity, WorkspaceName, WorkspaceOutput,
+    },
     compositor_window_state::{
         CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
         CompositorWindowState, CompositorWorkspace,
@@ -65,10 +70,12 @@ fn focused_window(node: &Node) -> Option<u64> {
     )
 }
 
-fn window_app_id(node: &Node) -> Option<String> {
-    node.app_id
-        .clone()
-        .or_else(|| node.window_properties.as_ref()?.class.clone())
+fn window_app_id(node: &Node) -> WindowAppId {
+    WindowAppId::from(
+        node.app_id
+            .clone()
+            .or_else(|| node.window_properties.as_ref()?.class.clone()),
+    )
 }
 
 struct PlacedSwayWorkspace<'tree> {
@@ -98,36 +105,26 @@ fn placed_workspaces(tree: &Node) -> HashMap<i64, PlacedSwayWorkspace<'_>> {
         .collect()
 }
 
-enum WindowPlacement {
-    Floating,
-    Tiled,
-}
-
 fn collect_windows(
     node: &Node,
     workspace_id: u64,
     output_rect: Rect,
-    placement: &WindowPlacement,
+    tiling: WindowTiling,
     windows: &mut Vec<CompositorWindow>,
 ) {
     if node_role(node) == SwayNodeRole::Window {
-        windows.extend(compositor_window(
-            node,
-            workspace_id,
-            output_rect,
-            placement,
-        ));
+        windows.extend(compositor_window(node, workspace_id, output_rect, tiling));
         return;
     }
     for child in &node.nodes {
-        collect_windows(child, workspace_id, output_rect, placement, windows);
+        collect_windows(child, workspace_id, output_rect, tiling, windows);
     }
     for child in &node.floating_nodes {
         collect_windows(
             child,
             workspace_id,
             output_rect,
-            &WindowPlacement::Floating,
+            WindowTiling::Floating,
             windows,
         );
     }
@@ -137,33 +134,45 @@ fn compositor_window(
     node: &Node,
     workspace_id: u64,
     output_rect: Rect,
-    placement: &WindowPlacement,
+    tiling: WindowTiling,
 ) -> Option<CompositorWindow> {
     Some(CompositorWindow {
         id: sway_id(node.id)?,
-        title: node.name.clone(),
+        title: WindowTitle::from(node.name.clone()),
         app_id: window_app_id(node),
-        pid: node.pid,
-        workspace_id: Some(workspace_id),
-        is_focused: node.focused,
-        is_floating: matches!(placement, WindowPlacement::Floating),
-        is_urgent: node.urgent,
+        pid: WindowPid::from(node.pid),
+        workspace: WindowWorkspace::OnWorkspace(workspace_id),
+        focus: if node.focused {
+            WindowFocus::Focused
+        } else {
+            WindowFocus::Unfocused
+        },
+        tiling,
+        urgency: if node.urgent {
+            Urgency::Urgent
+        } else {
+            Urgency::NotUrgent
+        },
         layout: CompositorWindowLayout {
-            scrolling_position: None,
+            scrolling_position: ScrollingPosition::OutsideScrolling,
             tile_size: (f64::from(node.rect.width), f64::from(node.rect.height)),
             window_size: (node.window_rect.width, node.window_rect.height),
-            tile_position_in_view: Some((
-                f64::from(node.rect.x - output_rect.x),
-                f64::from(node.rect.y - output_rect.y),
-            )),
+            tile_position_in_view: TileViewPosition::InView {
+                horizontal: f64::from(node.rect.x - output_rect.x),
+                vertical: f64::from(node.rect.y - output_rect.y),
+            },
             window_offset_in_tile: (f64::from(node.window_rect.x), f64::from(node.window_rect.y)),
         },
-        focused_at_monotonic: None,
+        focused_at_monotonic: FocusTimestamp::NeverFocused,
     })
 }
 
-fn given_workspace_name(workspace: &Workspace) -> Option<String> {
-    (workspace.name != workspace.num.to_string()).then(|| workspace.name.clone())
+fn given_workspace_name(workspace: &Workspace) -> WorkspaceName {
+    if workspace.name == workspace.num.to_string() {
+        WorkspaceName::Unnamed
+    } else {
+        WorkspaceName::Named(workspace.name.clone())
+    }
 }
 
 fn compositor_state(workspaces: &[Workspace], tree: &Node) -> CompositorWindowState {
@@ -185,11 +194,21 @@ fn compositor_state(workspaces: &[Workspace], tree: &Node) -> CompositorWindowSt
                 id: sway_id(workspace.id)?,
                 index: *index,
                 name: given_workspace_name(workspace),
-                output: Some(workspace.output.clone()),
-                is_urgent: workspace.urgent,
-                is_active: workspace.visible,
-                is_focused: workspace.focused,
-                active_window_id: focused_window(placed_workspace.node),
+                output: WorkspaceOutput::Assigned(workspace.output.clone()),
+                urgency: if workspace.urgent {
+                    Urgency::Urgent
+                } else {
+                    Urgency::NotUrgent
+                },
+                activity: match (workspace.focused, workspace.visible) {
+                    (true, _) => WorkspaceActivity::Focused,
+                    (false, true) => WorkspaceActivity::Active,
+                    (false, false) => WorkspaceActivity::Inactive,
+                },
+                active_window: focused_window(placed_workspace.node).map_or(
+                    WorkspaceActiveWindow::NoWindow,
+                    WorkspaceActiveWindow::Window,
+                ),
             })
         })
         .collect();
@@ -200,7 +219,7 @@ fn compositor_state(workspaces: &[Workspace], tree: &Node) -> CompositorWindowSt
                 placed_workspace.node,
                 workspace_id,
                 placed_workspace.output_rect,
-                &WindowPlacement::Tiled,
+                WindowTiling::Tiled,
                 &mut windows,
             );
         }
@@ -274,30 +293,37 @@ pub fn sway_compositor_updates() -> impl Stream<Item = Fallible<CompositorUpdate
     .try_flatten()
 }
 
+fn sway_current_mode(output: &Output) -> OutputModeReport {
+    let Some(mode) = output.current_mode else {
+        return OutputModeReport::Unreported;
+    };
+    let log_range_failure = |range_failure: &TryFromIntError| {
+        tracing::warn!(
+            "sway: output {} mode {}x{} out of range: {range_failure}",
+            output.name,
+            mode.width,
+            mode.height
+        );
+    };
+    let width = u16::try_from(mode.width).inspect_err(&log_range_failure);
+    let height = u16::try_from(mode.height).inspect_err(&log_range_failure);
+    let (Ok(width), Ok(height)) = (width, height) else {
+        return OutputModeReport::Unreported;
+    };
+    OutputModeReport::Current(OutputMode {
+        width,
+        height,
+        refresh_hz: f64::from(mode.refresh) / 1000.0,
+    })
+}
+
 fn sway_output_facts(output: Output) -> (String, OutputInfo) {
+    let mode = sway_current_mode(&output);
     let facts = OutputInfo {
         make: product_field(output.make),
         model: product_field(output.model),
         serial: product_field(output.serial),
-        mode: output.current_mode.and_then(|mode| {
-            let log_range_failure = |range_failure: &TryFromIntError| {
-                tracing::warn!(
-                    "sway: output {} mode {}x{} out of range: {range_failure}",
-                    output.name,
-                    mode.width,
-                    mode.height
-                );
-            };
-            Some(OutputMode {
-                width: u16::try_from(mode.width)
-                    .inspect_err(&log_range_failure)
-                    .ok()?,
-                height: u16::try_from(mode.height)
-                    .inspect_err(&log_range_failure)
-                    .ok()?,
-                refresh_hz: f64::from(mode.refresh) / 1000.0,
-            })
-        }),
+        mode,
         scale: output.scale.unwrap_or(1.0),
         logical_width: output_side(&output.name, output.rect.width),
         logical_height: output_side(&output.name, output.rect.height),
@@ -330,7 +356,10 @@ pub async fn sway_window_pids() -> Fallible<Vec<i32>> {
     Ok(state
         .windows
         .values()
-        .filter_map(|window| window.pid)
+        .filter_map(|window| match window.pid {
+            WindowPid::Reported(pid) => Some(pid),
+            WindowPid::Unreported => None,
+        })
         .collect())
 }
 
@@ -342,112 +371,4 @@ fn output_side(output_name: &str, reported_side: i32) -> u32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use serde_json::{Value, json};
-    use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
-    use swayipc_types::{Node, Workspace};
-
-    use super::compositor_state;
-
-    fn node(fields: &Value) -> Value {
-        let mut node = json!({
-            "id": 0, "type": "con", "border": "none", "current_border_width": 0,
-            "layout": "none", "orientation": "none",
-            "rect": {"x": 0, "y": 0, "width": 0, "height": 0},
-            "window_rect": {"x": 0, "y": 0, "width": 0, "height": 0},
-            "deco_rect": {"x": 0, "y": 0, "width": 0, "height": 0},
-            "geometry": {"x": 0, "y": 0, "width": 0, "height": 0},
-            "urgent": false, "focused": false, "focus": [], "nodes": [],
-            "floating_nodes": [], "sticky": false
-        });
-        for (key, value) in fields.as_object().into_iter().flatten() {
-            node[key] = value.clone();
-        }
-        node
-    }
-
-    fn rect(x: i32, y: i32, width: i32, height: i32) -> Value {
-        json!({"x": x, "y": y, "width": width, "height": height})
-    }
-
-    fn sway_tree() -> Node {
-        let tree = node(&json!({
-            "id": 1, "type": "root",
-            "nodes": [
-                node(&json!({"id": 2, "type": "output", "name": "__i3",
-                    "nodes": [node(&json!({"id": 3, "type": "workspace", "name": "__i3_scratch"}))]})),
-                node(&json!({"id": 4, "type": "output", "name": "Virtual-1",
-                    "rect": rect(0, 0, 1280, 800),
-                    "nodes": [
-                        node(&json!({"id": 10, "type": "workspace", "name": "1", "focus": [12, 11],
-                            "nodes": [
-                                node(&json!({"id": 11, "name": "editor", "app_id": "foot", "pid": 100,
-                                    "rect": rect(0, 0, 640, 800), "window_rect": rect(2, 2, 636, 796)})),
-                                node(&json!({"id": 12, "name": "browser", "pid": 101, "focused": true,
-                                    "window_properties": {"class": "firefox"},
-                                    "rect": rect(640, 0, 640, 800), "window_rect": rect(2, 2, 636, 796)}))
-                            ],
-                            "floating_nodes": [
-                                node(&json!({"id": 13, "type": "floating_con", "name": "picker",
-                                    "app_id": "zenity", "pid": 102, "rect": rect(300, 200, 400, 300)}))
-                            ]})),
-                        node(&json!({"id": 20, "type": "workspace", "name": "2: mail"}))
-                    ]}))
-            ]
-        }));
-        serde_json::from_value(tree).unwrap()
-    }
-
-    fn sway_workspaces() -> Vec<Workspace> {
-        let workspace = |id: i64, num: i32, name: &str, visible: bool, urgent: bool| {
-            json!({"id": id, "num": num, "name": name, "visible": visible, "focused": visible,
-                "urgent": urgent, "output": "Virtual-1", "rect": rect(0, 0, 1280, 800)})
-        };
-        serde_json::from_value(json!([
-            workspace(10, 1, "1", true, false),
-            workspace(20, 2, "2: mail", false, true)
-        ]))
-        .unwrap()
-    }
-
-    fn parsed_state() -> CompositorWindowState {
-        compositor_state(&sway_workspaces(), &sway_tree())
-    }
-
-    #[test]
-    fn windows_from_tiled_and_floating_containers_belong_to_their_workspace() {
-        let state = parsed_state();
-
-        let mut window_ids: Vec<u64> = state.windows.keys().copied().collect();
-        window_ids.sort_unstable();
-        assert_eq!(window_ids, [11, 12, 13]);
-        assert!(
-            state
-                .windows
-                .values()
-                .all(|window| window.workspace_id == Some(10))
-        );
-        assert!(state.windows[&13].is_floating);
-        assert_eq!(state.windows[&12].app_id.as_deref(), Some("firefox"));
-        assert_eq!(state.windows[&11].layout.window_size, (636, 796));
-        assert_eq!(
-            state.windows[&12].layout.tile_position_in_view,
-            Some((640.0, 0.0))
-        );
-    }
-
-    #[test]
-    fn workspaces_follow_sway_order_and_keep_only_given_names() {
-        let state = parsed_state();
-
-        let first = &state.workspaces[&10];
-        let second = &state.workspaces[&20];
-        assert_eq!((first.index, second.index), (1, 2));
-        assert_eq!(first.name, None);
-        assert_eq!(second.name.as_deref(), Some("2: mail"));
-        assert!(first.is_focused && first.is_active);
-        assert!(second.is_urgent && !second.is_active);
-        assert_eq!(first.active_window_id, Some(12));
-        assert!(!state.workspaces.contains_key(&3));
-    }
-}
+mod sway_ipc_events_tests;

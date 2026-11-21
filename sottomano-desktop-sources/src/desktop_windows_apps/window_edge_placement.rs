@@ -1,7 +1,11 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use sottomano_compositor_model::compositor_window_state::{
-    CompositorWindow, CompositorWindowLayout, CompositorWindowState,
+use sottomano_compositor_model::{
+    compositor_window_facts::{
+        OverviewVisibility, ScrollingPosition, WindowAppId, WindowFocus, WindowPid,
+        WindowWorkspace, WorkspaceActiveWindow, WorkspaceActivity, WorkspaceOutput,
+    },
+    compositor_window_state::{CompositorWindow, CompositorWindowLayout, CompositorWindowState},
 };
 use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 
@@ -25,8 +29,8 @@ pub struct Placement {
 
 struct WindowIdentity {
     id: u64,
-    app_id: Option<String>,
-    pid: Option<i32>,
+    app_id: WindowAppId,
+    pid: WindowPid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,9 +49,9 @@ impl Placement {
         let mut focused_output = None;
         for w in state.workspaces.values() {
             ws_idx.insert(w.id, w.index);
-            if let Some(output) = &w.output {
+            if let WorkspaceOutput::Assigned(output) = &w.output {
                 output_by_workspace.insert(w.id, output.clone());
-                if w.is_active {
+                if w.activity != WorkspaceActivity::Inactive {
                     active_ws_by_output.insert(
                         output.clone(),
                         OutputActiveWorkspace {
@@ -56,11 +60,11 @@ impl Placement {
                         },
                     );
                 }
-                if w.is_focused {
+                if w.activity == WorkspaceActivity::Focused {
                     focused_output = Some(output.clone());
                 }
             }
-            if let Some(active) = w.active_window_id {
+            if let WorkspaceActiveWindow::Window(active) = w.active_window {
                 ws_active_window.insert(w.id, active);
             }
         }
@@ -71,19 +75,19 @@ impl Placement {
         let mut windows = Vec::new();
         let mut viewed_layouts = HashMap::new();
         for w in state.windows.values() {
-            if let Some(ws) = w.workspace_id {
+            if let WindowWorkspace::OnWorkspace(ws) = w.workspace {
                 workspace_by_window.insert(w.id, ws);
             }
-            if !state.overview_is_open
+            if state.overview == OverviewVisibility::Closed
                 && workspace_viewing(w, &output_by_workspace, &active_ws_by_output)
                     == WorkspaceViewing::Viewed
             {
                 viewed_layouts.insert(w.id, w.layout.clone());
             }
-            if let Some((col, _)) = w.layout.scrolling_position {
-                column_by_window.insert(w.id, col);
+            if let ScrollingPosition::Tile { column, .. } = w.layout.scrolling_position {
+                column_by_window.insert(w.id, column);
             }
-            if w.is_focused {
+            if w.focus == WindowFocus::Focused {
                 focused_window = Some(w.id);
             }
             windows.push(WindowIdentity {
@@ -161,21 +165,19 @@ impl Placement {
     #[must_use]
     pub fn window_owned_by(&self, owner: &WindowOwner) -> Option<u64> {
         let mut matching = self.windows.iter().filter(|window| match owner {
-            WindowOwner::App(app_id) => window.app_id.as_ref() == Some(app_id),
-            WindowOwner::Process(pid) => window
-                .pid
-                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(*pid)),
+            WindowOwner::App(app_id) => {
+                matches!(&window.app_id, WindowAppId::Reported(window_app_id) if window_app_id == app_id)
+            }
+            WindowOwner::Process(pid) => window_pid_matches(window.pid, *pid),
         });
         unique(&mut matching).map(|window| window.id)
     }
 
     #[must_use]
     pub fn process_owns_window(&self, pid: u32) -> bool {
-        self.windows.iter().any(|window| {
-            window
-                .pid
-                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(pid))
-        })
+        self.windows
+            .iter()
+            .any(|window| window_pid_matches(window.pid, pid))
     }
 
     #[must_use]
@@ -183,11 +185,10 @@ impl Placement {
         ancestry
             .iter()
             .find_map(|&ancestor_pid| {
-                let mut owned = self.windows.iter().filter(|window| {
-                    window
-                        .pid
-                        .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(ancestor_pid))
-                });
+                let mut owned = self
+                    .windows
+                    .iter()
+                    .filter(|window| window_pid_matches(window.pid, ancestor_pid));
                 let first_owned = owned.next()?;
                 Some(owned.next().is_none().then_some(first_owned.id))
             })
@@ -200,6 +201,13 @@ impl Placement {
             .is_some_and(|focused_workspace| {
                 self.workspace_of_window(id) == Some(focused_workspace)
             })
+    }
+}
+
+fn window_pid_matches(window_pid: WindowPid, process_id: u32) -> bool {
+    match window_pid {
+        WindowPid::Reported(window_pid) => u32::try_from(window_pid) == Ok(process_id),
+        WindowPid::Unreported => false,
     }
 }
 
@@ -219,12 +227,14 @@ fn workspace_viewing(
     output_by_workspace: &HashMap<u64, String>,
     active_ws_by_output: &HashMap<String, OutputActiveWorkspace>,
 ) -> WorkspaceViewing {
-    if window.workspace_id.is_some_and(|workspace| {
-        output_by_workspace
-            .get(&workspace)
-            .and_then(|output| active_ws_by_output.get(output))
-            .is_some_and(|active| active.id == workspace)
-    }) {
+    let WindowWorkspace::OnWorkspace(workspace) = window.workspace else {
+        return WorkspaceViewing::Hidden;
+    };
+    if output_by_workspace
+        .get(&workspace)
+        .and_then(|output| active_ws_by_output.get(output))
+        .is_some_and(|active| active.id == workspace)
+    {
         WorkspaceViewing::Viewed
     } else {
         WorkspaceViewing::Hidden
@@ -271,6 +281,7 @@ fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
 mod tests {
     use sottomano_compositor_model::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_facts::{WindowFocus, WindowPid, WindowWorkspace, WorkspaceActivity},
         compositor_window_state::{CompositorWindow, CompositorWindowState},
     };
 
@@ -280,15 +291,15 @@ mod tests {
 
     fn window_of_process(id: u64, pid: i32, workspace: u64) -> CompositorWindow {
         CompositorWindow {
-            pid: Some(pid),
-            workspace_id: Some(workspace),
+            pid: WindowPid::Reported(pid),
+            workspace: WindowWorkspace::OnWorkspace(workspace),
             ..unplaced_compositor_window(id)
         }
     }
 
     fn placement_with(windows: Vec<CompositorWindow>) -> Placement {
         let mut other_workspace = unnamed_compositor_workspace(2);
-        other_workspace.is_focused = false;
+        other_workspace.activity = WorkspaceActivity::Active;
         Placement::derive(&CompositorWindowState::indexed_by_id(
             [unnamed_compositor_workspace(1), other_workspace],
             windows,
@@ -324,7 +335,7 @@ mod tests {
     #[test]
     fn a_window_shares_the_focused_workspace_only_when_its_workspace_holds_focus() {
         let mut focused = window_of_process(10, TERMINAL_PID, 1);
-        focused.is_focused = true;
+        focused.focus = WindowFocus::Focused;
         let placement = placement_with(vec![
             focused,
             window_of_process(11, 200, 1),

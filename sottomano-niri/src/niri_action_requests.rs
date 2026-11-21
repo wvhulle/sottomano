@@ -1,6 +1,6 @@
 use niri_ipc::{Action, Request, WorkspaceReferenceArg, socket::Socket};
 use sottomano_compositor_model::compositor_requests::{
-    CompositorRequest, CompositorRequestFailure,
+    CompositorRequest, CompositorRequestFailure, FocusFollow,
 };
 
 fn niri_action(request: &CompositorRequest) -> Action {
@@ -26,11 +26,11 @@ fn niri_action(request: &CompositorRequest) -> Action {
         CompositorRequest::MoveWindowToWorkspace {
             window,
             workspace,
-            follows_focus,
+            focus_follow,
         } => Action::MoveWindowToWorkspace {
             window_id: Some(*window),
             reference: WorkspaceReferenceArg::Id(*workspace),
-            focus: *follows_focus,
+            focus: *focus_follow == FocusFollow::FollowWindow,
         },
         CompositorRequest::MoveFocusedColumnToIndex(index) => {
             Action::MoveColumnToIndex { index: *index }

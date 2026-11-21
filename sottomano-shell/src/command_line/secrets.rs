@@ -2,7 +2,7 @@ use std::path::Path;
 
 use sottomano_toml_config::{
     SecretPaths,
-    secrets::{SecretFile, SecretPresence},
+    secrets::{SecretFile, StoredSecret},
 };
 
 pub fn print(config_home: &Path) {
@@ -12,9 +12,9 @@ pub fn print(config_home: &Path) {
         SecretFile::directory(config_home).display()
     );
     for secret in SecretFile::ALL {
-        let state = match present.presence_of(secret) {
-            SecretPresence::Present => "present",
-            SecretPresence::Absent => "absent",
+        let state = match present.stored(secret) {
+            StoredSecret::Present(_) => "present",
+            StoredSecret::Absent => "absent",
         };
         println!("\n{} ({state})\n  {}", secret.file_name(), secret.purpose());
     }

@@ -8,17 +8,21 @@ use crate::theming::{
     style_metrics::{ACCENT_STROKE_PX, pill_corners},
 };
 
-pub struct FillGauge<'a> {
+pub struct FillGauge<'view> {
     fill_fraction: f32,
     live_fraction: f32,
     height: f32,
     thickness_px: f32,
-    live_color: ThemedColor<'a>,
+    live_color: ThemedColor<'view>,
 }
 
-impl<'a> FillGauge<'a> {
+impl<'view> FillGauge<'view> {
     #[must_use]
-    pub fn new(fill_fraction: f32, live_color: impl Fn(&Theme) -> Color + 'a, height: f32) -> Self {
+    pub fn new(
+        fill_fraction: f32,
+        live_color: impl Fn(&Theme) -> Color + 'view,
+        height: f32,
+    ) -> Self {
         Self {
             fill_fraction,
             live_fraction: fill_fraction,
@@ -42,13 +46,13 @@ impl<'a> FillGauge<'a> {
         self
     }
 
-    fn vertical_bar<Message: 'a>(
+    fn vertical_bar<Message: 'view>(
         height: f32,
         thickness_px: f32,
         reach: f32,
-        track_color: impl Fn(&Theme) -> Color + 'a,
-        bar_color: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
+        track_color: impl Fn(&Theme) -> Color + 'view,
+        bar_color: impl Fn(&Theme) -> Color + 'view,
+    ) -> Element<'view, Message> {
         progress_bar(0.0..=1.0, reach)
             .vertical()
             .length(height)
@@ -62,8 +66,8 @@ impl<'a> FillGauge<'a> {
     }
 }
 
-impl<'a, Message: 'a> From<FillGauge<'a>> for Element<'a, Message> {
-    fn from(gauge: FillGauge<'a>) -> Self {
+impl<'view, Message: 'view> From<FillGauge<'view>> for Element<'view, Message> {
+    fn from(gauge: FillGauge<'view>) -> Self {
         let live_reach = gauge.live_fraction.min(gauge.fill_fraction);
         let live_color = gauge.live_color;
         stack![

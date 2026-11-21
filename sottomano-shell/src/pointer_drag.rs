@@ -3,7 +3,9 @@ use std::mem;
 use corredo::drag_reorder::{MoveTracking, drag_pointer_events};
 use iced::{Subscription, Task, window::frames};
 use sottomano_compositor_model::{
-    compositor_backend::CompositorFeatureSupport, compositor_requests::CompositorRequest,
+    compositor_backend::CompositorFeatureSupport,
+    compositor_requests::{CompositorRequest, FocusFollow},
+    compositor_window_facts::{WindowWorkspace, WorkspaceActivity},
 };
 use sottomano_compositors::compositor_connection::CompositorKind;
 use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
@@ -87,7 +89,7 @@ impl DesktopShell {
     pub fn pointer_drag_subscription(&self) -> Subscription<Message> {
         let pointer = drag_pointer_events(MoveTracking::from(&self.pointer_drag))
             .map(|event| Message::PointerDrag(DragMessage::Pointer(event)));
-        let spring_charging = match self.drag_view().drag.and_then(|drag| drag.hovered()) {
+        let spring_charging = match self.drag_view().foreign_hover() {
             Some(_) => frames().map(|_| Message::Redraw),
             None => Subscription::none(),
         };
@@ -109,7 +111,7 @@ impl DesktopShell {
                 let DraggedPanelSlot::Workspace(workspace) = hover.item else {
                     return Task::none();
                 };
-                if self.drag_view().drag.and_then(|drag| drag.hovered()) != Some(hover) {
+                if self.drag_view().foreign_hover() != Some(hover) {
                     return Task::none();
                 }
                 compositor_request(CompositorRequest::FocusWorkspace(workspace))
@@ -218,7 +220,7 @@ impl DesktopShell {
             .compositor
             .windows
             .get(&window)
-            .is_none_or(|found| found.workspace_id == Some(workspace))
+            .is_none_or(|found| found.workspace == WindowWorkspace::OnWorkspace(workspace))
         {
             return Task::none();
         }
@@ -228,7 +230,7 @@ impl DesktopShell {
         compositor_request(CompositorRequest::MoveWindowToWorkspace {
             window,
             workspace,
-            follows_focus: false,
+            focus_follow: FocusFollow::StayOnCurrent,
         })
     }
 
@@ -243,7 +245,8 @@ impl DesktopShell {
 fn click_slot(click: SlotClick) -> Task<Message> {
     match click {
         SlotClick::Workspace {
-            is_active: true, ..
+            activity: WorkspaceActivity::Active | WorkspaceActivity::Focused,
+            ..
         } => {
             if CompositorKind::detected().map(CompositorKind::overview_support)
                 == Some(CompositorFeatureSupport::Available)

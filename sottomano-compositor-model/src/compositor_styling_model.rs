@@ -1,5 +1,7 @@
 use sottomano_toml_config::screen_edges::Position;
 
+use crate::compositor_window_facts::WindowAppId;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AppWindowLayout {
     pub window_corner_radius_px: f32,
@@ -67,14 +69,14 @@ impl StyledSurface {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeatedWindow {
-    pub app_id: Option<String>,
+    pub app_id: WindowAppId,
     pub title_without_status_prefix: String,
     pub border_color: String,
 }
 
 impl HeatedWindow {
     #[must_use]
-    pub fn titled(app_id: Option<String>, title: &str, border_color: String) -> Option<Self> {
+    pub fn titled(app_id: WindowAppId, title: &str, border_color: String) -> Option<Self> {
         let title_without_status_prefix =
             title.trim_start_matches(|character: char| !character.is_alphanumeric());
         (!title_without_status_prefix.is_empty()).then(|| Self {

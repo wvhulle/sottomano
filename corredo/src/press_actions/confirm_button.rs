@@ -7,10 +7,10 @@ pub enum ConfirmPress {
     Armed,
 }
 
-pub struct ConfirmButtonIcons<'a, Message> {
-    pub idle: Element<'a, Message>,
-    pub confirm: Element<'a, Message>,
-    pub cancel: Element<'a, Message>,
+pub struct ConfirmButtonIcons<'view, Message> {
+    pub idle: Element<'view, Message>,
+    pub confirm: Element<'view, Message>,
+    pub cancel: Element<'view, Message>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,13 +53,13 @@ impl ConfirmButton {
         self.stage = ConfirmStage::Idle;
     }
 
-    pub fn view<'a, Message: 'a + Clone>(
+    pub fn view<'view, Message: 'view + Clone>(
         &self,
-        icons: ConfirmButtonIcons<'a, Message>,
+        icons: ConfirmButtonIcons<'view, Message>,
         spacing: f32,
         on_press: Message,
         on_cancel: Message,
-    ) -> Element<'a, Message> {
+    ) -> Element<'view, Message> {
         if self.stage == ConfirmStage::Idle {
             return flat_element_button(icons.idle, on_press);
         }

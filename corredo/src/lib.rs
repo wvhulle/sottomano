@@ -1,6 +1,7 @@
 #![warn(unreachable_pub)]
 
 mod alpha_fade_shaders;
+mod pointer_hover;
 mod quad_shapes;
 
 pub mod changing_text;

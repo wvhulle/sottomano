@@ -10,4 +10,6 @@ pub use sliding_pane_swap::{
 };
 mod motion_state;
 pub use motion_state::MotionState;
-pub(crate) use motion_state::{eased_animation, motion_of};
+pub(crate) use motion_state::{combined_motion, eased_animation};
+mod redraw_clock;
+pub(crate) use redraw_clock::RedrawClock;

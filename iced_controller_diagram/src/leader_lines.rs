@@ -8,9 +8,9 @@ use crate::{callout_layout::LeaderLine, diagram_style::StyleFn};
 const LINE_WIDTH: f32 = 1.0;
 const ANCHOR_RADIUS: f32 = 2.5;
 
-pub(crate) struct LeaderLines<'a> {
+pub(crate) struct LeaderLines<'style> {
     pub leaders: Vec<LeaderLine>,
-    pub style: StyleFn<'a>,
+    pub style: StyleFn<'style>,
 }
 
 impl<Message> canvas::Program<Message> for LeaderLines<'_> {

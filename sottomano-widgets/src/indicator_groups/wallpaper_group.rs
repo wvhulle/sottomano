@@ -3,14 +3,12 @@ mod photo_credit;
 mod place_label;
 pub mod wallpaper_lookup;
 
-use std::path::PathBuf;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::SecretPaths;
+use sottomano_toml_config::{SecretPaths, secrets::StoredSecret};
 
 use self::wallpaper_lookup::Lookup;
 use crate::{
@@ -31,7 +29,7 @@ const WALLPAPER_GLYPH: Phosphor = Phosphor::Image(Weight::Regular);
 
 pub struct WallpaperGroup {
     lookup: SubscribedSnapshot<Lookup>,
-    unsplash_key: Option<PathBuf>,
+    unsplash_key: StoredSecret,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -55,7 +53,7 @@ impl WallpaperGroup {
     }
 
     pub fn subscription(&self, buses: Option<&DesktopBuses>) -> Subscription<WallpaperMessage> {
-        let Some(unsplash_key) = &self.unsplash_key else {
+        let StoredSecret::Present(unsplash_key) = &self.unsplash_key else {
             return Subscription::none();
         };
         let Some(buses) = buses else {

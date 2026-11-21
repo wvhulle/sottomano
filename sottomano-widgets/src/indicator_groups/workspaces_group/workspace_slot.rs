@@ -13,6 +13,9 @@ use iced::{
     border::Radius,
     widget::{Space, Text, column, container, progress_bar, row, text},
 };
+use sottomano_compositor_model::compositor_window_facts::{
+    Urgency, WindowFocus, WorkspaceActivity, WorkspaceName,
+};
 use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 
@@ -26,7 +29,7 @@ use crate::{
     },
     hover_cards::{HoverTarget, hoverable},
     widgets::{
-        pointer_drag::DraggedPanelSlot,
+        pointer_drag::{DragActivity, DraggedPanelSlot},
         screen_edge::screen_edge_of,
         shared_metrics::{ACCENT_STROKE_PX, WINDOW_MARKER_LENGTH_PX, pill_corners},
         text::panel_text,
@@ -61,12 +64,10 @@ fn window_marker_color(
     window_entry: &workspace_window_snapshot::WinEntry,
     unfocused: fn(&Theme) -> Color,
 ) -> fn(&Theme) -> Color {
-    if window_entry.is_urgent {
-        danger_color
-    } else if window_entry.is_focused {
-        primary_color
-    } else {
-        unfocused
+    match (window_entry.urgency, window_entry.focus) {
+        (Urgency::Urgent, _) => danger_color,
+        (Urgency::NotUrgent, WindowFocus::Focused) => primary_color,
+        (Urgency::NotUrgent, WindowFocus::Unfocused) => unfocused,
     }
 }
 
@@ -81,17 +82,16 @@ pub(super) fn active_workspace_key(
 ) -> Option<DraggedPanelSlot> {
     order
         .iter()
-        .find(|workspace| workspace.is_active)
+        .find(|workspace| workspace.activity != WorkspaceActivity::Inactive)
         .map(|workspace| workspace_slot_key(workspace))
 }
 
 pub(super) fn active_highlight_color(
     order: &[&workspace_window_snapshot::WorkspaceIndicator],
 ) -> fn(&Theme) -> Color {
-    if order
-        .iter()
-        .any(|workspace| workspace.is_active && workspace.is_urgent)
-    {
+    if order.iter().any(|workspace| {
+        workspace.activity != WorkspaceActivity::Inactive && workspace.urgency == Urgency::Urgent
+    }) {
         danger_color
     } else {
         primary_color
@@ -115,8 +115,10 @@ impl<'s> WorkspaceSlot<'s> {
     ) -> Self {
         let slot_key = workspace_slot_key(workspace);
         let tone = match slot_context.drag.drag {
-            Some(active_drag) if active_drag.item == slot_key => SlotTone::Dragged,
-            Some(_) | None => SlotTone::Regular,
+            DragActivity::Dragging(active_drag) if active_drag.item == slot_key => {
+                SlotTone::Dragged
+            }
+            DragActivity::Dragging(_) | DragActivity::Idle => SlotTone::Regular,
         };
         Self {
             workspace,
@@ -143,10 +145,10 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn given_name(&self) -> Option<&str> {
-        self.workspace
-            .name
-            .as_deref()
-            .filter(|name| !name.is_empty())
+        match &self.workspace.name {
+            WorkspaceName::Named(name) if !name.is_empty() => Some(name),
+            WorkspaceName::Named(_) | WorkspaceName::Unnamed => None,
+        }
     }
 
     fn display_name(&self) -> String {
@@ -224,7 +226,10 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn urgency_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
-        let opacity = if self.workspace.is_urgent { 1.0 } else { 0.0 };
+        let opacity = match self.workspace.urgency {
+            Urgency::Urgent => 1.0,
+            Urgency::NotUrgent => 0.0,
+        };
         activity_line(
             screen_edge_of(self.slot_context.edge).running_axis(),
             self.tone.tint(danger_color),
@@ -269,7 +274,7 @@ impl<'s> WorkspaceSlot<'s> {
             position: self.position_in_panel,
             click: SlotClick::Workspace {
                 id: self.workspace.id,
-                is_active: self.workspace.is_active,
+                activity: self.workspace.activity,
             },
         };
         draggable_slot(
@@ -317,15 +322,26 @@ impl<'s> WorkspaceSlot<'s> {
         .spacing(config.theme.spacing.item_gap)
         .height(config.desktop_panels.height)
         .align_y(Alignment::Center);
-        self.hit_area(hoverable(
+        self.hit_area(
+            self.hovered(
+                container(label_with_edge)
+                    .align_right(Length::Fill)
+                    .style(self.drop_tint(highlight_radius))
+                    .into(),
+            ),
+        )
+    }
+
+    fn hovered<'a>(
+        &self,
+        content: Element<'a, WorkspacesMessage>,
+    ) -> Element<'a, WorkspacesMessage> {
+        hoverable(
             NestedMenuOpenTrigger::Hover,
-            container(label_with_edge)
-                .align_right(Length::Fill)
-                .style(self.drop_tint(highlight_radius))
-                .into(),
+            content,
             HoverTarget::Workspace(self.workspace.id),
             WorkspacesMessage::HoverCard,
-        ))
+        )
     }
 }
 

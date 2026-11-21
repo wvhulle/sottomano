@@ -10,7 +10,8 @@ mod window_usage;
 use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use sottomano_compositor_model::{
-    compositor_styling_model::HeatedWindow, compositor_window_state::CompositorWindowState,
+    compositor_styling_model::HeatedWindow, compositor_window_facts::WindowTitle,
+    compositor_window_state::CompositorWindowState,
 };
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
@@ -267,7 +268,9 @@ impl SessionFocusGroup {
         windows
             .into_iter()
             .filter_map(|window| {
-                let title = window.title.as_deref()?;
+                let WindowTitle::Titled(title) = &window.title else {
+                    return None;
+                };
                 let color = accounting.switch_heat_color(window.id, &config.theme.palette, now)?;
                 HeatedWindow::titled(
                     window.app_id.clone(),

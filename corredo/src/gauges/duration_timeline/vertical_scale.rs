@@ -64,7 +64,7 @@ impl VerticalScale {
         let mut compressed_gap_ys = Vec::new();
         let mut previous_kind = AnchorKind::Edge;
         for (at, kind) in timed_anchors {
-            let y = match anchors.last() {
+            let anchor_height = match anchors.last() {
                 None => metrics.row_height_px / 2.0,
                 Some(previous) => {
                     let natural_gap = minutes_between(previous.at, at) * metrics.pixels_per_minute;
@@ -82,9 +82,12 @@ impl VerticalScale {
                 }
             };
             if kind == AnchorKind::Mark {
-                mark_ys.push(y);
+                mark_ys.push(anchor_height);
             }
-            anchors.push(ScaleAnchor { at, y });
+            anchors.push(ScaleAnchor {
+                at,
+                y: anchor_height,
+            });
             previous_kind = kind;
         }
         let total_height = anchors.last().map_or(metrics.row_height_px, |last| {
@@ -98,7 +101,7 @@ impl VerticalScale {
         }
     }
 
-    pub(super) fn y_of(&self, at: Duration) -> f32 {
+    pub(super) fn vertical_position_at(&self, at: Duration) -> f32 {
         let following_index = self
             .anchors
             .iter()
@@ -121,7 +124,7 @@ impl VerticalScale {
 
     #[must_use]
     pub(super) fn newest_first(self) -> Self {
-        let flip = |y: f32| self.total_height - y;
+        let flip = |height_from_top: f32| self.total_height - height_from_top;
         Self {
             anchors: self
                 .anchors
@@ -201,14 +204,16 @@ mod tests {
             newest_first.mark_ys,
             vec![total_height - 30.0, total_height - 110.0]
         );
-        assert!((newest_first.y_of(minutes(105)) - (total_height - 70.0)).abs() < 1e-3);
+        assert!(
+            (newest_first.vertical_position_at(minutes(105)) - (total_height - 70.0)).abs() < 1e-3
+        );
         assert!(newest_first.top_y() < newest_first.bottom_y());
     }
 
     #[test]
     fn times_between_marks_interpolate_along_the_drawn_gap() {
         let scale = VerticalScale::laid_out(&[minutes(10), minutes(200)], minutes(210), METRICS);
-        assert!((scale.y_of(minutes(105)) - 70.0).abs() < 1e-3);
-        assert!((scale.y_of(minutes(5)) - 20.0).abs() < 1e-3);
+        assert!((scale.vertical_position_at(minutes(105)) - 70.0).abs() < 1e-3);
+        assert!((scale.vertical_position_at(minutes(5)) - 20.0).abs() < 1e-3);
     }
 }

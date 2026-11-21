@@ -16,7 +16,7 @@ impl Axis {
     }
 
     #[must_use]
-    pub fn span_of(self, size: Size) -> f32 {
+    pub fn size_span(self, size: Size) -> f32 {
         match self {
             Self::Horizontal => size.width,
             Self::Vertical => size.height,
@@ -24,7 +24,7 @@ impl Axis {
     }
 
     #[must_use]
-    pub fn position_of(self, point: Point) -> f32 {
+    pub fn point_coordinate(self, point: Point) -> f32 {
         match self {
             Self::Horizontal => point.x,
             Self::Vertical => point.y,

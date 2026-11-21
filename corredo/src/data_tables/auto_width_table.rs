@@ -15,17 +15,17 @@ use iced::{
 
 use crate::width_layout::fair_column_widths;
 
-pub struct AutoWidthColumn<'a, Row, Message> {
-    header: Element<'a, Message>,
-    view: Box<dyn Fn(Row) -> Element<'a, Message> + 'a>,
+pub struct AutoWidthColumn<'view, Row, Message> {
+    header: Element<'view, Message>,
+    view: Box<dyn Fn(Row) -> Element<'view, Message> + 'view>,
     align_x: Horizontal,
     align_y: Vertical,
 }
 
-pub fn auto_width_column<'a, Row, Message, CellContent: Into<Element<'a, Message>>>(
-    header: impl Into<Element<'a, Message>>,
-    view: impl Fn(Row) -> CellContent + 'a,
-) -> AutoWidthColumn<'a, Row, Message> {
+pub fn auto_width_column<'view, Row, Message, CellContent: Into<Element<'view, Message>>>(
+    header: impl Into<Element<'view, Message>>,
+    view: impl Fn(Row) -> CellContent + 'view,
+) -> AutoWidthColumn<'view, Row, Message> {
     AutoWidthColumn {
         header: header.into(),
         view: Box::new(move |row| view(row).into()),
@@ -52,9 +52,9 @@ struct CellAlignment {
     align_y: Vertical,
 }
 
-pub enum SpannableRow<'a, Row, Message> {
+pub enum SpannableRow<'view, Row, Message> {
     Columned(Row),
-    FullWidth(Element<'a, Message>),
+    FullWidth(Element<'view, Message>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,25 +63,25 @@ enum RowSpan {
     FullWidth,
 }
 
-pub struct AutoWidthTable<'a, Message> {
-    cells: Vec<Element<'a, Message>>,
+pub struct AutoWidthTable<'view, Message> {
+    cells: Vec<Element<'view, Message>>,
     row_spans: Vec<RowSpan>,
     alignments: Vec<CellAlignment>,
     column_gap: f32,
     row_gap: f32,
 }
 
-pub fn auto_width_table<'a, Row: Clone, Message>(
-    columns: impl IntoIterator<Item = AutoWidthColumn<'a, Row, Message>>,
+pub fn auto_width_table<'view, Row: Clone, Message>(
+    columns: impl IntoIterator<Item = AutoWidthColumn<'view, Row, Message>>,
     rows: impl IntoIterator<Item = Row>,
-) -> AutoWidthTable<'a, Message> {
+) -> AutoWidthTable<'view, Message> {
     auto_width_spanning_table(columns, rows.into_iter().map(SpannableRow::Columned))
 }
 
-pub fn auto_width_spanning_table<'a, Row: Clone, Message>(
-    columns: impl IntoIterator<Item = AutoWidthColumn<'a, Row, Message>>,
-    rows: impl IntoIterator<Item = SpannableRow<'a, Row, Message>>,
-) -> AutoWidthTable<'a, Message> {
+pub fn auto_width_spanning_table<'view, Row: Clone, Message>(
+    columns: impl IntoIterator<Item = AutoWidthColumn<'view, Row, Message>>,
+    rows: impl IntoIterator<Item = SpannableRow<'view, Row, Message>>,
+) -> AutoWidthTable<'view, Message> {
     let column_parts = columns
         .into_iter()
         .fold(ColumnParts::empty(), ColumnParts::with_column);
@@ -106,17 +106,17 @@ pub fn auto_width_spanning_table<'a, Row: Clone, Message>(
     }
 }
 
-struct ColumnView<'a, Row, Message> {
-    view: Box<dyn Fn(Row) -> Element<'a, Message> + 'a>,
+struct ColumnView<'view, Row, Message> {
+    view: Box<dyn Fn(Row) -> Element<'view, Message> + 'view>,
     alignment: CellAlignment,
 }
 
-struct ColumnParts<'a, Row, Message> {
-    headers: Vec<Element<'a, Message>>,
-    views: Vec<ColumnView<'a, Row, Message>>,
+struct ColumnParts<'view, Row, Message> {
+    headers: Vec<Element<'view, Message>>,
+    views: Vec<ColumnView<'view, Row, Message>>,
 }
 
-impl<'a, Row, Message> ColumnParts<'a, Row, Message> {
+impl<'view, Row, Message> ColumnParts<'view, Row, Message> {
     fn empty() -> Self {
         Self {
             headers: Vec::new(),
@@ -124,7 +124,7 @@ impl<'a, Row, Message> ColumnParts<'a, Row, Message> {
         }
     }
 
-    fn with_column(mut self, column: AutoWidthColumn<'a, Row, Message>) -> Self {
+    fn with_column(mut self, column: AutoWidthColumn<'view, Row, Message>) -> Self {
         self.headers.push(column.header);
         self.views.push(ColumnView {
             view: column.view,
@@ -137,16 +137,16 @@ impl<'a, Row, Message> ColumnParts<'a, Row, Message> {
     }
 }
 
-struct TableCells<'a, Message> {
-    cells: Vec<Element<'a, Message>>,
+struct TableCells<'view, Message> {
+    cells: Vec<Element<'view, Message>>,
     row_spans: Vec<RowSpan>,
 }
 
-impl<'a, Message> TableCells<'a, Message> {
+impl<'view, Message> TableCells<'view, Message> {
     fn with_row<Row: Clone>(
         mut self,
-        row: SpannableRow<'a, Row, Message>,
-        views: &[ColumnView<'a, Row, Message>],
+        row: SpannableRow<'view, Row, Message>,
+        views: &[ColumnView<'view, Row, Message>],
     ) -> Self {
         match row {
             SpannableRow::Columned(row) => {
@@ -174,22 +174,22 @@ struct PlacedCell {
     row_span: RowSpan,
 }
 
-pub fn auto_width_grid<'a, Message: 'a>(
+pub fn auto_width_grid<'view, Message: 'view>(
     column_alignments: Vec<Horizontal>,
-    rows: impl IntoIterator<Item = Vec<Element<'a, Message>>>,
-) -> AutoWidthTable<'a, Message> {
+    rows: impl IntoIterator<Item = Vec<Element<'view, Message>>>,
+) -> AutoWidthTable<'view, Message> {
     auto_width_spanning_grid(
         column_alignments,
         rows.into_iter().map(SpannableRow::Columned),
     )
 }
 
-pub fn auto_width_spanning_grid<'a, Message: 'a>(
+pub fn auto_width_spanning_grid<'view, Message: 'view>(
     column_alignments: Vec<Horizontal>,
-    rows: impl IntoIterator<Item = SpannableRow<'a, Vec<Element<'a, Message>>, Message>>,
-) -> AutoWidthTable<'a, Message> {
+    rows: impl IntoIterator<Item = SpannableRow<'view, Vec<Element<'view, Message>>, Message>>,
+) -> AutoWidthTable<'view, Message> {
     let column_count = column_alignments.len();
-    let (row_spans, cells): (Vec<RowSpan>, Vec<Vec<Element<'a, Message>>>) = rows
+    let (row_spans, cells): (Vec<RowSpan>, Vec<Vec<Element<'view, Message>>>) = rows
         .into_iter()
         .map(|row| match row {
             SpannableRow::Columned(mut row_cells) => {
@@ -214,8 +214,8 @@ pub fn auto_width_spanning_grid<'a, Message: 'a>(
     }
 }
 
-impl<'a, Message: 'a> From<AutoWidthTable<'a, Message>> for Element<'a, Message> {
-    fn from(table: AutoWidthTable<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<AutoWidthTable<'view, Message>> for Element<'view, Message> {
+    fn from(table: AutoWidthTable<'view, Message>) -> Self {
         Element::new(table)
     }
 }
@@ -495,14 +495,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AutoWidthTable<'_
         });
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         overlay::from_children(
             &mut self.cells,
             tree,

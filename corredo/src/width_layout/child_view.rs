@@ -3,14 +3,14 @@ use iced::{
     advanced::{Layout, widget::Tree},
 };
 
-pub struct ChildView<'t, 'a, Message> {
-    pub widget: &'t Element<'a, Message>,
-    pub state: &'t Tree,
-    pub layout: Layout<'t>,
+pub struct ChildView<'tree, 'view, Message> {
+    pub widget: &'tree Element<'view, Message>,
+    pub state: &'tree Tree,
+    pub layout: Layout<'tree>,
 }
 
-pub struct ChildViewMut<'t, 'a, Message> {
-    pub widget: &'t mut Element<'a, Message>,
-    pub state: &'t mut Tree,
-    pub layout: Layout<'t>,
+pub struct ChildViewMut<'tree, 'view, Message> {
+    pub widget: &'tree mut Element<'view, Message>,
+    pub state: &'tree mut Tree,
+    pub layout: Layout<'tree>,
 }

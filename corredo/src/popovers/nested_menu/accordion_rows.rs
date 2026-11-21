@@ -7,7 +7,7 @@ use iced::{
 use super::{
     MenuBuilder, MenuEntry, MenuItem, MenuSubmenu, NestedMenuSurfaces,
     cascading_panels::BesideCard,
-    menu_entries::{BesideRow, icon_column_of, without_redundant_dividers},
+    menu_entries::{BesideRow, shared_icon_column, without_redundant_dividers},
 };
 use crate::{
     drag_reorder::ListEndCorners,
@@ -25,30 +25,30 @@ pub(super) enum SectionDivider {
     Absent,
 }
 
-pub(super) enum AccordionLine<'a, SubmenuKey, Message> {
+pub(super) enum AccordionLine<'view, SubmenuKey, Message> {
     Item {
-        item: MenuItem<'a, Message>,
+        item: MenuItem<'view, Message>,
         depth: usize,
     },
     Divider {
         depth: usize,
     },
     Header {
-        header: MenuRowContent<'a, Message>,
+        header: MenuRowContent<'view, Message>,
         path: Vec<SubmenuKey>,
         expansion_state: ExpansionState,
         section_divider: SectionDivider,
     },
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    MenuBuilder<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    MenuBuilder<'view, SubmenuKey, Message>
 {
     pub(super) fn accordion_lines(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
         ancestors: &[SubmenuKey],
-    ) -> Vec<AccordionLine<'a, SubmenuKey, Message>> {
+    ) -> Vec<AccordionLine<'view, SubmenuKey, Message>> {
         let depth = ancestors.len();
         let entries = without_redundant_dividers(entries);
         let section_dividers: Vec<SectionDivider> = [SectionDivider::Absent]
@@ -71,7 +71,7 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
                 }) => {
                     let path: Vec<SubmenuKey> =
                         ancestors.iter().cloned().chain([key.clone()]).collect();
-                    let expansion_state = self.expansion_of(&key);
+                    let expansion_state = self.submenu_expansion(&key);
                     let shown_lines = match expansion_state {
                         ExpansionState::Expanded => self.accordion_lines(entries, &path),
                         ExpansionState::Collapsed => Vec::new(),
@@ -92,7 +92,7 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn accordion_line_height_px(
         &self,
-        line: &AccordionLine<'a, SubmenuKey, Message>,
+        line: &AccordionLine<'view, SubmenuKey, Message>,
     ) -> f32 {
         match line {
             AccordionLine::Divider { .. } => self.divider_height_px(),
@@ -104,10 +104,10 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn accordion_surfaces(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
-    ) -> NestedMenuSurfaces<'a, Message> {
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
+    ) -> NestedMenuSurfaces<'view, Message> {
         let lines = self.accordion_lines(entries, &[]);
-        let icon_column = icon_column_of(lines.iter().filter_map(|line| match line {
+        let icon_column = shared_icon_column(lines.iter().filter_map(|line| match line {
             AccordionLine::Item { item, .. } => Some(&item.row.content),
             AccordionLine::Header { header, .. } => Some(header),
             AccordionLine::Divider { .. } => None,
@@ -210,12 +210,12 @@ fn section_backing(depth: usize) -> ExpansionState {
     }
 }
 
-fn section_row<'a, Message: 'a>(
-    row: Element<'a, Message>,
+fn section_row<'view, Message: 'view>(
+    row: Element<'view, Message>,
     backing: ExpansionState,
     row_corners: Radius,
     divider: SectionDivider,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let backed = container(row)
         .width(Length::Fill)
         .style(move |theme: &Theme| container::Style {

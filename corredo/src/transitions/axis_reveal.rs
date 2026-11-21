@@ -12,11 +12,11 @@ use iced::{
 use crate::orientation::Axis;
 
 #[must_use]
-pub fn reveal<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub fn reveal<'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     fraction: f32,
     axis: Axis,
-) -> Reveal<'a, Message> {
+) -> Reveal<'view, Message> {
     Reveal {
         content: content.into(),
         fraction: fraction.clamp(0.0, 1.0),
@@ -25,8 +25,8 @@ pub fn reveal<'a, Message: 'a>(
     }
 }
 
-pub struct Reveal<'a, Message> {
-    content: Element<'a, Message>,
+pub struct Reveal<'view, Message> {
+    content: Element<'view, Message>,
     fraction: f32,
     axis: Axis,
     scale: f32,
@@ -39,8 +39,8 @@ impl<Message> Reveal<'_, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<Reveal<'a, Message>> for Element<'a, Message> {
-    fn from(reveal: Reveal<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<Reveal<'view, Message>> for Element<'view, Message> {
+    fn from(reveal: Reveal<'view, Message>) -> Self {
         Element::new(reveal)
     }
 }
@@ -245,14 +245,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         if self.fraction <= 0.0 {
             return None;
         }

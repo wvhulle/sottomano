@@ -127,7 +127,7 @@ impl DurationTimeline {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(self) -> Element<'a, Message> {
+    pub fn view<'view, Message: 'view>(self) -> Element<'view, Message> {
         let height = self.height();
         let width = match self.density {
             TimelineDensity::CompactRail => Length::Fill,
@@ -341,7 +341,9 @@ impl DurationTimeline {
             },
             gaps: padded_gaps(&ring_runs),
         };
-        self.draw_spans_along(frame, theme, &rail, |offset| scale.y_of(offset));
+        self.draw_spans_along(frame, theme, &rail, |offset| {
+            scale.vertical_position_at(offset)
+        });
         for gap_y in &scale.compressed_gap_ys {
             for tick_offset in [-COMPRESSION_TICK_PX, COMPRESSION_TICK_PX] {
                 frame.stroke(

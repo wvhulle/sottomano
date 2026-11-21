@@ -2,6 +2,11 @@ use std::time::Duration;
 
 use sottomano_compositor_model::{
     compositor_test_windows::unplaced_compositor_window,
+    compositor_window_facts::{
+        ScrollingPosition, TileViewPosition, Urgency, WindowAppId, WindowFocus, WindowPid,
+        WindowTitle, WindowWorkspace, WorkspaceActiveWindow, WorkspaceActivity, WorkspaceName,
+        WorkspaceOutput,
+    },
     compositor_window_state::{
         CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
     },
@@ -23,7 +28,10 @@ use crate::{
 const DESK_WORKSPACE: u64 = 1;
 const EDITOR_WINDOW: u64 = 1;
 const EDITOR_PID: i32 = 5100;
-const EDITOR_POSITION_IN_VIEW: (f64, f64) = (24.0, 120.0);
+const EDITOR_POSITION_IN_VIEW: TileViewPosition = TileViewPosition::InView {
+    horizontal: 24.0,
+    vertical: 120.0,
+};
 const EDITOR_WINDOW_SIZE: (i32, i32) = (660, 300);
 const PROJECT_DIRECTORY: &str = "~/projects/weather-station";
 const BUILD_SCROLLBACK: &[TerminalLine] = &[
@@ -146,7 +154,10 @@ fn action(key: &str, label: &str) -> NotifAction {
 }
 
 fn desk(opening: NotificationData) -> ShowcasedGroup {
-    let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
+    let editor_view = match opening.window_id_hint {
+        Some(_) => EDITOR_POSITION_IN_VIEW,
+        None => TileViewPosition::OutsideView,
+    };
     let compositor =
         CompositorWindowState::indexed_by_id([desk_workspace()], [editor_window(editor_view)]);
     ShowcasedGroup::Toasts(Box::new(ShowcasedToasts {
@@ -160,24 +171,23 @@ fn desk_workspace() -> CompositorWorkspace {
     CompositorWorkspace {
         id: DESK_WORKSPACE,
         index: 1,
-        name: Some("code".to_owned()),
-        output: Some(SHOWCASE_OUTPUT.to_owned()),
-        is_urgent: false,
-        is_active: true,
-        is_focused: true,
-        active_window_id: Some(EDITOR_WINDOW),
+        name: WorkspaceName::Named("code".to_owned()),
+        output: WorkspaceOutput::Assigned(SHOWCASE_OUTPUT.to_owned()),
+        urgency: Urgency::NotUrgent,
+        activity: WorkspaceActivity::Focused,
+        active_window: WorkspaceActiveWindow::Window(EDITOR_WINDOW),
     }
 }
 
-fn editor_window(editor_view: Option<(f64, f64)>) -> CompositorWindow {
+fn editor_window(editor_view: TileViewPosition) -> CompositorWindow {
     CompositorWindow {
-        title: Some(PROJECT_DIRECTORY.to_owned()),
-        app_id: Some("foot".to_owned()),
-        pid: Some(EDITOR_PID),
-        workspace_id: Some(DESK_WORKSPACE),
-        is_focused: true,
+        title: WindowTitle::Titled(PROJECT_DIRECTORY.to_owned()),
+        app_id: WindowAppId::Reported("foot".to_owned()),
+        pid: WindowPid::Reported(EDITOR_PID),
+        workspace: WindowWorkspace::OnWorkspace(DESK_WORKSPACE),
+        focus: WindowFocus::Focused,
         layout: CompositorWindowLayout {
-            scrolling_position: Some((1, 1)),
+            scrolling_position: ScrollingPosition::Tile { column: 1, tile: 1 },
             tile_size: (
                 f64::from(EDITOR_WINDOW_SIZE.0),
                 f64::from(EDITOR_WINDOW_SIZE.1),

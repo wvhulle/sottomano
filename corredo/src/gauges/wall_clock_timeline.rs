@@ -100,7 +100,7 @@ pub struct ClockWindow {
 
 impl ClockWindow {
     #[must_use]
-    pub fn offset_of(self, at: DateTime<Utc>) -> Duration {
+    pub fn clamped_offset(self, at: DateTime<Utc>) -> Duration {
         (at.clamp(self.start, self.end) - self.start)
             .to_std()
             .expect("a moment clamped into the window lies after its start")
@@ -226,8 +226,8 @@ impl WallClockTimeline {
         let window = self.window();
         self.visible_clock_spans(window)
             .map(|clock_span| TimelineSpan {
-                from: window.offset_of(clock_span.from),
-                until: window.offset_of(clock_span.until),
+                from: window.clamped_offset(clock_span.from),
+                until: window.clamped_offset(clock_span.until),
                 ink: clock_span.ink,
                 weight: clock_span.weight,
             })
@@ -246,7 +246,7 @@ impl WallClockTimeline {
                           measure: MarkMeasure,
                           ink: SpanInk,
                           rail_presence: RailPresence| TimelineMark {
-            at: window.offset_of(at),
+            at: window.clamped_offset(at),
             shape: MarkShape::PointEvent,
             glyph_svgs: glyph_svgs(glyph),
             time_text,
@@ -303,9 +303,9 @@ impl WallClockTimeline {
             self.visible_clock_spans(window)
                 .filter_map(|clock_span| match &clock_span.caption {
                     SpanCaption::TitledLength(title) => Some(TimelineMark {
-                        at: window.offset_of(clock_span.from),
+                        at: window.clamped_offset(clock_span.from),
                         shape: MarkShape::Interval {
-                            until: window.offset_of(clock_span.until),
+                            until: window.clamped_offset(clock_span.until),
                         },
                         glyph_svgs: Vec::new(),
                         time_text: String::new(),
@@ -337,14 +337,14 @@ impl WallClockTimeline {
         };
         DurationTimeline::new(
             TimelineAxis {
-                span_end: window.offset_of(window.end),
+                span_end: window.clamped_offset(window.end),
                 scale,
             },
             label_face,
         )
         .spans(self.spans())
         .marks(self.marks(window, text_format))
-        .now_cursor(NowCursor::Shown(window.offset_of(self.now)))
+        .now_cursor(NowCursor::Shown(window.clamped_offset(self.now)))
         .direction(self.direction)
     }
 }

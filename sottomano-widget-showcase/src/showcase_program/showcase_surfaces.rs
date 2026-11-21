@@ -9,7 +9,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMessage,
     clock::Clock,
-    desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
+    desktop_panels::panel_frame::{inward_outlined_sides, panel_frame},
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::GroupMenuTopic,
@@ -239,7 +239,7 @@ impl ShowcaseState {
         let layer = self.appearance.layer(ShellLayer::from(position));
         let frame_style = layer.frame;
         let outlined_sides =
-            outlined_sides_inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
+            inward_outlined_sides(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self.strip_groups().into_iter().map(|group| {
             let content = match position {
                 Position::Left => container(group),

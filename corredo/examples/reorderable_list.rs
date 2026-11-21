@@ -76,7 +76,7 @@ impl PagerDemo {
         container(
             reorderable_list(slots, Edge::Top)
                 .spacing(4.0)
-                .highlight(Some(self.selected), primary_color)
+                .highlight(self.selected, primary_color)
                 .draggable((), &drag_view, PagerMessage::Dragged),
         )
         .center(Length::Fill)

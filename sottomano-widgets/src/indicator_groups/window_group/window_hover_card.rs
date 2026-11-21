@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime};
 
 use sottomano_compositor_model::{
+    compositor_window_facts::{FocusTimestamp, WindowAppId, WindowTitle},
     compositor_window_state::{CompositorWindow, CompositorWindowState},
     monotonic_clock::monotonic_since_boot,
 };
@@ -28,14 +29,14 @@ pub fn window_identity_body(
 ) -> Option<Vec<Section>> {
     let window = compositor.windows.get(&window)?;
     let window_entries = [
-        window
-            .title
-            .as_deref()
-            .map(|title| LabeledValue::new("Title", title)),
-        window
-            .app_id
-            .as_deref()
-            .map(|app_id| LabeledValue::new("App id", app_id)),
+        match &window.title {
+            WindowTitle::Titled(title) => Some(LabeledValue::new("Title", title.as_str())),
+            WindowTitle::Untitled => None,
+        },
+        match &window.app_id {
+            WindowAppId::Reported(app_id) => Some(LabeledValue::new("App id", app_id.as_str())),
+            WindowAppId::Unreported => None,
+        },
         Some(LabeledValue::new("Window id", window.id.to_string())),
         focus_age(window).map(|focused| {
             LabeledValue::new("Focused", ValueCell::RelativeMoment((now - focused).into()))
@@ -190,7 +191,10 @@ fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
 }
 
 fn focus_age(window: &CompositorWindow) -> Option<Duration> {
-    monotonic_since_boot().checked_sub(window.focused_at_monotonic?)
+    match window.focused_at_monotonic {
+        FocusTimestamp::FocusedAt(focused_at) => monotonic_since_boot().checked_sub(focused_at),
+        FocusTimestamp::NeverFocused => None,
+    }
 }
 
 fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {

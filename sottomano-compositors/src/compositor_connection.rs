@@ -160,7 +160,13 @@ struct CompositorSessionVariable {
     display_name: &'static str,
     feature_name: &'static str,
     session_variable: &'static str,
-    compiled_in: bool,
+    build_inclusion: BuildInclusion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuildInclusion {
+    CompiledIn,
+    CompiledOut,
 }
 
 const COMPOSITOR_SESSION_VARIABLES: [CompositorSessionVariable; 3] = [
@@ -168,19 +174,31 @@ const COMPOSITOR_SESSION_VARIABLES: [CompositorSessionVariable; 3] = [
         display_name: "niri",
         feature_name: "niri",
         session_variable: "NIRI_SOCKET",
-        compiled_in: cfg!(feature = "niri"),
+        build_inclusion: if cfg!(feature = "niri") {
+            BuildInclusion::CompiledIn
+        } else {
+            BuildInclusion::CompiledOut
+        },
     },
     CompositorSessionVariable {
         display_name: "sway",
         feature_name: "sway",
         session_variable: "SWAYSOCK",
-        compiled_in: cfg!(feature = "sway"),
+        build_inclusion: if cfg!(feature = "sway") {
+            BuildInclusion::CompiledIn
+        } else {
+            BuildInclusion::CompiledOut
+        },
     },
     CompositorSessionVariable {
         display_name: "Hyprland",
         feature_name: "hyprland",
         session_variable: "HYPRLAND_INSTANCE_SIGNATURE",
-        compiled_in: cfg!(feature = "hyprland"),
+        build_inclusion: if cfg!(feature = "hyprland") {
+            BuildInclusion::CompiledIn
+        } else {
+            BuildInclusion::CompiledOut
+        },
     },
 ];
 
@@ -197,10 +215,11 @@ fn missing_compositor_reason_among(
 ) -> String {
     let compiled_in: Vec<&CompositorSessionVariable> = candidates
         .iter()
-        .filter(|candidate| candidate.compiled_in)
+        .filter(|candidate| candidate.build_inclusion == BuildInclusion::CompiledIn)
         .collect();
     let running_but_compiled_out = candidates.iter().find(|candidate| {
-        !candidate.compiled_in && session_variable_is_set(candidate.session_variable)
+        candidate.build_inclusion == BuildInclusion::CompiledOut
+            && session_variable_is_set(candidate.session_variable)
     });
     if let Some(compiled_out) = running_but_compiled_out {
         let included_names: Vec<&str> = compiled_in
@@ -311,114 +330,4 @@ pub async fn configured_workspace_names(config_home: &Path) -> Option<Result<Vec
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn candidates_with(compiled_in_features: &[&str]) -> Vec<CompositorSessionVariable> {
-        COMPOSITOR_SESSION_VARIABLES
-            .iter()
-            .map(|candidate| CompositorSessionVariable {
-                compiled_in: compiled_in_features.contains(&candidate.feature_name),
-                ..*candidate
-            })
-            .collect()
-    }
-
-    #[test]
-    fn a_compiled_out_session_names_the_missing_compositor() {
-        let reason = missing_compositor_reason_among(&candidates_with(&["niri"]), |variable| {
-            variable == "SWAYSOCK"
-        });
-        assert_eq!(
-            reason,
-            "a sway session is running (SWAYSOCK is set), but this build only includes niri; add \
-             \"sway\" to services.sottomano.compositors or build with the sway cargo feature"
-        );
-    }
-
-    #[test]
-    fn without_any_session_the_compiled_in_variables_are_listed() {
-        let reason =
-            missing_compositor_reason_among(&candidates_with(&["niri", "hyprland"]), |_| false);
-        assert_eq!(
-            reason,
-            "no supported compositor session was found: NIRI_SOCKET, HYPRLAND_INSTANCE_SIGNATURE \
-             is unset"
-        );
-    }
-
-    #[test]
-    fn every_compiled_in_backend_matches_its_session_variable_entry() {
-        for compositor in CompositorKind::COMPILED_IN {
-            let entry = COMPOSITOR_SESSION_VARIABLES
-                .iter()
-                .find(|candidate| candidate.display_name == compositor.name())
-                .expect("every backend has a session variable entry");
-            assert_eq!(entry.session_variable, compositor.session_variable());
-            assert!(entry.compiled_in);
-        }
-    }
-
-    fn default_styling_rules(compositor: CompositorKind) -> String {
-        compositor
-            .rendered_rules(CompositorStyling::default(), &SwitchHeat::Hidden)
-            .expect("default styling renders")
-    }
-
-    #[cfg(feature = "niri")]
-    #[test]
-    fn niri_alone_draws_the_edge_shadow_through_its_rules() {
-        assert_eq!(
-            CompositorKind {
-                backend: CompiledBackend::Niri,
-            }
-            .edge_shadow_rendering(),
-            EdgeShadowRendering::CompositorShadow
-        );
-        let rules = default_styling_rules(CompositorKind {
-            backend: CompiledBackend::Niri,
-        });
-        assert!(rules.contains("namespace=\"^sottomano-backdrop-top$\""));
-        assert!(rules.contains("softness 27"));
-        assert!(rules.contains("spread 25"));
-        assert!(rules.contains("color \"#00000060\""));
-        assert!(rules.contains("offset x=0 y=-3"));
-        assert!(rules.contains("offset x=0 y=3"));
-    }
-
-    #[cfg(feature = "hyprland")]
-    #[test]
-    fn hyprland_leaves_the_edge_shadow_to_sottomano() {
-        assert_eq!(
-            CompositorKind {
-                backend: CompiledBackend::Hyprland,
-            }
-            .edge_shadow_rendering(),
-            EdgeShadowRendering::SelfDrawnFalloff
-        );
-        assert!(
-            !default_styling_rules(CompositorKind {
-                backend: CompiledBackend::Hyprland,
-            })
-            .contains("sottomano-backdrop")
-        );
-    }
-
-    #[cfg(feature = "sway")]
-    #[test]
-    fn sway_leaves_the_edge_shadow_to_sottomano() {
-        assert_eq!(
-            CompositorKind {
-                backend: CompiledBackend::Sway,
-            }
-            .edge_shadow_rendering(),
-            EdgeShadowRendering::SelfDrawnFalloff
-        );
-        assert!(
-            !default_styling_rules(CompositorKind {
-                backend: CompiledBackend::Sway,
-            })
-            .contains("sottomano-backdrop")
-        );
-    }
-}
+mod compositor_connection_tests;

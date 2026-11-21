@@ -71,24 +71,26 @@ fn row_units(
             .iter()
             .enumerate()
             .find(|(_, grouped)| grouped.positions.start == unit_start);
-        let row_unit = match (starting_group, ungrouped_look) {
-            (Some((group_index, grouped)), _) => RowUnit::enclosed_group(
+        let row_unit = match starting_group {
+            Some((group_index, grouped)) => RowUnit::enclosed_group(
                 RowArrangement::heading_index(slot_count, group_index),
                 grouped,
                 spacing,
             ),
-            (None, UngroupedSlotLook::RestingTile { .. }) => {
-                RowUnit::spaced_slots(unit_start..unit_start + 1, spacing)
-            }
-            (None, UngroupedSlotLook::EdgeBand) => {
-                let next_group_start = grouped_slots
-                    .iter()
-                    .map(|grouped| grouped.positions.start)
-                    .filter(|group_start| *group_start > unit_start)
-                    .min()
-                    .unwrap_or(slot_count);
-                RowUnit::spaced_slots(unit_start..next_group_start, spacing)
-            }
+            None => match ungrouped_look {
+                UngroupedSlotLook::RestingTile { .. } => {
+                    RowUnit::spaced_slots(unit_start..unit_start + 1, spacing)
+                }
+                UngroupedSlotLook::EdgeBand => {
+                    let next_group_start = grouped_slots
+                        .iter()
+                        .map(|grouped| grouped.positions.start)
+                        .filter(|group_start| *group_start > unit_start)
+                        .min()
+                        .unwrap_or(slot_count);
+                    RowUnit::spaced_slots(unit_start..next_group_start, spacing)
+                }
+            },
         };
         unit_start = row_unit.slots.end;
         row_units.push(row_unit);

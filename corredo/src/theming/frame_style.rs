@@ -183,21 +183,20 @@ impl FrameStyle {
     }
 }
 
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct OutlinedSides {
-    pub top: bool,
-    pub right: bool,
-    pub bottom: bool,
-    pub left: bool,
+    pub top: OutlineTracing,
+    pub right: OutlineTracing,
+    pub bottom: OutlineTracing,
+    pub left: OutlineTracing,
 }
 
 impl OutlinedSides {
     pub const ALL: Self = Self {
-        top: true,
-        right: true,
-        bottom: true,
-        left: true,
+        top: OutlineTracing::Drawn,
+        right: OutlineTracing::Drawn,
+        bottom: OutlineTracing::Drawn,
+        left: OutlineTracing::Drawn,
     };
 
     #[must_use]
@@ -210,8 +209,13 @@ impl OutlinedSides {
     }
 
     fn square_unoutlined_corners(self, radius: Radius) -> Radius {
-        let rounded_between = |first: bool, second: bool, corner: f32| {
-            if first && second { corner } else { 0.0 }
+        let rounded_between = |first_side: OutlineTracing,
+                               second_side: OutlineTracing,
+                               corner: f32| {
+            match (first_side, second_side) {
+                (OutlineTracing::Drawn, OutlineTracing::Drawn) => corner,
+                (OutlineTracing::Omitted, _) | (_, OutlineTracing::Omitted) => 0.0,
+            }
         };
         Radius {
             top_left: rounded_between(self.top, self.left, radius.top_left),
@@ -223,7 +227,10 @@ impl OutlinedSides {
 
     #[must_use]
     pub fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
-        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
+        let beyond_antialiasing = |side_tracing: OutlineTracing| match side_tracing {
+            OutlineTracing::Drawn => 0.0,
+            OutlineTracing::Omitted => 2.0 * outline_width,
+        };
         bounds.expand(Padding {
             top: beyond_antialiasing(self.top),
             right: beyond_antialiasing(self.right),

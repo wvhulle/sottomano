@@ -28,17 +28,17 @@ pub use menu_entries::{MenuEntry, MenuItem, MenuSubmenu};
 use submenu_header::text_caret;
 pub use submenu_header::{CaretPointing, submenu_header_emphasis};
 
-pub struct NestedMenuSurfaces<'a, Message> {
-    pub primary: Element<'a, Message>,
-    pub satellites: Vec<Element<'a, Message>>,
+pub struct NestedMenuSurfaces<'view, Message> {
+    pub primary: Element<'view, Message>,
+    pub satellites: Vec<Element<'view, Message>>,
 }
 
-impl<'a, Message: 'a> NestedMenuSurfaces<'a, Message> {
+impl<'view, Message: 'view> NestedMenuSurfaces<'view, Message> {
     #[must_use]
-    pub fn map<Mapped: 'a>(
+    pub fn map<Mapped: 'view>(
         self,
-        mapping: impl Fn(Message) -> Mapped + Clone + 'a,
-    ) -> NestedMenuSurfaces<'a, Mapped> {
+        mapping: impl Fn(Message) -> Mapped + Clone + 'view,
+    ) -> NestedMenuSurfaces<'view, Mapped> {
         NestedMenuSurfaces {
             primary: self.primary.map(mapping.clone()),
             satellites: self
@@ -81,17 +81,17 @@ impl NestedMenuStyle {
     }
 }
 
-pub(crate) type ActionReport<'a, SubmenuKey, Message> =
-    Rc<dyn Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a>;
-pub(crate) type CaretGlyph<'a, Message> =
-    Box<dyn Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'a, Message> + 'a>;
+pub(crate) type ActionReport<'view, SubmenuKey, Message> =
+    Rc<dyn Fn(NestedMenuAction<SubmenuKey>) -> Message + 'view>;
+pub(crate) type CaretGlyph<'view, Message> =
+    Box<dyn Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'view, Message> + 'view>;
 
-pub struct NestedMenu<'a, SubmenuKey, Message> {
-    entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+pub struct NestedMenu<'view, SubmenuKey, Message> {
+    entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
     state: NestedMenuState<SubmenuKey>,
     presentation: NestedMenuPresentation,
-    on_action: ActionReport<'a, SubmenuKey, Message>,
-    caret: CaretGlyph<'a, Message>,
+    on_action: ActionReport<'view, SubmenuKey, Message>,
+    caret: CaretGlyph<'view, Message>,
     chrome: MenuChrome,
 }
 
@@ -104,12 +104,12 @@ pub(crate) struct MenuChrome {
     pub(crate) pacing: ScrollPacing,
 }
 
-pub fn nested_menu<'a, SubmenuKey: Clone, Message: 'a>(
-    entries: impl IntoIterator<Item = MenuEntry<'a, SubmenuKey, Message>>,
+pub fn nested_menu<'view, SubmenuKey: Clone, Message: 'view>(
+    entries: impl IntoIterator<Item = MenuEntry<'view, SubmenuKey, Message>>,
     state: &NestedMenuState<SubmenuKey>,
     presentation: NestedMenuPresentation,
-    on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'a,
-) -> NestedMenu<'a, SubmenuKey, Message> {
+    on_action: impl Fn(NestedMenuAction<SubmenuKey>) -> Message + 'view,
+) -> NestedMenu<'view, SubmenuKey, Message> {
     NestedMenu {
         entries: entries.into_iter().collect(),
         state: state.clone(),
@@ -129,7 +129,7 @@ pub fn nested_menu<'a, SubmenuKey: Clone, Message: 'a>(
     }
 }
 
-impl<'a, SubmenuKey, Message> NestedMenu<'a, SubmenuKey, Message> {
+impl<'view, SubmenuKey, Message> NestedMenu<'view, SubmenuKey, Message> {
     fn with_chrome(self, chrome: MenuChrome) -> Self {
         Self { chrome, ..self }
     }
@@ -174,7 +174,7 @@ impl<'a, SubmenuKey, Message> NestedMenu<'a, SubmenuKey, Message> {
     #[must_use]
     pub fn caret(
         self,
-        caret: impl Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'a, Message> + 'a,
+        caret: impl Fn(CaretPointing, fn(&Theme) -> Color) -> Element<'view, Message> + 'view,
     ) -> Self {
         Self {
             caret: Box::new(caret),
@@ -183,11 +183,11 @@ impl<'a, SubmenuKey, Message> NestedMenu<'a, SubmenuKey, Message> {
     }
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    NestedMenu<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    NestedMenu<'view, SubmenuKey, Message>
 {
     #[must_use]
-    pub fn surfaces(self) -> Option<NestedMenuSurfaces<'a, Message>> {
+    pub fn surfaces(self) -> Option<NestedMenuSurfaces<'view, Message>> {
         let NestedMenu {
             entries,
             state,
@@ -213,10 +213,10 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
     }
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    From<NestedMenu<'a, SubmenuKey, Message>> for Element<'a, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    From<NestedMenu<'view, SubmenuKey, Message>> for Element<'view, Message>
 {
-    fn from(menu: NestedMenu<'a, SubmenuKey, Message>) -> Self {
+    fn from(menu: NestedMenu<'view, SubmenuKey, Message>) -> Self {
         let orientation = menu.chrome.orientation;
         match menu.surfaces() {
             Some(NestedMenuSurfaces {

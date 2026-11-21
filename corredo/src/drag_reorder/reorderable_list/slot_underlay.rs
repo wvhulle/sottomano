@@ -59,13 +59,13 @@ pub(super) trait SlotPainter {
     }
 }
 
-pub(super) struct SlotUnderlay<'a, Message, Painter> {
+pub(super) struct SlotUnderlay<'view, Message, Painter> {
     painter: Painter,
-    content: Element<'a, Message>,
+    content: Element<'view, Message>,
 }
 
-impl<'a, Message, Painter> SlotUnderlay<'a, Message, Painter> {
-    pub(super) fn new(painter: Painter, content: impl Into<Element<'a, Message>>) -> Self {
+impl<'view, Message, Painter> SlotUnderlay<'view, Message, Painter> {
+    pub(super) fn new(painter: Painter, content: impl Into<Element<'view, Message>>) -> Self {
         Self {
             painter,
             content: content.into(),
@@ -73,7 +73,7 @@ impl<'a, Message, Painter> SlotUnderlay<'a, Message, Painter> {
     }
 }
 
-fn child_bounds_of(layout: Layout<'_>) -> Vec<Rectangle> {
+fn layout_child_bounds(layout: Layout<'_>) -> Vec<Rectangle> {
     layout.children().map(|child| child.bounds()).collect()
 }
 
@@ -124,14 +124,14 @@ impl<Message, Painter: SlotPainter> Widget<Message, Theme, iced::Renderer>
         let painter_motion = match event {
             Event::Window(window::Event::RedrawRequested(now)) => self.painter.advance(
                 tree.state.downcast_mut::<Painter::PainterState>(),
-                &child_bounds_of(layout),
+                &layout_child_bounds(layout),
                 cursor,
                 *now,
             ),
             Event::Mouse(mouse::Event::CursorMoved { .. } | mouse::Event::CursorLeft) => {
                 self.painter.pointer_motion(
                     tree.state.downcast_ref::<Painter::PainterState>(),
-                    &child_bounds_of(layout),
+                    &layout_child_bounds(layout),
                     cursor,
                 )
             }
@@ -163,7 +163,7 @@ impl<Message, Painter: SlotPainter> Widget<Message, Theme, iced::Renderer>
         viewport: &Rectangle,
     ) {
         let painter_state = tree.state.downcast_ref::<Painter::PainterState>();
-        let child_bounds = child_bounds_of(layout);
+        let child_bounds = layout_child_bounds(layout);
         let painted_row = || PaintedRow {
             painter_state,
             child_bounds: &child_bounds,
@@ -211,14 +211,14 @@ impl<Message, Painter: SlotPainter> Widget<Message, Theme, iced::Renderer>
             .operate(&mut tree.children[0], layout, renderer, operation);
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout,
@@ -229,10 +229,10 @@ impl<Message, Painter: SlotPainter> Widget<Message, Theme, iced::Renderer>
     }
 }
 
-impl<'a, Message: 'a, Painter: SlotPainter + 'a> From<SlotUnderlay<'a, Message, Painter>>
-    for Element<'a, Message>
+impl<'view, Message: 'view, Painter: SlotPainter + 'view>
+    From<SlotUnderlay<'view, Message, Painter>> for Element<'view, Message>
 {
-    fn from(slot_underlay: SlotUnderlay<'a, Message, Painter>) -> Self {
+    fn from(slot_underlay: SlotUnderlay<'view, Message, Painter>) -> Self {
         Element::new(slot_underlay)
     }
 }

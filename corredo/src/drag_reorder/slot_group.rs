@@ -8,12 +8,12 @@ use iced::{
 
 use crate::{orientation::Axis, theming::ThemedColor};
 
-pub struct SlotGroup<'a, Message> {
+pub struct SlotGroup<'view, Message> {
     pub positions: Range<usize>,
-    pub heading: Element<'a, Message>,
-    pub enclosure_color: ThemedColor<'a>,
-    pub inner_color: ThemedColor<'a>,
-    pub highlight_color: ThemedColor<'a>,
+    pub heading: Element<'view, Message>,
+    pub enclosure_color: ThemedColor<'view>,
+    pub inner_color: ThemedColor<'view>,
+    pub highlight_color: ThemedColor<'view>,
     pub enclosure_thickness: f32,
     pub enclosure_radius: f32,
 }

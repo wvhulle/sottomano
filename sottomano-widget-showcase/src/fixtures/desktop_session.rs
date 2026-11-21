@@ -4,6 +4,10 @@ use bytesize::ByteSize;
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_compositor_model::{
     compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+    compositor_window_facts::{
+        ScrollingPosition, WindowAppId, WindowFocus, WindowPid, WindowTitle, WindowWorkspace,
+        WorkspaceActiveWindow, WorkspaceActivity, WorkspaceName, WorkspaceOutput,
+    },
     compositor_window_state::{
         CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
     },
@@ -380,11 +384,14 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
 fn workspace(named: &NamedWorkspace) -> CompositorWorkspace {
     CompositorWorkspace {
         index: u8::try_from(named.id).expect("few fixture workspaces"),
-        name: Some(named.name.to_owned()),
-        output: Some(SHOWCASE_OUTPUT.to_owned()),
-        is_active: named.id == CODING_WORKSPACE,
-        is_focused: named.id == CODING_WORKSPACE,
-        active_window_id: Some(named.active_window),
+        name: WorkspaceName::Named(named.name.to_owned()),
+        output: WorkspaceOutput::Assigned(SHOWCASE_OUTPUT.to_owned()),
+        activity: if named.id == CODING_WORKSPACE {
+            WorkspaceActivity::Focused
+        } else {
+            WorkspaceActivity::Inactive
+        },
+        active_window: WorkspaceActiveWindow::Window(named.active_window),
         ..unnamed_compositor_workspace(named.id)
     }
 }
@@ -392,13 +399,20 @@ fn workspace(named: &NamedWorkspace) -> CompositorWorkspace {
 fn window(placed: &PlacedWindow) -> CompositorWindow {
     let unplaced = unplaced_compositor_window(placed.id);
     CompositorWindow {
-        title: Some(placed.title.to_owned()),
-        app_id: Some(placed.app_id.to_owned()),
-        pid: Some(window_pid(placed.id)),
-        workspace_id: Some(placed.workspace),
-        is_focused: placed.id == TERMINAL_WINDOW,
+        title: WindowTitle::Titled(placed.title.to_owned()),
+        app_id: WindowAppId::Reported(placed.app_id.to_owned()),
+        pid: WindowPid::Reported(window_pid(placed.id)),
+        workspace: WindowWorkspace::OnWorkspace(placed.workspace),
+        focus: if placed.id == TERMINAL_WINDOW {
+            WindowFocus::Focused
+        } else {
+            WindowFocus::Unfocused
+        },
         layout: CompositorWindowLayout {
-            scrolling_position: Some((placed.column, 1)),
+            scrolling_position: ScrollingPosition::Tile {
+                column: placed.column,
+                tile: 1,
+            },
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
             ..unplaced.layout

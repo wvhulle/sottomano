@@ -1,7 +1,10 @@
 use corredo::gauges::{DurationTimeline, TimelineDensity};
 use iced::{Size, Vector};
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
-use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
+use sottomano_compositor_model::{
+    compositor_styling_model::AppWindowLayout,
+    compositor_window_facts::{Urgency, WindowFocus, WindowTiling},
+};
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
@@ -48,9 +51,9 @@ pub struct PreviewTile {
     pub caption: TileCaption,
     pub icon: TileIcon,
     pub tile_size: Size,
-    pub is_focused: bool,
-    pub is_urgent: bool,
-    pub is_floating: bool,
+    pub focus: WindowFocus,
+    pub urgency: Urgency,
+    pub tiling: WindowTiling,
 }
 
 #[derive(Debug, Clone, PartialEq)]

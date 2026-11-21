@@ -88,7 +88,7 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for RadioMark {
     }
 }
 
-impl<'a, Message: 'a> From<RadioMark> for Element<'a, Message> {
+impl<'view, Message: 'view> From<RadioMark> for Element<'view, Message> {
     fn from(mark: RadioMark) -> Self {
         Element::new(mark)
     }

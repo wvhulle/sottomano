@@ -309,16 +309,23 @@ pub struct PointerStickSettings {
     pub pixels_per_second: u32,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum PointerStickBinding {
+    #[default]
+    Unbound,
+    Bound(PointerStickSettings),
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerSteeringSettings {
-    pub stick: Option<PointerStickSettings>,
+    pub stick: PointerStickBinding,
     pub buttons: BTreeMap<GamepadButton, PointerButton>,
 }
 
 impl PointerSteeringSettings {
     #[must_use]
     pub fn virtual_pointer_need(&self) -> VirtualPointerNeed {
-        if self.stick.is_some() || !self.buttons.is_empty() {
+        if self.stick != PointerStickBinding::Unbound || !self.buttons.is_empty() {
             VirtualPointerNeed::Needed
         } else {
             VirtualPointerNeed::Unneeded
@@ -327,18 +334,18 @@ impl PointerSteeringSettings {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ButtonRole<'a> {
+pub enum ButtonRole<'bindings> {
     PushToTalk,
     PointerButton(PointerButton),
     Compositor(CompositorAction),
-    TypedKey(&'a str),
-    Command(&'a [String]),
+    TypedKey(&'bindings str),
+    Command(&'bindings [String]),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ClaimedButton<'a> {
+pub struct ClaimedButton<'bindings> {
     pub button: GamepadButton,
-    pub role: ButtonRole<'a>,
+    pub role: ButtonRole<'bindings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -389,7 +396,7 @@ impl GamepadBindingsConfig {
     }
 
     #[must_use]
-    pub fn role_of(&self, button: GamepadButton) -> Option<ButtonRole<'_>> {
+    pub fn claimed_role(&self, button: GamepadButton) -> Option<ButtonRole<'_>> {
         self.claimed_buttons()
             .find(|claimed| claimed.button == button)
             .map(|claimed| claimed.role)
@@ -416,15 +423,18 @@ impl GamepadBindingsConfig {
     #[must_use]
     pub fn pointer_steering(&self) -> PointerSteeringSettings {
         PointerSteeringSettings {
-            stick: self.pointer.stick.map(|stick| PointerStickSettings {
-                stick,
-                pixels_per_second: self.pointer.pixels_per_second,
-            }),
+            stick: match self.pointer.stick {
+                Some(stick) => PointerStickBinding::Bound(PointerStickSettings {
+                    stick,
+                    pixels_per_second: self.pointer.pixels_per_second,
+                }),
+                None => PointerStickBinding::Unbound,
+            },
             buttons: self
                 .claimed_buttons()
                 .filter_map(|claimed| match claimed.role {
                     ButtonRole::PointerButton(pointer_button)
-                        if self.role_of(claimed.button) == Some(claimed.role) =>
+                        if self.claimed_role(claimed.button) == Some(claimed.role) =>
                     {
                         Some((claimed.button, pointer_button))
                     }
@@ -501,27 +511,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            config.role_of(GamepadButton::Back),
+            config.claimed_role(GamepadButton::Back),
             Some(ButtonRole::TypedKey("Tab"))
         );
         assert_eq!(
-            config.role_of(GamepadButton::Start),
+            config.claimed_role(GamepadButton::Start),
             Some(ButtonRole::TypedKey("space"))
         );
         assert_eq!(
-            config.role_of(GamepadButton::South),
+            config.claimed_role(GamepadButton::South),
             Some(ButtonRole::TypedKey("Return"))
         );
         assert_eq!(
-            config.role_of(GamepadButton::East),
+            config.claimed_role(GamepadButton::East),
             Some(ButtonRole::TypedKey("Escape"))
         );
         assert_eq!(
-            config.role_of(GamepadButton::LeftShoulder),
+            config.claimed_role(GamepadButton::LeftShoulder),
             Some(ButtonRole::Compositor(CompositorAction::MoveLeft))
         );
         assert_eq!(
-            config.role_of(GamepadButton::Guide),
+            config.claimed_role(GamepadButton::Guide),
             Some(ButtonRole::Compositor(CompositorAction::ToggleOverview))
         );
     }
@@ -534,18 +544,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            config.role_of(GamepadButton::West),
+            config.claimed_role(GamepadButton::West),
             Some(ButtonRole::Compositor(CompositorAction::CloseWindow))
         );
         assert_eq!(
-            config.role_of(GamepadButton::Start),
+            config.claimed_role(GamepadButton::Start),
             Some(ButtonRole::Command(&[
                 "notify-send".to_owned(),
                 "hi".to_owned()
             ]))
         );
         assert_eq!(
-            config.role_of(GamepadButton::DpadLeft),
+            config.claimed_role(GamepadButton::DpadLeft),
             Some(ButtonRole::TypedKey("Left"))
         );
     }
@@ -568,7 +578,7 @@ mod tests {
             BTreeSet::from([GamepadButton::LeftTrigger])
         );
         assert_eq!(
-            config.role_of(GamepadButton::LeftTrigger),
+            config.claimed_role(GamepadButton::LeftTrigger),
             Some(ButtonRole::PushToTalk)
         );
     }
@@ -580,10 +590,13 @@ mod tests {
             steering.buttons.get(&GamepadButton::RightTrigger),
             Some(&PointerButton::Left)
         );
-        assert_eq!(
-            steering.stick.map(|stick| stick.stick),
-            Some(GamepadStick::Right)
-        );
+        assert!(matches!(
+            steering.stick,
+            PointerStickBinding::Bound(PointerStickSettings {
+                stick: GamepadStick::Right,
+                ..
+            })
+        ));
     }
 
     #[test]

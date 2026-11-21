@@ -1,7 +1,10 @@
 use std::{iter::successors, path::PathBuf};
 
 use procfs::process::Process as Proc;
-use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::{
+    compositor_window_facts::{WindowAppId, WindowPid, WindowTitle},
+    compositor_window_state::CompositorWindowState,
+};
 
 use super::focus_units::FocusUnit;
 use crate::desktop_windows_apps::{
@@ -11,9 +14,9 @@ use crate::desktop_windows_apps::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FocusIdentity {
     pub window: u64,
-    pub title: Option<String>,
+    pub title: WindowTitle,
     pub app_id: String,
-    pub pid: Option<i32>,
+    pub pid: WindowPid,
     pub shell: Option<i32>,
 }
 
@@ -24,20 +27,29 @@ impl FocusIdentity {
         processes: &WindowProcesses,
     ) -> Option<Self> {
         let window = compositor.focused_window()?;
-        let app_id = window.app_id.clone().filter(|app_id| !app_id.is_empty())?;
+        let WindowAppId::Reported(app_id) = &window.app_id else {
+            return None;
+        };
         Some(Self {
             window: window.id,
             title: window.title.clone(),
-            app_id,
+            app_id: app_id.clone(),
             pid: window.pid,
             shell: processes.shown_in(window.id),
         })
     }
 
+    #[must_use]
     pub fn probed(self) -> Focused {
         Focused {
             window: self.window,
-            project: self.shell.or(self.pid).and_then(probe_project),
+            project: match self.shell {
+                Some(shell) => probe_project(shell),
+                None => match self.pid {
+                    WindowPid::Reported(pid) => probe_project(pid),
+                    WindowPid::Unreported => None,
+                },
+            },
             app_id: self.app_id,
         }
     }

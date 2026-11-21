@@ -44,9 +44,12 @@ pub fn inline_view<'a>(
             (workspace_slot.key(), workspace_slot.inline_view())
         });
     let pager = reorderable_list(slots, edge, config)
-        .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .draggable(PanelSlotList::Workspaces, &drag, dragged)
         .on_wheel_select(focused_by_wheel);
+    let pager = match active_workspace_key(&order) {
+        Some(active_key) => pager.highlight(active_key, active_highlight_color(&order)),
+        None => pager,
+    };
     Some(
         Row::new()
             .push(pager)

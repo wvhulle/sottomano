@@ -33,7 +33,7 @@ where
         .duration(duration)
 }
 
-pub(crate) fn motion_of<'animation, AnimatedValue>(
+pub(crate) fn combined_motion<'animation, AnimatedValue>(
     animations: impl IntoIterator<Item = &'animation Animation<AnimatedValue>>,
     now: Instant,
 ) -> MotionState
@@ -58,16 +58,16 @@ where
 mod tests {
     use iced::time::{Duration, Instant};
 
-    use super::{MotionState, eased_animation, motion_of};
+    use super::{MotionState, combined_motion, eased_animation};
 
     #[test]
     fn an_eased_animation_moves_until_its_duration_passes() {
         let start = Instant::now();
         let duration = Duration::from_millis(100);
         let travel = eased_animation(0.0_f32, duration).go(10.0, start);
-        assert_eq!(motion_of([&travel], start), MotionState::Moving);
+        assert_eq!(combined_motion([&travel], start), MotionState::Moving);
         assert_eq!(
-            motion_of([&travel], start + duration * 2),
+            combined_motion([&travel], start + duration * 2),
             MotionState::Settled
         );
     }
@@ -75,6 +75,9 @@ mod tests {
     #[test]
     fn a_resting_animation_is_settled() {
         let resting = eased_animation(false, Duration::from_millis(100));
-        assert_eq!(motion_of([&resting], Instant::now()), MotionState::Settled);
+        assert_eq!(
+            combined_motion([&resting], Instant::now()),
+            MotionState::Settled
+        );
     }
 }

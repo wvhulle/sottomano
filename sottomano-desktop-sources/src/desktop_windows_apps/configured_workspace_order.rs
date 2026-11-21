@@ -1,3 +1,5 @@
+use sottomano_compositor_model::compositor_window_facts::WorkspaceName;
+
 use crate::desktop_windows_apps::workspace_window_snapshot::WorkspaceIndicator;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +32,11 @@ impl ConfiguredWorkspaces {
         self.workspace_names
             .iter()
             .map(String::as_str)
-            .filter(|name| live.iter().any(|p| p.name.as_deref() == Some(*name)))
+            .filter(|name| {
+                live.iter().any(|indicator| {
+                    matches!(&indicator.name, WorkspaceName::Named(live_name) if live_name == name)
+                })
+            })
             .collect()
     }
 
@@ -40,7 +46,10 @@ impl ConfiguredWorkspaces {
         let leading: Vec<&str> = live
             .iter()
             .take(configured.len())
-            .filter_map(|indicator| indicator.name.as_deref())
+            .filter_map(|indicator| match &indicator.name {
+                WorkspaceName::Named(name) => Some(name.as_str()),
+                WorkspaceName::Unnamed => None,
+            })
             .collect();
         if leading == configured {
             ConfiguredOrderStatus::Followed

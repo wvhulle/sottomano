@@ -8,6 +8,7 @@ use iced::{
     border::Radius,
     widget::{Column, Row as RowWidget, Stack, button, button::Status, container, text::Wrapping},
 };
+use sottomano_compositor_model::compositor_window_facts::{Urgency, WindowFocus, WindowTiling};
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::Config;
 
@@ -136,10 +137,9 @@ impl<'a> WorkspaceSchematic<'a> {
 
         let outline = tile_outline(tile);
         let radius = Radius::from(self.preview.app_window_layout.window_corner_radius_px);
-        let tile_layer = if tile.is_floating {
-            TileLayer::Floating
-        } else {
-            TileLayer::Tiled
+        let tile_layer = match tile.tiling {
+            WindowTiling::Floating => TileLayer::Floating,
+            WindowTiling::Tiled => TileLayer::Tiled,
         };
 
         button(content)
@@ -184,12 +184,10 @@ impl<'a> WorkspaceSchematic<'a> {
 }
 
 fn tile_outline(tile: &PreviewTile) -> fn(&Theme) -> Color {
-    if tile.is_urgent {
-        danger_color
-    } else if tile.is_focused {
-        primary_color
-    } else {
-        secondary_text_color
+    match (tile.urgency, tile.focus) {
+        (Urgency::Urgent, _) => danger_color,
+        (Urgency::NotUrgent, WindowFocus::Focused) => primary_color,
+        (Urgency::NotUrgent, WindowFocus::Unfocused) => secondary_text_color,
     }
 }
 

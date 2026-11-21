@@ -4,7 +4,8 @@ use std::{
 };
 
 use sottomano_toml_config::indicator_groups::gamepad_bindings::{
-    GamepadButton, GamepadStick, PointerButton, PointerSteeringSettings, StickDirection,
+    GamepadButton, GamepadStick, PointerButton, PointerSteeringSettings, PointerStickBinding,
+    PointerStickSettings, StickDirection,
 };
 
 use super::{
@@ -143,7 +144,10 @@ impl GamepadMachine {
     }
 
     fn pointer_stick(&self) -> Option<GamepadStick> {
-        self.settings.steering.stick.map(|settings| settings.stick)
+        match self.settings.steering.stick {
+            PointerStickBinding::Bound(settings) => Some(settings.stick),
+            PointerStickBinding::Unbound => None,
+        }
     }
 
     fn flicking_sticks(&self) -> impl Iterator<Item = GamepadStick> + use<> {
@@ -305,7 +309,12 @@ impl GamepadMachine {
         if elapsed < POINTER_TICK {
             return None;
         }
-        let pixels_per_second = self.settings.steering.stick?.pixels_per_second;
+        let PointerStickBinding::Bound(PointerStickSettings {
+            pixels_per_second, ..
+        }) = self.settings.steering.stick
+        else {
+            return None;
+        };
         let step = elapsed.min(LONGEST_POINTER_STEP);
         let displacement = self
             .steering_positions()

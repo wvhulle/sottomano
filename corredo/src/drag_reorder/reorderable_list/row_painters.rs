@@ -15,12 +15,12 @@ use crate::{
     transitions::MotionState,
 };
 
-pub(super) struct RowPainters<'a> {
-    pub(super) alarm_tiles: AlarmTiles<'a>,
+pub(super) struct RowPainters<'view> {
+    pub(super) alarm_tiles: AlarmTiles<'view>,
     pub(super) hover_glow: HoverGlow,
-    pub(super) travelling_highlight: TravellingHighlight<'a>,
-    pub(super) group_enclosures: GroupEnclosures<'a>,
-    pub(super) ungrouped_tiles: UngroupedTiles<'a>,
+    pub(super) travelling_highlight: TravellingHighlight<'view>,
+    pub(super) group_enclosures: GroupEnclosures<'view>,
+    pub(super) ungrouped_tiles: UngroupedTiles<'view>,
 }
 
 #[derive(Default)]
@@ -40,11 +40,11 @@ fn painted_with<'state, PainterState>(
     }
 }
 
-impl<'a> RowPainters<'a> {
-    pub(super) fn painted_under<Message: 'a>(
+impl<'view> RowPainters<'view> {
+    pub(super) fn painted_under<Message: 'view>(
         self,
-        sliding_row: impl Into<Element<'a, Message>>,
-    ) -> Element<'a, Message> {
+        sliding_row: impl Into<Element<'view, Message>>,
+    ) -> Element<'view, Message> {
         SlotUnderlay::new(self, sliding_row).into()
     }
 }
@@ -124,23 +124,22 @@ impl SlotPainter for RowPainters<'_> {
     }
 }
 
-pub(super) fn grouped_slots_of<Message>(groups: &[SlotGroup<'_, Message>]) -> Vec<GroupedSlots> {
-    groups
-        .iter()
-        .map(|group| GroupedSlots {
+impl<Message> From<&SlotGroup<'_, Message>> for GroupedSlots {
+    fn from(group: &SlotGroup<'_, Message>) -> Self {
+        Self {
             positions: group.positions.clone(),
             tile_inset: SlotTileInset {
                 thickness: group.enclosure_thickness,
                 enclosure_radius: group.enclosure_radius,
             },
-        })
-        .collect()
+        }
+    }
 }
 
-pub(super) fn alarm_tiles_of<'a>(
-    alarms: Vec<SlotAlarm<'a>>,
+pub(super) fn marked_alarm_tiles<'view>(
+    alarms: Vec<SlotAlarm<'view>>,
     slot_marking: &SlotMarking<'_>,
-) -> Vec<AlarmTile<'a>> {
+) -> Vec<AlarmTile<'view>> {
     alarms
         .into_iter()
         .filter_map(|alarm| {

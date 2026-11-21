@@ -28,17 +28,17 @@ pub enum PopupVisibility {
     Closed,
 }
 
-pub struct PopupTrigger<'a, Message> {
-    trigger: Element<'a, Message>,
-    popup: AnchoredPopup<'a, Message>,
+pub struct PopupTrigger<'view, Message> {
+    trigger: Element<'view, Message>,
+    popup: AnchoredPopup<'view, Message>,
     visibility: PopupVisibility,
 }
 
-pub fn popup_trigger<'a, Message: Clone + 'a>(
-    trigger: impl Into<Element<'a, Message>>,
-    content: impl Into<Element<'a, Message>>,
+pub fn popup_trigger<'view, Message: Clone + 'view>(
+    trigger: impl Into<Element<'view, Message>>,
+    content: impl Into<Element<'view, Message>>,
     visibility: PopupVisibility,
-) -> PopupTrigger<'a, Message> {
+) -> PopupTrigger<'view, Message> {
     PopupTrigger {
         trigger: trigger.into(),
         popup: anchored_popup(
@@ -49,7 +49,7 @@ pub fn popup_trigger<'a, Message: Clone + 'a>(
     }
 }
 
-impl<'a, Message: Clone + 'a> PopupTrigger<'a, Message> {
+impl<'view, Message: Clone + 'view> PopupTrigger<'view, Message> {
     #[must_use]
     pub fn side(self, side: Edge) -> Self {
         Self {
@@ -91,13 +91,15 @@ impl<'a, Message: Clone + 'a> PopupTrigger<'a, Message> {
     }
 }
 
-impl<'a, Message: Clone + 'a> From<PopupTrigger<'a, Message>> for Element<'a, Message> {
-    fn from(trigger: PopupTrigger<'a, Message>) -> Self {
+impl<'view, Message: Clone + 'view> From<PopupTrigger<'view, Message>> for Element<'view, Message> {
+    fn from(trigger: PopupTrigger<'view, Message>) -> Self {
         Element::new(trigger)
     }
 }
 
-impl<'a, Message: Clone + 'a> Widget<Message, Theme, iced::Renderer> for PopupTrigger<'a, Message> {
+impl<'view, Message: Clone + 'view> Widget<Message, Theme, iced::Renderer>
+    for PopupTrigger<'view, Message>
+{
     fn children(&self) -> Vec<Tree> {
         vec![
             Tree::new(&self.trigger),
@@ -205,14 +207,14 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, iced::Renderer> for PopupTr
         )
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, Theme, iced::Renderer>> {
         let (trigger_tree, popup_tree) = tree.children.split_at_mut(POPUP_CHILD);
         if self.visibility == PopupVisibility::Closed {
             return self.trigger.as_widget_mut().overlay(
@@ -231,9 +233,9 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, iced::Renderer> for PopupTr
     }
 }
 
-struct PopupOverlay<'b, 'a, Message> {
-    popup: &'b mut AnchoredPopup<'a, Message>,
-    tree: &'b mut Tree,
+struct PopupOverlay<'tree, 'view, Message> {
+    popup: &'tree mut AnchoredPopup<'view, Message>,
+    tree: &'tree mut Tree,
 }
 
 impl<Message: Clone> overlay::Overlay<Message, Theme, iced::Renderer>
@@ -338,7 +340,10 @@ mod tests {
     const FIRST_LABEL: &str = "open popup";
     const INSIDE_LABEL: &str = "inside the popup";
 
-    fn window_with_popup<'a>(visibility: PopupVisibility, side: Edge) -> Element<'a, PopupMessage> {
+    fn window_with_popup<'view>(
+        visibility: PopupVisibility,
+        side: Edge,
+    ) -> Element<'view, PopupMessage> {
         let trigger = button(text(FIRST_LABEL)).on_press(PopupMessage::Toggled);
         let content = button(text(INSIDE_LABEL)).on_press(PopupMessage::InsidePressed);
         container(
@@ -365,7 +370,7 @@ mod tests {
         simulator
     }
 
-    fn bounds_of(simulator: &mut Simulator<'_, PopupMessage>, shown: &str) -> Rectangle {
+    fn shown_text_bounds(simulator: &mut Simulator<'_, PopupMessage>, shown: &str) -> Rectangle {
         simulator
             .find(shown)
             .expect("the text is on screen")
@@ -395,8 +400,8 @@ mod tests {
         let trigger_and_popup = |side| {
             let mut simulator = settled_simulator(window_with_popup(PopupVisibility::Open, side));
             (
-                bounds_of(&mut simulator, FIRST_LABEL),
-                bounds_of(&mut simulator, INSIDE_LABEL),
+                shown_text_bounds(&mut simulator, FIRST_LABEL),
+                shown_text_bounds(&mut simulator, INSIDE_LABEL),
             )
         };
         let (trigger, below) = trigger_and_popup(Edge::Bottom);
@@ -413,7 +418,7 @@ mod tests {
     fn a_press_outside_dismisses_and_a_press_inside_reaches_the_content() {
         let mut simulator =
             settled_simulator(window_with_popup(PopupVisibility::Open, Edge::Bottom));
-        let inside = bounds_of(&mut simulator, INSIDE_LABEL).center();
+        let inside = shown_text_bounds(&mut simulator, INSIDE_LABEL).center();
         press_at(&mut simulator, inside);
         press_at(&mut simulator, Point::new(5.0, 5.0));
         assert_eq!(

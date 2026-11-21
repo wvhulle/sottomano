@@ -15,18 +15,21 @@ use iced::{
     window,
 };
 
-use crate::theming::{
-    AccentShades, primary_shades,
-    style_metrics::{OUTLINE_WIDTH_PX, PRESSABLE_OUTLINE_PADDING, SMALL_CORNER_RADIUS_PX},
+use crate::{
+    pointer_hover::{PointerHover, hover_over_bounds},
+    theming::{
+        AccentShades, primary_shades,
+        style_metrics::{OUTLINE_WIDTH_PX, PRESSABLE_OUTLINE_PADDING, SMALL_CORNER_RADIUS_PX},
+    },
 };
 
 const DEFAULT_HOLD: Duration = Duration::from_millis(700);
 
-pub fn flash_on_press_text<'a, PressPayload: Clone + 'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub fn flash_on_press_text<'view, PressPayload: Clone + 'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     payload: PressPayload,
-    on_press: impl Fn(PressPayload) -> Message + 'a,
-) -> FlashOnPressText<'a, PressPayload, Message> {
+    on_press: impl Fn(PressPayload) -> Message + 'view,
+) -> FlashOnPressText<'view, PressPayload, Message> {
     FlashOnPressText {
         content: container(content).padding(PRESSABLE_OUTLINE_PADDING).into(),
         payload,
@@ -57,18 +60,18 @@ impl<PressPayload, Message> FlashOnPressText<'_, PressPayload, Message> {
     }
 }
 
-impl<'a, PressPayload: Clone + 'a, Message: 'a> From<FlashOnPressText<'a, PressPayload, Message>>
-    for Element<'a, Message>
+impl<'view, PressPayload: Clone + 'view, Message: 'view>
+    From<FlashOnPressText<'view, PressPayload, Message>> for Element<'view, Message>
 {
-    fn from(pressable: FlashOnPressText<'a, PressPayload, Message>) -> Self {
+    fn from(pressable: FlashOnPressText<'view, PressPayload, Message>) -> Self {
         Element::new(pressable)
     }
 }
 
-pub struct FlashOnPressText<'a, PressPayload, Message> {
-    content: Element<'a, Message>,
+pub struct FlashOnPressText<'view, PressPayload, Message> {
+    content: Element<'view, Message>,
     payload: PressPayload,
-    on_press: Box<dyn Fn(PressPayload) -> Message + 'a>,
+    on_press: Box<dyn Fn(PressPayload) -> Message + 'view>,
     accent: fn(&Theme) -> AccentShades,
     hold: Duration,
     interaction: Interaction,
@@ -81,25 +84,26 @@ enum Press {
     Pending,
     Held {
         since: Instant,
+        latest_frame: Instant,
     },
 }
 
 #[derive(Default)]
 struct CellState {
-    hovered: bool,
+    pointer_hover: PointerHover,
     press: Press,
-    frame: Option<Instant>,
 }
 
 impl CellState {
     fn hold_phase(&self, hold: Duration) -> HoldPhase {
-        let Press::Held { since } = &self.press else {
+        let Press::Held {
+            since,
+            latest_frame,
+        } = &self.press
+        else {
             return HoldPhase::Released;
         };
-        let Some(frame) = self.frame else {
-            return HoldPhase::Released;
-        };
-        let held_for = frame
+        let held_for = latest_frame
             .checked_duration_since(*since)
             .expect("a press is held from an earlier redraw frame");
         if held_for < hold {
@@ -162,20 +166,26 @@ impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
             shell,
             viewport,
         );
-        let over = cursor.is_over(layout.bounds());
+        let pointer_hover = hover_over_bounds(cursor, layout.bounds());
         let state = tree.state.downcast_mut::<CellState>();
-        if state.hovered != over {
-            state.hovered = over;
+        if state.pointer_hover != pointer_hover {
+            state.pointer_hover = pointer_hover;
             shell.request_redraw();
         }
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            state.frame = Some(*now);
-            if matches!(state.press, Press::Pending) {
-                state.press = Press::Held { since: *now };
-                shell.request_redraw_at(*now + self.hold);
+            match &mut state.press {
+                Press::Idle => {}
+                Press::Pending => {
+                    state.press = Press::Held {
+                        since: *now,
+                        latest_frame: *now,
+                    };
+                    shell.request_redraw_at(*now + self.hold);
+                }
+                Press::Held { latest_frame, .. } => *latest_frame = *now,
             }
         }
-        if shell.is_event_captured() || !over {
+        if shell.is_event_captured() || pointer_hover == PointerHover::Outside {
             return;
         }
         if !matches!(
@@ -202,7 +212,7 @@ impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
     ) {
         let state = tree.state.downcast_ref::<CellState>();
         let hold_phase = state.hold_phase(self.hold);
-        if hold_phase == HoldPhase::Holding || state.hovered {
+        if hold_phase == HoldPhase::Holding || state.pointer_hover == PointerHover::Over {
             let accent = (self.accent)(theme);
             let (outline_color, fill_color) = match hold_phase {
                 HoldPhase::Holding => (accent.base, accent.weak),
@@ -267,14 +277,14 @@ impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
         );
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: iced::Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),

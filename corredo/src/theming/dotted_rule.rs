@@ -15,16 +15,16 @@ use crate::theming::ThemedColor;
 const DOT_DIAMETER_PER_LINE: f32 = 0.16;
 const DOT_PITCH_PER_LINE: f32 = 0.5;
 
-pub struct DottedRule<'a> {
-    dot_color: ThemedColor<'a>,
+pub struct DottedRule<'view> {
+    dot_color: ThemedColor<'view>,
     line_height_px: f32,
 }
 
 #[must_use]
-pub fn dotted_rule<'a>(
-    dot_color: impl Fn(&Theme) -> Color + 'a,
+pub fn dotted_rule<'view>(
+    dot_color: impl Fn(&Theme) -> Color + 'view,
     line_height_px: f32,
-) -> DottedRule<'a> {
+) -> DottedRule<'view> {
     DottedRule {
         dot_color: Box::new(dot_color),
         line_height_px,
@@ -76,8 +76,8 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for DottedRule<'_> {
     }
 }
 
-impl<'a, Message: 'a> From<DottedRule<'a>> for Element<'a, Message> {
-    fn from(rule: DottedRule<'a>) -> Self {
+impl<'view, Message: 'view> From<DottedRule<'view>> for Element<'view, Message> {
+    fn from(rule: DottedRule<'view>) -> Self {
         Element::new(rule)
     }
 }

@@ -6,9 +6,16 @@ use niri_ipc::{
     socket::SOCKET_PATH_ENV,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_compositor_model::compositor_window_state::{
-    CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
-    CompositorWindowState, CompositorWorkspace,
+use sottomano_compositor_model::{
+    compositor_window_facts::{
+        FocusTimestamp, OverviewVisibility, ScrollingPosition, TileViewPosition, Urgency,
+        WindowAppId, WindowFocus, WindowPid, WindowTiling, WindowTitle, WindowWorkspace,
+        WorkspaceActiveWindow, WorkspaceActivity, WorkspaceName, WorkspaceOutput,
+    },
+    compositor_window_state::{
+        CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
+        CompositorWindowState, CompositorWorkspace,
+    },
 };
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
@@ -68,37 +75,23 @@ pub(crate) fn niri_events() -> impl Stream<Item = Event> + Send {
 #[derive(Default)]
 pub(crate) struct NiriStreamProgress {
     niri_state: EventStreamState,
-    received_initial_windows: bool,
-    received_initial_workspaces: bool,
+    initial_state: InitialStateReceipt,
 }
 
 impl NiriStreamProgress {
-    fn stream_readiness(&self) -> StreamReadiness {
-        if self.received_initial_windows && self.received_initial_workspaces {
-            StreamReadiness::Ready
-        } else {
-            StreamReadiness::AwaitingInitialState
-        }
-    }
-
     pub(crate) fn applied(&mut self, events: Vec<Event>) -> Option<CompositorUpdate> {
-        let readiness_before = self.stream_readiness();
-        self.received_initial_windows |= events
+        let receipt_before = self.initial_state;
+        self.initial_state = events
             .iter()
-            .any(|event| matches!(event, Event::WindowsChanged { .. }));
-        self.received_initial_workspaces |= events
-            .iter()
-            .any(|event| matches!(event, Event::WorkspacesChanged { .. }));
+            .fold(receipt_before, InitialStateReceipt::after_event);
         let update = applied_niri_events(&mut self.niri_state, events);
-        match (readiness_before, self.stream_readiness()) {
-            (StreamReadiness::Ready, _) => Some(update),
-            (StreamReadiness::AwaitingInitialState, StreamReadiness::Ready) => {
-                Some(CompositorUpdate {
-                    changes: CompositorChange::ALL.into(),
-                    ..update
-                })
-            }
-            (StreamReadiness::AwaitingInitialState, StreamReadiness::AwaitingInitialState) => None,
+        match (receipt_before, self.initial_state) {
+            (InitialStateReceipt::Received, _) => Some(update),
+            (_, InitialStateReceipt::Received) => Some(CompositorUpdate {
+                changes: CompositorChange::ALL.into(),
+                ..update
+            }),
+            _ => None,
         }
     }
 }
@@ -152,7 +145,11 @@ pub fn compositor_state(niri_state: &EventStreamState) -> CompositorWindowState 
             .values()
             .map(|window| (window.id, compositor_window(window)))
             .collect(),
-        overview_is_open: niri_state.overview.is_open,
+        overview: if niri_state.overview.is_open {
+            OverviewVisibility::Open
+        } else {
+            OverviewVisibility::Closed
+        },
     }
 }
 
@@ -161,12 +158,28 @@ pub fn compositor_workspace(workspace: &Workspace) -> CompositorWorkspace {
     CompositorWorkspace {
         id: workspace.id,
         index: workspace.idx,
-        name: workspace.name.clone(),
-        output: workspace.output.clone(),
-        is_urgent: workspace.is_urgent,
-        is_active: workspace.is_active,
-        is_focused: workspace.is_focused,
-        active_window_id: workspace.active_window_id,
+        name: workspace
+            .name
+            .clone()
+            .map_or(WorkspaceName::Unnamed, WorkspaceName::Named),
+        output: workspace
+            .output
+            .clone()
+            .map_or(WorkspaceOutput::Unassigned, WorkspaceOutput::Assigned),
+        urgency: if workspace.is_urgent {
+            Urgency::Urgent
+        } else {
+            Urgency::NotUrgent
+        },
+        activity: match (workspace.is_focused, workspace.is_active) {
+            (true, _) => WorkspaceActivity::Focused,
+            (false, true) => WorkspaceActivity::Active,
+            (false, false) => WorkspaceActivity::Inactive,
+        },
+        active_window: workspace.active_window_id.map_or(
+            WorkspaceActiveWindow::NoWindow,
+            WorkspaceActiveWindow::Window,
+        ),
     }
 }
 
@@ -174,32 +187,80 @@ pub fn compositor_workspace(workspace: &Workspace) -> CompositorWorkspace {
 pub fn compositor_window(window: &Window) -> CompositorWindow {
     CompositorWindow {
         id: window.id,
-        title: window.title.clone(),
-        app_id: window.app_id.clone(),
-        pid: window.pid,
-        workspace_id: window.workspace_id,
-        is_focused: window.is_focused,
-        is_floating: window.is_floating,
-        is_urgent: window.is_urgent,
+        title: WindowTitle::from(window.title.clone()),
+        app_id: WindowAppId::from(window.app_id.clone()),
+        pid: WindowPid::from(window.pid),
+        workspace: window
+            .workspace_id
+            .map_or(WindowWorkspace::Unplaced, WindowWorkspace::OnWorkspace),
+        focus: if window.is_focused {
+            WindowFocus::Focused
+        } else {
+            WindowFocus::Unfocused
+        },
+        tiling: if window.is_floating {
+            WindowTiling::Floating
+        } else {
+            WindowTiling::Tiled
+        },
+        urgency: if window.is_urgent {
+            Urgency::Urgent
+        } else {
+            Urgency::NotUrgent
+        },
         layout: compositor_layout(&window.layout),
         focused_at_monotonic: window
             .focus_timestamp
-            .map(|timestamp| Duration::new(timestamp.secs, timestamp.nanos)),
+            .map_or(FocusTimestamp::NeverFocused, |timestamp| {
+                FocusTimestamp::FocusedAt(Duration::new(timestamp.secs, timestamp.nanos))
+            }),
     }
 }
 
 fn compositor_layout(layout: &WindowLayout) -> CompositorWindowLayout {
     CompositorWindowLayout {
-        scrolling_position: layout.pos_in_scrolling_layout,
+        scrolling_position: layout
+            .pos_in_scrolling_layout
+            .map_or(ScrollingPosition::OutsideScrolling, |(column, tile)| {
+                ScrollingPosition::Tile { column, tile }
+            }),
         tile_size: layout.tile_size,
         window_size: layout.window_size,
-        tile_position_in_view: layout.tile_pos_in_workspace_view,
+        tile_position_in_view: layout.tile_pos_in_workspace_view.map_or(
+            TileViewPosition::OutsideView,
+            |(horizontal, vertical)| TileViewPosition::InView {
+                horizontal,
+                vertical,
+            },
+        ),
         window_offset_in_tile: layout.window_offset_in_tile,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StreamReadiness {
-    Ready,
-    AwaitingInitialState,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum InitialStateReceipt {
+    #[default]
+    AwaitingWindowsAndWorkspaces,
+    AwaitingWindows,
+    AwaitingWorkspaces,
+    Received,
+}
+
+impl InitialStateReceipt {
+    fn after_event(self, event: &Event) -> Self {
+        match (self, event) {
+            (InitialStateReceipt::AwaitingWindowsAndWorkspaces, Event::WindowsChanged { .. }) => {
+                InitialStateReceipt::AwaitingWorkspaces
+            }
+            (
+                InitialStateReceipt::AwaitingWindowsAndWorkspaces,
+                Event::WorkspacesChanged { .. },
+            ) => InitialStateReceipt::AwaitingWindows,
+            (InitialStateReceipt::AwaitingWindows, Event::WindowsChanged { .. })
+            | (InitialStateReceipt::AwaitingWorkspaces, Event::WorkspacesChanged { .. }) => {
+                InitialStateReceipt::Received
+            }
+            (receipt, _) => receipt,
+        }
+    }
 }

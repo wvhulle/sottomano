@@ -458,13 +458,13 @@ impl GamepadGroup {
         bindings: &GamepadBindingsConfig,
     ) -> Action {
         let releasing_push_to_talk = edge == ButtonEdge::Released
-            && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
+            && bindings.claimed_role(button) == Some(ButtonRole::PushToTalk);
         if !releasing_push_to_talk && self.controller_custody(slot) != ControllerCustody::Compositor
         {
             return Action::Idle;
         }
         bindings
-            .role_of(button)
+            .claimed_role(button)
             .and_then(|role| role_request(role, edge))
             .unwrap_or(Action::Idle)
     }

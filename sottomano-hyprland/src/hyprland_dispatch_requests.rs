@@ -1,5 +1,5 @@
 use sottomano_compositor_model::compositor_requests::{
-    CompositorRequest, CompositorRequestFailure,
+    CompositorRequest, CompositorRequestFailure, FocusFollow,
 };
 
 use crate::{
@@ -62,13 +62,14 @@ impl HyprlandDispatch {
             CompositorRequest::MoveWindowToWorkspace {
                 window,
                 workspace: workspace_key,
-                follows_focus,
+                focus_follow,
             } => {
                 let Some(workspace) = listed_workspace(*workspace_key) else {
                     return HyprlandDispatch::WorkspaceGone;
                 };
+                let follows_window = *focus_follow == FocusFollow::FollowWindow;
                 lua_dispatcher(&format!(
-                    "window.move({{ workspace = {}, follow = {follows_focus}, window = {} }})",
+                    "window.move({{ workspace = {}, follow = {follows_window}, window = {} }})",
                     workspace_selector(&workspace),
                     window_selector(*window)
                 ))
@@ -142,7 +143,7 @@ pub(crate) fn referenced_workspace_key(request: &CompositorRequest) -> Option<u6
 
 #[cfg(test)]
 mod tests {
-    use sottomano_compositor_model::compositor_requests::CompositorRequest;
+    use sottomano_compositor_model::compositor_requests::{CompositorRequest, FocusFollow};
 
     use super::HyprlandDispatch;
     use crate::hyprland_workspace_identity::RegularHyprlandWorkspace;
@@ -182,7 +183,7 @@ mod tests {
             dispatcher(&CompositorRequest::MoveWindowToWorkspace {
                 window: 0x5a1,
                 workspace: 3,
-                follows_focus: false,
+                focus_follow: FocusFollow::StayOnCurrent,
             })
             .as_deref(),
             Some(

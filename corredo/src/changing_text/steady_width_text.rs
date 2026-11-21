@@ -152,25 +152,25 @@ struct HeldWidth<Source> {
     width: f32,
 }
 
-pub struct SteadyWidthText<'a, Message, Source> {
+pub struct SteadyWidthText<'view, Message, Source> {
     source: Source,
-    content: Element<'a, Message>,
+    content: Element<'view, Message>,
 }
 
-pub fn steady_width_text<'a, Message, Source: WidthSource>(
+pub fn steady_width_text<'view, Message, Source: WidthSource>(
     source: Source,
-    content: impl Into<Element<'a, Message>>,
-) -> SteadyWidthText<'a, Message, Source> {
+    content: impl Into<Element<'view, Message>>,
+) -> SteadyWidthText<'view, Message, Source> {
     SteadyWidthText {
         source,
         content: content.into(),
     }
 }
 
-impl<'a, Message: 'a, Source: WidthSource> From<SteadyWidthText<'a, Message, Source>>
-    for Element<'a, Message>
+impl<'view, Message: 'view, Source: WidthSource> From<SteadyWidthText<'view, Message, Source>>
+    for Element<'view, Message>
 {
-    fn from(steady_width_text: SteadyWidthText<'a, Message, Source>) -> Self {
+    fn from(steady_width_text: SteadyWidthText<'view, Message, Source>) -> Self {
         Element::new(steady_width_text)
     }
 }

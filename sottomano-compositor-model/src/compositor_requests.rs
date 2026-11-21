@@ -17,7 +17,7 @@ pub enum CompositorRequest {
     MoveWindowToWorkspace {
         window: u64,
         workspace: u64,
-        follows_focus: bool,
+        focus_follow: FocusFollow,
     },
     MoveFocusedColumnToIndex(usize),
     FocusLeft,
@@ -38,6 +38,12 @@ pub enum CompositorRequest {
     PowerOffMonitors,
     Quit,
     ReloadConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusFollow {
+    FollowWindow,
+    StayOnCurrent,
 }
 
 #[derive(Debug, Clone)]

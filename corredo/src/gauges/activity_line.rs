@@ -6,12 +6,12 @@ use iced::{
 use crate::orientation::Axis;
 
 #[must_use]
-pub fn activity_line<'a, Message: 'a>(
+pub fn activity_line<'view, Message: 'view>(
     axis: Axis,
-    color: impl Fn(&Theme) -> Color + 'a,
+    color: impl Fn(&Theme) -> Color + 'view,
     opacity: f32,
     thickness: f32,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let line_style = line_style(color, opacity, thickness);
     match axis {
         Axis::Horizontal => rule::horizontal(thickness).style(line_style).into(),
@@ -19,11 +19,11 @@ pub fn activity_line<'a, Message: 'a>(
     }
 }
 
-fn line_style<'a>(
-    color: impl Fn(&Theme) -> Color + 'a,
+fn line_style<'view>(
+    color: impl Fn(&Theme) -> Color + 'view,
     opacity: f32,
     thickness: f32,
-) -> impl Fn(&Theme) -> rule::Style + 'a {
+) -> impl Fn(&Theme) -> rule::Style + 'view {
     move |theme| rule::Style {
         color: color(theme).scale_alpha(opacity),
         radius: thickness.into(),

@@ -11,7 +11,7 @@ use sottomano_widgets::{
         indicator_group_interaction::IndicatorGroupInteraction,
         window_group::WindowGroupInteraction, workspaces_group,
     },
-    widgets::pointer_drag::DraggedPanelSlot,
+    widgets::pointer_drag::{DragActivity, DraggedPanelSlot},
 };
 
 use crate::{
@@ -80,7 +80,12 @@ impl DesktopShell {
     ) -> Option<Element<'a, ShellInteraction>> {
         let slot_context = self.panel_slot_context(Position::Bottom);
         let view = slot_context.drag;
-        let drag = view.drag.filter(|drag| drag.surface == window)?;
+        let DragActivity::Dragging(drag) = view.drag else {
+            return None;
+        };
+        if drag.surface != window {
+            return None;
+        }
         let snapshot = &self.window_snapshot;
         let card = match drag.item {
             DraggedPanelSlot::Workspace(workspace) => {

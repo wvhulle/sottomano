@@ -69,54 +69,55 @@ impl SecretFile {
     }
 
     #[must_use]
-    pub fn present_in(self, config_home: &Path) -> Option<PathBuf> {
-        Some(Self::directory(config_home).join(self.file_name())).filter(|path| path.is_file())
+    pub fn stored_in(self, config_home: &Path) -> StoredSecret {
+        let path = Self::directory(config_home).join(self.file_name());
+        if path.is_file() {
+            StoredSecret::Present(path)
+        } else {
+            StoredSecret::Absent
+        }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum StoredSecret {
+    #[default]
+    Absent,
+    Present(PathBuf),
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SecretPaths {
-    pub openrouter_management: Option<PathBuf>,
-    pub claude_code_oauth: Option<PathBuf>,
-    pub gh_auth_token: Option<PathBuf>,
-    pub unsplash_access_key: Option<PathBuf>,
-    pub caldav_password: Option<PathBuf>,
-    pub tailscale_api_token: Option<PathBuf>,
+    pub openrouter_management: StoredSecret,
+    pub claude_code_oauth: StoredSecret,
+    pub gh_auth_token: StoredSecret,
+    pub unsplash_access_key: StoredSecret,
+    pub caldav_password: StoredSecret,
+    pub tailscale_api_token: StoredSecret,
 }
 
 impl SecretPaths {
     #[must_use]
     pub fn discover(config_home: &Path) -> Self {
         Self {
-            openrouter_management: SecretFile::OpenrouterManagement.present_in(config_home),
-            claude_code_oauth: SecretFile::ClaudeCodeOauth.present_in(config_home),
-            gh_auth_token: SecretFile::GhAuthToken.present_in(config_home),
-            unsplash_access_key: SecretFile::UnsplashAccessKey.present_in(config_home),
-            caldav_password: SecretFile::CaldavPassword.present_in(config_home),
-            tailscale_api_token: SecretFile::TailscaleApiToken.present_in(config_home),
+            openrouter_management: SecretFile::OpenrouterManagement.stored_in(config_home),
+            claude_code_oauth: SecretFile::ClaudeCodeOauth.stored_in(config_home),
+            gh_auth_token: SecretFile::GhAuthToken.stored_in(config_home),
+            unsplash_access_key: SecretFile::UnsplashAccessKey.stored_in(config_home),
+            caldav_password: SecretFile::CaldavPassword.stored_in(config_home),
+            tailscale_api_token: SecretFile::TailscaleApiToken.stored_in(config_home),
         }
     }
 
     #[must_use]
-    pub fn presence_of(&self, secret: SecretFile) -> SecretPresence {
-        let found = match secret {
-            SecretFile::OpenrouterManagement => self.openrouter_management.is_some(),
-            SecretFile::ClaudeCodeOauth => self.claude_code_oauth.is_some(),
-            SecretFile::GhAuthToken => self.gh_auth_token.is_some(),
-            SecretFile::UnsplashAccessKey => self.unsplash_access_key.is_some(),
-            SecretFile::CaldavPassword => self.caldav_password.is_some(),
-            SecretFile::TailscaleApiToken => self.tailscale_api_token.is_some(),
-        };
-        if found {
-            SecretPresence::Present
-        } else {
-            SecretPresence::Absent
+    pub fn stored(&self, secret: SecretFile) -> &StoredSecret {
+        match secret {
+            SecretFile::OpenrouterManagement => &self.openrouter_management,
+            SecretFile::ClaudeCodeOauth => &self.claude_code_oauth,
+            SecretFile::GhAuthToken => &self.gh_auth_token,
+            SecretFile::UnsplashAccessKey => &self.unsplash_access_key,
+            SecretFile::CaldavPassword => &self.caldav_password,
+            SecretFile::TailscaleApiToken => &self.tailscale_api_token,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SecretPresence {
-    Present,
-    Absent,
 }

@@ -27,7 +27,7 @@ use iced::{
 use crate::{
     changing_text::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
     theming::{LINE_HEIGHT, TextFace, ThemedColor, primary_color, text_color},
-    transitions::MotionState,
+    transitions::{MotionState, RedrawClock},
 };
 
 const NOISE_GLYPHS: &[u8] =
@@ -55,23 +55,23 @@ pub struct TransitionStyle {
     pub highlight: fn(&iced::Theme) -> Color,
 }
 
-pub struct TransitioningText<'a, Message> {
-    settled: Element<'a, Message>,
+pub struct TransitioningText<'view, Message> {
+    settled: Element<'view, Message>,
     text: String,
     identity: u64,
     style: TransitionStyle,
     font: Font,
     size: f32,
-    color: ThemedColor<'a>,
+    color: ThemedColor<'view>,
 }
 
-impl<'a, Message> TransitioningText<'a, Message> {
+impl<'view, Message> TransitioningText<'view, Message> {
     pub fn new(
-        settled: impl Into<Element<'a, Message>>,
+        settled: impl Into<Element<'view, Message>>,
         text: String,
         style: TransitionStyle,
         face: TextFace,
-        color: impl Fn(&iced::Theme) -> Color + 'a,
+        color: impl Fn(&iced::Theme) -> Color + 'view,
     ) -> Self {
         Self {
             settled: settled.into(),
@@ -95,15 +95,15 @@ impl<'a, Message> TransitioningText<'a, Message> {
     }
 }
 
-pub struct AnimatedText<'a> {
+pub struct AnimatedText<'view> {
     text: String,
     identity: u64,
     style: TransitionStyle,
     face: TextFace,
-    color: Rc<dyn Fn(&iced::Theme) -> Color + 'a>,
+    color: Rc<dyn Fn(&iced::Theme) -> Color + 'view>,
 }
 
-pub fn animated_text<'a>(text: impl Into<String>) -> AnimatedText<'a> {
+pub fn animated_text<'view>(text: impl Into<String>) -> AnimatedText<'view> {
     AnimatedText {
         text: text.into(),
         identity: 0,
@@ -117,7 +117,7 @@ pub fn animated_text<'a>(text: impl Into<String>) -> AnimatedText<'a> {
     }
 }
 
-impl<'a> AnimatedText<'a> {
+impl<'view> AnimatedText<'view> {
     #[must_use]
     pub fn effects(mut self, effects: TextEffects) -> Self {
         self.style.effects = effects;
@@ -136,7 +136,7 @@ impl<'a> AnimatedText<'a> {
     }
 
     #[must_use]
-    pub fn color(self, color: impl Fn(&iced::Theme) -> Color + 'a) -> Self {
+    pub fn color(self, color: impl Fn(&iced::Theme) -> Color + 'view) -> Self {
         Self {
             color: Rc::new(color),
             ..self
@@ -154,8 +154,8 @@ impl<'a> AnimatedText<'a> {
     }
 }
 
-impl<'a, Message: 'a> From<AnimatedText<'a>> for Element<'a, Message> {
-    fn from(animated: AnimatedText<'a>) -> Self {
+impl<'view, Message: 'view> From<AnimatedText<'view>> for Element<'view, Message> {
+    fn from(animated: AnimatedText<'view>) -> Self {
         let settled_color = Rc::clone(&animated.color);
         let settled = animated
             .face
@@ -176,8 +176,8 @@ impl<'a, Message: 'a> From<AnimatedText<'a>> for Element<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<TransitioningText<'a, Message>> for Element<'a, Message> {
-    fn from(text: TransitioningText<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<TransitioningText<'view, Message>> for Element<'view, Message> {
+    fn from(text: TransitioningText<'view, Message>) -> Self {
         Element::new(text)
     }
 }
@@ -189,21 +189,33 @@ enum ShownText {
 }
 
 impl ShownText {
-    fn transition_to(&self, next: &ShownText) -> Option<TransitionKind> {
-        match self {
-            ShownText::Placeholder => {
-                matches!(next, ShownText::Text { .. }).then_some(TransitionKind::Intro)
-            }
-            ShownText::Text { text, identity } => match next {
+    fn transition_to(&self, next: &ShownText, started: Instant) -> TextTransition {
+        let kind = match (self, next) {
+            (ShownText::Placeholder, ShownText::Text { .. }) => TransitionKind::Intro,
+            (
+                ShownText::Text { text, identity },
                 ShownText::Text {
                     identity: next_identity,
                     ..
-                } => (next_identity == identity)
-                    .then(|| TransitionKind::Replace { from: text.clone() }),
-                ShownText::Placeholder => None,
-            },
-        }
+                },
+            ) if next_identity == identity => TransitionKind::Replace { from: text.clone() },
+            (ShownText::Placeholder | ShownText::Text { .. }, _) => return TextTransition::Still,
+        };
+        TextTransition::Running { kind, started }
     }
+}
+
+enum TextTransition {
+    Still,
+    Running {
+        kind: TransitionKind,
+        started: Instant,
+    },
+}
+
+enum PlaceholderTimer {
+    Stopped,
+    RunningSince(Instant),
 }
 
 enum TransitionKind {
@@ -211,13 +223,8 @@ enum TransitionKind {
     Replace { from: String },
 }
 
-struct Transition {
-    kind: TransitionKind,
-    started: Instant,
-}
-
-struct Running<'s> {
-    kind: &'s TransitionKind,
+struct Running<'state> {
+    kind: &'state TransitionKind,
     elapsed: Duration,
     length: Duration,
 }
@@ -235,52 +242,49 @@ impl Running<'_> {
 
 struct State {
     shown: ShownText,
-    pending: Option<ShownText>,
-    transition: Option<Transition>,
-    placeholder_since: Option<Instant>,
-    now: Option<Instant>,
+    expected: ShownText,
+    transition: TextTransition,
+    placeholder_timer: PlaceholderTimer,
+    redraw_clock: RedrawClock,
 }
 
 impl State {
     fn settled(shown: ShownText) -> Self {
         Self {
+            expected: shown.clone(),
             shown,
-            pending: None,
-            transition: None,
-            placeholder_since: None,
-            now: None,
+            transition: TextTransition::Still,
+            placeholder_timer: PlaceholderTimer::Stopped,
+            redraw_clock: RedrawClock::AwaitingFirstFrame,
         }
     }
 
     fn expect(&mut self, next: ShownText) {
-        if self.shown == next {
-            self.pending = None;
-        } else {
-            self.pending = Some(next);
-        }
+        self.expected = next;
     }
 
     fn frame(&mut self, now: Instant) {
-        self.now = Some(now);
-        if let Some(next) = self.pending.take() {
-            self.transition = self
-                .shown
-                .transition_to(&next)
-                .map(|kind| Transition { kind, started: now });
-            self.shown = next;
+        self.redraw_clock = RedrawClock::FrameAt(now);
+        if self.expected != self.shown {
+            self.transition = self.shown.transition_to(&self.expected, now);
+            self.shown = self.expected.clone();
         }
-        if self.shown == ShownText::Placeholder {
-            self.placeholder_since.get_or_insert(now);
-        } else {
-            self.placeholder_since = None;
-        }
+        self.placeholder_timer = match (&self.shown, &self.placeholder_timer) {
+            (ShownText::Placeholder, PlaceholderTimer::RunningSince(since)) => {
+                PlaceholderTimer::RunningSince(*since)
+            }
+            (ShownText::Placeholder, PlaceholderTimer::Stopped) => {
+                PlaceholderTimer::RunningSince(now)
+            }
+            (ShownText::Text { .. }, _) => PlaceholderTimer::Stopped,
+        };
     }
 
     fn placeholder_elapsed(&self) -> Duration {
-        let Some(now) = self.now else {
+        let RedrawClock::FrameAt(now) = self.redraw_clock else {
             return Duration::ZERO;
         };
-        let Some(since) = self.placeholder_since else {
+        let PlaceholderTimer::RunningSince(since) = self.placeholder_timer else {
             return Duration::ZERO;
         };
         now.checked_duration_since(since)
@@ -299,18 +303,22 @@ impl<Message> TransitioningText<'_, Message> {
         }
     }
 
-    fn running<'s>(&self, state: &'s State) -> Option<Running<'s>> {
-        let transition = state.transition.as_ref()?;
-        let length = match &transition.kind {
+    fn running<'state>(&self, state: &'state State) -> Option<Running<'state>> {
+        let TextTransition::Running { kind, started } = &state.transition else {
+            return None;
+        };
+        let RedrawClock::FrameAt(now) = state.redraw_clock else {
+            return None;
+        };
+        let length = match kind {
             TransitionKind::Intro => self.style.effects.intro.length(&self.text),
             TransitionKind::Replace { .. } => self.style.effects.replace.length(),
         };
-        let elapsed = state
-            .now?
-            .checked_duration_since(transition.started)
+        let elapsed = now
+            .checked_duration_since(*started)
             .expect("a transition starts at or before the latest redraw");
         (elapsed < length).then_some(Running {
-            kind: &transition.kind,
+            kind,
             elapsed,
             length,
         })
@@ -770,14 +778,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.settled.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),

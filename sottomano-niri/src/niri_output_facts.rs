@@ -1,12 +1,19 @@
 use std::{collections::HashMap, io};
 
 use niri_ipc::{Request, Response, socket::Socket};
-use sottomano_compositor_model::compositor_output_facts::{OutputInfo, OutputMode, product_field};
+use sottomano_compositor_model::compositor_output_facts::{
+    EdidProductText, OutputInfo, OutputMode, OutputModeReport, product_field,
+};
 use tokio::task::JoinError;
 
-fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
-    let mode = output.modes.get(output.current_mode?)?;
-    Some(OutputMode {
+fn current_mode(output: &niri_ipc::Output) -> OutputModeReport {
+    let Some(mode) = output
+        .current_mode
+        .and_then(|mode_index| output.modes.get(mode_index))
+    else {
+        return OutputModeReport::Unreported;
+    };
+    OutputModeReport::Current(OutputMode {
         width: mode.width,
         height: mode.height,
         refresh_hz: f64::from(mode.refresh_rate) / 1000.0,
@@ -50,7 +57,9 @@ pub fn niri_outputs() -> Result<HashMap<String, OutputInfo>, NiriQueryError> {
                     OutputInfo {
                         make: product_field(output.make),
                         model: product_field(output.model),
-                        serial: output.serial.and_then(product_field),
+                        serial: output
+                            .serial
+                            .map_or(EdidProductText::Unreported, product_field),
                         mode,
                         scale: logical.scale,
                         logical_width: logical.width,

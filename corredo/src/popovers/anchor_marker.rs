@@ -12,15 +12,15 @@ use iced::{
 };
 
 #[must_use]
-pub fn anchor_marker<'a, Message: 'a, AnchorKey: Send + Sync + 'static>(
-    content: Element<'a, Message>,
+pub fn anchor_marker<'view, Message: 'view, AnchorKey: Send + Sync + 'static>(
+    content: Element<'view, Message>,
     key: AnchorKey,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     Element::new(AnchorMarker { content, key })
 }
 
-struct AnchorMarker<'a, Message, AnchorKey> {
-    content: Element<'a, Message>,
+struct AnchorMarker<'view, Message, AnchorKey> {
+    content: Element<'view, Message>,
     key: AnchorKey,
 }
 

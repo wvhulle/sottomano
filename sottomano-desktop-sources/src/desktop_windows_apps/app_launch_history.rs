@@ -4,8 +4,9 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use sottomano_compositor_model::compositor_window_state::{
-    CompositorWindow, CompositorWindowState, CompositorWorkspace,
+use sottomano_compositor_model::{
+    compositor_window_facts::{WindowAppId, WindowWorkspace, WorkspaceName},
+    compositor_window_state::{CompositorWindow, CompositorWindowState, CompositorWorkspace},
 };
 
 const HALFLIFE_DAYS: f64 = 14.0;
@@ -89,12 +90,17 @@ impl LaunchTracker {
         if self.seen.contains(&window.id) {
             return None;
         }
-        let app_id = window.app_id.clone().filter(|id| !id.is_empty())?;
-        let workspace = workspaces
-            .get(&window.workspace_id?)?
-            .name
-            .clone()
-            .map_or(LaunchWorkspace::Unnamed, LaunchWorkspace::Named);
+        let WindowAppId::Reported(app_id) = &window.app_id else {
+            return None;
+        };
+        let WindowWorkspace::OnWorkspace(workspace_id) = window.workspace else {
+            return None;
+        };
+        let workspace = match &workspaces.get(&workspace_id)?.name {
+            WorkspaceName::Named(name) => LaunchWorkspace::Named(name.clone()),
+            WorkspaceName::Unnamed => LaunchWorkspace::Unnamed,
+        };
+        let app_id = app_id.clone();
         self.seen.insert(window.id);
         Some(Launch {
             workspace,
@@ -176,6 +182,7 @@ mod tests {
     use chrono::{Duration, Utc};
     use sottomano_compositor_model::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_facts::{WindowAppId, WorkspaceName, WorkspaceOutput},
         compositor_window_state::{CompositorWindow, CompositorWindowState, CompositorWorkspace},
     };
 
@@ -183,15 +190,15 @@ mod tests {
 
     fn workspace(id: u64, name: &str) -> CompositorWorkspace {
         CompositorWorkspace {
-            name: Some(name.to_owned()),
-            output: Some("DP-1".to_owned()),
+            name: WorkspaceName::Named(name.to_owned()),
+            output: WorkspaceOutput::Assigned("DP-1".to_owned()),
             ..unnamed_compositor_workspace(id)
         }
     }
 
-    fn window(id: u64, app_id: Option<&str>) -> CompositorWindow {
+    fn window(id: u64, app_id: WindowAppId) -> CompositorWindow {
         CompositorWindow {
-            app_id: app_id.map(str::to_owned),
+            app_id,
             ..unplaced_compositor_window(id)
         }
     }
@@ -228,16 +235,30 @@ mod tests {
     fn a_window_that_gains_its_app_id_later_is_recorded_once() {
         let mut tracker = seeded_tracker();
 
-        assert!(opened(&mut tracker, window(7, None)).is_none());
-        assert!(opened(&mut tracker, window(7, Some("code"))).is_some());
-        assert!(opened(&mut tracker, window(7, Some("code"))).is_none());
+        assert!(opened(&mut tracker, window(7, WindowAppId::Unreported)).is_none());
+        assert!(
+            opened(
+                &mut tracker,
+                window(7, WindowAppId::Reported("code".to_owned()))
+            )
+            .is_some()
+        );
+        assert!(
+            opened(
+                &mut tracker,
+                window(7, WindowAppId::Reported("code".to_owned()))
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn windows_open_before_the_first_state_are_not_launches() {
         let mut tracker = LaunchTracker::default();
-        let initial =
-            CompositorWindowState::indexed_by_id([workspace(1, "web")], [window(7, Some("code"))]);
+        let initial = CompositorWindowState::indexed_by_id(
+            [workspace(1, "web")],
+            [window(7, WindowAppId::Reported("code".to_owned()))],
+        );
 
         assert!(tracker.observe(&initial).is_empty());
         assert!(tracker.observe(&initial).is_empty());
@@ -246,8 +267,16 @@ mod tests {
     #[test]
     fn launches_before_loading_survive_without_doubling() {
         let mut tracker = seeded_tracker();
-        let early = opened(&mut tracker, window(7, Some("code"))).unwrap();
-        let persisted = opened(&mut tracker, window(8, Some("firefox"))).unwrap();
+        let early = opened(
+            &mut tracker,
+            window(7, WindowAppId::Reported("code".to_owned())),
+        )
+        .unwrap();
+        let persisted = opened(
+            &mut tracker,
+            window(8, WindowAppId::Reported("firefox".to_owned())),
+        )
+        .unwrap();
 
         tracker.load_from(vec![launch("foot", 3), persisted]);
 
@@ -259,11 +288,16 @@ mod tests {
     fn a_launch_on_an_unnamed_workspace_counts_only_for_every_workspace() {
         let mut tracker = seeded_tracker();
         let unnamed = CompositorWorkspace {
-            name: None,
+            name: WorkspaceName::Unnamed,
             ..workspace(1, "ignored")
         };
 
-        let recorded = opened_among(&mut tracker, vec![unnamed], window(7, Some("foot"))).unwrap();
+        let recorded = opened_among(
+            &mut tracker,
+            vec![unnamed],
+            window(7, WindowAppId::Reported("foot".to_owned())),
+        )
+        .unwrap();
 
         assert_eq!(recorded.workspace, LaunchWorkspace::Unnamed);
         assert_eq!(
@@ -280,9 +314,20 @@ mod tests {
     #[test]
     fn a_window_waits_until_its_workspace_is_known() {
         let mut tracker = seeded_tracker();
-        assert!(opened_among(&mut tracker, Vec::new(), window(7, Some("foot"))).is_none());
+        assert!(
+            opened_among(
+                &mut tracker,
+                Vec::new(),
+                window(7, WindowAppId::Reported("foot".to_owned()))
+            )
+            .is_none()
+        );
 
-        let recorded = opened(&mut tracker, window(7, Some("foot"))).unwrap();
+        let recorded = opened(
+            &mut tracker,
+            window(7, WindowAppId::Reported("foot".to_owned())),
+        )
+        .unwrap();
         assert_eq!(recorded.workspace, LaunchWorkspace::Named("web".to_owned()));
     }
 

@@ -1,4 +1,5 @@
 mod drag_ghost;
+mod drag_view;
 mod draggable_slot;
 mod list_end_corners;
 mod reorderable_list;
@@ -6,19 +7,12 @@ mod slot_group;
 mod wheel_stepper;
 
 pub use drag_ghost::{GhostPlacement, drag_ghost};
+pub use drag_view::{DragActivity, DragView};
 pub use draggable_slot::{HoverReorder, draggable_slot};
-use iced::{
-    Event, Point, Subscription,
-    event::listen_with,
-    mouse,
-    time::{Duration, Instant},
-    window,
-};
+use iced::{Event, Point, Subscription, event::listen_with, mouse, time::Instant, window};
 pub use list_end_corners::ListEndCorners;
 pub use reorderable_list::{ReorderableList, SlotAlarm, UngroupedSlotLook, reorderable_list};
 pub use slot_group::{SlotGroup, SlotTileInset};
-
-use crate::theming::FrameStyle;
 
 pub const DRAG_START_DISTANCE_PX: f32 = 6.0;
 
@@ -257,71 +251,11 @@ pub fn drag_pointer_events<
     Subscription::batch([releases, moves])
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct DragView<SlotId> {
-    pub drag: Option<ActiveDrag<SlotId>>,
-    pub ghost_frame: FrameStyle,
-}
-
-impl<SlotId: Copy + PartialEq> DragView<SlotId> {
-    pub fn new<ClickPayload>(
-        drag: &PointerDrag<SlotId, ClickPayload>,
-        ghost_frame: FrameStyle,
-    ) -> Self {
-        Self {
-            drag: match drag {
-                PointerDrag::Dragging(active) => Some(*active),
-                PointerDrag::Idle | PointerDrag::Pressed(_) | PointerDrag::Held { .. } => None,
-            },
-            ghost_frame,
-        }
-    }
-
-    #[must_use]
-    pub fn list_departure(&self) -> ListDeparture {
-        match self.drag {
-            Some(active_drag) if !matches!(active_drag.target, DragTarget::OwnList(_)) => {
-                ListDeparture::LeftOwnList
-            }
-            Some(_) | None => ListDeparture::InOwnList,
-        }
-    }
-
-    #[must_use]
-    pub fn hovers(&self, item: SlotId) -> Option<ForeignHover<SlotId>> {
-        self.drag?.hovered().filter(|hover| hover.item == item)
-    }
-
-    #[must_use]
-    pub fn hover_charge(&self, item: SlotId, full_after: Duration, now: Instant) -> Option<f32> {
-        let hover = self.hovers(item)?;
-        let held = now
-            .checked_duration_since(hover.since)
-            .expect("a foreign hover starts no later than the clock that charges it");
-        Some((held.as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON)).min(1.0))
-    }
-
-    pub fn previewed<'s, T>(&self, items: &'s [T], identity: impl Fn(&T) -> SlotId) -> Vec<&'s T> {
-        let mut order: Vec<&T> = items.iter().collect();
-        let Some(drag) = self.drag else {
-            return order;
-        };
-        let DragTarget::OwnList(to) = drag.target else {
-            return order;
-        };
-        let Some(from) = order.iter().position(|item| identity(item) == drag.item) else {
-            return order;
-        };
-        let moved = order.remove(from);
-        order.insert(to.min(order.len()), moved);
-        order
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
+    use crate::theming::FrameStyle;
 
     const PRESS: SlotPress<u32, ()> = SlotPress {
         item: 1,

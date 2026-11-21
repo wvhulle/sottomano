@@ -16,7 +16,6 @@ use crate::{
 mod open_tasks_indicator;
 mod upcoming_events_indicator;
 
-use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -27,7 +26,9 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::{SecretPaths, indicator_groups::caldav_account::CaldavAccountConfig};
+use sottomano_toml_config::{
+    SecretPaths, indicator_groups::caldav_account::CaldavAccountConfig, secrets::StoredSecret,
+};
 
 use crate::{
     background_work::snapshot_subscription,
@@ -52,7 +53,7 @@ const OPEN_TASKS_GLYPH: Phosphor = Phosphor::ListChecks(Weight::Regular);
 pub struct CaldavGroup {
     upcoming_events: SubscribedSnapshot<UpcomingEventList>,
     open_tasks: SubscribedSnapshot<OpenTaskList>,
-    password: Option<PathBuf>,
+    password: StoredSecret,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -78,10 +79,13 @@ impl CaldavGroup {
     }
 
     fn account(&self, config: &CaldavAccountConfig) -> Option<CaldavAccount> {
+        let StoredSecret::Present(password) = &self.password else {
+            return None;
+        };
         Some(CaldavAccount {
             server_url: config.configured_server_url()?.to_owned(),
             user: config.configured_user()?.to_owned(),
-            password: self.password.clone()?,
+            password: password.clone(),
             upcoming_days: config.upcoming_days,
             change_poll_interval: config.change_poll_interval,
             push_safety_recheck_interval: config.push_safety_recheck_interval,

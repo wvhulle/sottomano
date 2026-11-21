@@ -1,4 +1,4 @@
-use corredo::theming::OutlinedSides;
+use corredo::theming::{OutlineTracing, OutlinedSides};
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
@@ -7,7 +7,7 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
-        panel_frame::{outlined_sides_inward_of, panel_frame},
+        panel_frame::{inward_outlined_sides, panel_frame},
         region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
     group_menus::group_menu_state::GroupMenuTopic,
@@ -155,9 +155,9 @@ impl DesktopShell {
             return region_reporter(column![band], roles).into();
         }
         let outlined_sides = OutlinedSides {
-            left: false,
-            right: false,
-            ..outlined_sides_inward_of(position)
+            left: OutlineTracing::Omitted,
+            right: OutlineTracing::Omitted,
+            ..inward_outlined_sides(position)
         }
         .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
         let strip = panel_frame(band, panels.frame)
@@ -183,7 +183,7 @@ impl DesktopShell {
             .appearance();
         let group_framing = self.indicator_groups.panel_settings_group.group_framing;
         let frame_style = panels.frame;
-        let outlined_sides = outlined_sides_inward_of(position)
+        let outlined_sides = inward_outlined_sides(position)
             .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {
             if group_framing == PanelGroupFraming::Joined {

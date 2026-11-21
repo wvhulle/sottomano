@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use futures::{Stream, StreamExt, TryStreamExt, stream, stream::BoxStream};
 use futures_rx::RxExt;
-use sottomano_compositor_model::compositor_window_state::CompositorWindow;
+use sottomano_compositor_model::{
+    compositor_window_facts::{WindowAppId, WindowPid},
+    compositor_window_state::CompositorWindow,
+};
 use tokio::fs;
 
 use crate::{
@@ -45,22 +48,23 @@ pub enum FocusedWindowIdentity {
 
 impl From<&CompositorWindow> for FocusedWindowOwner {
     fn from(compositor_window: &CompositorWindow) -> Self {
-        let process_id = compositor_window.pid.and_then(|window_pid| {
-            u32::try_from(window_pid)
+        let process_id = match compositor_window.pid {
+            WindowPid::Reported(window_pid) => u32::try_from(window_pid)
                 .inspect_err(|pid_failure| {
                     tracing::warn!("global menu: invalid window pid {window_pid}: {pid_failure}");
                 })
-                .ok()
-        });
+                .ok(),
+            WindowPid::Unreported => None,
+        };
         let window_app_id = compositor_window.app_id.clone();
         match process_id {
             Some(process_id) => match window_app_id {
-                Some(app_id) => Self::ProcessAndApp { process_id, app_id },
-                None => Self::ProcessOnly { process_id },
+                WindowAppId::Reported(app_id) => Self::ProcessAndApp { process_id, app_id },
+                WindowAppId::Unreported => Self::ProcessOnly { process_id },
             },
             None => match window_app_id {
-                Some(app_id) => Self::AppOnly { app_id },
-                None => Self::Unidentified,
+                WindowAppId::Reported(app_id) => Self::AppOnly { app_id },
+                WindowAppId::Unreported => Self::Unidentified,
             },
         }
     }
@@ -496,7 +500,13 @@ pub fn focused_menu_bar_updates(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_compositor_model::compositor_window_state::CompositorWindowLayout;
+    use sottomano_compositor_model::{
+        compositor_window_facts::{
+            FocusTimestamp, Urgency, WindowAppId, WindowFocus, WindowPid, WindowTiling,
+            WindowTitle, WindowWorkspace,
+        },
+        compositor_window_state::CompositorWindowLayout,
+    };
     use zbus::{
         names::{OwnedBusName, OwnedUniqueName},
         zvariant::OwnedObjectPath,
@@ -556,15 +566,15 @@ mod tests {
     fn window_without_pid_is_identified_by_its_app() {
         let focused_window = CompositorWindow {
             id: 7,
-            title: None,
-            app_id: Some("org.example.Editor".to_owned()),
-            pid: None,
-            workspace_id: None,
-            is_focused: true,
-            is_floating: false,
-            is_urgent: false,
+            title: WindowTitle::Untitled,
+            app_id: WindowAppId::Reported("org.example.Editor".to_owned()),
+            pid: WindowPid::Unreported,
+            workspace: WindowWorkspace::Unplaced,
+            focus: WindowFocus::Focused,
+            tiling: WindowTiling::Tiled,
+            urgency: Urgency::NotUrgent,
             layout: CompositorWindowLayout::default(),
-            focused_at_monotonic: None,
+            focused_at_monotonic: FocusTimestamp::NeverFocused,
         };
         assert_eq!(
             FocusedWindowIdentity::from(Some(&focused_window)),

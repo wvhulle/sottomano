@@ -13,17 +13,17 @@ use crate::{
     theming::ThemedColor,
 };
 
-pub(super) struct EnclosedGroup<'a> {
+pub(super) struct EnclosedGroup<'view> {
     pub(super) heading_index: usize,
     pub(super) slot_positions: Range<usize>,
     pub(super) tile_inset: SlotTileInset,
-    pub(super) enclosure_color: ThemedColor<'a>,
-    pub(super) inner_color: ThemedColor<'a>,
+    pub(super) enclosure_color: ThemedColor<'view>,
+    pub(super) inner_color: ThemedColor<'view>,
 }
 
-pub(super) struct GroupEnclosures<'a> {
+pub(super) struct GroupEnclosures<'view> {
     pub(super) pager_axis: Axis,
-    pub(super) enclosed_groups: Vec<EnclosedGroup<'a>>,
+    pub(super) enclosed_groups: Vec<EnclosedGroup<'view>>,
 }
 
 fn enclosure_around(

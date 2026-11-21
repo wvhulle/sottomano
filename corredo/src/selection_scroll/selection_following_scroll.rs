@@ -1,6 +1,6 @@
 pub(super) mod scroll_motion;
 
-use std::{mem::take, slice::from_ref};
+use std::slice::from_ref;
 
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
@@ -19,8 +19,9 @@ pub use self::scroll_motion::ScrollPacing;
 use self::scroll_motion::{OffsetChange, ScrollFrame, ScrollMotion};
 use crate::{
     orientation::Axis,
+    pointer_hover::hover_over_bounds,
     selection_scroll::{
-        edge_alpha_fade::{HiddenScrollEdges, ScrollEdgeFade},
+        edge_alpha_fade::{EdgeOverflow, HiddenScrollEdges, ScrollEdgeFade},
         wheel_step_direction::SCROLL_LINE_STEP_PX,
     },
     theming::FrameStyle,
@@ -75,30 +76,36 @@ impl SelectedSpan {
     }
 }
 
-enum ScrollOwnership<'a, Message> {
+enum ScrollOwnership<'view, Message> {
     SelfOwned,
     Controlled {
         offset: f32,
-        on_scroll: Box<dyn Fn(f32) -> Message + 'a>,
+        on_scroll: Box<dyn Fn(f32) -> Message + 'view>,
     },
 }
 
-pub struct SelectionFollowingScroll<'a, Message> {
-    content: Element<'a, Message>,
+pub struct SelectionFollowingScroll<'view, Message> {
+    content: Element<'view, Message>,
     axis: Axis,
     edge_fade: ScrollEdgeFade,
     pacing: ScrollPacing,
     wheel_line_travel_px: f32,
     wheel_axes: WheelAxes,
-    ownership: ScrollOwnership<'a, Message>,
-    selected_position: Option<usize>,
+    ownership: ScrollOwnership<'view, Message>,
+    selection: ScrollSelection,
     content_identity: u64,
 }
 
-pub fn selection_following_scroll<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScrollSelection {
+    Unselected,
+    SelectedAt(usize),
+}
+
+pub fn selection_following_scroll<'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     axis: Axis,
-) -> SelectionFollowingScroll<'a, Message> {
+) -> SelectionFollowingScroll<'view, Message> {
     SelectionFollowingScroll {
         content: content.into(),
         axis,
@@ -107,12 +114,12 @@ pub fn selection_following_scroll<'a, Message: 'a>(
         wheel_line_travel_px: SCROLL_LINE_STEP_PX,
         wheel_axes: WheelAxes::default(),
         ownership: ScrollOwnership::SelfOwned,
-        selected_position: None,
+        selection: ScrollSelection::Unselected,
         content_identity: 0,
     }
 }
 
-impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
+impl<'view, Message: 'view> SelectionFollowingScroll<'view, Message> {
     #[must_use]
     pub fn edge_fade(self, edge_fade: ScrollEdgeFade) -> Self {
         Self { edge_fade, ..self }
@@ -137,9 +144,9 @@ impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
     }
 
     #[must_use]
-    pub fn selected(self, selected_position: Option<usize>) -> Self {
+    pub fn selected(self, selected_position: usize) -> Self {
         Self {
-            selected_position,
+            selection: ScrollSelection::SelectedAt(selected_position),
             ..self
         }
     }
@@ -153,7 +160,7 @@ impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
     }
 
     #[must_use]
-    pub fn controlled(self, offset: f32, on_scroll: impl Fn(f32) -> Message + 'a) -> Self {
+    pub fn controlled(self, offset: f32, on_scroll: impl Fn(f32) -> Message + 'view) -> Self {
         Self {
             ownership: ScrollOwnership::Controlled {
                 offset,
@@ -164,8 +171,10 @@ impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<SelectionFollowingScroll<'a, Message>> for Element<'a, Message> {
-    fn from(scroller: SelectionFollowingScroll<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<SelectionFollowingScroll<'view, Message>>
+    for Element<'view, Message>
+{
+    fn from(scroller: SelectionFollowingScroll<'view, Message>) -> Self {
         Self::new(scroller)
     }
 }
@@ -173,15 +182,26 @@ impl<'a, Message: 'a> From<SelectionFollowingScroll<'a, Message>> for Element<'a
 struct ScrollerState {
     scroll_motion: ScrollMotion,
     content_identity: u64,
-    last_selected_position: Option<usize>,
-    next_selection_jumps: bool,
-    pointer_button_held: bool,
+    followed_selection: FollowedSelection,
+    pointer_button: PointerButton,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FollowedSelection {
+    AwaitingJump,
+    FollowedAt(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointerButton {
+    Released,
+    Held,
 }
 
 impl ScrollerState {
     fn content_cursor(&self, axis: Axis, visible_cursor: Cursor) -> Cursor {
         match visible_cursor {
-            Cursor::Available(position) if !self.pointer_button_held => {
+            Cursor::Available(position) if self.pointer_button == PointerButton::Released => {
                 Cursor::Available(position + axis.along(self.scroll_motion.hover_drift()))
             }
             Cursor::Available(_) | Cursor::Levitating(_) | Cursor::Unavailable => visible_cursor,
@@ -195,8 +215,8 @@ fn content_layout(layout: Layout<'_>) -> Layout<'_> {
 
 impl<Message> SelectionFollowingScroll<'_, Message> {
     fn max_offset(&self, layout: Layout<'_>) -> f32 {
-        let content_span = self.axis.span_of(content_layout(layout).bounds().size());
-        (content_span - self.axis.span_of(layout.bounds().size())).max(0.0)
+        let content_span = self.axis.size_span(content_layout(layout).bounds().size());
+        (content_span - self.axis.size_span(layout.bounds().size())).max(0.0)
     }
 
     fn scroll_to(&self, state: &mut ScrollerState, offset: f32, shell: &mut Shell<'_, Message>) {
@@ -218,7 +238,7 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         let offset_change = state.scroll_motion.advance(ScrollFrame {
             now,
             max_offset: self.max_offset(layout),
-            pointer_inside: cursor.position_over(layout.bounds()).is_some(),
+            pointer_hover: hover_over_bounds(cursor, layout.bounds()),
         });
         if offset_change == OffsetChange::Moved {
             shell.invalidate_layout();
@@ -234,14 +254,14 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         layout: Layout<'_>,
         shell: &mut Shell<'_, Message>,
     ) {
-        let Some(selected_position) = self.selected_position else {
+        let ScrollSelection::SelectedAt(selected_position) = self.selection else {
             return;
         };
-        if state.last_selected_position == Some(selected_position) {
+        let previously_followed = state.followed_selection;
+        if previously_followed == FollowedSelection::FollowedAt(selected_position) {
             return;
         }
-        state.last_selected_position = Some(selected_position);
-        let jumps = take(&mut state.next_selection_jumps);
+        state.followed_selection = FollowedSelection::FollowedAt(selected_position);
         let max_offset = self.max_offset(layout);
         let content = content_layout(layout);
         let Some(selected_node) = content.children().nth(selected_position) else {
@@ -251,13 +271,13 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
             return;
         }
         let selected_bounds = selected_node.bounds();
-        let start = self.axis.position_of(selected_bounds.position())
-            - self.axis.position_of(content.bounds().position());
-        let visible_span = self.axis.span_of(layout.bounds().size());
+        let start = self.axis.point_coordinate(selected_bounds.position())
+            - self.axis.point_coordinate(content.bounds().position());
+        let visible_span = self.axis.size_span(layout.bounds().size());
         let current = state.scroll_motion.target_offset;
         let target = SelectedSpan {
             start,
-            end: start + self.axis.span_of(selected_bounds.size()),
+            end: start + self.axis.size_span(selected_bounds.size()),
         }
         .offset_clear_of_fades(
             current,
@@ -268,7 +288,7 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         if (target - current).abs() <= NEGLIGIBLE_SCROLL_PX {
             return;
         }
-        if jumps {
+        if previously_followed == FollowedSelection::AwaitingJump {
             state.scroll_motion.jump_to(target);
             shell.invalidate_layout();
         }
@@ -315,9 +335,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         tree::State::new(ScrollerState {
             scroll_motion: ScrollMotion::resting_at(initial_offset, self.pacing),
             content_identity: self.content_identity,
-            last_selected_position: None,
-            next_selection_jumps: true,
-            pointer_button_held: false,
+            followed_selection: FollowedSelection::AwaitingJump,
+            pointer_button: PointerButton::Released,
         })
     }
 
@@ -332,8 +351,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         if state.content_identity != self.content_identity {
             state.content_identity = self.content_identity;
             state.scroll_motion.jump_to(0.0);
-            state.last_selected_position = None;
-            state.next_selection_jumps = true;
+            state.followed_selection = FollowedSelection::AwaitingJump;
         }
     }
 
@@ -349,7 +367,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         );
         let natural = content_node.size();
         let visible = self.axis.visible_size(natural, limits.max());
-        let max_offset = (self.axis.span_of(natural) - self.axis.span_of(visible)).max(0.0);
+        let max_offset = (self.axis.size_span(natural) - self.axis.size_span(visible)).max(0.0);
         let scroll_motion = &mut tree.state.downcast_mut::<ScrollerState>().scroll_motion;
         if let ScrollOwnership::Controlled { offset, .. } = &self.ownership {
             scroll_motion.set_target(*offset);
@@ -383,8 +401,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         let state = tree.state.downcast_ref::<ScrollerState>();
         let hidden_edges = HiddenScrollEdges::clamped_scroll_overflow(
             state.scroll_motion.drawn_offset,
-            self.axis.span_of(content_layout(layout).bounds().size()),
-            self.axis.span_of(bounds.size()),
+            self.axis.size_span(content_layout(layout).bounds().size()),
+            self.axis.size_span(bounds.size()),
         );
         let rows_clip = self
             .edge_fade
@@ -401,11 +419,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
             );
         });
         renderer.with_layer(content_clip, |renderer| {
-            if hidden_edges.start {
+            if hidden_edges.start == EdgeOverflow::Overflowing {
                 self.edge_fade
                     .draw_on(self.axis.start_edge(), renderer, theme, bounds);
             }
-            if hidden_edges.end {
+            if hidden_edges.end == EdgeOverflow::Overflowing {
                 self.edge_fade
                     .draw_on(self.axis.end_edge(), renderer, theme, bounds);
             }
@@ -430,7 +448,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
                 Event::Window(window::Event::RedrawRequested(now)) => {
                     self.advance_scroll(state, layout, cursor, *now, shell);
                 }
-                Event::Mouse(mouse::Event::ButtonPressed(_)) => state.pointer_button_held = true,
+                Event::Mouse(mouse::Event::ButtonPressed(_)) => {
+                    state.pointer_button = PointerButton::Held;
+                }
                 _ => {}
             }
         }
@@ -453,7 +473,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
             Event::Window(window::Event::RedrawRequested(_)) => {
                 self.keep_selection_clear_of_fades(state, layout, shell);
             }
-            Event::Mouse(mouse::Event::ButtonReleased(_)) => state.pointer_button_held = false,
+            Event::Mouse(mouse::Event::ButtonReleased(_)) => {
+                state.pointer_button = PointerButton::Released;
+            }
             Event::Mouse(mouse::Event::WheelScrolled { delta })
                 if !shell.is_event_captured() && cursor.position_over(bounds).is_some() =>
             {
@@ -498,14 +520,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
         );
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             content_layout(layout),
@@ -530,11 +552,12 @@ mod tests {
     use iced_test::Simulator;
 
     use super::{
-        ScrollPacing, ScrollerState, SelectedSpan, SelectionFollowingScroll, WheelAxes,
-        selection_following_scroll,
+        FollowedSelection, PointerButton, ScrollPacing, ScrollerState, SelectedSpan,
+        SelectionFollowingScroll, WheelAxes, selection_following_scroll,
     };
     use crate::{
-        orientation::Axis, selection_scroll::edge_alpha_fade::ScrollEdgeFade, theming::FrameStyle,
+        orientation::Axis, pointer_hover::PointerHover,
+        selection_scroll::edge_alpha_fade::ScrollEdgeFade, theming::FrameStyle,
     };
 
     const VISIBLE_SIZE: Size = Size::new(200.0, 100.0);
@@ -549,7 +572,7 @@ mod tests {
         format!("entry-{position}")
     }
 
-    fn long_content<'a>(axis: Axis) -> Element<'a, ()> {
+    fn long_content<'view>(axis: Axis) -> Element<'view, ()> {
         let entries = (0..ENTRY_COUNT).map(|position| text(entry_label(position)).into());
         match axis {
             Axis::Horizontal => Row::with_children(entries).spacing(10.0).into(),
@@ -557,7 +580,7 @@ mod tests {
         }
     }
 
-    fn scroller_over<'a>(axis: Axis) -> SelectionFollowingScroll<'a, ()> {
+    fn scroller_over<'view>(axis: Axis) -> SelectionFollowingScroll<'view, ()> {
         selection_following_scroll(long_content(axis), axis).edge_fade(edge_fade())
     }
 
@@ -566,7 +589,7 @@ mod tests {
             .find(entry_label(0).as_str())
             .expect("the first entry is laid out")
             .bounds();
-        axis.position_of(bounds.position())
+        axis.point_coordinate(bounds.position())
     }
 
     fn wheel_down(simulator: &mut Simulator<'_, ()>, delta: ScrollDelta) {
@@ -683,7 +706,7 @@ mod tests {
         let mut simulator = Simulator::with_size(
             Settings::default(),
             VISIBLE_SIZE,
-            scroller_over(axis).selected(Some(selected_position)),
+            scroller_over(axis).selected(selected_position),
         );
         let now = Instant::now();
         let _redrawn = simulator.simulate([
@@ -719,8 +742,7 @@ mod tests {
         {
             let state = tree.state.downcast_mut::<ScrollerState>();
             state.scroll_motion.jump_to(120.0);
-            state.last_selected_position = Some(3);
-            state.next_selection_jumps = false;
+            state.followed_selection = FollowedSelection::FollowedAt(3);
         }
         let same: Element<'_, ()> = scroller_over(Axis::Horizontal).showing(1).into();
         tree.diff(&same);
@@ -730,8 +752,7 @@ mod tests {
         tree.diff(&replaced);
         let state = tree.state.downcast_ref::<ScrollerState>();
         assert!(state.scroll_motion.drawn_offset.abs() < f32::EPSILON);
-        assert_eq!(state.last_selected_position, None);
-        assert!(state.next_selection_jumps);
+        assert_eq!(state.followed_selection, FollowedSelection::AwaitingJump);
     }
 
     #[test]
@@ -746,7 +767,7 @@ mod tests {
         let frame = |now| super::ScrollFrame {
             now,
             max_offset: 1000.0,
-            pointer_inside: true,
+            pointer_hover: PointerHover::Over,
         };
         state.scroll_motion.set_target(100.0);
         let _started = state.scroll_motion.advance(frame(start));
@@ -754,7 +775,7 @@ mod tests {
             .scroll_motion
             .advance(frame(start + Duration::from_millis(80)));
         assert_ne!(state.content_cursor(Axis::Horizontal, pointer), pointer);
-        state.pointer_button_held = true;
+        state.pointer_button = PointerButton::Held;
         assert_eq!(state.content_cursor(Axis::Horizontal, pointer), pointer);
     }
 }

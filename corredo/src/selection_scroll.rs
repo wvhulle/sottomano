@@ -6,4 +6,4 @@ pub(crate) mod wheel_step_direction;
 pub use wheel_step_direction::wheel_step_direction;
 
 mod edge_alpha_fade;
-pub use edge_alpha_fade::{HiddenScrollEdges, ScrollEdgeFade};
+pub use edge_alpha_fade::{EdgeOverflow, HiddenScrollEdges, ScrollEdgeFade};

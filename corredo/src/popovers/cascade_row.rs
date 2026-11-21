@@ -16,8 +16,8 @@ use crate::{
     width_layout::fair_column_widths,
 };
 
-pub struct CascadeRow<'a, Message> {
-    panels: Vec<Element<'a, Message>>,
+pub struct CascadeRow<'view, Message> {
+    panels: Vec<Element<'view, Message>>,
     orientation: CascadeOrientation,
 }
 
@@ -29,11 +29,11 @@ pub(crate) fn drawn_extent(panel: &Node) -> Rectangle {
 }
 
 #[must_use]
-pub fn cascade_row<'a, Message: 'a>(
-    primary: Element<'a, Message>,
-    satellites: impl IntoIterator<Item = Element<'a, Message>>,
+pub fn cascade_row<'view, Message: 'view>(
+    primary: Element<'view, Message>,
+    satellites: impl IntoIterator<Item = Element<'view, Message>>,
     orientation: CascadeOrientation,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     Element::new(CascadeRow {
         panels: once(primary).chain(satellites).collect(),
         orientation,
@@ -226,14 +226,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
         });
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         overlay::from_children(
             &mut self.panels,
             tree,

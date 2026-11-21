@@ -7,7 +7,9 @@ use iced::{
     mouse,
     time::{Duration, Instant},
 };
-use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::{
+    compositor_window_facts::TileViewPosition, compositor_window_state::CompositorWindowState,
+};
 use sottomano_desktop_sources::{
     desktop_windows_apps::window_edge_placement::Placement,
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
@@ -72,12 +74,18 @@ fn input_edge_signals(idle_delay: &Duration) -> impl Stream<Item = TypingSignal>
 #[must_use]
 pub fn viewed_window_bounds(placement: &Placement, window_id: u64) -> Option<Rectangle> {
     let layout = placement.viewed_window_layout(window_id)?;
-    let (tile_x, tile_y) = layout.tile_position_in_view?;
-    let (offset_x, offset_y) = layout.window_offset_in_tile;
+    let TileViewPosition::InView {
+        horizontal,
+        vertical,
+    } = layout.tile_position_in_view
+    else {
+        return None;
+    };
+    let (horizontal_offset, vertical_offset) = layout.window_offset_in_tile;
     let (width, height) = layout.window_size;
     Some(Rectangle {
-        x: (tile_x + offset_x) as f32,
-        y: (tile_y + offset_y) as f32,
+        x: (horizontal + horizontal_offset) as f32,
+        y: (vertical + vertical_offset) as f32,
         width: width as f32,
         height: height as f32,
     })

@@ -19,8 +19,8 @@ use crate::popovers::CascadeDirection;
 const TRAIL_STEP_PX: f32 = 4.0;
 const AIM_SLOPE: f32 = 2.0;
 
-pub(super) struct PointerTrackedRow<'a, Message> {
-    pub(super) body: Element<'a, Message>,
+pub(super) struct PointerTrackedRow<'view, Message> {
+    pub(super) body: Element<'view, Message>,
     pub(super) look: MenuRowLook,
     pub(super) hover_reaction: RowHoverReaction<Message>,
 }

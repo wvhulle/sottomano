@@ -1,6 +1,6 @@
 use iced::{Color, Theme};
 
-pub type ThemedColor<'a> = Box<dyn Fn(&Theme) -> Color + 'a>;
+pub type ThemedColor<'view> = Box<dyn Fn(&Theme) -> Color + 'view>;
 
 #[must_use]
 pub fn text_color(theme: &Theme) -> Color {

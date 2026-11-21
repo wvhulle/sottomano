@@ -3,6 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use iced::Task;
 use sottomano_compositor_model::{
     compositor_requests::CompositorRequestFailure,
+    compositor_window_facts::WorkspaceName,
     compositor_window_state::{CompositorChange, CompositorUpdate},
 };
 use sottomano_compositors::compositor_connection::{
@@ -140,11 +141,13 @@ impl DesktopShell {
             .active_workspaces()
             .map(|active| {
                 let (scope, launch_scope) = match active.name {
-                    Some(workspace) => (
+                    WorkspaceName::Named(workspace) => (
                         FrequentAppScope::ThisWorkspace,
                         LaunchScope::NamedWorkspace(workspace),
                     ),
-                    None => (FrequentAppScope::AllWorkspaces, LaunchScope::EveryWorkspace),
+                    WorkspaceName::Unnamed => {
+                        (FrequentAppScope::AllWorkspaces, LaunchScope::EveryWorkspace)
+                    }
                 };
                 let open_app_ids: HashSet<String> = snapshot
                     .open_app_ids(active.output)

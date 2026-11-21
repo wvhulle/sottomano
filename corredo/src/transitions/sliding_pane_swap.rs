@@ -14,22 +14,22 @@ use iced::{
 
 use crate::{theming::FrameStyle, transitions::uniform_alpha_fade::fade_toward_color};
 
-pub struct SwapPane<'a, Message> {
+pub struct SwapPane<'view, Message> {
     pub identity: u64,
     pub slide_order: u8,
-    pub content: Element<'a, Message>,
+    pub content: Element<'view, Message>,
 }
 
-pub enum DepartingPane<'a, Message> {
+pub enum DepartingPane<'view, Message> {
     Absent,
     Departing {
-        pane: SwapPane<'a, Message>,
+        pane: SwapPane<'view, Message>,
         slide_progress: f32,
     },
 }
 
-impl<'a, Message> DepartingPane<'a, Message> {
-    fn as_slice(&self) -> &[SwapPane<'a, Message>] {
+impl<'view, Message> DepartingPane<'view, Message> {
+    fn as_slice(&self) -> &[SwapPane<'view, Message>] {
         match self {
             Self::Departing { pane, .. } => slice::from_ref(pane),
             Self::Absent => &[],
@@ -169,9 +169,9 @@ struct FadeTarget {
     restored_fill: Color,
 }
 
-pub struct SlidingPaneSwap<'a, Message> {
-    arriving: SwapPane<'a, Message>,
-    departing: DepartingPane<'a, Message>,
+pub struct SlidingPaneSwap<'view, Message> {
+    arriving: SwapPane<'view, Message>,
+    departing: DepartingPane<'view, Message>,
     fade_frame: FrameStyle,
     slide_band: SlideBand,
 }
@@ -189,10 +189,10 @@ impl<Message> SlidingPaneSwap<'_, Message> {
 }
 
 #[must_use]
-pub fn sliding_pane_swap<'a, Message: 'a>(
-    arriving: SwapPane<'a, Message>,
-    departing: DepartingPane<'a, Message>,
-) -> SlidingPaneSwap<'a, Message> {
+pub fn sliding_pane_swap<'view, Message: 'view>(
+    arriving: SwapPane<'view, Message>,
+    departing: DepartingPane<'view, Message>,
+) -> SlidingPaneSwap<'view, Message> {
     SlidingPaneSwap {
         arriving,
         departing,
@@ -212,8 +212,8 @@ struct SwapState {
     child_identities: Vec<u64>,
 }
 
-impl<'a, Message> SlidingPaneSwap<'a, Message> {
-    fn panes(&self) -> impl Iterator<Item = &SwapPane<'a, Message>> {
+impl<'view, Message> SlidingPaneSwap<'view, Message> {
+    fn panes(&self) -> impl Iterator<Item = &SwapPane<'view, Message>> {
         iter::once(&self.arriving).chain(self.departing.as_slice())
     }
 }
@@ -505,14 +505,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for SlidingPaneSwap<'
         );
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.arriving.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),
@@ -523,8 +523,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for SlidingPaneSwap<'
     }
 }
 
-impl<'a, Message: 'a> From<SlidingPaneSwap<'a, Message>> for Element<'a, Message> {
-    fn from(sliding_pane_swap: SlidingPaneSwap<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<SlidingPaneSwap<'view, Message>> for Element<'view, Message> {
+    fn from(sliding_pane_swap: SlidingPaneSwap<'view, Message>) -> Self {
         Element::new(sliding_pane_swap)
     }
 }

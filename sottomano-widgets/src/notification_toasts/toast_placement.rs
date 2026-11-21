@@ -158,6 +158,7 @@ fn fallback_output(placement: &Placement) -> Option<String> {
 mod tests {
     use sottomano_compositor_model::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_facts::{WindowFocus, WindowPid, WindowWorkspace, WorkspaceActivity},
         compositor_window_state::{CompositorWindow, CompositorWindowState},
     };
     use sottomano_desktop_sources::{
@@ -174,11 +175,15 @@ mod tests {
 
     fn desktop(focused_window: u64, terminal_workspace: u64) -> Placement {
         let mut away_workspace = unnamed_compositor_workspace(2);
-        away_workspace.is_focused = false;
+        away_workspace.activity = WorkspaceActivity::Active;
         let window = |id, pid, workspace| CompositorWindow {
-            pid: Some(pid),
-            workspace_id: Some(workspace),
-            is_focused: id == focused_window,
+            pid: WindowPid::Reported(pid),
+            workspace: WindowWorkspace::OnWorkspace(workspace),
+            focus: if id == focused_window {
+                WindowFocus::Focused
+            } else {
+                WindowFocus::Unfocused
+            },
             ..unplaced_compositor_window(id)
         };
         Placement::derive(&CompositorWindowState::indexed_by_id(

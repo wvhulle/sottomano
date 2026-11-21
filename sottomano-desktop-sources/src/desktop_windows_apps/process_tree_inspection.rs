@@ -13,6 +13,7 @@ use procfs::{
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
+use sottomano_compositor_model::compositor_window_facts::WindowAppId;
 use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -357,7 +358,7 @@ pub fn launch(pid: i32) -> Option<Launch> {
 pub struct Watched {
     pub window: u64,
     pub pid: i32,
-    pub app_id: Option<String>,
+    pub app_id: WindowAppId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -372,9 +373,7 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     let provenance = launch
         .binary
         .as_deref()
-        .map(|binary| {
-            Provenance::trace_launch(binary, &launch.arguments, watched.app_id.as_deref())
-        })
+        .map(|binary| Provenance::trace_launch(binary, &launch.arguments, &watched.app_id))
         .unwrap_or_default();
     Some(Inspection {
         pid: watched.pid,

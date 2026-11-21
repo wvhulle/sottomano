@@ -63,6 +63,12 @@ enum OutgoingWrite {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SourceLag {
+    CaughtUp,
+    LaggingAt(f32),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceArrival {
     Reached,
@@ -121,10 +127,14 @@ impl SyncedValue {
     }
 
     #[must_use]
-    pub fn lagging_reported_value(&self, step: f32) -> Option<f32> {
-        let requested_value = self.user_request.requested_value()?;
-        (self.source_feedback.arrival_at(requested_value, step) == SourceArrival::Lagging)
-            .then_some(self.source_feedback.reported_value)
+    pub fn source_lag(&self, step: f32) -> SourceLag {
+        let Some(requested_value) = self.user_request.requested_value() else {
+            return SourceLag::CaughtUp;
+        };
+        match self.source_feedback.arrival_at(requested_value, step) {
+            SourceArrival::Lagging => SourceLag::LaggingAt(self.source_feedback.reported_value),
+            SourceArrival::Reached => SourceLag::CaughtUp,
+        }
     }
 
     #[must_use]
@@ -272,7 +282,7 @@ impl SyncedValue {
 
 #[cfg(test)]
 mod tests {
-    use super::{Nudge, SourceTracking, SyncedValue, ValueWrite};
+    use super::{Nudge, SourceLag, SourceTracking, SyncedValue, ValueWrite};
 
     const STEP: f32 = 1.0;
     const ACCEPTED: Result<(), ()> = Ok(());
@@ -298,7 +308,7 @@ mod tests {
         assert_eq!(synced.absolute_write_finished(45.0, &ACCEPTED), None);
         synced.source_reported(20.0, STEP);
         assert_shown(&synced, 45.0);
-        assert_eq!(synced.lagging_reported_value(STEP), Some(20.0));
+        assert_eq!(synced.source_lag(STEP), SourceLag::LaggingAt(20.0));
         synced.source_reported(45.0, STEP);
         assert_eq!(synced.source_tracking(), SourceTracking::FollowingSource);
     }

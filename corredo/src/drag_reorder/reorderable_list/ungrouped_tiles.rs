@@ -6,9 +6,9 @@ use super::{
 };
 use crate::orientation::Axis;
 
-pub(super) struct UngroupedTiles<'a> {
+pub(super) struct UngroupedTiles<'view> {
     pub(super) pager_axis: Axis,
-    pub(super) ungrouped_look: UngroupedSlotLook<'a>,
+    pub(super) ungrouped_look: UngroupedSlotLook<'view>,
     pub(super) slot_positions: Vec<usize>,
 }
 

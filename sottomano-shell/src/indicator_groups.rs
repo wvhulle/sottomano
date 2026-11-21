@@ -6,7 +6,7 @@ mod group_subscriptions;
 use iced::Task;
 use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
-use sottomano_toml_config::{Config, SecretPaths};
+use sottomano_toml_config::{Config, SecretPaths, secrets::StoredSecret};
 use sottomano_widgets::{
     cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},
     clock::Clock,
@@ -180,10 +180,10 @@ impl ShellIndicatorGroups {
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
             reachability_group: ReachabilityGroup::default(),
-            tailnet_group: secrets.tailscale_api_token.map_or_else(
-                TailnetGroup::without_policy_file,
-                TailnetGroup::with_policy_file,
-            ),
+            tailnet_group: match secrets.tailscale_api_token {
+                StoredSecret::Present(token_path) => TailnetGroup::with_policy_file(token_path),
+                StoredSecret::Absent => TailnetGroup::without_policy_file(),
+            },
             wireguard_tunnels_group: WireguardTunnelsGroup::default(),
             network_manager_vpn_group: NetworkManagerVpnGroup::default(),
             wifi_adapters_group: WifiAdaptersGroup::default(),

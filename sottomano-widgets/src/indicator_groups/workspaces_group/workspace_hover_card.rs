@@ -1,5 +1,7 @@
 use iced::{Size, Vector};
-use sottomano_compositor_model::compositor_styling_model::AppWindowLayout;
+use sottomano_compositor_model::{
+    compositor_styling_model::AppWindowLayout, compositor_window_facts::WindowTiling,
+};
 use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot::{
     self, WorkspacePlacement,
 };
@@ -40,9 +42,9 @@ fn workspace_arrangement(
     windows: &[workspace_window_snapshot::WinEntry],
 ) -> WorkspaceArrangement {
     let tile = |window| preview_tile(icon_catalog, window);
-    let has_scrolling_columns = windows
-        .iter()
-        .any(|window| !window.layout.is_floating && window.layout.column().is_some());
+    let has_scrolling_columns = windows.iter().any(|window| {
+        window.layout.tiling == WindowTiling::Tiled && window.layout.column().is_some()
+    });
     if has_scrolling_columns {
         return WorkspaceArrangement::ScrollingColumns {
             columns: scrolling_columns(windows)
@@ -51,7 +53,7 @@ fn workspace_arrangement(
                 .collect(),
             floating: windows
                 .iter()
-                .filter(|window| window.layout.is_floating)
+                .filter(|window| window.layout.tiling == WindowTiling::Floating)
                 .map(&tile)
                 .collect(),
         };
@@ -105,7 +107,7 @@ fn scrolling_columns(
 ) -> Vec<Vec<&workspace_window_snapshot::WinEntry>> {
     let tiled: Vec<&workspace_window_snapshot::WinEntry> = windows
         .iter()
-        .filter(|window| !window.layout.is_floating)
+        .filter(|window| window.layout.tiling == WindowTiling::Tiled)
         .collect();
     tiled
         .chunk_by(|left, right| left.layout.column() == right.layout.column())
@@ -131,40 +133,44 @@ fn preview_tile(
             window.layout.tile_size.0 as f32,
             window.layout.tile_size.1 as f32,
         ),
-        is_focused: window.is_focused,
-        is_urgent: window.is_urgent,
-        is_floating: window.layout.is_floating,
+        focus: window.focus,
+        urgency: window.urgency,
+        tiling: window.layout.tiling,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use sottomano_compositor_model::compositor_window_facts::{
+        Urgency, WindowAppId, WindowFocus, WindowPid,
+    };
+
     use super::*;
 
-    fn window(id: u64, column: Option<usize>) -> workspace_window_snapshot::WinEntry {
-        let placement = match column {
-            Some(column) => WorkspacePlacement::ScrollingTile { column, tile: 1 },
-            None => WorkspacePlacement::Unplaced,
-        };
-        placed_window(id, placement, column.is_none())
+    fn column_window(id: u64, column: usize) -> workspace_window_snapshot::WinEntry {
+        placed_window(
+            id,
+            WorkspacePlacement::ScrollingTile { column, tile: 1 },
+            WindowTiling::Tiled,
+        )
     }
 
     fn placed_window(
         id: u64,
         placement: WorkspacePlacement,
-        is_floating: bool,
+        tiling: WindowTiling,
     ) -> workspace_window_snapshot::WinEntry {
         workspace_window_snapshot::WinEntry {
             id,
-            app_id: Some("kitty".to_owned()),
-            pid: None,
-            is_focused: false,
-            is_urgent: false,
+            app_id: WindowAppId::Reported("kitty".to_owned()),
+            pid: WindowPid::Unreported,
+            focus: WindowFocus::Unfocused,
+            urgency: Urgency::NotUrgent,
             label: None,
             layout: workspace_window_snapshot::WinLayout {
                 placement,
                 tile_size: (800.0, 600.0),
-                is_floating,
+                tiling,
             },
         }
     }
@@ -172,10 +178,10 @@ mod tests {
     #[test]
     fn consecutive_windows_group_into_columns() {
         let windows = [
-            window(1, Some(1)),
-            window(2, Some(1)),
-            window(3, Some(2)),
-            window(4, None),
+            column_window(1, 1),
+            column_window(2, 1),
+            column_window(3, 2),
+            placed_window(4, WorkspacePlacement::Unplaced, WindowTiling::Floating),
         ];
         let columns = scrolling_columns(&windows);
         assert_eq!(columns.len(), 2);
@@ -194,10 +200,10 @@ mod tests {
     #[test]
     fn screen_offsets_start_at_the_top_left_tile() {
         let windows = [
-            placed_window(3, screen_position(10.0, 10.0), false),
-            placed_window(2, screen_position(10.0, 550.0), false),
-            placed_window(1, screen_position(970.0, 550.0), false),
-            placed_window(4, screen_position(-40.0, 300.0), true),
+            placed_window(3, screen_position(10.0, 10.0), WindowTiling::Tiled),
+            placed_window(2, screen_position(10.0, 550.0), WindowTiling::Tiled),
+            placed_window(1, screen_position(970.0, 550.0), WindowTiling::Tiled),
+            placed_window(4, screen_position(-40.0, 300.0), WindowTiling::Floating),
         ];
         let offsets: Vec<(u64, Vector)> = screen_offsets(&windows)
             .into_iter()

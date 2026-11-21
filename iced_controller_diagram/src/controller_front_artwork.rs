@@ -49,13 +49,13 @@ pub(crate) const fn body_size(model: ControllerModel) -> Size {
 }
 
 pub(crate) const fn anchor_point(model: ControllerModel, anchor: DiagramAnchor) -> Point {
-    let (x, y) = match model {
+    let (horizontal, vertical) = match model {
         ControllerModel::DualSense => dualsense_anchor(anchor),
         ControllerModel::XboxSeries => xbox_series_anchor(anchor),
         ControllerModel::SwitchPro => switch_pro_anchor(anchor),
         ControllerModel::SteamController => steam_controller_anchor(anchor),
     };
-    Point::new(x, y)
+    Point::new(horizontal, vertical)
 }
 
 const fn dualsense_anchor(anchor: DiagramAnchor) -> (f32, f32) {

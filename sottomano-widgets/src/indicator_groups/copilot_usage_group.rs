@@ -24,7 +24,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, secrets::StoredSecret};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -68,7 +68,7 @@ pub struct CopilotUsageGroup {
     metered: SubscribedSnapshot<CopilotMetered>,
     free: SubscribedSnapshot<CopilotFree>,
     cli: SubscribedSnapshot<CopilotCcusage>,
-    gh_auth_token: Option<PathBuf>,
+    gh_auth_token: StoredSecret,
     expansion: IndicatorGroupExpansion,
 }
 
@@ -85,7 +85,7 @@ impl CopilotUsageGroup {
     }
 
     #[must_use]
-    pub fn new(gh_auth_token: Option<PathBuf>) -> Self {
+    pub fn new(gh_auth_token: StoredSecret) -> Self {
         Self {
             metered: SubscribedSnapshot::default(),
             free: SubscribedSnapshot::default(),
@@ -96,9 +96,12 @@ impl CopilotUsageGroup {
     }
 
     fn account(&self, buses: &DesktopBuses) -> Option<OnBus<PathBuf>> {
+        let StoredSecret::Present(gh_auth_token) = &self.gh_auth_token else {
+            return None;
+        };
         Some(OnBus {
             buses: buses.clone(),
-            inputs: self.gh_auth_token.clone()?,
+            inputs: gh_auth_token.clone(),
         })
     }
 

@@ -28,7 +28,7 @@ use iced::{
 };
 use quick_xml::escape::escape;
 use sottomano_compositor_model::compositor_requests::{
-    CompositorRequest, CompositorRequestFailure,
+    CompositorRequest, CompositorRequestFailure, FocusFollow,
 };
 use sottomano_desktop_sinks::desktop_notifications::{
     alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
@@ -851,7 +851,7 @@ fn action_on_window<Routed: ToastLayerHost>(
                     compositor_request(CompositorRequest::MoveWindowToWorkspace {
                         window,
                         workspace: target,
-                        follows_focus: true,
+                        focus_follow: FocusFollow::FollowWindow,
                     })
                 }),
         ),

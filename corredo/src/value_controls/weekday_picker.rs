@@ -22,25 +22,25 @@ pub enum DaySelection {
     Unchosen,
 }
 
-type DayColor<'a> = Rc<dyn Fn(DaySelection, &Theme) -> Color + 'a>;
-type DayWrapper<'a, Message> =
-    Box<dyn Fn(Weekday, DaySelection, Element<'a, Message>) -> Element<'a, Message> + 'a>;
+type DayColor<'view> = Rc<dyn Fn(DaySelection, &Theme) -> Color + 'view>;
+type DayWrapper<'view, Message> =
+    Box<dyn Fn(Weekday, DaySelection, Element<'view, Message>) -> Element<'view, Message> + 'view>;
 
-pub struct WeekdayPicker<'a, Message> {
+pub struct WeekdayPicker<'view, Message> {
     chosen: WeekdaySet,
-    on_toggle: Box<dyn Fn(Weekday) -> Message + 'a>,
+    on_toggle: Box<dyn Fn(Weekday) -> Message + 'view>,
     face: TextFace,
     faces: FontFaces,
     spacing_px: f32,
     locale: Locale,
-    day_color: DayColor<'a>,
-    wrap_day: DayWrapper<'a, Message>,
+    day_color: DayColor<'view>,
+    wrap_day: DayWrapper<'view, Message>,
 }
 
-pub fn weekday_picker<'a, Message: Clone + 'a>(
+pub fn weekday_picker<'view, Message: Clone + 'view>(
     chosen: WeekdaySet,
-    on_toggle: impl Fn(Weekday) -> Message + 'a,
-) -> WeekdayPicker<'a, Message> {
+    on_toggle: impl Fn(Weekday) -> Message + 'view,
+) -> WeekdayPicker<'view, Message> {
     WeekdayPicker {
         chosen,
         on_toggle: Box::new(on_toggle),
@@ -56,7 +56,7 @@ pub fn weekday_picker<'a, Message: Clone + 'a>(
     }
 }
 
-impl<'a, Message> WeekdayPicker<'a, Message> {
+impl<'view, Message> WeekdayPicker<'view, Message> {
     #[must_use]
     pub fn typeface(self, face: TextFace, faces: FontFaces) -> Self {
         Self {
@@ -77,7 +77,7 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
     }
 
     #[must_use]
-    pub fn day_color(self, day_color: impl Fn(DaySelection, &Theme) -> Color + 'a) -> Self {
+    pub fn day_color(self, day_color: impl Fn(DaySelection, &Theme) -> Color + 'view) -> Self {
         Self {
             day_color: Rc::new(day_color),
             ..self
@@ -87,7 +87,8 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
     #[must_use]
     pub fn wrap_day(
         self,
-        wrap_day: impl Fn(Weekday, DaySelection, Element<'a, Message>) -> Element<'a, Message> + 'a,
+        wrap_day: impl Fn(Weekday, DaySelection, Element<'view, Message>) -> Element<'view, Message>
+        + 'view,
     ) -> Self {
         Self {
             wrap_day: Box::new(wrap_day),
@@ -96,8 +97,10 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
     }
 }
 
-impl<'a, Message: Clone + 'a> From<WeekdayPicker<'a, Message>> for Element<'a, Message> {
-    fn from(picker: WeekdayPicker<'a, Message>) -> Self {
+impl<'view, Message: Clone + 'view> From<WeekdayPicker<'view, Message>>
+    for Element<'view, Message>
+{
+    fn from(picker: WeekdayPicker<'view, Message>) -> Self {
         Row::with_children(WeekdaySet::ALL.iter(Weekday::Mon).map(|day| {
             let day_selection = if picker.chosen.contains(day) {
                 DaySelection::Chosen

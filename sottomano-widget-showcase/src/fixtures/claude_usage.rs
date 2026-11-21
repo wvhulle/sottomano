@@ -17,6 +17,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
+use sottomano_toml_config::secrets::StoredSecret;
 use sottomano_widgets::{
     clock::Clock,
     indicator_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
@@ -26,7 +27,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{fixtures::sample, showcase_message::ShowcaseMessage, showcased_group::ShowcasedGroup};
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    let mut group = ClaudeUsageGroup::new(None);
+    let mut group = ClaudeUsageGroup::new(StoredSecret::Absent);
     [
         usage_windows_delivered(0, clock),
         ClaudeUsageMessage::CcusagePeriods(SnapshotDelivery::live_push(Ok(local_log_periods(

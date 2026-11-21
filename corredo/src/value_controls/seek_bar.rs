@@ -6,7 +6,7 @@ use crate::{
     selection_scroll::wheel_step_direction,
     value_controls::{
         inline_slider,
-        synced_value::{SyncedValue, ValueWrite},
+        synced_value::{SourceLag, SyncedValue, ValueWrite},
     },
 };
 
@@ -25,10 +25,21 @@ pub enum SeekMessage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaybackTimeline<PlaybackSession> {
-    pub played: Option<Duration>,
-    pub length: Option<Duration>,
+    pub progress: PlaybackProgress,
     pub session: PlaybackSession,
-    pub accepts_seek: bool,
+    pub seek_acceptance: SeekAcceptance,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaybackProgress {
+    Untimed,
+    Timed { played: Duration, length: Duration },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeekAcceptance {
+    Accepted,
+    Refused,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,11 +93,11 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
             SeekSession::SeekingIn(session) => *session != timeline.session,
             SeekSession::NoSeek => false,
         };
-        match timeline.played {
-            Some(played) if !left_session => self
+        match timeline.progress {
+            PlaybackProgress::Timed { played, .. } if !left_session => self
                 .synced_position
                 .source_reported(played.as_secs_f32(), ARRIVAL_STEP_SECONDS),
-            Some(_) | None => self.follow_player(),
+            PlaybackProgress::Timed { .. } | PlaybackProgress::Untimed => self.follow_player(),
         }
     }
 
@@ -96,9 +107,10 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
         timeline: &PlaybackTimeline<PlaybackSession>,
     ) -> Option<Duration> {
         let steps = wheel_step_direction(&mut self.scroll_accumulated, delta)?;
-        let length = timeline.length?;
-        let shown = self.shown_position(timeline)?;
-        let target = scrolled_position(shown, steps, length);
+        let PlaybackProgress::Timed { played, length } = timeline.progress else {
+            return None;
+        };
+        let target = scrolled_position(self.shown_position(played), steps, length);
         let scroll_write = self.synced_position.scrolled_to(target.as_secs_f32());
         self.seek_with(scroll_write, timeline)
     }
@@ -111,7 +123,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
         let Some(ValueWrite::Absolute(seconds)) = position_write else {
             return None;
         };
-        if !timeline.accepts_seek {
+        if timeline.seek_acceptance == SeekAcceptance::Refused {
             self.follow_player();
             return None;
         }
@@ -134,24 +146,28 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
             .map(Duration::from_secs_f32)
     }
 
-    fn shown_position(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> Option<Duration> {
-        self.requested_position().or(timeline.played)
+    fn shown_position(&self, played: Duration) -> Duration {
+        self.requested_position().unwrap_or(played)
     }
 
-    fn lagging_position(&self, played: Duration) -> Option<Duration> {
-        self.requested_position()
-            .filter(|&requested| played.abs_diff(requested) > ARRIVAL_TOLERANCE)
-            .map(|_| played)
+    fn lagging_position(&self, played: Duration) -> SourceLag {
+        match self.requested_position() {
+            Some(requested) if played.abs_diff(requested) > ARRIVAL_TOLERANCE => {
+                SourceLag::LaggingAt(played.as_secs_f32())
+            }
+            Some(_) | None => SourceLag::CaughtUp,
+        }
     }
 
-    pub fn view<'a>(
+    pub fn view<'view>(
         &self,
         icon_size_px: f32,
         timeline: &PlaybackTimeline<PlaybackSession>,
-    ) -> Option<Element<'a, SeekMessage>> {
-        let length = timeline.length?;
-        let played = timeline.played?;
-        let shown = self.requested_position().unwrap_or(played);
+    ) -> Option<Element<'view, SeekMessage>> {
+        let PlaybackProgress::Timed { played, length } = timeline.progress else {
+            return None;
+        };
+        let shown = self.shown_position(played);
         Some(
             inline_slider(
                 0.0..=length.as_secs_f32(),
@@ -159,10 +175,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
                 SeekMessage::Drag,
             )
             .icon_size(icon_size_px)
-            .lagging_behind(
-                self.lagging_position(played)
-                    .map(|lagging| lagging.as_secs_f32()),
-            )
+            .lagging_behind(self.lagging_position(played))
             .step(DRAG_STEP_SECONDS)
             .on_release(SeekMessage::Release)
             .on_scroll(SeekMessage::Scroll)
@@ -196,10 +209,12 @@ mod tests {
 
     fn timeline_at(played: Duration, session: u32) -> PlaybackTimeline<u32> {
         PlaybackTimeline {
-            played: Some(played),
-            length: Some(LENGTH),
+            progress: PlaybackProgress::Timed {
+                played,
+                length: LENGTH,
+            },
             session,
-            accepts_seek: true,
+            seek_acceptance: SeekAcceptance::Accepted,
         }
     }
 
@@ -215,10 +230,10 @@ mod tests {
         let target = Duration::from_secs(120);
         let before = timeline_at(Duration::from_secs(10), FIRST_TRACK);
         let mut bar = released_at(target, &before);
-        assert_eq!(bar.shown_position(&before), Some(target));
+        assert_eq!(bar.shown_position(Duration::from_secs(10)), target);
         assert_eq!(
             bar.lagging_position(Duration::from_secs(10)),
-            Some(Duration::from_secs(10))
+            SourceLag::LaggingAt(10.0)
         );
 
         bar.player_reported(&before);
@@ -247,7 +262,7 @@ mod tests {
     #[test]
     fn a_timeline_refusing_seeks_keeps_following_the_player() {
         let refusing = PlaybackTimeline {
-            accepts_seek: false,
+            seek_acceptance: SeekAcceptance::Refused,
             ..timeline_at(Duration::from_secs(10), FIRST_TRACK)
         };
         let mut bar = SeekBar::default();

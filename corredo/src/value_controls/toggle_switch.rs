@@ -57,7 +57,7 @@ impl ToggleSwitch {
     }
 }
 
-impl<'a, Message: 'a> From<ToggleSwitch> for Element<'a, Message> {
+impl<'view, Message: 'view> From<ToggleSwitch> for Element<'view, Message> {
     fn from(switch: ToggleSwitch) -> Self {
         let ToggleSwitch {
             toggle_position,

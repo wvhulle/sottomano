@@ -2,7 +2,7 @@ mod recording_embed_widths;
 
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use sottomano_toml_config::default_config_toml;
 
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
@@ -20,19 +20,27 @@ enum MaintenanceTask {
     #[command(about = "Regenerate the full default config section of docs/configuration.md.")]
     UpdateConfigDocs {
         #[arg(
-            long,
+            long = "check",
+            value_enum,
+            num_args = 0,
+            default_value = "write",
+            default_missing_value = "check",
             help = "Fail when the section is stale instead of rewriting the file."
         )]
-        check: bool,
+        docs_mode: DocsMode,
     },
     #[command(about = "Set the width of every recording embedded in README.md and \
                        docs/guide/*.md to its logical width.")]
     UpdateRecordingEmbeds {
         #[arg(
-            long,
+            long = "check",
+            value_enum,
+            num_args = 0,
+            default_value = "write",
+            default_missing_value = "check",
             help = "Fail when an embed width is stale instead of rewriting the documents."
         )]
-        check: bool,
+        docs_mode: DocsMode,
     },
 }
 
@@ -113,7 +121,7 @@ fn fenced_default_config() -> Result<String, Box<dyn Error>> {
     ))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum DocsMode {
     Check,
     Write,
@@ -141,20 +149,10 @@ fn update_config_docs(docs_mode: DocsMode) -> Result<ExitCode, Box<dyn Error>> {
 }
 
 fn main() -> Result<ExitCode, Box<dyn Error>> {
-    let docs_mode = |check_flag: bool| {
-        if check_flag {
-            DocsMode::Check
-        } else {
-            DocsMode::Write
-        }
-    };
     match XtaskCommandLine::parse().task {
-        MaintenanceTask::UpdateConfigDocs { check } => update_config_docs(docs_mode(check)),
-        MaintenanceTask::UpdateRecordingEmbeds { check } => {
-            recording_embed_widths::update_recording_embeds(
-                Path::new(WORKSPACE_ROOT),
-                docs_mode(check),
-            )
+        MaintenanceTask::UpdateConfigDocs { docs_mode } => update_config_docs(docs_mode),
+        MaintenanceTask::UpdateRecordingEmbeds { docs_mode } => {
+            recording_embed_widths::update_recording_embeds(Path::new(WORKSPACE_ROOT), docs_mode)
         }
     }
 }

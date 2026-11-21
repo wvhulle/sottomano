@@ -237,8 +237,11 @@ async fn replace(path: &Path, contents: &str) -> io::Result<()> {
 mod tests {
     use std::{env, fs, io, path::Path, process};
 
-    use sottomano_compositor_model::compositor_styling_model::{
-        AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, SwitchHeat,
+    use sottomano_compositor_model::{
+        compositor_styling_model::{
+            AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, SwitchHeat,
+        },
+        compositor_window_facts::WindowAppId,
     };
     use sottomano_compositors::compositor_connection::CompositorKind;
 
@@ -258,9 +261,13 @@ mod tests {
         SwitchHeat::Shown {
             focus_ring_color: "#95e6cb".to_owned(),
             neutral_border_color: "#0b0e14".to_owned(),
-            windows: HeatedWindow::titled(Some("kitty".to_owned()), "nvim", "#ffb454".to_owned())
-                .into_iter()
-                .collect(),
+            windows: HeatedWindow::titled(
+                WindowAppId::Reported("kitty".to_owned()),
+                "nvim",
+                "#ffb454".to_owned(),
+            )
+            .into_iter()
+            .collect(),
         }
     }
 

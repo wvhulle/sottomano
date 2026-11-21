@@ -3,15 +3,15 @@ use iced::{Theme, advanced::Renderer as _};
 use super::slot_underlay::{PaintedRow, SlotPainter};
 use crate::{drag_reorder::slot_group::SlotTileInset, orientation::Axis, theming::ThemedColor};
 
-pub(super) struct AlarmTile<'a> {
+pub(super) struct AlarmTile<'view> {
     pub(super) slot_position: usize,
     pub(super) tile_inset: SlotTileInset,
-    pub(super) color: ThemedColor<'a>,
+    pub(super) color: ThemedColor<'view>,
 }
 
-pub(super) struct AlarmTiles<'a> {
+pub(super) struct AlarmTiles<'view> {
     pub(super) pager_axis: Axis,
-    pub(super) alarm_tiles: Vec<AlarmTile<'a>>,
+    pub(super) alarm_tiles: Vec<AlarmTile<'view>>,
 }
 
 impl SlotPainter for AlarmTiles<'_> {

@@ -15,20 +15,20 @@ use crate::{
 
 const DEFAULT_BODY_WIDTH: f32 = 280.0;
 
-struct Callout<'a, Message> {
+struct Callout<'element, Message> {
     anchor: DiagramAnchor,
-    label: Element<'a, Message, Theme, Renderer>,
+    label: Element<'element, Message, Theme, Renderer>,
 }
 
-pub struct ControllerDiagram<'a, Message> {
+pub struct ControllerDiagram<'element, Message> {
     artwork: ControllerArtwork,
     model: ControllerModel,
     metrics: DiagramMetrics,
-    callouts: Vec<Callout<'a, Message>>,
-    style: StyleFn<'a>,
+    callouts: Vec<Callout<'element, Message>>,
+    style: StyleFn<'element>,
 }
 
-impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
+impl<'element, Message: 'element> ControllerDiagram<'element, Message> {
     #[must_use]
     pub fn new(artwork: ControllerArtwork, model: ControllerModel) -> Self {
         Self {
@@ -74,7 +74,7 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     pub fn callout(
         mut self,
         anchor: impl Into<DiagramAnchor>,
-        label: impl Into<Element<'a, Message, Theme, Renderer>>,
+        label: impl Into<Element<'element, Message, Theme, Renderer>>,
     ) -> Self {
         self.callouts.push(Callout {
             anchor: anchor.into(),
@@ -84,16 +84,16 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     }
 
     #[must_use]
-    pub fn style(mut self, style: impl Fn(&Theme) -> Style + 'a) -> Self {
+    pub fn style(mut self, style: impl Fn(&Theme) -> Style + 'element) -> Self {
         self.style = Box::new(style);
         self
     }
 
     fn label_column(
-        rows: Vec<(f32, Element<'a, Message, Theme, Renderer>)>,
+        rows: Vec<(f32, Element<'element, Message, Theme, Renderer>)>,
         metrics: DiagramMetrics,
         align: Alignment,
-    ) -> Element<'a, Message, Theme, Renderer> {
+    ) -> Element<'element, Message, Theme, Renderer> {
         let mut next_free = 0.0;
         column(rows.into_iter().flat_map(|(top, label)| {
             let gap = (top - next_free).max(0.0);
@@ -110,7 +110,7 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
         .into()
     }
 
-    fn artwork(&self, layout: &CalloutLayout) -> Element<'a, Message, Theme, Renderer> {
+    fn artwork(&self, layout: &CalloutLayout) -> Element<'element, Message, Theme, Renderer> {
         let body = layout.body;
         pin(svg(self.artwork.front_view(self.model).clone())
             .width(body.width)
@@ -120,10 +120,10 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<ControllerDiagram<'a, Message>>
-    for Element<'a, Message, Theme, Renderer>
+impl<'element, Message: 'element> From<ControllerDiagram<'element, Message>>
+    for Element<'element, Message, Theme, Renderer>
 {
-    fn from(diagram: ControllerDiagram<'a, Message>) -> Self {
+    fn from(diagram: ControllerDiagram<'element, Message>) -> Self {
         let anchors: Vec<DiagramAnchor> = diagram
             .callouts
             .iter()
@@ -144,10 +144,16 @@ impl<'a, Message: 'a> From<ControllerDiagram<'a, Message>>
                 )
             })
             .partition(|(side, _, _)| *side == CalloutSide::Left);
-        let by_top = |a: &(CalloutSide, f32, _), b: &(CalloutSide, f32, _)| a.1.total_cmp(&b.1);
+        let by_top = |upper: &(CalloutSide, f32, _), lower: &(CalloutSide, f32, _)| {
+            upper.1.total_cmp(&lower.1)
+        };
         left.sort_by(by_top);
         right.sort_by(by_top);
-        let rows = |side: Vec<(CalloutSide, f32, Element<'a, Message, Theme, Renderer>)>| {
+        let rows = |side: Vec<(
+            CalloutSide,
+            f32,
+            Element<'element, Message, Theme, Renderer>,
+        )>| {
             side.into_iter()
                 .map(|(_, top, label)| (top, label))
                 .collect()

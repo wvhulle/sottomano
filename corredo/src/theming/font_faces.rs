@@ -55,7 +55,10 @@ impl Default for TextFace {
 }
 
 impl TextFace {
-    pub fn text<'a>(self, content: impl IntoFragment<'a>) -> Text<'a, iced::Theme, iced::Renderer> {
+    pub fn text<'content>(
+        self,
+        content: impl IntoFragment<'content>,
+    ) -> Text<'content, iced::Theme, iced::Renderer> {
         text(content)
             .size(self.size_px)
             .font(self.font)

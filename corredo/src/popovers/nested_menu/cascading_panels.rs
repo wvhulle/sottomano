@@ -2,7 +2,7 @@ use iced::Element;
 
 use super::{
     MenuBuilder, MenuEntry, MenuItem, MenuSubmenu, NestedMenuSurfaces,
-    menu_entries::{BesideRow, icon_column_of, without_redundant_dividers},
+    menu_entries::{BesideRow, shared_icon_column, without_redundant_dividers},
 };
 use crate::{
     drag_reorder::ListEndCorners,
@@ -13,41 +13,41 @@ use crate::{
     transitions::ExpansionState,
 };
 
-pub(super) enum OpenSubmenu<'a, SubmenuKey, Message> {
+pub(super) enum OpenSubmenu<'view, SubmenuKey, Message> {
     Closed,
     Open {
         row_offset_px: f32,
         path: Vec<SubmenuKey>,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
     },
 }
 
-pub(super) enum BesideCard<'a, Message> {
+pub(super) enum BesideCard<'view, Message> {
     Absent,
     Card {
         row_offset_px: f32,
-        card: Element<'a, Message>,
+        card: Element<'view, Message>,
     },
 }
 
-pub(super) struct BuiltPanel<'a, SubmenuKey, Message> {
-    rows: Vec<Element<'a, Message>>,
-    open_submenu: OpenSubmenu<'a, SubmenuKey, Message>,
-    beside_card: BesideCard<'a, Message>,
+pub(super) struct BuiltPanel<'view, SubmenuKey, Message> {
+    rows: Vec<Element<'view, Message>>,
+    open_submenu: OpenSubmenu<'view, SubmenuKey, Message>,
+    beside_card: BesideCard<'view, Message>,
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    MenuBuilder<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    MenuBuilder<'view, SubmenuKey, Message>
 {
     pub(super) fn satellite_reach(
         &self,
-        entries: &[MenuEntry<'a, SubmenuKey, Message>],
+        entries: &[MenuEntry<'view, SubmenuKey, Message>],
     ) -> SatelliteReach {
         let submenu_open = entries.iter().any(|entry| {
             matches!(
                 entry,
                 MenuEntry::Submenu(submenu)
-                    if self.expansion_of(&submenu.key) == ExpansionState::Expanded
+                    if self.submenu_expansion(&submenu.key) == ExpansionState::Expanded
             )
         });
         if submenu_open {
@@ -59,13 +59,13 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn cascading_panel(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
         ancestors: &[SubmenuKey],
-    ) -> BuiltPanel<'a, SubmenuKey, Message> {
+    ) -> BuiltPanel<'view, SubmenuKey, Message> {
         let entries = without_redundant_dividers(entries);
         let corners = ListEndCorners::new(entries.len(), self.chrome.style.frame_corners());
         let satellite_reach = self.satellite_reach(&entries);
-        let icon_column = icon_column_of(entries.iter().filter_map(|entry| match entry {
+        let icon_column = shared_icon_column(entries.iter().filter_map(|entry| match entry {
             MenuEntry::Item(item) => Some(&item.row.content),
             MenuEntry::Submenu(submenu) => Some(&submenu.header),
             MenuEntry::Divider => None,
@@ -109,7 +109,7 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
                     }) => {
                         let path: Vec<SubmenuKey> =
                             ancestors.iter().cloned().chain([key.clone()]).collect();
-                        let expansion_state = self.expansion_of(&key);
+                        let expansion_state = self.submenu_expansion(&key);
                         let row = gestured_menu_row(
                             self.header_row(
                                 header.within(icon_column),
@@ -138,10 +138,10 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn submenu_panel(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
         path: &[SubmenuKey],
         anchor: NotchRowAnchor,
-    ) -> NotchedPanel<'a, Message> {
+    ) -> NotchedPanel<'view, Message> {
         let depth = path.len();
         let BuiltPanel {
             rows,
@@ -183,8 +183,8 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn cascading_surfaces(
         &self,
-        entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
-    ) -> NestedMenuSurfaces<'a, Message> {
+        entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
+    ) -> NestedMenuSurfaces<'view, Message> {
         let BuiltPanel {
             rows,
             open_submenu,
@@ -218,9 +218,9 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn primary_beside_card(
         &self,
-        beside_card: BesideCard<'a, Message>,
+        beside_card: BesideCard<'view, Message>,
         scrolled_px: f32,
-    ) -> Vec<Element<'a, Message>> {
+    ) -> Vec<Element<'view, Message>> {
         match beside_card {
             BesideCard::Absent => Vec::new(),
             BesideCard::Card {

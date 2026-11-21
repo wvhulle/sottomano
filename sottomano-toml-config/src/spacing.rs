@@ -33,16 +33,16 @@ pub enum SpacingParseError {
 }
 
 impl fmt::Display for SpacingParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingUnit(text) => {
                 write!(
-                    f,
+                    formatter,
                     "{text:?} needs a unit: write it as \"{text}px\" or in em"
                 )
             }
-            Self::UnknownUnit(unit) => write!(f, "unknown unit {unit:?}; use px or em"),
-            Self::NotANumber(text, error) => write!(f, "{text:?} is not a number: {error}"),
+            Self::UnknownUnit(unit) => write!(formatter, "unknown unit {unit:?}; use px or em"),
+            Self::NotANumber(text, error) => write!(formatter, "{text:?} is not a number: {error}"),
         }
     }
 }
@@ -79,10 +79,10 @@ impl TryFrom<String> for Spacing {
 }
 
 impl fmt::Display for Spacing {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Px(px) => write!(f, "{px}px"),
-            Self::Em(em) => write!(f, "{em}em"),
+            Self::Px(px) => write!(formatter, "{px}px"),
+            Self::Em(em) => write!(formatter, "{em}em"),
         }
     }
 }

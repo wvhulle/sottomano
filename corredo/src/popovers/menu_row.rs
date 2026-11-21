@@ -21,21 +21,21 @@ pub(crate) enum RowGesture<Payload> {
     Publishes(Payload),
 }
 
-type ScrollAdjustment<'a, Message> = Box<dyn Fn(ScrollDelta) -> Message + 'a>;
+type ScrollAdjustment<'view, Message> = Box<dyn Fn(ScrollDelta) -> Message + 'view>;
 
-pub struct MenuRow<'a, Message> {
-    pub(crate) content: MenuRowContent<'a, Message>,
+pub struct MenuRow<'view, Message> {
+    pub(crate) content: MenuRowContent<'view, Message>,
     pub(crate) emphasis: MenuRowEmphasis,
     pub(crate) press: RowGesture<Message>,
     pub(crate) hover_reaction: RowHoverReaction<Message>,
     entered: RowGesture<Message>,
     right_pressed: RowGesture<Message>,
-    scrolled: RowGesture<ScrollAdjustment<'a, Message>>,
+    scrolled: RowGesture<ScrollAdjustment<'view, Message>>,
 }
 
-impl<'a, Message> MenuRow<'a, Message> {
+impl<'view, Message> MenuRow<'view, Message> {
     #[must_use]
-    pub fn new(content: MenuRowContent<'a, Message>) -> Self {
+    pub fn new(content: MenuRowContent<'view, Message>) -> Self {
         Self {
             content,
             emphasis: MenuRowEmphasis::Plain,
@@ -85,7 +85,7 @@ impl<'a, Message> MenuRow<'a, Message> {
     }
 
     #[must_use]
-    pub fn on_scroll(self, adjust: impl Fn(ScrollDelta) -> Message + 'a) -> Self {
+    pub fn on_scroll(self, adjust: impl Fn(ScrollDelta) -> Message + 'view) -> Self {
         Self {
             scrolled: RowGesture::Publishes(Box::new(adjust)),
             ..self
@@ -122,10 +122,10 @@ impl Default for MenuRowMetrics {
     }
 }
 
-pub(crate) enum RowIcon<'a, Message> {
+pub(crate) enum RowIcon<'view, Message> {
     Absent,
     Blank,
-    Shown(Element<'a, Message>),
+    Shown(Element<'view, Message>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,18 +134,18 @@ pub(crate) enum IconColumn {
     Omitted,
 }
 
-pub struct MenuRowContent<'a, Message> {
+pub struct MenuRowContent<'view, Message> {
     pub(crate) indent_levels: usize,
-    pub(crate) leading: Vec<Element<'a, Message>>,
-    pub(crate) icon: RowIcon<'a, Message>,
-    label: Cow<'a, str>,
-    value: Element<'a, Message>,
-    pub(crate) trailing: Vec<Element<'a, Message>>,
+    pub(crate) leading: Vec<Element<'view, Message>>,
+    pub(crate) icon: RowIcon<'view, Message>,
+    label: Cow<'view, str>,
+    value: Element<'view, Message>,
+    pub(crate) trailing: Vec<Element<'view, Message>>,
 }
 
-impl<'a, Message: 'a> MenuRowContent<'a, Message> {
+impl<'view, Message: 'view> MenuRowContent<'view, Message> {
     #[must_use]
-    pub fn new(label: impl Into<Cow<'a, str>>) -> Self {
+    pub fn new(label: impl Into<Cow<'view, str>>) -> Self {
         Self {
             indent_levels: 0,
             leading: Vec::new(),
@@ -157,7 +157,7 @@ impl<'a, Message: 'a> MenuRowContent<'a, Message> {
     }
 
     #[must_use]
-    pub fn icon(self, icon: impl Into<Element<'a, Message>>) -> Self {
+    pub fn icon(self, icon: impl Into<Element<'view, Message>>) -> Self {
         Self {
             icon: RowIcon::Shown(icon.into()),
             ..self
@@ -175,7 +175,7 @@ impl<'a, Message: 'a> MenuRowContent<'a, Message> {
     }
 
     #[must_use]
-    pub fn value(self, value: impl Into<Element<'a, Message>>) -> Self {
+    pub fn value(self, value: impl Into<Element<'view, Message>>) -> Self {
         Self {
             value: value.into(),
             ..self
@@ -183,7 +183,7 @@ impl<'a, Message: 'a> MenuRowContent<'a, Message> {
     }
 
     #[must_use]
-    pub fn leading(self, leading: impl IntoIterator<Item = Element<'a, Message>>) -> Self {
+    pub fn leading(self, leading: impl IntoIterator<Item = Element<'view, Message>>) -> Self {
         Self {
             leading: leading.into_iter().collect(),
             ..self
@@ -191,7 +191,7 @@ impl<'a, Message: 'a> MenuRowContent<'a, Message> {
     }
 
     #[must_use]
-    pub fn trailing(self, trailing: impl IntoIterator<Item = Element<'a, Message>>) -> Self {
+    pub fn trailing(self, trailing: impl IntoIterator<Item = Element<'view, Message>>) -> Self {
         Self {
             trailing: trailing.into_iter().collect(),
             ..self
@@ -199,13 +199,13 @@ impl<'a, Message: 'a> MenuRowContent<'a, Message> {
     }
 }
 
-fn drawn_menu_row<'a, Message: Clone + 'a>(
+fn drawn_menu_row<'view, Message: Clone + 'view>(
     metrics: MenuRowMetrics,
-    content: MenuRowContent<'a, Message>,
+    content: MenuRowContent<'view, Message>,
     look: MenuRowLook,
     press: RowGesture<Message>,
     hover_reaction: RowHoverReaction<Message>,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let MenuRowContent {
         indent_levels,
         leading,
@@ -239,7 +239,7 @@ fn drawn_menu_row<'a, Message: Clone + 'a>(
         .height(Length::Fill)
         .align_y(Alignment::Center);
     let padding = Padding::ZERO.horizontal(metrics.side_inset_px);
-    let body: Element<'a, Message> = match press {
+    let body: Element<'view, Message> = match press {
         RowGesture::Inert => container(line)
             .width(Length::Fill)
             .height(metrics.row_height_px)
@@ -260,11 +260,11 @@ fn drawn_menu_row<'a, Message: Clone + 'a>(
     })
 }
 
-pub(crate) fn gestured_menu_row<'a, Message: Clone + 'a>(
-    row: MenuRow<'a, Message>,
+pub(crate) fn gestured_menu_row<'view, Message: Clone + 'view>(
+    row: MenuRow<'view, Message>,
     metrics: MenuRowMetrics,
     frame_corners: Radius,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let MenuRow {
         content,
         emphasis,

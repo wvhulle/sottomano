@@ -6,7 +6,10 @@ use std::{
 };
 
 use futures::Stream;
-use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::{
+    compositor_window_facts::{WindowAppId, WindowTitle},
+    compositor_window_state::CompositorWindowState,
+};
 
 use crate::{
     blocking_background_work::blocking,
@@ -38,9 +41,16 @@ pub fn firefox_keys(compositor: &CompositorWindowState) -> Vec<String> {
     let mut keys: Vec<String> = compositor
         .windows
         .values()
-        .filter_map(|w| {
-            let label = WindowLabel::classify(w.app_id.as_deref()?, w.title.as_deref()?);
-            label.favicon_key().map(str::to_owned)
+        .filter_map(|window| {
+            let WindowAppId::Reported(app_id) = &window.app_id else {
+                return None;
+            };
+            let WindowTitle::Titled(title) = &window.title else {
+                return None;
+            };
+            WindowLabel::classify(app_id, title)
+                .favicon_key()
+                .map(str::to_owned)
         })
         .collect();
     keys.sort_unstable();

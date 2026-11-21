@@ -37,7 +37,7 @@ impl CountdownDial {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(self) -> Element<'a, Message> {
+    pub fn view<'view, Message: 'view>(self) -> Element<'view, Message> {
         let diameter = self.diameter;
         let ring_width = self.ring_width();
         stack![

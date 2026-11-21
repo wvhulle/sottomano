@@ -34,7 +34,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, secrets::StoredSecret};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -107,7 +107,11 @@ impl ClaudeUsageGroup {
     }
 
     #[must_use]
-    pub fn new(oauth_credentials: Option<PathBuf>) -> Self {
+    pub fn new(oauth_credentials: StoredSecret) -> Self {
+        let oauth_credentials = match oauth_credentials {
+            StoredSecret::Present(credentials_path) => Some(credentials_path),
+            StoredSecret::Absent => None,
+        };
         Self {
             usage_windows: SubscribedSnapshot::default(),
             enterprise_spend: SubscribedSnapshot::default(),

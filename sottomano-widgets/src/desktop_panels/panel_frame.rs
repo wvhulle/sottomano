@@ -1,6 +1,6 @@
 use core::slice;
 
-use corredo::theming::{FrameStyle, OutlinedSides};
+use corredo::theming::{FrameStyle, OutlineTracing, OutlinedSides};
 use iced::{
     Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector,
     advanced::{
@@ -19,12 +19,19 @@ use sottomano_toml_config::screen_edges::Position;
 use crate::desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles};
 
 #[must_use]
-pub fn outlined_sides_inward_of(panel_position: Position) -> OutlinedSides {
+pub fn inward_outlined_sides(panel_position: Position) -> OutlinedSides {
+    let traced_unless_against = |screen_side: Position| {
+        if panel_position == screen_side {
+            OutlineTracing::Omitted
+        } else {
+            OutlineTracing::Drawn
+        }
+    };
     OutlinedSides {
-        top: panel_position != Position::Top,
-        right: true,
-        bottom: panel_position != Position::Bottom,
-        left: panel_position != Position::Left,
+        top: traced_unless_against(Position::Top),
+        right: OutlineTracing::Drawn,
+        bottom: traced_unless_against(Position::Bottom),
+        left: traced_unless_against(Position::Left),
     }
 }
 
@@ -62,7 +69,10 @@ impl<Message> PanelFrame<'_, Message> {
 
     fn outline_clearance(&self) -> Padding {
         let outline_width = self.frame.outline_width();
-        let cleared = |outlined: bool| if outlined { outline_width } else { 0.0 };
+        let cleared = |side_tracing: OutlineTracing| match side_tracing {
+            OutlineTracing::Drawn => outline_width,
+            OutlineTracing::Omitted => 0.0,
+        };
         Padding {
             top: cleared(self.outlined_sides.top),
             right: cleared(self.outlined_sides.right),
@@ -266,13 +276,13 @@ mod tests {
     use iced::{Padding, Rectangle, widget::space};
     use sottomano_toml_config::screen_edges::Position;
 
-    use super::{FrameStyle, outlined_sides_inward_of, panel_frame};
+    use super::{FrameStyle, inward_outlined_sides, panel_frame};
     use crate::desktop_panels::region_reporter::BackdropBlur;
 
     #[test]
     fn a_top_panel_blurs_its_screen_edge_corners_square() {
         let frame = panel_frame::<()>(space(), FrameStyle::default().with_corner_radius(8.0))
-            .outlined_sides(outlined_sides_inward_of(Position::Top))
+            .outlined_sides(inward_outlined_sides(Position::Top))
             .backdrop_blur(BackdropBlur::Blurred);
         let pill = Rectangle {
             x: 10.0,
@@ -292,7 +302,7 @@ mod tests {
         let frame_style = FrameStyle::default();
         let outline_width = frame_style.outline_width();
         let frame = panel_frame::<()>(space(), frame_style)
-            .outlined_sides(outlined_sides_inward_of(Position::Bottom));
+            .outlined_sides(inward_outlined_sides(Position::Bottom));
         assert_eq!(
             frame.outline_clearance(),
             Padding {

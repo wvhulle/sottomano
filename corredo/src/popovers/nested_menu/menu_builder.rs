@@ -16,18 +16,18 @@ use crate::{
     width_layout::equal_width_column,
 };
 
-pub(super) struct MenuBuilder<'a, SubmenuKey, Message> {
+pub(super) struct MenuBuilder<'view, SubmenuKey, Message> {
     pub(super) state: NestedMenuState<SubmenuKey>,
     pub(super) presentation: NestedMenuPresentation,
-    pub(super) on_action: ActionReport<'a, SubmenuKey, Message>,
-    pub(super) caret: CaretGlyph<'a, Message>,
+    pub(super) on_action: ActionReport<'view, SubmenuKey, Message>,
+    pub(super) caret: CaretGlyph<'view, Message>,
     pub(super) chrome: MenuChrome,
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    MenuBuilder<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    MenuBuilder<'view, SubmenuKey, Message>
 {
-    pub(super) fn expansion_of(&self, key: &SubmenuKey) -> ExpansionState {
+    pub(super) fn submenu_expansion(&self, key: &SubmenuKey) -> ExpansionState {
         if self.state.open_submenus.contains(key) {
             ExpansionState::Expanded
         } else {
@@ -39,14 +39,14 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
         self.chrome.metrics.item_spacing_px + OUTLINE_WIDTH_PX
     }
 
-    pub(super) fn entry_height_px(&self, entry: &MenuEntry<'a, SubmenuKey, Message>) -> f32 {
+    pub(super) fn entry_height_px(&self, entry: &MenuEntry<'view, SubmenuKey, Message>) -> f32 {
         match entry {
             MenuEntry::Divider => self.divider_height_px(),
             MenuEntry::Item(_) | MenuEntry::Submenu(_) => self.chrome.metrics.row_height_px,
         }
     }
 
-    pub(super) fn divider(&self) -> Element<'a, Message> {
+    pub(super) fn divider(&self) -> Element<'view, Message> {
         container(activity_line(
             Axis::Horizontal,
             background_weak_color,
@@ -59,9 +59,9 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
 
     pub(super) fn scrolled_list(
         &self,
-        rows: Vec<Element<'a, Message>>,
+        rows: Vec<Element<'view, Message>>,
         depth: usize,
-    ) -> Element<'a, Message> {
+    ) -> Element<'view, Message> {
         let on_action = Rc::clone(&self.on_action);
         selection_following_scroll(equal_width_column(rows), Axis::Vertical)
             .wheel_line_travel(self.chrome.wheel_line_px)
@@ -79,9 +79,9 @@ impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
     pub(super) fn panel(
         &self,
         role: SatelliteRole,
-        content: Element<'a, Message>,
+        content: Element<'view, Message>,
         row: NotchRowAnchor,
-    ) -> NotchedPanel<'a, Message> {
+    ) -> NotchedPanel<'view, Message> {
         let frame = match role {
             SatelliteRole::ItemList => self.chrome.style.list_frame,
             SatelliteRole::Beside => self.chrome.style.beside_frame,

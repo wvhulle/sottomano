@@ -6,7 +6,7 @@ pub struct Style {
     pub anchor: Color,
 }
 
-pub type StyleFn<'a> = Box<dyn Fn(&Theme) -> Style + 'a>;
+pub type StyleFn<'style> = Box<dyn Fn(&Theme) -> Style + 'style>;
 
 #[must_use]
 pub fn default(theme: &Theme) -> Style {

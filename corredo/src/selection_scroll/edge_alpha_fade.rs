@@ -117,7 +117,10 @@ impl ScrollEdgeFade {
         axis: Axis,
         hidden_edges: HiddenScrollEdges,
     ) -> Rectangle {
-        let inset = |hidden: bool| if hidden { self.outline_inset_px } else { 0.0 };
+        let inset = |edge_overflow: EdgeOverflow| match edge_overflow {
+            EdgeOverflow::Overflowing => self.outline_inset_px,
+            EdgeOverflow::Flush => 0.0,
+        };
         let start_inset = inset(hidden_edges.start);
         let end_inset = inset(hidden_edges.end);
         match axis {
@@ -224,8 +227,22 @@ impl ScrollEdgeFade {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HiddenScrollEdges {
-    pub start: bool,
-    pub end: bool,
+    pub start: EdgeOverflow,
+    pub end: EdgeOverflow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EdgeOverflow {
+    Flush,
+    Overflowing,
+}
+
+fn overflow_beyond_tolerance(overflow_px: f32) -> EdgeOverflow {
+    if overflow_px > OVERFLOW_TOLERANCE_PX {
+        EdgeOverflow::Overflowing
+    } else {
+        EdgeOverflow::Flush
+    }
 }
 
 impl HiddenScrollEdges {
@@ -234,8 +251,8 @@ impl HiddenScrollEdges {
         let max_scrolled = (content_span - visible_span).max(0.0);
         let scrolled = scrolled_px.clamp(0.0, max_scrolled);
         Self {
-            start: scrolled > OVERFLOW_TOLERANCE_PX,
-            end: max_scrolled - scrolled > OVERFLOW_TOLERANCE_PX,
+            start: overflow_beyond_tolerance(scrolled),
+            end: overflow_beyond_tolerance(max_scrolled - scrolled),
         }
     }
 }
@@ -252,7 +269,10 @@ impl FadeShader for EdgeFadeShader {
 mod tests {
     use iced::{Color, Rectangle, Size};
 
-    use super::{HiddenScrollEdges, ScrollEdgeFade};
+    use super::{
+        EdgeOverflow::{Flush, Overflowing},
+        HiddenScrollEdges, ScrollEdgeFade,
+    };
     use crate::{
         alpha_fade_shaders::premultiplied_blend_constant,
         orientation::{Axis, Edge},
@@ -281,16 +301,16 @@ mod tests {
                 HiddenScrollEdges::clamped_scroll_overflow(scrolled_px, content_span, visible_span);
             [edges.start, edges.end]
         };
-        assert_eq!(hidden(0.0, 80.0, 100.0), [false, false]);
-        assert_eq!(hidden(0.0, 300.0, 100.0), [false, true]);
-        assert_eq!(hidden(50.0, 300.0, 100.0), [true, true]);
-        assert_eq!(hidden(500.0, 300.0, 100.0), [true, false]);
+        assert_eq!(hidden(0.0, 80.0, 100.0), [Flush, Flush]);
+        assert_eq!(hidden(0.0, 300.0, 100.0), [Flush, Overflowing]);
+        assert_eq!(hidden(50.0, 300.0, 100.0), [Overflowing, Overflowing]);
+        assert_eq!(hidden(500.0, 300.0, 100.0), [Overflowing, Flush]);
     }
 
     #[test]
     fn subpixel_overflow_draws_no_fade() {
         let edges = HiddenScrollEdges::clamped_scroll_overflow(0.0, 100.25, 100.0);
-        assert_eq!([edges.start, edges.end], [false, false]);
+        assert_eq!([edges.start, edges.end], [Flush, Flush]);
     }
 
     #[test]
@@ -311,8 +331,8 @@ mod tests {
         let outline = frame.outline_width();
         let clip = Rectangle::with_size(Size::new(200.0, 300.0));
         let hidden_below = HiddenScrollEdges {
-            start: false,
-            end: true,
+            start: Flush,
+            end: Overflowing,
         };
         let rows_clip = ScrollEdgeFade::within_frame(frame, 28.0).clear_of_outline(
             clip,

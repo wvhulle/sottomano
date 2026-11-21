@@ -19,6 +19,9 @@ use iced::{
     animation::Easing,
     widget::{Row, container, progress_bar, right, stack, text, text::Wrapping},
 };
+use sottomano_compositor_model::compositor_window_facts::{
+    Urgency, WindowAppId, WindowFocus, WindowPid, WindowTiling,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
@@ -72,7 +75,8 @@ use crate::{
         configured_scroll::configured_scroll,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         pointer_drag::{
-            DragView, DraggedPanelSlot, PanelSlotList, reorderable_list::reorderable_list,
+            DragActivity, DragView, DraggedPanelSlot, PanelSlotList,
+            reorderable_list::reorderable_list,
         },
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::font_faces_of,
@@ -527,7 +531,7 @@ impl WindowList {
         });
         let focused_position = order
             .iter()
-            .position(|window_entry| window_entry.is_focused);
+            .position(|window_entry| window_entry.focus == WindowFocus::Focused);
         let ArrangedWindowRows {
             groups,
             presentations,
@@ -544,8 +548,10 @@ impl WindowList {
             .map(|(position_in_panel, window_entry)| {
                 let item = window_slot_key(window_entry, workspace);
                 let opacity = match drag.drag {
-                    Some(active_drag) if active_drag.item == item => DISABLED_ALPHA,
-                    Some(_) | None => 1.0,
+                    DragActivity::Dragging(active_drag) if active_drag.item == item => {
+                        DISABLED_ALPHA
+                    }
+                    DragActivity::Dragging(_) | DragActivity::Idle => 1.0,
                 };
                 WindowSlot {
                     window_entry,
@@ -572,23 +578,25 @@ impl WindowList {
         let slots = window_slots
             .iter()
             .map(|window_slot| (window_slot.item, window_slot.view(icons)));
-        let focused_key = order
-            .iter()
-            .find(|window_entry| window_entry.is_focused)
-            .map(|window_entry| window_slot_key(window_entry, workspace));
         let pager = reorderable_list(slots, edge, config)
-            .highlight(focused_key, primary_color)
             .ungrouped_slot_look(ungrouped_slot_look)
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
-        configured_scroll(pager, Axis::Horizontal, config)
-            .edge_fade(ScrollEdgeFade::away_from_frame(
-                slot_context.panel_frame_style,
-                maximum_window_title_width_px(config),
-            ))
+        let scrolled_pager = |pager| {
+            configured_scroll(pager, Axis::Horizontal, config)
+                .edge_fade(ScrollEdgeFade::away_from_frame(
+                    slot_context.panel_frame_style,
+                    maximum_window_title_width_px(config),
+                ))
+                .showing(workspace)
+        };
+        let Some(focused_position) = focused_position else {
+            return scrolled_pager(pager).into();
+        };
+        let focused_key = window_slot_key(order[focused_position], workspace);
+        scrolled_pager(pager.highlight(focused_key, primary_color))
             .selected(focused_position)
-            .showing(workspace)
             .into()
     }
 
@@ -664,13 +672,20 @@ impl WindowList {
         audio: Option<&HashMap<i32, WindowAudio>>,
         config: &Config,
     ) -> Extras<'_> {
-        let app_id = window_entry.app_id.as_deref();
+        let app_id = match &window_entry.app_id {
+            WindowAppId::Reported(app_id) => Some(app_id.as_str()),
+            WindowAppId::Unreported => None,
+        };
         Extras {
-            audio: match config.indicator_groups.window.audio_indicator {
-                ElementVisibility::Shown => {
-                    window_entry.pid.and_then(|pid| audio?.get(&pid)).copied()
+            audio: match (
+                config.indicator_groups.window.audio_indicator,
+                window_entry.pid,
+            ) {
+                (ElementVisibility::Shown, WindowPid::Reported(pid)) => {
+                    audio.and_then(|audio| audio.get(&pid)).copied()
                 }
-                ElementVisibility::Hidden => None,
+                (ElementVisibility::Shown, WindowPid::Unreported)
+                | (ElementVisibility::Hidden, _) => None,
             },
             launcher: app_id.and_then(|app_id| self.launcher.by_app.get(app_id)),
             job: app_id.and_then(|app_id| self.jobs.get(app_id)),
@@ -731,10 +746,11 @@ enum WindowAttention {
 }
 
 fn entry_tile_press(window_entry: &workspace_window_snapshot::WinEntry) -> TilePress {
-    if window_entry.is_focused && !window_entry.layout.is_floating {
-        TilePress::TogglesMaximize
-    } else {
-        TilePress::FocusesWindow
+    match (window_entry.focus, window_entry.layout.tiling) {
+        (WindowFocus::Focused, WindowTiling::Tiled) => TilePress::TogglesMaximize,
+        (WindowFocus::Focused, WindowTiling::Floating) | (WindowFocus::Unfocused, _) => {
+            TilePress::FocusesWindow
+        }
     }
 }
 
@@ -742,7 +758,10 @@ fn audible_pid(
     window_entry: &workspace_window_snapshot::WinEntry,
     extras: &Extras<'_>,
 ) -> Option<i32> {
-    window_entry.pid.filter(|_| extras.audio.is_some())
+    match window_entry.pid {
+        WindowPid::Reported(pid) if extras.audio.is_some() => Some(pid),
+        WindowPid::Reported(_) | WindowPid::Unreported => None,
+    }
 }
 
 fn slot_press_actions(
@@ -786,7 +805,7 @@ fn glyph_color(
 impl WindowSlot<'_> {
     fn attention(&self) -> WindowAttention {
         let launcher_urgent = self.extras.launcher.is_some_and(|entry| entry.urgent);
-        if self.window_entry.is_urgent || launcher_urgent {
+        if self.window_entry.urgency == Urgency::Urgent || launcher_urgent {
             WindowAttention::Urgent
         } else {
             WindowAttention::Calm
@@ -805,9 +824,11 @@ impl WindowSlot<'_> {
     }
 
     fn tile_marking(&self) -> WindowTileMarking {
-        match (self.window_entry.is_focused, self.attention()) {
-            (true, _) | (false, WindowAttention::Urgent) => WindowTileMarking::Marked,
-            (false, WindowAttention::Calm) => WindowTileMarking::Unmarked,
+        match (self.window_entry.focus, self.attention()) {
+            (WindowFocus::Focused, _) | (WindowFocus::Unfocused, WindowAttention::Urgent) => {
+                WindowTileMarking::Marked
+            }
+            (WindowFocus::Unfocused, WindowAttention::Calm) => WindowTileMarking::Unmarked,
         }
     }
 
@@ -830,7 +851,7 @@ impl WindowSlot<'_> {
             },
         };
         let hover_reorder = if self.window_entry.layout.column().is_some()
-            && !self.window_entry.layout.is_floating
+            && self.window_entry.layout.tiling == WindowTiling::Tiled
         {
             HoverReorder::ReordersOnHover
         } else {
@@ -870,7 +891,7 @@ impl WindowSlot<'_> {
                 WindowListInteraction::HoverCard,
             )
         };
-        let focused_glyph_slots = self.window_entry.is_focused.then(|| {
+        let focused_glyph_slots = (self.window_entry.focus == WindowFocus::Focused).then(|| {
             [
                 glyph_slot(Phosphor::UserFocus, WindowTarget::Usage(window)),
                 glyph_slot(Phosphor::Package, WindowTarget::Inspect(window)),

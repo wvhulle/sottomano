@@ -57,8 +57,8 @@ impl Palette {
     }
 }
 
-fn css(s: &str) -> AlphaColor<Srgb> {
-    in_srgb(color::parse_color(s).expect("invalid default color"))
+fn css(css_color_text: &str) -> AlphaColor<Srgb> {
+    in_srgb(color::parse_color(css_color_text).expect("invalid default color"))
 }
 
 fn in_srgb(dynamic: color::DynamicColor) -> AlphaColor<Srgb> {
@@ -76,13 +76,18 @@ mod css_color {
     use super::in_srgb;
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn serialize<S: Serializer>(srgb: &AlphaColor<Srgb>, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(&format_args!("{:x}", srgb.to_rgba8()))
+    pub fn serialize<S: Serializer>(
+        srgb: &AlphaColor<Srgb>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&format_args!("{:x}", srgb.to_rgba8()))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<AlphaColor<Srgb>, D::Error> {
-        let s = String::deserialize(d)?;
-        color::DynamicColor::from_str(&s)
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<AlphaColor<Srgb>, D::Error> {
+        let css_color_text = String::deserialize(deserializer)?;
+        color::DynamicColor::from_str(&css_color_text)
             .map(in_srgb)
             .map_err(D::Error::custom)
     }

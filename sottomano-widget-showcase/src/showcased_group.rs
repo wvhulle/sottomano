@@ -7,7 +7,9 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_compositor_model::{
-    compositor_styling_model::AppWindowLayout, compositor_window_state::CompositorWindowState,
+    compositor_styling_model::AppWindowLayout,
+    compositor_window_facts::{TileViewPosition, WindowFocus, WorkspaceName},
+    compositor_window_state::CompositorWindowState,
 };
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
@@ -22,7 +24,7 @@ use sottomano_toml_config::{
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMenu,
     clock::Clock,
-    desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
+    desktop_panels::{panel_frame::inward_outlined_sides, panel_slot_drag::PanelSlotContext},
     group_indicators::group_indicator::HoverFetch,
     group_menus::group_menu_state::GroupMenuState,
     hover_cards::{
@@ -79,7 +81,7 @@ use sottomano_widgets::{
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        pointer_drag::DragView,
+        pointer_drag::{DragActivity, DragView},
     },
 };
 
@@ -98,7 +100,10 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
     snapshot
         .workspaces_for_output(SHOWCASE_OUTPUT)
         .iter()
-        .filter_map(|p| p.name.clone())
+        .filter_map(|indicator| match &indicator.name {
+            WorkspaceName::Named(name) => Some(name.clone()),
+            WorkspaceName::Unnamed => None,
+        })
         .collect()
 }
 
@@ -118,7 +123,7 @@ fn undragged_slot_context(
         config,
         edge,
         drag: DragView {
-            drag: None,
+            drag: DragActivity::Idle,
             ghost_frame: panel_appearance.frame,
         },
         clock,
@@ -268,12 +273,17 @@ fn terminal_row<'a>(
 impl ShowcasedToasts {
     fn window_frames(&self) -> Element<'_, ShowcaseInteraction> {
         let frames = self.compositor.windows.values().filter_map(|window| {
-            let (x, y) = window.layout.tile_position_in_view?;
+            let TileViewPosition::InView {
+                horizontal,
+                vertical,
+            } = window.layout.tile_position_in_view
+            else {
+                return None;
+            };
             let (width, height) = window.layout.window_size;
-            let focus_ring: fn(&Theme) -> Color = if window.is_focused {
-                primary_color
-            } else {
-                secondary_text_color
+            let focus_ring: fn(&Theme) -> Color = match window.focus {
+                WindowFocus::Focused => primary_color,
+                WindowFocus::Unfocused => secondary_text_color,
             };
             let scrollback =
                 Column::with_children(self.terminal_scrollback.iter().map(TerminalLine::view));
@@ -294,7 +304,7 @@ impl ShowcasedToasts {
                 });
             Some(
                 container(frame)
-                    .padding(Padding::ZERO.top(y as f32).left(x as f32))
+                    .padding(Padding::ZERO.top(vertical as f32).left(horizontal as f32))
                     .into(),
             )
         });
@@ -330,8 +340,7 @@ impl ShowcasedDesktopSession {
             Some(&configured_in_fixture_order(&self.snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
             recorded_look().sidebar.frame.drawn_corners(
-                outlined_sides_inward_of(Position::Left)
-                    .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
+                inward_outlined_sides(Position::Left).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
             ),
             undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
         )

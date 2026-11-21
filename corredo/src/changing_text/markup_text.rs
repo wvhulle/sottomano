@@ -16,8 +16,8 @@ use crate::{
     theming::{LINE_HEIGHT, TextFace, secondary_text_color},
 };
 
-pub struct MarkupText<'a> {
-    markup: &'a str,
+pub struct MarkupText<'markup> {
+    markup: &'markup str,
     upright: Font,
     size: f32,
     monospace: Font,
@@ -27,9 +27,9 @@ pub struct MarkupText<'a> {
     backdrop: Color,
 }
 
-impl<'a> MarkupText<'a> {
+impl<'markup> MarkupText<'markup> {
     #[must_use]
-    pub fn new(markup: &'a str, face: TextFace, backdrop: Color) -> Self {
+    pub fn new(markup: &'markup str, face: TextFace, backdrop: Color) -> Self {
         Self {
             markup,
             backdrop,
@@ -150,23 +150,29 @@ impl<Message: 'static> From<MarkupText<'_>> for Element<'static, Message> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TextDecoration {
+    Plain,
+    Underlined,
+}
+
 #[derive(Clone, Copy)]
 struct Emphasis {
     font: Font,
-    underline: bool,
+    decoration: TextDecoration,
 }
 
 impl Emphasis {
     fn nested_tags(stack: &[String], base: Font, mono: Font) -> Self {
         let mut emphasis = Self {
             font: base,
-            underline: false,
+            decoration: TextDecoration::Plain,
         };
         for tag in stack {
             match tag.as_str() {
                 "b" => emphasis.font.weight = Weight::Bold,
                 "i" => emphasis.font.style = FontStyle::Italic,
-                "u" => emphasis.underline = true,
+                "u" => emphasis.decoration = TextDecoration::Underlined,
                 "pre" | "tt" => emphasis.font.family = mono.family,
                 _ => {}
             }
@@ -176,9 +182,9 @@ impl Emphasis {
 }
 
 #[derive(Clone)]
-struct Row<'a> {
-    key: Vec<Span<'a>>,
-    value: Vec<Span<'a>>,
+struct Row<'markup> {
+    key: Vec<Span<'markup>>,
+    value: Vec<Span<'markup>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,19 +193,19 @@ enum TextFlow {
     Preformatted,
 }
 
-enum Block<'a> {
+enum Block<'markup> {
     Paragraph {
-        spans: Vec<Span<'a>>,
+        spans: Vec<Span<'markup>>,
         text_flow: TextFlow,
     },
-    Rows(Vec<Row<'a>>),
+    Rows(Vec<Row<'markup>>),
 }
 
-struct BlockBuilder<'a> {
-    blocks: Vec<Block<'a>>,
+struct BlockBuilder<'markup> {
+    blocks: Vec<Block<'markup>>,
 }
 
-impl<'a> BlockBuilder<'a> {
+impl<'markup> BlockBuilder<'markup> {
     fn open_rows(&mut self) {
         self.blocks.push(Block::Rows(Vec::new()));
     }
@@ -213,7 +219,7 @@ impl<'a> BlockBuilder<'a> {
         }
     }
 
-    fn push_span(&mut self, styled: Span<'a>, stack: &[String]) {
+    fn push_span(&mut self, styled: Span<'markup>, stack: &[String]) {
         let inside = |tag: &str| stack.iter().any(|open| open == tag);
         if inside("dl") {
             if let Some(Block::Rows(rows)) = self.blocks.last_mut()
@@ -245,7 +251,12 @@ impl<'a> BlockBuilder<'a> {
     }
 }
 
-fn parse_blocks<'a>(markup: &str, size: f32, upright: Font, mono: Font) -> Vec<Block<'a>> {
+fn parse_blocks<'markup>(
+    markup: &str,
+    size: f32,
+    upright: Font,
+    mono: Font,
+) -> Vec<Block<'markup>> {
     let mut reader = Reader::from_str(markup);
     let config = reader.config_mut();
     config.allow_dangling_amp = true;
@@ -259,7 +270,7 @@ fn parse_blocks<'a>(markup: &str, size: f32, upright: Font, mono: Font) -> Vec<B
         span(text)
             .font(emphasis.font)
             .size(size)
-            .underline(emphasis.underline)
+            .underline(emphasis.decoration == TextDecoration::Underlined)
     };
     loop {
         match reader.read_event() {
@@ -324,7 +335,7 @@ mod tests {
     }
 
     fn joined(spans: &[Span<'_>]) -> String {
-        spans.iter().map(|s| s.text.to_string()).collect()
+        spans.iter().map(|span| span.text.to_string()).collect()
     }
 
     fn render(markup: &str) -> String {

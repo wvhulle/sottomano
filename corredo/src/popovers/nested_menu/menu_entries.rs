@@ -5,36 +5,38 @@ use crate::popovers::{
     menu_row::{IconColumn, RowIcon},
 };
 
-pub enum MenuEntry<'a, SubmenuKey, Message> {
-    Item(MenuItem<'a, Message>),
+pub enum MenuEntry<'view, SubmenuKey, Message> {
+    Item(MenuItem<'view, Message>),
     Divider,
-    Submenu(MenuSubmenu<'a, SubmenuKey, Message>),
+    Submenu(MenuSubmenu<'view, SubmenuKey, Message>),
 }
 
-impl<'a, SubmenuKey, Message> From<MenuItem<'a, Message>> for MenuEntry<'a, SubmenuKey, Message> {
-    fn from(item: MenuItem<'a, Message>) -> Self {
+impl<'view, SubmenuKey, Message> From<MenuItem<'view, Message>>
+    for MenuEntry<'view, SubmenuKey, Message>
+{
+    fn from(item: MenuItem<'view, Message>) -> Self {
         MenuEntry::Item(item)
     }
 }
 
-impl<'a, SubmenuKey, Message> From<MenuSubmenu<'a, SubmenuKey, Message>>
-    for MenuEntry<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey, Message> From<MenuSubmenu<'view, SubmenuKey, Message>>
+    for MenuEntry<'view, SubmenuKey, Message>
 {
-    fn from(submenu: MenuSubmenu<'a, SubmenuKey, Message>) -> Self {
+    fn from(submenu: MenuSubmenu<'view, SubmenuKey, Message>) -> Self {
         MenuEntry::Submenu(submenu)
     }
 }
 
-type RowWrapper<'a, Message> =
-    Box<dyn for<'row> FnOnce(Element<'row, Message>) -> Element<'row, Message> + 'a>;
+type RowWrapper<'view, Message> =
+    Box<dyn for<'row> FnOnce(Element<'row, Message>) -> Element<'row, Message> + 'view>;
 
-pub(super) enum RowWrapping<'a, Message> {
+pub(super) enum RowWrapping<'view, Message> {
     Bare,
-    Wrapped(RowWrapper<'a, Message>),
+    Wrapped(RowWrapper<'view, Message>),
 }
 
-impl<'a, Message> RowWrapping<'a, Message> {
-    pub(super) fn applied(self, row: Element<'a, Message>) -> Element<'a, Message> {
+impl<'view, Message> RowWrapping<'view, Message> {
+    pub(super) fn applied(self, row: Element<'view, Message>) -> Element<'view, Message> {
         match self {
             RowWrapping::Bare => row,
             RowWrapping::Wrapped(wrapper) => wrapper(row),
@@ -42,20 +44,20 @@ impl<'a, Message> RowWrapping<'a, Message> {
     }
 }
 
-pub(super) enum BesideRow<'a, Message> {
+pub(super) enum BesideRow<'view, Message> {
     Nothing,
-    Card(Element<'a, Message>),
+    Card(Element<'view, Message>),
 }
 
-pub struct MenuItem<'a, Message> {
-    pub(super) row: MenuRow<'a, Message>,
-    pub(super) beside: BesideRow<'a, Message>,
-    pub(super) wrapping: RowWrapping<'a, Message>,
+pub struct MenuItem<'view, Message> {
+    pub(super) row: MenuRow<'view, Message>,
+    pub(super) beside: BesideRow<'view, Message>,
+    pub(super) wrapping: RowWrapping<'view, Message>,
 }
 
-impl<'a, Message> MenuItem<'a, Message> {
+impl<'view, Message> MenuItem<'view, Message> {
     #[must_use]
-    pub fn new(row: MenuRow<'a, Message>) -> Self {
+    pub fn new(row: MenuRow<'view, Message>) -> Self {
         Self {
             row,
             beside: BesideRow::Nothing,
@@ -64,7 +66,7 @@ impl<'a, Message> MenuItem<'a, Message> {
     }
 
     #[must_use]
-    pub fn beside(self, card: impl Into<Element<'a, Message>>) -> Self {
+    pub fn beside(self, card: impl Into<Element<'view, Message>>) -> Self {
         Self {
             beside: BesideRow::Card(card.into()),
             ..self
@@ -74,7 +76,7 @@ impl<'a, Message> MenuItem<'a, Message> {
     #[must_use]
     pub fn wrapped(
         self,
-        wrapper: impl for<'row> FnOnce(Element<'row, Message>) -> Element<'row, Message> + 'a,
+        wrapper: impl for<'row> FnOnce(Element<'row, Message>) -> Element<'row, Message> + 'view,
     ) -> Self {
         Self {
             wrapping: RowWrapping::Wrapped(Box::new(wrapper)),
@@ -83,24 +85,24 @@ impl<'a, Message> MenuItem<'a, Message> {
     }
 }
 
-impl<'a, Message> From<MenuRow<'a, Message>> for MenuItem<'a, Message> {
-    fn from(row: MenuRow<'a, Message>) -> Self {
+impl<'view, Message> From<MenuRow<'view, Message>> for MenuItem<'view, Message> {
+    fn from(row: MenuRow<'view, Message>) -> Self {
         MenuItem::new(row)
     }
 }
 
-pub struct MenuSubmenu<'a, SubmenuKey, Message> {
+pub struct MenuSubmenu<'view, SubmenuKey, Message> {
     pub(super) key: SubmenuKey,
-    pub(super) header: MenuRowContent<'a, Message>,
-    pub(super) entries: Vec<MenuEntry<'a, SubmenuKey, Message>>,
+    pub(super) header: MenuRowContent<'view, Message>,
+    pub(super) entries: Vec<MenuEntry<'view, SubmenuKey, Message>>,
 }
 
-impl<'a, SubmenuKey, Message> MenuSubmenu<'a, SubmenuKey, Message> {
+impl<'view, SubmenuKey, Message> MenuSubmenu<'view, SubmenuKey, Message> {
     #[must_use]
     pub fn new(
         key: SubmenuKey,
-        header: MenuRowContent<'a, Message>,
-        entries: impl IntoIterator<Item = MenuEntry<'a, SubmenuKey, Message>>,
+        header: MenuRowContent<'view, Message>,
+        entries: impl IntoIterator<Item = MenuEntry<'view, SubmenuKey, Message>>,
     ) -> Self {
         Self {
             key,
@@ -132,8 +134,8 @@ pub(super) fn without_redundant_dividers<SubmenuKey, Message>(
     kept
 }
 
-pub(super) fn icon_column_of<'row, 'a: 'row, Message: 'a>(
-    contents: impl IntoIterator<Item = &'row MenuRowContent<'a, Message>>,
+pub(super) fn shared_icon_column<'row, 'view: 'row, Message: 'view>(
+    contents: impl IntoIterator<Item = &'row MenuRowContent<'view, Message>>,
 ) -> IconColumn {
     if contents
         .into_iter()

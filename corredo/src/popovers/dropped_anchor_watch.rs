@@ -12,10 +12,10 @@ use iced::{
 };
 
 #[must_use]
-pub fn dropped_anchor_watch<'a, Message: Clone + 'a>(
+pub fn dropped_anchor_watch<'view, Message: Clone + 'view>(
     presence: Weak<()>,
     on_dropped: Message,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     Element::new(DroppedAnchorWatch {
         presence,
         on_dropped,

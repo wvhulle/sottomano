@@ -19,17 +19,17 @@ pub(crate) enum WheelStep {
     Forward,
 }
 
-type StepMessage<'a, Message> = Box<dyn Fn(WheelStep) -> Option<Message> + 'a>;
+type StepMessage<'view, Message> = Box<dyn Fn(WheelStep) -> Option<Message> + 'view>;
 
-pub(crate) struct WheelStepper<'a, Message> {
-    content: Element<'a, Message>,
-    on_step: StepMessage<'a, Message>,
+pub(crate) struct WheelStepper<'view, Message> {
+    content: Element<'view, Message>,
+    on_step: StepMessage<'view, Message>,
 }
 
-impl<'a, Message> WheelStepper<'a, Message> {
+impl<'view, Message> WheelStepper<'view, Message> {
     pub(crate) fn new(
-        content: Element<'a, Message>,
-        on_step: impl Fn(WheelStep) -> Option<Message> + 'a,
+        content: Element<'view, Message>,
+        on_step: impl Fn(WheelStep) -> Option<Message> + 'view,
     ) -> Self {
         Self {
             content,
@@ -188,8 +188,8 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for WheelStepper<'_, Messag
     }
 }
 
-impl<'a, Message: 'a> From<WheelStepper<'a, Message>> for Element<'a, Message> {
-    fn from(wheel_stepper: WheelStepper<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<WheelStepper<'view, Message>> for Element<'view, Message> {
+    fn from(wheel_stepper: WheelStepper<'view, Message>) -> Self {
         Element::new(wheel_stepper)
     }
 }

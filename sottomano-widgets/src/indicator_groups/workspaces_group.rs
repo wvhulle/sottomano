@@ -12,6 +12,7 @@ use iced::{
     Element,
     widget::{Space, button, text},
 };
+use sottomano_compositor_model::compositor_window_facts::WorkspaceActivity;
 use sottomano_desktop_sources::desktop_windows_apps::{
     configured_workspace_order::{ConfiguredOrderStatus, ConfiguredWorkspaces},
     workspace_window_snapshot,
@@ -237,7 +238,9 @@ fn workspace_usage(
     compositor: &workspace_window_snapshot::Snapshot,
     workspace: &workspace_window_snapshot::WorkspaceIndicator,
 ) -> WorkspaceUsage {
-    if workspace.is_active || !compositor.windows_on_workspace(workspace.id).is_empty() {
+    if workspace.activity != WorkspaceActivity::Inactive
+        || !compositor.windows_on_workspace(workspace.id).is_empty()
+    {
         WorkspaceUsage::InUse
     } else {
         WorkspaceUsage::Unused

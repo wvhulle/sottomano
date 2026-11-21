@@ -31,8 +31,20 @@ pub struct PopupRegions {
     pub surface_rows: Vec<Rectangle>,
     pub popup_bounds: Rectangle,
     pub bounds: Rectangle,
-    pub takes_input: bool,
-    pub captures_outside_presses: bool,
+    pub pointer_input: PopupPointerInput,
+    pub outside_press_capture: OutsidePressCapture,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopupPointerInput {
+    Accepted,
+    PassedThrough,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutsidePressCapture {
+    Captured,
+    PassedThrough,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,15 +86,15 @@ pub enum PopupArrival {
     Outgoing,
 }
 
-pub struct PopupRendering<'a, Message> {
-    element: Element<'a, Message>,
+pub struct PopupRendering<'view, Message> {
+    element: Element<'view, Message>,
     pub arrival: PopupArrival,
     pub framing: PopupFraming,
 }
 
-impl<'a, Message> PopupRendering<'a, Message> {
+impl<'view, Message> PopupRendering<'view, Message> {
     #[must_use]
-    pub fn incoming(element: Element<'a, Message>) -> Self {
+    pub fn incoming(element: Element<'view, Message>) -> Self {
         Self {
             element,
             arrival: PopupArrival::Incoming,
@@ -91,7 +103,7 @@ impl<'a, Message> PopupRendering<'a, Message> {
     }
 
     #[must_use]
-    pub fn outgoing(element: Element<'a, Message>) -> Self {
+    pub fn outgoing(element: Element<'view, Message>) -> Self {
         Self {
             element,
             arrival: PopupArrival::Outgoing,
@@ -113,37 +125,51 @@ pub enum OutsidePress<Message> {
     },
 }
 
-pub struct AnchoredPopup<'a, Message, ShownIdentity = ()> {
-    renderings: Vec<PopupRendering<'a, Message>>,
+pub struct AnchoredPopup<'view, Message, ShownIdentity = ()> {
+    renderings: Vec<PopupRendering<'view, Message>>,
     anchor: Rectangle,
     side: Edge,
     gap_px: f32,
     leading_alignment_px: f32,
     morph_duration: Duration,
-    shown: Option<ShownIdentity>,
+    shown: ShownIdentity,
     outside_press: OutsidePress<Message>,
-    frame_over: Box<dyn Fn(Rectangle) -> FrameStyle + 'a>,
+    frame_over: Box<dyn Fn(Rectangle) -> FrameStyle + 'view>,
     corner_radius_px: f32,
 }
 
+enum LaidOutIdentity<ShownIdentity> {
+    NotYetLaidOut,
+    LaidOut(ShownIdentity),
+}
+
+impl<ShownIdentity: PartialEq> LaidOutIdentity<ShownIdentity> {
+    fn differs_from(&self, shown: &ShownIdentity) -> bool {
+        match self {
+            LaidOutIdentity::NotYetLaidOut => true,
+            LaidOutIdentity::LaidOut(laid_out) => laid_out != shown,
+        }
+    }
+}
+
 struct MorphState<ShownIdentity> {
-    shown: Option<ShownIdentity>,
+    laid_out_identity: LaidOutIdentity<ShownIdentity>,
     morph: RectangleMorph,
     connector: ConnectorTriangle,
 }
 
 #[must_use]
-pub fn anchored_popup<'a, Message: Clone + 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub fn anchored_popup<'view, Message: Clone + 'view>(
+    content: impl Into<Element<'view, Message>>,
     anchor: Rectangle,
-) -> AnchoredPopup<'a, Message> {
+) -> AnchoredPopup<'view, Message> {
     AnchoredPopup::with_renderings(vec![PopupRendering::incoming(content.into())], anchor)
 }
 
-impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
+impl<'view, Message: 'view> AnchoredPopup<'view, Message> {
     #[must_use]
     pub fn with_renderings(
-        renderings: Vec<PopupRendering<'a, Message>>,
+        renderings: Vec<PopupRendering<'view, Message>>,
         anchor: Rectangle,
     ) -> Self {
         let frame = FrameStyle::default();
@@ -154,7 +180,7 @@ impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
             gap_px: DEFAULT_GAP_PX,
             leading_alignment_px: 0.0,
             morph_duration: DEFAULT_MORPH_DURATION,
-            shown: Some(()),
+            shown: (),
             outside_press: OutsidePress::PassesThrough,
             frame_over: Box::new(move |_| frame),
             corner_radius_px: frame.corner_radius_px,
@@ -162,7 +188,7 @@ impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
+impl<'view, Message: 'view, ShownIdentity> AnchoredPopup<'view, Message, ShownIdentity> {
     #[must_use]
     pub fn side(self, side: Edge) -> Self {
         Self { side, ..self }
@@ -195,7 +221,7 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     }
 
     #[must_use]
-    pub fn frame_over(self, frame_over: impl Fn(Rectangle) -> FrameStyle + 'a) -> Self {
+    pub fn frame_over(self, frame_over: impl Fn(Rectangle) -> FrameStyle + 'view) -> Self {
         let corner_radius_px = frame_over(Rectangle::default()).corner_radius_px;
         Self {
             frame_over: Box::new(frame_over),
@@ -234,8 +260,8 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     #[must_use]
     pub fn identified_by<OtherIdentity>(
         self,
-        shown: Option<OtherIdentity>,
-    ) -> AnchoredPopup<'a, Message, OtherIdentity> {
+        shown: OtherIdentity,
+    ) -> AnchoredPopup<'view, Message, OtherIdentity> {
         AnchoredPopup {
             renderings: self.renderings,
             anchor: self.anchor,
@@ -251,10 +277,10 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     }
 }
 
-impl<'a, Message: Clone + 'a, ShownIdentity: Clone + PartialEq + 'static>
-    From<AnchoredPopup<'a, Message, ShownIdentity>> for Element<'a, Message>
+impl<'view, Message: Clone + 'view, ShownIdentity: Clone + PartialEq + 'static>
+    From<AnchoredPopup<'view, Message, ShownIdentity>> for Element<'view, Message>
 {
-    fn from(popup: AnchoredPopup<'a, Message, ShownIdentity>) -> Self {
+    fn from(popup: AnchoredPopup<'view, Message, ShownIdentity>) -> Self {
         Element::new(popup)
     }
 }
@@ -279,7 +305,7 @@ fn over_notched_panel(panel: Layout<'_>, point: Point) -> bool {
         })
 }
 
-impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdentity> {
+impl<'view, Message, ShownIdentity: 'static> AnchoredPopup<'view, Message, ShownIdentity> {
     fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
     }
@@ -293,7 +319,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         }
     }
 
-    fn child_elements(&self) -> Vec<&Element<'a, Message>> {
+    fn child_elements(&self) -> Vec<&Element<'view, Message>> {
         self.renderings
             .iter()
             .map(|rendering| &rendering.element)
@@ -337,11 +363,11 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         Rectangle::new(top_left, size)
     }
 
-    fn views<'t>(
-        &'t self,
-        tree: &'t Tree,
-        layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, Message>> {
+    fn views<'tree>(
+        &'tree self,
+        tree: &'tree Tree,
+        layout: Layout<'tree>,
+    ) -> impl DoubleEndedIterator<Item = ChildView<'tree, 'view, Message>> {
         self.renderings
             .iter()
             .zip(&tree.children)
@@ -353,11 +379,11 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
             })
     }
 
-    fn views_mut<'t>(
-        &'t mut self,
-        tree: &'t mut Tree,
-        layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, Message>> {
+    fn views_mut<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
+    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'tree, 'view, Message>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children)
@@ -454,11 +480,11 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         }
     }
 
-    fn live_view<'t>(
-        &'t mut self,
-        tree: &'t mut Tree,
-        layout: Layout<'t>,
-    ) -> Option<ChildViewMut<'t, 'a, Message>> {
+    fn live_view<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
+    ) -> Option<ChildViewMut<'tree, 'view, Message>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children)
@@ -481,7 +507,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
 
     fn state(&self) -> tree::State {
         tree::State::new(MorphState::<ShownIdentity> {
-            shown: None,
+            laid_out_identity: LaidOutIdentity::NotYetLaidOut,
             morph: RectangleMorph::default(),
             connector: ConnectorTriangle::between(
                 self.anchor,
@@ -498,7 +524,11 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
     }
 
     fn diff(&self, tree: &mut Tree) {
-        let switched = tree.state.downcast_ref::<MorphState<ShownIdentity>>().shown != self.shown;
+        let switched = tree
+            .state
+            .downcast_ref::<MorphState<ShownIdentity>>()
+            .laid_out_identity
+            .differs_from(&self.shown);
         tree.diff_children(&self.child_elements());
         if switched {
             self.renderings
@@ -573,8 +603,8 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
         let at_anchor = self.resting(Size::ZERO, surface);
 
         let state: &mut MorphState<ShownIdentity> = tree.state.downcast_mut();
-        if state.shown != self.shown {
-            state.shown.clone_from(&self.shown);
+        if state.laid_out_identity.differs_from(&self.shown) {
+            state.laid_out_identity = LaidOutIdentity::LaidOut(self.shown.clone());
             state.morph.begin(at_anchor);
         }
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
@@ -670,9 +700,18 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
                 surface_rows: frame.surface_rows,
                 popup_bounds: state.morph.current + origin,
                 bounds: layout.bounds(),
-                takes_input: frame.motion == MotionState::Settled,
-                captures_outside_presses: state.morph.motion_state() == MotionState::Settled
-                    && matches!(self.outside_press, OutsidePress::Dismisses { .. }),
+                pointer_input: match frame.motion {
+                    MotionState::Settled => PopupPointerInput::Accepted,
+                    MotionState::Moving => PopupPointerInput::PassedThrough,
+                },
+                outside_press_capture: match (state.morph.motion_state(), &self.outside_press) {
+                    (MotionState::Settled, OutsidePress::Dismisses { .. }) => {
+                        OutsidePressCapture::Captured
+                    }
+                    (MotionState::Moving, _) | (_, OutsidePress::PassesThrough) => {
+                        OutsidePressCapture::PassedThrough
+                    }
+                },
             },
         );
         self.views_mut(tree, layout).for_each(|rendering| {

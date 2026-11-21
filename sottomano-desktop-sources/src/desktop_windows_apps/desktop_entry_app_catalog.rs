@@ -1,7 +1,9 @@
 use std::{borrow::Cow, cmp::Reverse, collections::HashMap};
 
 use freedesktop_desktop_entry::DesktopEntry;
-use sottomano_compositor_model::compositor_window_state::CompositorWindow;
+use sottomano_compositor_model::{
+    compositor_window_facts::WindowAppId, compositor_window_state::CompositorWindow,
+};
 
 use super::desktop_entries::DesktopEntries;
 
@@ -164,11 +166,10 @@ pub fn open_windows_by_app<'window>(
 ) -> HashMap<String, OpenAppWindows> {
     let mut windows_by_app: HashMap<String, Vec<&CompositorWindow>> = HashMap::new();
     for window in windows {
-        let launchable_app = window
-            .app_id
-            .as_deref()
-            .and_then(|app_id| entries.launchable_app(app_id));
-        if let Some(app) = launchable_app {
+        let WindowAppId::Reported(app_id) = &window.app_id else {
+            continue;
+        };
+        if let Some(app) = entries.launchable_app(app_id) {
             windows_by_app.entry(app.app_id).or_default().push(window);
         }
     }
@@ -196,6 +197,7 @@ mod tests {
     use freedesktop_desktop_entry::DesktopEntry;
     use sottomano_compositor_model::{
         compositor_test_windows::unplaced_compositor_window,
+        compositor_window_facts::{FocusTimestamp, WindowAppId},
         compositor_window_state::CompositorWindow,
     };
 
@@ -220,10 +222,14 @@ mod tests {
         app_on_niri(fields).expect("the entry is shown").category
     }
 
-    fn window_of(id: u64, app_id: &str, focused_at_secs: Option<u64>) -> CompositorWindow {
+    fn window_focused_at(
+        id: u64,
+        app_id: &str,
+        focused_at_monotonic: FocusTimestamp,
+    ) -> CompositorWindow {
         CompositorWindow {
-            app_id: Some(app_id.to_owned()),
-            focused_at_monotonic: focused_at_secs.map(Duration::from_secs),
+            app_id: WindowAppId::Reported(app_id.to_owned()),
+            focused_at_monotonic,
             ..unplaced_compositor_window(id)
         }
     }
@@ -295,10 +301,22 @@ mod tests {
     fn the_most_recently_focused_window_is_the_jump_target() {
         let entries = DesktopEntries::with_entries(vec![entry_of("firefox", "")]);
         let windows = [
-            window_of(1, "firefox", Some(10)),
-            window_of(2, "firefox", Some(30)),
-            window_of(3, "firefox", None),
-            window_of(4, "not-an-entry", Some(50)),
+            window_focused_at(
+                1,
+                "firefox",
+                FocusTimestamp::FocusedAt(Duration::from_secs(10)),
+            ),
+            window_focused_at(
+                2,
+                "firefox",
+                FocusTimestamp::FocusedAt(Duration::from_secs(30)),
+            ),
+            window_focused_at(3, "firefox", FocusTimestamp::NeverFocused),
+            window_focused_at(
+                4,
+                "not-an-entry",
+                FocusTimestamp::FocusedAt(Duration::from_secs(50)),
+            ),
         ];
 
         let open_windows = open_windows_by_app(&windows, &entries);

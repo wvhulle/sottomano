@@ -10,12 +10,12 @@ use iced::{
     },
     animation::Easing,
     mouse::Cursor,
-    time::{Duration, Instant},
+    time::Duration,
     widget::space,
     window,
 };
 
-use super::motion_state::eased_animation;
+use super::{motion_state::eased_animation, redraw_clock::RedrawClock};
 
 const EXPANSION_EASING: Easing = Easing::EaseInOutCubic;
 
@@ -26,11 +26,11 @@ pub enum ExpansionState {
     Collapsed,
 }
 
-pub fn expand_transition<'a, Message: 'a>(
+pub fn expand_transition<'view, Message: 'view>(
     expansion_state: ExpansionState,
     duration: Duration,
-    view: impl Fn(f32) -> Element<'a, Message> + 'a,
-) -> Element<'a, Message> {
+    view: impl Fn(f32) -> Element<'view, Message> + 'view,
+) -> Element<'view, Message> {
     Element::new(ExpandTransition {
         expansion_state,
         duration,
@@ -41,24 +41,24 @@ pub fn expand_transition<'a, Message: 'a>(
 
 struct State {
     animation: Animation<bool>,
-    at: Option<Instant>,
+    redraw_clock: RedrawClock,
 }
 
 impl State {
     fn fraction(&self) -> f32 {
-        match self.at {
-            Some(at) => self.animation.interpolate(0.0, 1.0, at),
-            None if self.animation.value() => 1.0,
-            None => 0.0,
+        match self.redraw_clock {
+            RedrawClock::FrameAt(at) => self.animation.interpolate(0.0, 1.0, at),
+            RedrawClock::AwaitingFirstFrame if self.animation.value() => 1.0,
+            RedrawClock::AwaitingFirstFrame => 0.0,
         }
     }
 }
 
-struct ExpandTransition<'a, Message> {
+struct ExpandTransition<'view, Message> {
     expansion_state: ExpansionState,
     duration: Duration,
-    view: Box<dyn Fn(f32) -> Element<'a, Message> + 'a>,
-    content: Element<'a, Message>,
+    view: Box<dyn Fn(f32) -> Element<'view, Message> + 'view>,
+    content: Element<'view, Message>,
 }
 
 impl<Message> ExpandTransition<'_, Message> {
@@ -82,7 +82,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandTransition<
                 self.duration,
             )
             .easing(EXPANSION_EASING),
-            at: None,
+            redraw_clock: RedrawClock::AwaitingFirstFrame,
         })
     }
 
@@ -155,12 +155,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandTransition<
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            let laid_out_mid_animation =
-                state.at.is_some_and(|at| state.animation.is_animating(at));
+            let laid_out_mid_animation = match state.redraw_clock {
+                RedrawClock::FrameAt(at) => state.animation.is_animating(at),
+                RedrawClock::AwaitingFirstFrame => false,
+            };
             state
                 .animation
                 .go_mut(self.expansion_state == ExpansionState::Expanded, *now);
-            state.at = Some(*now);
+            state.redraw_clock = RedrawClock::FrameAt(*now);
             let animating = state.animation.is_animating(*now);
             if animating || laid_out_mid_animation {
                 shell.invalidate_layout();
@@ -198,14 +200,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandTransition<
         )
     }
 
-    fn overlay<'a>(
-        &'a mut self,
-        tree: &'a mut Tree,
-        layout: Layout<'a>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),

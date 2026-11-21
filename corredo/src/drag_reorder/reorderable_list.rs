@@ -20,15 +20,15 @@ use alarm_tiles::AlarmTiles;
 use group_enclosures::{EnclosedGroup, GroupEnclosures};
 use hover_glow::HoverGlow;
 use row_arrangement::RowArrangement;
-use row_painters::{RowPainters, alarm_tiles_of, grouped_slots_of};
+use row_painters::{RowPainters, marked_alarm_tiles};
 use sliding_row::SlidingRow;
-use slot_marking::SlotMarking;
-use travelling_highlight::{HighlightedSlot, TravellingHighlight};
+use slot_marking::{GroupedSlots, SlotMarking};
+use travelling_highlight::{HighlightMark, HighlightTarget, HighlightedSlot, TravellingHighlight};
 use ungrouped_tiles::UngroupedTiles;
 
 use crate::{
     drag_reorder::{
-        DragEvent, DragView,
+        DragActivity, DragEvent, DragView,
         slot_group::{SlotGroup, SlotTileInset},
         wheel_stepper::{WheelStep, WheelStepper},
     },
@@ -38,11 +38,11 @@ use crate::{
 const DEFAULT_INDICATOR_MOTION: Duration = Duration::from_millis(160);
 const DEFAULT_GROUP_GAP_PX: f32 = 4.0;
 
-pub enum UngroupedSlotLook<'a> {
+pub enum UngroupedSlotLook<'view> {
     EdgeBand,
     RestingTile {
         tile_inset: SlotTileInset,
-        resting_color: ThemedColor<'a>,
+        resting_color: ThemedColor<'view>,
     },
 }
 
@@ -55,10 +55,10 @@ impl UngroupedSlotLook<'_> {
     }
 }
 
-pub fn reorderable_list<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
-    slots: impl IntoIterator<Item = (SlotKey, Element<'a, Message>)>,
+pub fn reorderable_list<'view, Message: 'view, SlotKey: Copy + Eq + Hash + 'static>(
+    slots: impl IntoIterator<Item = (SlotKey, Element<'view, Message>)>,
     edge: Edge,
-) -> ReorderableList<'a, Message, SlotKey> {
+) -> ReorderableList<'view, Message, SlotKey> {
     let (keys, slots) = slots.into_iter().unzip();
     ReorderableList {
         keys,
@@ -67,50 +67,78 @@ pub fn reorderable_list<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
         spacing: 0.0,
         motion: DEFAULT_INDICATOR_MOTION,
         indicator_thickness: ACCENT_STROKE_PX,
-        highlight: None,
+        highlighting: SlotHighlighting::Unhighlighted,
         ungrouped_slot_look: UngroupedSlotLook::EdgeBand,
         alarms: Vec::new(),
         groups: Vec::new(),
         group_gap: DEFAULT_GROUP_GAP_PX,
         frame_corners: Radius::default(),
-        left_list_message: None,
+        list_exit: ListExit::Unreported,
         wheel_select: WheelSelect::Ignored,
     }
 }
 
-pub struct SlotAlarm<'a> {
+pub struct SlotAlarm<'view> {
     pub position: usize,
-    pub color: ThemedColor<'a>,
+    pub color: ThemedColor<'view>,
 }
 
-struct SlotHighlight<'a, SlotKey> {
-    key: SlotKey,
-    color: ThemedColor<'a>,
+enum SlotHighlighting<'view, SlotKey> {
+    Unhighlighted,
+    Highlighted {
+        key: SlotKey,
+        color: ThemedColor<'view>,
+    },
 }
 
-pub struct ReorderableList<'a, Message, SlotKey> {
+impl<'view, SlotKey: PartialEq> SlotHighlighting<'view, SlotKey> {
+    fn target_among(
+        self,
+        keys: &[SlotKey],
+        slot_marks: &[HighlightMark],
+    ) -> HighlightTarget<'view> {
+        let SlotHighlighting::Highlighted { key, color } = self else {
+            return HighlightTarget::Unhighlighted;
+        };
+        let Some(slot_position) = keys.iter().position(|slot_key| *slot_key == key) else {
+            return HighlightTarget::Unhighlighted;
+        };
+        HighlightTarget::Slot(HighlightedSlot {
+            slot_position,
+            mark: slot_marks[slot_position],
+            color,
+        })
+    }
+}
+
+enum ListExit<Message> {
+    Unreported,
+    Reported(Message),
+}
+
+pub struct ReorderableList<'view, Message, SlotKey> {
     keys: Vec<SlotKey>,
-    slots: Vec<Element<'a, Message>>,
+    slots: Vec<Element<'view, Message>>,
     edge: Edge,
     spacing: f32,
     motion: Duration,
     indicator_thickness: f32,
-    highlight: Option<SlotHighlight<'a, SlotKey>>,
-    ungrouped_slot_look: UngroupedSlotLook<'a>,
-    alarms: Vec<SlotAlarm<'a>>,
-    groups: Vec<SlotGroup<'a, Message>>,
+    highlighting: SlotHighlighting<'view, SlotKey>,
+    ungrouped_slot_look: UngroupedSlotLook<'view>,
+    alarms: Vec<SlotAlarm<'view>>,
+    groups: Vec<SlotGroup<'view, Message>>,
     group_gap: f32,
     frame_corners: Radius,
-    left_list_message: Option<Message>,
-    wheel_select: WheelSelect<'a, SlotKey, Message>,
+    list_exit: ListExit<Message>,
+    wheel_select: WheelSelect<'view, SlotKey, Message>,
 }
 
-enum WheelSelect<'a, SlotKey, Message> {
+enum WheelSelect<'view, SlotKey, Message> {
     Ignored,
-    Selects(Box<dyn Fn(SlotKey) -> Message + 'a>),
+    Selects(Box<dyn Fn(SlotKey) -> Message + 'view>),
 }
 
-impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
+impl<'view, Message, SlotKey> ReorderableList<'view, Message, SlotKey> {
     #[must_use]
     pub fn indicator_motion(self, motion: Duration) -> Self {
         Self { motion, ..self }
@@ -130,30 +158,30 @@ impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
     #[must_use]
     pub fn highlight(
         mut self,
-        highlighted_key: Option<SlotKey>,
-        color: impl Fn(&Theme) -> Color + 'a,
+        highlighted_key: SlotKey,
+        color: impl Fn(&Theme) -> Color + 'view,
     ) -> Self {
-        self.highlight = highlighted_key.map(|key| SlotHighlight {
-            key,
+        self.highlighting = SlotHighlighting::Highlighted {
+            key: highlighted_key,
             color: Box::new(color),
-        });
+        };
         self
     }
 
     #[must_use]
-    pub fn ungrouped_slot_look(mut self, look: UngroupedSlotLook<'a>) -> Self {
+    pub fn ungrouped_slot_look(mut self, look: UngroupedSlotLook<'view>) -> Self {
         self.ungrouped_slot_look = look;
         self
     }
 
     #[must_use]
-    pub fn alarms(mut self, alarms: Vec<SlotAlarm<'a>>) -> Self {
+    pub fn alarms(mut self, alarms: Vec<SlotAlarm<'view>>) -> Self {
         self.alarms = alarms;
         self
     }
 
     #[must_use]
-    pub fn groups(mut self, groups: Vec<SlotGroup<'a, Message>>) -> Self {
+    pub fn groups(mut self, groups: Vec<SlotGroup<'view, Message>>) -> Self {
         self.groups = groups;
         self
     }
@@ -165,7 +193,7 @@ impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
     }
 
     #[must_use]
-    pub fn on_wheel_select(self, select: impl Fn(SlotKey) -> Message + 'a) -> Self {
+    pub fn on_wheel_select(self, select: impl Fn(SlotKey) -> Message + 'view) -> Self {
         Self {
             wheel_select: WheelSelect::Selects(Box::new(select)),
             ..self
@@ -179,7 +207,10 @@ impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
         drag: &DragView<SlotId>,
         on_drag: impl Fn(DragEvent<SlotId, ListId, ClickPayload>) -> Message,
     ) -> Self {
-        self.left_list_message = drag.drag.map(|_| on_drag(DragEvent::LeftList(list)));
+        self.list_exit = match drag.drag {
+            DragActivity::Dragging(_) => ListExit::Reported(on_drag(DragEvent::LeftList(list))),
+            DragActivity::Idle => ListExit::Unreported,
+        };
         self
     }
 }
@@ -190,10 +221,10 @@ enum RowKey<SlotKey> {
     GroupHeading(SlotKey),
 }
 
-impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
-    ReorderableList<'a, Message, SlotKey>
+impl<'view, Message: Clone + 'view, SlotKey: Copy + Eq + Hash + 'static>
+    ReorderableList<'view, Message, SlotKey>
 {
-    fn composed(self) -> Element<'a, Message> {
+    fn composed(self) -> Element<'view, Message> {
         let ReorderableList {
             keys,
             slots,
@@ -201,22 +232,19 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             spacing,
             motion,
             indicator_thickness,
-            highlight,
+            highlighting,
             ungrouped_slot_look,
             alarms,
             groups,
             group_gap,
             frame_corners,
-            left_list_message,
+            list_exit,
             wheel_select,
         } = self;
         let pager_axis = edge.running_axis();
         let slot_count = keys.len();
         let groups = groups_within_slots(groups, slot_count);
-        let grouped_slots = grouped_slots_of(&groups);
-        let highlighted_position = highlight
-            .as_ref()
-            .and_then(|slot_highlight| keys.iter().position(|key| *key == slot_highlight.key));
+        let grouped_slots = groups.iter().map(GroupedSlots::from).collect::<Vec<_>>();
         let slot_marking = SlotMarking {
             grouped_slots: &grouped_slots,
             ungrouped_look: &ungrouped_slot_look,
@@ -230,21 +258,17 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
         );
         let slot_marks =
             slot_marking.slot_marks(slot_count, edge, frame_corners, indicator_thickness);
-        let mut highlighted_slot =
-            highlight
-                .zip(highlighted_position)
-                .map(|(slot_highlight, slot_position)| HighlightedSlot {
-                    slot_position,
-                    mark: slot_marks[slot_position],
-                    color: slot_highlight.color,
-                });
-        let mut row_children: Vec<(RowKey<SlotKey>, Element<'a, Message>)> =
+        let mut highlight_target = highlighting.target_among(&keys, &slot_marks);
+        let highlighted_position = match &highlight_target {
+            HighlightTarget::Slot(highlighted) => Some(highlighted.slot_position),
+            HighlightTarget::Unhighlighted => None,
+        };
+        let mut row_children: Vec<(RowKey<SlotKey>, Element<'view, Message>)> =
             keys.iter().copied().map(RowKey::Slot).zip(slots).collect();
         let mut enclosed_groups = Vec::with_capacity(groups.len());
         for (group_index, (group, grouped)) in groups.into_iter().zip(&grouped_slots).enumerate() {
-            if let Some(highlighted) = highlighted_slot
-                .as_mut()
-                .filter(|highlighted| group.positions.contains(&highlighted.slot_position))
+            if let HighlightTarget::Slot(highlighted) = &mut highlight_target
+                && group.positions.contains(&highlighted.slot_position)
             {
                 highlighted.color = group.highlight_color;
             }
@@ -266,7 +290,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
         let painted_row = RowPainters {
             alarm_tiles: AlarmTiles {
                 pager_axis,
-                alarm_tiles: alarm_tiles_of(alarms, &slot_marking),
+                alarm_tiles: marked_alarm_tiles(alarms, &slot_marking),
             },
             hover_glow: HoverGlow {
                 pager_axis,
@@ -276,7 +300,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             travelling_highlight: TravellingHighlight {
                 pager_axis,
                 travel_duration: motion,
-                highlighted_slot,
+                highlight_target,
             },
             group_enclosures: GroupEnclosures {
                 pager_axis,
@@ -289,7 +313,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             },
         }
         .painted_under(sliding_row);
-        let departing_row = exiting_with(painted_row, left_list_message);
+        let departing_row = exiting_with(painted_row, list_exit);
         wheel_selecting(departing_row, wheel_select, keys, highlighted_position)
     }
 }
@@ -304,22 +328,22 @@ fn groups_within_slots<Message>(
         .collect()
 }
 
-fn exiting_with<'a, Message: Clone + 'a>(
-    row: Element<'a, Message>,
-    left_list_message: Option<Message>,
-) -> Element<'a, Message> {
-    match left_list_message {
-        Some(left_list_message) => mouse_area(row).on_exit(left_list_message).into(),
-        None => row,
+fn exiting_with<'view, Message: Clone + 'view>(
+    row: Element<'view, Message>,
+    list_exit: ListExit<Message>,
+) -> Element<'view, Message> {
+    match list_exit {
+        ListExit::Reported(left_list_message) => mouse_area(row).on_exit(left_list_message).into(),
+        ListExit::Unreported => row,
     }
 }
 
-fn wheel_selecting<'a, Message: 'a, SlotKey: Copy + 'static>(
-    row: Element<'a, Message>,
-    wheel_select: WheelSelect<'a, SlotKey, Message>,
+fn wheel_selecting<'view, Message: 'view, SlotKey: Copy + 'static>(
+    row: Element<'view, Message>,
+    wheel_select: WheelSelect<'view, SlotKey, Message>,
     keys: Vec<SlotKey>,
     highlighted_position: Option<usize>,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let WheelSelect::Selects(select) = wheel_select else {
         return row;
     };
@@ -334,62 +358,13 @@ fn wheel_selecting<'a, Message: 'a, SlotKey: Copy + 'static>(
     .into()
 }
 
-impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
-    From<ReorderableList<'a, Message, SlotKey>> for Element<'a, Message>
+impl<'view, Message: Clone + 'view, SlotKey: Copy + Eq + Hash + 'static>
+    From<ReorderableList<'view, Message, SlotKey>> for Element<'view, Message>
 {
-    fn from(reorderable_list: ReorderableList<'a, Message, SlotKey>) -> Self {
+    fn from(reorderable_list: ReorderableList<'view, Message, SlotKey>) -> Self {
         reorderable_list.composed()
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use iced::{
-        Color, Element, Event, Point, Settings, Size,
-        mouse::{Event as MouseEvent, ScrollDelta},
-        widget::text,
-    };
-    use iced_test::Simulator;
-
-    use super::reorderable_list;
-    use crate::orientation::Edge;
-
-    const SLOT_KEYS: [u8; 3] = [10, 20, 30];
-    const WHEEL_UP: ScrollDelta = ScrollDelta::Lines { x: 0.0, y: 1.0 };
-    const WHEEL_DOWN: ScrollDelta = ScrollDelta::Lines { x: 0.0, y: -1.0 };
-
-    fn selected_after_wheel(highlighted: u8, delta: ScrollDelta) -> Vec<u8> {
-        let slots = SLOT_KEYS
-            .into_iter()
-            .map(|key| -> (u8, Element<'_, u8>) { (key, text(format!("slot {key}")).into()) });
-        let list: Element<'_, u8> = reorderable_list(slots, Edge::Left)
-            .highlight(Some(highlighted), |_| Color::WHITE)
-            .on_wheel_select(|key| key)
-            .into();
-        let mut simulator =
-            Simulator::with_size(Settings::default(), Size::new(200.0, 200.0), list);
-        let pointer = simulator
-            .find("slot 20")
-            .expect("the middle slot is laid out")
-            .bounds()
-            .center();
-        simulator.point_at(pointer);
-        let _moved = simulator.simulate([Event::Mouse(MouseEvent::CursorMoved {
-            position: Point::new(pointer.x, pointer.y),
-        })]);
-        let _wheeled = simulator.simulate([Event::Mouse(MouseEvent::WheelScrolled { delta })]);
-        simulator.into_messages().collect()
-    }
-
-    #[test]
-    fn the_wheel_selects_the_neighbour_of_the_highlighted_slot() {
-        assert_eq!(selected_after_wheel(20, WHEEL_UP), [10]);
-        assert_eq!(selected_after_wheel(20, WHEEL_DOWN), [30]);
-    }
-
-    #[test]
-    fn the_wheel_stops_at_either_end() {
-        assert!(selected_after_wheel(10, WHEEL_UP).is_empty());
-        assert!(selected_after_wheel(30, WHEEL_DOWN).is_empty());
-    }
-}
+mod wheel_select_tests;

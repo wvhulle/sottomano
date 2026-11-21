@@ -1,4 +1,4 @@
-use sottomano_compositor_model::compositor_requests::CompositorRequest;
+use sottomano_compositor_model::compositor_requests::{CompositorRequest, FocusFollow};
 use swayipc_types::{CommandType, Fallible, Workspace};
 
 use crate::sway_ipc_connection::SwayIpcConnection;
@@ -30,14 +30,15 @@ impl SwayCommand {
             CompositorRequest::MoveWindowToWorkspace {
                 window,
                 workspace,
-                follows_focus,
+                focus_follow,
             } => workspace_name(*workspace).map_or(SwayCommand::Unsupported, |name| {
                 let target = quoted_workspace(&name);
                 let moved = format!("[con_id={window}] move container to workspace {target}");
-                text(if *follows_focus {
-                    format!("{moved}; workspace {target}; [con_id={window}] focus")
-                } else {
-                    moved
+                text(match focus_follow {
+                    FocusFollow::FollowWindow => {
+                        format!("{moved}; workspace {target}; [con_id={window}] focus")
+                    }
+                    FocusFollow::StayOnCurrent => moved,
                 })
             }),
             CompositorRequest::FocusLeft => text("focus left".to_owned()),
@@ -90,7 +91,7 @@ pub(crate) async fn sway_workspace_name(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_compositor_model::compositor_requests::CompositorRequest;
+    use sottomano_compositor_model::compositor_requests::{CompositorRequest, FocusFollow};
 
     use super::SwayCommand;
 
@@ -107,7 +108,7 @@ mod tests {
             command_text(&CompositorRequest::MoveWindowToWorkspace {
                 window: 7,
                 workspace: 2,
-                follows_focus: true,
+                focus_follow: FocusFollow::FollowWindow,
             })
             .as_deref(),
             Some(

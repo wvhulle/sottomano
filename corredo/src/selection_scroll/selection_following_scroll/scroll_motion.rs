@@ -5,7 +5,10 @@ use iced::{
     time::{Duration, Instant},
 };
 
-use crate::transitions::{MotionState, eased_animation, motion_of};
+use crate::{
+    pointer_hover::PointerHover,
+    transitions::{MotionState, combined_motion, eased_animation},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollPacing {
@@ -36,7 +39,13 @@ pub(super) enum OffsetChange {
 pub(super) struct ScrollFrame {
     pub now: Instant,
     pub max_offset: f32,
-    pub pointer_inside: bool,
+    pub pointer_hover: PointerHover,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum HoverHold {
+    Released,
+    HeldAt(f32),
 }
 
 pub(super) struct ScrollMotion {
@@ -44,7 +53,7 @@ pub(super) struct ScrollMotion {
     travel: Animation<f32>,
     pub(super) target_offset: f32,
     pub(super) drawn_offset: f32,
-    hover_held_offset: Option<f32>,
+    hover_hold: HoverHold,
 }
 
 impl ScrollMotion {
@@ -54,7 +63,7 @@ impl ScrollMotion {
             travel: travel_resting_at(offset, pacing),
             target_offset: offset,
             drawn_offset: offset,
-            hover_held_offset: None,
+            hover_hold: HoverHold::Released,
         }
     }
 
@@ -79,26 +88,31 @@ impl ScrollMotion {
     }
 
     pub(super) fn travel_state(&self, now: Instant) -> MotionState {
-        motion_of([&self.travel], now)
+        combined_motion([&self.travel], now)
     }
 
     pub(super) fn hover_drift(&self) -> f32 {
-        self.hover_held_offset
-            .map_or(0.0, |held_offset| held_offset - self.drawn_offset)
+        match self.hover_hold {
+            HoverHold::Released => 0.0,
+            HoverHold::HeldAt(held_offset) => held_offset - self.drawn_offset,
+        }
     }
 
     pub(super) fn advance(&mut self, frame: ScrollFrame) -> OffsetChange {
         let ScrollFrame {
             now,
             max_offset,
-            pointer_inside,
+            pointer_hover,
         } = frame;
         let previously_drawn = self.drawn_offset;
         self.target_offset = self.target_offset.clamp(0.0, max_offset);
         self.settle_if_instant(max_offset);
         if (self.travel.value() - self.target_offset).abs() > f32::EPSILON {
             if !self.travel.is_animating(now) {
-                self.hover_held_offset = pointer_inside.then_some(self.drawn_offset);
+                self.hover_hold = match pointer_hover {
+                    PointerHover::Over => HoverHold::HeldAt(self.drawn_offset),
+                    PointerHover::Outside => HoverHold::Released,
+                };
             }
             self.travel.go_mut(self.target_offset, now);
         }
@@ -106,10 +120,14 @@ impl ScrollMotion {
             .travel
             .interpolate_with(identity, now)
             .clamp(0.0, max_offset);
-        self.hover_held_offset = self
-            .hover_held_offset
-            .filter(|_| pointer_inside && self.travel.is_animating(now))
-            .map(|held_offset| held_offset.clamp(0.0, max_offset));
+        self.hover_hold = match (self.hover_hold, pointer_hover) {
+            (HoverHold::HeldAt(held_offset), PointerHover::Over)
+                if self.travel.is_animating(now) =>
+            {
+                HoverHold::HeldAt(held_offset.clamp(0.0, max_offset))
+            }
+            (HoverHold::HeldAt(_) | HoverHold::Released, _) => HoverHold::Released,
+        };
         if (self.drawn_offset - previously_drawn).abs() > f32::EPSILON {
             OffsetChange::Moved
         } else {
@@ -124,6 +142,7 @@ mod tests {
     use iced::time::{Duration, Instant};
 
     use super::{MotionState, OffsetChange, ScrollFrame, ScrollMotion, ScrollPacing};
+    use crate::pointer_hover::PointerHover;
 
     const TRAVEL_DURATION: Duration = Duration::from_millis(160);
     const EASED: ScrollPacing = ScrollPacing::Eased(TRAVEL_DURATION);
@@ -133,7 +152,7 @@ mod tests {
         ScrollFrame {
             now,
             max_offset: MAX_OFFSET,
-            pointer_inside: true,
+            pointer_hover: PointerHover::Over,
         }
     }
 
@@ -217,7 +236,7 @@ mod tests {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(ScrollFrame {
-            pointer_inside: false,
+            pointer_hover: PointerHover::Outside,
             ..frame_at(start)
         });
         let _entered_midway = motion.advance(frame_at(start + TRAVEL_DURATION / 2));
@@ -231,7 +250,7 @@ mod tests {
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
         let _left = motion.advance(ScrollFrame {
-            pointer_inside: false,
+            pointer_hover: PointerHover::Outside,
             ..frame_at(start + TRAVEL_DURATION / 4)
         });
         let _returned = motion.advance(frame_at(start + TRAVEL_DURATION / 2));

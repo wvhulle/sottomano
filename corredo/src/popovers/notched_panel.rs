@@ -95,24 +95,24 @@ pub struct NotchedPanelRegions {
     pub role: SatelliteRole,
 }
 
-pub struct NotchedPanel<'a, Message> {
-    content: Element<'a, Message>,
+pub struct NotchedPanel<'view, Message> {
+    content: Element<'view, Message>,
     frame: FrameStyle,
     corner_radius: f32,
     placement: NotchPlacement,
     row_top: f32,
     morph: Duration,
-    beside: Vec<NotchedPanel<'a, Message>>,
+    beside: Vec<NotchedPanel<'view, Message>>,
     parent_panel_top: f32,
     role: SatelliteRole,
 }
 
 #[must_use]
-pub fn notched_panel<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
+pub fn notched_panel<'view, Message: 'view>(
+    content: impl Into<Element<'view, Message>>,
     orientation: CascadeOrientation,
     row: NotchRowAnchor,
-) -> NotchedPanel<'a, Message> {
+) -> NotchedPanel<'view, Message> {
     let frame = FrameStyle::default();
     NotchedPanel {
         content: content.into(),
@@ -137,7 +137,7 @@ pub fn notched_panel<'a, Message: 'a>(
     }
 }
 
-impl<'a, Message: 'a> NotchedPanel<'a, Message> {
+impl<'view, Message: 'view> NotchedPanel<'view, Message> {
     #[must_use]
     pub fn frame(self, frame: FrameStyle) -> Self {
         Self {
@@ -191,7 +191,7 @@ impl<'a, Message: 'a> NotchedPanel<'a, Message> {
     }
 
     #[must_use]
-    pub fn beside(self, beside: impl IntoIterator<Item = NotchedPanel<'a, Message>>) -> Self {
+    pub fn beside(self, beside: impl IntoIterator<Item = NotchedPanel<'view, Message>>) -> Self {
         Self {
             beside: beside.into_iter().collect(),
             ..self
@@ -199,8 +199,8 @@ impl<'a, Message: 'a> NotchedPanel<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a> From<NotchedPanel<'a, Message>> for Element<'a, Message> {
-    fn from(notched_panel: NotchedPanel<'a, Message>) -> Self {
+impl<'view, Message: 'view> From<NotchedPanel<'view, Message>> for Element<'view, Message> {
+    fn from(notched_panel: NotchedPanel<'view, Message>) -> Self {
         Element::new(notched_panel)
     }
 }

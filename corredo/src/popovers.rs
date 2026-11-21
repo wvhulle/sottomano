@@ -1,7 +1,7 @@
 mod anchored_popup;
 pub use anchored_popup::{
-    AnchoredPopup, OutsidePress, PopupArrival, PopupFraming, PopupRegions, PopupRendering,
-    anchored_popup,
+    AnchoredPopup, OutsidePress, OutsidePressCapture, PopupArrival, PopupFraming,
+    PopupPointerInput, PopupRegions, PopupRendering, anchored_popup,
 };
 mod popup_trigger;
 pub use popup_trigger::{PopupTrigger, PopupVisibility, popup_trigger};

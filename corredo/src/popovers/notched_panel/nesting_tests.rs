@@ -39,7 +39,7 @@ fn cascade_with_card(
     cascade_row(text("primary").into(), [list.into()], orientation)
 }
 
-fn bounds_of(simulator: &mut Simulator<'_, ()>, label: &str) -> Rectangle {
+fn shown_text_bounds(simulator: &mut Simulator<'_, ()>, label: &str) -> Rectangle {
     simulator
         .find(label)
         .unwrap_or_else(|_| panic!("{label} is laid out"))
@@ -56,8 +56,8 @@ fn a_nested_card_lines_up_with_its_row_and_has_room() {
         Size::new(600.0, 400.0),
         cascade_with_card(CascadeDirection::Rightward, 40.0, "card"),
     );
-    let list = bounds_of(&mut simulator, "list");
-    let card = bounds_of(&mut simulator, "card");
+    let list = shown_text_bounds(&mut simulator, "list");
+    let card = shown_text_bounds(&mut simulator, "card");
     assert!(
         (card.y - list.y - ROW_OFFSET).abs() < 0.5,
         "list {list:?}, card {card:?}"
@@ -72,8 +72,8 @@ fn a_leftward_card_opens_left_of_its_list() {
         Size::new(600.0, 400.0),
         cascade_with_card(CascadeDirection::Leftward, 40.0, "card"),
     );
-    let list = bounds_of(&mut simulator, "list");
-    let card = bounds_of(&mut simulator, "card");
+    let list = shown_text_bounds(&mut simulator, "list");
+    let card = shown_text_bounds(&mut simulator, "card");
     assert!(
         card.x + card.width <= list.x + 0.5,
         "list {list:?}, card {card:?}"
@@ -87,8 +87,8 @@ fn a_nested_card_follows_a_list_pushed_back_on_screen() {
         Size::new(600.0, 120.0),
         cascade_with_card(CascadeDirection::Rightward, 110.0, "card"),
     );
-    let list = bounds_of(&mut simulator, "list");
-    let card = bounds_of(&mut simulator, "card");
+    let list = shown_text_bounds(&mut simulator, "list");
+    let card = shown_text_bounds(&mut simulator, "card");
     assert!(
         list.y < 110.0,
         "the list is pushed back on screen, at {list:?}"
@@ -106,7 +106,7 @@ fn a_wider_card_leaves_the_list_width_unchanged() {
             Size::new(600.0, 400.0),
             cascade_with_card(CascadeDirection::Leftward, 40.0, card_label),
         );
-        bounds_of(&mut simulator, "sixth").width
+        shown_text_bounds(&mut simulator, "sixth").width
     };
     assert!(
         (list_width("card") - list_width("a much much wider card than the list itself")).abs()

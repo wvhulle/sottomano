@@ -1,5 +1,6 @@
 use corredo::popovers::{
-    AnchoredPopup, OutsidePress, PopupArrival, PopupFraming, PopupRegions, PopupRendering,
+    AnchoredPopup, OutsidePress, OutsidePressCapture, PopupArrival, PopupFraming,
+    PopupPointerInput, PopupRegions, PopupRendering,
 };
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
@@ -49,15 +50,14 @@ fn report_shell_regions(
     operation: &mut dyn Operation,
 ) {
     let roles = RegionRoles {
-        pointer_input: if regions.takes_input {
-            PointerInput::Accepted
-        } else {
-            PointerInput::PassedThrough
+        pointer_input: match regions.pointer_input {
+            PopupPointerInput::Accepted => PointerInput::Accepted,
+            PopupPointerInput::PassedThrough => PointerInput::PassedThrough,
         },
         backdrop_blur,
         corner_radius: Radius::default(),
     };
-    if regions.captures_outside_presses {
+    if regions.outside_press_capture == OutsidePressCapture::Captured {
         let bounds = regions.bounds;
         report_input_across_except(
             Rectangle::new(
@@ -97,10 +97,6 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     } else {
         appearances.overlay
     };
-    let shown = match morph.shown {
-        ShownTarget::Nothing => None,
-        target @ ShownTarget::Target(_) => Some(target),
-    };
     let popup = AnchoredPopup::with_renderings(renderings, anchor)
         .side(screen_edge_of(position).opposite())
         .gap(config.theme.spacing.item_gap)
@@ -110,7 +106,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         .morph_duration(morph.duration)
         .frame_over(move |_| appearance.frame)
         .outside_press(outside_press)
-        .identified_by(shown);
+        .identified_by(morph.shown);
     translated_regions(popup, move |regions: &PopupRegions, operation| {
         report_shell_regions(
             regions,

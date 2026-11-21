@@ -64,21 +64,26 @@ pub enum FontError {
 }
 
 impl fmt::Display for FontError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::RelativeTextSize(size) => write!(
-                f,
+                formatter,
                 "font text_size {size} is relative; the base text size must be given in px"
             ),
-            Self::Unmatched(pattern) => write!(f, "fc-match found no font file for {pattern:?}"),
+            Self::Unmatched(pattern) => {
+                write!(formatter, "fc-match found no font file for {pattern:?}")
+            }
             Self::MatcherUnavailable { pattern, error } => {
-                write!(f, "fc-match cannot run to match {pattern:?}: {error}")
+                write!(
+                    formatter,
+                    "fc-match cannot run to match {pattern:?}: {error}"
+                )
             }
             Self::Unreadable { file, error } => {
-                write!(f, "font file {file} cannot be read: {error}")
+                write!(formatter, "font file {file} cannot be read: {error}")
             }
             Self::Unparsable { file, error } => {
-                write!(f, "font file {file} cannot be parsed: {error}")
+                write!(formatter, "font file {file} cannot be parsed: {error}")
             }
         }
     }

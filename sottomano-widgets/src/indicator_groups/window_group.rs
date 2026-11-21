@@ -11,7 +11,9 @@ use std::{
 };
 
 use iced::{Element, Subscription, Task};
-use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
+use sottomano_compositor_model::{
+    compositor_window_facts::WindowPid, compositor_window_state::CompositorWindowState,
+};
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
         process_tree_inspection::Watched, terminal_emulator_windows::WindowProcesses,
@@ -193,9 +195,12 @@ impl WindowGroup {
 
 fn watched(compositor: &CompositorWindowState, window: u64) -> Option<Watched> {
     let found = compositor.windows.get(&window)?;
+    let WindowPid::Reported(pid) = found.pid else {
+        return None;
+    };
     Some(Watched {
         window,
-        pid: found.pid?,
+        pid,
         app_id: found.app_id.clone(),
     })
 }

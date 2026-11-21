@@ -32,10 +32,10 @@ pub fn submenu_header_emphasis(
     }
 }
 
-pub(super) fn text_caret<'a, Message: 'a>(
+pub(super) fn text_caret<'view, Message: 'view>(
     pointing: CaretPointing,
     color: fn(&Theme) -> Color,
-) -> Element<'a, Message> {
+) -> Element<'view, Message> {
     let glyph = match pointing {
         CaretPointing::Rightward => "\u{25b8}",
         CaretPointing::Leftward => "\u{25c2}",
@@ -49,16 +49,16 @@ pub(super) fn text_caret<'a, Message: 'a>(
         .into()
 }
 
-impl<'a, SubmenuKey: Clone + PartialEq + 'a, Message: Clone + 'a>
-    MenuBuilder<'a, SubmenuKey, Message>
+impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
+    MenuBuilder<'view, SubmenuKey, Message>
 {
     pub(super) fn header_row(
         &self,
-        header: MenuRowContent<'a, Message>,
+        header: MenuRowContent<'view, Message>,
         path: &[SubmenuKey],
         expansion_state: ExpansionState,
         satellite_reach: SatelliteReach,
-    ) -> MenuRow<'a, Message> {
+    ) -> MenuRow<'view, Message> {
         let layout = self.presentation.layout;
         let emphasis = submenu_header_emphasis(layout, expansion_state);
         let caret_color = emphasis.secondary_glyph_color();

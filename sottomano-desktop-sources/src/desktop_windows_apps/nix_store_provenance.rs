@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use sottomano_compositor_model::compositor_window_facts::WindowAppId;
+
 const STORE: &str = "/nix/store/";
 const HASH_LEN: usize = 32;
 
@@ -71,18 +73,23 @@ pub struct Provenance {
 }
 
 impl Provenance {
-    pub fn trace_launch(binary: &Path, arguments: &[String], app_id: Option<&str>) -> Self {
+    #[must_use]
+    pub fn trace_launch(binary: &Path, arguments: &[String], app_id: &WindowAppId) -> Self {
         let executing = package(binary);
         let candidates = candidates(executing.clone(), arguments);
-        let identified = app_id.map(app_slug).and_then(|slug| {
-            candidates
-                .iter()
-                .find(|found| {
-                    let lowered_name = found.name.to_lowercase();
-                    lowered_name.starts_with(&slug) || slug.starts_with(&lowered_name)
-                })
-                .cloned()
-        });
+        let identified = match app_id {
+            WindowAppId::Reported(app_id) => {
+                let slug = app_slug(app_id);
+                candidates
+                    .iter()
+                    .find(|found| {
+                        let lowered_name = found.name.to_lowercase();
+                        lowered_name.starts_with(&slug) || slug.starts_with(&lowered_name)
+                    })
+                    .cloned()
+            }
+            WindowAppId::Unreported => None,
+        };
         let package = identified.or_else(|| executing.clone());
         let runtime = executing.filter(|exe| {
             package

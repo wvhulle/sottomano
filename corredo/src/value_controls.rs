@@ -8,9 +8,9 @@ pub use inline_slider::{InlineSlider, SliderAccents, inline_slider};
 mod radio_mark;
 pub use radio_mark::{RadioMark, radio_mark};
 mod seek_bar;
-pub use seek_bar::{PlaybackTimeline, SeekBar, SeekMessage};
+pub use seek_bar::{PlaybackProgress, PlaybackTimeline, SeekAcceptance, SeekBar, SeekMessage};
 mod synced_value;
-pub use synced_value::{DragWrites, Nudge, SourceTracking, SyncedValue, ValueWrite};
+pub use synced_value::{DragWrites, Nudge, SourceLag, SourceTracking, SyncedValue, ValueWrite};
 mod toggle_switch;
 pub use toggle_switch::{SwitchResponse, TogglePosition, ToggleSwitch, toggle_switch};
 #[cfg(feature = "chrono")]

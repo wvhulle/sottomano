@@ -1,7 +1,11 @@
 use std::fmt::Write;
 
-use sottomano_compositor_model::compositor_styling_model::{
-    CompositorStyling, HeatedWindow, ShellBlurDepth, StyledSurface, SwitchHeat, escaped_for_regex,
+use sottomano_compositor_model::{
+    compositor_styling_model::{
+        CompositorStyling, HeatedWindow, ShellBlurDepth, StyledSurface, SwitchHeat,
+        escaped_for_regex,
+    },
+    compositor_window_facts::WindowAppId,
 };
 
 pub(crate) fn lua_string(text: &str) -> String {
@@ -66,7 +70,7 @@ pub(crate) fn heated_window_rule(
             escaped_for_regex(&heated.title_without_status_prefix)
         ))
     );
-    if let Some(app_id) = heated.app_id.as_deref() {
+    if let WindowAppId::Reported(app_id) = &heated.app_id {
         let _ = write!(
             window_match,
             ", class = {}",
@@ -91,6 +95,7 @@ mod tests {
         compositor_styling_model::{
             AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, SwitchHeat,
         },
+        compositor_window_facts::WindowAppId,
     };
 
     use crate::HyprlandBackend;
@@ -142,7 +147,7 @@ hl.layer_rule({
             focus_ring_color: "#95e6cb".to_owned(),
             neutral_border_color: "#0b0e14".to_owned(),
             windows: HeatedWindow::titled(
-                Some("kitty".to_owned()),
+                WindowAppId::Reported("kitty".to_owned()),
                 "✳ nvim (main)",
                 "#ffb454".to_owned(),
             )

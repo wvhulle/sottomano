@@ -15,21 +15,21 @@ use iced::{
 
 use crate::{
     orientation::Axis,
-    transitions::{MotionState, eased_animation, motion_of},
+    transitions::{MotionState, RedrawClock, combined_motion, eased_animation},
 };
 
-pub(super) struct SlidingRow<'a, Message, RowKey> {
+pub(super) struct SlidingRow<'view, Message, RowKey> {
     keys: Vec<RowKey>,
-    children: Vec<Element<'a, Message>>,
+    children: Vec<Element<'view, Message>>,
     placement_order: Vec<usize>,
     gaps_after: Vec<f32>,
     pager_axis: Axis,
     slide_duration: Duration,
 }
 
-impl<'a, Message, RowKey> SlidingRow<'a, Message, RowKey> {
+impl<'view, Message, RowKey> SlidingRow<'view, Message, RowKey> {
     pub(super) fn new(
-        keyed_children: impl IntoIterator<Item = (RowKey, Element<'a, Message>)>,
+        keyed_children: impl IntoIterator<Item = (RowKey, Element<'view, Message>)>,
         pager_axis: Axis,
         slide_duration: Duration,
     ) -> Self {
@@ -126,16 +126,16 @@ impl<'a, Message, RowKey> SlidingRow<'a, Message, RowKey> {
 struct SlidingRowState<RowKey> {
     keys: Vec<RowKey>,
     child_starts: HashMap<RowKey, Animation<f32>>,
-    frame: Option<Instant>,
+    redraw_clock: RedrawClock,
 }
 
 impl<RowKey: Copy + Eq + Hash> SlidingRowState<RowKey> {
     fn slide_motion(&self, now: Instant) -> MotionState {
-        motion_of(self.child_starts.values(), now)
+        combined_motion(self.child_starts.values(), now)
     }
 
     fn sliding_start(&mut self, key: RowKey, target: f32, slide_duration: Duration) -> f32 {
-        let Some(now) = self.frame else {
+        let RedrawClock::FrameAt(now) = self.redraw_clock else {
             return target;
         };
         let start = self
@@ -160,7 +160,7 @@ impl<Message, RowKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::R
         tree::State::new(SlidingRowState {
             keys: self.keys.clone(),
             child_starts: HashMap::new(),
-            frame: None,
+            redraw_clock: RedrawClock::AwaitingFirstFrame,
         })
     }
 
@@ -248,7 +248,7 @@ impl<Message, RowKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::R
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let row_state = tree.state.downcast_mut::<SlidingRowState<RowKey>>();
-            row_state.frame = Some(*now);
+            row_state.redraw_clock = RedrawClock::FrameAt(*now);
             if row_state.slide_motion(*now) == MotionState::Moving {
                 shell.invalidate_layout();
                 shell.request_redraw();
@@ -348,14 +348,14 @@ impl<Message, RowKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::R
         });
     }
 
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
+    fn overlay<'tree>(
+        &'tree mut self,
+        tree: &'tree mut Tree,
+        layout: Layout<'tree>,
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'tree, Message, Theme, iced::Renderer>> {
         overlay::from_children(
             &mut self.children,
             tree,
@@ -367,10 +367,10 @@ impl<Message, RowKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::R
     }
 }
 
-impl<'a, Message: 'a, RowKey: Copy + Eq + Hash + 'static> From<SlidingRow<'a, Message, RowKey>>
-    for Element<'a, Message>
+impl<'view, Message: 'view, RowKey: Copy + Eq + Hash + 'static>
+    From<SlidingRow<'view, Message, RowKey>> for Element<'view, Message>
 {
-    fn from(sliding_row: SlidingRow<'a, Message, RowKey>) -> Self {
+    fn from(sliding_row: SlidingRow<'view, Message, RowKey>) -> Self {
         Element::new(sliding_row)
     }
 }
