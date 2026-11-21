@@ -6,9 +6,7 @@ use iced::{
     Border, Color, Element, Padding, Shadow, Theme, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{
-        Column, Row as RowWidget, Stack, button, button::Status, container, text::Wrapping,
-    },
+    widget::{Column, Row as RowWidget, Stack, button, button::Status, container, text::Wrapping},
 };
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::Config;

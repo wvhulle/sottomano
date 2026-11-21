@@ -228,6 +228,10 @@ mod tests {
         let alphas: Vec<f32> = (0..=reach_px)
             .map(|distance_px| edge_shadow_alpha_at(distance_px as f32))
             .collect();
-        assert!(alphas.windows(2).all(|neighbours| neighbours[1] < neighbours[0]));
+        assert!(
+            alphas
+                .windows(2)
+                .all(|neighbours| neighbours[1] < neighbours[0])
+        );
     }
 }
