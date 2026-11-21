@@ -5,7 +5,7 @@ use uom::si::{
     time::second,
 };
 
-use crate::battery_power_profiles::battery_time_forecast::Estimate;
+use crate::battery_power_profiles::battery_time_forecast::{Estimate, LatestBound};
 
 const STEP: Duration = Duration::from_mins(1);
 const GIVE_UP_AFTER: Duration = Duration::from_hours(72);
@@ -65,7 +65,9 @@ pub(super) fn estimate(time_in: impl Fn(Scenario) -> Option<Duration>) -> Option
     Some(Estimate {
         time: whole_minutes(fading),
         earliest: whole_minutes(earliest),
-        latest: slowest.map(whole_minutes),
+        latest: slowest.map_or(LatestBound::Unbounded, |slowest| {
+            LatestBound::Within(whole_minutes(slowest))
+        }),
     })
 }
 
@@ -131,6 +133,6 @@ mod tests {
         .expect("estimate");
         assert_eq!(estimate.earliest, Duration::from_mins(30));
         assert_eq!(estimate.time, Duration::from_mins(60));
-        assert!(estimate.latest.is_none());
+        assert_eq!(estimate.latest, LatestBound::Unbounded);
     }
 }

@@ -11,7 +11,8 @@ use crate::{
     systemd_units_journal::{
         SystemdUnitScope,
         journal_record_fields::{
-            JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit, either_of,
+            JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
+            disjunctive_journal_matches,
         },
     },
 };
@@ -137,7 +138,7 @@ impl ServiceErrors {
         ["-b", "-f", "-n", "all", "-p", "err"]
             .map(String::from)
             .into_iter()
-            .chain(either_of(
+            .chain(disjunctive_journal_matches(
                 self.by_unit_oldest_first
                     .iter()
                     .map(|errors| errors.unit.logged_by_match()),
@@ -179,8 +180,8 @@ mod tests {
     use super::*;
     use crate::system_protocol_clients::journal_follow::{decode_record, journal_record};
 
-    fn admitted<'a>(
-        fields: impl IntoIterator<Item = (&'a str, &'a str)>,
+    fn admitted<'field>(
+        fields: impl IntoIterator<Item = (&'field str, &'field str)>,
     ) -> Option<ServiceErrorEntry> {
         let record = decode_record(journal_record(fields)).expect("a well-formed record");
         ServiceErrorEntry::admit(record, SystemTime::UNIX_EPOCH)

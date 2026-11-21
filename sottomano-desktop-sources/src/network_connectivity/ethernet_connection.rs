@@ -1,23 +1,30 @@
-use futures::{Stream, future::try_join_all, try_join};
+use futures::{Stream, StreamExt, TryStreamExt, stream, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        device_or_absent, interface_bus_attachment::InterfaceAttachment, network_manager_proxies,
-        nm_samples, sysfs_interface_faults::InterfaceFaultCounters,
+        device_or_absent,
+        interface_bus_attachment::{AdapterIdentity, InterfaceAttachment},
+        network_manager_proxies, nm_samples,
+        sysfs_interface_faults::InterfaceFaultCounters,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectionProfile {
+    Named(String),
+    Unassigned,
+}
+
 #[derive(Debug, Clone)]
 pub struct Link {
-    pub connection: Option<String>,
+    pub connection: ConnectionProfile,
     pub mac: String,
-    pub ipv4: Option<network_manager_proxies::AddressBlock>,
-    pub ipv6: Option<network_manager_proxies::AddressBlock>,
+    pub ipv4: network_manager_proxies::AddressAssignment,
+    pub ipv6: network_manager_proxies::AddressAssignment,
     pub dns: Vec<String>,
     pub speed: InformationRate,
     pub mtu: u32,
@@ -47,10 +54,16 @@ impl Ethernet {
 }
 
 #[derive(Debug, Clone)]
+pub enum PortLink {
+    Up(Box<Link>),
+    Down,
+}
+
+#[derive(Debug, Clone)]
 pub struct Port {
     pub name: String,
-    pub adapter: Option<Adapter>,
-    pub link: Option<Link>,
+    pub adapter: AdapterIdentity,
+    pub link: PortLink,
 }
 
 #[derive(Debug, Clone)]
@@ -62,11 +75,11 @@ async fn port(
     connection: &Connection,
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Port> {
-    let adapter = Adapter::read_net_interface(&device.interface);
+    let adapter = AdapterIdentity::net_interface(&device.interface);
     let link = if device.link_state == network_manager_proxies::LinkPhase::Up {
-        Some(link(connection, &device).await?)
+        PortLink::Up(Box::new(link(connection, &device).await?))
     } else {
-        None
+        PortLink::Down
     };
     Ok(Port {
         adapter,
@@ -87,10 +100,10 @@ async fn link(
         network_manager_proxies::mtu(device)
     )?;
     let profile = match network_manager_proxies::assigned_object_path(active_connection) {
-        Some(active_connection) => {
-            Some(network_manager_proxies::connection_id(connection, active_connection).await?)
-        }
-        None => None,
+        Some(active_connection) => ConnectionProfile::Named(
+            network_manager_proxies::connection_id(connection, active_connection).await?,
+        ),
+        None => ConnectionProfile::Unassigned,
     };
     Ok(Link {
         connection: profile,
@@ -130,7 +143,11 @@ async fn read(connection: Connection) -> Result<Ethernet, BusReadError> {
 
 async fn read_details(connection: Connection) -> Result<EthernetDetails, BusReadError> {
     let devices = ethernet_devices(&connection).await?;
-    let ports = try_join_all(devices.into_iter().map(|device| port(&connection, device))).await?;
+    let ports = stream::iter(devices)
+        .map(|device| port(&connection, device))
+        .buffered(network_manager_proxies::BUS_OBJECT_READS_IN_FLIGHT)
+        .try_collect::<Vec<_>>()
+        .await?;
     Ok(EthernetDetails { ports })
 }
 

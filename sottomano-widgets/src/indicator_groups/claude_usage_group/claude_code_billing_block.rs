@@ -1,4 +1,7 @@
-use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::ClaudeCcusageBlock};
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{ccusage_cli_reports::BlockProjection, claude_usage::ClaudeCcusageBlock},
+};
 
 use crate::{
     clock::Clock,
@@ -24,13 +27,13 @@ pub(crate) const CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Timer(Weight::Regular));
 
 pub fn claude_ccusage_block_indicator(block: &ClaudeCcusageBlock) -> GroupIndicator<'_> {
-    let (label, state, panel_visibility) = match &block.active {
-        Some(active) => (
+    let (label, state, panel_visibility) = match block {
+        ClaudeCcusageBlock::Active(active) => (
             ReadoutLabel::Labeled(format!("{} block", spend_text(&active.cost))),
             level_from_cost(&active.cost).into(),
             PanelVisibility::Shown,
         ),
-        None => (
+        ClaudeCcusageBlock::NoActiveBlock => (
             ReadoutLabel::Unlabeled,
             IndicatorState::Idle,
             PanelVisibility::Hidden,
@@ -60,30 +63,27 @@ pub fn claude_ccusage_block_hover_card(block: &ClaudeCcusageBlock, clock: Clock)
             LabeledValue::new("Cost Basis", "API list prices"),
         ]),
     );
-    let Some(active) = &block.active else {
+    let ClaudeCcusageBlock::Active(active) = block else {
         return vec![source];
     };
+    let mut block_rows = vec![LabeledValue::new("Cost", Quantity::spend(active.cost))];
+    if let BlockProjection::Projected {
+        cost_per_hour,
+        projected_cost,
+    } = active.projection
+    {
+        block_rows.push(LabeledValue::new("Burn Rate", format!("{cost_per_hour}/h")));
+        block_rows.push(LabeledValue::new(
+            "Projected Cost",
+            Quantity::spend(projected_cost),
+        ));
+    }
+    block_rows.push(LabeledValue::new(
+        "Ends In",
+        ValueCell::duration(active.ends_at - clock.utc()),
+    ));
     vec![
         source,
-        Section::new(
-            "Active 5-Hour Block",
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Cost", Quantity::spend(active.cost))),
-                    active
-                        .cost_per_hour
-                        .map(|rate| LabeledValue::new("Burn Rate", format!("{rate}/h"))),
-                    active
-                        .projected_cost
-                        .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost))),
-                    Some(LabeledValue::new(
-                        "Ends In",
-                        ValueCell::duration(active.ends_at - clock.utc()),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        ),
+        Section::new("Active 5-Hour Block", dictionary_table(block_rows)),
     ]
 }

@@ -86,7 +86,7 @@ pub struct ClaudeUsageGroup {
     ccusage_periods: SubscribedSnapshot<ClaudeCcusagePeriods>,
     ccusage_block: SubscribedSnapshot<ClaudeCcusageBlock>,
     ccusage_models: SubscribedSnapshot<ClaudeCcusageModels>,
-    oauth_credentials: Option<PathBuf>,
+    oauth_credentials: StoredSecret,
     organization: HoverFetchedSnapshot<ClaudeOrganization>,
     expansion: IndicatorGroupExpansion,
 }
@@ -108,10 +108,6 @@ impl ClaudeUsageGroup {
 
     #[must_use]
     pub fn new(oauth_credentials: StoredSecret) -> Self {
-        let oauth_credentials = match oauth_credentials {
-            StoredSecret::Present(credentials_path) => Some(credentials_path),
-            StoredSecret::Absent => None,
-        };
         Self {
             usage_windows: SubscribedSnapshot::default(),
             enterprise_spend: SubscribedSnapshot::default(),
@@ -132,7 +128,7 @@ impl ClaudeUsageGroup {
         buses: &DesktopBuses,
         clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
-        let Some(credentials) = self.oauth_credentials.clone() else {
+        let StoredSecret::Present(credentials) = self.oauth_credentials.clone() else {
             return Task::none();
         };
         match request {
@@ -197,38 +193,34 @@ impl ClaudeUsageGroup {
         working_days: WeekdaySet,
         buses: Option<&DesktopBuses>,
     ) -> Subscription<ClaudeUsageMessage> {
-        let account = self
-            .oauth_credentials
-            .clone()
-            .zip(buses)
-            .into_iter()
-            .flat_map(|(key, buses)| {
-                [
-                    snapshot_subscription::<ClaudeUsageWindows>(OnBus {
-                        buses: buses.clone(),
-                        inputs: key.clone(),
-                    })
-                    .map(|sample| ClaudeUsageMessage::UsageWindows(Box::new(sample))),
-                    snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
-                        key,
-                        config,
-                        working_days,
-                        buses,
-                    ))
-                    .map(ClaudeUsageMessage::EnterpriseSpend),
-                ]
-            });
         let local_logs = self.local_logs(config);
-        Subscription::batch(
-            account.chain([
-                snapshot_subscription::<ClaudeCcusageBlock>(local_logs.clone())
-                    .map(ClaudeUsageMessage::CcusageBlock),
-                snapshot_subscription::<ClaudeCcusagePeriods>(local_logs)
-                    .map(ClaudeUsageMessage::CcusagePeriods),
-                snapshot_subscription::<ClaudeCcusageModels>(self.oauth_credentials.clone())
-                    .map(ClaudeUsageMessage::CcusageModels),
-            ]),
-        )
+        let mut subscriptions = vec![
+            snapshot_subscription::<ClaudeCcusageBlock>(local_logs.clone())
+                .map(ClaudeUsageMessage::CcusageBlock),
+            snapshot_subscription::<ClaudeCcusagePeriods>(local_logs)
+                .map(ClaudeUsageMessage::CcusagePeriods),
+            snapshot_subscription::<ClaudeCcusageModels>(self.oauth_credentials.clone())
+                .map(ClaudeUsageMessage::CcusageModels),
+        ];
+        if let StoredSecret::Present(key) = &self.oauth_credentials
+            && let Some(buses) = buses
+        {
+            subscriptions.extend([
+                snapshot_subscription::<ClaudeUsageWindows>(OnBus {
+                    buses: buses.clone(),
+                    inputs: key.clone(),
+                })
+                .map(|sample| ClaudeUsageMessage::UsageWindows(Box::new(sample))),
+                snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
+                    key.clone(),
+                    config,
+                    working_days,
+                    buses,
+                ))
+                .map(ClaudeUsageMessage::EnterpriseSpend),
+            ]);
+        }
+        Subscription::batch(subscriptions)
     }
 
     pub fn update(

@@ -35,9 +35,10 @@ const WARNING_MARGIN_CELSIUS: f64 = 20.0;
 const CRITICAL_MARGIN_CELSIUS: f64 = 5.0;
 const UNREPORTED_WARNING_CELSIUS: f64 = 70.0;
 const UNREPORTED_CRITICAL_CELSIUS: f64 = 85.0;
-const CPU_PACKAGE_CHIPS: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
-const SOC_THERMAL_ZONE_MARKERS: [&str; 2] = ["cpu", "soc"];
-const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
+
+mod cpu_package_sensors;
+
+use cpu_package_sensors::detected_cpu_sensors;
 
 const TEMPERATURE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(5));
 
@@ -46,23 +47,35 @@ pub struct TemperatureSample {
     pub chip: String,
     pub label: String,
     pub temperature: ThermodynamicTemperature,
-    pub limit: Option<ThermodynamicTemperature>,
+    pub limit: ThrottleLimit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThrottleLimit {
+    Unreported,
+    ThrottlesAt(ThermodynamicTemperature),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CriticalOnset {
+    BelowCritical,
+    CriticalSince(SystemTime),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreTemperature {
     pub core: u32,
     pub temperature: ThermodynamicTemperature,
-    pub limit: Option<ThermodynamicTemperature>,
+    pub limit: ThrottleLimit,
     pub overrides: ThresholdOverrides,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub samples: Vec<TemperatureSample>,
-    pub throttle_limit: Option<ThermodynamicTemperature>,
+    pub throttle_limit: ThrottleLimit,
     pub overrides: ThresholdOverrides,
-    pub critical_since: Option<SystemTime>,
+    pub critical_since: CriticalOnset,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,16 +122,16 @@ fn margin(degrees: f64) -> TemperatureInterval {
 
 #[must_use]
 pub fn cpu_thresholds(
-    limit: Option<ThermodynamicTemperature>,
+    limit: ThrottleLimit,
     overrides: ThresholdOverrides,
 ) -> TemperatureThresholds {
     let from_hardware = match limit {
-        Some(throttle) => TemperatureThresholds {
+        ThrottleLimit::ThrottlesAt(throttle) => TemperatureThresholds {
             warning: throttle - margin(WARNING_MARGIN_CELSIUS),
             critical: throttle - margin(CRITICAL_MARGIN_CELSIUS),
             basis: ThresholdBasis::BelowThrottle(throttle),
         },
-        None => TemperatureThresholds {
+        ThrottleLimit::Unreported => TemperatureThresholds {
             warning: celsius(UNREPORTED_WARNING_CELSIUS),
             critical: celsius(UNREPORTED_CRITICAL_CELSIUS),
             basis: ThresholdBasis::Assumed,
@@ -157,9 +170,10 @@ impl Temperature {
 
     #[must_use]
     pub fn hottest_sample(&self) -> Option<&TemperatureSample> {
-        self.samples.iter().max_by(|a, b| {
-            a.temperature
-                .partial_cmp(&b.temperature)
+        self.samples.iter().max_by(|earlier_sample, later_sample| {
+            earlier_sample
+                .temperature
+                .partial_cmp(&later_sample.temperature)
                 .unwrap_or(Ordering::Equal)
         })
     }
@@ -220,13 +234,19 @@ pub struct TemperatureProbe {
 fn holding_earliest_critical(
     deliveries: impl Stream<Item = SnapshotDelivery<Temperature>>,
 ) -> impl Stream<Item = SnapshotDelivery<Temperature>> {
-    deliveries.scan(None, |held, delivery| {
+    deliveries.scan(CriticalOnset::BelowCritical, |held, delivery| {
         let delivery = match delivery {
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch: Ok(sample),
                 delivery_cadence,
             } => {
-                *held = sample.critical_since.map(|now| held.unwrap_or(now));
+                *held = match sample.critical_since {
+                    CriticalOnset::BelowCritical => CriticalOnset::BelowCritical,
+                    CriticalOnset::CriticalSince(now) => match *held {
+                        earliest @ CriticalOnset::CriticalSince(_) => earliest,
+                        CriticalOnset::BelowCritical => CriticalOnset::CriticalSince(now),
+                    },
+                };
                 SnapshotDelivery::SnapshotDelivered {
                     snapshot_fetch: Ok(Temperature {
                         critical_since: *held,
@@ -237,7 +257,7 @@ fn holding_earliest_critical(
             }
             SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
             interrupted => {
-                *held = None;
+                *held = CriticalOnset::BelowCritical;
                 interrupted
             }
         };
@@ -258,12 +278,16 @@ fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, CpuTemperat
         throttle_limit: throttle_limit(&samples),
         samples,
         overrides: probe.config.overrides(),
-        critical_since: None,
+        critical_since: CriticalOnset::BelowCritical,
     };
+    let critical_since =
+        if temperature.thresholds().level(temperature.hottest()) == Severity::Critical {
+            CriticalOnset::CriticalSince(SystemTime::now())
+        } else {
+            CriticalOnset::BelowCritical
+        };
     Ok(Temperature {
-        critical_since: (temperature.thresholds().level(temperature.hottest())
-            == Severity::Critical)
-            .then(SystemTime::now),
+        critical_since,
         ..temperature
     })
 }
@@ -272,80 +296,6 @@ fn cpu_sensors(choice: &SensorChoice) -> Vec<ChosenSensors> {
     match choice {
         SensorChoice::Automatic => detected_cpu_sensors(),
         SensorChoice::Chip { .. } => HwmonChip::chosen(choice),
-    }
-}
-
-fn detected_cpu_sensors() -> Vec<ChosenSensors> {
-    let chips = HwmonChip::all();
-    let package_sensors: Vec<ChosenSensors> = chips
-        .iter()
-        .filter(|chip| CpuChipRole::from(*chip) == CpuChipRole::CpuPackage)
-        .map(package_chip_sensors)
-        .filter(|chosen| !chosen.sensors.is_empty())
-        .collect();
-    if !package_sensors.is_empty() {
-        return package_sensors;
-    }
-    chips
-        .into_iter()
-        .filter(|chip| CpuChipRole::from(chip) == CpuChipRole::SocThermalZone)
-        .map(|chip| ChosenSensors {
-            sensors: chip.temperature_sensors(),
-            chip,
-        })
-        .collect()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CpuChipRole {
-    CpuPackage,
-    SocThermalZone,
-    UnrelatedChip,
-}
-
-impl From<&HwmonChip> for CpuChipRole {
-    fn from(chip: &HwmonChip) -> Self {
-        if CPU_PACKAGE_CHIPS
-            .iter()
-            .any(|prefix| chip.name.starts_with(prefix))
-        {
-            CpuChipRole::CpuPackage
-        } else if SOC_THERMAL_ZONE_MARKERS
-            .iter()
-            .any(|marker| chip.name.contains(marker))
-        {
-            CpuChipRole::SocThermalZone
-        } else {
-            CpuChipRole::UnrelatedChip
-        }
-    }
-}
-
-fn package_chip_sensors(chip: &HwmonChip) -> ChosenSensors {
-    let sensors = chip.temperature_sensors();
-    let core_prefix = if chip.name.starts_with("coretemp") {
-        "Core "
-    } else {
-        "Tccd"
-    };
-    let per_core: Vec<TemperatureSensor> = sensors
-        .iter()
-        .filter(|sensor| sensor.label.starts_with(core_prefix))
-        .cloned()
-        .collect();
-    let chosen = if per_core.is_empty() {
-        PACKAGE_FALLBACK_LABELS
-            .iter()
-            .find_map(|label| sensors.iter().find(|sensor| &sensor.label == label))
-            .into_iter()
-            .cloned()
-            .collect()
-    } else {
-        per_core
-    };
-    ChosenSensors {
-        chip: chip.clone(),
-        sensors: chosen,
     }
 }
 
@@ -358,18 +308,27 @@ impl ChosenSensors {
                     chip: self.chip.name.clone(),
                     label: sensor.label.clone(),
                     temperature: self.chip.temperature(sensor)?,
-                    limit: self.chip.limit(sensor, LimitKind::Crit),
+                    limit: critical_throttle_limit(&self.chip, sensor),
                 })
             })
             .collect()
     }
 }
 
-fn throttle_limit(samples: &[TemperatureSample]) -> Option<ThermodynamicTemperature> {
+fn critical_throttle_limit(chip: &HwmonChip, sensor: &TemperatureSensor) -> ThrottleLimit {
+    chip.limit(sensor, LimitKind::Crit)
+        .map_or(ThrottleLimit::Unreported, ThrottleLimit::ThrottlesAt)
+}
+
+fn throttle_limit(samples: &[TemperatureSample]) -> ThrottleLimit {
     samples
         .iter()
-        .filter_map(|sample| sample.limit)
+        .filter_map(|sample| match sample.limit {
+            ThrottleLimit::ThrottlesAt(limit) => Some(limit),
+            ThrottleLimit::Unreported => None,
+        })
         .reduce(ThermodynamicTemperature::min)
+        .map_or(ThrottleLimit::Unreported, ThrottleLimit::ThrottlesAt)
 }
 
 fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
@@ -403,7 +362,7 @@ fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SensorSample {
     temperature: ThermodynamicTemperature,
-    limit: Option<ThermodynamicTemperature>,
+    limit: ThrottleLimit,
 }
 
 fn physical_core_temperatures() -> HashMap<u32, SensorSample> {
@@ -428,7 +387,7 @@ fn physical_core_temperatures() -> HashMap<u32, SensorSample> {
                         .ok()?;
                     let sample = SensorSample {
                         temperature: chip.temperature(&sensor)?,
-                        limit: chip.limit(&sensor, LimitKind::Crit),
+                        limit: critical_throttle_limit(&chip, &sensor),
                     };
                     Some((physical_core, sample))
                 })
@@ -437,70 +396,4 @@ fn physical_core_temperatures() -> HashMap<u32, SensorSample> {
 }
 
 #[cfg(test)]
-mod tests {
-    use futures::executor::block_on;
-
-    use super::*;
-    use crate::delivery_cadence_drivers::DeliveryCadence;
-
-    fn sample_critical_since(critical_since: Option<SystemTime>) -> Temperature {
-        Temperature {
-            samples: Vec::new(),
-            throttle_limit: None,
-            overrides: ThresholdOverrides::default(),
-            critical_since,
-        }
-    }
-
-    #[test]
-    fn holding_earliest_critical_keeps_the_first_stamp_until_a_gap() {
-        let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
-        let second = first + Duration::from_secs(5);
-        let third = first + Duration::from_secs(15);
-        let deliveries =
-            stream::iter([Some(first), Some(second), None, Some(third)].map(|since| {
-                SnapshotDelivery::fixture_delivered(
-                    Ok(sample_critical_since(since)),
-                    DeliveryCadence::PeriodicPolling(TEMPERATURE_POLLING),
-                )
-            }));
-        let held: Vec<Option<SystemTime>> = block_on(
-            holding_earliest_critical(deliveries)
-                .map(|delivery| match delivery {
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Ok(sample),
-                        ..
-                    } => sample.critical_since,
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Err(_),
-                        ..
-                    }
-                    | SnapshotDelivery::SourceUnavailable
-                    | SnapshotDelivery::SnapshotUnchanged => None,
-                })
-                .collect(),
-        );
-        assert_eq!(held, [Some(first), Some(first), None, Some(third)]);
-    }
-
-    #[test]
-    fn reported_limit_sets_thresholds_below_throttling() {
-        let thresholds = cpu_thresholds(Some(celsius(100.0)), ThresholdOverrides::default());
-        assert_eq!(
-            thresholds.basis,
-            ThresholdBasis::BelowThrottle(celsius(100.0))
-        );
-        assert_eq!(thresholds.level(celsius(79.0)), Severity::Normal);
-        assert_eq!(thresholds.level(celsius(81.0)), Severity::Warning);
-        assert_eq!(thresholds.level(celsius(96.0)), Severity::Critical);
-    }
-
-    #[test]
-    fn unreported_limit_falls_back_to_fixed_thresholds() {
-        let thresholds = cpu_thresholds(None, ThresholdOverrides::default());
-        assert_eq!(thresholds.basis, ThresholdBasis::Assumed);
-        assert_eq!(thresholds.level(celsius(69.0)), Severity::Normal);
-        assert_eq!(thresholds.level(celsius(71.0)), Severity::Warning);
-        assert_eq!(thresholds.level(celsius(86.0)), Severity::Critical);
-    }
-}
+mod cpu_temperature_tests;

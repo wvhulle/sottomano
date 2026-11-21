@@ -42,14 +42,26 @@ pub enum Error {
     Empty,
     Status {
         status: u16,
-        message: Option<String>,
+        message: StatusExplanation,
     },
     Decode(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatusExplanation {
+    Stated(String),
+    Unexplained,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResponseBody {
+    Json(Value),
+    NotJson,
+}
+
 impl Error {
     #[must_use]
-    pub fn status(status: u16, body: Option<Value>) -> Self {
+    pub fn status(status: u16, body: ResponseBody) -> Self {
         Error::Status {
             status,
             message: failure_message(body),
@@ -57,13 +69,15 @@ impl Error {
     }
 }
 
-pub fn failure_message(body: Option<Value>) -> Option<String> {
+#[must_use]
+pub fn failure_message(body: ResponseBody) -> StatusExplanation {
     decode::<FailureExplanation>(body)
         .inspect_err(|decode_failure| {
             tracing::debug!("http failure body carries no explanation: {decode_failure}");
         })
-        .ok()
-        .map(String::from)
+        .map_or(StatusExplanation::Unexplained, |explanation| {
+            StatusExplanation::Stated(String::from(explanation))
+        })
 }
 
 #[derive(Deserialize)]
@@ -88,27 +102,33 @@ impl From<FailureExplanation> for String {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Error::Url(url) => write!(f, "invalid address {url}"),
-            Error::Header(name) => write!(f, "invalid header {name}"),
-            Error::Client(detail) => write!(f, "client setup failed: {detail}"),
-            Error::HostNotResolved { host } => write!(f, "{host} could not be resolved"),
+            Error::Url(url) => write!(formatter, "invalid address {url}"),
+            Error::Header(name) => write!(formatter, "invalid header {name}"),
+            Error::Client(detail) => write!(formatter, "client setup failed: {detail}"),
+            Error::HostNotResolved { host } => write!(formatter, "{host} could not be resolved"),
             Error::TimedOut { host, after } => {
-                write!(f, "{host} did not answer within {} s", after.as_secs())
+                write!(
+                    formatter,
+                    "{host} did not answer within {} s",
+                    after.as_secs()
+                )
             }
-            Error::Unreachable { host, detail } => write!(f, "{host} is unreachable: {detail}"),
-            Error::Body(detail) => write!(f, "unreadable response: {detail}"),
-            Error::Empty => write!(f, "empty response"),
+            Error::Unreachable { host, detail } => {
+                write!(formatter, "{host} is unreachable: {detail}")
+            }
+            Error::Body(detail) => write!(formatter, "unreadable response: {detail}"),
+            Error::Empty => write!(formatter, "empty response"),
             Error::Status {
                 status,
-                message: Some(message),
-            } => write!(f, "{message} (HTTP {status})"),
+                message: StatusExplanation::Stated(message),
+            } => write!(formatter, "{message} (HTTP {status})"),
             Error::Status {
                 status,
-                message: None,
-            } => write!(f, "HTTP {status}"),
-            Error::Decode(detail) => write!(f, "unexpected response: {detail}"),
+                message: StatusExplanation::Unexplained,
+            } => write!(formatter, "HTTP {status}"),
+            Error::Decode(detail) => write!(formatter, "unexpected response: {detail}"),
         }
     }
 }
@@ -124,7 +144,7 @@ pub fn deserialize_percent_ratio<'de, D: Deserializer<'de>>(
 pub struct Response {
     pub status: u16,
     pub headers: HeaderMap,
-    pub body: Option<Value>,
+    pub body: ResponseBody,
 }
 
 impl Response {
@@ -167,7 +187,7 @@ pub async fn get_text(url: &str) -> Result<String, Error> {
                         fetched.status
                     );
                 })
-                .ok(),
+                .map_or(ResponseBody::NotJson, ResponseBody::Json),
         ));
     }
     if body.trim().is_empty() {
@@ -189,7 +209,7 @@ pub async fn get_json<T: DeserializeOwned>(
 
 struct UnixSocketReply {
     status: u16,
-    body: Option<Value>,
+    body: ResponseBody,
 }
 
 async fn exchanged_over_unix_socket(
@@ -229,7 +249,7 @@ async fn exchanged_over_unix_socket(
                         "http {url} over {socket_label}: body is not json: {parse_failure}"
                     );
                 })
-                .ok(),
+                .map_or(ResponseBody::NotJson, ResponseBody::Json),
         })
     };
     timeout(REQUEST_TIMEOUT, answered)
@@ -271,9 +291,12 @@ pub async fn put_over_unix_socket(
     Ok(reply.status)
 }
 
-pub fn decode<T: DeserializeOwned>(body: Option<Value>) -> Result<T, Error> {
-    serde_json::from_value(body.unwrap_or(Value::Null))
-        .map_err(|error| Error::Decode(error.to_string()))
+pub fn decode<T: DeserializeOwned>(body: ResponseBody) -> Result<T, Error> {
+    let json_value = match body {
+        ResponseBody::Json(json_value) => json_value,
+        ResponseBody::NotJson => Value::Null,
+    };
+    serde_json::from_value(json_value).map_err(|error| Error::Decode(error.to_string()))
 }
 
 struct ResolvedTarget {
@@ -430,7 +453,7 @@ async fn request(
             .inspect_err(|parse_failure| {
                 tracing::debug!("http {url}: body is not json: {parse_failure}");
             })
-            .ok(),
+            .map_or(ResponseBody::NotJson, ResponseBody::Json),
     })
 }
 
@@ -440,12 +463,12 @@ mod tests {
 
     #[test]
     fn an_unparsable_body_falls_back_to_the_status() {
-        let failure = Error::status(503, Some(Value::Null));
+        let failure = Error::status(503, ResponseBody::Json(Value::Null));
         assert_eq!(
             failure,
             Error::Status {
                 status: 503,
-                message: None
+                message: StatusExplanation::Unexplained
             }
         );
         assert_eq!(failure.to_string(), "HTTP 503");
@@ -454,7 +477,7 @@ mod tests {
     #[test]
     fn an_api_message_is_shown_beside_the_status() {
         let body = serde_json::json!({"error": {"message": "usage limit reached"}});
-        let failure = Error::status(429, Some(body));
+        let failure = Error::status(429, ResponseBody::Json(body));
         assert_eq!(failure.to_string(), "usage limit reached (HTTP 429)");
     }
 

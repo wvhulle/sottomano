@@ -633,7 +633,7 @@ mod tests {
         }
     }
 
-    fn delivery_cadence_of(delivery: &SnapshotDelivery<CountedSnapshot>) -> DeliveryCadence {
+    fn delivered_cadence(delivery: &SnapshotDelivery<CountedSnapshot>) -> DeliveryCadence {
         let SnapshotDelivery::SnapshotDelivered {
             delivery_cadence, ..
         } = delivery
@@ -664,7 +664,7 @@ mod tests {
             .collect()
             .await;
         assert_eq!(
-            delivery_cadence_of(&deliveries[0]),
+            delivered_cadence(&deliveries[0]),
             DeliveryCadence::PeriodicPolling(polling)
         );
         assert!(matches!(deliveries[1], SnapshotDelivery::SnapshotUnchanged));
@@ -759,7 +759,7 @@ mod tests {
         );
         let first = deliveries.next().await.unwrap();
         assert_eq!(
-            delivery_cadence_of(&first),
+            delivered_cadence(&first),
             DeliveryCadence::LivePushWithRecheck(recheck)
         );
         let started_waiting = TokioClockInstant::now();

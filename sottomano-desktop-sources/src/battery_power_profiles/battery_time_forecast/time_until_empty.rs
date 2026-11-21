@@ -12,11 +12,17 @@ use crate::battery_power_profiles::{
     upower_battery_state::{Battery, ChargeStatus},
 };
 
-struct Draining<'a> {
-    live: Option<Power>,
+#[derive(Clone, Copy)]
+enum LiveDraw {
+    Measured(Power),
+    NotDraining,
+}
+
+struct Draining<'models> {
+    live: LiveDraw,
     active_profile: Profile,
     conditions: Conditions,
-    profile_models: &'a HashMap<Profile, RegressionState>,
+    profile_models: &'models HashMap<Profile, RegressionState>,
 }
 
 impl Draining<'_> {
@@ -36,16 +42,19 @@ impl Draining<'_> {
         elapsed: Duration,
     ) -> Option<Power> {
         let fit = self.fit(profile)?;
-        let deviation_now = self
-            .live
-            .filter(|_| profile == self.active_profile)
-            .map_or_else(Power::default, |live| live - fit);
+        let deviation_now = match self.live {
+            LiveDraw::Measured(live) if profile == self.active_profile => live - fit,
+            LiveDraw::Measured(_) | LiveDraw::NotDraining => Power::default(),
+        };
         Some(fit + scenario.deviation_after(deviation_now, elapsed))
     }
 
     fn active_draw(&self, scenario: Scenario, elapsed: Duration) -> Option<Power> {
         self.learned_draw(self.active_profile, scenario, elapsed)
-            .or(self.live)
+            .or(match self.live {
+                LiveDraw::Measured(live) => Some(live),
+                LiveDraw::NotDraining => None,
+            })
     }
 
     fn draw(&self, profile: Profile, scenario: Scenario, elapsed: Duration) -> Option<Power> {
@@ -64,8 +73,11 @@ pub fn time_until_empty(
     profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
     let draining = Draining {
-        live: (battery.status == ChargeStatus::Discharging && battery.power > Power::default())
-            .then_some(battery.power),
+        live: if battery.status == ChargeStatus::Discharging && battery.power > Power::default() {
+            LiveDraw::Measured(battery.power)
+        } else {
+            LiveDraw::NotDraining
+        },
         active_profile,
         conditions,
         profile_models,
@@ -102,10 +114,10 @@ mod tests {
     use super::*;
     use crate::{
         battery_power_profiles::{
-            battery_time_forecast::discharge_power_regression::trained,
+            battery_time_forecast::{LatestBound, discharge_power_regression::trained},
             upower_battery_state::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
         },
-        host_machine_identity::udev_hardware_identity::DeviceIdentity,
+        host_machine_identity::udev_hardware_identity::{DeviceIdentity, HardwareText},
     };
 
     fn on_battery(energy_wh: f64) -> Battery {
@@ -119,7 +131,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
             identity: DeviceIdentity::default(),
-            technology: None,
+            technology: HardwareText::Unreported,
         }
     }
 
@@ -154,7 +166,8 @@ mod tests {
 
     #[test]
     fn brighter_screen_shortens_predicted_life() {
-        let true_draw = |c: Conditions| Power::new::<watt>(5.0 + 20.0 * c.brightness_frac);
+        let true_draw =
+            |conditions: Conditions| Power::new::<watt>(5.0 + 20.0 * conditions.brightness_frac);
         let dim = Conditions::new(0.1, 0.0);
         let bright = Conditions::new(0.9, 0.0);
         let model = (0..80).fold(RegressionState::seed(true_draw(dim)), |model, _| {
@@ -175,7 +188,9 @@ mod tests {
     fn heavier_draw_now_is_bounded_by_typical_and_persisting_draw() {
         let conditions = Conditions::new(0.5, 0.3);
         let life = balanced_life(&drawing(20.0), conditions, settled_at_ten_watts(conditions));
-        let latest = life.latest.expect("bounded above");
+        let LatestBound::Within(latest) = life.latest else {
+            panic!("bounded above");
+        };
         assert!(life.earliest < life.time && life.time < latest);
         assert!(
             (hrs(life.earliest) - 2.5).abs() < 0.02,
@@ -194,7 +209,7 @@ mod tests {
             settled_at_ten_watts(conditions),
         );
         assert_eq!(life.earliest, life.time);
-        assert_eq!(life.latest, Some(life.time));
+        assert_eq!(life.latest, LatestBound::Within(life.time));
     }
 
     #[test]

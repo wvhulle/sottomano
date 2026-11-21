@@ -314,7 +314,7 @@ mod tests {
         .concat()
     }
 
-    fn card_of(header: Vec<u8>) -> Result<GgufModelCard, GgufHeaderError> {
+    fn parsed_model_card(header: Vec<u8>) -> Result<GgufModelCard, GgufHeaderError> {
         let mut reader = HeaderReader {
             source: Cursor::new(header),
         };
@@ -346,7 +346,7 @@ mod tests {
             encoded_text("unsloth"),
         ]
         .concat();
-        let card = card_of(gguf_header(&[
+        let card = parsed_model_card(gguf_header(&[
             text_entry("general.name", "Qwen3.6-27B"),
             context_length,
             text_entry("general.size_label", "27B"),
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn files_without_the_gguf_magic_are_rejected() {
         assert!(matches!(
-            card_of(b"GGML\x03\x00\x00\x00".to_vec()),
+            parsed_model_card(b"GGML\x03\x00\x00\x00".to_vec()),
             Err(GgufHeaderError::NotGguf)
         ));
     }

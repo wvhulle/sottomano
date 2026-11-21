@@ -18,7 +18,8 @@ use crate::{
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
-            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, NotificationBody, NotificationProgress, StateToast, definition_list,
+            moment_text,
         },
         value_cells::{LabeledValue, ValueCell},
     },
@@ -133,15 +134,15 @@ impl SessionFace<'_> {
         locale: Locale,
     ) -> IndicatorAlerts {
         let body = match self.screen_run_summary(now, locale) {
-            Some(summary) => ToastBody::Text(summary),
-            None => ToastBody::Bodiless,
+            Some(summary) => NotificationBody::Text(summary),
+            None => NotificationBody::Bodiless,
         };
         IndicatorAlerts {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Warning,
                 summary_text: "Long focus session",
                 body,
-                progress: ToastProgress::Unmeasured,
+                progress: NotificationProgress::Unmeasured,
             },
             ..IndicatorAlerts::default()
         }
@@ -224,7 +225,7 @@ impl<'a> SessionFace<'a> {
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
-        FocusLedger, FocusSignal, Focused,
+        FocusLedger, FocusProject, FocusSignal, Focused,
     };
     use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
 
@@ -238,7 +239,7 @@ mod tests {
         FocusSignal::WindowFocused(Focused {
             window,
             app_id: app_id.to_owned(),
-            project: None,
+            project: FocusProject::OutsideRepository,
         })
     }
 

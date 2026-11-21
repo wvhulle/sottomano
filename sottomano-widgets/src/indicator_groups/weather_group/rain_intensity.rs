@@ -44,7 +44,8 @@ use crate::{
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
-            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, NotificationBody, NotificationProgress, StateToast, definition_list,
+            moment_text,
         },
         value_cells::{LabeledValue, ValueCell},
     },
@@ -473,8 +474,8 @@ impl<'a> RainForecast<'a> {
                 summary_text: "Rain on the radar",
                 body: radar
                     .toast_body(clock, locale)
-                    .map_or(ToastBody::Bodiless, ToastBody::Text),
-                progress: ToastProgress::Unmeasured,
+                    .map_or(NotificationBody::Bodiless, NotificationBody::Text),
+                progress: NotificationProgress::Unmeasured,
             },
             None => StateToast::NeverNotify,
         }

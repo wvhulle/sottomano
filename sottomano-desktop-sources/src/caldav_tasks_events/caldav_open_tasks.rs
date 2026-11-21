@@ -35,11 +35,7 @@ impl OpenTaskList {
 
 impl CalendarEntryQuery for OpenTask {
     fn holding(calendar: &CalendarCollection) -> CalendarHolding {
-        if calendar.holds_tasks {
-            CalendarHolding::Holds
-        } else {
-            CalendarHolding::Lacks
-        }
+        calendar.task_holding
     }
 
     async fn queried(

@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use sottomano_desktop_sources::login_session_presence::logind_session_facts::VirtualTerminal;
 
 use crate::{
     glyph_icons::{
@@ -16,14 +16,15 @@ use crate::{
 
 pub struct SeatFace<'a> {
     pub seat: &'a str,
-    pub virtual_terminal: Option<NonZeroU32>,
+    pub virtual_terminal: VirtualTerminal,
 }
 
 impl<'a> SeatFace<'a> {
     pub fn indicator(self) -> GroupIndicator<'a> {
-        let label_text = self
-            .virtual_terminal
-            .map_or_else(|| self.seat.to_owned(), |vt| format!("tty{vt}"));
+        let label_text = match self.virtual_terminal {
+            VirtualTerminal::Console(console) => format!("tty{console}"),
+            VirtualTerminal::NoConsole => self.seat.to_owned(),
+        };
         let label = if label_text.is_empty() {
             ReadoutLabel::Unlabeled
         } else {
@@ -60,15 +61,19 @@ impl<'a> SeatFace<'a> {
                 ),
             ]),
         );
-        let console = self.virtual_terminal.map(|vt| {
+        let VirtualTerminal::Console(console) = self.virtual_terminal else {
+            return vec![seat];
+        };
+        vec![
+            seat,
             Section::new(
                 SectionTitle::captioned(
                     "Virtual console this login started on",
                     "The text terminal this login started on; the compositor took it over.",
                 ),
                 dictionary_table([
-                    LabeledValue::new("Virtual console", format!("tty{vt}")),
-                    LabeledValue::new("Switch with", format!("Ctrl+Alt+F{vt}")),
+                    LabeledValue::new("Virtual console", format!("tty{console}")),
+                    LabeledValue::new("Switch with", format!("Ctrl+Alt+F{console}")),
                     LabeledValue::new(
                         "Wiki",
                         ValueCell::BrandedLink {
@@ -78,8 +83,7 @@ impl<'a> SeatFace<'a> {
                         },
                     ),
                 ]),
-            )
-        });
-        [seat].into_iter().chain(console).collect::<Vec<_>>()
+            ),
+        ]
     }
 }

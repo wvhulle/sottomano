@@ -5,11 +5,11 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use bytesize::ByteSize;
 use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
     delivery_cadence_drivers::{
         CarriedRead, ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
         triggered_deliveries_with_recheck,
@@ -37,10 +37,10 @@ const IPV6_ADDRESS_FAMILY: i32 = 10;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisteredContainerMachine {
     pub leader_pid: u32,
-    pub started_at: Option<SystemTime>,
+    pub started_at: ContainerStartTime,
     pub ip_addresses: Vec<IpAddr>,
     pub root_directory: PathBuf,
-    pub memory_in_use: Option<ByteSize>,
+    pub memory_in_use: ContainerMemoryUse,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -183,7 +183,7 @@ async fn registered_container_status(
             String::new()
         }),
         registered_machine: RegisteredContainerMachine {
-            memory_in_use: unit_memory_of_process(leader_pid),
+            memory_in_use: unit_memory_of_process(leader_pid).into(),
             leader_pid,
             started_at: machine_proxy
                 .timestamp()
@@ -195,7 +195,8 @@ async fn registered_container_status(
                     );
                 })
                 .ok()
-                .and_then(wall_time_from_realtime_micros),
+                .and_then(wall_time_from_realtime_micros)
+                .into(),
             ip_addresses,
             root_directory: PathBuf::from(machine_proxy.root_directory().await.unwrap_or_else(
                 |root_error| {
@@ -279,10 +280,10 @@ mod tests {
             unit_name: unit_name.to_owned(),
             registered_machine: RegisteredContainerMachine {
                 leader_pid: 3_110_493,
-                started_at: wall_time_from_realtime_micros(1_793_974_883_916_598),
+                started_at: wall_time_from_realtime_micros(1_793_974_883_916_598).into(),
                 ip_addresses: vec![IpAddr::V4(Ipv4Addr::new(10, 200, 0, 2))],
                 root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
-                memory_in_use: None,
+                memory_in_use: ContainerMemoryUse::Unaccounted,
             },
         }
     }

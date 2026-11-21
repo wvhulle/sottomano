@@ -1,6 +1,6 @@
 use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
-    systemd_units_journal::graphical_session_target::GraphicalSession,
+    systemd_units_journal::graphical_session_target::{DesktopName, GraphicalSession, Xwayland},
 };
 
 use crate::{
@@ -24,7 +24,9 @@ pub struct CompositorFace<'a> {
 
 impl<'a> CompositorFace<'a> {
     fn glyph(&self) -> IconGlyph {
-        let desktop_name = self.identity.desktop.as_deref().unwrap_or_default();
+        let DesktopName::Named(desktop_name) = &self.identity.desktop else {
+            return Phosphor::AppWindow(Weight::Regular).into();
+        };
         match desktop_name.to_ascii_lowercase().as_str() {
             "niri" => SimpleIcon::niri.into(),
             "hyprland" => SimpleIcon::Hyprland.into(),
@@ -39,8 +41,8 @@ impl<'a> CompositorFace<'a> {
     pub fn indicator(self) -> GroupIndicator<'a> {
         let glyph = self.glyph();
         let label = match self.identity.desktop.clone() {
-            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-            Some(_) | None => ReadoutLabel::Unlabeled,
+            DesktopName::Named(desktop_name) => ReadoutLabel::Labeled(desktop_name),
+            DesktopName::Unnamed => ReadoutLabel::Unlabeled,
         };
         GroupIndicator::glyph_only("Compositor", glyph, IndicatorState::Idle)
             .with_readout(IndicatorReadout {
@@ -73,39 +75,35 @@ impl<'a> CompositorFace<'a> {
 }
 
 pub fn graphical_session_sections(graphical_session: &GraphicalSession) -> Vec<Section> {
-    let distinct_session_desktop = graphical_session
-        .session_desktop
-        .clone()
-        .filter(|session| Some(session) != graphical_session.current_desktop.as_ref());
+    let mut entries = vec![
+        LabeledValue::new("Runs", graphical_session.compositor_version.clone()),
+        LabeledValue::new(
+            "Wayland apps connect to",
+            graphical_session.wayland_display.clone(),
+        ),
+    ];
+    if let Xwayland::Serving(x11_display) = &graphical_session.x11_display {
+        entries.push(LabeledValue::new(
+            "X11 apps connect to",
+            x11_display.clone(),
+        ));
+    }
+    if let DesktopName::Named(desktop_name) = &graphical_session.current_desktop {
+        entries.push(LabeledValue::new("Desktop name", desktop_name.clone()));
+    }
+    if let DesktopName::Named(session_desktop) = &graphical_session.session_desktop
+        && graphical_session.session_desktop != graphical_session.current_desktop
+    {
+        entries.push(LabeledValue::new(
+            "Session desktop name",
+            session_desktop.clone(),
+        ));
+    }
     vec![Section::new(
         SectionTitle::captioned(
             "Displays",
             "Apps find the compositor through these sockets.",
         ),
-        dictionary_table(
-            [
-                Some(LabeledValue::new(
-                    "Runs",
-                    graphical_session.compositor_version.clone(),
-                )),
-                Some(LabeledValue::new(
-                    "Wayland apps connect to",
-                    graphical_session.wayland_display.clone(),
-                )),
-                graphical_session
-                    .x11_display
-                    .clone()
-                    .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
-                graphical_session
-                    .current_desktop
-                    .clone()
-                    .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
-                distinct_session_desktop.map(|session_desktop| {
-                    LabeledValue::new("Session desktop name", session_desktop)
-                }),
-            ]
-            .into_iter()
-            .flatten(),
-        ),
+        dictionary_table(entries),
     )]
 }

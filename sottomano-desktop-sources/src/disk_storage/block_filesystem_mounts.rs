@@ -91,7 +91,7 @@ impl BlockFilesystemDiscovery {
             .map_err(|_| FileReadError::Unreadable(MOUNTINFO.to_owned()))?;
         Ok(BlockFilesystemDiscovery {
             filesystems: group_block_mounts(
-                mounts.into_iter().map(MountEntry::from),
+                mounts.into_iter().filter_map(MountEntry::sourced),
                 KernelDevice::backing,
             ),
         })
@@ -122,18 +122,18 @@ impl BlockFilesystemDiscovery {
 struct MountEntry {
     mount_point: PathBuf,
     fs_type: String,
-    source: Option<String>,
+    source: String,
     options: HashMap<String, Option<String>>,
 }
 
-impl From<MountInfo> for MountEntry {
-    fn from(mount: MountInfo) -> Self {
-        MountEntry {
+impl MountEntry {
+    fn sourced(mount: MountInfo) -> Option<Self> {
+        Some(MountEntry {
             mount_point: unescape_mountinfo_octal(&mount.mount_point),
             fs_type: mount.fs_type,
-            source: mount.mount_source,
+            source: mount.mount_source?,
             options: mount.super_options,
-        }
+        })
     }
 }
 
@@ -180,7 +180,7 @@ impl MountEntry {
         resolve_device: impl Fn(&str) -> Option<KernelDevice>,
     ) -> Option<BlockMount> {
         let mut devices: Vec<KernelDevice> = self
-            .source?
+            .source
             .split(MULTI_DEVICE_SEPARATOR)
             .map(resolve_device)
             .collect::<Option<_>>()?;
@@ -379,17 +379,17 @@ impl CompressionLevel {
 }
 
 impl Display for Compression {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Compression::Disabled => write!(f, "off"),
+            Compression::Disabled => write!(formatter, "off"),
             Compression::Enabled {
                 algorithm,
                 level,
                 enforcement,
             } => {
-                write!(f, "{algorithm}{level}")?;
+                write!(formatter, "{algorithm}{level}")?;
                 if *enforcement == CompressionEnforcement::Forced {
-                    write!(f, " (forced)")?;
+                    write!(formatter, " (forced)")?;
                 }
                 Ok(())
             }
@@ -398,10 +398,10 @@ impl Display for Compression {
 }
 
 impl Display for CompressionLevel {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
             CompressionLevel::Default => Ok(()),
-            CompressionLevel::Explicit(level) => write!(f, ":{level}"),
+            CompressionLevel::Explicit(level) => write!(formatter, ":{level}"),
         }
     }
 }
@@ -416,7 +416,7 @@ pub enum MountRole {
 mod tests {
     use super::*;
 
-    fn compression_of(options: &[(&str, Option<&str>)]) -> String {
+    fn rendered_compression(options: &[(&str, Option<&str>)]) -> String {
         let options = options
             .iter()
             .map(|(key, value)| ((*key).to_owned(), value.map(str::to_owned)))
@@ -426,33 +426,36 @@ mod tests {
 
     #[test]
     fn algorithm_with_level() {
-        assert_eq!(compression_of(&[("compress", Some("zstd:3"))]), "zstd:3");
+        assert_eq!(
+            rendered_compression(&[("compress", Some("zstd:3"))]),
+            "zstd:3"
+        );
     }
 
     #[test]
     fn forced_compression_is_marked() {
         assert_eq!(
-            compression_of(&[("compress-force", Some("lzo"))]),
+            rendered_compression(&[("compress-force", Some("lzo"))]),
             "lzo (forced)"
         );
     }
 
     #[test]
     fn bare_compress_uses_the_btrfs_default() {
-        assert_eq!(compression_of(&[("compress", None)]), "zlib");
+        assert_eq!(rendered_compression(&[("compress", None)]), "zlib");
     }
 
     #[test]
     fn absent_or_no_means_off() {
-        assert_eq!(compression_of(&[("ssd", None)]), "off");
-        assert_eq!(compression_of(&[("compress", Some("no"))]), "off");
+        assert_eq!(rendered_compression(&[("ssd", None)]), "off");
+        assert_eq!(rendered_compression(&[("compress", Some("no"))]), "off");
     }
 
     fn mount_entry(mount_point: &str, fs_type: &str, source: &str) -> MountEntry {
         MountEntry {
             mount_point: PathBuf::from(mount_point),
             fs_type: fs_type.to_owned(),
-            source: Some(source.to_owned()),
+            source: source.to_owned(),
             options: HashMap::new(),
         }
     }

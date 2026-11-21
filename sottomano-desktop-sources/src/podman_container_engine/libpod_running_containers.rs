@@ -72,16 +72,18 @@ impl From<http_json_client::Error> for EngineReadError {
 }
 
 impl Display for EngineReadError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            EngineReadError::SocketMissing => f.write_str("the engine socket does not exist"),
-            EngineReadError::SocketDenied => {
-                f.write_str("this user may not open the engine socket")
+            EngineReadError::SocketMissing => {
+                formatter.write_str("the engine socket does not exist")
             }
-            EngineReadError::Fetch(failure) => failure.fmt(f),
-            EngineReadError::ProcessTableUnreadable => f.write_str("cannot read /proc"),
-            EngineReadError::ReadPanicked => Panicked.fmt(f),
-            EngineReadError::RunningSetUnwatched(watch_failure) => watch_failure.fmt(f),
+            EngineReadError::SocketDenied => {
+                formatter.write_str("this user may not open the engine socket")
+            }
+            EngineReadError::Fetch(failure) => failure.fmt(formatter),
+            EngineReadError::ProcessTableUnreadable => formatter.write_str("cannot read /proc"),
+            EngineReadError::ReadPanicked => Panicked.fmt(formatter),
+            EngineReadError::RunningSetUnwatched(watch_failure) => watch_failure.fmt(formatter),
         }
     }
 }
@@ -153,8 +155,8 @@ pub(crate) enum ContainerPhase {
     Transitional,
 }
 
-pub(crate) fn created_by_ci_runner<'a>(
-    mut label_keys: impl Iterator<Item = &'a str>,
+pub(crate) fn created_by_ci_runner<'labels>(
+    mut label_keys: impl Iterator<Item = &'labels str>,
     container_name: &str,
 ) -> bool {
     label_keys.any(|label_key| WOODPECKER_LABELS.contains(&label_key))

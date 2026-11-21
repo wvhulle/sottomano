@@ -1,8 +1,11 @@
 use corredo::transitions::MotionState;
 use iced::{Element, Rectangle};
+use sottomano_compositor_model::compositor_window_facts::WorkspaceOutput;
 use sottomano_desktop_sources::{
-    desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::window_edge_placement::{Placement, WindowOwner},
+    desktop_notifications::notification_data::{
+        DesktopEntryHint, NotificationData, SenderWindowHint,
+    },
+    desktop_windows_apps::window_edge_placement::{FocusedWindow, Placement, WindowOwner},
 };
 use sottomano_toml_config::{
     Config,
@@ -58,14 +61,17 @@ pub enum ToastWindow {
 
 impl ToastWindow {
     pub fn resolve(data: &NotificationData, placement: &Placement) -> Self {
-        let resolved = data
-            .window_id_hint
-            .or_else(|| placement.window_of_process_ancestry(&data.sender_ancestry))
-            .or_else(|| {
-                data.desktop_entry
-                    .clone()
-                    .and_then(|entry| placement.window_owned_by(&WindowOwner::App(entry)))
-            });
+        let resolved = match data.window_id_hint {
+            SenderWindowHint::Window(window) => Some(window),
+            SenderWindowHint::Unhinted => placement
+                .window_of_process_ancestry(&data.sender_ancestry)
+                .or_else(|| match &data.desktop_entry {
+                    DesktopEntryHint::Entry(entry) => {
+                        placement.window_owned_by(&WindowOwner::App(entry.clone()))
+                    }
+                    DesktopEntryHint::Unhinted => None,
+                }),
+        };
         tracing::debug!("toast {}: window {resolved:?}", data.id);
         resolved.map_or(Self::Unanchored, Self::Anchored)
     }
@@ -74,7 +80,9 @@ impl ToastWindow {
     pub fn focus_within(self, placement: &Placement) -> AnchoredWindowFocus {
         match self.open_in(placement) {
             None => AnchoredWindowFocus::Unknown,
-            Some(id) if placement.focused_window == Some(id) => AnchoredWindowFocus::Focused,
+            Some(id) if placement.focused_window == FocusedWindow::Window(id) => {
+                AnchoredWindowFocus::Focused
+            }
             Some(id) if placement.window_on_focused_workspace(id) => {
                 AnchoredWindowFocus::OnFocusedWorkspace
             }
@@ -93,13 +101,14 @@ impl ToastWindow {
 
 #[must_use]
 pub fn delegated_sender_window(data: &NotificationData, placement: &Placement) -> Option<u64> {
-    data.window_id_hint.or_else(|| {
-        let (&sender_pid, ancestors) = data.sender_ancestry.split_first()?;
-        if placement.process_owns_window(sender_pid) {
-            return None;
-        }
-        placement.window_of_process_ancestry(ancestors)
-    })
+    if let SenderWindowHint::Window(window) = data.window_id_hint {
+        return Some(window);
+    }
+    let (&sender_pid, ancestors) = data.sender_ancestry.split_first()?;
+    if placement.process_owns_window(sender_pid) {
+        return None;
+    }
+    placement.window_of_process_ancestry(ancestors)
 }
 
 #[must_use]
@@ -129,7 +138,10 @@ pub fn placement_for(
     };
 
     let edge = placement.window_edge(id);
-    let output = edge.output.or_else(|| fallback_output(placement));
+    let output = match edge.output {
+        WorkspaceOutput::Assigned(output) => Some(output),
+        WorkspaceOutput::Unassigned => fallback_output(placement),
+    };
     let anchor = match viewed_window_bounds(placement, id) {
         Some(bounds) => ToastAnchor::Window { id, bounds },
         None => ToastAnchor::Edge {
@@ -146,12 +158,10 @@ pub fn placement_for(
 }
 
 fn fallback_output(placement: &Placement) -> Option<String> {
-    placement
-        .focused_window
-        .and_then(|w| placement.workspace_of_window(w))
-        .and_then(|ws| placement.output_of_workspace(ws))
-        .or(placement.focused_output.as_deref())
-        .map(str::to_owned)
+    match &placement.focused_output {
+        WorkspaceOutput::Assigned(output) => Some(output.clone()),
+        WorkspaceOutput::Unassigned => None,
+    }
 }
 
 #[cfg(test)]

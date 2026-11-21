@@ -5,7 +5,10 @@ use quick_xml::escape::escape;
 use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::{
-        cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
+        cpu_temperature::{
+            CoreTemperature, CpuCoreTemperatures, CriticalOnset, Temperature, ThrottleLimit,
+            cpu_thresholds,
+        },
         intel_thermal_throttle_counters::{ThermalThrottleActivity, ThrottledTime},
         temperature_thresholds::celsius_text,
     },
@@ -37,7 +40,8 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         ongoing_toast::{
-            IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+            IndicatorAlerts, NotificationBody, NotificationProgress, StateToast, definition_list,
+            moment_text,
         },
         value_cells::{LabeledValue, ValueCell},
     },
@@ -63,12 +67,13 @@ impl PerCoreSample for CoreTemperature {
 }
 
 fn temperature_state(temperature: &Temperature, clock: Clock) -> IndicatorState {
-    let critical_sustained = temperature.critical_since.is_some_and(|since| {
-        clock
+    let critical_sustained = matches!(
+        temperature.critical_since,
+        CriticalOnset::CriticalSince(since) if clock
             .wall
             .duration_since(since)
             .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
-    });
+    );
     match temperature.thresholds().level(temperature.hottest()) {
         Severity::Critical if !critical_sustained => Severity::Warning,
         level => level,
@@ -84,12 +89,13 @@ fn temperature_toast_text(temperature: &Temperature, clock: Clock, locale: Local
             escape(format!("{} {}", sample.chip, sample.label)).into_owned(),
         )
     });
-    let above_since = temperature.critical_since.map(|since| {
-        (
+    let above_since = match temperature.critical_since {
+        CriticalOnset::CriticalSince(since) => Some((
             "Above critical since",
             moment_text(DateTime::<Utc>::from(since), clock.utc(), locale),
-        )
-    });
+        )),
+        CriticalOnset::BelowCritical => None,
+    };
     definition_list(
         sensor
             .into_iter()
@@ -122,8 +128,8 @@ pub(super) fn temperature_indicator(
         state_toast: StateToast::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "CPU overheating",
-            body: ToastBody::Text(temperature_toast_text(temperature, clock, locale)),
-            progress: ToastProgress::Unmeasured,
+            body: NotificationBody::Text(temperature_toast_text(temperature, clock, locale)),
+            progress: NotificationProgress::Unmeasured,
         },
         ..IndicatorAlerts::default()
     })
@@ -167,9 +173,13 @@ pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> 
         "Thresholds",
         dictionary_table(
             [
-                temperature.throttle_limit.map(|throttle| {
-                    LabeledValue::new("Throttles at", Quantity::temperature(throttle))
-                }),
+                match temperature.throttle_limit {
+                    ThrottleLimit::ThrottlesAt(throttle) => Some(LabeledValue::new(
+                        "Throttles at",
+                        Quantity::temperature(throttle),
+                    )),
+                    ThrottleLimit::Unreported => None,
+                },
                 Some(LabeledValue::new(
                     "Warns above",
                     Quantity::temperature(thresholds.warning),
@@ -276,7 +286,6 @@ impl ChipletLiveState<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
 
     use sottomano_desktop_sources::cpu_memory_compute::{
         cpu_temperature::TemperatureSample, temperature_thresholds::celsius,
@@ -285,15 +294,15 @@ mod tests {
 
     use super::*;
 
-    fn hot_indicator(critical_since: Option<SystemTime>) -> Temperature {
+    fn hot_indicator(critical_since: CriticalOnset) -> Temperature {
         Temperature {
             samples: vec![TemperatureSample {
                 chip: "k10temp".into(),
                 label: "Tccd1".into(),
                 temperature: celsius(90.0),
-                limit: None,
+                limit: ThrottleLimit::Unreported,
             }],
-            throttle_limit: None,
+            throttle_limit: ThrottleLimit::Unreported,
             overrides: ThresholdOverrides::default(),
             critical_since,
         }
@@ -302,9 +311,11 @@ mod tests {
     #[test]
     fn critical_heat_counts_as_warning_until_sustained() {
         let clock = Clock::real();
-        let fresh = hot_indicator(Some(clock.wall));
+        let fresh = hot_indicator(CriticalOnset::CriticalSince(clock.wall));
         assert_eq!(temperature_state(&fresh, clock), IndicatorState::Warning);
-        let sustained = hot_indicator(Some(clock.wall - SUSTAINED_CRITICAL));
+        let sustained = hot_indicator(CriticalOnset::CriticalSince(
+            clock.wall - SUSTAINED_CRITICAL,
+        ));
         assert_eq!(
             temperature_state(&sustained, clock),
             IndicatorState::Critical

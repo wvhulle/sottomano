@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_desktop_sources::login_session_presence::{
-    focus_time_ledger::{FocusSignal, Focused, ScreenEdge},
+    focus_time_ledger::{FocusProject, FocusSignal, Focused, ScreenEdge},
     logind_manager::SleepEdge,
     wayland_idle_notify::IdleEdge,
 };
@@ -14,7 +14,7 @@ fn focused(window: u64, app_id: &str) -> FocusSignal {
     FocusSignal::WindowFocused(Focused {
         window,
         app_id: app_id.to_owned(),
-        project: None,
+        project: FocusProject::OutsideRepository,
     })
 }
 

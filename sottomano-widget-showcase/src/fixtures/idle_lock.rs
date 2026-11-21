@@ -4,7 +4,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     login_session_presence::kernel_sleep_obstacles::{
         IdleActionSetting, KernelHibernation, LogindCapability, ResumeDevice, SecretMemoryHolder,
-        SleepObstacles, SleepState, SleepStateSupport, WindowOwnership,
+        ShutdownSchedule, SleepObstacles, SleepState, SleepStateSupport, WindowOwnership,
     },
 };
 use sottomano_widgets::{
@@ -60,6 +60,6 @@ fn hibernation_held_by_secret_memory() -> SleepObstacles {
         resume_device: ResumeDevice::Configured,
         blocking_inhibitors: Vec::new(),
         idle_action_setting: IdleActionSetting::Ignored,
-        scheduled_shutdown: None,
+        shutdown_schedule: ShutdownSchedule::NotScheduled,
     }
 }

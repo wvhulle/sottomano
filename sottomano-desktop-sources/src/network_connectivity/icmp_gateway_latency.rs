@@ -1,8 +1,7 @@
-use std::{collections::BTreeMap, mem, pin::Pin};
+use std::{collections::BTreeMap, mem, net::SocketAddr, pin::Pin};
 
 use futures::{
     Stream, StreamExt,
-    future::join_all,
     stream::{self, select},
 };
 
@@ -19,6 +18,8 @@ use crate::{
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
+
+const GATEWAY_PROBES_IN_FLIGHT: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GatewayLatency {
@@ -119,13 +120,15 @@ impl GatewayProber {
     ) -> SnapshotDelivery<GatewayLatencies> {
         let sequence = self.next_sequence;
         self.next_sequence = self.next_sequence.wrapping_add(1);
-        let outcomes: Vec<Result<ProbeOutcome, LatencyProbeError>> =
-            join_all(self.windows.keys().map(|device_gateway| {
-                echo_round_trip(
-                    probe_address(device_gateway.gateway, &device_gateway.interface),
-                    sequence,
-                )
-            }))
+        let probe_targets: Vec<SocketAddr> = self
+            .windows
+            .keys()
+            .map(|device_gateway| probe_address(device_gateway.gateway, &device_gateway.interface))
+            .collect();
+        let outcomes: Vec<Result<ProbeOutcome, LatencyProbeError>> = stream::iter(probe_targets)
+            .map(|probe_target| echo_round_trip(probe_target, sequence))
+            .buffered(GATEWAY_PROBES_IN_FLIGHT)
+            .collect()
             .await;
         let outcomes = match outcomes.into_iter().collect::<Result<Vec<_>, _>>() {
             Ok(outcomes) => outcomes,

@@ -165,7 +165,7 @@ impl SnapshotTreeListing {
     }
 }
 
-fn sectors_to_size<'a>(nodes: impl Iterator<Item = &'a SnapshotTreeNode>) -> ByteSize {
+fn sectors_to_size<'tree>(nodes: impl Iterator<Item = &'tree SnapshotTreeNode>) -> ByteSize {
     ByteSize::b(nodes.map(|node| node.sectors).sum::<u64>() * SECTOR_BYTES)
 }
 
@@ -204,7 +204,7 @@ mod tests {
         }
     }
 
-    fn listing_of(path: &str, subvol: u32, sectors: u64) -> String {
+    fn single_node_listing(path: &str, subvol: u32, sectors: u64) -> String {
         format!(
             r#"{{"nodes": [{{"subvol": {subvol}, "sectors": {sectors}}}],
                 "query_root": {{"path": "{path}", "subvol": {subvol}}}}}"#
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn mounts_of_one_subvolume_merge_into_one_row() {
-        let nix = listing_of("/nix", 5, 2048);
+        let nix = single_node_listing("/nix", 5, 2048);
         let usage = merge_mounted_trees([
             mounted(&nix, "/nix", MountAccess::ReadWrite),
             mounted(&nix, "/nix/store", MountAccess::ReadOnly),
@@ -257,8 +257,16 @@ mod tests {
     #[test]
     fn largest_subvolume_comes_first() {
         let usage = merge_mounted_trees([
-            mounted(&listing_of("/root", 1, 10), "/", MountAccess::ReadWrite),
-            mounted(&listing_of("/home", 2, 90), "/home", MountAccess::ReadWrite),
+            mounted(
+                &single_node_listing("/root", 1, 10),
+                "/",
+                MountAccess::ReadWrite,
+            ),
+            mounted(
+                &single_node_listing("/home", 2, 90),
+                "/home",
+                MountAccess::ReadWrite,
+            ),
         ]);
         assert_eq!(usage.subvolumes[0].path, Path::new("/home"));
         assert_eq!(usage.subvolumes[1].path, Path::new("/root"));

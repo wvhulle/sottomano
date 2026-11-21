@@ -3,6 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, mem::take, net::IpAddr};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
     nspawn_containers::machined_nspawn_containers::{NspawnContainer, NspawnContainersReadout},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitActivity},
@@ -75,21 +76,18 @@ impl NspawnContainerIndicator<'_> {
                 .iter()
                 .map(|ip_address| LabeledValue::new("Address", ip_address.to_string())),
         );
-        if let Some(uptime) = registered_machine.started_at.and_then(|started_at| {
-            clock
-                .wall
-                .duration_since(started_at)
-                .inspect_err(|clock_skew| {
-                    tracing::debug!(
-                        "nspawn containers: start time of {} lies ahead: {clock_skew}",
-                        self.container.unit_name
-                    );
-                })
-                .ok()
-        }) {
-            detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
+        if let ContainerStartTime::StartedAt(started_at) = registered_machine.started_at {
+            match clock.wall.duration_since(started_at) {
+                Ok(uptime) => {
+                    detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
+                }
+                Err(clock_skew) => tracing::debug!(
+                    "nspawn containers: start time of {} lies ahead: {clock_skew}",
+                    self.container.unit_name
+                ),
+            }
         }
-        if let Some(memory_in_use) = registered_machine.memory_in_use {
+        if let ContainerMemoryUse::Measured(memory_in_use) = registered_machine.memory_in_use {
             detail_entries.push(LabeledValue::new("Memory use", memory_in_use.to_string()));
         }
         detail_entries.push(LabeledValue::new(
@@ -361,13 +359,13 @@ mod tests {
             activity: UnitActivity::Running,
             registration: ContainerRegistration::Registered(RegisteredContainerMachine {
                 leader_pid: 3_110_493,
-                started_at: Some(started_at),
+                started_at: ContainerStartTime::StartedAt(started_at),
                 ip_addresses: vec![
                     IpAddr::V6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 2)),
                     IpAddr::V4(Ipv4Addr::new(10, 200, 0, 2)),
                 ],
                 root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
-                memory_in_use: None,
+                memory_in_use: ContainerMemoryUse::Unaccounted,
             }),
         }
     }

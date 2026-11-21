@@ -1,6 +1,9 @@
 use sottomano_desktop_sources::{
     SnapshotSource,
-    ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT},
+    ai_usage_spend::{
+        copilot_usage::{CopilotFree, QuotaReset, USER_ENDPOINT},
+        subscription_plan::SubscriptionPlan,
+    },
 };
 
 use crate::{
@@ -46,17 +49,23 @@ pub fn copilot_free_indicator(free: &CopilotFree) -> GroupIndicator<'_> {
 }
 
 pub fn copilot_free_hover_card(free: &CopilotFree) -> Vec<Section> {
+    let mut subscription_rows = Vec::new();
+    if let SubscriptionPlan::Named(plan) = &free.plan {
+        subscription_rows.push(LabeledValue::new("Plan", plan.as_str()));
+    }
+    subscription_rows.push(LabeledValue::new("Source", USER_ENDPOINT));
+    let mut reset_rows = Vec::new();
+    if let QuotaReset::At(at) = free.reset {
+        reset_rows.push(LabeledValue::new(
+            "Resets",
+            ValueCell::Time {
+                at,
+                format: LocalizedTimeFormat::Date,
+            },
+        ));
+    }
     vec![
-        Section::new(
-            "Subscription",
-            dictionary_table(
-                free.plan
-                    .as_deref()
-                    .map(|plan| LabeledValue::new("Plan", plan))
-                    .into_iter()
-                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
-            ),
-        ),
+        Section::new("Subscription", dictionary_table(subscription_rows)),
         Section::new(
             "Remaining",
             dictionary_table(
@@ -65,15 +74,7 @@ pub fn copilot_free_hover_card(free: &CopilotFree) -> Vec<Section> {
                     LabeledValue::new("Completions", Quantity::count(free.completions)),
                 ]
                 .into_iter()
-                .chain(free.reset.map(|at| {
-                    LabeledValue::new(
-                        "Resets",
-                        ValueCell::Time {
-                            at,
-                            format: LocalizedTimeFormat::Date,
-                        },
-                    )
-                })),
+                .chain(reset_rows),
             ),
         ),
     ]

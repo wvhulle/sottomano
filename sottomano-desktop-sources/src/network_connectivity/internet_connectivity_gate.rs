@@ -28,31 +28,31 @@ pub enum InternetUnreachable {
 }
 
 impl Display for InternetUnreachable {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::NetworkingDisabled => write!(f, "networking is switched off"),
-            Self::Asleep => write!(f, "the network is asleep"),
-            Self::WirelessRadioOff => write!(f, "the wireless radio is off"),
-            Self::NoConnection => write!(f, "no network connection"),
+            Self::NetworkingDisabled => write!(formatter, "networking is switched off"),
+            Self::Asleep => write!(formatter, "the network is asleep"),
+            Self::WirelessRadioOff => write!(formatter, "the wireless radio is off"),
+            Self::NoConnection => write!(formatter, "no network connection"),
             Self::Connecting(UplinkIdentity::Named(uplink)) => {
-                write!(f, "connecting to {}", uplink.connection_name)
+                write!(formatter, "connecting to {}", uplink.connection_name)
             }
-            Self::Connecting(UplinkIdentity::Unnamed) => write!(f, "connecting"),
+            Self::Connecting(UplinkIdentity::Unnamed) => write!(formatter, "connecting"),
             Self::CaptivePortal(UplinkIdentity::Named(uplink)) => {
-                write!(f, "{} asks for a portal login", described_uplink(uplink))
+                write!(formatter, "{} asks for a portal login", described_uplink(uplink))
             }
             Self::CaptivePortal(UplinkIdentity::Unnamed) => {
-                write!(f, "the network asks for a portal login")
+                write!(formatter, "the network asks for a portal login")
             }
             Self::NoInternetRoute(UplinkIdentity::Named(uplink)) => {
                 write!(
-                    f,
+                    formatter,
                     "{} does not reach the internet",
                     described_uplink(uplink)
                 )
             }
             Self::NoInternetRoute(UplinkIdentity::Unnamed) => {
-                write!(f, "the network does not reach the internet")
+                write!(formatter, "the network does not reach the internet")
             }
         }
     }
@@ -214,8 +214,8 @@ mod tests {
     struct RemoteFailure;
 
     impl Display for RemoteFailure {
-        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-            write!(f, "remote failure")
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+            write!(formatter, "remote failure")
         }
     }
 

@@ -101,8 +101,8 @@ pub fn real(value: f32) -> turso::Value {
 }
 
 #[must_use]
-pub fn flag(value: bool) -> turso::Value {
-    turso::Value::Integer(i64::from(value))
+pub fn flag_set_when<State: PartialEq + Copy>(state: State, set_state: State) -> turso::Value {
+    turso::Value::Integer(i64::from(state == set_state))
 }
 
 pub async fn connect_migrated_store() -> Result<TableConnection, StoreError> {

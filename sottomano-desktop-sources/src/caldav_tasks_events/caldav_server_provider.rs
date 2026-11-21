@@ -23,9 +23,9 @@ const HOSTED_PROVIDER_DOMAINS: [(&str, CaldavProvider); 6] = [
 
 impl CaldavProvider {
     #[must_use]
-    pub fn detected<'a>(
+    pub fn detected<'hrefs>(
         server_url: &str,
-        calendar_hrefs: impl IntoIterator<Item = &'a str>,
+        calendar_hrefs: impl IntoIterator<Item = &'hrefs str>,
     ) -> Self {
         calendar_hrefs
             .into_iter()

@@ -1,5 +1,7 @@
-use futures::{Stream, StreamExt, future::try_join_all, stream};
+use futures::{FutureExt, Stream, StreamExt, TryStreamExt, stream};
 use zbus::{Connection, MatchRule, MessageStream, fdo::ObjectManagerProxy, message::Type};
+
+const SIGNAL_SUBSCRIPTIONS_IN_FLIGHT: usize = 8;
 
 const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 const PROPERTIES_CHANGED_MEMBER: &str = "PropertiesChanged";
@@ -47,16 +49,16 @@ pub async fn signal_messages(
     MessageStream::for_match_rule(rule, connection, Some(QUEUED_SIGNALS)).await
 }
 
-pub async fn change_triggers<Rules: IntoIterator<Item = MatchRule<'static>>>(
+pub async fn change_triggers<Rules: IntoIterator<Item = MatchRule<'static>, IntoIter: Send>>(
     connection: &Connection,
     rules: Rules,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + Send + use<Rules>> {
-    let message_streams = try_join_all(
-        rules
-            .into_iter()
-            .map(|rule| signal_messages(connection, rule)),
-    )
-    .await?;
+    let message_streams = stream::iter(rules)
+        .map(|rule| signal_messages(connection, rule))
+        .buffered(SIGNAL_SUBSCRIPTIONS_IN_FLIGHT)
+        .try_collect::<Vec<_>>()
+        .boxed()
+        .await?;
     Ok(stream::select_all(message_streams).map(|message| message.map(drop)))
 }
 

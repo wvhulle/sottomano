@@ -5,7 +5,10 @@ use systemd::{id128::Id128, journal::OpenOptions};
 
 use crate::{
     system_protocol_clients::journal_follow::decode_record,
-    systemd_units_journal::{boot_timeline::OsStartupPhases, journal_record_fields::MessageId},
+    systemd_units_journal::{
+        boot_timeline::{InitrdPhase, OsStartupPhases},
+        journal_record_fields::MessageId,
+    },
 };
 
 const SERVICE_MANAGER_PID: &str = "1";
@@ -26,7 +29,11 @@ impl StartupFinishedRecord {
     fn os_startup(&self) -> OsStartupPhases {
         OsStartupPhases {
             kernel: Duration::from_micros(self.kernel_usec),
-            initrd: self.initrd_usec.map(Duration::from_micros),
+            initrd: self
+                .initrd_usec
+                .map_or(InitrdPhase::Skipped, |initrd_usec| {
+                    InitrdPhase::Ran(Duration::from_micros(initrd_usec))
+                }),
             userspace: Duration::from_micros(self.userspace_usec),
         }
     }
@@ -40,7 +47,9 @@ pub fn read_previous_os_startup() -> io::Result<Option<OsStartupPhases>> {
     journal.seek_tail()?;
     while let Some(entry) = journal.previous_entry()? {
         let decoded = decode_record::<StartupFinishedRecord>(entry)
-            .inspect_err(|e| tracing::debug!("systemd startup history: malformed record: {e}"))
+            .inspect_err(|error| {
+                tracing::debug!("systemd startup history: malformed record: {error}");
+            })
             .ok()
             .filter(|record| record.boot_id != current_boot_id);
         if let Some(record) = decoded {
@@ -71,7 +80,7 @@ mod tests {
             ]),
             OsStartupPhases {
                 kernel: Duration::from_micros(581_900),
-                initrd: Some(Duration::from_micros(5_678_549)),
+                initrd: InitrdPhase::Ran(Duration::from_micros(5_678_549)),
                 userspace: Duration::from_micros(11_973_846),
             }
         );
@@ -83,7 +92,7 @@ mod tests {
             ]),
             OsStartupPhases {
                 kernel: Duration::from_millis(500),
-                initrd: None,
+                initrd: InitrdPhase::Skipped,
                 userspace: Duration::from_secs(4),
             }
         );

@@ -69,12 +69,24 @@ impl ModelInstance {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChildInstance {
+    Listening(ModelInstance),
+    NotListening,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelFileArgument {
+    Given(PathBuf),
+    NotGiven,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaModel {
     pub id: String,
     pub status: LlamaModelStatus,
-    pub instance: Option<ModelInstance>,
-    pub model_file: Option<PathBuf>,
+    pub instance: ChildInstance,
+    pub model_file: ModelFileArgument,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,19 +103,37 @@ impl SlotTask {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotWork {
+    Processing,
+    Idle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotAssignment {
+    Assigned(SlotTask),
+    Unassigned,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaSlot {
     pub id: u32,
     pub context: u32,
-    pub processing: bool,
-    pub task: Option<SlotTask>,
+    pub work: SlotWork,
+    pub task: SlotAssignment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DecodeRate {
+    Measured(Frequency),
+    Unmeasured,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaServer {
     pub models: Vec<LlamaModel>,
     pub slots: Vec<LlamaSlot>,
-    pub generation_rate: Option<Frequency>,
+    pub generation_rate: DecodeRate,
     sampled_at: Instant,
 }
 
@@ -119,11 +149,13 @@ impl LlamaServer {
     }
 
     pub fn busy_slots(&self) -> impl Iterator<Item = &LlamaSlot> {
-        self.slots.iter().filter(|slot| slot.processing)
+        self.slots
+            .iter()
+            .filter(|slot| slot.work == SlotWork::Processing)
     }
 
     fn rated_since(self, previous: Option<&Self>) -> Self {
-        let generation_rate = previous.and_then(|previous| {
+        let measured_rate = previous.and_then(|previous| {
             let elapsed = self
                 .sampled_at
                 .checked_duration_since(previous.sampled_at)
@@ -132,13 +164,19 @@ impl LlamaServer {
             let decoded: Vec<u32> = self
                 .busy_slots()
                 .filter_map(|slot| {
-                    let task = slot.task?;
-                    let before = previous
+                    let SlotAssignment::Assigned(task) = slot.task else {
+                        return None;
+                    };
+                    let earlier_slot = previous
                         .slots
                         .iter()
-                        .find(|earlier| earlier.id == slot.id)?
-                        .task
-                        .filter(|before| before.id == task.id)?;
+                        .find(|earlier| earlier.id == slot.id)?;
+                    let SlotAssignment::Assigned(before) = earlier_slot.task else {
+                        return None;
+                    };
+                    if before.id != task.id {
+                        return None;
+                    }
                     let Some(decoded_since) =
                         task.decoded_tokens.checked_sub(before.decoded_tokens)
                     else {
@@ -156,7 +194,7 @@ impl LlamaServer {
                 .then(|| Frequency::new::<hertz>(f64::from(decoded.iter().sum::<u32>()) / elapsed))
         });
         Self {
-            generation_rate,
+            generation_rate: measured_rate.map_or(DecodeRate::Unmeasured, DecodeRate::Measured),
             ..self
         }
     }
@@ -186,7 +224,12 @@ impl ListedStatus {
         self.args.get(position + 1).map(String::as_str)
     }
 
-    fn instance(&self) -> Option<ModelInstance> {
+    fn instance(&self) -> ChildInstance {
+        self.listening_instance()
+            .map_or(ChildInstance::NotListening, ChildInstance::Listening)
+    }
+
+    fn listening_instance(&self) -> Option<ModelInstance> {
         Some(ModelInstance {
             host: self.argument("--host")?.to_owned(),
             port: self
@@ -205,13 +248,19 @@ impl ListedStatus {
 
 impl From<ListedModel> for LlamaModel {
     fn from(listed: ListedModel) -> Self {
-        let instance = matches!(
-            listed.status.value,
-            LlamaModelStatus::Loaded | LlamaModelStatus::Sleeping
-        )
-        .then(|| listed.status.instance())
-        .flatten();
-        let model_file = listed.status.argument("--model").map(PathBuf::from);
+        let instance = match listed.status.value {
+            LlamaModelStatus::Loaded | LlamaModelStatus::Sleeping => listed.status.instance(),
+            LlamaModelStatus::Downloading
+            | LlamaModelStatus::Downloaded
+            | LlamaModelStatus::Unloaded
+            | LlamaModelStatus::Loading => ChildInstance::NotListening,
+        };
+        let model_file = listed
+            .status
+            .argument("--model")
+            .map_or(ModelFileArgument::NotGiven, |model_path| {
+                ModelFileArgument::Given(PathBuf::from(model_path))
+            });
         Self {
             id: listed.id,
             status: listed.status.value,
@@ -248,11 +297,17 @@ impl From<ListedSlot> for LlamaSlot {
                     prompt_tokens,
                     decoded_tokens: listed.next_token.first()?.n_decoded,
                 })
-            });
+            })
+            .map_or(SlotAssignment::Unassigned, SlotAssignment::Assigned);
+        let work = if listed.is_processing {
+            SlotWork::Processing
+        } else {
+            SlotWork::Idle
+        };
         Self {
             id: listed.id,
             context: listed.n_ctx,
-            processing: listed.is_processing,
+            work,
             task,
         }
     }
@@ -265,7 +320,10 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::E
     let serving = models
         .iter()
         .filter(|model| model.status == LlamaModelStatus::Loaded)
-        .find_map(|model| model.instance.as_ref());
+        .find_map(|model| match &model.instance {
+            ChildInstance::Listening(instance) => Some(instance),
+            ChildInstance::NotListening => None,
+        });
     let slots = match serving {
         Some(instance) => {
             http_json_client::get_json::<Vec<ListedSlot>>(&instance.url("slots"), &[])
@@ -279,7 +337,7 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::E
     Ok(LlamaServer {
         models,
         slots,
-        generation_rate: None,
+        generation_rate: DecodeRate::Unmeasured,
         sampled_at: Instant::now(),
     })
 }
@@ -388,15 +446,15 @@ mod tests {
         .unwrap();
         let models: Vec<LlamaModel> = listed.data.into_iter().map(LlamaModel::from).collect();
         assert_eq!(models[0].status, LlamaModelStatus::Unloaded);
-        assert_eq!(models[0].instance, None);
-        assert_eq!(models[0].model_file, None);
+        assert_eq!(models[0].instance, ChildInstance::NotListening);
+        assert_eq!(models[0].model_file, ModelFileArgument::NotGiven);
         assert_eq!(
             models[1].model_file,
-            Some(PathBuf::from("/models/Qwen3.8-27B.gguf"))
+            ModelFileArgument::Given(PathBuf::from("/models/Qwen3.8-27B.gguf"))
         );
         assert_eq!(
             models[1].instance,
-            Some(ModelInstance {
+            ChildInstance::Listening(ModelInstance {
                 host: "127.0.0.1".to_owned(),
                 port: 57883,
             })
@@ -414,7 +472,10 @@ mod tests {
         )
         .unwrap();
         let slots: Vec<LlamaSlot> = listed.into_iter().map(LlamaSlot::from).collect();
-        assert_eq!(slots[0].task, None);
-        assert_eq!(slots[1].task.map(|task| task.tokens()), Some(11874));
+        assert_eq!(slots[0].task, SlotAssignment::Unassigned);
+        let SlotAssignment::Assigned(task) = slots[1].task else {
+            panic!("a processing slot carries its task");
+        };
+        assert_eq!(task.tokens(), 11874);
     }
 }

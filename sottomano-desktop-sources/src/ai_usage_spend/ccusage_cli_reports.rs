@@ -59,7 +59,7 @@ pub fn next_local_midnight() -> RereadSchedule {
 }
 
 #[must_use]
-pub fn instant_of(moment: DateTime<Utc>) -> Instant {
+pub fn monotonic_instant(moment: DateTime<Utc>) -> Instant {
     Instant::now()
         + (moment - Utc::now())
             .max(TimeDelta::zero())
@@ -161,8 +161,16 @@ pub struct RecentUsage {
 pub struct BillingBlock {
     pub cost: Money,
     pub ends_at: DateTime<Utc>,
-    pub cost_per_hour: Option<Money>,
-    pub projected_cost: Option<Money>,
+    pub projection: BlockProjection,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BlockProjection {
+    Projected {
+        cost_per_hour: Money,
+        projected_cost: Money,
+    },
+    Unprojected,
 }
 
 #[derive(Deserialize)]
@@ -197,11 +205,24 @@ impl From<Block> for BillingBlock {
         BillingBlock {
             cost: usd(block.cost_usd),
             ends_at: block.end_time,
-            cost_per_hour: block.burn_rate.map(|rate| usd(rate.cost_per_hour)),
-            projected_cost: block
-                .projection
-                .map(|projection| usd(projection.total_cost)),
+            projection: block_projection(block.burn_rate, block.projection),
         }
+    }
+}
+
+fn block_projection(
+    burn_rate: Option<BurnRate>,
+    projection: Option<Projection>,
+) -> BlockProjection {
+    let Some(burn_rate) = burn_rate else {
+        return BlockProjection::Unprojected;
+    };
+    let Some(projection) = projection else {
+        return BlockProjection::Unprojected;
+    };
+    BlockProjection::Projected {
+        cost_per_hour: usd(burn_rate.cost_per_hour),
+        projected_cost: usd(projection.total_cost),
     }
 }
 
@@ -498,7 +519,12 @@ mod tests {
         )
         .unwrap();
         let block = BillingBlock::from(report.blocks.into_iter().next().unwrap());
-        assert_eq!(block.cost_per_hour, Some(usd(Decimal::new(63, 1))));
-        assert_eq!(block.projected_cost, Some(usd(Decimal::new(265, 1))));
+        assert_eq!(
+            block.projection,
+            BlockProjection::Projected {
+                cost_per_hour: usd(Decimal::new(63, 1)),
+                projected_cost: usd(Decimal::new(265, 1)),
+            }
+        );
     }
 }

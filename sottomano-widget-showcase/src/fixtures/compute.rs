@@ -6,11 +6,14 @@ use sottomano_desktop_sources::{
         amd_l3_pmu_cache_traffic::{L3CacheTraffic, SharedCacheTraffic},
         amd_x3d_cache_preference::X3dCachePreference,
         cpu_busy_processes::{CpuBusyProcess, CpuBusyProcesses},
-        cpu_clock_frequency::{CoreFreq, CpuClock, FrequencyBand},
+        cpu_clock_frequency::{CoreFreq, CpuClock, FrequencyBand, PreferredCoreRank},
         cpu_core_deep_idle::CoreDeepIdle,
         cpu_core_loads::{CoreLoad, CpuCoreLoads, CpuUsage, LoadSplit},
         cpu_power_draw::{CpuPower, PowerZone},
-        cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, TemperatureSample},
+        cpu_temperature::{
+            CoreTemperature, CpuCoreTemperatures, CriticalOnset, Temperature, TemperatureSample,
+            ThrottleLimit,
+        },
         intel_thermal_throttle_counters::{
             CoreThrottledTime, ThermalThrottleActivity, ThrottledTime,
         },
@@ -113,12 +116,12 @@ fn latest_snapshot_messages(tick: u32) -> [ComputeMessage; 4] {
                         chip: "k10temp".to_owned(),
                         label: label.to_owned(),
                         temperature: celsius(cycled(TEMPERATURE_CELSIUS, tick) + offset),
-                        limit: Some(celsius(TEMPERATURE_LIMIT_CELSIUS)),
+                        limit: ThrottleLimit::ThrottlesAt(celsius(TEMPERATURE_LIMIT_CELSIUS)),
                     })
                     .collect(),
-                throttle_limit: Some(celsius(TEMPERATURE_LIMIT_CELSIUS)),
+                throttle_limit: ThrottleLimit::ThrottlesAt(celsius(TEMPERATURE_LIMIT_CELSIUS)),
                 overrides: ThresholdOverrides::default(),
-                critical_since: None,
+                critical_since: CriticalOnset::BelowCritical,
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )),
@@ -257,7 +260,9 @@ fn cpu_clock(tick: u32) -> CpuClock {
                         policy_ceiling: Frequency::new::<megahertz>(peak),
                         hardware_ceiling: Frequency::new::<megahertz>(peak),
                     },
-                    preference_rank: Some(CHIPLET_PREFERENCE_RANKS[chiplet] - position_in_chiplet),
+                    preference_rank: PreferredCoreRank::Ranked(
+                        CHIPLET_PREFERENCE_RANKS[chiplet] - position_in_chiplet,
+                    ),
                 }
             })
             .collect(),
@@ -296,7 +301,7 @@ fn core_temperatures(tick: u32) -> CpuCoreTemperatures {
                 CoreTemperature {
                     core: logical_cpu,
                     temperature: celsius(package + chiplet_offset + core_offset),
-                    limit: Some(celsius(TEMPERATURE_LIMIT_CELSIUS)),
+                    limit: ThrottleLimit::ThrottlesAt(celsius(TEMPERATURE_LIMIT_CELSIUS)),
                     overrides: ThresholdOverrides::default(),
                 }
             })

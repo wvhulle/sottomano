@@ -6,11 +6,12 @@ use quick_xml::escape::escape;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
     systemd_units_journal::{
-        SystemdUnitScope,
+        SystemdUnitScope, UnitStateChange,
         failed_units::{
-            FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+            FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceEnding, ServiceOutcome,
+            UNIT_FAILURE_PRIORITY,
         },
-        journal_coredumps::{CoredumpEntry, CoredumpInspection},
+        journal_coredumps::{CoreFileStorage, CoredumpEntry, CoredumpInspection},
     },
 };
 use sottomano_toml_config::Config;
@@ -31,7 +32,10 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingToast, OngoingToastActionButton, definition_list, moment_text},
+        ongoing_toast::{
+            NotificationBody, NotificationProgress, OngoingToast, OngoingToastActionButton,
+            definition_list, moment_text,
+        },
         value_cells::ValueCell,
     },
 };
@@ -54,7 +58,11 @@ pub(super) fn wired_failed_units_indicator<'a>(
                 crash.coredumpctl_args(inspection),
             ))
         };
-        let coredump_buttons = unit.crash.iter().flat_map(|crash| {
+        let crash = match &unit.ending {
+            ServiceEnding::CoreDumped { coredump, .. } => Some(coredump),
+            ServiceEnding::Unreported | ServiceEnding::Ended(_) => None,
+        };
+        let coredump_buttons = crash.into_iter().flat_map(|crash| {
             [
                 OngoingToastActionButton {
                     button_label: "Info".to_owned(),
@@ -68,18 +76,16 @@ pub(super) fn wired_failed_units_indicator<'a>(
                 },
             ]
             .into_iter()
-            .chain(
-                crash
-                    .stored_file
-                    .as_ref()
-                    .map(|file| OngoingToastActionButton {
-                        button_label: "Copy path".to_owned(),
-                        tint: ActionTint::Inspect,
-                        on_button_pressed: SystemdManagerInteraction::CopyToClipboard(
-                            file.display().to_string(),
-                        ),
-                    }),
-            )
+            .chain(match &crash.core_file {
+                CoreFileStorage::OnDisk(file) => Some(OngoingToastActionButton {
+                    button_label: "Copy path".to_owned(),
+                    tint: ActionTint::Inspect,
+                    on_button_pressed: SystemdManagerInteraction::CopyToClipboard(
+                        file.display().to_string(),
+                    ),
+                }),
+                CoreFileStorage::NotOnDisk => None,
+            })
         });
         OngoingToast {
             widget_name: failed_units_name(failed),
@@ -87,8 +93,11 @@ pub(super) fn wired_failed_units_indicator<'a>(
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
             body: failure_summary(unit, clock.utc(), config.calendar.locale),
-            progress: None,
-            since: unit.at.unwrap_or(clock.wall),
+            progress: NotificationProgress::Unmeasured,
+            since: match unit.at {
+                UnitStateChange::At(at) => at,
+                UnitStateChange::Unrecorded => clock.wall,
+            },
             on_body_clicked: open_unit_log.clone(),
             action_buttons: [
                 OngoingToastActionButton {
@@ -142,36 +151,39 @@ fn service_outcome_reason(outcome: &ServiceOutcome) -> String {
     }
 }
 
-fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) -> Option<String> {
-    let reason = unit
-        .service_outcome
-        .as_ref()
-        .map(|outcome| ("Reason", service_outcome_reason(outcome)));
-    let failed_at = unit.at.map(|at| {
-        (
+fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) -> NotificationBody {
+    let mut rows: Vec<(&str, String)> = Vec::new();
+    if let ServiceEnding::Ended(outcome) | ServiceEnding::CoreDumped { outcome, .. } = &unit.ending
+    {
+        rows.push(("Reason", service_outcome_reason(outcome)));
+    }
+    if let UnitStateChange::At(at) = unit.at {
+        rows.push((
             "Failed at",
             moment_text(DateTime::<Utc>::from(at), now, locale),
-        )
-    });
-    let crash = unit.crash.iter().flat_map(|crash| {
-        [
-            ("Signal", crash.signal.to_string()),
+        ));
+    }
+    if let ServiceEnding::CoreDumped { coredump, .. } = &unit.ending {
+        rows.extend([
+            ("Signal", coredump.signal.to_string()),
             (
                 "Process",
-                escape(crash.executable.display().to_string()).into_owned(),
+                escape(coredump.executable.display().to_string()).into_owned(),
             ),
-            ("PID", crash.pid.to_string()),
-        ]
-        .into_iter()
-        .chain(crash.stored_file.as_ref().map(|file| {
-            (
+            ("PID", coredump.pid.to_string()),
+        ]);
+        if let CoreFileStorage::OnDisk(file) = &coredump.core_file {
+            rows.push((
                 "Core",
                 format!("<tt>{}</tt>", escape(file.display().to_string())),
-            )
-        }))
-    });
-    let rows: Vec<(&str, String)> = reason.into_iter().chain(failed_at).chain(crash).collect();
-    (!rows.is_empty()).then(|| definition_list(rows))
+            ));
+        }
+    }
+    if rows.is_empty() {
+        NotificationBody::Bodiless
+    } else {
+        NotificationBody::Text(definition_list(rows))
+    }
 }
 
 pub(super) fn failed_units_panel_visibility(failed: &FailedUnits) -> PanelVisibility {
@@ -234,18 +246,19 @@ fn failed_unit_table(units: &[FailedUnitInfo]) -> SectionTable {
 
 impl From<&FailedUnitInfo> for TableRecord<2> {
     fn from(failed_unit_info: &FailedUnitInfo) -> Self {
-        let reason = failed_unit_info
-            .service_outcome
-            .as_ref()
-            .map_or(ValueCell::Blank, |outcome| {
+        let reason = match &failed_unit_info.ending {
+            ServiceEnding::Unreported => ValueCell::Blank,
+            ServiceEnding::Ended(outcome) | ServiceEnding::CoreDumped { outcome, .. } => {
                 service_outcome_reason(outcome).into()
-            });
-        let failed = failed_unit_info
-            .at
-            .map_or(ValueCell::Blank, |at| ValueCell::Time {
+            }
+        };
+        let failed = match failed_unit_info.at {
+            UnitStateChange::At(at) => ValueCell::Time {
                 at: at.into(),
                 format: LocalizedTimeFormat::DateAndTime,
-            });
+            },
+            UnitStateChange::Unrecorded => ValueCell::Blank,
+        };
         TableRecord::with_cells(failed_unit_info.name.clone(), [reason, failed])
             .level(UNIT_FAILURE_PRIORITY.severity())
     }
@@ -262,12 +275,13 @@ mod tests {
     fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
         FailedUnitInfo {
             name: name.to_string(),
-            service_outcome: Some(ServiceOutcome {
+            ending: ServiceEnding::Ended(ServiceOutcome {
                 result: "exit-code".to_string(),
                 exit_status: 1,
             }),
-            at: age.map(|age| Clock::real().wall - age),
-            crash: None,
+            at: age.map_or(UnitStateChange::Unrecorded, |age| {
+                UnitStateChange::At(Clock::real().wall - age)
+            }),
         }
     }
 

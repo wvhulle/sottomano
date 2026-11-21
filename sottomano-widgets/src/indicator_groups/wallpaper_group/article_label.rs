@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::wallpaper_place_article::WikipediaArticle;
+use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::{
+    ArticleSummary, WikipediaArticle,
+};
 
 use crate::{
     glyph_icons::simple_icons::SimpleIcon,
@@ -15,7 +17,7 @@ use crate::{
 pub struct Article {
     title: String,
     url: String,
-    summary: Option<String>,
+    summary: ArticleSummary,
 }
 
 impl Article {
@@ -51,11 +53,12 @@ impl Article {
             ),
             Section::new(
                 "Summary",
-                dictionary_table(
-                    self.summary
-                        .as_deref()
-                        .map(|summary| LabeledValue::new(" ", summary)),
-                ),
+                dictionary_table(match &self.summary {
+                    ArticleSummary::Extract(summary) => {
+                        Some(LabeledValue::new(" ", summary.as_str()))
+                    }
+                    ArticleSummary::Unextracted => None,
+                }),
             ),
         ]
     }

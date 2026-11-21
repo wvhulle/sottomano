@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use sottomano_desktop_sources::desktop_notifications::{
-    notification_data::{ExpireTimeout, NotificationData},
+    notification_data::{
+        ExpireTimeout, NotificationBody, NotificationData, NotificationProgress, NotifyingAppName,
+    },
     spec_hints::SoundRequest,
 };
 use sottomano_toml_config::severity::Severity;
@@ -56,9 +58,9 @@ impl<Message> LevelToastRequest<Message> {
 
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
-            app_name: None,
-            body: Some(self.level.body_text.clone()),
-            progress: Some(self.level.fill),
+            app_name: NotifyingAppName::Unnamed,
+            body: NotificationBody::Text(self.level.body_text.clone()),
+            progress: NotificationProgress::Measured(self.level.fill),
             severity: Severity::Low,
             sound_request: SoundRequest::Suppressed,
             expire_timeout: ExpireTimeout::After(LEVEL_TOAST_LIFETIME),

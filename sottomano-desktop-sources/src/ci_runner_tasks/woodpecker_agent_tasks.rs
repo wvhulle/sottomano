@@ -10,7 +10,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
         CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
-        TaskUsage, TaskWebLog, images_of, sorted_unique,
+        TaskUsage, TaskWebLog, distinct_container_images, sorted_unique,
         woodpecker_agent_varz::{AgentVarz, RunningWorkflow, fetch_agent_varz},
     },
     delivery_cadence_drivers::{CarriedRead, SamplingNeed},
@@ -105,7 +105,7 @@ fn woodpecker_tasks(
                         .iter()
                         .map(|container| container.shown_name.clone()),
                 ),
-                images: images_of(&containers),
+                images: distinct_container_images(&containers),
                 usage: TaskUsage::from(containers.as_slice()),
                 web_log: pipeline_web_log(&containers),
                 stop_control: TaskStopControl::stopping_containers(engine_socket, &containers),

@@ -14,8 +14,8 @@ use crate::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
     microvm_guests::hypervisor_command_lines::{
-        HypervisorLaunch, MicrovmHypervisor, launched_hypervisor, parsed_launch,
-        with_firecracker_config,
+        HypervisorApiSocket, HypervisorLaunch, HypervisorMachineName, LaunchConfigFile,
+        MicrovmHypervisor, launched_hypervisor, parsed_launch, with_firecracker_config,
     },
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
@@ -127,6 +127,17 @@ impl SnapshotSource for FamilyListings<MicrovmGuestListing> {
     }
 }
 
+fn displayed_machine_name(
+    named_machine: HypervisorMachineName,
+    hypervisor: MicrovmHypervisor,
+    pid: i32,
+) -> String {
+    match named_machine {
+        HypervisorMachineName::Named(machine_name) => machine_name,
+        HypervisorMachineName::Unnamed => format!("{} {pid}", hypervisor.product_name()),
+    }
+}
+
 fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, FileReadError> {
     let process_scan =
         scan_processes(|scanned| launched_hypervisor(&scanned.command_line).is_some())
@@ -138,9 +149,11 @@ fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, FileReadErro
             let hypervisor = launched_hypervisor(&scanned.command_line)?;
             Some(MicrovmGuestListing {
                 pid: scanned.pid,
-                machine_name: parsed_launch(hypervisor, &scanned.command_line)
-                    .named_machine
-                    .unwrap_or_else(|| format!("{} {}", hypervisor.product_name(), scanned.pid)),
+                machine_name: displayed_machine_name(
+                    parsed_launch(hypervisor, &scanned.command_line).named_machine,
+                    hypervisor,
+                    scanned.pid,
+                ),
             })
         })
         .collect();
@@ -149,10 +162,16 @@ fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, FileReadErro
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnclosingUnit {
+    Service(String),
+    Unscoped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MicrovmGuest {
     pub listing: MicrovmGuestListing,
     pub hypervisor: MicrovmHypervisor,
-    pub unit_name: Option<String>,
+    pub enclosing_unit: EnclosingUnit,
     pub launch: HypervisorLaunch,
     pub started_at: SystemTime,
     pub memory_in_use: ByteSize,
@@ -169,6 +188,10 @@ impl SnapshotSource for FamilyDetails<MicrovmGuest> {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(MACHINE_POLL_PERIOD).blocking_poll_deliveries(scanned_machines)
     }
+}
+
+fn enclosing_unit(pid: i32) -> EnclosingUnit {
+    enclosing_unit_name(pid).map_or(EnclosingUnit::Unscoped, EnclosingUnit::Service)
 }
 
 fn enclosing_unit_name(pid: i32) -> Option<String> {
@@ -200,11 +223,12 @@ fn shown_machine(
     hypervisor_process: HypervisorProcess,
     process_table: &ProcessTable,
 ) -> MicrovmGuest {
-    let unit_name = enclosing_unit_name(hypervisor_process.pid);
-    let microvm_name = unit_name.as_deref().and_then(microvm_instance_name);
-    let memory_in_use = unit_name
-        .as_deref()
-        .filter(|_| microvm_name.is_some())
+    let enclosing_unit = enclosing_unit(hypervisor_process.pid);
+    let microvm_name = match &enclosing_unit {
+        EnclosingUnit::Service(unit_name) => microvm_instance_name(unit_name),
+        EnclosingUnit::Unscoped => None,
+    };
+    let memory_in_use = microvm_name
         .and_then(|_| cgroup_directory_of_process(hypervisor_process.pid.unsigned_abs()))
         .and_then(|process_cgroup| {
             read_cgroup_memory(unit_cgroup_enclosing(&process_cgroup)?).map(|sample| sample.current)
@@ -216,23 +240,21 @@ fn shown_machine(
                     .resident_bytes,
             )
         });
-    let machine_name = microvm_name
-        .map(str::to_owned)
-        .or_else(|| hypervisor_process.launch.named_machine.clone())
-        .unwrap_or_else(|| {
-            format!(
-                "{} {}",
-                hypervisor_process.hypervisor.product_name(),
-                hypervisor_process.pid
-            )
-        });
+    let machine_name = match microvm_name {
+        Some(microvm_name) => microvm_name.to_owned(),
+        None => displayed_machine_name(
+            hypervisor_process.launch.named_machine.clone(),
+            hypervisor_process.hypervisor,
+            hypervisor_process.pid,
+        ),
+    };
     MicrovmGuest {
         listing: MicrovmGuestListing {
             pid: hypervisor_process.pid,
             machine_name,
         },
         hypervisor: hypervisor_process.hypervisor,
-        unit_name,
+        enclosing_unit,
         launch: hypervisor_process.launch,
         started_at: hypervisor_process.started_at,
         memory_in_use,
@@ -242,13 +264,13 @@ fn shown_machine(
 fn read_launch(hypervisor: MicrovmHypervisor, command_line: &[String]) -> HypervisorLaunch {
     let launch = parsed_launch(hypervisor, command_line);
     match launch.config_file.clone() {
-        Some(config_file) if hypervisor == MicrovmHypervisor::Firecracker => {
+        LaunchConfigFile::Given(config_file) if hypervisor == MicrovmHypervisor::Firecracker => {
             match fs::read_to_string(&config_file) {
                 Ok(config_text) => with_firecracker_config(launch, &config_text),
                 Err(_) => launch,
             }
         }
-        Some(_) | None => launch,
+        LaunchConfigFile::Given(_) | LaunchConfigFile::CommandLineOnly => launch,
     }
 }
 
@@ -312,12 +334,13 @@ impl SnapshotSource for MicrovmUnits {
 }
 
 #[must_use]
-pub fn api_socket_of(machine: &MicrovmGuest) -> Option<&PathBuf> {
-    machine
-        .launch
-        .api_socket
-        .as_ref()
-        .filter(|_| machine.hypervisor.has_power_button_api())
+pub fn power_button_socket(machine: &MicrovmGuest) -> Option<&PathBuf> {
+    match &machine.launch.api_socket {
+        HypervisorApiSocket::Listening(api_socket) if machine.hypervisor.has_power_button_api() => {
+            Some(api_socket)
+        }
+        HypervisorApiSocket::Listening(_) | HypervisorApiSocket::NotOpened => None,
+    }
 }
 
 #[cfg(test)]

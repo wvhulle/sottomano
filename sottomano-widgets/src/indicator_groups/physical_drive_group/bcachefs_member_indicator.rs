@@ -1,5 +1,7 @@
 use chrono::Locale;
-use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::BcachefsDeviceSpace;
+use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::{
+    AllowedDeviceData, BcachefsDeviceSpace,
+};
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
@@ -59,10 +61,9 @@ impl<'a> BcachefsMemberIndicator<'a> {
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
-        let metadata_text = if self.device.holds_metadata {
-            "data and metadata"
-        } else {
-            "data only"
+        let metadata_text = match self.device.allowed_data {
+            AllowedDeviceData::DataAndMetadata => "data and metadata",
+            AllowedDeviceData::DataOnly => "data only",
         };
         vec![Section::new(
             "Device",

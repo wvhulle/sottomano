@@ -6,7 +6,7 @@ use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
     ZwlrVirtualPointerManagerV1, ZwlrVirtualPointerV1,
 };
 
-use super::gamepad_input_machine::PointerEffect;
+use super::{evdev_gamepad_devices::ButtonEdge, gamepad_input_machine::PointerEffect};
 use crate::system_protocol_clients::wayland_protocol_errors::WaylandProtocolError;
 
 pub struct VirtualPointer {
@@ -48,14 +48,13 @@ impl VirtualPointer {
                 displacement.dx.into(),
                 displacement.dy.into(),
             ),
-            PointerEffect::Button { button, pressed } => self.pointer.button(
+            PointerEffect::Button { button, edge } => self.pointer.button(
                 &mut self.conn,
                 time,
                 evdev_button_code(button),
-                if pressed {
-                    ButtonState::Pressed
-                } else {
-                    ButtonState::Released
+                match edge {
+                    ButtonEdge::Pressed => ButtonState::Pressed,
+                    ButtonEdge::Released => ButtonState::Released,
                 },
             ),
         }

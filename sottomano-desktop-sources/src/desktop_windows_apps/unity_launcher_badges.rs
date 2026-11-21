@@ -4,6 +4,7 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, stream::select};
+use sottomano_compositor_model::compositor_window_facts::Urgency;
 use zbus::{
     Connection, MatchRule,
     fdo::DBusProxy,
@@ -27,29 +28,59 @@ const LAUNCHER_NAME: &str = "com.canonical.Unity";
 const URI_PREFIX: &str = "application://";
 const DESKTOP_SUFFIX: &str = ".desktop";
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LauncherProgress {
+    Hidden,
+    Shown(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LauncherCount {
+    Hidden,
+    Shown(i64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LauncherEntry {
-    pub progress: Option<f32>,
-    pub count: Option<i64>,
-    pub urgent: bool,
+    pub progress: LauncherProgress,
+    pub count: LauncherCount,
+    pub urgency: Urgency,
 }
 
 impl LauncherEntry {
+    const CLEARED: LauncherEntry = LauncherEntry {
+        progress: LauncherProgress::Hidden,
+        count: LauncherCount::Hidden,
+        urgency: Urgency::NotUrgent,
+    };
+
     fn parse(props: &HashMap<String, OwnedValue>) -> Self {
+        let shown_number = |visibility_key: &str, value_key: &str| {
+            prop(props, visibility_key)
+                .unwrap_or(false)
+                .then(|| number(props, value_key))
+                .flatten()
+        };
         Self {
-            progress: prop(props, "progress-visible")
-                .unwrap_or(false)
-                .then(|| number(props, "progress"))
-                .flatten()
-                .map(|value| (value as f32).clamp(0.0, 1.0)),
-            count: prop(props, "count-visible")
-                .unwrap_or(false)
-                .then(|| number(props, "count"))
-                .flatten()
-                .map(|value| value as i64),
-            urgent: prop(props, "urgent").unwrap_or(false),
+            progress: shown_number("progress-visible", "progress")
+                .map_or(LauncherProgress::Hidden, |value| {
+                    LauncherProgress::Shown((value as f32).clamp(0.0, 1.0))
+                }),
+            count: shown_number("count-visible", "count").map_or(LauncherCount::Hidden, |value| {
+                LauncherCount::Shown(value as i64)
+            }),
+            urgency: if prop(props, "urgent").unwrap_or(false) {
+                Urgency::Urgent
+            } else {
+                Urgency::NotUrgent
+            },
         }
     }
+}
+
+enum SignalSender {
+    Peer(String),
+    Unidentified,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -95,14 +126,14 @@ impl Registry {
         (registry_change == StateChange::Changed).then(|| self.entries.clone())
     }
 
-    fn update(&mut self, sender: Option<String>, uri: &str, entry: LauncherEntry) -> StateChange {
+    fn update(&mut self, sender: SignalSender, uri: &str, entry: LauncherEntry) -> StateChange {
         let Some(key) = app_key(uri) else {
             return StateChange::Unchanged;
         };
-        if let Some(sender) = sender {
+        if let SignalSender::Peer(sender) = sender {
             self.owners.entry(sender).or_default().insert(key.clone());
         }
-        let changed = if entry == LauncherEntry::default() {
+        let changed = if entry == LauncherEntry::CLEARED {
             self.entries.by_app.remove(&key).is_some()
         } else {
             self.entries.by_app.insert(key, entry.clone()) != Some(entry)
@@ -132,7 +163,7 @@ impl Registry {
 
 enum Signal {
     Update {
-        sender: Option<String>,
+        sender: SignalSender,
         uri: String,
         entry: LauncherEntry,
     },
@@ -144,7 +175,7 @@ pub fn entry_updates(buses: &DesktopBuses) -> impl Stream<Item = LauncherEntries
     subscribed(session, connect).filter_map(|entries| {
         ready(
             entries
-                .inspect_err(|e| tracing::warn!("launcher entry: {e}"))
+                .inspect_err(|error| tracing::warn!("launcher entry: {error}"))
                 .ok(),
         )
     })
@@ -192,7 +223,10 @@ fn update_signal(message: &zbus::Message) -> zbus::Result<Signal> {
     let body = message.body();
     let (uri, props) = body.deserialize::<(String, HashMap<String, OwnedValue>)>()?;
     Ok(Signal::Update {
-        sender: message.header().sender().map(ToString::to_string),
+        sender: match message.header().sender() {
+            Some(sender) => SignalSender::Peer(sender.to_string()),
+            None => SignalSender::Unidentified,
+        },
         uri,
         entry: LauncherEntry::parse(&props),
     })

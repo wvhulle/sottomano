@@ -1,6 +1,9 @@
 use sottomano_desktop_sources::cpu_memory_compute::{
-    amd_l3_pmu_cache_traffic::L3CacheTraffic, cpu_clock_frequency::CpuClock,
-    cpu_temperature::Temperature, cpu_topology::CoreGroup, temperature_thresholds::celsius_text,
+    amd_l3_pmu_cache_traffic::L3CacheTraffic,
+    cpu_clock_frequency::{CpuClock, PreferredCoreRank},
+    cpu_temperature::Temperature,
+    cpu_topology::CoreGroup,
+    temperature_thresholds::celsius_text,
 };
 
 use crate::widgets::{
@@ -95,7 +98,10 @@ fn highest_preference_rank(clock: &CpuClock, group: &CoreGroup) -> Option<u32> {
         .cores
         .iter()
         .filter(|core| group.contains(core.core))
-        .filter_map(|core| core.preference_rank)
+        .filter_map(|core| match core.preference_rank {
+            PreferredCoreRank::Ranked(rank) => Some(rank),
+            PreferredCoreRank::NotRanked => None,
+        })
         .max()
 }
 

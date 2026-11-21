@@ -25,18 +25,18 @@ pub enum IconCandidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowGroupKey<'a> {
-    WorkingDirectory(&'a str),
-    RemoteHost(&'a str),
-    WebSite(&'a str),
-    EditorProject(&'a str),
-    MailAccount(&'a str),
-    Application(&'a str),
+pub enum WindowGroupKey<'label> {
+    WorkingDirectory(&'label str),
+    RemoteHost(&'label str),
+    WebSite(&'label str),
+    EditorProject(&'label str),
+    MailAccount(&'label str),
+    Application(&'label str),
 }
 
-impl<'a> WindowGroupKey<'a> {
+impl<'label> WindowGroupKey<'label> {
     #[must_use]
-    pub fn heading_text(self) -> &'a str {
+    pub fn heading_text(self) -> &'label str {
         match self {
             WindowGroupKey::WorkingDirectory(text)
             | WindowGroupKey::RemoteHost(text)
@@ -44,6 +44,46 @@ impl<'a> WindowGroupKey<'a> {
             | WindowGroupKey::EditorProject(text)
             | WindowGroupKey::MailAccount(text)
             | WindowGroupKey::Application(text) => text,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WindowCaption {
+    Labelled(WindowLabel),
+    Unlabelled,
+}
+
+impl WindowCaption {
+    #[must_use]
+    pub fn theme_icon(&self) -> Option<String> {
+        match self {
+            WindowCaption::Labelled(label) => label.theme_icon(),
+            WindowCaption::Unlabelled => None,
+        }
+    }
+
+    #[must_use]
+    pub fn program_name(&self) -> Option<&str> {
+        match self {
+            WindowCaption::Labelled(label) => label.program_name(),
+            WindowCaption::Unlabelled => None,
+        }
+    }
+
+    #[must_use]
+    pub fn favicon_key(&self) -> Option<&str> {
+        match self {
+            WindowCaption::Labelled(label) => label.favicon_key(),
+            WindowCaption::Unlabelled => None,
+        }
+    }
+
+    #[must_use]
+    pub fn group_key(&self) -> Option<WindowGroupKey<'_>> {
+        match self {
+            WindowCaption::Labelled(label) => label.group_key(),
+            WindowCaption::Unlabelled => None,
         }
     }
 }
@@ -142,14 +182,16 @@ impl WindowLabel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::desktop_windows_apps::terminal_emulator_windows::terminal_shell_label::ForegroundActivity;
+    use crate::desktop_windows_apps::terminal_emulator_windows::terminal_shell_label::{
+        ForegroundActivity, ForegroundProgramName,
+    };
 
     fn shell_running(command_line: &str) -> TerminalShellLabel {
         TerminalShellLabel {
             working_location: WorkingLocation::LocalDirectory("sottomano".to_owned()),
             foreground_activity: ForegroundActivity::ShellCommand {
                 command_line: command_line.to_owned(),
-                program_name: None,
+                program_name: ForegroundProgramName::Unidentified,
             },
         }
     }

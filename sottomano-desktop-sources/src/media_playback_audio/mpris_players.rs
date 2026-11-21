@@ -6,7 +6,6 @@ use std::{
 
 use futures::{Stream, StreamExt, future::ready, stream::select};
 use image::{DynamicImage, RgbaImage};
-use reqwest::Url;
 use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
@@ -19,6 +18,10 @@ use zbus::{
     zvariant::{ObjectPath, OwnedObjectPath, Value},
 };
 
+pub use super::{
+    mpris_player_capabilities::{Capabilities, CommandOffer},
+    mpris_track_fields::{CoverArtUrl, TrackAlbum, TrackSource, TrackTitle},
+};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
@@ -48,8 +51,8 @@ pub enum Status {
 impl FromStr for Status {
     type Err = zbus::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(status_text: &str) -> Result<Self, Self::Err> {
+        match status_text {
             "Playing" => Ok(Self::Playing),
             "Paused" => Ok(Self::Paused),
             "Stopped" => Ok(Self::Stopped),
@@ -97,8 +100,8 @@ pub enum LoopMode {
 impl FromStr for LoopMode {
     type Err = zbus::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(status_text: &str) -> Result<Self, Self::Err> {
+        match status_text {
             "None" => Ok(Self::Off),
             "Track" => Ok(Self::Track),
             "Playlist" => Ok(Self::Playlist),
@@ -110,8 +113,8 @@ impl FromStr for LoopMode {
 }
 
 impl Display for LoopMode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
             Self::Off => "None",
             Self::Track => "Track",
             Self::Playlist => "Playlist",
@@ -165,36 +168,6 @@ fn declared_track_path(metadata: &Properties) -> Option<OwnedObjectPath> {
                 other_value.value_signature()
             );
             None
-        }
-    }
-}
-
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Capabilities {
-    pub play: bool,
-    pub pause: bool,
-    pub stop: bool,
-    pub seek: bool,
-    pub go_next: bool,
-    pub go_previous: bool,
-    pub raise: bool,
-    pub quit: bool,
-}
-
-impl Capabilities {
-    fn declared(player: &Properties, root: &Properties) -> Self {
-        let control = prop(player, "CanControl").unwrap_or(false);
-        let controllable = |key| control && prop(player, key).unwrap_or(false);
-        Self {
-            play: controllable("CanPlay"),
-            pause: controllable("CanPause"),
-            stop: control,
-            seek: controllable("CanSeek"),
-            go_next: controllable("CanGoNext"),
-            go_previous: controllable("CanGoPrevious"),
-            raise: prop(root, "CanRaise").unwrap_or(false),
-            quit: prop(root, "CanQuit").unwrap_or(false),
         }
     }
 }
@@ -309,14 +282,13 @@ pub struct Media {
     pub bus: String,
     pub owner: OwnerProcess,
     pub identity: String,
-    pub desktop_entry: Option<String>,
-    pub title: Option<String>,
+    pub title: TrackTitle,
     pub artists: Vec<String>,
-    pub album: Option<String>,
-    pub url: Option<Url>,
+    pub album: TrackAlbum,
+    pub url: TrackSource,
     pub status: Status,
     pub progress: Progress,
-    pub art_url: Option<String>,
+    pub art_url: CoverArtUrl,
     pub capabilities: Capabilities,
     pub queue_order: PlayerSetting<QueueOrder>,
     pub loop_mode: PlayerSetting<LoopMode>,
@@ -358,10 +330,16 @@ impl Media {
 
     #[must_use]
     pub fn lyrics_query(&self) -> Option<LyricsQuery> {
+        let TrackTitle::Titled(title) = &self.title else {
+            return None;
+        };
         Some(LyricsQuery {
             artist: self.artists.first()?.clone(),
-            title: self.title.clone()?,
-            album: self.album.clone().unwrap_or_default(),
+            title: title.clone(),
+            album: match &self.album {
+                TrackAlbum::OnAlbum(album) => album.clone(),
+                TrackAlbum::NoAlbum => String::new(),
+            },
             duration_secs: self.progress.length()?.as_secs(),
         })
     }
@@ -476,14 +454,14 @@ async fn read_media(
         bus: bus.to_owned(),
         owner: owner_process(dbus, bus).await,
         identity: text_prop(&root, "Identity").unwrap_or_else(|| bus.to_owned()),
-        desktop_entry: text_prop(&root, "DesktopEntry"),
-        title: text_prop(&metadata, "xesam:title"),
+        title: text_prop(&metadata, "xesam:title").map_or(TrackTitle::Untitled, TrackTitle::Titled),
         artists: artists(&metadata),
-        album: text_prop(&metadata, "xesam:album"),
-        url: parsed(&metadata, "xesam:url"),
+        album: text_prop(&metadata, "xesam:album").map_or(TrackAlbum::NoAlbum, TrackAlbum::OnAlbum),
+        url: parsed(&metadata, "xesam:url").map_or(TrackSource::Unlocated, TrackSource::Located),
         status,
         progress: Progress::declared(&player, &metadata),
-        art_url: text_prop(&metadata, "mpris:artUrl"),
+        art_url: text_prop(&metadata, "mpris:artUrl")
+            .map_or(CoverArtUrl::NotAdvertised, CoverArtUrl::Advertised),
         capabilities: Capabilities::declared(&player, &root),
         queue_order: controllable_setting(&player, declared_queue_order(&player)),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
@@ -672,7 +650,7 @@ mod tests {
 
     use super::*;
 
-    fn owned<'a>(value: impl Into<Value<'a>>) -> OwnedValue {
+    fn owned<'value>(value: impl Into<Value<'value>>) -> OwnedValue {
         OwnedValue::try_from(value.into()).unwrap()
     }
 
@@ -699,8 +677,8 @@ mod tests {
         assert_eq!(
             Capabilities::declared(&player, &root),
             Capabilities {
-                raise: true,
-                quit: true,
+                raise: CommandOffer::Offered,
+                quit: CommandOffer::Offered,
                 ..Capabilities::default()
             }
         );
@@ -730,8 +708,8 @@ mod tests {
             ("CanPlay".to_owned(), owned(true)),
         ]);
         let capabilities = Capabilities::declared(&player, &Properties::new());
-        assert!(capabilities.play);
-        assert!(!capabilities.pause);
+        assert_eq!(capabilities.play, CommandOffer::Offered);
+        assert_eq!(capabilities.pause, CommandOffer::NotOffered);
     }
 
     #[test]

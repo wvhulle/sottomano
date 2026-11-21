@@ -5,7 +5,10 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    virtualbox_machines::{VirtualBoxFrontend, VirtualBoxMachine, VirtualBoxMachineListing},
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
+    virtualbox_machines::{
+        VirtualBoxFrontend, VirtualBoxMachine, VirtualBoxMachineListing, VirtualBoxSettingsFile,
+    },
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -30,9 +33,9 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                         machine_reference: "6c1f1d2e-4b7a-4e8f-9a3b-0d5c2e7f8a91".to_owned(),
                     },
                     frontend: VirtualBoxFrontend::Headless,
-                    guest_memory: Some(ByteSize::gib(8)),
-                    guest_cores: Some(4),
-                    settings_file: Some(PathBuf::from(
+                    guest_memory: GuestMemorySize::Configured(ByteSize::gib(8)),
+                    guest_cores: GuestCoreCount::Configured(4),
+                    settings_file: VirtualBoxSettingsFile::Found(PathBuf::from(
                         "/home/user/VirtualBox VMs/windows11/windows11.vbox",
                     )),
                     started_at: clock.wall - Duration::from_mins(48),

@@ -4,10 +4,11 @@ use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
+    inhibit_reason_text::InhibitReason,
     kernel_sleep_obstacles::{
         IdleActionSetting, InhibitedOperation, KernelHibernation, KernelSleepVerdict,
-        LogindCapability, ResumeDevice, ScheduledShutdown, SecretMemoryHolder, SleepObstacles,
-        SleepState, WindowOwnership,
+        LogindCapability, ResumeDevice, ScheduledShutdown, SecretMemoryHolder, ShutdownMoment,
+        SleepObstacles, SleepState, WindowOwnership,
     },
     screensaver_bus_idle_inhibitors::IdleInhibitor,
 };
@@ -211,9 +212,9 @@ impl ScheduledShutdownIndicator<'_> {
             "halt" | "dry-halt" => "Halt scheduled",
             _ => "Shutdown scheduled",
         };
-        let label = match self.shutdown.at {
-            Some(at) => ReadoutLabel::Labeled(moment_text(at, clock.utc(), locale)),
-            None => ReadoutLabel::Unlabeled,
+        let label = match self.shutdown.moment {
+            ShutdownMoment::At(at) => ReadoutLabel::Labeled(moment_text(at, clock.utc(), locale)),
+            ShutdownMoment::Unreported => ReadoutLabel::Unlabeled,
         };
         GroupIndicator::glyph_only(
             name,
@@ -271,7 +272,7 @@ pub(super) fn sleep_state_sections(obstacles: &SleepObstacles) -> Vec<Section> {
     let rows = SleepState::ALL.into_iter().map(|state| {
         let answer = sleep_state_answer(obstacles, state, state_that_runs);
         let row = LabeledValue::new(state.title(), answer);
-        match obstacles.capability_of(state) {
+        match obstacles.sleep_state_capability(state) {
             LogindCapability::Allowed | LogindCapability::AfterAuthorisation => row,
             LogindCapability::NotPermitted | LogindCapability::Unsupported => {
                 row.level(Severity::Warning)
@@ -296,10 +297,10 @@ fn sleep_state_answer(
         return "will run".to_owned();
     }
     let sleep_lock_holders: Vec<&str> = obstacles
-        .inhibitors_of(InhibitedOperation::Sleep)
+        .inhibitors_blocking(InhibitedOperation::Sleep)
         .map(|inhibitor| inhibitor.holder.as_str())
         .collect();
-    match obstacles.capability_of(state) {
+    match obstacles.sleep_state_capability(state) {
         LogindCapability::Allowed => "available".to_owned(),
         LogindCapability::AfterAuthorisation => "available after authorisation".to_owned(),
         _ if obstacles.kernel_verdict(state) == KernelSleepVerdict::Blocked => {
@@ -401,9 +402,12 @@ fn hibernate_blockers(
     hibernate_timer: TimerArming,
 ) -> Vec<PauseBlocker> {
     let explained_by_sleep_lock = obstacles.kernel_hibernation == KernelHibernation::Allowed
-        && obstacles.inhibitors_of(InhibitedOperation::Sleep).count() > 0;
+        && obstacles
+            .inhibitors_blocking(InhibitedOperation::Sleep)
+            .count()
+            > 0;
     let hibernate_available = matches!(
-        obstacles.capability_of(SleepState::Hibernate),
+        obstacles.sleep_state_capability(SleepState::Hibernate),
         LogindCapability::Allowed | LogindCapability::AfterAuthorisation
     );
     if hibernate_available || explained_by_sleep_lock {
@@ -427,7 +431,7 @@ fn hibernate_blockers(
     let kernel = "Kernel".to_owned();
     match &obstacles.kernel_hibernation {
         KernelHibernation::Allowed => {
-            let why = match obstacles.capability_of(SleepState::Hibernate) {
+            let why = match obstacles.sleep_state_capability(SleepState::Hibernate) {
                 LogindCapability::NotPermitted => "not permitted for this user".to_owned(),
                 LogindCapability::Allowed
                 | LogindCapability::AfterAuthorisation
@@ -469,59 +473,62 @@ fn hibernate_blockers(
 }
 
 fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocker> + '_ {
-    let stated_reason = |reason: &Option<String>, fallback: &str| {
-        reason.clone().unwrap_or_else(|| fallback.to_owned())
+    let stated_reason = |reason: &InhibitReason, fallback: &str| match reason {
+        InhibitReason::Stated(reason_text) => reason_text.clone(),
+        InhibitReason::Unstated => fallback.to_owned(),
     };
-    let sleep_locks =
-        obstacles
-            .inhibitors_of(InhibitedOperation::Sleep)
-            .flat_map(move |inhibitor| {
-                let why = stated_reason(&inhibitor.reason, "holds a sleep lock");
-                [
-                    (IdleAction::Sleep, IdleActionBlocking::StopsArmedAction),
-                    (
-                        IdleAction::Hibernate,
-                        IdleActionBlocking::LeavesActionRunning,
-                    ),
-                ]
-                .map(|(pause, action_blocking)| PauseBlocker {
-                    pause,
-                    holder: inhibitor.holder.clone(),
-                    why: why.clone(),
-                    cause: BlockerCause::SleepLock,
-                    action_blocking,
-                    holder_process: None,
-                })
-            });
-    let shutdown_locks =
-        obstacles
-            .inhibitors_of(InhibitedOperation::Shutdown)
-            .map(move |inhibitor| PauseBlocker {
-                pause: IdleAction::PowerOff,
+    let sleep_locks = obstacles
+        .inhibitors_blocking(InhibitedOperation::Sleep)
+        .flat_map(move |inhibitor| {
+            let why = stated_reason(&inhibitor.reason, "holds a sleep lock");
+            [
+                (IdleAction::Sleep, IdleActionBlocking::StopsArmedAction),
+                (
+                    IdleAction::Hibernate,
+                    IdleActionBlocking::LeavesActionRunning,
+                ),
+            ]
+            .map(|(pause, action_blocking)| PauseBlocker {
+                pause,
                 holder: inhibitor.holder.clone(),
-                why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
-                cause: BlockerCause::ShutdownLock,
-                action_blocking: IdleActionBlocking::StopsArmedAction,
+                why: why.clone(),
+                cause: BlockerCause::SleepLock,
+                action_blocking,
                 holder_process: None,
-            });
-    let idle_locks = obstacles
-        .inhibitors_of(InhibitedOperation::Idle)
+            })
+        });
+    let shutdown_locks = obstacles
+        .inhibitors_blocking(InhibitedOperation::Shutdown)
         .map(move |inhibitor| PauseBlocker {
-            pause: IdleAction::Sleep,
+            pause: IdleAction::PowerOff,
             holder: inhibitor.holder.clone(),
-            why: stated_reason(&inhibitor.reason, "holds an idle lock"),
-            cause: BlockerCause::LogindIdleLock,
-            action_blocking: match obstacles.idle_action_setting {
-                IdleActionSetting::Acting => IdleActionBlocking::StopsArmedAction,
-                IdleActionSetting::Ignored => IdleActionBlocking::LeavesActionRunning,
-            },
+            why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
+            cause: BlockerCause::ShutdownLock,
+            action_blocking: IdleActionBlocking::StopsArmedAction,
             holder_process: None,
         });
+    let idle_locks =
+        obstacles
+            .inhibitors_blocking(InhibitedOperation::Idle)
+            .map(move |inhibitor| PauseBlocker {
+                pause: IdleAction::Sleep,
+                holder: inhibitor.holder.clone(),
+                why: stated_reason(&inhibitor.reason, "holds an idle lock"),
+                cause: BlockerCause::LogindIdleLock,
+                action_blocking: match obstacles.idle_action_setting {
+                    IdleActionSetting::Acting => IdleActionBlocking::StopsArmedAction,
+                    IdleActionSetting::Ignored => IdleActionBlocking::LeavesActionRunning,
+                },
+                holder_process: None,
+            });
     sleep_locks.chain(shutdown_locks).chain(idle_locks)
 }
 
 fn no_sleep_state_blocker(obstacles: &SleepObstacles) -> Option<PauseBlocker> {
-    let no_lock_explains_it = obstacles.inhibitors_of(InhibitedOperation::Sleep).count() == 0;
+    let no_lock_explains_it = obstacles
+        .inhibitors_blocking(InhibitedOperation::Sleep)
+        .count()
+        == 0;
     (no_lock_explains_it
         && !obstacles.sleep_order.is_empty()
         && obstacles.sleep_state_that_runs().is_none())
@@ -547,10 +554,10 @@ fn screensaver_blockers<'a>(
         armed_triggers.iter().map(move |trigger| PauseBlocker {
             pause: trigger.tag,
             holder: inhibitor.holder.clone(),
-            why: inhibitor
-                .reason
-                .clone()
-                .unwrap_or_else(|| "asked the compositor to hold idle timers".to_owned()),
+            why: match &inhibitor.reason {
+                InhibitReason::Stated(reason_text) => reason_text.clone(),
+                InhibitReason::Unstated => "asked the compositor to hold idle timers".to_owned(),
+            },
             cause: BlockerCause::ScreenSaverHold,
             action_blocking: if Some(trigger.tag) == first_to_fire {
                 IdleActionBlocking::StopsArmedAction
@@ -574,10 +581,11 @@ mod tests {
 
     use sottomano_desktop_sources::login_session_presence::{
         idle_session_actions::IdleAction,
+        inhibit_reason_text::InhibitReason,
         kernel_sleep_obstacles::{
             BlockingInhibitor, IdleActionSetting, InhibitedOperation, KernelHibernation,
-            LogindCapability, ResumeDevice, SecretMemoryHolder, SleepObstacles, SleepState,
-            SleepStateSupport, WindowOwnership,
+            LogindCapability, ResumeDevice, SecretMemoryHolder, ShutdownSchedule, SleepObstacles,
+            SleepState, SleepStateSupport, WindowOwnership,
         },
         screensaver_bus_idle_inhibitors::IdleInhibitor,
     };
@@ -606,7 +614,7 @@ mod tests {
             resume_device: ResumeDevice::Configured,
             blocking_inhibitors: Vec::new(),
             idle_action_setting: IdleActionSetting::Ignored,
-            scheduled_shutdown: None,
+            shutdown_schedule: ShutdownSchedule::NotScheduled,
         }
     }
 
@@ -646,7 +654,7 @@ mod tests {
         BlockingInhibitor {
             holder: "Backup".to_owned(),
             operation,
-            reason: Some("Backup running".to_owned()),
+            reason: InhibitReason::Stated("Backup running".to_owned()),
         }
     }
 
@@ -761,7 +769,7 @@ mod tests {
     fn a_screensaver_hold_lists_every_armed_timer_and_raises_the_first_to_fire() {
         let idle_inhibitors = [IdleInhibitor {
             holder: "Firefox".to_owned(),
-            reason: Some("Playing video".to_owned()),
+            reason: InhibitReason::Stated("Playing video".to_owned()),
         }];
         let armed_triggers = [
             ActionTrigger {

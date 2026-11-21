@@ -9,6 +9,7 @@ pub mod cpu_core_loads;
 pub mod cpu_power_draw;
 pub mod cpu_temperature;
 pub mod cpu_topology;
+mod gpu_driver_readings;
 pub mod hwmon_temperature_sensors;
 mod intel_hybrid_core_designs;
 mod intel_pstate_no_turbo;
@@ -26,7 +27,7 @@ pub mod temperature_thresholds;
 
 use std::path::{Path, PathBuf};
 
-use self::cpu_clock_frequency::{CoreFreq, FrequencyBand};
+use self::cpu_clock_frequency::{CoreFreq, FrequencyBand, PreferredCoreRank};
 use crate::system_protocol_clients::sysfs_attribute_reads::{
     list_dir, read_kilohertz, read_trimmed,
 };
@@ -59,11 +60,12 @@ pub(super) fn core_freqs() -> Vec<CoreFreq> {
                                 );
                             })
                             .ok()
-                    }),
+                    })
+                    .map_or(PreferredCoreRank::NotRanked, PreferredCoreRank::Ranked),
             })
         })
         .collect();
-    cores.sort_by_key(|c| c.core);
+    cores.sort_by_key(|core_frequency| core_frequency.core);
     cores
 }
 
@@ -77,7 +79,7 @@ fn core_frequency_band(dir: &Path) -> Option<FrequencyBand> {
 
 pub(super) fn cpu_core_index(name: &str) -> Option<u32> {
     let digits = name.strip_prefix("cpu")?;
-    (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+    (!digits.is_empty() && digits.bytes().all(|digit_byte| digit_byte.is_ascii_digit()))
         .then(|| {
             digits
                 .parse()

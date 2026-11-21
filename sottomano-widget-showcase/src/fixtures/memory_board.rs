@@ -4,7 +4,9 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
-        memory_growth_trend::{GrowingMemoryProcess, MemoryGrowth},
+        memory_growth_trend::{
+            ExhaustionProjection, GrowingMemoryProcess, MemoryGrowth, MemoryUsageTrend,
+        },
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
         memory_stall_pressure::{MemoryStallPressure, StallAverages},
         memory_usage::{Memory, MemoryProcess, MemoryProcesses},
@@ -106,15 +108,16 @@ fn memory_indicators(tick: u32) -> Vec<MemoryBoardMessage> {
 fn memory_growth(tick: u32) -> MemoryGrowth {
     if tick % 4 != GROWING_TICK {
         return MemoryGrowth {
-            used_per_minute: None,
-            exhaustion_projection: None,
+            trend: MemoryUsageTrend::Steady,
             filling_severity: Severity::Normal,
             growing_processes: Vec::new(),
         };
     }
     MemoryGrowth {
-        used_per_minute: Some(ByteSize::mib(1_700)),
-        exhaustion_projection: Some(Duration::from_secs(150)),
+        trend: MemoryUsageTrend::Rising {
+            used_per_minute: ByteSize::mib(1_700),
+            exhaustion: ExhaustionProjection::FullWithin(Duration::from_secs(150)),
+        },
         filling_severity: Severity::Warning,
         growing_processes: [("cargo", 1_100), ("firefox", 420), ("rust-analyzer", 180)]
             .into_iter()

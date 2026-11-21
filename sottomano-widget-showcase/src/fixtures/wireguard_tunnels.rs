@@ -116,8 +116,6 @@ pub fn on_hover(started_fetch: &WireguardTunnelsInteraction) -> Vec<WireguardTun
         _ => return Vec::new(),
     };
     vec![WireguardTunnelsMessage::TunnelAddressFetched(
-        SnapshotDelivery::single_read(Ok(TunnelAddress {
-            ip: Some(tunnel_ip.to_owned()),
-        })),
+        SnapshotDelivery::single_read(Ok(TunnelAddress::Assigned(tunnel_ip.to_owned()))),
     )]
 }

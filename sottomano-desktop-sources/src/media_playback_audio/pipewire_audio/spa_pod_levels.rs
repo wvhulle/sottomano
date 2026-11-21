@@ -14,8 +14,11 @@ use pipewire::spa::{
 };
 
 use super::{
-    Direction, OutputKind,
-    audio_graph_state::{AppStream, AudioNode, Levels, LevelsUpdate, RouteLevels, RoutePlacement},
+    DeviceDescription, Direction, OutputKind,
+    audio_graph_state::{
+        AppStream, AudioNode, KindHint, Levels, LevelsUpdate, NodeDevice, NodePlacement,
+        RouteLevels, RoutePlacement, StreamProcess,
+    },
     level_command_writes::LevelChange,
 };
 use crate::media_playback_audio::pipewire_audio::{MuteState, audio_graph_state::StreamActivity};
@@ -28,8 +31,9 @@ pub(super) fn node_direction(props: &DictRef) -> Option<Direction> {
     }
 }
 
-pub(super) fn stream_pid(props: &DictRef) -> Option<i32> {
+pub(super) fn stream_process(props: &DictRef) -> StreamProcess {
     parsed_prop(props, "application.process.id")
+        .map_or(StreamProcess::Unidentified, StreamProcess::Process)
 }
 
 fn parsed_prop<Parsed: FromStr>(props: &DictRef, key: &str) -> Option<Parsed>
@@ -49,7 +53,7 @@ where
 
 pub(super) fn stream_from_props(props: &DictRef) -> AppStream {
     AppStream {
-        pid: stream_pid(props),
+        process: stream_process(props),
         stream_activity: StreamActivity::Idle,
         levels: Levels::default(),
     }
@@ -64,11 +68,13 @@ pub(super) fn node_from_props(props: &DictRef, direction: Direction) -> Option<A
             .get("node.nick")
             .or_else(|| props.get("node.description"))
             .filter(|description| !description.is_empty())
-            .map(str::to_owned),
-        device_id: parsed_prop(props, "device.id"),
-        props_kind: None,
+            .map_or(DeviceDescription::Undescribed, |description| {
+                DeviceDescription::Described(description.to_owned())
+            }),
+        device: parsed_prop(props, "device.id").map_or(NodeDevice::Deviceless, NodeDevice::Device),
+        props_kind: KindHint::Unhinted,
         serial: parsed_prop(props, "object.serial").unwrap_or_default(),
-        placement: None,
+        placement: NodePlacement::Unrouted,
         levels: Levels::default(),
     })
 }
@@ -102,7 +108,9 @@ pub(super) fn parse_route(pod: &Pod) -> Option<RouteLevels> {
     Some(RouteLevels {
         index: route_number(&object, SPA_PARAM_ROUTE_index, "index")?,
         route_device: route_number(&object, SPA_PARAM_ROUTE_device, "device")?,
-        port_kind: route_info_value(&object, "port.type").and_then(OutputKind::port_type_kind),
+        port_kind: route_info_value(&object, "port.type")
+            .and_then(OutputKind::port_type_kind)
+            .map_or(KindHint::Unhinted, KindHint::Hinted),
         update: nested_props(&object)
             .as_ref()
             .map(levels_update)
@@ -111,7 +119,7 @@ pub(super) fn parse_route(pod: &Pod) -> Option<RouteLevels> {
 }
 
 fn route_number(object: &Object, key: u32, field_name: &str) -> Option<u32> {
-    let signed_number = int_of(object, key)?;
+    let signed_number = pod_integer_property(object, key)?;
     u32::try_from(signed_number)
         .inspect_err(|_| {
             tracing::warn!("audio: route {field_name} is negative: {signed_number}");
@@ -147,10 +155,14 @@ fn parse_object(pod: &Pod, type_: u32) -> Option<Object> {
 }
 
 fn levels_update(object: &Object) -> LevelsUpdate {
-    LevelsUpdate {
-        channel_volumes: volumes_of(object),
-        mute_state: mute_of(object),
+    let mut changes = Vec::new();
+    if let Some(channel_volumes) = pod_channel_volumes(object) {
+        changes.push(LevelChange::Volumes(channel_volumes));
     }
+    if let Some(mute_state) = pod_mute_state(object) {
+        changes.push(LevelChange::Mute(mute_state));
+    }
+    LevelsUpdate { changes }
 }
 
 fn nested_props(object: &Object) -> Option<Object> {
@@ -160,14 +172,14 @@ fn nested_props(object: &Object) -> Option<Object> {
     })
 }
 
-fn volumes_of(object: &Object) -> Option<Vec<f32>> {
+fn pod_channel_volumes(object: &Object) -> Option<Vec<f32>> {
     match property_value(object, SPA_PROP_channelVolumes)? {
         Value::ValueArray(ValueArray::Float(values)) => Some(values.clone()),
         _ => None,
     }
 }
 
-fn mute_of(object: &Object) -> Option<MuteState> {
+fn pod_mute_state(object: &Object) -> Option<MuteState> {
     match property_value(object, SPA_PROP_mute)? {
         Value::Bool(true) => Some(MuteState::Muted),
         Value::Bool(false) => Some(MuteState::Audible),
@@ -175,7 +187,7 @@ fn mute_of(object: &Object) -> Option<MuteState> {
     }
 }
 
-fn int_of(object: &Object, key: u32) -> Option<i32> {
+fn pod_integer_property(object: &Object, key: u32) -> Option<i32> {
     match property_value(object, key)? {
         Value::Int(value) => Some(*value),
         _ => None,

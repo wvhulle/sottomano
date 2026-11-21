@@ -20,23 +20,35 @@ impl From<&str> for ShellTitleFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShellTitle<'a> {
+pub enum ShellTitle<'terminal> {
     IdlePrompt,
-    RunningCommand(&'a str),
+    RunningCommand(&'terminal str),
     ProgramTitle,
 }
 
-pub struct ShellState<'a> {
-    pub title: &'a str,
-    pub cwd: &'a Path,
-    pub home: &'a Path,
-    pub at_prompt: bool,
-    pub reported_command_line: &'a str,
-    pub has_foreground_program: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptPresence {
+    AtPrompt,
+    AwayFromPrompt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForegroundProgram<'terminal> {
+    NoForegroundProgram,
+    Running(&'terminal [String]),
+}
+
+pub struct ShellState<'terminal> {
+    pub title: &'terminal str,
+    pub cwd: &'terminal Path,
+    pub home: &'terminal Path,
+    pub prompt_presence: PromptPresence,
+    pub reported_command_line: &'terminal str,
+    pub foreground_program: ForegroundProgram<'terminal>,
 }
 
 impl ShellTitleFormat {
-    pub fn read<'a>(self, shell: &ShellState<'a>) -> ShellTitle<'a> {
+    pub fn read<'terminal>(self, shell: &ShellState<'terminal>) -> ShellTitle<'terminal> {
         match self {
             ShellTitleFormat::Nushell => read_nushell_title(shell),
             ShellTitleFormat::AnyShell => read_any_shell_title(shell),
@@ -44,7 +56,7 @@ impl ShellTitleFormat {
     }
 }
 
-fn read_nushell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
+fn read_nushell_title<'terminal>(shell: &ShellState<'terminal>) -> ShellTitle<'terminal> {
     let prompt_title = home_abbreviated_path(shell.cwd, shell.home);
     if shell.title == prompt_title {
         return ShellTitle::IdlePrompt;
@@ -58,8 +70,10 @@ fn read_nushell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
     }
 }
 
-fn read_any_shell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
-    if shell.at_prompt || !shell.has_foreground_program {
+fn read_any_shell_title<'terminal>(shell: &ShellState<'terminal>) -> ShellTitle<'terminal> {
+    if shell.prompt_presence == PromptPresence::AtPrompt
+        || shell.foreground_program == ForegroundProgram::NoForegroundProgram
+    {
         return ShellTitle::IdlePrompt;
     }
     if !shell.reported_command_line.is_empty() && shell.title == shell.reported_command_line {
@@ -72,20 +86,28 @@ fn read_any_shell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
 mod tests {
     use super::*;
 
-    fn shell_state<'a>(title: &'a str, at_prompt: bool, reported: &'a str) -> ShellState<'a> {
+    const FOREGROUND_COMMAND: &[String] = &[];
+
+    fn shell_state<'terminal>(
+        title: &'terminal str,
+        prompt_presence: PromptPresence,
+        reported: &'terminal str,
+    ) -> ShellState<'terminal> {
         ShellState {
             title,
             cwd: Path::new("/home/user/proj"),
             home: Path::new("/home/user"),
-            at_prompt,
+            prompt_presence,
             reported_command_line: reported,
-            has_foreground_program: true,
+            foreground_program: ForegroundProgram::Running(FOREGROUND_COMMAND),
         }
     }
 
     #[test]
     fn nushell_titles_name_the_prompt_or_the_typed_command() {
-        let read = |title| ShellTitleFormat::Nushell.read(&shell_state(title, false, ""));
+        let read = |title| {
+            ShellTitleFormat::Nushell.read(&shell_state(title, PromptPresence::AwayFromPrompt, ""))
+        };
         assert_eq!(read("~/proj"), ShellTitle::IdlePrompt);
         assert_eq!(read("~/proj> cargo"), ShellTitle::RunningCommand("cargo"));
         assert_eq!(read("✳ Session"), ShellTitle::ProgramTitle);
@@ -94,16 +116,19 @@ mod tests {
 
     #[test]
     fn integrated_shells_report_the_prompt_and_command_line() {
-        let read = |title, at_prompt, reported| {
-            ShellTitleFormat::AnyShell.read(&shell_state(title, at_prompt, reported))
+        let read = |title, prompt_presence, reported| {
+            ShellTitleFormat::AnyShell.read(&shell_state(title, prompt_presence, reported))
         };
-        assert_eq!(read("…/a/b/c", true, ""), ShellTitle::IdlePrompt);
         assert_eq!(
-            read("cargo build", false, "cargo build"),
+            read("…/a/b/c", PromptPresence::AtPrompt, ""),
+            ShellTitle::IdlePrompt
+        );
+        assert_eq!(
+            read("cargo build", PromptPresence::AwayFromPrompt, "cargo build"),
             ShellTitle::RunningCommand("cargo build")
         );
         assert_eq!(
-            read("hx src/main.rs", false, "hx"),
+            read("hx src/main.rs", PromptPresence::AwayFromPrompt, "hx"),
             ShellTitle::ProgramTitle
         );
     }
@@ -111,10 +136,10 @@ mod tests {
     #[test]
     fn a_shell_without_integration_is_idle_when_nothing_else_runs_in_the_foreground() {
         let idle = ShellState {
-            has_foreground_program: false,
-            ..shell_state("user@host:~/proj", false, "")
+            foreground_program: ForegroundProgram::NoForegroundProgram,
+            ..shell_state("user@host:~/proj", PromptPresence::AwayFromPrompt, "")
         };
-        let busy = shell_state("user@host:~/proj", false, "");
+        let busy = shell_state("user@host:~/proj", PromptPresence::AwayFromPrompt, "");
         assert_eq!(
             ShellTitleFormat::AnyShell.read(&idle),
             ShellTitle::IdlePrompt

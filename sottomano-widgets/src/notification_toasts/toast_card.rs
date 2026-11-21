@@ -12,7 +12,10 @@ use iced::{
 };
 use sottomano_desktop_sources::{
     desktop_notifications::{
-        notification_data::{ActionTint, NotifAction, NotificationData, ReplyPrompt},
+        notification_data::{
+            ActionTint, DesktopEntryHint, NotifAction, NotificationBody, NotificationData,
+            NotificationProgress, NotifyingAppName, ReplyPrompt,
+        },
         notification_image_policy::ImageRole,
         spec_hints::{IconReference, SpecAppIcon, SpecImage},
     },
@@ -176,8 +179,12 @@ pub fn resolve_icons(data: &NotificationData) -> CardIcons {
             SpecAppIcon::Given(IconReference::FileUri(_)) | SpecAppIcon::Absent => None,
         },
     };
+    let desktop_entry = match &data.desktop_entry {
+        DesktopEntryHint::Entry(entry) => Some(entry.as_str()),
+        DesktopEntryHint::Unhinted => None,
+    };
     let badge = badge_app_icon
-        .or(data.desktop_entry.as_deref())
+        .or(desktop_entry)
         .map(|app_id| CardIcon::Themed(app_icon_request(app_id)));
     CardIcons { image, badge }
 }
@@ -334,8 +341,7 @@ impl<Routed> ToastCard<'_, Routed> {
         let previewed_file = self.notif.icons.previewed_file();
         let has_actions = !button_actions.is_empty() || previewed_file.is_some();
         let now = self.now;
-        let body_text = &data.body;
-        let has_body = body_text.is_some();
+        let has_body = data.body != NotificationBody::Bodiless;
         let started = match &self.notif.kind {
             ToastKind::Event { at, .. } => *at,
             ToastKind::Ongoing { since, .. } => *since,
@@ -363,7 +369,7 @@ impl<Routed> ToastCard<'_, Routed> {
                     .font(font_faces_of(font).bold)
                     .width(Length::Fill),
             );
-        if let Some(app_name) = &data.app_name {
+        if let NotifyingAppName::Named(app_name) = &data.app_name {
             title = title.push(
                 panel_text(font, app_name.clone())
                     .size(font.small_text_size_px)
@@ -378,7 +384,7 @@ impl<Routed> ToastCard<'_, Routed> {
         let mut column = Column::new()
             .spacing(self.config.theme.spacing.item_gap)
             .push(title);
-        if let Some(body) = body_text {
+        if let NotificationBody::Text(body) = &data.body {
             let body = Row::new()
                 .spacing(self.config.theme.spacing.group_gap)
                 .align_y(Alignment::End)
@@ -397,7 +403,7 @@ impl<Routed> ToastCard<'_, Routed> {
                 text,
             ));
         }
-        if let Some(progress) = data.progress {
+        if let NotificationProgress::Measured(progress) = data.progress {
             column = column.push(progress_widget(
                 progress,
                 text,

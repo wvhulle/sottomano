@@ -14,14 +14,15 @@ pub trait VendorLogo {
 
 impl VendorLogo for CpuVendor {
     fn vendor_logo(&self) -> Option<SimpleIcon> {
-        Some(match self {
-            CpuVendor::Amd => SimpleIcon::AMD,
-            CpuVendor::Intel => SimpleIcon::Intel,
-            CpuVendor::Arm => SimpleIcon::Arm,
-            CpuVendor::Apple => SimpleIcon::Apple,
-            CpuVendor::Qualcomm => SimpleIcon::Qualcomm,
-            CpuVendor::HiSilicon => SimpleIcon::Huawei,
-        })
+        match self {
+            CpuVendor::Amd => Some(SimpleIcon::AMD),
+            CpuVendor::Intel => Some(SimpleIcon::Intel),
+            CpuVendor::Arm => Some(SimpleIcon::Arm),
+            CpuVendor::Apple => Some(SimpleIcon::Apple),
+            CpuVendor::Qualcomm => Some(SimpleIcon::Qualcomm),
+            CpuVendor::HiSilicon => Some(SimpleIcon::Huawei),
+            CpuVendor::Unrecognised => None,
+        }
     }
 }
 

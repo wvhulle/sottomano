@@ -19,7 +19,8 @@ pub mod gtk_actions_proxy;
 use self::gtk_actions_proxy::{GtkActionDescription, gtk_actions_proxy};
 use crate::desktop_windows_apps::{
     application_menu_nodes::{
-        MenuItemIcon, MenuKind, MenuNode, ToggleCheck, ToggleMark, label_without_mnemonics,
+        MenuItemIcon, MenuItemSensitivity, MenuKind, MenuLabel, MenuNode, ToggleCheck, ToggleMark,
+        label_without_mnemonics,
     },
     dbusmenu_menu_bar_layout::introspected_node,
 };
@@ -258,8 +259,8 @@ impl GtkMenuTreeBuilder<'_> {
     fn separator_node(&mut self) -> MenuNode {
         MenuNode {
             id: self.issue_node_id(),
-            label: None,
-            enabled: true,
+            label: MenuLabel::Unlabelled,
+            sensitivity: MenuItemSensitivity::Enabled,
             kind: MenuKind::Separator,
             icon: MenuItemIcon::NoIcon,
             children: Vec::new(),
@@ -271,8 +272,9 @@ impl GtkMenuTreeBuilder<'_> {
         menu_item: &HashMap<String, OwnedValue>,
         depth_left: u8,
     ) -> Option<MenuNode> {
-        let label =
-            text_property(menu_item, "label").map(|raw_label| label_without_mnemonics(&raw_label));
+        let label = text_property(menu_item, "label").map_or(MenuLabel::Unlabelled, |raw_label| {
+            MenuLabel::Labelled(label_without_mnemonics(&raw_label))
+        });
         let node_id = self.issue_node_id();
         if let Some(submenu_key) = menu_item.get(SUBMENU_LINK).and_then(linked_menu_key) {
             let children = if depth_left == 0 {
@@ -283,7 +285,7 @@ impl GtkMenuTreeBuilder<'_> {
             return Some(MenuNode {
                 id: node_id,
                 label,
-                enabled: true,
+                sensitivity: MenuItemSensitivity::Enabled,
                 kind: MenuKind::Submenu,
                 icon: MenuItemIcon::NoIcon,
                 children,
@@ -315,7 +317,11 @@ impl GtkMenuTreeBuilder<'_> {
             GtkActionScope::Application => self.application_actions.get(&action_name),
             GtkActionScope::Window => self.window_actions.get(&action_name),
         };
-        let enabled = description.is_some_and(|description| description.enabled);
+        let sensitivity = if description.is_some_and(|description| description.enabled) {
+            MenuItemSensitivity::Enabled
+        } else {
+            MenuItemSensitivity::Disabled
+        };
         let kind = description
             .and_then(|description| description.state.first())
             .map_or(MenuKind::Standard, |action_state| {
@@ -332,7 +338,7 @@ impl GtkMenuTreeBuilder<'_> {
         Some(MenuNode {
             id: node_id,
             label,
-            enabled,
+            sensitivity,
             kind,
             icon: MenuItemIcon::NoIcon,
             children: Vec::new(),
@@ -639,7 +645,7 @@ mod tests {
         let [file_menu] = menu_bar.top_menus.as_slice() else {
             panic!("one top menu expected, got {:?}", menu_bar.top_menus);
         };
-        assert_eq!(file_menu.label.as_deref(), Some("File"));
+        assert_eq!(file_menu.label, MenuLabel::Labelled("File".to_owned()));
         let child_kinds: Vec<MenuKind> =
             file_menu.children.iter().map(|child| child.kind).collect();
         assert_eq!(
@@ -659,14 +665,12 @@ mod tests {
         let enabled_labels: Vec<String> = menu_bar.top_menus[0]
             .children
             .iter()
-            .filter_map(|child| {
-                child
-                    .label
-                    .as_deref()
-                    .map(|label| format!("{label} enabled: {}", child.enabled))
+            .filter_map(|child| match &child.label {
+                MenuLabel::Labelled(label) => Some(format!("{label} {:?}", child.sensitivity)),
+                MenuLabel::Unlabelled => None,
             })
             .collect();
-        assert_eq!(enabled_labels, ["New enabled: false", "Quit enabled: true"]);
+        assert_eq!(enabled_labels, ["New Disabled", "Quit Enabled"]);
     }
 
     #[test]

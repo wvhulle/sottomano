@@ -112,7 +112,9 @@ struct Jiffies {
 }
 
 impl Jiffies {
-    fn parsed_counters<'a>(counters: impl Iterator<Item = &'a str>) -> Option<Self> {
+    fn parsed_counters<'stat_line>(
+        counters: impl Iterator<Item = &'stat_line str>,
+    ) -> Option<Self> {
         let counters: Vec<i64> = counters
             .map(str::parse)
             .collect::<Result<_, _>>()
@@ -182,7 +184,10 @@ impl CoreJiffies {
     }
 
     fn load_since(&self, earlier: &CpuStat) -> Option<CoreLoad> {
-        let before = earlier.cores.iter().find(|c| c.core == self.core)?;
+        let before = earlier
+            .cores
+            .iter()
+            .find(|earlier_core| earlier_core.core == self.core)?;
         let elapsed = self.jiffies.elapsed_since(&before.jiffies)?;
         Some(CoreLoad {
             core: self.core,

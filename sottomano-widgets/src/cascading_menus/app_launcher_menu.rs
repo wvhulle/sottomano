@@ -12,7 +12,9 @@ use iced::{Element, Task};
 use sottomano_compositor_model::compositor_requests::CompositorRequest;
 use sottomano_compositors::compositor_connection::send_compositor_request;
 use sottomano_desktop_sources::{
-    desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp},
+    desktop_windows_apps::desktop_entry_app_catalog::{
+        AppCategory, AppDescription, LaunchSurface, LaunchableApp,
+    },
     theme_icons::icon_requests::app_icon_request,
 };
 use sottomano_toml_config::Config;
@@ -123,13 +125,13 @@ const fn category_glyph(category: AppCategory) -> Phosphor {
 
 fn launch_task(app: &LaunchableApp, config: &Config) -> Task<AppLauncherMessage> {
     let launch_command = app.launch_command.clone();
-    if app.runs_in_terminal {
-        return TerminalCommand::running(config, launch_command).open();
+    match app.launch_surface {
+        LaunchSurface::Terminal => TerminalCommand::running(config, launch_command).open(),
+        LaunchSurface::Graphical => logged_failure_task(
+            "launch an app".to_owned(),
+            send_compositor_request(CompositorRequest::Spawn(launch_command)),
+        ),
     }
-    logged_failure_task(
-        "launch an app".to_owned(),
-        send_compositor_request(CompositorRequest::Spawn(launch_command)),
-    )
 }
 
 fn jump_task(window: u64) -> Task<AppLauncherMessage> {
@@ -187,28 +189,20 @@ impl AppLauncherMenu {
         let Some(app) = self.catalog.iter().find(|app| app.app_id == app_id) else {
             return Vec::new();
         };
-        let description = app
-            .description
-            .clone()
-            .map(|description| LabeledValue::new("Description", description));
-        let open_window_count = self.usage.open_windows.get(app_id).map(|open_windows| {
-            LabeledValue::new("Open windows", open_windows.window_count.to_string())
-        });
-        let runs_in_terminal = app
-            .runs_in_terminal
-            .then(|| LabeledValue::new("Runs in", "a terminal".to_owned()));
-        vec![Section::new(
-            "Desktop entry",
-            dictionary_table(
-                [LabeledValue::new("App", app.name.clone())]
-                    .into_iter()
-                    .chain(description)
-                    .chain(open_window_count)
-                    .chain(runs_in_terminal),
-            ),
-        )]
-        .into_iter()
-        .collect()
+        let mut entry_rows = vec![LabeledValue::new("App", app.name.clone())];
+        if let AppDescription::Described(description) = &app.description {
+            entry_rows.push(LabeledValue::new("Description", description.clone()));
+        }
+        if let Some(open_windows) = self.usage.open_windows.get(app_id) {
+            entry_rows.push(LabeledValue::new(
+                "Open windows",
+                open_windows.window_count.to_string(),
+            ));
+        }
+        if app.launch_surface == LaunchSurface::Terminal {
+            entry_rows.push(LabeledValue::new("Runs in", "a terminal".to_owned()));
+        }
+        vec![Section::new("Desktop entry", dictionary_table(entry_rows))]
     }
 
     pub fn update(&mut self, message: AppLauncherMessage, config: &Config) -> Action {

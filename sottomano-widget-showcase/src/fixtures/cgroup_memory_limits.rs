@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     cgroup_memory_limits::{LimitedCgroup, LimitedCgroups},
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     system_protocol_clients::sysfs_cgroup_memory::{
-        CgroupMemorySample, MemoryBound, MemoryEventCounts,
+        CgroupMemorySample, MemoryBound, MemoryEventCounts, MemoryPressure, SwapUsage,
     },
 };
 use sottomano_widgets::{
@@ -28,9 +28,9 @@ fn ci_runners_near_their_throttle_mark() -> LimitedCgroup {
             current: ByteSize::mib(9_830),
             high: MemoryBound::Bytes(ByteSize::gib(10)),
             max: MemoryBound::Bytes(ByteSize::gib(12)),
-            swap_current: Some(ByteSize::mib(1_240)),
+            swap_current: SwapUsage::Accounted(ByteSize::mib(1_240)),
             swap_max: MemoryBound::Bytes(ByteSize::gib(4)),
-            stalled_percent_last_ten_seconds: Some(4.2),
+            stalled_percent_last_ten_seconds: MemoryPressure::StalledPercent(4.2),
             event_counts: MemoryEventCounts {
                 throttled_at_high: 2,
                 reached_max: 0,
@@ -48,9 +48,9 @@ fn nix_daemon_building() -> LimitedCgroup {
             current: ByteSize::mib(3_460),
             high: MemoryBound::Bytes(ByteSize::gib(14)),
             max: MemoryBound::Unbounded,
-            swap_current: Some(ByteSize::mib(80)),
+            swap_current: SwapUsage::Accounted(ByteSize::mib(80)),
             swap_max: MemoryBound::Unbounded,
-            stalled_percent_last_ten_seconds: Some(0.0),
+            stalled_percent_last_ten_seconds: MemoryPressure::StalledPercent(0.0),
             event_counts: MemoryEventCounts::default(),
         },
     }
@@ -64,9 +64,9 @@ fn guest_machines() -> LimitedCgroup {
             current: ByteSize::mib(940),
             high: MemoryBound::Unbounded,
             max: MemoryBound::Unbounded,
-            swap_current: Some(ByteSize::mib(310)),
+            swap_current: SwapUsage::Accounted(ByteSize::mib(310)),
             swap_max: MemoryBound::Unbounded,
-            stalled_percent_last_ten_seconds: Some(0.0),
+            stalled_percent_last_ten_seconds: MemoryPressure::StalledPercent(0.0),
             event_counts: MemoryEventCounts::default(),
         },
     }

@@ -13,14 +13,19 @@ use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 pub struct WindowEdge {
     pub vertical: VEdge,
     pub horizontal: HEdge,
-    pub output: Option<String>,
+    pub output: WorkspaceOutput,
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusedWindow {
+    Window(u64),
+    NoFocusedWindow,
+}
+
 pub struct Placement {
     workspace_by_window: HashMap<u64, u64>,
-    pub focused_window: Option<u64>,
-    pub focused_output: Option<String>,
+    pub focused_window: FocusedWindow,
+    pub focused_output: WorkspaceOutput,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
     viewed_layouts: HashMap<u64, CompositorWindowLayout>,
@@ -46,54 +51,54 @@ impl Placement {
         let mut output_by_workspace = HashMap::new();
         let mut active_ws_by_output: HashMap<String, OutputActiveWorkspace> = HashMap::new();
         let mut ws_active_window = HashMap::new();
-        let mut focused_output = None;
-        for w in state.workspaces.values() {
-            ws_idx.insert(w.id, w.index);
-            if let WorkspaceOutput::Assigned(output) = &w.output {
-                output_by_workspace.insert(w.id, output.clone());
-                if w.activity != WorkspaceActivity::Inactive {
+        let mut focused_workspace_output = WorkspaceOutput::Unassigned;
+        for workspace in state.workspaces.values() {
+            ws_idx.insert(workspace.id, workspace.index);
+            if let WorkspaceOutput::Assigned(output) = &workspace.output {
+                output_by_workspace.insert(workspace.id, output.clone());
+                if workspace.activity != WorkspaceActivity::Inactive {
                     active_ws_by_output.insert(
                         output.clone(),
                         OutputActiveWorkspace {
-                            id: w.id,
-                            idx: w.index,
+                            id: workspace.id,
+                            idx: workspace.index,
                         },
                     );
                 }
-                if w.activity == WorkspaceActivity::Focused {
-                    focused_output = Some(output.clone());
+                if workspace.activity == WorkspaceActivity::Focused {
+                    focused_workspace_output = WorkspaceOutput::Assigned(output.clone());
                 }
             }
-            if let WorkspaceActiveWindow::Window(active) = w.active_window {
-                ws_active_window.insert(w.id, active);
+            if let WorkspaceActiveWindow::Window(active) = workspace.active_window {
+                ws_active_window.insert(workspace.id, active);
             }
         }
 
         let mut workspace_by_window = HashMap::new();
         let mut column_by_window = HashMap::new();
-        let mut focused_window = None;
+        let mut focused_window = FocusedWindow::NoFocusedWindow;
         let mut windows = Vec::new();
         let mut viewed_layouts = HashMap::new();
-        for w in state.windows.values() {
-            if let WindowWorkspace::OnWorkspace(ws) = w.workspace {
-                workspace_by_window.insert(w.id, ws);
+        for window in state.windows.values() {
+            if let WindowWorkspace::OnWorkspace(ws) = window.workspace {
+                workspace_by_window.insert(window.id, ws);
             }
             if state.overview == OverviewVisibility::Closed
-                && workspace_viewing(w, &output_by_workspace, &active_ws_by_output)
+                && workspace_viewing(window, &output_by_workspace, &active_ws_by_output)
                     == WorkspaceViewing::Viewed
             {
-                viewed_layouts.insert(w.id, w.layout.clone());
+                viewed_layouts.insert(window.id, window.layout.clone());
             }
-            if let ScrollingPosition::Tile { column, .. } = w.layout.scrolling_position {
-                column_by_window.insert(w.id, column);
+            if let ScrollingPosition::Tile { column, .. } = window.layout.scrolling_position {
+                column_by_window.insert(window.id, column);
             }
-            if w.focus == WindowFocus::Focused {
-                focused_window = Some(w.id);
+            if window.focus == WindowFocus::Focused {
+                focused_window = FocusedWindow::Window(window.id);
             }
             windows.push(WindowIdentity {
-                id: w.id,
-                app_id: w.app_id.clone(),
-                pid: w.pid,
+                id: window.id,
+                app_id: window.app_id.clone(),
+                pid: window.pid,
             });
         }
 
@@ -101,7 +106,9 @@ impl Placement {
             .iter()
             .map(|(&id, &ws)| {
                 let output = output_by_workspace.get(&ws).cloned();
-                let active_ws = output.as_ref().and_then(|o| active_ws_by_output.get(o));
+                let active_ws = output
+                    .as_ref()
+                    .and_then(|workspace_output| active_ws_by_output.get(workspace_output));
                 let vertical =
                     vertical_edge(ws_idx.get(&ws).copied(), active_ws.map(|active| active.idx));
                 let horizontal = if active_ws.is_some_and(|active| active.id == ws) {
@@ -117,11 +124,21 @@ impl Placement {
                     WindowEdge {
                         vertical,
                         horizontal,
-                        output,
+                        output: output
+                            .map_or(WorkspaceOutput::Unassigned, WorkspaceOutput::Assigned),
                     },
                 )
             })
             .collect();
+
+        let focused_output = match focused_window {
+            FocusedWindow::Window(window_id) => workspace_by_window
+                .get(&window_id)
+                .and_then(|workspace_id| output_by_workspace.get(workspace_id))
+                .cloned()
+                .map_or(focused_workspace_output, WorkspaceOutput::Assigned),
+            FocusedWindow::NoFocusedWindow => focused_workspace_output,
+        };
 
         Self {
             workspace_by_window,
@@ -144,7 +161,7 @@ impl Placement {
         self.edges.get(&id).cloned().unwrap_or(WindowEdge {
             vertical: VEdge::Center,
             horizontal: HEdge::Center,
-            output: None,
+            output: WorkspaceOutput::Unassigned,
         })
     }
 
@@ -159,7 +176,10 @@ impl Placement {
 
     #[must_use]
     pub fn active_workspace_for_move(&self) -> Option<u64> {
-        self.workspace_by_window.get(&self.focused_window?).copied()
+        let FocusedWindow::Window(window_id) = self.focused_window else {
+            return None;
+        };
+        self.workspace_by_window.get(&window_id).copied()
     }
 
     #[must_use]

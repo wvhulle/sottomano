@@ -1,5 +1,7 @@
 use corredo::press_actions::ConfirmStage;
-use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
+use sottomano_desktop_sources::media_playback_audio::mpris_players::{
+    Command, CommandOffer, Media, Status,
+};
 use sottomano_toml_config::Config;
 
 use super::{PlayerInteraction, PlayerSession, lifted_to_player, player_interaction};
@@ -15,7 +17,8 @@ use crate::{
 };
 
 fn stop_indicator(media: &Media) -> Option<GroupIndicator<'_>> {
-    let offers_stop = media.capabilities.stop && media.status != Status::Stopped;
+    let offers_stop =
+        media.capabilities.stop == CommandOffer::Offered && media.status != Status::Stopped;
     offers_stop.then(|| {
         let state = IndicatorState::Off;
         GroupIndicator::glyph_only("Stop", Phosphor::Stop(state.weight()).into(), state).on_press(
@@ -30,7 +33,7 @@ fn quit_indicator<'a>(
     media: &'a Media,
     session: &'a PlayerSession,
 ) -> Option<GroupIndicator<'a>> {
-    media.capabilities.quit.then(|| {
+    (media.capabilities.quit == CommandOffer::Offered).then(|| {
         let bus = media.bus.as_str();
         let quit_does = match session.quit_button.stage {
             ConfirmStage::Armed => "confirm quitting the player",

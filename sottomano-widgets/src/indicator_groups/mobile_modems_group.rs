@@ -8,7 +8,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        modem_manager_mobile::{Mobile, MobileModems},
+        modem_manager_mobile::{BearerAddress, BearerTraffic, Mobile, MobileModems},
         network_manager_proxies::{LinkPhase, RadioPower},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -127,12 +127,12 @@ impl MobileModemsGroup {
     }
 
     fn modem_address_hover_card(&self, modem: &Mobile, family: AddressFamily) -> Vec<Section> {
-        let Some(address) = modem_family_address(modem, family) else {
+        let BearerAddress::Assigned(address) = modem_family_address(modem, family) else {
             return Vec::new();
         };
         self.mobile_modems.hover_card_with(vec![Section::new(
             "Address",
-            dictionary_table([LabeledValue::new("Address", address)]),
+            dictionary_table([LabeledValue::new("Address", address.as_str())]),
         )])
     }
 
@@ -183,7 +183,10 @@ impl MobileModemsGroup {
                 .into_iter()
                 .filter(|family| {
                     modem.link_state() == LinkPhase::Up
-                        && modem_family_address(modem, *family).is_some()
+                        && matches!(
+                            modem_family_address(modem, *family),
+                            BearerAddress::Assigned(_)
+                        )
                 })
                 .map(|family| {
                     InterfaceAddressIndicator { family }
@@ -193,7 +196,7 @@ impl MobileModemsGroup {
                         }))
                 }),
         );
-        if modem.rx.is_some() || modem.tx.is_some() {
+        if let BearerTraffic::Counted { .. } = modem.traffic {
             rows.push(
                 ModemDataIndicator { modem }
                     .indicator()

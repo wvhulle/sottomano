@@ -131,7 +131,7 @@ fn keyed_group_heading<'a>(
         .and_then(|_| {
             window_icon(
                 icons.favicons,
-                window_entry.favicon_key(),
+                window_entry.caption.favicon_key(),
                 icons.icon_for(window_entry),
                 config.theme.font.icon_size_px,
                 1.0,
@@ -166,7 +166,7 @@ pub(super) fn arranged_keyed_groups<'a>(
             icon: icons
                 .icon_for(window_entry)
                 .map(|drawable_icon| &drawable_icon.handle),
-            favicon_key: window_entry.favicon_key(),
+            favicon_key: window_entry.caption.favicon_key(),
         })
         .collect();
     let group_positions = keyed_group_positions(&group_identities);

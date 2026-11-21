@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
-    SessionIdentity, SessionInfo,
+    GreeterProgram, LeaderName, SessionIdentity, SessionIdleness, SessionInfo,
 };
 
 use crate::{
@@ -66,75 +66,61 @@ impl<'a> LoginFace<'a> {
 }
 
 pub fn session_info_sections(session_info: &SessionInfo) -> Vec<Section> {
-    vec![
-        Section::new(
+    let mut login_entries = vec![
+        LabeledValue::new("Session number", session_info.id.clone()),
+        LabeledValue::new("State", session_info.state.clone()),
+        LabeledValue::new(
+            "Logged in",
+            ValueCell::Time {
+                at: session_info.since,
+                format: LocalizedTimeFormat::DateAndTime,
+            },
+        ),
+    ];
+    if let SessionIdleness::IdleSince(idle_at) = session_info.idleness {
+        login_entries.push(LabeledValue::new(
+            "Idle since",
+            ValueCell::Time {
+                at: idle_at,
+                format: LocalizedTimeFormat::TimeOfDay,
+            },
+        ));
+    }
+    let mut process_entries = Vec::new();
+    if let LeaderName::Named(leader_name) = &session_info.leader_name {
+        process_entries.push(LabeledValue::new("Started by", leader_name.clone()));
+    }
+    process_entries.push(LabeledValue::new(
+        "Starter process id",
+        session_info.leader.to_string(),
+    ));
+    process_entries.push(LabeledValue::new(
+        "Processes kept in",
+        session_info.scope.clone(),
+    ));
+    let mut sections = Vec::new();
+    if let GreeterProgram::Identified(greeter_name) = &session_info.greeter {
+        sections.push(Section::new(
             SectionTitle::captioned(
                 "Login screen shown before this session",
                 "Drew the password prompt in its own short session, closed once you logged in.",
             ),
-            dictionary_table(
-                session_info
-                    .greeter
-                    .clone()
-                    .map(|greeter_name| LabeledValue::new("Greeter", greeter_name)),
-            ),
+            dictionary_table([LabeledValue::new("Greeter", greeter_name.clone())]),
+        ));
+    }
+    sections.push(Section::new(
+        SectionTitle::captioned(
+            "Login session tracked by logind",
+            "logind tracks this login and every process started from it.",
         ),
-        Section::new(
-            SectionTitle::captioned(
-                "Login session tracked by logind",
-                "logind tracks this login and every process started from it.",
-            ),
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Session number", session_info.id.clone())),
-                    Some(LabeledValue::new("State", session_info.state.clone())),
-                    Some(LabeledValue::new(
-                        "Logged in",
-                        ValueCell::Time {
-                            at: session_info.since,
-                            format: LocalizedTimeFormat::DateAndTime,
-                        },
-                    )),
-                    session_info.idle_since.map(|at| {
-                        LabeledValue::new(
-                            "Idle since",
-                            ValueCell::Time {
-                                at,
-                                format: LocalizedTimeFormat::TimeOfDay,
-                            },
-                        )
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
+        dictionary_table(login_entries),
+    ));
+    sections.push(Section::new(
+        SectionTitle::captioned(
+            "Processes belonging to this login",
+            "Everything launched in this login lives in one systemd scope.",
         ),
-        Section::new(
-            SectionTitle::captioned(
-                "Processes belonging to this login",
-                "Everything launched in this login lives in one systemd scope.",
-            ),
-            dictionary_table(
-                [
-                    session_info
-                        .leader_name
-                        .clone()
-                        .map(|leader_name| LabeledValue::new("Started by", leader_name)),
-                    Some(LabeledValue::new(
-                        "Starter process id",
-                        session_info.leader.to_string(),
-                    )),
-                    Some(LabeledValue::new(
-                        "Processes kept in",
-                        session_info.scope.clone(),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        ),
-    ]
-    .into_iter()
-    .filter(|section| !section.widget.is_empty())
-    .collect()
+        dictionary_table(process_entries),
+    ));
+    sections
 }

@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, future::ready, path::PathBuf};
 
-use futures::{Stream, StreamExt, future::join_all, stream};
+use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, ServiceProxy, SystemdUnitScope};
+use super::{ManagerProxy, ServiceProxy, SystemdUnitScope, UNIT_PROPERTY_READS_IN_FLIGHT};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::llama_server_slots::LLAMA_SERVER_PROGRAM,
@@ -64,10 +64,10 @@ impl ServiceCommand {
         self.arguments.get(position + 1).map(String::as_str)
     }
 
-    pub fn arguments_after<'a>(
-        &'a self,
+    pub fn arguments_after<'command>(
+        &'command self,
         subcommand: &[&str],
-    ) -> Option<impl Iterator<Item = &'a str>> {
+    ) -> Option<impl Iterator<Item = &'command str>> {
         let position = self
             .arguments
             .windows(subcommand.len())
@@ -173,15 +173,15 @@ async fn all_service_commands(
     manager: &ManagerProxy<'static>,
 ) -> zbus::Result<Vec<ServiceCommand>> {
     let rows = manager.list_units().await?;
-    let mut commands: Vec<ServiceCommand> = join_all(
+    let mut commands: Vec<ServiceCommand> = stream::iter(
         rows.into_iter()
-            .filter(|row| row.name.ends_with(SERVICE_SUFFIX))
-            .map(|row| service_command(manager, row.name, row.unit_path)),
+            .filter(|row| row.name.ends_with(SERVICE_SUFFIX)),
     )
-    .await
-    .into_iter()
-    .flatten()
-    .collect();
+    .map(|row| service_command(manager, row.name, row.unit_path))
+    .buffer_unordered(UNIT_PROPERTY_READS_IN_FLIGHT)
+    .filter_map(ready)
+    .collect()
+    .await;
     commands.sort_by(|left, right| left.unit.cmp(&right.unit));
     Ok(commands)
 }

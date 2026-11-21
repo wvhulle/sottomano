@@ -15,8 +15,9 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_samples::{
-        GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
-        GpuRuntimePower, GpuSnapshot, PciBusId,
+        GpuClockSpeed, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw,
+        GpuPowerReading, GpuProcesses, GpuRuntimePower, GpuSnapshot, GpuTemperatureReading,
+        PciBusId,
     },
 };
 use sottomano_toml_config::Config;
@@ -90,9 +91,10 @@ impl GpuDevice {
     }
 
     fn clock_label(&self) -> Option<GpuClockLabel> {
-        Some(GpuClockLabel {
-            current: self.latest_snapshot()?.graphics_clock?,
-        })
+        let GpuClockSpeed::Reported(current) = self.latest_snapshot()?.graphics_clock else {
+            return None;
+        };
+        Some(GpuClockLabel { current })
     }
 
     fn memory(&self) -> Option<GpuMemory> {
@@ -100,15 +102,21 @@ impl GpuDevice {
     }
 
     fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
+        let GpuTemperatureReading::Measured(current) = self.latest_snapshot()?.temperature else {
+            return None;
+        };
         Some(GpuTemperatureLabel {
-            current: self.latest_snapshot()?.temperature?,
+            current,
             limits: self.model.temperature_limits,
         })
     }
 
     fn power_label(&self) -> Option<GpuPowerDraw> {
+        let GpuPowerReading::Drawing(draw) = self.latest_snapshot()?.power_draw else {
+            return None;
+        };
         Some(GpuPowerDraw {
-            draw: self.latest_snapshot()?.power_draw?,
+            draw,
             limit: self.model.power_limit,
         })
     }

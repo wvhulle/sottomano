@@ -47,7 +47,7 @@ impl PowerBin {
 }
 
 #[must_use]
-pub fn bin_of(state_of_charge: Ratio) -> usize {
+pub fn charge_bin_index(state_of_charge: Ratio) -> usize {
     let fraction = state_of_charge.get::<ratio>().clamp(0.0, 1.0);
     ((fraction * CHARGE_BINS as f64) as usize).min(CHARGE_BINS - 1)
 }
@@ -66,7 +66,7 @@ impl ChargeCurve {
         since_previous: Duration,
     ) -> Self {
         let observed_w = observed.get::<watt>();
-        let bin = bin_of(state_of_charge);
+        let bin = charge_bin_index(state_of_charge);
         let prior = self.bins[bin].unwrap_or_else(|| PowerBin::seeded_at(observed_w));
         let mut bins = self.bins;
         bins[bin] = Some(prior.updated_with(observed_w, since_previous));
@@ -119,22 +119,22 @@ pub(super) fn learned_curve(power_at: impl Fn(Ratio) -> Power) -> ChargeCurve {
 mod tests {
     use super::*;
 
-    fn ratio_of(fraction: f64) -> Ratio {
+    fn fraction_ratio(fraction: f64) -> Ratio {
         Ratio::new::<ratio>(fraction)
     }
 
     #[test]
     fn bins_cover_the_whole_range() {
-        assert_eq!(bin_of(ratio_of(0.0)), 0);
-        assert_eq!(bin_of(ratio_of(0.049)), 0);
-        assert_eq!(bin_of(ratio_of(0.05)), 1);
-        assert_eq!(bin_of(ratio_of(1.0)), CHARGE_BINS - 1);
+        assert_eq!(charge_bin_index(fraction_ratio(0.0)), 0);
+        assert_eq!(charge_bin_index(fraction_ratio(0.049)), 0);
+        assert_eq!(charge_bin_index(fraction_ratio(0.05)), 1);
+        assert_eq!(charge_bin_index(fraction_ratio(1.0)), CHARGE_BINS - 1);
     }
 
     #[test]
     fn learns_a_taper_per_bin() {
         let curve = learned_curve(|soc| {
-            if soc < ratio_of(0.8) {
+            if soc < fraction_ratio(0.8) {
                 Power::new::<watt>(30.0)
             } else {
                 Power::new::<watt>(10.0)
@@ -142,7 +142,7 @@ mod tests {
         })
         .learned()
         .expect("learned");
-        let watts_at = |fraction| curve[bin_of(ratio_of(fraction))].get::<watt>();
+        let watts_at = |fraction| curve[charge_bin_index(fraction_ratio(fraction))].get::<watt>();
         assert!((watts_at(0.5) - 30.0).abs() < 0.5, "{}", watts_at(0.5));
         assert!((watts_at(0.9) - 10.0).abs() < 0.5, "{}", watts_at(0.9));
     }
@@ -151,13 +151,13 @@ mod tests {
     fn unobserved_bin_borrows_its_neighbour() {
         let curve = ChargeCurve::default()
             .observe(
-                ratio_of(0.52),
+                fraction_ratio(0.52),
                 Power::new::<watt>(25.0),
                 BATTERY_POLL_INTERVAL,
             )
             .learned()
             .expect("learned");
-        assert_eq!(curve[bin_of(ratio_of(0.9))], curve[bin_of(ratio_of(0.52))]);
+        assert_eq!(curve[charge_bin_index(fraction_ratio(0.9))], curve[charge_bin_index(fraction_ratio(0.52))]);
     }
 
     #[test]

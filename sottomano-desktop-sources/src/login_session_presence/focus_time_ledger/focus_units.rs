@@ -82,15 +82,24 @@ impl FocusUnit {
     }
 
     #[must_use]
-    pub fn budget(&self, config: &SessionFocusConfig) -> Option<TimeDelta> {
-        match self {
+    pub fn budget(&self, config: &SessionFocusConfig) -> DailyBudget {
+        let configured_minutes = match self {
             FocusUnit::App(app_id) => config.app_daily_budget_minutes.get(app_id),
             FocusUnit::Project(root) => root
                 .to_str()
                 .and_then(|root_text| config.project_daily_budget_minutes.get(root_text)),
+        };
+        match configured_minutes {
+            Some(minutes) => DailyBudget::Limited(TimeDelta::minutes(i64::from(*minutes))),
+            None => DailyBudget::Unlimited,
         }
-        .map(|minutes| TimeDelta::minutes(i64::from(*minutes)))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DailyBudget {
+    Limited(TimeDelta),
+    Unlimited,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,8 +116,8 @@ pub struct UnknownPresence {
 }
 
 impl fmt::Display for UnknownPresence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unknown presence state {}", self.presence_name)
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "unknown presence state {}", self.presence_name)
     }
 }
 

@@ -4,35 +4,33 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
-use super::{CopilotPlan, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info};
+use super::{
+    CopilotPlan, Error, QuotaReset, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info,
+};
 use crate::{
-    SnapshotDelivery, SnapshotSource, ai_usage_spend::usage_quota::Quota,
+    SnapshotDelivery, SnapshotSource,
+    ai_usage_spend::{subscription_plan::SubscriptionPlan, usage_quota::Quota},
     system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
-    pub plan: Option<String>,
+    pub plan: SubscriptionPlan,
     pub quota: String,
     pub used: f64,
     pub limit: i64,
     pub remaining: f64,
     pub used_share: Ratio,
-    pub reset: Option<DateTime<Utc>>,
+    pub reset: QuotaReset,
 }
 
 impl CopilotMetered {
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.reset
-            .and_then(|resets_at| {
-                Quota::within_month_before(
-                    "Copilot premium requests",
-                    self.used_share,
-                    resets_at,
-                    now,
-                )
-            })
+        let QuotaReset::At(resets_at) = self.reset else {
+            return Vec::new();
+        };
+        Quota::within_month_before("Copilot premium requests", self.used_share, resets_at, now)
             .into_iter()
             .collect()
     }
@@ -82,10 +80,10 @@ impl QuotaSnapshot {
     }
 }
 
-fn usable<'a>(
-    snapshot: Option<&'a QuotaSnapshot>,
+fn usable<'snapshot>(
+    snapshot: Option<&'snapshot QuotaSnapshot>,
     label: &'static str,
-) -> Option<(&'a QuotaSnapshot, &'static str)> {
+) -> Option<(&'snapshot QuotaSnapshot, &'static str)> {
     snapshot
         .filter(|snap| snap.has_quota && snap.entitlement > 0)
         .map(|snap| (snap, label))
@@ -137,7 +135,10 @@ mod tests {
     fn token_billed_account_is_metered_on_its_chat_snapshot() {
         let info: UserInfo = serde_json::from_str(TOKEN_BILLED_USER_INFO).unwrap();
         assert_eq!(info.plan_kind(), CopilotPlan::Metered);
-        assert_eq!(info.plan().as_deref(), Some("free_limited_copilot"));
+        assert_eq!(
+            info.plan(),
+            SubscriptionPlan::Named("free_limited_copilot".to_owned())
+        );
         let (snapshot, label) = info.metered_quota().unwrap();
         assert_eq!(label, "Chat");
         assert_eq!(snapshot.entitlement, 200);
@@ -145,7 +146,7 @@ mod tests {
         assert!((100.0 - snapshot.percent_remaining - 0.1).abs() < 1e-9);
         assert_eq!(
             quota_reset(&info),
-            "2026-10-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
+            QuotaReset::At("2026-10-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
         );
     }
 }

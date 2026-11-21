@@ -114,7 +114,7 @@ mod tests {
 
     use super::*;
 
-    fn within_jitter_of(elapsed: Duration, unjittered_delay: Duration) -> bool {
+    fn delay_within_jitter(elapsed: Duration, unjittered_delay: Duration) -> bool {
         elapsed >= unjittered_delay.mul_f64(0.75) && elapsed <= unjittered_delay.mul_f64(1.25)
     }
 
@@ -122,17 +122,17 @@ mod tests {
     fn reconnect_delays_double_up_to_the_cap_and_reset_after_a_delivery() {
         let mut backoff = ReconnectBackoff::default();
         let first_delays: Vec<Duration> = repeat_with(|| backoff.next_delay()).take(3).collect();
-        assert!(within_jitter_of(first_delays[0], Duration::from_secs(1)));
-        assert!(within_jitter_of(first_delays[1], Duration::from_secs(2)));
-        assert!(within_jitter_of(first_delays[2], Duration::from_secs(4)));
+        assert!(delay_within_jitter(first_delays[0], Duration::from_secs(1)));
+        assert!(delay_within_jitter(first_delays[1], Duration::from_secs(2)));
+        assert!(delay_within_jitter(first_delays[2], Duration::from_secs(4)));
         let capped_delay = repeat_with(|| backoff.next_delay())
             .take(40)
             .last()
             .unwrap();
         assert!(capped_delay <= LONGEST_RECONNECT_DELAY);
-        assert!(within_jitter_of(capped_delay, LONGEST_RECONNECT_DELAY));
+        assert!(delay_within_jitter(capped_delay, LONGEST_RECONNECT_DELAY));
         backoff.delivered();
-        assert!(within_jitter_of(
+        assert!(delay_within_jitter(
             backoff.next_delay(),
             Duration::from_secs(1)
         ));
@@ -155,7 +155,10 @@ mod tests {
         assert_eq!(subscribed_events.next().await, Some(Err("source ended")));
         assert_eq!(started.elapsed(), Duration::ZERO);
         assert_eq!(subscribed_events.next().await, Some(Ok(1)));
-        assert!(within_jitter_of(started.elapsed(), FIRST_RECONNECT_DELAY));
+        assert!(delay_within_jitter(
+            started.elapsed(),
+            FIRST_RECONNECT_DELAY
+        ));
     }
 
     #[tokio::test(start_paused = true)]
@@ -170,13 +173,13 @@ mod tests {
         assert_eq!(subscribed_events.next().await, Some(Err("refused")));
         let second_attempt_at = time::Instant::now();
         assert_eq!(subscribed_events.next().await, Some(Err("refused")));
-        assert!(within_jitter_of(
+        assert!(delay_within_jitter(
             second_attempt_at.elapsed(),
             Duration::from_secs(1)
         ));
         let third_attempt_at = time::Instant::now();
         assert_eq!(subscribed_events.next().await, Some(Err("refused")));
-        assert!(within_jitter_of(
+        assert!(delay_within_jitter(
             third_attempt_at.elapsed(),
             Duration::from_secs(2)
         ));

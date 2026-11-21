@@ -14,11 +14,23 @@ pub enum MenuItemIcon {
     Embedded(Arc<RgbaImage>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MenuLabel {
+    Labelled(String),
+    Unlabelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuItemSensitivity {
+    Enabled,
+    Disabled,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuNode {
     pub id: i32,
-    pub label: Option<String>,
-    pub enabled: bool,
+    pub label: MenuLabel,
+    pub sensitivity: MenuItemSensitivity,
     pub kind: MenuKind,
     pub icon: MenuItemIcon,
     pub children: Vec<MenuNode>,
@@ -120,8 +132,13 @@ pub fn visible_menu_node(menu_item: &MenuItem) -> Option<MenuNode> {
             .label
             .as_deref()
             .map(label_without_mnemonics)
-            .and_then(non_empty),
-        enabled: menu_item.enabled,
+            .and_then(non_empty)
+            .map_or(MenuLabel::Unlabelled, MenuLabel::Labelled),
+        sensitivity: if menu_item.enabled {
+            MenuItemSensitivity::Enabled
+        } else {
+            MenuItemSensitivity::Disabled
+        },
         kind,
         icon: menu_item_icon(menu_item),
         children,

@@ -28,7 +28,7 @@ pub enum ConfiguredOrderStatus {
 }
 
 impl ConfiguredWorkspaces {
-    fn present_on<'s>(&'s self, live: &[WorkspaceIndicator]) -> Vec<&'s str> {
+    fn present_on<'config>(&'config self, live: &[WorkspaceIndicator]) -> Vec<&'config str> {
         self.workspace_names
             .iter()
             .map(String::as_str)

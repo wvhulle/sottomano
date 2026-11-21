@@ -12,7 +12,10 @@ use iced::{Subscription, Task};
 use scoped_servers::{ScopedLlamaServers, ScopedServersInteraction, ScopedServersMessage};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    ai_usage_spend::{gguf_header_model_card::GgufModelCard, llama_server_slots::LlamaModelProps},
+    ai_usage_spend::{
+        gguf_header_model_card::GgufModelCard,
+        llama_server_slots::{ChildInstance, LlamaModelProps, ModelFileArgument},
+    },
     system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
     systemd_units_journal::SystemdUnitScope,
     voice_dictation_input::huggingface_model_card::HuggingFaceModelCard,
@@ -127,25 +130,27 @@ impl LlamaServerGroup {
             Bus::Session => &self.user,
             Bus::System => &self.system,
         };
-        let resident_instance = servers.resident_instance(&served_model.unit);
-        let resident_model_file = servers.resident_model_file(&served_model.unit);
-        let props_fetch = resident_instance.map(|instance| {
-            self.model_props.start_hover_fetch(
+        let Some(resident_model) = servers.resident_model(&served_model.unit).cloned() else {
+            return Task::none();
+        };
+        let mut model_fetches = Vec::new();
+        if let ChildInstance::Listening(instance) = resident_model.instance {
+            model_fetches.push(self.model_props.start_hover_fetch(
                 instance,
                 LlamaServerMessage::ModelPropsFetched,
                 config,
                 clock,
-            )
-        });
-        let card_read = resident_model_file.map(|model_file| {
-            self.gguf_card.start_hover_fetch(
+            ));
+        }
+        if let ModelFileArgument::Given(model_file) = resident_model.model_file {
+            model_fetches.push(self.gguf_card.start_hover_fetch(
                 model_file,
                 LlamaServerMessage::GgufCardRead,
                 config,
                 clock,
-            )
-        });
-        Task::batch(props_fetch.into_iter().chain(card_read))
+            ));
+        }
+        Task::batch(model_fetches)
     }
 
     fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {

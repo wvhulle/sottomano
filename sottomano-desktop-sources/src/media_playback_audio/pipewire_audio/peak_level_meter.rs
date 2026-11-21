@@ -80,19 +80,25 @@ pub fn attach(core: &CoreRc, peaks: &watch::Sender<Peaks>) -> Vec<Meter> {
         .into_iter()
         .filter_map(|direction| {
             capture(core, direction, peaks)
-                .inspect_err(|e| {
-                    tracing::debug!("audio: no {} level meter: {e}", stream_name(direction));
+                .inspect_err(|error| {
+                    tracing::debug!("audio: no {} level meter: {error}", stream_name(direction));
                 })
                 .ok()
         })
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StreamErrorReport {
+    Pending,
+    Logged,
+}
+
 struct Capture {
     direction: Direction,
     envelope: Envelope,
     published_at: Instant,
-    reported: bool,
+    error_report: StreamErrorReport,
     peaks: watch::Sender<Peaks>,
 }
 
@@ -102,7 +108,7 @@ impl Capture {
             direction,
             envelope: Envelope::silent(created_at),
             published_at: created_at,
-            reported: false,
+            error_report: StreamErrorReport::Pending,
             peaks,
         }
     }
@@ -141,15 +147,15 @@ impl Capture {
 
     fn report(&mut self, state: &StreamState) {
         match state {
-            StreamState::Error(message) if !self.reported => {
-                self.reported = true;
+            StreamState::Error(message) if self.error_report == StreamErrorReport::Pending => {
+                self.error_report = StreamErrorReport::Logged;
                 tracing::warn!(
                     "audio: {} stopped: {message}{}",
                     stream_name(self.direction),
                     remedy(self.direction)
                 );
             }
-            StreamState::Streaming => self.reported = false,
+            StreamState::Streaming => self.error_report = StreamErrorReport::Pending,
             _ => {}
         }
     }
@@ -282,7 +288,10 @@ fn quantize(value: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn capture_of(direction: Direction, created_at: Instant) -> (Capture, watch::Receiver<Peaks>) {
+    fn fresh_capture_with_receiver(
+        direction: Direction,
+        created_at: Instant,
+    ) -> (Capture, watch::Receiver<Peaks>) {
         let (peaks, receiver) = watch::channel(Peaks::default());
         (Capture::new(direction, peaks, created_at), receiver)
     }
@@ -290,7 +299,7 @@ mod tests {
     #[test]
     fn attack_is_immediate_and_release_is_gradual() {
         let start = Instant::now();
-        let (mut capture, _receiver) = capture_of(Direction::Output, start);
+        let (mut capture, _receiver) = fresh_capture_with_receiver(Direction::Output, start);
         capture.observe(1.0, start);
         assert_eq!(capture.envelope.value, 1.0);
 
@@ -305,7 +314,7 @@ mod tests {
     #[test]
     fn silence_publishes_immediately_after_a_peak() {
         let start = Instant::now();
-        let (mut capture, receiver) = capture_of(Direction::Output, start);
+        let (mut capture, receiver) = fresh_capture_with_receiver(Direction::Output, start);
         capture.observe(1.0, start);
         assert_eq!(receiver.borrow().output, 1.0);
 
@@ -316,7 +325,7 @@ mod tests {
     #[test]
     fn rapid_peaks_are_rate_limited() {
         let start = Instant::now();
-        let (mut capture, receiver) = capture_of(Direction::Output, start);
+        let (mut capture, receiver) = fresh_capture_with_receiver(Direction::Output, start);
         capture.observe(1.0, start);
         capture.observe(0.001, start + Duration::from_millis(1));
         assert_eq!(receiver.borrow().output, 1.0);

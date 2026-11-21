@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use sottomano_desktop_sources::desktop_windows_apps::{
-    application_menu_nodes::{MenuItemIcon, MenuKind, ToggleCheck, ToggleMark},
+    application_menu_nodes::{
+        MenuItemIcon, MenuItemSensitivity, MenuKind, MenuLabel, ToggleCheck, ToggleMark,
+    },
     focused_window_menu_bar::{FocusedWindowOwner, MenuBarMatch, ShownMenuBar},
     gtk_menus_menu_bar::{
         ApplicationActionPath, GtkActionScope, GtkActionTarget, WindowActionPath,
@@ -22,8 +24,8 @@ const SIDEBAR_TOGGLE_ID: i32 = 7;
 fn menu_node(id: i32, label: &str, kind: MenuKind, children: Vec<MenuNode>) -> MenuNode {
     MenuNode {
         id,
-        label: Some(label.to_owned()),
-        enabled: true,
+        label: MenuLabel::Labelled(label.to_owned()),
+        sensitivity: MenuItemSensitivity::Enabled,
         kind,
         icon: MenuItemIcon::NoIcon,
         children,
@@ -48,11 +50,11 @@ fn file_menu() -> Vec<MenuNode> {
                 )],
             ),
             MenuNode {
-                label: None,
+                label: MenuLabel::Unlabelled,
                 ..menu_node(SEPARATOR_ID, "", MenuKind::Separator, Vec::new())
             },
             MenuNode {
-                enabled: false,
+                sensitivity: MenuItemSensitivity::Disabled,
                 ..menu_node(PRINT_ITEM_ID, "Print", MenuKind::Standard, Vec::new())
             },
             menu_node(

@@ -21,8 +21,9 @@ use zbus::{
 
 use super::{
     notification_data::{
-        ActionTint, ExpireTimeout, NotifAction, NotificationData, Outbound, ReplyPrompt,
-        ServerEvent,
+        ActionTint, DesktopEntryHint, ExpireTimeout, NotifAction, NotificationBody,
+        NotificationData, NotificationProgress, NotifyingAppName, Outbound, ReplyPrompt,
+        SenderWindowHint, ServerEvent,
     },
     notification_image_policy::image_role,
     spec_hints::{
@@ -92,27 +93,39 @@ impl NotificationServer {
                 .partition(|action| action.key == INLINE_REPLY);
         let data = NotificationData {
             id,
-            app_name: non_empty(app_name),
+            app_name: match non_empty(app_name) {
+                Some(named) => NotifyingAppName::Named(named),
+                None => NotifyingAppName::Unnamed,
+            },
             image,
             image_role,
             app_icon,
             summary,
-            body: non_empty(body),
+            body: match non_empty(body) {
+                Some(text) => NotificationBody::Text(text),
+                None => NotificationBody::Bodiless,
+            },
             reply: reply_prompt(reply_actions.first(), &hints),
             actions,
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::client_requested_millis(expire_timeout),
-            window_id_hint: CompositorKind::detected().and_then(|compositor| {
+            window_id_hint: match CompositorKind::detected().and_then(|compositor| {
                 hinted_window_id(&hints, |hint_text| {
                     compositor.notification_window_id(hint_text)
                 })
-            }),
+            }) {
+                Some(window) => SenderWindowHint::Window(window),
+                None => SenderWindowHint::Unhinted,
+            },
             sender_ancestry: match sender {
                 OwnerProcess::Identified(pid) => process_ancestry(pid),
                 OwnerProcess::Unidentified => Vec::new(),
             },
             sender,
-            desktop_entry: hint_str(&hints, "desktop-entry"),
+            desktop_entry: match hint_str(&hints, "desktop-entry") {
+                Some(entry) => DesktopEntryHint::Entry(entry),
+                None => DesktopEntryHint::Unhinted,
+            },
             sound_request: sound_request(&hints),
             category: notification_category(&hints),
             residency: match hint_flag(&hints, "resident") {
@@ -317,8 +330,11 @@ fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64>
         .ok()
 }
 
-fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Option<Ratio> {
-    prop::<i32>(hints, "value").map(clamped_progress)
+fn hint_progress(hints: &HashMap<String, OwnedValue>) -> NotificationProgress {
+    match prop::<i32>(hints, "value") {
+        Some(percent_value) => NotificationProgress::Measured(clamped_progress(percent_value)),
+        None => NotificationProgress::Unmeasured,
+    }
 }
 
 fn clamped_progress(percent_value: i32) -> Ratio {

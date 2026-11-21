@@ -685,7 +685,7 @@ fn roster_with_refresh(
     stream::once(async {
         zbus::Connection::system()
             .await
-            .inspect_err(|e| tracing::warn!("gamepad: no system bus for Bluetooth aliases: {e}"))
+            .inspect_err(|error| tracing::warn!("gamepad: no system bus for Bluetooth aliases: {error}"))
             .ok()
     })
     .flat_map(move |system_bus| {

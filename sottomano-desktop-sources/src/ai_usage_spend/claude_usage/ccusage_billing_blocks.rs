@@ -1,7 +1,8 @@
-use std::{future::ready, path::PathBuf};
+use std::future::ready;
 
 use chrono::{DateTime, Local, Utc};
 use futures::Stream;
+use sottomano_toml_config::secrets::StoredSecret;
 
 use super::{Error, local_log_samples};
 use crate::{
@@ -26,7 +27,7 @@ pub struct ClaudeCcusagePeriods {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClaudeLocalLogs {
     pub budget: SpendBudget,
-    pub credentials: Option<PathBuf>,
+    pub credentials: StoredSecret,
 }
 
 impl ClaudeCcusagePeriods {
@@ -72,8 +73,9 @@ impl ClaudeCcusagePeriods {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClaudeCcusageBlock {
-    pub active: Option<BillingBlock>,
+pub enum ClaudeCcusageBlock {
+    Active(BillingBlock),
+    NoActiveBlock,
 }
 
 impl SnapshotSource for ClaudeCcusageBlock {
@@ -91,11 +93,13 @@ impl SnapshotSource for ClaudeCcusageBlock {
                 .paced_rereads(
                     TRANSCRIPT_REREAD_MINIMUM_GAP,
                     Self::read,
-                    |block| match block.as_ref().map(|block| block.active.as_ref()) {
-                        Ok(Some(active)) => RereadSchedule::RecheckAt(
-                            ccusage_cli_reports::instant_of(active.ends_at),
+                    |block| match block {
+                        Ok(ClaudeCcusageBlock::Active(active)) => RereadSchedule::RecheckAt(
+                            ccusage_cli_reports::monotonic_instant(active.ends_at),
                         ),
-                        Ok(None) | Err(_) => RereadSchedule::WaitForTrigger,
+                        Ok(ClaudeCcusageBlock::NoActiveBlock) | Err(_) => {
+                            RereadSchedule::WaitForTrigger
+                        }
                     },
                 )))
             })
@@ -105,11 +109,13 @@ impl SnapshotSource for ClaudeCcusageBlock {
 
 impl ClaudeCcusageBlock {
     async fn read() -> Result<Self, Error> {
-        Ok(ClaudeCcusageBlock {
-            active: ccusage_cli_reports::active_blocks(Agent::ClaudeCode)
-                .await?
-                .into_iter()
-                .next(),
-        })
+        Ok(ccusage_cli_reports::active_blocks(Agent::ClaudeCode)
+            .await?
+            .into_iter()
+            .next()
+            .map_or(
+                ClaudeCcusageBlock::NoActiveBlock,
+                ClaudeCcusageBlock::Active,
+            ))
     }
 }

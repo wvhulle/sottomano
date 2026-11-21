@@ -6,13 +6,13 @@ use std::{
     time::Duration,
 };
 
-use bytesize::ByteSize;
 use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
@@ -31,9 +31,15 @@ const EXCLUDED_CONTAINERS: [&str; 1] = ["waydroid"];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LxcContainer {
     pub listing: LxcContainerListing,
-    pub memory_in_use: Option<ByteSize>,
+    pub memory_in_use: ContainerMemoryUse,
     pub configured_addresses: Vec<String>,
-    pub config_path: Option<PathBuf>,
+    pub config_path: LxcConfigFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LxcConfigFile {
+    InLxcPath(PathBuf),
+    OutsideLxcPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +123,7 @@ fn named_lxc_containers(
         .collect::<BTreeSet<String>>()
         .into_iter()
         .map(|container_name| LxcContainerListing {
-            run_state: run_state_of(running_cgroups.get(&container_name)),
+            run_state: payload_run_state(running_cgroups.get(&container_name)),
             container_name,
         })
         .collect();
@@ -212,13 +218,14 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> FamilyDetails<LxcCo
             let config_path = config_paths.remove(&container_name);
             LxcContainer {
                 listing: LxcContainerListing {
-                    run_state: run_state_of(payload_cgroup.as_ref()),
+                    run_state: payload_run_state(payload_cgroup.as_ref()),
                     container_name,
                 },
                 memory_in_use: payload_cgroup
                     .as_deref()
                     .and_then(read_cgroup_memory)
-                    .map(|sample| sample.current),
+                    .map(|sample| sample.current)
+                    .into(),
                 configured_addresses: config_path
                     .as_deref()
                     .and_then(|config_path| {
@@ -233,14 +240,15 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> FamilyDetails<LxcCo
                     })
                     .map(|config_text| configured_addresses_in(&config_text))
                     .unwrap_or_default(),
-                config_path,
+                config_path: config_path
+                    .map_or(LxcConfigFile::OutsideLxcPath, LxcConfigFile::InLxcPath),
             }
         })
         .collect();
     FamilyDetails { details }
 }
 
-fn run_state_of(payload_cgroup: Option<&PathBuf>) -> ContainerRunState {
+fn payload_run_state(payload_cgroup: Option<&PathBuf>) -> ContainerRunState {
     match payload_cgroup {
         Some(_) => ContainerRunState::Running,
         None => ContainerRunState::Stopped,
@@ -267,7 +275,9 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::{configured_addresses_in, listed_containers};
-    use crate::container_run_state::ContainerRunState;
+    use crate::{
+        container_run_state::ContainerRunState, container_runtime_facts::ContainerMemoryUse,
+    };
 
     #[test]
     fn a_static_address_is_read_from_the_container_config() {
@@ -295,7 +305,7 @@ mod tests {
         }
         let listed = listed_containers(&lxc_path, &cgroup_root);
         fs::remove_dir_all(&scratch).unwrap();
-        let summary: Vec<(&str, ContainerRunState, Option<ByteSize>)> = listed
+        let summary: Vec<(&str, ContainerRunState, ContainerMemoryUse)> = listed
             .details
             .iter()
             .map(|container| {
@@ -309,8 +319,16 @@ mod tests {
         assert_eq!(
             summary,
             [
-                ("backup", ContainerRunState::Stopped, None),
-                ("media", ContainerRunState::Running, Some(ByteSize::mib(50)))
+                (
+                    "backup",
+                    ContainerRunState::Stopped,
+                    ContainerMemoryUse::Unaccounted
+                ),
+                (
+                    "media",
+                    ContainerRunState::Running,
+                    ContainerMemoryUse::Measured(ByteSize::mib(50))
+                )
             ]
         );
     }

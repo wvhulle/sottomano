@@ -113,7 +113,7 @@ pub struct CaldavAccount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CalendarHolding {
+pub enum CalendarHolding {
     Holds,
     Lacks,
 }
@@ -272,7 +272,9 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
         };
         let shown_calendars: Vec<&CalendarCollection> = calendars
             .iter()
-            .filter(|calendar| listing.visibility_of(&calendar.href) == CalendarVisibility::Shown)
+            .filter(|calendar| {
+                listing.calendar_visibility(&calendar.href) == CalendarVisibility::Shown
+            })
             .collect();
         let provider = CaldavProvider::detected(
             &self.account.server_url,

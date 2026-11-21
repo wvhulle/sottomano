@@ -2,26 +2,27 @@ use std::{
     collections::{HashMap, HashSet},
     iter,
     ops::Add,
-    path::PathBuf,
     time::{Duration, Instant},
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, stream};
+use futures::Stream;
 use procfs::{
     Current, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
-use sottomano_compositor_model::compositor_window_facts::WindowAppId;
 use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::Panicked,
-    delivery_cadence_drivers::PeriodicPolling,
-    desktop_windows_apps::nix_store_provenance::Provenance, non_empty_text::non_empty,
+    delivery_cadence_drivers::PeriodicPolling, non_empty_text::non_empty,
 };
+
+mod launched_process_facts;
+
+pub use launched_process_facts::{CgroupScope, Inspection, Launch, LaunchBinary, Watched, launch};
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
 const SAMPLE_WINDOW: Duration = Duration::from_millis(500);
@@ -178,8 +179,8 @@ impl From<u64> for CpuCapacity {
     }
 }
 
-struct CpuWindow<'a> {
-    previous: &'a CpuSamples,
+struct CpuWindow<'samples> {
+    previous: &'samples CpuSamples,
     elapsed: Duration,
     capacity: CpuCapacity,
 }
@@ -327,82 +328,6 @@ fn graft(mut node: Process, brood: &mut HashMap<i32, Vec<Process>>) -> Process {
     node
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Launch {
-    pub binary: Option<PathBuf>,
-    pub arguments: Vec<String>,
-    pub scope: Option<String>,
-}
-
-#[must_use]
-pub fn launch(pid: i32) -> Option<Launch> {
-    let process = Proc::new(pid)
-        .inspect_err(|open_failure| tracing::debug!("process launch: open {pid}: {open_failure}"))
-        .ok()?;
-    Some(Launch {
-        binary: process
-            .exe()
-            .inspect_err(|exe_failure| {
-                tracing::debug!("process launch: exe of {pid}: {exe_failure}");
-            })
-            .ok(),
-        arguments: process.cmdline().unwrap_or_else(|cmdline_failure| {
-            tracing::debug!("process launch: cmdline of {pid}: {cmdline_failure}");
-            Vec::new()
-        }),
-        scope: scope(&process),
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Watched {
-    pub window: u64,
-    pub pid: i32,
-    pub app_id: WindowAppId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Inspection {
-    pub pid: i32,
-    pub launch: Launch,
-    pub provenance: Provenance,
-}
-
-fn inspect(watched: &Watched) -> Option<Inspection> {
-    let launch = launch(watched.pid)?;
-    let provenance = launch
-        .binary
-        .as_deref()
-        .map(|binary| Provenance::trace_launch(binary, &launch.arguments, &watched.app_id))
-        .unwrap_or_default();
-    Some(Inspection {
-        pid: watched.pid,
-        launch,
-        provenance,
-    })
-}
-
-impl SnapshotSource for Inspection {
-    type Error = Error;
-    type StreamInputs = Watched;
-
-    const NAME: &'static str = "Package";
-
-    fn delivery_stream(watched: Watched) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(Self::read(watched)).map(SnapshotDelivery::single_read)
-    }
-}
-
-impl Inspection {
-    async fn read(watched: Watched) -> Result<Self, Error> {
-        let pid = watched.pid;
-        spawn_blocking(move || inspect(&watched))
-            .await
-            .map_err(|_| Error::Panicked(Panicked))?
-            .ok_or(Error::Exited { pid })
-    }
-}
-
 #[must_use]
 pub fn binary_name(process: &Proc) -> Option<String> {
     let exe = process
@@ -428,136 +353,5 @@ fn started_seconds(stat: &Stat) -> f64 {
     stat.starttime as f64 / ticks_per_second() as f64
 }
 
-fn scope(process: &Proc) -> Option<String> {
-    let groups = process
-        .cgroups()
-        .inspect_err(|cgroup_failure| {
-            tracing::debug!(
-                "process launch: cgroups of {}: {cgroup_failure}",
-                process.pid
-            );
-        })
-        .ok()?;
-    let unified = groups.0.iter().find(|group| group.hierarchy == 0)?;
-    let unit = unified.pathname.rsplit('/').find(|part| !part.is_empty())?;
-    Some(unit.to_owned())
-}
-
 #[cfg(test)]
-mod tests {
-    use uom::si::ratio::percent;
-
-    use super::*;
-
-    fn leaf(pid: i32, parent: i32) -> Process {
-        Process {
-            pid,
-            parent,
-            name: format!("proc{pid}"),
-            memory: ByteSize::b(0),
-            cpu: Ratio::new::<ratio>(0.0),
-            threads: 1,
-            uptime: Duration::ZERO,
-            children: Vec::new(),
-        }
-    }
-
-    fn grown(pid: i32, leaves: impl IntoIterator<Item = Process>) -> Process {
-        let mut brood = by_parent(leaves);
-        let root = brood
-            .values()
-            .flatten()
-            .find(|node| node.pid == pid)
-            .cloned()
-            .unwrap_or_else(|| leaf(pid, 0));
-        graft(root, &mut brood)
-    }
-
-    fn shape(node: &Process) -> Vec<i32> {
-        let mut pids = vec![node.pid];
-        pids.extend(node.children.iter().flat_map(shape));
-        pids
-    }
-
-    #[test]
-    fn chain_nests_by_parent() {
-        let root = grown(1, [leaf(1, 0), leaf(2, 1), leaf(3, 2), leaf(4, 1)]);
-        assert_eq!(shape(&root), vec![1, 2, 3, 4]);
-        assert_eq!(root.count(), 4);
-    }
-
-    #[test]
-    fn pruning_keeps_only_branches_holding_a_kept_process() {
-        let kitty = grown(
-            1,
-            [
-                leaf(1, 0),
-                leaf(2, 1),
-                leaf(3, 2),
-                leaf(4, 1),
-                leaf(5, 4),
-                leaf(6, 1),
-            ],
-        );
-        assert_eq!(shape(&kitty.pruned_to(&[2, 5])), vec![1, 2, 3, 4, 5]);
-        assert_eq!(shape(&kitty.pruned_to(&[])), vec![1]);
-    }
-
-    #[test]
-    fn pruning_reaches_through_an_intermediate_fork_server() {
-        let firefox = grown(
-            1,
-            [
-                leaf(1, 0),
-                leaf(2, 1),
-                leaf(3, 2),
-                leaf(4, 2),
-                leaf(5, 4),
-                leaf(6, 1),
-            ],
-        );
-        assert_eq!(shape(&firefox.pruned_to(&[4])), vec![1, 2, 4, 5]);
-    }
-
-    #[test]
-    fn absent_parent_still_yields_its_child() {
-        assert_eq!(shape(&grown(7, [leaf(7, 5), leaf(8, 7)])), vec![7, 8]);
-    }
-
-    #[test]
-    fn one_saturated_core_is_a_whole_share() {
-        assert_eq!(
-            CpuCapacity::one_core().busy_fraction(50, Duration::from_millis(500)),
-            Ratio::new::<ratio>(1.0)
-        );
-    }
-
-    #[test]
-    fn four_saturated_cores_exceed_a_whole_share() {
-        assert_eq!(
-            CpuCapacity::one_core().busy_fraction(200, Duration::from_millis(500)),
-            Ratio::new::<percent>(400.0)
-        );
-    }
-
-    #[test]
-    fn no_elapsed_time_is_idle() {
-        assert_eq!(
-            CpuCapacity::one_core().busy_fraction(50, Duration::ZERO),
-            Ratio::new::<ratio>(0.0)
-        );
-    }
-
-    #[test]
-    fn cpu_total_sums_descendants() {
-        let mut root = grown(1, [leaf(1, 0), leaf(2, 1), leaf(3, 1)]);
-        root.children[0].cpu = Ratio::new::<percent>(40.0);
-        root.children[1].cpu = Ratio::new::<percent>(60.0);
-        assert_eq!(root.cpu_total(), Ratio::new::<ratio>(1.0));
-    }
-
-    #[test]
-    fn self_parented_process_does_not_recurse() {
-        assert_eq!(shape(&grown(1, [leaf(1, 1), leaf(2, 1)])), vec![1, 2]);
-    }
-}
+mod process_tree_inspection_tests;

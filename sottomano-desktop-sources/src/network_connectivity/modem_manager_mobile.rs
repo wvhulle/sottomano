@@ -1,7 +1,10 @@
+mod modem_state_codes;
+
 use std::collections::HashMap;
 
 use bytesize::ByteSize;
 use futures::Stream;
+pub use modem_state_codes::{ModemFailure, ModemState, NetworkRegistration};
 use zbus::{
     fdo::ManagedObjects,
     names::OwnedInterfaceName,
@@ -10,9 +13,10 @@ use zbus::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    host_machine_identity::udev_hardware_identity::{Adapter, DeviceIdentity, reported},
+    host_machine_identity::udev_hardware_identity::{DeviceIdentity, HardwareText, reported},
     network_connectivity::{
-        device_or_absent, interface, managed_objects_samples, network_manager_proxies,
+        device_or_absent, interface, interface_bus_attachment::AdapterIdentity,
+        managed_objects_samples, network_manager_proxies,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses, Properties, prop},
 };
@@ -32,30 +36,64 @@ pub struct MobileModems {
 pub struct Mobile {
     pub modem_path: String,
     pub identity: DeviceIdentity,
-    pub adapter: Option<Adapter>,
-    pub operator: Option<String>,
+    pub adapter: AdapterIdentity,
+    pub operator: MobileOperator,
     pub technology: Vec<String>,
-    pub signal: Option<i64>,
-    pub signal_recent: bool,
-    pub registration: Option<&'static str>,
-    pub state: Option<ModemState>,
-    pub ipv4: Option<String>,
-    pub ipv6: Option<String>,
-    pub rx: Option<ByteSize>,
-    pub tx: Option<ByteSize>,
+    pub signal: SignalQuality,
+    pub registration: NetworkRegistration,
+    pub state: ModemState,
+    pub ipv4: BearerAddress,
+    pub ipv6: BearerAddress,
+    pub traffic: BearerTraffic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MobileOperator {
+    Named(String),
+    Unannounced,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignalFreshness {
+    Recent,
+    Cached,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignalQuality {
+    Measured {
+        percent: i64,
+        freshness: SignalFreshness,
+    },
+    Unmeasured,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum BearerAddress {
+    Assigned(String),
+    #[default]
+    Unassigned,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BearerTraffic {
+    Counted {
+        received: ByteSize,
+        sent: ByteSize,
+    },
+    #[default]
+    Uncounted,
 }
 
 impl Mobile {
     #[must_use]
     pub fn link_state(&self) -> network_manager_proxies::LinkPhase {
         match self.state {
-            Some(ModemState::Connected) => network_manager_proxies::LinkPhase::Up,
-            Some(
-                ModemState::Enabling
-                | ModemState::Disabling
-                | ModemState::Connecting
-                | ModemState::Disconnecting,
-            ) => network_manager_proxies::LinkPhase::Switching,
+            ModemState::Connected => network_manager_proxies::LinkPhase::Up,
+            ModemState::Enabling
+            | ModemState::Disabling
+            | ModemState::Connecting
+            | ModemState::Disconnecting => network_manager_proxies::LinkPhase::Switching,
             _ => network_manager_proxies::LinkPhase::Down,
         }
     }
@@ -63,105 +101,11 @@ impl Mobile {
     #[must_use]
     pub fn radio_power(&self) -> network_manager_proxies::RadioPower {
         match self.state {
-            None | Some(ModemState::Disabled | ModemState::Disabling) => {
+            ModemState::Unreported | ModemState::Disabled | ModemState::Disabling => {
                 network_manager_proxies::RadioPower::Off
             }
-            Some(_) => network_manager_proxies::RadioPower::On,
+            _ => network_manager_proxies::RadioPower::On,
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ModemState {
-    Failed { reason: Option<&'static str> },
-    Initializing,
-    Locked,
-    Disabled,
-    Disabling,
-    Enabling,
-    Enabled,
-    Searching,
-    Registered,
-    Disconnecting,
-    Connecting,
-    Connected,
-}
-
-impl TryFrom<i32> for ModemState {
-    type Error = i32;
-
-    fn try_from(state_code: i32) -> Result<Self, Self::Error> {
-        match state_code {
-            -1 => Ok(Self::Failed { reason: None }),
-            1 => Ok(Self::Initializing),
-            2 => Ok(Self::Locked),
-            3 => Ok(Self::Disabled),
-            4 => Ok(Self::Disabling),
-            5 => Ok(Self::Enabling),
-            6 => Ok(Self::Enabled),
-            7 => Ok(Self::Searching),
-            8 => Ok(Self::Registered),
-            9 => Ok(Self::Disconnecting),
-            10 => Ok(Self::Connecting),
-            11 => Ok(Self::Connected),
-            unknown => Err(unknown),
-        }
-    }
-}
-
-impl ModemState {
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Failed { .. } => "failed",
-            Self::Initializing => "initializing",
-            Self::Locked => "locked",
-            Self::Disabled => "disabled",
-            Self::Disabling => "disabling",
-            Self::Enabling => "enabling",
-            Self::Enabled => "enabled",
-            Self::Searching => "searching",
-            Self::Registered => "registered",
-            Self::Disconnecting => "disconnecting",
-            Self::Connecting => "connecting",
-            Self::Connected => "connected",
-        }
-    }
-
-    fn with_failure_reason(self, reason_code: Option<u32>) -> Self {
-        match self {
-            Self::Failed { .. } => Self::Failed {
-                reason: reason_code.and_then(failed_reason_name),
-            },
-            other => other,
-        }
-    }
-}
-
-fn registration_name(state: u32) -> Option<&'static str> {
-    match state {
-        0 => Some("idle"),
-        1 => Some("home"),
-        2 => Some("searching"),
-        3 => Some("denied"),
-        5 => Some("roaming"),
-        6 => Some("home-sms-only"),
-        7 => Some("roaming-sms-only"),
-        8 => Some("emergency-only"),
-        9 => Some("home-csfb-not-preferred"),
-        10 => Some("roaming-csfb-not-preferred"),
-        11 => Some("attached-rlos"),
-        _ => None,
-    }
-}
-
-fn failed_reason_name(reason: u32) -> Option<&'static str> {
-    match reason {
-        2 => Some("sim-missing"),
-        3 => Some("sim-error"),
-        4 => Some("unknown-capabilities"),
-        5 => Some("esim-without-profiles"),
-        _ => None,
     }
 }
 
@@ -194,43 +138,46 @@ fn technologies(bits: u32) -> Vec<String> {
 
 #[derive(Default)]
 struct BearerInfo {
-    ipv4: Option<String>,
-    ipv6: Option<String>,
-    rx: Option<ByteSize>,
-    tx: Option<ByteSize>,
+    ipv4: BearerAddress,
+    ipv6: BearerAddress,
+    traffic: BearerTraffic,
 }
 
-fn bearer_address(config: &HashMap<String, OwnedValue>) -> Option<String> {
-    prop::<String>(config, "address")
+fn bearer_address(bearer: &Properties, config_key: &str) -> BearerAddress {
+    prop::<HashMap<String, OwnedValue>>(bearer, config_key)
+        .and_then(|config| prop::<String>(&config, "address"))
+        .map_or(BearerAddress::Unassigned, BearerAddress::Assigned)
 }
 
-fn transferred(stats: &HashMap<String, OwnedValue>, key: &str) -> Option<ByteSize> {
-    prop::<u64>(stats, key).map(ByteSize::b)
+fn bearer_traffic(bearer: &Properties) -> BearerTraffic {
+    let Some(stats) = prop::<HashMap<String, OwnedValue>>(bearer, "Stats") else {
+        return BearerTraffic::Uncounted;
+    };
+    let Some(received) = prop::<u64>(&stats, "rx-bytes") else {
+        return BearerTraffic::Uncounted;
+    };
+    let Some(sent) = prop::<u64>(&stats, "tx-bytes") else {
+        return BearerTraffic::Uncounted;
+    };
+    BearerTraffic::Counted {
+        received: ByteSize::b(received),
+        sent: ByteSize::b(sent),
+    }
 }
 
 fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
     let Some(bearer) = objects.get(path).and_then(|iface| interface(iface, BEARER)) else {
         return BearerInfo::default();
     };
-    let stats = prop::<HashMap<String, OwnedValue>>(bearer, "Stats");
     BearerInfo {
-        ipv4: prop::<HashMap<String, OwnedValue>>(bearer, "Ip4Config")
-            .as_ref()
-            .and_then(bearer_address),
-        ipv6: prop::<HashMap<String, OwnedValue>>(bearer, "Ip6Config")
-            .as_ref()
-            .and_then(bearer_address),
-        rx: stats
-            .as_ref()
-            .and_then(|stats| transferred(stats, "rx-bytes")),
-        tx: stats
-            .as_ref()
-            .and_then(|stats| transferred(stats, "tx-bytes")),
+        ipv4: bearer_address(bearer, "Ip4Config"),
+        ipv6: bearer_address(bearer, "Ip6Config"),
+        traffic: bearer_traffic(bearer),
     }
 }
 
-fn reported_prop(properties: &Properties, key: &str) -> Option<String> {
-    reported(&prop::<String>(properties, key)?)
+fn reported_prop(properties: &Properties, key: &str) -> HardwareText {
+    prop::<String>(properties, key).map_or(HardwareText::Unreported, |raw| reported(&raw))
 }
 
 fn sample(objects: &ManagedObjects) -> Option<MobileModems> {
@@ -250,6 +197,8 @@ fn modem_sample(
     let modem = interface(interfaces, MODEM)?;
     let modem_3gpp = interface(interfaces, MODEM_3GPP);
 
+    let failure = prop::<u32>(modem, "StateFailedReason")
+        .map_or(ModemFailure::Unspecified, ModemFailure::from);
     let state = prop::<i32>(modem, "State")
         .and_then(|code| {
             ModemState::try_from(code)
@@ -260,37 +209,50 @@ fn modem_sample(
                 })
                 .ok()
         })
-        .map(|state| state.with_failure_reason(prop::<u32>(modem, "StateFailedReason")));
+        .map_or(ModemState::Unreported, |state| {
+            state.with_failure_reason(failure)
+        });
     let bearer = prop::<Vec<OwnedObjectPath>>(modem, "Bearers")
         .unwrap_or_default()
         .first()
         .map(|bearer| bearer_info(objects, bearer))
         .unwrap_or_default();
-    let signal = prop::<(u32, bool)>(modem, "SignalQuality");
+    let signal = prop::<(u32, bool)>(modem, "SignalQuality").map_or(
+        SignalQuality::Unmeasured,
+        |(quality, recent)| SignalQuality::Measured {
+            percent: i64::from(quality),
+            freshness: if recent {
+                SignalFreshness::Recent
+            } else {
+                SignalFreshness::Cached
+            },
+        },
+    );
 
     Some(Mobile {
         modem_path: modem_path.as_str().to_owned(),
         identity: DeviceIdentity {
             vendor: reported_prop(modem, "Manufacturer"),
             model: reported_prop(modem, "Model"),
-            serial: None,
+            serial: HardwareText::Unreported,
             revision: reported_prop(modem, "Revision"),
         },
-        adapter: prop::<String>(modem, "Device").and_then(Adapter::read_sysfs_device),
+        adapter: prop::<String>(modem, "Device").map_or(AdapterIdentity::Virtual, |device| {
+            AdapterIdentity::sysfs_device(&device)
+        }),
         operator: modem_3gpp
             .and_then(|iface| prop::<String>(iface, "OperatorName"))
-            .filter(|operator| !operator.is_empty()),
+            .filter(|operator| !operator.is_empty())
+            .map_or(MobileOperator::Unannounced, MobileOperator::Named),
         technology: technologies(prop::<u32>(modem, "AccessTechnologies").unwrap_or(0)),
-        signal: signal.map(|(quality, _)| i64::from(quality)),
-        signal_recent: signal.is_none_or(|(_, recent)| recent),
+        signal,
         registration: modem_3gpp
             .and_then(|iface| prop::<u32>(iface, "RegistrationState"))
-            .and_then(registration_name),
+            .map_or(NetworkRegistration::Unreported, NetworkRegistration::from),
         state,
         ipv4: bearer.ipv4,
         ipv6: bearer.ipv6,
-        rx: bearer.rx,
-        tx: bearer.tx,
+        traffic: bearer.traffic,
     })
 }
 
@@ -342,7 +304,7 @@ mod tests {
                 HashMap::new(),
             ),
         ]);
-        let read_models: Vec<Option<String>> = sample(&objects)
+        let read_models: Vec<HardwareText> = sample(&objects)
             .unwrap()
             .modems
             .into_iter()
@@ -350,7 +312,10 @@ mod tests {
             .collect();
         assert_eq!(
             read_models,
-            [Some("first".to_owned()), Some("second".to_owned())]
+            [
+                HardwareText::Reported("first".to_owned()),
+                HardwareText::Reported("second".to_owned())
+            ]
         );
     }
 

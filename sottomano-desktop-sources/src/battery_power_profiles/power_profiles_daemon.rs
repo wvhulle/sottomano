@@ -194,10 +194,16 @@ impl TryFrom<&Properties> for ProfileHold {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PerformanceDegradation {
+    Degraded { reason: String },
+    FullPerformance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileStatus {
     pub active: Profile,
     pub holds: Vec<ProfileHold>,
-    pub degraded: Option<String>,
+    pub degraded: PerformanceDegradation,
 }
 
 impl SnapshotSource for ProfileStatus {
@@ -264,6 +270,8 @@ async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, B
                     .ok()
             })
             .collect(),
-        degraded: non_empty(degraded),
+        degraded: non_empty(degraded).map_or(PerformanceDegradation::FullPerformance, |reason| {
+            PerformanceDegradation::Degraded { reason }
+        }),
     })
 }

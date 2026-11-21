@@ -4,7 +4,10 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
-    flatpak_sandboxes::{FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing},
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
+    flatpak_sandboxes::{
+        FlatpakBranch, FlatpakProbe, FlatpakRuntime, FlatpakSandbox, FlatpakSandboxListing,
+    },
 };
 
 use crate::{
@@ -71,8 +74,10 @@ pub struct FlatpakSandboxIndicator<'a> {
 impl<'a> FlatpakSandboxIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.sandbox.memory_in_use {
-            Some(memory_in_use) => ReadoutLabel::Labeled(approximate_memory_text(memory_in_use)),
-            None => ReadoutLabel::Unlabeled,
+            ContainerMemoryUse::Measured(memory_in_use) => {
+                ReadoutLabel::Labeled(approximate_memory_text(memory_in_use))
+            }
+            ContainerMemoryUse::Unaccounted => ReadoutLabel::Unlabeled,
         };
         GroupIndicator::glyph_only(
             format!(
@@ -96,30 +101,27 @@ impl<'a> FlatpakSandboxIndicator<'a> {
             "App",
             sandbox.listing.application_id.clone(),
         )];
-        if let Some(memory_in_use) = sandbox.memory_in_use {
+        if let ContainerMemoryUse::Measured(memory_in_use) = sandbox.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
                 approximate_memory_text(memory_in_use),
             ));
         }
-        if let Some(uptime) = sandbox.started_at.and_then(|started_at| {
-            clock
-                .wall
-                .duration_since(started_at)
-                .inspect_err(|clock_skew| {
-                    tracing::debug!(
-                        "flatpak sandboxes: start time of {} lies ahead: {clock_skew}",
-                        sandbox.listing.application_id
-                    );
-                })
-                .ok()
-        }) {
-            detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
+        if let ContainerStartTime::StartedAt(started_at) = sandbox.started_at {
+            match clock.wall.duration_since(started_at) {
+                Ok(uptime) => {
+                    detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
+                }
+                Err(clock_skew) => tracing::debug!(
+                    "flatpak sandboxes: start time of {} lies ahead: {clock_skew}",
+                    sandbox.listing.application_id
+                ),
+            }
         }
-        if let Some(runtime_reference) = &sandbox.runtime_reference {
+        if let FlatpakRuntime::Reference(runtime_reference) = &sandbox.runtime_reference {
             detail_entries.push(LabeledValue::new("Runtime", runtime_reference.clone()));
         }
-        if let Some(branch) = &sandbox.branch {
+        if let FlatpakBranch::Named(branch) = &sandbox.branch {
             detail_entries.push(LabeledValue::new("Branch", branch.clone()));
         }
         detail_entries.extend([

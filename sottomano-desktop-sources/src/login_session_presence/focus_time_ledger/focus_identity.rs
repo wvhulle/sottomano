@@ -16,8 +16,19 @@ pub struct FocusIdentity {
     pub window: u64,
     pub title: WindowTitle,
     pub app_id: String,
-    pub pid: WindowPid,
-    pub shell: Option<i32>,
+    pub probe_target: ProjectProbeTarget,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectProbeTarget {
+    Process(i32),
+    Unreported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FocusProject {
+    Repository(PathBuf),
+    OutsideRepository,
 }
 
 impl FocusIdentity {
@@ -34,8 +45,13 @@ impl FocusIdentity {
             window: window.id,
             title: window.title.clone(),
             app_id: app_id.clone(),
-            pid: window.pid,
-            shell: processes.shown_in(window.id),
+            probe_target: match processes.shown_in(window.id) {
+                Some(shell) => ProjectProbeTarget::Process(shell),
+                None => match window.pid {
+                    WindowPid::Reported(pid) => ProjectProbeTarget::Process(pid),
+                    WindowPid::Unreported => ProjectProbeTarget::Unreported,
+                },
+            },
         })
     }
 
@@ -43,12 +59,9 @@ impl FocusIdentity {
     pub fn probed(self) -> Focused {
         Focused {
             window: self.window,
-            project: match self.shell {
-                Some(shell) => probe_project(shell),
-                None => match self.pid {
-                    WindowPid::Reported(pid) => probe_project(pid),
-                    WindowPid::Unreported => None,
-                },
+            project: match self.probe_target {
+                ProjectProbeTarget::Process(pid) => probe_project(pid),
+                ProjectProbeTarget::Unreported => FocusProject::OutsideRepository,
             },
             app_id: self.app_id,
         }
@@ -59,20 +72,24 @@ impl FocusIdentity {
 pub struct Focused {
     pub window: u64,
     pub app_id: String,
-    pub project: Option<PathBuf>,
+    pub project: FocusProject,
 }
 
 impl Focused {
     pub(super) fn units(&self) -> Vec<FocusUnit> {
-        [Some(FocusUnit::App(self.app_id.clone()))]
-            .into_iter()
-            .chain([self.project.clone().map(FocusUnit::Project)])
-            .flatten()
-            .collect()
+        let app_unit = FocusUnit::App(self.app_id.clone());
+        match &self.project {
+            FocusProject::Repository(root) => vec![app_unit, FocusUnit::Project(root.clone())],
+            FocusProject::OutsideRepository => vec![app_unit],
+        }
     }
 }
 
-fn probe_project(pid: i32) -> Option<PathBuf> {
+fn probe_project(pid: i32) -> FocusProject {
+    leaf_repository(pid).map_or(FocusProject::OutsideRepository, FocusProject::Repository)
+}
+
+fn leaf_repository(pid: i32) -> Option<PathBuf> {
     let leaf = successors(readable_process(pid), |process| {
         readable_process(only_child(process)?)
     })

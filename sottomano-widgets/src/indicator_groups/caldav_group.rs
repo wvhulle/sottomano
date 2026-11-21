@@ -16,7 +16,6 @@ use crate::{
 mod open_tasks_indicator;
 mod upcoming_events_indicator;
 
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,

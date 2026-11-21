@@ -1,5 +1,7 @@
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
+use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
+    LlamaSlot, SlotAssignment, SlotTask, SlotWork,
+};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
@@ -32,8 +34,11 @@ impl<'a> ContextFill<'a> {
     pub fn fullest_busy_slot(slots: &'a [LlamaSlot], server: &'a str) -> Option<Self> {
         let fullest = slots
             .iter()
-            .filter(|slot| slot.processing)
-            .filter_map(|slot| Some(context_fill(slot.task.as_ref()?, slot.context)))
+            .filter(|slot| slot.work == SlotWork::Processing)
+            .filter_map(|slot| match slot.task {
+                SlotAssignment::Assigned(task) => Some(context_fill(&task, slot.context)),
+                SlotAssignment::Unassigned => None,
+            })
             .max_by(|left, right| left.value.total_cmp(&right.value))?;
         Some(Self {
             slots,
@@ -47,18 +52,23 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
     TableRecord::with_cells(
         slot.id.to_string(),
         [
-            if slot.processing {
-                "processing"
-            } else {
-                "idle"
+            match slot.work {
+                SlotWork::Processing => "processing",
+                SlotWork::Idle => "idle",
             }
             .into(),
-            slot.task.map_or(ValueCell::Blank, |task| {
-                format!("{} / {}", task.tokens(), slot.context).into()
-            }),
-            slot.task.map_or(ValueCell::Blank, |task| {
-                Quantity::share(context_fill(&task, slot.context)).into()
-            }),
+            match slot.task {
+                SlotAssignment::Assigned(task) => {
+                    format!("{} / {}", task.tokens(), slot.context).into()
+                }
+                SlotAssignment::Unassigned => ValueCell::Blank,
+            },
+            match slot.task {
+                SlotAssignment::Assigned(task) => {
+                    Quantity::share(context_fill(&task, slot.context)).into()
+                }
+                SlotAssignment::Unassigned => ValueCell::Blank,
+            },
         ],
     )
 }

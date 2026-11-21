@@ -5,8 +5,9 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::FamilyDetails,
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    lxc_containers::{LxcContainer, LxcContainerListing},
+    lxc_containers::{LxcConfigFile, LxcContainer, LxcContainerListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -28,18 +29,22 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                             container_name: "backup".to_owned(),
                             run_state: ContainerRunState::Stopped,
                         },
-                        memory_in_use: None,
+                        memory_in_use: ContainerMemoryUse::Unaccounted,
                         configured_addresses: Vec::new(),
-                        config_path: Some(PathBuf::from("/var/lib/lxc/backup/config")),
+                        config_path: LxcConfigFile::InLxcPath(PathBuf::from(
+                            "/var/lib/lxc/backup/config",
+                        )),
                     },
                     LxcContainer {
                         listing: LxcContainerListing {
                             container_name: HOVERED_CONTAINER_NAME.to_owned(),
                             run_state: ContainerRunState::Running,
                         },
-                        memory_in_use: Some(ByteSize::mib(530)),
+                        memory_in_use: ContainerMemoryUse::Measured(ByteSize::mib(530)),
                         configured_addresses: vec!["10.0.3.15/24".to_owned()],
-                        config_path: Some(PathBuf::from("/var/lib/lxc/media/config")),
+                        config_path: LxcConfigFile::InLxcPath(PathBuf::from(
+                            "/var/lib/lxc/media/config",
+                        )),
                     },
                 ],
             }),

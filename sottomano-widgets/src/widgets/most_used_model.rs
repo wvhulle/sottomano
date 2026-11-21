@@ -98,7 +98,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                             self.narrowest_to_widest.map(|span| {
                                 Quantity::spend(
                                     span.models
-                                        .cost_of(model)
+                                        .model_cost(model)
                                         .unwrap_or_else(|| usd(Decimal::ZERO)),
                                 )
                                 .into()
@@ -117,7 +117,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             .map(|spend| spend.model.clone())
             .unwrap_or_default();
         let span_shares = self.narrowest_to_widest.iter().filter_map(|span| {
-            let cost = span.models.cost_of(&top).filter(Money::is_positive)?;
+            let cost = span.models.model_cost(&top).filter(Money::is_positive)?;
             let total = span.models.total();
             let share = (cost.amount() / total.amount()).to_f64()?;
             Some(LabeledValue::new(

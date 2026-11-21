@@ -6,7 +6,7 @@ use crate::{
     network_connectivity::{
         device_or_absent,
         network_manager_proxies::{
-            self, ActiveVpn, AddressBlock, LinkPhase, NmConnectionSwitch, VpnProfile,
+            self, ActiveVpn, AddressAssignment, LinkPhase, NmConnectionSwitch, VpnProfile,
         },
         nm_samples,
     },
@@ -66,13 +66,40 @@ impl VpnState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServerBanner {
+    Message(String),
+    Silent,
+}
+
+impl From<&str> for ServerBanner {
+    fn from(raw_banner: &str) -> Self {
+        match raw_banner.trim() {
+            "" => Self::Silent,
+            message => Self::Message(message.to_owned()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveTunnel {
     pub vpn_state: VpnState,
-    pub ipv4: Option<AddressBlock>,
-    pub ipv6: Option<AddressBlock>,
+    pub ipv4: AddressAssignment,
+    pub ipv6: AddressAssignment,
     pub dns: Vec<String>,
-    pub banner: Option<String>,
+    pub banner: ServerBanner,
     pub active_connection: OwnedObjectPath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VpnProtocol {
+    Named(String),
+    PluginDefault,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VpnRemoteGateway {
+    Configured(String),
+    Unconfigured,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,8 +112,8 @@ pub enum VpnActivity {
 pub struct VpnConnection {
     pub name: String,
     pub plugin: String,
-    pub protocol: Option<String>,
-    pub remote_gateway: Option<String>,
+    pub protocol: VpnProtocol,
+    pub remote_gateway: VpnRemoteGateway,
     pub settings_connection: OwnedObjectPath,
     pub activity: VpnActivity,
 }
@@ -94,16 +121,18 @@ pub struct VpnConnection {
 impl VpnConnection {
     #[must_use]
     pub fn protocol_label(&self) -> String {
-        match self.protocol.as_deref() {
-            Some("gp") => "GlobalProtect".to_owned(),
-            Some("anyconnect") => "Cisco AnyConnect".to_owned(),
-            Some("nc") => "Juniper Network Connect".to_owned(),
-            Some("pulse") => "Pulse Secure".to_owned(),
-            Some("f5") => "F5 BIG-IP".to_owned(),
-            Some("fortinet") => "FortiGate".to_owned(),
-            Some("array") => "Array Networks".to_owned(),
-            Some(other) => other.to_owned(),
-            None => self.plugin.clone(),
+        let VpnProtocol::Named(protocol) = &self.protocol else {
+            return self.plugin.clone();
+        };
+        match protocol.as_str() {
+            "gp" => "GlobalProtect".to_owned(),
+            "anyconnect" => "Cisco AnyConnect".to_owned(),
+            "nc" => "Juniper Network Connect".to_owned(),
+            "pulse" => "Pulse Secure".to_owned(),
+            "f5" => "F5 BIG-IP".to_owned(),
+            "fortinet" => "FortiGate".to_owned(),
+            "array" => "Array Networks".to_owned(),
+            other => other.to_owned(),
         }
     }
 
@@ -149,13 +178,15 @@ impl VpnConnection {
                     ipv4: active_vpn.ip.v4,
                     ipv6: active_vpn.ip.v6,
                     dns: active_vpn.ip.dns,
-                    banner: non_empty(active_vpn.banner.trim().to_owned()),
+                    banner: ServerBanner::from(active_vpn.banner.as_str()),
                     active_connection: active_vpn.active_connection,
                 }))
             });
         Self {
-            protocol: data_field("protocol"),
-            remote_gateway: data_field("gateway").or_else(|| data_field("remote")),
+            protocol: data_field("protocol").map_or(VpnProtocol::PluginDefault, VpnProtocol::Named),
+            remote_gateway: data_field("gateway")
+                .or_else(|| data_field("remote"))
+                .map_or(VpnRemoteGateway::Unconfigured, VpnRemoteGateway::Configured),
             name: profile.name,
             plugin,
             settings_connection: profile.settings_connection,
@@ -231,8 +262,8 @@ mod tests {
             vpn_state_code,
             banner: "  Welcome  \n".to_owned(),
             ip: IpInfo {
-                v4: None,
-                v6: None,
+                v4: AddressAssignment::Unassigned,
+                v6: AddressAssignment::Unassigned,
                 dns: vec!["10.0.0.53".to_owned()],
             },
         }
@@ -246,8 +277,8 @@ mod tests {
         assert_eq!(vpn_connection.plugin, "openconnect");
         assert_eq!(vpn_connection.protocol_label(), "GlobalProtect");
         assert_eq!(
-            vpn_connection.remote_gateway.as_deref(),
-            Some("vpn.example.com")
+            vpn_connection.remote_gateway,
+            VpnRemoteGateway::Configured("vpn.example.com".to_owned())
         );
         assert_eq!(vpn_connection.link_phase(), LinkPhase::Up);
         assert_eq!(
@@ -259,7 +290,7 @@ mod tests {
         let VpnActivity::Active(tunnel) = vpn_connection.activity else {
             panic!("profile with an active tunnel reads as inactive");
         };
-        assert_eq!(tunnel.banner.as_deref(), Some("Welcome"));
+        assert_eq!(tunnel.banner, ServerBanner::Message("Welcome".to_owned()));
         assert!(active_vpns.is_empty());
     }
 
@@ -302,8 +333,8 @@ mod tests {
         let vpn_connection = VpnConnection::claiming_active_vpn(openvpn, &mut Vec::new());
         assert_eq!(vpn_connection.protocol_label(), "openvpn");
         assert_eq!(
-            vpn_connection.remote_gateway.as_deref(),
-            Some("vpn.example.org:1194")
+            vpn_connection.remote_gateway,
+            VpnRemoteGateway::Configured("vpn.example.org:1194".to_owned())
         );
     }
 }

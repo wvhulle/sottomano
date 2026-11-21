@@ -55,8 +55,12 @@ pub struct NotAnOomKill {
 }
 
 impl Display for NotAnOomKill {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "message id {} reports no oom kill", self.message_id)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            formatter,
+            "message id {} reports no oom kill",
+            self.message_id
+        )
     }
 }
 

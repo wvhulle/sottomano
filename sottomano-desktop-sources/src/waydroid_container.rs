@@ -6,7 +6,6 @@ use std::{
     time::Duration,
 };
 
-use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 use tokio::fs;
 use zbus::proxy;
@@ -15,6 +14,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::Availability,
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
@@ -44,9 +44,21 @@ pub enum WaydroidState {
     ContainerOnly,
     Session {
         session_state: String,
-        user_name: Option<String>,
-        lcd_density: Option<String>,
+        user_name: SessionUserName,
+        lcd_density: SessionLcdDensity,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionUserName {
+    Reported(String),
+    Unreported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionLcdDensity {
+    Reported(String),
+    Unreported,
 }
 
 impl WaydroidState {
@@ -144,7 +156,7 @@ async fn read_waydroid_listing(system_bus: &zbus::Connection) -> WaydroidListing
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaydroidReadout {
     pub state: WaydroidState,
-    pub memory_in_use: Option<ByteSize>,
+    pub memory_in_use: ContainerMemoryUse,
 }
 
 fn state_of_session(
@@ -162,8 +174,14 @@ fn state_of_session(
             .get("state")
             .cloned()
             .unwrap_or_else(|| "RUNNING".to_owned()),
-        user_name: session.get("user_name").cloned(),
-        lcd_density: session.get("lcd_density").cloned(),
+        user_name: session
+            .get("user_name")
+            .cloned()
+            .map_or(SessionUserName::Unreported, SessionUserName::Reported),
+        lcd_density: session
+            .get("lcd_density")
+            .cloned()
+            .map_or(SessionLcdDensity::Unreported, SessionLcdDensity::Reported),
     }
 }
 
@@ -177,7 +195,7 @@ async fn read_waydroid(system_bus: &zbus::Connection) -> WaydroidReadout {
     let session = waydroid_session(system_bus).await;
     WaydroidReadout {
         state: state_of_session(&session, container),
-        memory_in_use: container_memory.map(|sample| sample.current),
+        memory_in_use: container_memory.map(|sample| sample.current).into(),
     }
 }
 
@@ -199,7 +217,7 @@ impl SnapshotSource for WaydroidReadout {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{WaydroidState, state_of_session};
+    use super::{SessionLcdDensity, SessionUserName, WaydroidState, state_of_session};
     use crate::container_run_state::ContainerRunState;
 
     #[test]
@@ -233,8 +251,8 @@ mod tests {
             state_of_session(&session, ContainerRunState::Running),
             WaydroidState::Session {
                 session_state: "FROZEN".to_owned(),
-                user_name: Some("wvhulle".to_owned()),
-                lcd_density: None,
+                user_name: SessionUserName::Reported("wvhulle".to_owned()),
+                lcd_density: SessionLcdDensity::Unreported,
             }
         );
     }

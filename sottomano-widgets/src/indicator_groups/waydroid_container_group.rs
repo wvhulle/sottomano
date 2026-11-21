@@ -9,9 +9,13 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
-    waydroid_container::{WaydroidListing, WaydroidProbe, WaydroidReadout, WaydroidState},
+    waydroid_container::{
+        SessionLcdDensity, SessionUserName, WaydroidListing, WaydroidProbe, WaydroidReadout,
+        WaydroidState,
+    },
 };
 
 use crate::{
@@ -80,7 +84,7 @@ impl<'a> WaydroidContainerIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let label = match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
-                memory_in_use: Some(memory_in_use),
+                memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
                 ..
             }) if self.shown.container() == ContainerRunState::Running => {
                 approximate_memory_text(*memory_in_use)
@@ -108,7 +112,7 @@ impl<'a> WaydroidContainerIndicator<'a> {
             LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
         ];
         if let ShownWaydroid::Detailed(WaydroidReadout {
-            memory_in_use: Some(memory_in_use),
+            memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
             ..
         }) = self.shown
         {
@@ -161,10 +165,10 @@ impl<'a> WaydroidSessionIndicator<'a> {
             )];
         };
         let mut detail_entries = vec![LabeledValue::new("Session", session_state.clone())];
-        if let Some(user_name) = user_name {
+        if let SessionUserName::Reported(user_name) = user_name {
             detail_entries.push(LabeledValue::new("User", user_name.clone()));
         }
-        if let Some(lcd_density) = lcd_density {
+        if let SessionLcdDensity::Reported(lcd_density) = lcd_density {
             detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
         }
         vec![Section::new("Status", dictionary_table(detail_entries))]

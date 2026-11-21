@@ -38,7 +38,7 @@ pub struct CalendarHomeListing {
 
 impl CalendarHomeListing {
     #[must_use]
-    pub fn visibility_of(&self, calendar_href: &str) -> CalendarVisibility {
+    pub fn calendar_visibility(&self, calendar_href: &str) -> CalendarVisibility {
         if self.hidden_calendar_hrefs.contains(calendar_href) {
             CalendarVisibility::Hidden
         } else {
@@ -170,7 +170,7 @@ mod tests {
             ])
         );
         assert_eq!(
-            listing.visibility_of("/remote.php/dav/calendars/demo/personal/"),
+            listing.calendar_visibility("/remote.php/dav/calendars/demo/personal/"),
             CalendarVisibility::Shown
         );
     }

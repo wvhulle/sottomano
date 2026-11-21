@@ -1,6 +1,8 @@
 use corredo::popovers::{MenuEntry, NestedMenuOpenTrigger};
 use iced::Element;
-use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::MenuNode;
+use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::{
+    MenuLabel, MenuNode,
+};
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use super::{WindowMenuBar, WindowMenuBarInteraction, menu_bar_switch::WindowMenuBarLayout};
@@ -60,7 +62,9 @@ impl WindowMenuBar {
         self.top_menus()
             .iter()
             .filter_map(|top_menu| {
-                let top_menu_label = top_menu.label.as_deref()?;
+                let MenuLabel::Labelled(top_menu_label) = &top_menu.label else {
+                    return None;
+                };
                 let hover_target = HoverTarget::WindowTopMenu(top_menu.id);
                 let top_menu_indicator = handle_indicator(&hover_target);
                 Some(panel_menu_handle(

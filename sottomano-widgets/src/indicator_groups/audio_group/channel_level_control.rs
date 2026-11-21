@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
-    AudioState, ChannelLevels, MuteState, OutputKind,
+    AudioState, DefaultChannel, MuteState, OutputKind,
 };
 
 use crate::{
@@ -8,10 +8,10 @@ use crate::{
 };
 
 pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
-    let sink_mute_state = state
-        .sink
-        .as_ref()
-        .map_or(MuteState::Audible, |sink| sink.mute_state);
+    let sink_mute_state = match &state.sink {
+        DefaultChannel::Resolved(sink) => sink.mute_state,
+        DefaultChannel::Unresolved => MuteState::Audible,
+    };
     match state.output_kind {
         OutputKind::Speaker => match sink_mute_state {
             MuteState::Muted => Phosphor::SpeakerX(Weight::Regular),
@@ -39,8 +39,8 @@ pub(super) fn input_glyph(_value: f32, slider_activity: SliderActivity) -> Phosp
     }
 }
 
-pub(super) fn feed(control: &mut SliderControl, sample: Option<&ChannelLevels>) {
-    if let Some(sample) = sample {
+pub(super) fn feed(control: &mut SliderControl, channel: &DefaultChannel) {
+    if let DefaultChannel::Resolved(sample) = channel {
         control.update(ControlMessage::Sample(percent_f(sample.percent)));
         control.update(ControlMessage::Activity(SliderActivity::from(
             sample.mute_state,

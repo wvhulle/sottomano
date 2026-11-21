@@ -111,7 +111,10 @@ fn normalized_flag(argument: &str) -> Option<&str> {
         .or_else(|| argument.strip_prefix('-'))
 }
 
-fn option_values<'a>(command_line: &'a [String], flag: &'a str) -> impl Iterator<Item = &'a str> {
+fn option_values<'arguments>(
+    command_line: &'arguments [String],
+    flag: &'arguments str,
+) -> impl Iterator<Item = &'arguments str> {
     command_line.windows(2).filter_map(move |pair| {
         (normalized_flag(&pair[0]) == Some(flag)).then_some(pair[1].as_str())
     })
@@ -134,13 +137,16 @@ fn flag_presence(command_line: &[String], flag: &str) -> FlagPresence {
     }
 }
 
-fn suboption<'a>(option_value: &'a str, key: &str) -> Option<&'a str> {
+fn suboption<'option>(option_value: &'option str, key: &str) -> Option<&'option str> {
     option_value
         .split(',')
         .find_map(|segment| segment.strip_prefix(key)?.strip_prefix('='))
 }
 
-fn suboptions<'a>(option_value: &'a str, key: &'a str) -> impl Iterator<Item = &'a str> {
+fn suboptions<'option>(
+    option_value: &'option str,
+    key: &'option str,
+) -> impl Iterator<Item = &'option str> {
     option_value
         .split(',')
         .filter_map(move |segment| segment.strip_prefix(key)?.strip_prefix('='))
@@ -153,7 +159,7 @@ fn leading_segment(option_value: &str) -> Option<&str> {
         .filter(|segment| !segment.contains('='))
 }
 
-fn machine_name_of(command_line: &[String]) -> String {
+fn launched_machine_name(command_line: &[String]) -> String {
     option_values(command_line, "name")
         .last()
         .and_then(|name_value| {
@@ -169,7 +175,7 @@ fn machine_name_of(command_line: &[String]) -> String {
         .unwrap_or_default()
 }
 
-fn guest_cores_of(command_line: &[String]) -> u32 {
+fn smp_guest_cores(command_line: &[String]) -> u32 {
     option_values(command_line, "smp")
         .last()
         .and_then(|smp_value| {
@@ -199,7 +205,7 @@ fn guest_cores_of(command_line: &[String]) -> u32 {
         .unwrap_or(DEFAULT_GUEST_CORES)
 }
 
-fn memory_size_of(size_text: &str) -> Option<ByteSize> {
+fn parsed_memory_size(size_text: &str) -> Option<ByteSize> {
     let digits_end = size_text
         .find(|character: char| !character.is_ascii_digit())
         .unwrap_or(size_text.len());
@@ -225,17 +231,17 @@ fn memory_size_of(size_text: &str) -> Option<ByteSize> {
     Some(ByteSize::b(amount * multiplier))
 }
 
-fn guest_memory_of(command_line: &[String]) -> ByteSize {
+fn configured_guest_memory(command_line: &[String]) -> ByteSize {
     option_values(command_line, "m")
         .last()
         .and_then(|memory_value| {
             suboption(memory_value, "size").or_else(|| leading_segment(memory_value))
         })
-        .and_then(memory_size_of)
+        .and_then(parsed_memory_size)
         .unwrap_or(DEFAULT_GUEST_MEMORY)
 }
 
-fn disk_images_of(command_line: &[String]) -> Vec<PathBuf> {
+fn attached_disk_images(command_line: &[String]) -> Vec<PathBuf> {
     let drive_files = option_values(command_line, "drive")
         .filter_map(|drive_value| suboption(drive_value, "file"))
         .map(PathBuf::from);
@@ -279,7 +285,7 @@ fn port_after_last_colon(address_with_port: &str) -> Option<u16> {
         .ok()
 }
 
-fn forwarded_port_of(hostfwd_rule: &str) -> Option<ForwardedGuestPort> {
+fn parsed_forwarded_port(hostfwd_rule: &str) -> Option<ForwardedGuestPort> {
     let (protocol, addresses) = hostfwd_rule.split_once(':')?;
     let (host_side, guest_side) = addresses.split_once('-')?;
     Some(ForwardedGuestPort {
@@ -293,12 +299,12 @@ fn forwarded_port_of(hostfwd_rule: &str) -> Option<ForwardedGuestPort> {
     })
 }
 
-fn forwarded_ports_of(command_line: &[String]) -> Vec<ForwardedGuestPort> {
+fn host_forwarded_ports(command_line: &[String]) -> Vec<ForwardedGuestPort> {
     ["netdev", "nic", "net"]
         .into_iter()
         .flat_map(|flag| option_values(command_line, flag))
         .flat_map(|network_value| suboptions(network_value, "hostfwd"))
-        .filter_map(forwarded_port_of)
+        .filter_map(parsed_forwarded_port)
         .collect()
 }
 
@@ -327,7 +333,7 @@ fn control_monitor_chardev_path(command_line: &[String]) -> Option<PathBuf> {
     })
 }
 
-fn qmp_socket_of(command_line: &[String]) -> QmpSocketAccess {
+fn qmp_socket_access(command_line: &[String]) -> QmpSocketAccess {
     option_values(command_line, "qmp")
         .chain(option_values(command_line, "qmp-pretty"))
         .find_map(unix_socket_path)
@@ -335,7 +341,7 @@ fn qmp_socket_of(command_line: &[String]) -> QmpSocketAccess {
         .map_or(QmpSocketAccess::NotConfigured, QmpSocketAccess::UnixSocket)
 }
 
-fn display_of(command_line: &[String]) -> GuestDisplay {
+fn guest_display_mode(command_line: &[String]) -> GuestDisplay {
     let display_disabled = option_values(command_line, "display").any(|display_value| {
         matches!(
             leading_segment(display_value),
@@ -354,7 +360,7 @@ fn display_of(command_line: &[String]) -> GuestDisplay {
     }
 }
 
-fn nixos_system_of(command_line: &[String]) -> NixosSystemClosure {
+fn nixos_system_closure(command_line: &[String]) -> NixosSystemClosure {
     command_line
         .iter()
         .find_map(|argument| {
@@ -373,14 +379,14 @@ impl QemuLaunchArguments {
     #[must_use]
     pub fn parsed(command_line: &[String]) -> Self {
         Self {
-            machine_name: machine_name_of(command_line),
-            guest_cores: guest_cores_of(command_line),
-            guest_memory: guest_memory_of(command_line),
-            disk_images: disk_images_of(command_line),
-            forwarded_ports: forwarded_ports_of(command_line),
-            qmp_socket: qmp_socket_of(command_line),
-            display: display_of(command_line),
-            nixos_system: nixos_system_of(command_line),
+            machine_name: launched_machine_name(command_line),
+            guest_cores: smp_guest_cores(command_line),
+            guest_memory: configured_guest_memory(command_line),
+            disk_images: attached_disk_images(command_line),
+            forwarded_ports: host_forwarded_ports(command_line),
+            qmp_socket: qmp_socket_access(command_line),
+            display: guest_display_mode(command_line),
+            nixos_system: nixos_system_closure(command_line),
         }
     }
 }

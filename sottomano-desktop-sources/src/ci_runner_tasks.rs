@@ -138,6 +138,6 @@ fn sorted_unique(values: impl Iterator<Item = String>) -> Vec<String> {
     values
 }
 
-fn images_of(containers: &[&RunningContainer]) -> Vec<String> {
+fn distinct_container_images(containers: &[&RunningContainer]) -> Vec<String> {
     sorted_unique(containers.iter().map(|container| container.image.clone()))
 }

@@ -9,10 +9,11 @@ use zbus::proxy::CacheProperties;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    desktop_windows_apps::process_tree_inspection::launch,
+    desktop_windows_apps::process_tree_inspection::{CgroupScope, launch},
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,
+        inhibit_reason_text::InhibitReason,
         logind_manager::{InhibitorRow, ManagerProxy},
         wayland_idle_notify::{IdleEdge, input_idle_edges},
     },
@@ -133,13 +134,25 @@ impl InhibitedOperation {
 pub struct BlockingInhibitor {
     pub holder: String,
     pub operation: InhibitedOperation,
-    pub reason: Option<String>,
+    pub reason: InhibitReason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledShutdown {
     pub kind: String,
-    pub at: Option<DateTime<Utc>>,
+    pub moment: ShutdownMoment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShutdownMoment {
+    At(DateTime<Utc>),
+    Unreported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShutdownSchedule {
+    Scheduled(ScheduledShutdown),
+    NotScheduled,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,12 +169,12 @@ pub struct SleepObstacles {
     pub resume_device: ResumeDevice,
     pub blocking_inhibitors: Vec<BlockingInhibitor>,
     pub idle_action_setting: IdleActionSetting,
-    pub scheduled_shutdown: Option<ScheduledShutdown>,
+    pub shutdown_schedule: ShutdownSchedule,
 }
 
 impl SleepObstacles {
     #[must_use]
-    pub fn capability_of(&self, state: SleepState) -> LogindCapability {
+    pub fn sleep_state_capability(&self, state: SleepState) -> LogindCapability {
         self.sleep_states
             .iter()
             .find(|support| support.state == state)
@@ -172,7 +185,7 @@ impl SleepObstacles {
     pub fn sleep_state_that_runs(&self) -> Option<SleepState> {
         self.sleep_order.iter().copied().find(|state| {
             matches!(
-                self.capability_of(*state),
+                self.sleep_state_capability(*state),
                 LogindCapability::Allowed | LogindCapability::AfterAuthorisation
             )
         })
@@ -191,7 +204,7 @@ impl SleepObstacles {
         }
     }
 
-    pub fn inhibitors_of(
+    pub fn inhibitors_blocking(
         &self,
         operation: InhibitedOperation,
     ) -> impl Iterator<Item = &BlockingInhibitor> {
@@ -297,10 +310,14 @@ async fn read_obstacles(readers: ObstacleReaders) -> Result<SleepObstacles, BusR
         } else {
             IdleActionSetting::Acting
         },
-        scheduled_shutdown: non_empty(shutdown_kind).map(|kind| ScheduledShutdown {
-            kind,
-            at: at_micros(shutdown_usec),
-        }),
+        shutdown_schedule: match non_empty(shutdown_kind) {
+            Some(kind) => ShutdownSchedule::Scheduled(ScheduledShutdown {
+                kind,
+                moment: at_micros(shutdown_usec)
+                    .map_or(ShutdownMoment::Unreported, ShutdownMoment::At),
+            }),
+            None => ShutdownSchedule::NotScheduled,
+        },
     })
 }
 
@@ -436,14 +453,17 @@ fn process_scope(pid: u32) -> Option<String> {
             tracing::warn!("sleep obstacles: pid {pid} out of range: {range_failure}");
         })
         .ok()?;
-    launch(process_id)?.scope
+    match launch(process_id)?.scope {
+        CgroupScope::Unit(unit) => Some(unit),
+        CgroupScope::Unreported => None,
+    }
 }
 
 async fn open_window_owners() -> CompositorWindows {
     let Some(compositor_pids) = compositor_window_pids().await else {
         return CompositorWindows::Unavailable;
     };
-    spawn_blocking(move || window_owners_of(compositor_pids))
+    spawn_blocking(move || listed_window_owners(compositor_pids))
         .await
         .unwrap_or_else(|join_failure| {
             tracing::warn!("sleep obstacles: window owner lookup did not finish: {join_failure}");
@@ -451,7 +471,7 @@ async fn open_window_owners() -> CompositorWindows {
         })
 }
 
-fn window_owners_of(compositor_pids: Vec<i32>) -> CompositorWindows {
+fn listed_window_owners(compositor_pids: Vec<i32>) -> CompositorWindows {
     let window_pids: Vec<u32> = compositor_pids
         .into_iter()
         .filter_map(|pid| {
@@ -483,7 +503,7 @@ fn blocking_inhibitors(
         .filter(|row| matches!(row.mode.as_str(), "block" | "block-weak"))
         .flat_map(|row| {
             let holder = app_names.lock_holder_app_name(&row.who, row.pid);
-            let reason = non_empty(row.why);
+            let reason = InhibitReason::from(row.why);
             row.what
                 .split(':')
                 .filter_map(InhibitedOperation::parsed_inhibited_operation)
@@ -581,7 +601,7 @@ mod tests {
         disabling_boot_flag, pids_in_helper_output,
     };
     use crate::login_session_presence::kernel_sleep_obstacles::{
-        HibernationModes, IdleActionSetting, ResumeDevice, WindowOwnership,
+        HibernationModes, IdleActionSetting, ResumeDevice, ShutdownSchedule, WindowOwnership,
     };
 
     #[test]
@@ -624,7 +644,7 @@ mod tests {
             resume_device: ResumeDevice::Configured,
             blocking_inhibitors: Vec::new(),
             idle_action_setting: IdleActionSetting::Ignored,
-            scheduled_shutdown: None,
+            shutdown_schedule: ShutdownSchedule::NotScheduled,
         }
     }
 
@@ -711,7 +731,9 @@ mod tests {
         let obstacles = obstacles_with([LogindCapability::NotPermitted; 4]);
         assert_eq!(obstacles.sleep_state_that_runs(), None);
         assert_eq!(
-            obstacles.inhibitors_of(InhibitedOperation::Sleep).count(),
+            obstacles
+                .inhibitors_blocking(InhibitedOperation::Sleep)
+                .count(),
             0
         );
     }

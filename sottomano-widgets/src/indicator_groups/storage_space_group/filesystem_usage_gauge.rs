@@ -15,7 +15,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{NotificationBody, NotificationProgress, StateToast},
         value_cells::LabeledValue,
     },
 };
@@ -51,8 +51,8 @@ pub(crate) fn filesystem_usage_indicator(usage: &FilesystemUsage) -> GroupIndica
     .with_state_toast(StateToast::NotifyFromSeverity {
         minimum_severity: Severity::Critical,
         summary_text: "Disk almost full",
-        body: ToastBody::Bodiless,
-        progress: ToastProgress::Measured(fill),
+        body: NotificationBody::Bodiless,
+        progress: NotificationProgress::Measured(fill),
     })
     .with_hover_card(Box::new(move |_| filesystem_usage_hover_card(usage)))
 }

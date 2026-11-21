@@ -6,7 +6,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, future::join_all};
+use futures::{Stream, StreamExt, stream};
 use rustix::process::getuid;
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
             LIBVIRT_DOMAIN_CONTROL_BUILT, inactive_libvirt_domains, libvirt_run_states,
         },
         machined_libvirt_machines::libvirt_leader_pids,
-        procfs_launch_context::launch_context_of,
+        procfs_launch_context::traced_launch_context,
         procfs_qemu_processes::{
             ProcessWorkingDirectory, QemuProcess, SubordinateUidRange, account_names_by_uid,
             scanned_qemu_processes, subordinate_uid_ranges,
@@ -40,6 +40,7 @@ pub const VIRTUAL_MACHINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const TRIGGER_BURST_GAP: Duration = Duration::from_millis(200);
 const NIX_BUILD_ACCOUNT_PREFIX: &str = "nixbld";
 const AUTO_ALLOCATED_BUILD_UIDS: Range<u32> = 872_415_232..880_803_840;
+const QMP_PROBES_IN_FLIGHT: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VirtualMachineOrigin {
@@ -56,11 +57,17 @@ pub enum GuestPowerControl {
     Unavailable,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchContext {
+    Named(String),
+    Unidentified,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunningVirtualMachine {
     pub pid: i32,
     pub origin: VirtualMachineOrigin,
-    pub launch_context: Option<String>,
+    pub launch_context: LaunchContext,
     pub launch: QemuLaunchArguments,
     pub run_state: GuestRunState,
     pub power_control: GuestPowerControl,
@@ -75,7 +82,7 @@ pub struct VirtualMachinesReadout {
     pub inactive_domains: Vec<String>,
 }
 
-fn origin_of(
+fn virtual_machine_origin(
     qemu_process: &QemuProcess,
     libvirt_pids: &HashSet<i32>,
     session_uid: u32,
@@ -122,7 +129,7 @@ fn read_known_accounts() -> KnownAccounts {
     }
 }
 
-fn launch_arguments_of(qemu_process: &QemuProcess) -> QemuLaunchArguments {
+fn resolved_launch_arguments(qemu_process: &QemuProcess) -> QemuLaunchArguments {
     let launch = QemuLaunchArguments::parsed(&qemu_process.command_line);
     match &qemu_process.working_directory {
         ProcessWorkingDirectory::Readable(working_directory) => QemuLaunchArguments {
@@ -147,7 +154,7 @@ enum QmpStatus {
     Unreachable,
 }
 
-async fn probe_qmp_status(qmp_socket: &QmpSocketAccess) -> QmpStatus {
+async fn probe_qmp_status(qmp_socket: QmpSocketAccess) -> QmpStatus {
     let Some(socket_path) = qmp_socket.connectable_path() else {
         return QmpStatus::Unreachable;
     };
@@ -163,7 +170,20 @@ async fn probe_qmp_status(qmp_socket: &QmpSocketAccess) -> QmpStatus {
     }
 }
 
-fn power_control_of(
+async fn probed_qmp_statuses(identified_processes: &[IdentifiedQemuProcess]) -> Vec<QmpStatus> {
+    stream::iter(
+        identified_processes
+            .iter()
+            .map(|identified| identified.launch.qmp_socket.clone())
+            .collect::<Vec<QmpSocketAccess>>(),
+    )
+    .map(probe_qmp_status)
+    .buffered(QMP_PROBES_IN_FLIGHT)
+    .collect()
+    .await
+}
+
+fn guest_power_control(
     identified: &IdentifiedQemuProcess,
     qmp_status: &QmpStatus,
 ) -> GuestPowerControl {
@@ -218,8 +238,13 @@ impl VirtualMachineSampler {
             .qemu_processes
             .into_iter()
             .map(|qemu_process| IdentifiedQemuProcess {
-                launch: launch_arguments_of(&qemu_process),
-                origin: origin_of(&qemu_process, &libvirt_pids, session_uid, &known_accounts),
+                launch: resolved_launch_arguments(&qemu_process),
+                origin: virtual_machine_origin(
+                    &qemu_process,
+                    &libvirt_pids,
+                    session_uid,
+                    &known_accounts,
+                ),
                 qemu_process,
             })
             .collect();
@@ -242,12 +267,7 @@ impl VirtualMachineSampler {
             .collect();
         self.checkpoints_by_pid
             .retain_keys(|pid| live_pids.contains(pid));
-        let qmp_statuses = join_all(
-            identified_processes
-                .iter()
-                .map(|identified| probe_qmp_status(&identified.launch.qmp_socket)),
-        )
-        .await;
+        let qmp_statuses = probed_qmp_statuses(&identified_processes).await;
         let taken_at = Instant::now();
         let mut machines: Vec<RunningVirtualMachine> = identified_processes
             .into_iter()
@@ -267,10 +287,13 @@ impl VirtualMachineSampler {
                     .unwrap_or(GuestRunState::Unreported);
                 RunningVirtualMachine {
                     pid,
-                    launch_context: (identified.origin != VirtualMachineOrigin::LibvirtDomain)
-                        .then(|| launch_context_of(pid))
-                        .flatten(),
-                    power_control: power_control_of(&identified, &qmp_status),
+                    launch_context: match identified.origin {
+                        VirtualMachineOrigin::LibvirtDomain => LaunchContext::Unidentified,
+                        VirtualMachineOrigin::SessionUser
+                        | VirtualMachineOrigin::NixosTestBuild
+                        | VirtualMachineOrigin::OtherAccount(_) => traced_launch_context(pid),
+                    },
+                    power_control: guest_power_control(&identified, &qmp_status),
                     cpu_load: self.checkpoints_by_pid.load_since_previous(
                         pid,
                         totals.spent_ticks,
@@ -322,7 +345,7 @@ impl SnapshotSource for VirtualMachinesReadout {
 mod tests {
     use super::*;
 
-    fn qemu_process_of(pid: i32, owner_uid: u32) -> QemuProcess {
+    fn owned_qemu_process(pid: i32, owner_uid: u32) -> QemuProcess {
         QemuProcess {
             pid,
             owner_uid,
@@ -347,8 +370,8 @@ mod tests {
             }],
         };
         let origin = |pid, owner_uid| {
-            origin_of(
-                &qemu_process_of(pid, owner_uid),
+            virtual_machine_origin(
+                &owned_qemu_process(pid, owner_uid),
                 &libvirt_pids,
                 1000,
                 &known_accounts,

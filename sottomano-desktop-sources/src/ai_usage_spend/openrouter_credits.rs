@@ -176,6 +176,8 @@ pub enum LimitReset {
     Daily,
     Weekly,
     Monthly,
+    #[serde(skip)]
+    Never,
 }
 
 #[derive(Deserialize)]
@@ -192,7 +194,7 @@ pub struct KeyLimit {
     pub name: String,
     pub limit: Money,
     pub remaining: Money,
-    pub reset: Option<LimitReset>,
+    pub reset: LimitReset,
 }
 
 impl ApiKey {
@@ -200,7 +202,7 @@ impl ApiKey {
         Some(KeyLimit {
             limit: usd(self.limit.filter(|_| !self.disabled)?),
             remaining: usd(self.limit_remaining?),
-            reset: self.limit_reset,
+            reset: self.limit_reset.unwrap_or(LimitReset::Never),
             name: self.name,
         })
     }
@@ -318,7 +320,9 @@ fn rfc3339(at: DateTime<Utc>) -> String {
 fn short_model(slug: &str) -> String {
     let base = slug.rsplit_once('/').map_or(slug, |(_, base)| base);
     match base.rsplit_once('-') {
-        Some((head, tail)) if tail.len() == 8 && tail.bytes().all(|b| b.is_ascii_digit()) => {
+        Some((head, tail))
+            if tail.len() == 8 && tail.bytes().all(|tail_byte| tail_byte.is_ascii_digit()) =>
+        {
             head.to_owned()
         }
         _ => base.to_owned(),
@@ -384,7 +388,7 @@ mod tests {
                 name: "agents".to_owned(),
                 limit: usd(Decimal::from(10)),
                 remaining: usd(Decimal::new(25, 1)),
-                reset: Some(LimitReset::Monthly),
+                reset: LimitReset::Monthly,
             }]
         );
     }

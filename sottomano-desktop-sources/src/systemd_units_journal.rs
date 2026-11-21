@@ -21,6 +21,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use zbus::{
     MatchRule,
@@ -31,13 +32,15 @@ use zbus::{
 };
 
 use crate::{
+    host_machine_identity::hostname1_os_identity::at_micros,
     system_protocol_clients::dbus_desktop_buses::{Bus, OnBus},
-    systemd_units_journal::journal_record_fields::either_of,
+    systemd_units_journal::journal_record_fields::disjunctive_journal_matches,
 };
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
+const UNIT_PROPERTY_READS_IN_FLIGHT: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScopedSystemdUnit {
@@ -94,15 +97,15 @@ impl SystemdUnitScope {
         }
     }
 
-    pub fn follow_units_log_args<'a>(
+    pub fn follow_units_log_args<'unit>(
         self,
-        names: impl IntoIterator<Item = &'a str>,
+        names: impl IntoIterator<Item = &'unit str>,
     ) -> Vec<String> {
         self.journalctl_scope_flag()
             .map(String::from)
             .into_iter()
             .chain(["-x", "-b", "-n", "all", "-f"].map(String::from))
-            .chain(either_of(
+            .chain(disjunctive_journal_matches(
                 names.into_iter().flat_map(|name| self.unit_matches(name)),
             ))
             .collect()
@@ -274,10 +277,6 @@ fn manager_signal(member: &'static str) -> zbus::Result<MatchRule<'static>> {
         .build())
 }
 
-fn wall_time_of_realtime_usec(realtime_us: u64) -> Option<SystemTime> {
-    (realtime_us > 0).then(|| UNIX_EPOCH + Duration::from_micros(realtime_us))
-}
-
 async fn unit_proxy(
     connection: &zbus::Connection,
     path: OwnedObjectPath,
@@ -289,23 +288,39 @@ async fn unit_proxy(
         .await
 }
 
-async fn state_changed_at(
-    connection: &zbus::Connection,
-    path: OwnedObjectPath,
-) -> Option<SystemTime> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemdTimestamp {
+    Unset,
+    At(DateTime<Utc>),
+}
+
+fn realtime_usec_timestamp(realtime_usec: u64) -> SystemdTimestamp {
+    at_micros(realtime_usec).map_or(SystemdTimestamp::Unset, SystemdTimestamp::At)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnitStateChange {
+    Unrecorded,
+    At(SystemTime),
+}
+
+async fn state_changed_at(connection: &zbus::Connection, path: OwnedObjectPath) -> UnitStateChange {
     let timestamp_read = async {
         unit_proxy(connection, path.clone())
             .await?
             .state_change_timestamp()
             .await
     };
-    let state_change_usec = timestamp_read
-        .await
-        .inspect_err(|timestamp_failure| {
+    match timestamp_read.await {
+        Ok(0) => UnitStateChange::Unrecorded,
+        Ok(state_change_usec) => {
+            UnitStateChange::At(UNIX_EPOCH + Duration::from_micros(state_change_usec))
+        }
+        Err(timestamp_failure) => {
             tracing::debug!(
                 "systemd unit {path}: state change timestamp unreadable: {timestamp_failure}"
             );
-        })
-        .ok()?;
-    wall_time_of_realtime_usec(state_change_usec)
+            UnitStateChange::Unrecorded
+        }
+    }
 }

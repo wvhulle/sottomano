@@ -5,8 +5,12 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::FamilyDetails,
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    incus_instances::{DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceKind},
+    incus_instances::{
+        DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceImageDescription,
+        InstanceKind,
+    },
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -21,7 +25,7 @@ fn daemon_instance(
     instance_name: &str,
     kind: InstanceKind,
     run_state: ContainerRunState,
-    memory_in_use: Option<ByteSize>,
+    memory_in_use: ContainerMemoryUse,
     global_addresses: &[&str],
     image_description: &str,
 ) -> DaemonInstance {
@@ -42,7 +46,7 @@ fn daemon_instance(
             .iter()
             .map(|global_address| (*global_address).to_owned())
             .collect(),
-        image_description: Some(image_description.to_owned()),
+        image_description: InstanceImageDescription::Described(image_description.to_owned()),
     }
 }
 
@@ -58,7 +62,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                             HOVERED_INSTANCE_NAME,
                             InstanceKind::Container,
                             ContainerRunState::Running,
-                            Some(ByteSize::mib(268)),
+                            ContainerMemoryUse::Measured(ByteSize::mib(268)),
                             &["10.41.7.23"],
                             "Debian trixie amd64",
                         ),
@@ -66,7 +70,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                             "fedora-desktop",
                             InstanceKind::VirtualMachine,
                             ContainerRunState::Stopped,
-                            None,
+                            ContainerMemoryUse::Unaccounted,
                             &[],
                             "Fedora 43 amd64",
                         ),

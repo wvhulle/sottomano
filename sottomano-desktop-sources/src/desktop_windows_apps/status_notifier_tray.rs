@@ -1,20 +1,16 @@
 use std::{
     collections::HashMap,
     future::ready,
-    path::PathBuf,
     sync::{Arc, PoisonError},
 };
 
 use futures::{Stream, StreamExt, TryStreamExt, stream};
-use image::{
-    RgbaImage,
-    imageops::{self, FilterType},
-};
+use image::RgbaImage;
 pub use system_tray::item::Status;
 use system_tray::{
     client::{Client, Event, UpdateEvent},
     error::Error as TrayHostError,
-    item::{IconPixmap, StatusNotifierItem},
+    item::StatusNotifierItem,
     menu::TrayMenu,
 };
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
@@ -25,25 +21,38 @@ use crate::{
     desktop_windows_apps::application_menu_nodes::{MenuNode, tray_menu_nodes},
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
-    theme_icons::{icon_file_loading::trim_rgba, icon_requests::ItemThemePath},
+    theme_icons::icon_requests::ItemThemePath,
 };
+
+mod tray_item_pixmaps;
+
+pub(crate) use tray_item_pixmaps::capped_to_side_limit;
+use tray_item_pixmaps::tray_item_icon;
 
 const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
 
-#[derive(Debug, Clone)]
-pub struct Tip {
-    pub title: Option<String>,
-    pub body: Option<String>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrayTooltip {
+    NoTooltip,
+    TitleOnly(String),
+    BodyOnly(String),
+    TitledBody { title: String, body: String },
 }
 
-impl Tip {
-    fn non_empty_tip(title: String, description: String) -> Option<Self> {
-        let tip = Self {
-            title: non_empty(title),
-            body: non_empty(description),
-        };
-        (tip.title.is_some() || tip.body.is_some()).then_some(tip)
+fn tray_tooltip(title: String, description: String) -> TrayTooltip {
+    let Some(title) = non_empty(title) else {
+        return non_empty(description).map_or(TrayTooltip::NoTooltip, TrayTooltip::BodyOnly);
+    };
+    match non_empty(description) {
+        Some(body) => TrayTooltip::TitledBody { title, body },
+        None => TrayTooltip::TitleOnly(title),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrayMenuPath {
+    NotExported,
+    Exported(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,20 +70,15 @@ pub struct TrayItem {
     pub address: String,
     pub owner: OwnerProcess,
     pub id: String,
-    pub title: Option<String>,
+    pub name: String,
     pub status: Status,
-    pub tooltip: Option<Tip>,
-    pub menu_path: Option<String>,
+    pub tooltip: TrayTooltip,
+    pub menu_path: TrayMenuPath,
     pub icon: TrayItemIcon,
     pub menu: Vec<MenuNode>,
 }
 
 impl TrayItem {
-    #[must_use]
-    pub fn name(&self) -> &str {
-        self.title.as_deref().unwrap_or(&self.id)
-    }
-
     pub fn pixmaps(&self) -> impl Iterator<Item = &Arc<RgbaImage>> {
         let own_pixmap = match &self.icon {
             TrayItemIcon::Pixmap(pixels) => Some(pixels),
@@ -101,81 +105,19 @@ pub struct TrayHost {
 
 impl TrayHost {}
 
-const TRAY_PIXMAP_SIDE_LIMIT: u32 = 128;
-
-fn pixmap_area(pixmap: &IconPixmap) -> i64 {
-    i64::from(pixmap.width) * i64::from(pixmap.height)
-}
-
-fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
-    let valid_pixmaps = pixmaps.iter().filter(|pixmap| {
-        pixmap.width > 0
-            && pixmap.height > 0
-            && i64::try_from(pixmap.pixels.len()).expect("a pixel buffer is shorter than i64::MAX")
-                == pixmap_area(pixmap) * 4
-    });
-    let best = valid_pixmaps
-        .clone()
-        .filter(|pixmap| {
-            i64::from(pixmap.width.min(pixmap.height)) >= i64::from(TRAY_PIXMAP_SIDE_LIMIT)
-        })
-        .min_by_key(|pixmap| pixmap_area(pixmap))
-        .or_else(|| valid_pixmaps.max_by_key(|pixmap| pixmap_area(pixmap)))?;
-    let (width, height) = (
-        u32::try_from(best.width).expect("pixmap width was checked positive"),
-        u32::try_from(best.height).expect("pixmap height was checked positive"),
-    );
-    let mut bytes = best.pixels.clone();
-    for pixel in bytes.as_chunks_mut::<4>().0 {
-        pixel.rotate_left(1);
-    }
-    RgbaImage::from_raw(width, height, bytes)
-        .map(trim_rgba)
-        .map(capped_to_side_limit)
-}
-
-pub(crate) fn capped_to_side_limit(image: RgbaImage) -> RgbaImage {
-    let longest_side = image.width().max(image.height());
-    if longest_side <= TRAY_PIXMAP_SIDE_LIMIT {
-        return image;
-    }
-    let scaled_side = |side: u32| {
-        u32::try_from(u64::from(side) * u64::from(TRAY_PIXMAP_SIDE_LIMIT) / u64::from(longest_side))
-            .expect("a side scaled down to the limit fits u32")
-            .max(1)
-    };
-    imageops::resize(
-        &image,
-        scaled_side(image.width()),
-        scaled_side(image.height()),
-        FilterType::Triangle,
-    )
-}
-
-fn tray_item_icon(
-    icon_name: Option<&str>,
-    icon_pixmap: Option<&[IconPixmap]>,
-    icon_theme_path: Option<&str>,
-) -> TrayItemIcon {
-    if let Some(pixmap) = icon_pixmap.and_then(best_pixmap) {
-        return TrayItemIcon::Pixmap(Arc::new(pixmap));
-    }
-    let Some(icon_name) = icon_name.filter(|icon_name| !icon_name.is_empty()) else {
-        return TrayItemIcon::NoIcon;
-    };
-    TrayItemIcon::Named {
-        icon_name: icon_name.to_owned(),
-        item_theme_path: icon_theme_path
-            .filter(|theme_path| !theme_path.is_empty())
-            .map_or(ItemThemePath::Unset, |theme_path| {
-                ItemThemePath::Directory(PathBuf::from(theme_path))
-            }),
+fn adapt_tooltip(item: &StatusNotifierItem) -> TrayTooltip {
+    match &item.tool_tip {
+        Some(tip) => tray_tooltip(tip.title.clone(), tip.description.clone()),
+        None => TrayTooltip::NoTooltip,
     }
 }
 
-fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
-    let tip = item.tool_tip.as_ref()?;
-    Tip::non_empty_tip(tip.title.clone(), tip.description.clone())
+fn item_name(id: &str, title: Option<String>) -> String {
+    title.and_then(non_empty).unwrap_or_else(|| id.to_owned())
+}
+
+fn exported_menu_path(menu_path: Option<String>) -> TrayMenuPath {
+    menu_path.map_or(TrayMenuPath::NotExported, TrayMenuPath::Exported)
 }
 
 fn build_item(
@@ -188,10 +130,10 @@ fn build_item(
         address: address.to_string(),
         owner,
         id: item.id.clone(),
-        title: item.title.clone().and_then(non_empty),
+        name: item_name(&item.id, item.title.clone()),
         status: item.status,
         tooltip: adapt_tooltip(item),
-        menu_path: item.menu.clone(),
+        menu_path: exported_menu_path(item.menu.clone()),
         icon: tray_item_icon(
             item.icon_name.as_deref(),
             item.icon_pixmap.as_deref(),
@@ -218,7 +160,7 @@ impl TrayOwnerLookup {
         self.dbus_proxy.inner().connection().clone()
     }
 
-    async fn owner_of(&self, address: &str) -> OwnerProcess {
+    async fn address_owner_process(&self, address: &str) -> OwnerProcess {
         match BusName::try_from(address) {
             Ok(bus_name) => OwnerProcess::query_bus_owner(&self.dbus_proxy, bus_name).await,
             Err(_) => OwnerProcess::Unidentified,
@@ -235,7 +177,7 @@ impl TrayOwnerLookup {
             .collect();
         let mut listed_owners = HashMap::new();
         for address in listed_addresses {
-            let owner = self.owner_of(&address).await;
+            let owner = self.address_owner_process(&address).await;
             listed_owners.insert(address, owner);
         }
         listed_owners
@@ -293,7 +235,7 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
             let owner_lookup = owner_lookup.clone();
             async move {
                 let added_owner = match &received {
-                    Ok(Event::Add(address, _)) => owner_lookup.owner_of(address).await,
+                    Ok(Event::Add(address, _)) => owner_lookup.address_owner_process(address).await,
                     _ => OwnerProcess::Unidentified,
                 };
                 (received, added_owner)
@@ -350,7 +292,7 @@ fn listed_items(client: &Client, known_owner: &dyn Fn(&str) -> OwnerProcess) -> 
     )
 }
 
-fn find_mut<'a>(items: &'a mut [TrayItem], address: &str) -> Option<&'a mut TrayItem> {
+fn find_mut<'items>(items: &'items mut [TrayItem], address: &str) -> Option<&'items mut TrayItem> {
     items.iter_mut().find(|item| item.address == address)
 }
 
@@ -396,53 +338,19 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, added_owner: OwnerProcess, cli
                     item.icon = tray_item_icon(icon_name.as_deref(), icon_pixmap.as_deref(), None);
                 }
                 UpdateEvent::Status(status) => item.status = status,
-                UpdateEvent::Title(title) => item.title = title.and_then(non_empty),
+                UpdateEvent::Title(title) => item.name = item_name(&item.id, title),
                 UpdateEvent::Tooltip(tooltip) => {
-                    item.tooltip =
-                        tooltip.and_then(|tip| Tip::non_empty_tip(tip.title, tip.description));
+                    item.tooltip = match tooltip {
+                        Some(tip) => tray_tooltip(tip.title, tip.description),
+                        None => TrayTooltip::NoTooltip,
+                    };
                 }
                 UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_) => {
                     item.menu = menu.unwrap_or_default();
                 }
-                UpdateEvent::MenuConnect(path) => item.menu_path = Some(path),
+                UpdateEvent::MenuConnect(path) => item.menu_path = TrayMenuPath::Exported(path),
                 UpdateEvent::AttentionIcon(_) | UpdateEvent::OverlayIcon(_) => {}
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn opaque_pixmap(side: i32) -> IconPixmap {
-        let side_length = usize::try_from(side).unwrap();
-        IconPixmap {
-            width: side,
-            height: side,
-            pixels: vec![0xff; side_length * side_length * 4],
-        }
-    }
-
-    #[test]
-    fn an_oversized_pixmap_is_scaled_down_to_the_side_limit() {
-        let scaled = best_pixmap(&[opaque_pixmap(512)]).unwrap();
-        assert_eq!(
-            scaled.dimensions(),
-            (TRAY_PIXMAP_SIDE_LIMIT, TRAY_PIXMAP_SIDE_LIMIT)
-        );
-    }
-
-    #[test]
-    fn the_smallest_pixmap_reaching_the_side_limit_is_chosen() {
-        let chosen =
-            best_pixmap(&[opaque_pixmap(512), opaque_pixmap(128), opaque_pixmap(64)]).unwrap();
-        assert_eq!(chosen.dimensions(), (128, 128));
-    }
-
-    #[test]
-    fn pixmaps_below_the_side_limit_keep_their_largest_size() {
-        let chosen = best_pixmap(&[opaque_pixmap(22), opaque_pixmap(48)]).unwrap();
-        assert_eq!(chosen.dimensions(), (48, 48));
     }
 }

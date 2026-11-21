@@ -7,6 +7,7 @@ use std::{
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     nspawn_containers::machined_nspawn_containers::{
         ContainerRegistration, NspawnContainer, NspawnContainersReadout, RegisteredContainerMachine,
@@ -30,13 +31,13 @@ fn running_media_container(clock: Clock) -> NspawnContainer {
         activity: UnitActivity::Running,
         registration: ContainerRegistration::Registered(RegisteredContainerMachine {
             leader_pid: 31_104,
-            started_at: Some(clock.wall - Duration::from_hours(26)),
+            started_at: ContainerStartTime::StartedAt(clock.wall - Duration::from_hours(26)),
             ip_addresses: vec![
                 IpAddr::V4(Ipv4Addr::new(10, 200, 0, 2)),
                 IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 2)),
             ],
             root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
-            memory_in_use: Some(ByteSize::mib(612)),
+            memory_in_use: ContainerMemoryUse::Measured(ByteSize::mib(612)),
         }),
     }
 }
@@ -48,10 +49,10 @@ fn running_build_container(clock: Clock) -> NspawnContainer {
         activity: UnitActivity::Running,
         registration: ContainerRegistration::Registered(RegisteredContainerMachine {
             leader_pid: 48_211,
-            started_at: Some(clock.wall - Duration::from_mins(7)),
+            started_at: ContainerStartTime::StartedAt(clock.wall - Duration::from_mins(7)),
             ip_addresses: vec![IpAddr::V4(Ipv4Addr::new(192, 168, 77, 14))],
             root_directory: PathBuf::from("/var/lib/machines/debian-build"),
-            memory_in_use: Some(ByteSize::mib(1_840)),
+            memory_in_use: ContainerMemoryUse::Measured(ByteSize::mib(1_840)),
         }),
     }
 }

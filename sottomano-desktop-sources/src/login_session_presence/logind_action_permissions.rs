@@ -1,14 +1,22 @@
 use std::env;
 
-use futures::future::join_all;
+use futures::{StreamExt, future, stream};
 
 use super::{logind_manager::ManagerProxy, session_power_actions::SessionAction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Allowed {
     pub action: SessionAction,
-    pub needs_authorisation: bool,
+    pub authorisation: ActionAuthorisation,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionAuthorisation {
+    Unchallenged,
+    AfterChallenge,
+}
+
+const LOGIND_CAPABILITY_QUERIES_IN_FLIGHT: usize = 4;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Permissions {
@@ -79,11 +87,11 @@ async fn allowed(proxy: &ManagerProxy<'static>, action: SessionAction) -> Option
     match answer_for(proxy, action).await {
         Answer::Granted => Some(Allowed {
             action,
-            needs_authorisation: false,
+            authorisation: ActionAuthorisation::Unchallenged,
         }),
         Answer::AfterChallenge => Some(Allowed {
             action,
-            needs_authorisation: true,
+            authorisation: ActionAuthorisation::AfterChallenge,
         }),
         Answer::Denied => None,
     }
@@ -97,14 +105,11 @@ pub async fn read() -> Permissions {
         return Permissions::default();
     };
     Permissions {
-        allowed: join_all(
-            SessionAction::ALL
-                .into_iter()
-                .map(|action| allowed(&proxy, action)),
-        )
-        .await
-        .into_iter()
-        .flatten()
-        .collect(),
+        allowed: stream::iter(SessionAction::ALL)
+            .map(|action| allowed(&proxy, action))
+            .buffered(LOGIND_CAPABILITY_QUERIES_IN_FLIGHT)
+            .filter_map(future::ready)
+            .collect()
+            .await,
     }
 }

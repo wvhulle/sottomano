@@ -10,7 +10,7 @@ use iced::{
 };
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::login_session_presence::{
-    logind_action_permissions::{self, Permissions},
+    logind_action_permissions::{self, ActionAuthorisation, Permissions},
     session_power_actions::SessionAction,
 };
 use sottomano_toml_config::Config;
@@ -40,7 +40,7 @@ const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SessionMenuEntry {
     action: SessionAction,
-    needs_authorisation: bool,
+    authorisation: ActionAuthorisation,
     idle: ScheduledAfterIdle,
 }
 
@@ -61,7 +61,9 @@ impl SessionMenuEntry {
                 duration_text(after, config.calendar.locale)
             )),
             ScheduledAfterIdle::Disabled => idle_note("idle: disabled".to_owned()),
-            ScheduledAfterIdle::Never if self.needs_authorisation => {
+            ScheduledAfterIdle::Never
+                if self.authorisation == ActionAuthorisation::AfterChallenge =>
+            {
                 idle_note("asks for authorisation".to_owned())
             }
             ScheduledAfterIdle::Never => Space::new().into(),
@@ -163,7 +165,7 @@ impl SessionPowerGroup {
             .iter()
             .map(|allowed| SessionMenuEntry {
                 action: allowed.action,
-                needs_authorisation: allowed.needs_authorisation,
+                authorisation: allowed.authorisation,
                 idle: idle_chain.scheduled(allowed.action),
             })
             .scan(None, |previous_family, entry| {

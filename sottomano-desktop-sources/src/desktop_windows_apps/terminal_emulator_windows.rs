@@ -33,10 +33,16 @@ const PTY_SHELL_APP_IDS: [&str; 3] = ["foot", "Alacritty", "com.mitchellh.ghostt
 const PROBE_PATIENCE: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum PairedTerminalLabel {
+    Labelled(TerminalShellLabel),
+    Unlabelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct PairedWindow {
     shown: i32,
     pids: Vec<i32>,
-    terminal_label: Option<TerminalShellLabel>,
+    terminal_label: PairedTerminalLabel,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -57,7 +63,7 @@ impl WindowProcesses {
             PairedWindow {
                 shown: shown_pid,
                 pids: vec![shown_pid],
-                terminal_label: Some(terminal_label),
+                terminal_label: PairedTerminalLabel::Labelled(terminal_label),
             },
         );
         self
@@ -77,7 +83,10 @@ impl WindowProcesses {
 
     #[must_use]
     pub fn terminal_label_in(&self, window: u64) -> Option<&TerminalShellLabel> {
-        self.by_window.get(&window)?.terminal_label.as_ref()
+        match &self.by_window.get(&window)?.terminal_label {
+            PairedTerminalLabel::Labelled(terminal_label) => Some(terminal_label),
+            PairedTerminalLabel::Unlabelled => None,
+        }
     }
 }
 
@@ -121,12 +130,15 @@ enum TerminalLabelSource {
 }
 
 impl TerminalLabelSource {
-    fn terminal_label(&self, compositor_title: &str, home: &Path) -> Option<TerminalShellLabel> {
+    fn terminal_label(&self, compositor_title: &str, home: &Path) -> PairedTerminalLabel {
         match self {
-            TerminalLabelSource::Unlabelled => None,
-            TerminalLabelSource::Labelled(label) => Some(label.clone()),
+            TerminalLabelSource::Unlabelled => PairedTerminalLabel::Unlabelled,
+            TerminalLabelSource::Labelled(label) => PairedTerminalLabel::Labelled(label.clone()),
             TerminalLabelSource::ShellSession(session) => {
-                session.terminal_label(compositor_title, home)
+                session.terminal_label(compositor_title, home).map_or(
+                    PairedTerminalLabel::Unlabelled,
+                    PairedTerminalLabel::Labelled,
+                )
             }
         }
     }
@@ -193,7 +205,7 @@ impl TerminalAgentAccess for LiveTerminalAgents {
     ) -> io::Result<Vec<TerminalWindow>> {
         match agent {
             TerminalAgent::KittyRemoteControl => {
-                let socket = kitty_remote_control::socket_of(process)
+                let socket = kitty_remote_control::kitty_socket_path(process)
                     .ok_or_else(|| io::Error::other("kitty exposes no remote control socket"))?;
                 kitty_remote_control::list(&socket, process, &self.home)
             }
@@ -581,7 +593,7 @@ mod tests {
         yielded_titles: Vec<(PathBuf, String)>,
     }
 
-    fn pty_of(target: &TitleProbeTarget) -> PathBuf {
+    fn probe_target_pty(target: &TitleProbeTarget) -> PathBuf {
         match target {
             TitleProbeTarget::KittyWindow { socket, .. } => socket.clone(),
             TitleProbeTarget::WeztermPane { pty_path, .. }
@@ -600,12 +612,14 @@ mod tests {
         }
 
         fn hold_title(&mut self, target: &TitleProbeTarget, marker: &str) -> io::Result<()> {
-            self.held_titles.push((pty_of(target), marker.to_owned()));
+            self.held_titles
+                .push((probe_target_pty(target), marker.to_owned()));
             Ok(())
         }
 
         fn yield_title(&mut self, target: &TitleProbeTarget, title: &str) -> io::Result<()> {
-            self.yielded_titles.push((pty_of(target), title.to_owned()));
+            self.yielded_titles
+                .push((probe_target_pty(target), title.to_owned()));
             Ok(())
         }
     }

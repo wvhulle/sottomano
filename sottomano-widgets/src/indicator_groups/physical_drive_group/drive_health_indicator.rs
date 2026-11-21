@@ -17,7 +17,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, NotificationBody, NotificationProgress, StateToast},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -30,8 +30,11 @@ pub(crate) fn drive_health_indicator(health: &DriveHealth) -> GroupIndicator<'_>
     };
     let temperature_text = health.temperature.current().map(celsius_text);
     let (label, body) = match temperature_text {
-        Some(text) => (ReadoutLabel::Labeled(text.clone()), ToastBody::Text(text)),
-        None => (ReadoutLabel::Unlabeled, ToastBody::Bodiless),
+        Some(text) => (
+            ReadoutLabel::Labeled(text.clone()),
+            NotificationBody::Text(text),
+        ),
+        None => (ReadoutLabel::Unlabeled, NotificationBody::Bodiless),
     };
     GroupIndicator::glyph_only(
         DriveHealth::NAME,
@@ -48,7 +51,7 @@ pub(crate) fn drive_health_indicator(health: &DriveHealth) -> GroupIndicator<'_>
             minimum_severity: Severity::Critical,
             summary_text: "Drive needs attention",
             body,
-            progress: ToastProgress::Unmeasured,
+            progress: NotificationProgress::Unmeasured,
         },
         ..IndicatorAlerts::default()
     })

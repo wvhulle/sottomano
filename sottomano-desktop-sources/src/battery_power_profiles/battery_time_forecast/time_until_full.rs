@@ -5,14 +5,14 @@ use uom::si::f64::{Energy, Power};
 use crate::battery_power_profiles::{
     battery_time_forecast::{
         Estimate,
-        charge_power_by_state_of_charge::{ChargeCurve, bin_of},
+        charge_power_by_state_of_charge::{ChargeCurve, charge_bin_index},
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
     upower_battery_state::{Battery, ChargeStatus},
 };
 
-struct Charging<'a> {
-    battery: &'a Battery,
+struct Charging<'battery> {
+    battery: &'battery Battery,
     power_by_charge: Vec<Power>,
     typical_now: Power,
     deviation_now: Power,
@@ -20,8 +20,8 @@ struct Charging<'a> {
 
 impl Charging<'_> {
     fn power_after(&self, scenario: Scenario, elapsed: Duration, filled: Energy) -> Power {
-        let accepted =
-            self.power_by_charge[bin_of((self.battery.energy + filled) / self.battery.energy_full)];
+        let accepted = self.power_by_charge
+            [charge_bin_index((self.battery.energy + filled) / self.battery.energy_full)];
         let deviation = scenario.deviation_after(self.deviation_now, elapsed);
         if deviation < Power::default() {
             accepted.min(self.typical_now + deviation)
@@ -38,7 +38,7 @@ pub fn time_until_full(battery: &Battery, curve: &ChargeCurve) -> Option<Estimat
         return None;
     }
     let power_by_charge = curve.learned()?;
-    let typical_now = power_by_charge[bin_of(battery.energy / battery.energy_full)];
+    let typical_now = power_by_charge[charge_bin_index(battery.energy / battery.energy_full)];
     let charging = Charging {
         battery,
         deviation_now: if battery.status == ChargeStatus::Charging
@@ -65,10 +65,10 @@ mod tests {
     use super::*;
     use crate::{
         battery_power_profiles::{
-            battery_time_forecast::charge_power_by_state_of_charge::learned_curve,
+            battery_time_forecast::{LatestBound, charge_power_by_state_of_charge::learned_curve},
             upower_battery_state::{ChargeBehaviour, ChargeStatus},
         },
-        host_machine_identity::udev_hardware_identity::DeviceIdentity,
+        host_machine_identity::udev_hardware_identity::{DeviceIdentity, HardwareText},
     };
 
     const CAPACITY_WH: f64 = 50.0;
@@ -84,7 +84,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
             identity: DeviceIdentity::default(),
-            technology: None,
+            technology: HardwareText::Unreported,
         }
     }
 
@@ -161,7 +161,7 @@ mod tests {
         let estimate = time_until_full(&drawing(30.0, charging_at(0.3)), &learned_curve(tapered))
             .expect("estimate");
         assert_eq!(estimate.earliest, estimate.time);
-        assert_eq!(estimate.latest, Some(estimate.time));
+        assert_eq!(estimate.latest, LatestBound::Within(estimate.time));
     }
 
     #[test]
@@ -174,7 +174,9 @@ mod tests {
             }
         });
         let estimate = time_until_full(&drawing(7.8, charging_at(0.16)), &curve).expect("estimate");
-        let latest = estimate.latest.expect("bounded above");
+        let LatestBound::Within(latest) = estimate.latest else {
+            panic!("bounded above");
+        };
         assert!(estimate.earliest < estimate.time && estimate.time < latest);
         let persisting_minutes = (0.79 * CAPACITY_WH / 7.8 + 0.05 * CAPACITY_WH / 6.5) * 60.0;
         assert!(
@@ -189,6 +191,9 @@ mod tests {
         let curve = learned_curve(constant(30.0));
         let estimate = time_until_full(&drawing(40.0, charging_at(0.5)), &curve).expect("estimate");
         assert!(estimate.earliest < estimate.time);
-        assert_eq!(estimate.latest, Some(Duration::from_mins(50)));
+        assert_eq!(
+            estimate.latest,
+            LatestBound::Within(Duration::from_mins(50))
+        );
     }
 }

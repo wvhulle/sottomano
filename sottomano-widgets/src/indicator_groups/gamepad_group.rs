@@ -36,7 +36,11 @@ use sottomano_desktop_sources::{
         player_indicator_leds::PlayerIndicator,
         steam_input_facts::{RadioReading, SteamInputFacts},
     },
-    network_connectivity::{ethernet_connection::Ethernet, wifi_connection::Wifi},
+    network_connectivity::{
+        ethernet_connection::Ethernet,
+        network_manager_proxies::NetworkName,
+        wifi_connection::{AccessPointAssociation, Wifi},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
@@ -191,15 +195,18 @@ impl From<&Wifi> for WifiBandUse {
     fn from(wifi: &Wifi) -> Self {
         wifi.adapters
             .iter()
-            .filter_map(|adapter| adapter.link.as_ref())
+            .filter_map(|adapter| match &adapter.link {
+                AccessPointAssociation::Associated(link) => Some(link),
+                AccessPointAssociation::Unassociated => None,
+            })
             .fold(WifiBandUse::ClearOfBluetooth, |band_use, link| {
                 match (band_use, wifi_band(link.frequency)) {
                     (WifiBandUse::ClearOfBluetooth, WifiBand::SharedWithBluetooth) => {
                         WifiBandUse::SharingBluetoothBand {
-                            network_name: link
-                                .ssid
-                                .clone()
-                                .unwrap_or_else(|| "hidden network".to_owned()),
+                            network_name: match &link.ssid {
+                                NetworkName::Broadcast(ssid) => ssid.clone(),
+                                NetworkName::Hidden => "hidden network".to_owned(),
+                            },
                             frequency: link.frequency,
                         }
                     }

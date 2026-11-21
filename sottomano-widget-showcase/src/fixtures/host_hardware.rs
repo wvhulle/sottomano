@@ -4,16 +4,17 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::cpu_topology::{Chiplet, CoreGroup, CoreRole, CpuTopology, PhysicalCore},
     host_machine_identity::{
+        fwupd_firmware_upgrades::FirmwareReleaseDate,
         hostname1_os_identity::MachineInfo,
         udev_hardware_identity::{
             CacheInstances, CacheKind, CacheLevel, CachePosition, CpuArchitecture, CpuCoreCounts,
-            CpuIdentity, CpuModel, CpuVendor, HostHardware, MemoryModule, MemorySlotModule,
+            CpuIdentity, CpuModel, CpuVendor, HardwareText, HostHardware, MemoryModule,
+            MemorySlotModule, MemoryTransferRate,
         },
     },
 };
 use uom::si::{f64::Information, information::mebibyte};
 
-const MSI_PCI_VENDOR: u16 = 0x1462;
 pub const CORES_PER_CHIPLET: u32 = 6;
 pub const PHYSICAL_CORE_COUNT: u32 = 2 * CORES_PER_CHIPLET;
 pub const STACKED_CACHE_CHIPLET: usize = 0;
@@ -58,19 +59,19 @@ fn ryzen_workstation() -> HostHardware {
     HostHardware {
         cpu: CpuModel {
             identity: CpuIdentity {
-                vendor: Some(CpuVendor::Amd),
-                name: Some("AMD Ryzen 9 7900X3D 12-Core Processor".to_owned()),
-                microcode: Some("0xa601206".to_owned()),
+                vendor: CpuVendor::Amd,
+                name: HardwareText::Reported("AMD Ryzen 9 7900X3D 12-Core Processor".to_owned()),
+                microcode: HardwareText::Reported("0xa601206".to_owned()),
             },
             architecture: CpuArchitecture {
-                microarchitecture: Some("Zen 4".to_owned()),
-                process: Some("TSMC 5nm".to_owned()),
-                released: Some("2023".to_owned()),
-                x86_64_level: Some("x86-64-v4".to_owned()),
+                microarchitecture: HardwareText::Reported("Zen 4".to_owned()),
+                process: HardwareText::Reported("TSMC 5nm".to_owned()),
+                released: HardwareText::Reported("2023".to_owned()),
+                x86_64_level: HardwareText::Reported("x86-64-v4".to_owned()),
             },
-            topology: CpuCoreCounts {
-                cores: Some(12),
-                threads: Some(24),
+            topology: CpuCoreCounts::Counted {
+                cores: 12,
+                threads: 24,
             },
             caches: vec![CacheLevel {
                 position: CachePosition {
@@ -93,31 +94,42 @@ fn ryzen_workstation() -> HostHardware {
             MemorySlotModule {
                 locator: "DIMM_A1".to_owned(),
                 module: MemoryModule {
-                    manufacturer: Some("Kingston".to_owned()),
-                    part_number: Some("KF556C36-32".to_owned()),
-                    kind: Some("DDR5".to_owned()),
-                    speed_mts: Some(5600),
+                    manufacturer: HardwareText::Reported("Kingston".to_owned()),
+                    part_number: HardwareText::Reported("KF556C36-32".to_owned()),
+                    kind: HardwareText::Reported("DDR5".to_owned()),
+                    transfer_rate: MemoryTransferRate::Reported {
+                        megatransfers_per_second: 5600,
+                    },
                     size: ByteSize::gib(32),
                 },
             },
             MemorySlotModule {
                 locator: "DIMM_B1".to_owned(),
                 module: MemoryModule {
-                    manufacturer: Some("Kingston".to_owned()),
-                    part_number: Some("KF556C36-32".to_owned()),
-                    kind: Some("DDR5".to_owned()),
-                    speed_mts: Some(5600),
+                    manufacturer: HardwareText::Reported("Kingston".to_owned()),
+                    part_number: HardwareText::Reported("KF556C36-32".to_owned()),
+                    kind: HardwareText::Reported("DDR5".to_owned()),
+                    transfer_rate: MemoryTransferRate::Reported {
+                        megatransfers_per_second: 5600,
+                    },
                     size: ByteSize::gib(32),
                 },
             },
         ],
         machine: MachineInfo {
-            board_pci_vendor: Some(MSI_PCI_VENDOR),
-            hardware_vendor: Some("Micro-Star International Co., Ltd.".to_owned()),
-            hardware_model: Some("MAG B650 TOMAHAWK WIFI (MS-7D75)".to_owned()),
-            firmware_vendor: Some("American Megatrends International, LLC.".to_owned()),
-            firmware_version: Some("1.D0".to_owned()),
-            firmware_date: Utc.with_ymd_and_hms(2025, 11, 4, 0, 0, 0).single(),
+            hardware_vendor: HardwareText::Reported(
+                "Micro-Star International Co., Ltd.".to_owned(),
+            ),
+            hardware_model: HardwareText::Reported("MAG B650 TOMAHAWK WIFI (MS-7D75)".to_owned()),
+            firmware_vendor: HardwareText::Reported(
+                "American Megatrends International, LLC.".to_owned(),
+            ),
+            firmware_version: HardwareText::Reported("1.D0".to_owned()),
+            firmware_date: FirmwareReleaseDate::Dated(
+                Utc.with_ymd_and_hms(2025, 11, 4, 0, 0, 0)
+                    .single()
+                    .expect("a valid calendar date"),
+            ),
         },
     }
 }

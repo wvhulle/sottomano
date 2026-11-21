@@ -75,7 +75,20 @@ impl MuteState {
 pub struct ChannelLevels {
     pub percent: i64,
     pub mute_state: MuteState,
-    pub device: Option<String>,
+    pub device: DeviceDescription,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeviceDescription {
+    Described(String),
+    Undescribed,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum DefaultChannel {
+    Resolved(ChannelLevels),
+    #[default]
+    Unresolved,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,17 +168,17 @@ impl From<&str> for OutputKind {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioState {
-    pub sink: Option<ChannelLevels>,
-    pub source: Option<ChannelLevels>,
+    pub sink: DefaultChannel,
+    pub source: DefaultChannel,
     pub output_kind: OutputKind,
     pub windows: Arc<HashMap<i32, WindowAudio>>,
 }
 
 impl AudioState {
-    fn channel(&self, direction: Direction) -> Option<&ChannelLevels> {
+    fn channel(&self, direction: Direction) -> &DefaultChannel {
         match direction {
-            Direction::Output => self.sink.as_ref(),
-            Direction::Input => self.source.as_ref(),
+            Direction::Output => &self.sink,
+            Direction::Input => &self.source,
         }
     }
 }
@@ -256,7 +269,7 @@ pub fn connection_events()
 fn socket_present() -> impl Stream<Item = Availability> + Send {
     use futures::{StreamExt, stream};
     let socket = pipewire_socket()
-        .inspect_err(|e| tracing::warn!("audio: {e}"))
+        .inspect_err(|error| tracing::warn!("audio: {error}"))
         .ok();
     stream::iter(socket).flat_map(path_present)
 }

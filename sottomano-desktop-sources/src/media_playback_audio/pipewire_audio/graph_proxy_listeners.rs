@@ -24,11 +24,11 @@ use pipewire::{
 use tokio::sync::watch;
 
 use super::{
-    AudioState, Direction, OutputKind,
-    audio_graph_state::{AudioGraph, DefaultNodeChange},
+    AudioState, DefaultChannel, Direction, OutputKind,
+    audio_graph_state::{AudioGraph, DefaultNodeChange, StreamProcess},
     spa_pod_levels::{
         default_node_name, node_direction, node_from_props, parse_props, parse_route,
-        route_placement, stream_from_props, stream_pid,
+        route_placement, stream_from_props, stream_process,
     },
 };
 use crate::media_playback_audio::pipewire_audio::audio_graph_state::StreamActivity;
@@ -113,7 +113,9 @@ fn report_missing_defaults(session: &mut BoundAudioSession) {
 
 fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &AudioGraph) {
     for direction in [Direction::Output, Direction::Input] {
-        if previous.channel(direction).is_some() && next.channel(direction).is_none() {
+        if matches!(previous.channel(direction), DefaultChannel::Resolved(_))
+            && *next.channel(direction) == DefaultChannel::Unresolved
+        {
             tracing::warn!(
                 "audio: default {} {:?} no longer resolves to a node",
                 direction.label(),
@@ -236,12 +238,14 @@ fn track_node(
         let on_info = {
             let live_graph = live_graph.clone();
             move |info: &NodeInfoRef| {
-                let pid = info.props().and_then(stream_pid);
+                let process = info
+                    .props()
+                    .map_or(StreamProcess::Unidentified, stream_process);
                 let stream_activity = match info.state() {
                     NodeState::Running => StreamActivity::Running,
                     _ => StreamActivity::Idle,
                 };
-                live_graph.update(|graph| graph.set_stream_info(id, pid, stream_activity));
+                live_graph.update(|graph| graph.set_stream_info(id, process, stream_activity));
             }
         };
         if let Some(bound_stream) =
@@ -389,16 +393,19 @@ pub(super) fn default_node_change(
         "default.audio.source" => Direction::Input,
         _ => return None,
     };
-    Some(DefaultNodeChange {
-        direction,
-        name: value.and_then(default_node_name),
+    Some(match value.and_then(default_node_name) {
+        Some(name) => DefaultNodeChange::Named { direction, name },
+        None => DefaultNodeChange::Cleared { direction },
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media_playback_audio::pipewire_audio::audio_graph_state::{AudioNode, Levels};
+    use crate::media_playback_audio::pipewire_audio::{
+        DeviceDescription,
+        audio_graph_state::{AudioNode, KindHint, Levels, NodeDevice, NodePlacement},
+    };
 
     fn session_with_undefaulted_sink(enumeration: GraphEnumeration) -> BoundAudioSession {
         let mut graph = AudioGraph::default();
@@ -407,11 +414,11 @@ mod tests {
             AudioNode {
                 direction: Direction::Output,
                 name: "speaker".to_owned(),
-                description: None,
-                device_id: None,
-                props_kind: None,
+                description: DeviceDescription::Undescribed,
+                device: NodeDevice::Deviceless,
+                props_kind: KindHint::Unhinted,
                 serial: 0,
-                placement: None,
+                placement: NodePlacement::Unrouted,
                 levels: Levels::default(),
             },
         );

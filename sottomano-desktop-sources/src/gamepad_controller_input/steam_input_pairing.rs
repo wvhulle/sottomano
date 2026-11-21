@@ -28,8 +28,15 @@ pub enum DeviceSignal {
 }
 
 #[derive(Debug, Default)]
+enum ReceivedRoster {
+    #[default]
+    AwaitingFirstRoster,
+    Latest(Vec<ConnectedGamepad>),
+}
+
+#[derive(Debug, Default)]
 pub struct SteamInputPairing {
-    latest_roster: Option<Vec<ConnectedGamepad>>,
+    latest_roster: ReceivedRoster,
     delivered_roster: Vec<ConnectedGamepad>,
     known_interfaces: BTreeMap<DongleInterface, bool>,
     battery_by_interface: BTreeMap<DongleInterface, GamepadPower>,
@@ -102,7 +109,10 @@ impl SteamInputPairing {
     }
 
     fn deliver_roster(&mut self) -> Option<RawGamepadEvent> {
-        let paired = self.paired_roster(self.latest_roster.as_deref()?);
+        let ReceivedRoster::Latest(roster) = &self.latest_roster else {
+            return None;
+        };
+        let paired = self.paired_roster(roster);
         if paired == self.delivered_roster {
             return None;
         }
@@ -111,7 +121,7 @@ impl SteamInputPairing {
     }
 
     fn correlate_button_edge(&mut self, pad_slot: usize, edge_at: Instant) -> bool {
-        let Some(roster) = self.latest_roster.as_deref() else {
+        let ReceivedRoster::Latest(roster) = &self.latest_roster else {
             return false;
         };
         let assigned_pad_slots: BTreeSet<usize> = self.assignments(roster).into_keys().collect();
@@ -143,7 +153,7 @@ impl SteamInputPairing {
                 self.correlated_interfaces
                     .retain(|pad_slot, _| roster.iter().any(|gamepad| gamepad.slot == *pad_slot));
                 let paired = self.paired_roster(&roster);
-                self.latest_roster = Some(roster);
+                self.latest_roster = ReceivedRoster::Latest(roster);
                 self.delivered_roster.clone_from(&paired);
                 vec![RawGamepadEvent::Roster(paired)]
             }

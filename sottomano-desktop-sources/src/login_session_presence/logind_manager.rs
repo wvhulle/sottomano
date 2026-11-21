@@ -80,16 +80,6 @@ pub enum SleepEdge {
     Resumed,
 }
 
-impl SleepEdge {
-    fn while_preparing_for_sleep(preparing_for_sleep: bool) -> Self {
-        if preparing_for_sleep {
-            SleepEdge::Suspending
-        } else {
-            SleepEdge::Resumed
-        }
-    }
-}
-
 pub fn sleep_edges(buses: &DesktopBuses) -> impl Stream<Item = SleepEdge> + Send + use<> {
     subscribed(buses.system.clone(), sleep_signals)
         .filter_map(|edge| {
@@ -115,11 +105,16 @@ async fn sleep_signals(
         .build()
         .await?;
     let signalled_edges = manager.receive_prepare_for_sleep().await?.map(|signal| {
-        Ok(SleepEdge::while_preparing_for_sleep(
-            *signal.args()?.start(),
-        ))
+        Ok(if *signal.args()?.start() {
+            SleepEdge::Suspending
+        } else {
+            SleepEdge::Resumed
+        })
     });
-    let edge_at_subscribe =
-        SleepEdge::while_preparing_for_sleep(manager.preparing_for_sleep().await?);
+    let edge_at_subscribe = if manager.preparing_for_sleep().await? {
+        SleepEdge::Suspending
+    } else {
+        SleepEdge::Resumed
+    };
     Ok(stream::iter([Ok(edge_at_subscribe)]).chain(signalled_edges))
 }

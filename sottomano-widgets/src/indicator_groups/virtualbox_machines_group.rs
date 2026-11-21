@@ -5,9 +5,11 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     container_family_snapshots::FamilyDetails,
     container_run_state::ContainerRunState,
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
     virtualbox_machines::{
         RegisteredVirtualBoxMachine, VirtualBoxFrontend, VirtualBoxMachine,
         VirtualBoxMachineListing, VirtualBoxMachineListings, VirtualBoxMachineProbe,
+        VirtualBoxSettingsFile,
     },
 };
 
@@ -125,14 +127,14 @@ impl<'a> VirtualBoxMachineIndicator<'a> {
             ),
             LabeledValue::new("Memory use", approximate_memory_text(machine.memory_in_use)),
         ];
-        if let Some(guest_memory) = machine.guest_memory {
+        if let GuestMemorySize::Configured(guest_memory) = machine.guest_memory {
             detail_entries.push(LabeledValue::new("Guest memory", guest_memory.to_string()));
         }
-        if let Some(guest_cores) = machine.guest_cores {
+        if let GuestCoreCount::Configured(guest_cores) = machine.guest_cores {
             detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
         }
         detail_entries.extend(uptime_entry(clock, machine.started_at));
-        if let Some(settings_file) = &machine.settings_file {
+        if let VirtualBoxSettingsFile::Found(settings_file) = &machine.settings_file {
             detail_entries.push(LabeledValue::new(
                 "Settings",
                 settings_file.display().to_string(),

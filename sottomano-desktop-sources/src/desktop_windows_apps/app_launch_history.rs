@@ -53,10 +53,16 @@ pub enum LaunchScope<'workspace> {
 }
 
 #[derive(Default)]
+enum SeenWindows {
+    #[default]
+    Unseeded,
+    Seeded(HashSet<u64>),
+}
+
+#[derive(Default)]
 pub struct LaunchTracker {
     history: Vec<Launch>,
-    seen: HashSet<u64>,
-    seeded: bool,
+    seen: SeenWindows,
 }
 
 impl LaunchTracker {
@@ -67,48 +73,49 @@ impl LaunchTracker {
     }
 
     pub fn observe(&mut self, state: &CompositorWindowState) -> Vec<Launch> {
-        if !self.seeded {
-            self.seen = state.windows.keys().copied().collect();
-            self.seeded = true;
+        let SeenWindows::Seeded(seen) = &mut self.seen else {
+            self.seen = SeenWindows::Seeded(state.windows.keys().copied().collect());
             return Vec::new();
-        }
-        self.seen.retain(|id| state.windows.contains_key(id));
+        };
+        seen.retain(|id| state.windows.contains_key(id));
         let launches: Vec<Launch> = state
             .windows
             .values()
-            .filter_map(|window| self.first_launch(window, &state.workspaces))
+            .filter_map(|window| first_launch(seen, window, &state.workspaces))
             .collect();
         self.history.extend(launches.iter().cloned());
         launches
     }
+}
 
-    fn first_launch(
-        &mut self,
-        window: &CompositorWindow,
-        workspaces: &HashMap<u64, CompositorWorkspace>,
-    ) -> Option<Launch> {
-        if self.seen.contains(&window.id) {
-            return None;
-        }
-        let WindowAppId::Reported(app_id) = &window.app_id else {
-            return None;
-        };
-        let WindowWorkspace::OnWorkspace(workspace_id) = window.workspace else {
-            return None;
-        };
-        let workspace = match &workspaces.get(&workspace_id)?.name {
-            WorkspaceName::Named(name) => LaunchWorkspace::Named(name.clone()),
-            WorkspaceName::Unnamed => LaunchWorkspace::Unnamed,
-        };
-        let app_id = app_id.clone();
-        self.seen.insert(window.id);
-        Some(Launch {
-            workspace,
-            app_id,
-            launched_at: Utc::now(),
-        })
+fn first_launch(
+    seen: &mut HashSet<u64>,
+    window: &CompositorWindow,
+    workspaces: &HashMap<u64, CompositorWorkspace>,
+) -> Option<Launch> {
+    if seen.contains(&window.id) {
+        return None;
     }
+    let WindowAppId::Reported(app_id) = &window.app_id else {
+        return None;
+    };
+    let WindowWorkspace::OnWorkspace(workspace_id) = window.workspace else {
+        return None;
+    };
+    let workspace = match &workspaces.get(&workspace_id)?.name {
+        WorkspaceName::Named(name) => LaunchWorkspace::Named(name.clone()),
+        WorkspaceName::Unnamed => LaunchWorkspace::Unnamed,
+    };
+    let app_id = app_id.clone();
+    seen.insert(window.id);
+    Some(Launch {
+        workspace,
+        app_id,
+        launched_at: Utc::now(),
+    })
+}
 
+impl LaunchTracker {
     pub fn rank(&self, scope: LaunchScope<'_>, now: DateTime<Utc>) -> Vec<String> {
         let frecencies = self
             .history
@@ -156,8 +163,8 @@ impl Frecency {
     }
 }
 
-struct RankedApp<'a> {
-    app_id: &'a str,
+struct RankedApp<'history> {
+    app_id: &'history str,
     frecency: Frecency,
 }
 

@@ -1,36 +1,49 @@
 use std::env;
 
-use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
 use sottomano_compositors::compositor_connection::compositor_version;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::change_triggers,
         dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
-    systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, UnitProxy, systemd_signal},
+    systemd_units_journal::{
+        ManagerProxy, SystemdTimestamp, UNIT_INTERFACE, UnitProxy, realtime_usec_timestamp,
+        systemd_signal,
+    },
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphicalSession {
-    pub current_desktop: Option<String>,
-    pub session_desktop: Option<String>,
+    pub current_desktop: DesktopName,
+    pub session_desktop: DesktopName,
     pub compositor_version: String,
     pub wayland_display: String,
-    pub x11_display: Option<String>,
+    pub x11_display: Xwayland,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DesktopName {
+    Named(String),
+    Unnamed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Xwayland {
+    Serving(String),
+    Absent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphicalSessionTarget {
     pub state: String,
-    pub reached_at: Option<DateTime<Utc>>,
+    pub reached_at: SystemdTimestamp,
 }
 
 impl SnapshotSource for GraphicalSession {
@@ -48,12 +61,15 @@ impl GraphicalSession {
     async fn read() -> Result<Self, BusReadError> {
         let compositor_version = compositor_version().await.ok_or(BusReadError::Absent)?;
         Ok(Self {
-            current_desktop: session_environment_variable("XDG_CURRENT_DESKTOP"),
-            session_desktop: session_environment_variable("XDG_SESSION_DESKTOP"),
+            current_desktop: session_environment_variable("XDG_CURRENT_DESKTOP")
+                .map_or(DesktopName::Unnamed, DesktopName::Named),
+            session_desktop: session_environment_variable("XDG_SESSION_DESKTOP")
+                .map_or(DesktopName::Unnamed, DesktopName::Named),
             compositor_version,
             wayland_display: session_environment_variable("WAYLAND_DISPLAY")
                 .ok_or(BusReadError::Absent)?,
-            x11_display: session_environment_variable("DISPLAY"),
+            x11_display: session_environment_variable("DISPLAY")
+                .map_or(Xwayland::Absent, Xwayland::Serving),
         })
     }
 }
@@ -104,7 +120,7 @@ async fn target_changes(
         async move {
             Ok(GraphicalSessionTarget {
                 state: unit.active_state().await?,
-                reached_at: at_micros(unit.active_enter_timestamp().await?),
+                reached_at: realtime_usec_timestamp(unit.active_enter_timestamp().await?),
             })
         }
     }))

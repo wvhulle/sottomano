@@ -212,7 +212,7 @@ mod tests {
 
     use super::*;
 
-    fn window_of(outcomes: &[ProbeOutcome]) -> ProbeWindow {
+    fn recorded_probe_window(outcomes: &[ProbeOutcome]) -> ProbeWindow {
         outcomes.iter().fold(
             ProbeWindow::empty(IpAddr::V4(Ipv4Addr::LOCALHOST)),
             |window, outcome| window.recorded(*outcome),
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn loss_share_counts_lost_probes_in_the_window() {
-        let window = window_of(&[
+        let window = recorded_probe_window(&[
             ProbeOutcome::Answered(Duration::from_millis(10)),
             ProbeOutcome::Lost,
             ProbeOutcome::Answered(Duration::from_millis(30)),
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn median_ignores_lost_probes() {
-        let window = window_of(&[
+        let window = recorded_probe_window(&[
             ProbeOutcome::Answered(Duration::from_millis(40)),
             ProbeOutcome::Lost,
             ProbeOutcome::Answered(Duration::from_millis(10)),
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn window_keeps_only_the_latest_probes() {
         let outcomes = vec![ProbeOutcome::Lost; WINDOW_PROBES + 5];
-        assert_eq!(window_of(&outcomes).outcomes.len(), WINDOW_PROBES);
+        assert_eq!(recorded_probe_window(&outcomes).outcomes.len(), WINDOW_PROBES);
     }
 
     #[test]

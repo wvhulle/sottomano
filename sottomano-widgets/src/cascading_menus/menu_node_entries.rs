@@ -5,7 +5,7 @@ use corredo::{
 use iced::Element;
 use sottomano_desktop_sources::{
     desktop_windows_apps::application_menu_nodes::{
-        MenuItemIcon, MenuKind, MenuNode, ToggleCheck, ToggleMark,
+        MenuItemIcon, MenuItemSensitivity, MenuKind, MenuLabel, MenuNode, ToggleCheck, ToggleMark,
     },
     theme_icons::icon_requests::{IconRequest, menu_row_icon_request},
 };
@@ -111,10 +111,9 @@ pub fn menu_node_entries<Message: Clone + 'static>(
             .into(),
             MenuKind::Standard | MenuKind::Toggle { .. } => {
                 let row = MenuRow::new(node_row_content(node, config, icon_sources));
-                let row = if node.enabled {
-                    row.on_press(on_activate(node.id))
-                } else {
-                    row.emphasis(MenuRowEmphasis::Unavailable)
+                let row = match node.sensitivity {
+                    MenuItemSensitivity::Enabled => row.on_press(on_activate(node.id)),
+                    MenuItemSensitivity::Disabled => row.emphasis(MenuRowEmphasis::Unavailable),
                 };
                 MenuItem::new(row).into()
             }
@@ -128,7 +127,10 @@ fn node_row_content<Message: 'static>(
     icon_sources: DrawableIconSources<'_>,
 ) -> MenuRowContent<'static, Message> {
     let icon_size = config.theme.font.icon_size_px;
-    let content = MenuRowContent::new(node.label.clone().unwrap_or_default());
+    let content = MenuRowContent::new(match &node.label {
+        MenuLabel::Labelled(label) => label.clone(),
+        MenuLabel::Unlabelled => String::new(),
+    });
     let content = match menu_row_icon(icon_sources, &node.icon, config) {
         Some(row_icon) => content.icon(row_icon),
         None => content,
@@ -140,10 +142,9 @@ fn node_row_content<Message: 'static>(
         ToggleCheck::Checked => TogglePosition::On,
         ToggleCheck::Unchecked => TogglePosition::Off,
     };
-    let response = if node.enabled {
-        SwitchResponse::Pressable
-    } else {
-        SwitchResponse::Inert
+    let response = match node.sensitivity {
+        MenuItemSensitivity::Enabled => SwitchResponse::Pressable,
+        MenuItemSensitivity::Disabled => SwitchResponse::Inert,
     };
     match mark {
         ToggleMark::Checkbox => content.value(

@@ -1,6 +1,6 @@
 use corredo::theming::{FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_state_store, real, with_state_store,
+    Columns, StoreError, flag_set_when, in_state_store, real, with_state_store,
 };
 
 use crate::{
@@ -47,10 +47,14 @@ impl From<AppearanceValue> for turso::Value {
     fn from(value: AppearanceValue) -> Self {
         match value {
             AppearanceValue::Real(number) => real(number),
-            AppearanceValue::Blur(backdrop_blur) => flag(backdrop_blur == BackdropBlur::Blurred),
-            AppearanceValue::Shadow(shadow_casting) => flag(shadow_casting == ShadowCasting::Cast),
+            AppearanceValue::Blur(backdrop_blur) => {
+                flag_set_when(backdrop_blur, BackdropBlur::Blurred)
+            }
+            AppearanceValue::Shadow(shadow_casting) => {
+                flag_set_when(shadow_casting, ShadowCasting::Cast)
+            }
             AppearanceValue::Outline(outline_tracing) => {
-                flag(outline_tracing == OutlineTracing::Drawn)
+                flag_set_when(outline_tracing, OutlineTracing::Drawn)
             }
         }
     }
@@ -219,7 +223,9 @@ async fn read_layer_appearance(
 #[cfg(test)]
 mod tests {
     use corredo::theming::{FrameStyle, OutlineTracing, ShadowCasting};
-    use sottomano_desktop_sources::sqlite_state_store::{flag, migrated_in_memory_store, real};
+    use sottomano_desktop_sources::sqlite_state_store::{
+        flag_set_when, migrated_in_memory_store, real,
+    };
 
     use super::{AppearanceSetting, read_layer_appearance, write_appearance, write_setting};
     use crate::{
@@ -233,11 +239,20 @@ mod tests {
         for (setting, value) in [
             (AppearanceSetting::Opacity, real(0.4)),
             (AppearanceSetting::CornerRadius, real(9.0)),
-            (AppearanceSetting::Blurred, flag(true)),
-            (AppearanceSetting::DropShadow, flag(false)),
+            (
+                AppearanceSetting::Blurred,
+                flag_set_when(BackdropBlur::Blurred, BackdropBlur::Blurred),
+            ),
+            (
+                AppearanceSetting::DropShadow,
+                flag_set_when(ShadowCasting::Omitted, ShadowCasting::Cast),
+            ),
             (AppearanceSetting::ShadowSoftness, real(33.0)),
             (AppearanceSetting::ShadowOpacity, real(0.5)),
-            (AppearanceSetting::Outline, flag(false)),
+            (
+                AppearanceSetting::Outline,
+                flag_set_when(OutlineTracing::Omitted, OutlineTracing::Drawn),
+            ),
             (AppearanceSetting::OutlineOpacity, real(0.75)),
         ] {
             write_setting(&connection, ShellLayer::Sidebar, setting, value)

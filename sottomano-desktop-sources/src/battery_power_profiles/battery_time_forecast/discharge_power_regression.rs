@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn separates_brightness_from_base_draw() {
-        let true_draw = |c: Conditions| Power::new::<watt>(5.0 + 20.0 * c.brightness_frac);
+        let true_draw = |conditions: Conditions| Power::new::<watt>(5.0 + 20.0 * conditions.brightness_frac);
         let dim = Conditions::new(0.1, 0.0);
         let bright = Conditions::new(0.9, 0.0);
         let model = (0..80).fold(RegressionState::seed(true_draw(dim)), |model, _| {

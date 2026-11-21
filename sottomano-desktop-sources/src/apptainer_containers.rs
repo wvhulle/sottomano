@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, SystemTime},
 };
 
@@ -82,31 +82,54 @@ fn named_runtime_parents() -> Result<FamilyListings<ApptainerContainerListing>, 
                 .all_processes
                 .iter()
                 .find(|scanned| scanned.parent_pid == runtime_parent.pid);
-            let image_file = container_process.and_then(|container| image_file_of(container.pid));
+            let image_file = container_process
+                .map_or(ApptainerImage::NotLoopMounted, |container| {
+                    loop_mounted_image(container.pid)
+                });
             ApptainerContainerListing {
                 runtime_pid: runtime_parent.pid,
-                container_name: named_after_image(runtime_parent.pid, image_file.as_deref()),
+                container_name: named_after_image(runtime_parent.pid, &image_file),
             }
         })
         .collect();
     Ok(FamilyListings { listings })
 }
 
-fn named_after_image(runtime_pid: i32, image_file: Option<&Path>) -> String {
-    image_file.and_then(Path::file_stem).map_or_else(
-        || format!("container {runtime_pid}"),
-        |image_stem| image_stem.display().to_string(),
-    )
+fn named_after_image(runtime_pid: i32, image_file: &ApptainerImage) -> String {
+    match image_file {
+        ApptainerImage::LoopMounted(image_path) => image_path.file_stem().map_or_else(
+            || format!("container {runtime_pid}"),
+            |image_stem| image_stem.display().to_string(),
+        ),
+        ApptainerImage::NotLoopMounted => format!("container {runtime_pid}"),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApptainerImage {
+    LoopMounted(PathBuf),
+    NotLoopMounted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainedCommand {
+    Running(String),
+    Unobserved,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerOwner {
+    Account(String),
+    UnnamedUid(u32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApptainerContainer {
     pub listing: ApptainerContainerListing,
     pub runtime_title: String,
-    pub image_file: Option<PathBuf>,
-    pub running_command: Option<String>,
-    pub owner_uid: u32,
-    pub owner_name: Option<String>,
+    pub image_file: ApptainerImage,
+    pub running_command: ContainedCommand,
+    pub owner: ContainerOwner,
     pub started_at: SystemTime,
     pub memory_in_use: ByteSize,
 }
@@ -144,7 +167,12 @@ fn loop_device_backing_files(mountinfo_text: &str) -> impl Iterator<Item = &str>
     })
 }
 
-fn image_file_of(container_pid: i32) -> Option<PathBuf> {
+fn loop_mounted_image(container_pid: i32) -> ApptainerImage {
+    loop_backing_file(container_pid)
+        .map_or(ApptainerImage::NotLoopMounted, ApptainerImage::LoopMounted)
+}
+
+fn loop_backing_file(container_pid: i32) -> Option<PathBuf> {
     let mountinfo_text = fs::read_to_string(format!("/proc/{container_pid}/mountinfo"))
         .inspect_err(|read_failure| {
             tracing::debug!(
@@ -180,11 +208,14 @@ fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, FileReadErr
                 .all_processes
                 .iter()
                 .find(|scanned| scanned.parent_pid == runtime_parent.pid);
-            let image_file = container_process.and_then(|container| image_file_of(container.pid));
+            let image_file = container_process
+                .map_or(ApptainerImage::NotLoopMounted, |container| {
+                    loop_mounted_image(container.pid)
+                });
             ApptainerContainer {
                 listing: ApptainerContainerListing {
                     runtime_pid: runtime_parent.pid,
-                    container_name: named_after_image(runtime_parent.pid, image_file.as_deref()),
+                    container_name: named_after_image(runtime_parent.pid, &image_file),
                 },
                 runtime_title: runtime_parent
                     .command_line
@@ -194,9 +225,15 @@ fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, FileReadErr
                 image_file,
                 running_command: container_process
                     .map(|container| container.command_line.join(" "))
-                    .filter(|running_command| !running_command.is_empty()),
-                owner_uid: runtime_parent.owner_uid,
-                owner_name: account_names.get(&runtime_parent.owner_uid).cloned(),
+                    .filter(|running_command| !running_command.is_empty())
+                    .map_or(ContainedCommand::Unobserved, ContainedCommand::Running),
+                owner: account_names
+                    .get(&runtime_parent.owner_uid)
+                    .cloned()
+                    .map_or(
+                        ContainerOwner::UnnamedUid(runtime_parent.owner_uid),
+                        ContainerOwner::Account,
+                    ),
                 started_at: runtime_parent.started_at,
                 memory_in_use: ByteSize::b(
                     process_scan
@@ -218,9 +255,9 @@ fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, FileReadErr
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::PathBuf;
 
-    use super::{loop_device_backing_files, named_after_image};
+    use super::{ApptainerImage, loop_device_backing_files, named_after_image};
 
     #[test]
     fn the_root_image_is_found_through_its_loop_device() {
@@ -236,9 +273,15 @@ mod tests {
     #[test]
     fn a_container_is_named_after_its_image() {
         assert_eq!(
-            named_after_image(5120, Some(Path::new("/home/user/images/lolcow_latest.sif"))),
+            named_after_image(
+                5120,
+                &ApptainerImage::LoopMounted(PathBuf::from("/home/user/images/lolcow_latest.sif"))
+            ),
             "lolcow_latest"
         );
-        assert_eq!(named_after_image(5120, None), "container 5120");
+        assert_eq!(
+            named_after_image(5120, &ApptainerImage::NotLoopMounted),
+            "container 5120"
+        );
     }
 }

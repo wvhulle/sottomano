@@ -1,6 +1,7 @@
 use sottomano_desktop_sources::network_connectivity::{
-    network_manager_proxies::{LinkPhase, RadioPower},
-    wifi_connection::{WifiAdapter, WifiAdapterDetails},
+    interface_bus_attachment::AdapterIdentity,
+    network_manager_proxies::{LinkPhase, NetworkName, RadioPower},
+    wifi_connection::{AccessPointAssociation, AdapterAddressing, WifiAdapter, WifiAdapterDetails},
 };
 
 use crate::{
@@ -32,20 +33,20 @@ pub struct AllWifiRadiosSwitch {
 
 impl<'a> AdapterSignalIndicator<'a> {
     pub fn indicator(self) -> GroupIndicator<'a> {
+        let (state, gauge) = match &self.adapter.link {
+            AccessPointAssociation::Associated(link) => {
+                let fill = percent_fill(link.signal);
+                (
+                    IndicatorState::from(signal_level(link.signal)),
+                    ReadoutGauge::Gauged { fill, live: fill },
+                )
+            }
+            AccessPointAssociation::Unassociated => (IndicatorState::Off, ReadoutGauge::Ungauged),
+        };
         let state = if self.adapter.link_state == LinkPhase::Switching {
             IndicatorState::Pending
         } else {
-            self.adapter
-                .link
-                .as_ref()
-                .map_or(IndicatorState::Off, |link| signal_level(link.signal).into())
-        };
-        let gauge = match self.adapter.link.as_ref() {
-            Some(link) => {
-                let fill = percent_fill(link.signal);
-                ReadoutGauge::Gauged { fill, live: fill }
-            }
-            None => ReadoutGauge::Ungauged,
+            state
         };
         GroupIndicator::glyph_only("Signal", Phosphor::WifiHigh(Weight::Regular).into(), state)
             .with_readout(IndicatorReadout {
@@ -57,7 +58,7 @@ impl<'a> AdapterSignalIndicator<'a> {
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
-        let Some(link) = &self.adapter.link else {
+        let AccessPointAssociation::Associated(link) = &self.adapter.link else {
             let radio_state = match self.radio_power {
                 RadioPower::On => "disconnected",
                 RadioPower::Off => "radio off",
@@ -70,27 +71,20 @@ impl<'a> AdapterSignalIndicator<'a> {
                 ]),
             )];
         };
-        vec![Section::new(
-            "Link",
-            dictionary_table(
-                link.ssid
-                    .as_deref()
-                    .map(|ssid| LabeledValue::new("Network Name (SSID)", ssid))
-                    .into_iter()
-                    .chain([
-                        LabeledValue::new(
-                            "Signal Strength",
-                            Quantity::share(percent_fill(link.signal)),
-                        ),
-                        LabeledValue::new("Security Type", link.security.as_str()),
-                        LabeledValue::new(
-                            "Frequency Band",
-                            Quantity::clock_megahertz(link.frequency),
-                        ),
-                        LabeledValue::new("Interface Name", self.adapter.device.as_str()),
-                    ]),
+        let mut link_entries = Vec::new();
+        if let NetworkName::Broadcast(ssid) = &link.ssid {
+            link_entries.push(LabeledValue::new("Network Name (SSID)", ssid.as_str()));
+        }
+        link_entries.extend([
+            LabeledValue::new(
+                "Signal Strength",
+                Quantity::share(percent_fill(link.signal)),
             ),
-        )]
+            LabeledValue::new("Security Type", link.security.as_str()),
+            LabeledValue::new("Frequency Band", Quantity::clock_megahertz(link.frequency)),
+            LabeledValue::new("Interface Name", self.adapter.device.as_str()),
+        ]);
+        vec![Section::new("Link", dictionary_table(link_entries))]
     }
 }
 
@@ -163,30 +157,28 @@ impl AllWifiRadiosSwitch {
 }
 
 pub fn adapter_identity_sections(details: &WifiAdapterDetails) -> Vec<Section> {
-    let mac_section = details.addressing.as_ref().map(|addressing| {
-        Section::new(
+    let mut sections = Vec::new();
+    if let AdapterAddressing::Addressed(addressing) = &details.addressing {
+        sections.push(Section::new(
             "Addresses",
             dictionary_table([LabeledValue::new("MAC Address", addressing.mac.as_str())]),
-        )
-    });
-    mac_section
-        .into_iter()
-        .chain(details.adapter.iter().map(Section::from))
-        .collect()
+        ));
+    }
+    if let AdapterIdentity::Identified(adapter) = &details.adapter {
+        sections.push(Section::from(adapter));
+    }
+    sections
 }
 
 pub fn adapter_radio_stats_sections(details: &WifiAdapterDetails) -> Vec<Section> {
-    details
-        .addressing
-        .iter()
-        .map(|addressing| {
-            link_stats_section(
-                "Radio",
-                "Radio Speed",
-                addressing.bitrate,
-                addressing.mtu,
-                addressing.fault_counters,
-            )
-        })
-        .collect()
+    let AdapterAddressing::Addressed(addressing) = &details.addressing else {
+        return Vec::new();
+    };
+    vec![link_stats_section(
+        "Radio",
+        "Radio Speed",
+        addressing.bitrate,
+        addressing.mtu,
+        addressing.fault_counters,
+    )]
 }

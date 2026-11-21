@@ -4,7 +4,9 @@ use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
 
 use super::{
-    FocusLedger, FocusSignal, away_reasons::ScreenEdge, focus_identity::Focused,
+    FocusLedger, FocusSignal,
+    away_reasons::ScreenEdge,
+    focus_identity::{FocusProject, Focused},
     time_intervals::Interval,
 };
 use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
@@ -28,7 +30,9 @@ pub(super) fn focused_in(window: u64, app_id: &str, project: Option<&str>) -> Fo
     FocusSignal::WindowFocused(Focused {
         window,
         app_id: app_id.to_owned(),
-        project: project.map(PathBuf::from),
+        project: project.map_or(FocusProject::OutsideRepository, |root| {
+            FocusProject::Repository(PathBuf::from(root))
+        }),
     })
 }
 

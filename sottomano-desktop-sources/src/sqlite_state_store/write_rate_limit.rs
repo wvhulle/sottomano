@@ -1,13 +1,16 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::sqlite_state_store::{Columns, StoreError, connect_migrated_store, with_state_store};
+use crate::{
+    sqlite_state_store::{Columns, StoreError, connect_migrated_store, with_state_store},
+    system_protocol_clients::http_json_client::StatusExplanation,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Backoff {
     pub retry_after_unix: i64,
     pub attempts: u32,
     pub status: u16,
-    pub message: Option<String>,
+    pub message: StatusExplanation,
 }
 
 impl Backoff {
@@ -63,7 +66,10 @@ async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff,
         retry_after_unix: columns.integer(&row, "retry_after_unix")?,
         attempts: columns.ranged_integer(&row, "attempts")?,
         status: columns.ranged_integer(&row, "status")?,
-        message: columns.optional_text(&row, "message"),
+        message: match columns.optional_text(&row, "message") {
+            Some(stated) => StatusExplanation::Stated(stated),
+            None => StatusExplanation::Unexplained,
+        },
     })
 }
 
@@ -82,7 +88,10 @@ async fn write_backoff(
             backoff.retry_after_unix,
             i64::from(backoff.attempts),
             i64::from(backoff.status),
-            backoff.message.clone(),
+            match &backoff.message {
+                StatusExplanation::Stated(stated) => Some(stated.clone()),
+                StatusExplanation::Unexplained => None,
+            },
         ),
     )
     .await?;
@@ -112,14 +121,17 @@ pub fn now_unix() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{Backoff, read_backoff, write_backoff};
-    use crate::sqlite_state_store::migrated_in_memory_store;
+    use crate::{
+        sqlite_state_store::migrated_in_memory_store,
+        system_protocol_clients::http_json_client::StatusExplanation,
+    };
 
     fn backoff() -> Backoff {
         Backoff {
             retry_after_unix: 1_700_000_000,
             attempts: 3,
             status: 429,
-            message: Some("slow down".to_owned()),
+            message: StatusExplanation::Stated("slow down".to_owned()),
         }
     }
 

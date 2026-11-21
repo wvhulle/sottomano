@@ -294,13 +294,9 @@ pub(super) fn tunnel_hover_card(tunnel: &Tunnel) -> Vec<Section> {
 }
 
 pub fn tunnel_address_sections(tunnel_address: &TunnelAddress) -> Vec<Section> {
-    vec![Section::new(
-        "Addresses",
-        dictionary_table(
-            tunnel_address
-                .ip
-                .as_deref()
-                .map(|ip| LabeledValue::new("IP", ip)),
-        ),
-    )]
+    let address_entries = match tunnel_address {
+        TunnelAddress::Assigned(tunnel_ip) => vec![LabeledValue::new("IP", tunnel_ip.as_str())],
+        TunnelAddress::Unassigned => Vec::new(),
+    };
+    vec![Section::new("Addresses", dictionary_table(address_entries))]
 }

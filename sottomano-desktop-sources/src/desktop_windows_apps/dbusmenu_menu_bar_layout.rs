@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Instant};
 
-use futures::{Stream, StreamExt, future::join_all, stream};
+use futures::{Stream, StreamExt, future, stream};
 use serde::{Deserialize, Serialize};
 use system_tray::menu::MenuItem;
 use zbus::{
@@ -21,6 +21,7 @@ const DBUSMENU_INTERFACE: &str = "com.canonical.dbusmenu";
 const QT_MENU_BAR_ROOT: &str = "/MenuBar";
 const WHOLE_TREE_DEPTH: i32 = -1;
 const ROOT_MENU_ITEM: i32 = 0;
+const BUS_OWNER_QUERIES_IN_FLIGHT: usize = 16;
 
 struct NumberedMenuBar {
     bar_number: u32,
@@ -145,8 +146,8 @@ pub async fn exported_menu_bars_of_process(
             BusName::WellKnown(_) => None,
         })
         .collect();
-    let process_names: Vec<OwnedUniqueName> =
-        join_all(unique_names.into_iter().map(|unique_name| {
+    let process_names: Vec<OwnedUniqueName> = stream::iter(unique_names)
+        .map(|unique_name| {
             let dbus = &dbus;
             async move {
                 let owner =
@@ -154,11 +155,11 @@ pub async fn exported_menu_bars_of_process(
                         .await;
                 (owner == OwnerProcess::Identified(process_id)).then_some(unique_name)
             }
-        }))
-        .await
-        .into_iter()
-        .flatten()
-        .collect();
+        })
+        .buffer_unordered(BUS_OWNER_QUERIES_IN_FLIGHT)
+        .filter_map(future::ready)
+        .collect()
+        .await;
     let mut exported_locations = Vec::new();
     for unique_name in process_names {
         exported_locations.extend(qt_menu_bars_on(connection, unique_name).await);

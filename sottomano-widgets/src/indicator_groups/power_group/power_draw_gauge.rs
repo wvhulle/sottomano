@@ -69,13 +69,14 @@ impl PowerDraw {
 }
 
 fn charger_limit_table(charger: &ChargerSupply) -> SectionTable {
-    dictionary_table(charger.limit.iter().flat_map(|limit| {
-        [
+    match charger {
+        ChargerSupply::Online(limit) => dictionary_table([
             LabeledValue::new("Limit", Quantity::power(limit.power())),
             LabeledValue::new("Voltage", Quantity::voltage(limit.voltage)),
             LabeledValue::new("Current", Quantity::current(limit.current)),
-        ]
-    }))
+        ]),
+        ChargerSupply::NoChargerOnline => dictionary_table([]),
+    }
 }
 
 pub fn charger_supply_sections(charger_supply: &ChargerSupply) -> Vec<Section> {
@@ -146,12 +147,10 @@ mod tests {
 
     #[test]
     fn on_ac_shows_the_charger_and_what_it_feeds() {
-        let charger = ChargerSupply {
-            limit: Some(ChargerLimit {
-                voltage: ElectricPotential::new::<volt>(20.0),
-                current: ElectricCurrent::new::<ampere>(3.25),
-            }),
-        };
+        let charger = ChargerSupply::Online(ChargerLimit {
+            voltage: ElectricPotential::new::<volt>(20.0),
+            current: ElectricCurrent::new::<ampere>(3.25),
+        });
         assert_eq!(
             charger_limit_table(&charger),
             dictionary_table([

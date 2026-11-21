@@ -2,14 +2,16 @@ use std::{borrow::Cow, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale, Utc};
 use quick_xml::escape::escape;
+pub use sottomano_desktop_sources::desktop_notifications::notification_data::{
+    NotificationBody, NotificationProgress,
+};
 use sottomano_desktop_sources::{
     ai_usage_spend::usage_quota::{Pace, Quota},
     desktop_notifications::notification_data::{
-        ActionTint, ExpireTimeout, NotifAction, NotificationData,
+        ActionTint, ExpireTimeout, NotifAction, NotificationData, NotifyingAppName,
     },
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
@@ -124,23 +126,11 @@ pub struct OngoingToast<Message> {
     pub key: OngoingKey,
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
-    pub body: Option<String>,
-    pub progress: Option<Ratio>,
+    pub body: NotificationBody,
+    pub progress: NotificationProgress,
     pub since: SystemTime,
     pub on_body_clicked: Message,
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ToastBody {
-    Bodiless,
-    Text(String),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ToastProgress {
-    Unmeasured,
-    Measured(Ratio),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,8 +139,8 @@ pub enum StateToast {
     NotifyFromSeverity {
         minimum_severity: Severity,
         summary_text: &'static str,
-        body: ToastBody,
-        progress: ToastProgress,
+        body: NotificationBody,
+        progress: NotificationProgress,
     },
 }
 
@@ -248,14 +238,8 @@ impl<Message> OngoingToast<Message> {
             key: OngoingKey::Sample(sample.indicator.clone()),
             severity,
             summary_text: Cow::Borrowed(summary_text),
-            body: match body {
-                ToastBody::Bodiless => None,
-                ToastBody::Text(text) => Some(text.clone()),
-            },
-            progress: match progress {
-                ToastProgress::Unmeasured => None,
-                ToastProgress::Measured(fill) => Some(*fill),
-            },
+            body: body.clone(),
+            progress: *progress,
             since: clock.wall,
             on_body_clicked: sample.on_body_clicked.clone(),
             action_buttons: Vec::new(),
@@ -289,8 +273,8 @@ impl<Message> OngoingToast<Message> {
             key: OngoingKey::Sample(sample.indicator.clone()),
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} {outlook}", worst.label)),
-            progress: Some(worst.used),
-            body: Some(quota_pace_body(&alerting, now, locale)),
+            progress: NotificationProgress::Measured(worst.used),
+            body: NotificationBody::Text(quota_pace_body(&alerting, now, locale)),
             since: clock.wall,
             on_body_clicked: sample.on_body_clicked.clone(),
             action_buttons: Vec::new(),
@@ -337,7 +321,7 @@ impl<Message> OngoingToast<Message> {
                 .collect(),
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
-            app_name: Some(self.widget_name.to_string()),
+            app_name: NotifyingAppName::Named(self.widget_name.to_string()),
             ..NotificationData::shell_notification(toast_id, self.summary_text.clone())
         }
     }
@@ -346,7 +330,7 @@ impl<Message> OngoingToast<Message> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeDelta;
-    use uom::si::ratio::percent;
+    use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
     use crate::indicator_groups::indicator_group_identity::{
@@ -357,8 +341,8 @@ mod tests {
         StateToast::NotifyFromSeverity {
             minimum_severity,
             summary_text: "summary",
-            body: ToastBody::Bodiless,
-            progress: ToastProgress::Unmeasured,
+            body: NotificationBody::Bodiless,
+            progress: NotificationProgress::Unmeasured,
         }
     }
 

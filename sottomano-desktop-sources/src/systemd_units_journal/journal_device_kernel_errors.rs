@@ -70,7 +70,7 @@ pub fn device_kernel_error_windows() -> impl Stream<Item = Vec<DeviceKernelError
     journal_windows::<DeviceKernelError>().filter_map(|window| {
         ready(
             window
-                .inspect_err(|e| tracing::warn!("device kernel errors: {e}"))
+                .inspect_err(|error| tracing::warn!("device kernel errors: {error}"))
                 .ok(),
         )
     })

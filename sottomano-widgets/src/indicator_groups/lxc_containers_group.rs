@@ -4,7 +4,8 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::{ContainerRunState, RunChange},
-    lxc_containers::{LxcContainer, LxcContainerListing, LxcProbe},
+    container_runtime_facts::ContainerMemoryUse,
+    lxc_containers::{LxcConfigFile, LxcContainer, LxcContainerListing, LxcProbe},
 };
 
 use crate::{
@@ -63,10 +64,12 @@ impl<'a> LxcContainerIndicator<'a> {
         let container = self.container;
         let label = match container.listing.run_state {
             ContainerRunState::Stopped => ContainerRunState::Stopped.label().to_owned(),
-            ContainerRunState::Running => container.memory_in_use.map_or_else(
-                || ContainerRunState::Running.label().to_owned(),
-                approximate_memory_text,
-            ),
+            ContainerRunState::Running => match container.memory_in_use {
+                ContainerMemoryUse::Measured(memory_in_use) => {
+                    approximate_memory_text(memory_in_use)
+                }
+                ContainerMemoryUse::Unaccounted => ContainerRunState::Running.label().to_owned(),
+            },
         };
         GroupIndicator::glyph_only(
             container.listing.container_name.clone(),
@@ -86,7 +89,7 @@ impl<'a> LxcContainerIndicator<'a> {
             "State",
             container.listing.run_state.label(),
         )];
-        if let Some(memory_in_use) = container.memory_in_use {
+        if let ContainerMemoryUse::Measured(memory_in_use) = container.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
                 approximate_memory_text(memory_in_use),
@@ -98,7 +101,7 @@ impl<'a> LxcContainerIndicator<'a> {
                 .iter()
                 .map(|configured_address| LabeledValue::new("Address", configured_address.clone())),
         );
-        if let Some(config_path) = &container.config_path {
+        if let LxcConfigFile::InLxcPath(config_path) = &container.config_path {
             detail_entries.push(LabeledValue::new(
                 "Config",
                 config_path.display().to_string(),

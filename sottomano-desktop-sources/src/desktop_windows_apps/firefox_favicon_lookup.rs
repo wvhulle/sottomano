@@ -148,7 +148,7 @@ async fn resolve_one(
         }
     }
     if icon_bytes.is_none()
-        && let Some(origin) = urls.first().and_then(|first_url| origin_of(first_url))
+        && let Some(origin) = urls.first().and_then(|first_url| url_origin(first_url))
     {
         icon_bytes = icon_blob(favicons, ORIGIN_ICON_QUERY, origin).await;
         if icon_bytes.is_none() {
@@ -223,7 +223,7 @@ async fn icon_blob(favicons: &turso::Connection, query: &str, parameter: &str) -
         .filter(|icon_bytes| !icon_bytes.is_empty())
 }
 
-fn origin_of(url: &str) -> Option<&str> {
+fn url_origin(url: &str) -> Option<&str> {
     let (scheme, rest) = url.split_once("://")?;
     let host_len = rest.find('/').unwrap_or(rest.len());
     (host_len > 0).then(|| &url[..scheme.len() + 3 + host_len])

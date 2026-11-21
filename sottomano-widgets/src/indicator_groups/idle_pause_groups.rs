@@ -212,7 +212,7 @@ impl IdlePauseGroups {
                 let hibernate_capability = self
                     .sleep_obstacles
                     .get()
-                    .map(|obstacles| obstacles.capability_of(SleepState::Hibernate));
+                    .map(|obstacles| obstacles.sleep_state_capability(SleepState::Hibernate));
                 self.hibernate
                     .timer
                     .set_availability(capability_availability(hibernate_capability));

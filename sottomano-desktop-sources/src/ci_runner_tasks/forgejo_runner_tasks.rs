@@ -16,10 +16,10 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
         CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
-        TaskUsage, TaskWebLog,
+        TaskUsage, TaskWebLog, distinct_container_images,
         forgejo_runner_container_names::{ForgejoJobName, parse_forgejo_container_name},
         forgejo_runner_journal_repos::ForgejoTaskStart,
-        images_of, sorted_unique,
+        sorted_unique,
     },
     delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
@@ -76,7 +76,7 @@ fn forgejo_tasks(
                     ForgejoJobName::NotInContainerName => None,
                 }
             })),
-            images: images_of(&containers),
+            images: distinct_container_images(&containers),
             usage: TaskUsage::from(containers.as_slice()),
             stop_control: TaskStopControl::stopping_containers(engine_socket, &containers),
         })

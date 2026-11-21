@@ -1,5 +1,8 @@
 use sottomano_desktop_sources::network_connectivity::{
-    modem_manager_mobile::{Mobile, ModemState},
+    modem_manager_mobile::{
+        BearerAddress, BearerTraffic, Mobile, MobileOperator, ModemFailure, ModemState,
+        NetworkRegistration, SignalFreshness, SignalQuality,
+    },
     network_manager_proxies::{LinkPhase, RadioPower},
 };
 use sottomano_toml_config::severity::Severity;
@@ -35,30 +38,29 @@ pub struct AllMobileRadiosSwitch {
 }
 
 #[must_use]
-pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> Option<&str> {
+pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> &BearerAddress {
     match family {
-        AddressFamily::Ipv4 => modem.ipv4.as_deref(),
-        AddressFamily::Ipv6 => modem.ipv6.as_deref(),
+        AddressFamily::Ipv4 => &modem.ipv4,
+        AddressFamily::Ipv6 => &modem.ipv6,
     }
 }
 
 impl<'a> ModemSignalIndicator<'a> {
     pub fn indicator(self) -> GroupIndicator<'a> {
+        let (signal_severity, gauge) = match self.modem.signal {
+            SignalQuality::Measured { percent, .. } => {
+                let fill = percent_fill(percent);
+                (
+                    signal_level(percent),
+                    ReadoutGauge::Gauged { fill, live: fill },
+                )
+            }
+            SignalQuality::Unmeasured => (Severity::Normal, ReadoutGauge::Ungauged),
+        };
         let state = match self.modem.link_state() {
             LinkPhase::Switching => IndicatorState::Pending,
-            LinkPhase::Up => self
-                .modem
-                .signal
-                .map_or(Severity::Normal, signal_level)
-                .into(),
+            LinkPhase::Up => signal_severity.into(),
             LinkPhase::Down => IndicatorState::Off,
-        };
-        let gauge = match self.modem.signal {
-            Some(signal) => {
-                let fill = percent_fill(signal);
-                ReadoutGauge::Gauged { fill, live: fill }
-            }
-            None => ReadoutGauge::Ungauged,
         };
         GroupIndicator::glyph_only("Signal", Phosphor::Broadcast(Weight::Regular).into(), state)
             .with_readout(IndicatorReadout {
@@ -70,37 +72,34 @@ impl<'a> ModemSignalIndicator<'a> {
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
-        let signal_suffix = if self.modem.signal_recent {
-            ""
-        } else {
-            " (cached)"
-        };
+        let mut network_entries = Vec::new();
+        if let MobileOperator::Named(operator) = &self.modem.operator {
+            network_entries.push(LabeledValue::new("Carrier", operator.as_str()));
+        }
+        if !self.modem.technology.is_empty() {
+            network_entries.push(LabeledValue::new(
+                "Network Type",
+                self.modem.technology.join(", "),
+            ));
+        }
+        if let SignalQuality::Measured { percent, freshness } = self.modem.signal {
+            let signal_suffix = match freshness {
+                SignalFreshness::Recent => "",
+                SignalFreshness::Cached => " (cached)",
+            };
+            network_entries.push(LabeledValue::new(
+                "Signal Strength",
+                format!("{percent}%{signal_suffix}"),
+            ));
+        }
+        if self.modem.registration != NetworkRegistration::Unreported {
+            network_entries.push(LabeledValue::new(
+                "Network Registration",
+                self.modem.registration.label(),
+            ));
+        }
         vec![
-            Section::new(
-                "Network",
-                dictionary_table(
-                    [
-                        self.modem
-                            .operator
-                            .as_deref()
-                            .map(|operator| LabeledValue::new("Carrier", operator)),
-                        (!self.modem.technology.is_empty()).then(|| {
-                            LabeledValue::new("Network Type", self.modem.technology.join(", "))
-                        }),
-                        self.modem.signal.map(|signal| {
-                            LabeledValue::new(
-                                "Signal Strength",
-                                format!("{signal}%{signal_suffix}"),
-                            )
-                        }),
-                        self.modem.registration.map(|registration| {
-                            LabeledValue::new("Network Registration", registration)
-                        }),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                ),
-            ),
+            Section::new("Network", dictionary_table(network_entries)),
             Section::from(self.modem),
         ]
     }
@@ -131,22 +130,19 @@ impl<'a> ModemConnectionSwitch<'a> {
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
-        let failure = match self.modem.state {
-            Some(ModemState::Failed {
-                reason: Some(reason),
-            }) => Some(LabeledValue::new("Failure Reason", reason)),
-            _ => None,
-        };
-        vec![Section::new(
-            "Status",
-            dictionary_table(
-                self.modem
-                    .state
-                    .map(|state| LabeledValue::new("Connection State", state.label()))
-                    .into_iter()
-                    .chain(failure),
-            ),
-        )]
+        let mut status_entries = Vec::new();
+        if self.modem.state != ModemState::Unreported {
+            status_entries.push(LabeledValue::new(
+                "Connection State",
+                self.modem.state.label(),
+            ));
+        }
+        if let ModemState::Failed { reason } = self.modem.state
+            && reason != ModemFailure::Unspecified
+        {
+            status_entries.push(LabeledValue::new("Failure Reason", reason.label()));
+        }
+        vec![Section::new("Status", dictionary_table(status_entries))]
     }
 }
 
@@ -161,20 +157,15 @@ impl<'a> ModemDataIndicator<'a> {
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
+        let BearerTraffic::Counted { received, sent } = self.modem.traffic else {
+            return vec![Section::new("Transferred", dictionary_table(Vec::new()))];
+        };
         vec![Section::new(
             "Transferred",
-            dictionary_table(
-                [
-                    self.modem.rx.map(|received| {
-                        LabeledValue::new("Received (RX)", Quantity::size(received))
-                    }),
-                    self.modem
-                        .tx
-                        .map(|sent| LabeledValue::new("Sent (TX)", Quantity::size(sent))),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
+            dictionary_table([
+                LabeledValue::new("Received (RX)", Quantity::size(received)),
+                LabeledValue::new("Sent (TX)", Quantity::size(sent)),
+            ]),
         )]
     }
 }

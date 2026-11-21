@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
     systemd_units_journal::{
         SystemdUnitScope, journal_coredumps::CoredumpEntry,
         journal_kernel_errors::KernelOccurrence, journal_oom_kills::OomKillEntry,
-        journal_record_fields::OwningUnit, journal_service_errors::ServiceErrors,
+        journal_service_errors::ServiceErrors,
     },
 };
 use sottomano_toml_config::{Config, severity::Severity};
@@ -118,13 +118,7 @@ fn coredumps_in_scope(
 ) -> Vec<CoredumpEntry> {
     coredumps
         .iter()
-        .filter(|coredump| {
-            coredump
-                .unit
-                .as_ref()
-                .map_or(SystemdUnitScope::SystemWide, OwningUnit::unit_scope)
-                == unit_scope
-        })
+        .filter(|coredump| coredump.unit.unit_scope() == unit_scope)
         .cloned()
         .collect()
 }
@@ -241,11 +235,14 @@ impl JournalEventsGroup {
 mod tests {
     use std::{path::PathBuf, time::SystemTime};
 
-    use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::CoreDumpingSignal;
+    use sottomano_desktop_sources::systemd_units_journal::{
+        journal_coredumps::{CoreDumpingSignal, CoreFileStorage, CoredumpOwner},
+        journal_record_fields::OwningUnit,
+    };
 
     use super::*;
 
-    fn coredump_owned_by(unit: Option<OwningUnit>) -> CoredumpEntry {
+    fn coredump_owned_by(unit: CoredumpOwner) -> CoredumpEntry {
         CoredumpEntry {
             at: SystemTime::UNIX_EPOCH,
             command: "crashing".to_owned(),
@@ -253,7 +250,7 @@ mod tests {
             signal: CoreDumpingSignal::Abort,
             pid: 42,
             unit,
-            stored_file: None,
+            core_file: CoreFileStorage::NotOnDisk,
             severity: Severity::Critical,
         }
     }
@@ -261,23 +258,32 @@ mod tests {
     #[test]
     fn unitless_coredumps_land_in_the_system_journal() {
         let coredumps = [
-            coredump_owned_by(Some(OwningUnit::System("sshd.service".to_owned()))),
-            coredump_owned_by(Some(OwningUnit::User("app-firefox.scope".to_owned()))),
-            coredump_owned_by(None),
+            coredump_owned_by(CoredumpOwner::Unit(OwningUnit::System(
+                "sshd.service".to_owned(),
+            ))),
+            coredump_owned_by(CoredumpOwner::Unit(OwningUnit::User(
+                "app-firefox.scope".to_owned(),
+            ))),
+            coredump_owned_by(CoredumpOwner::OutsideUnits),
         ];
         let unit_names_in = |unit_scope| {
             coredumps_in_scope(&coredumps, unit_scope)
                 .into_iter()
-                .map(|coredump| coredump.unit.map(|unit| unit.name().to_owned()))
+                .map(|coredump| coredump.unit)
                 .collect::<Vec<_>>()
         };
         assert_eq!(
             unit_names_in(SystemdUnitScope::SystemWide),
-            [Some("sshd.service".to_owned()), None]
+            [
+                CoredumpOwner::Unit(OwningUnit::System("sshd.service".to_owned())),
+                CoredumpOwner::OutsideUnits
+            ]
         );
         assert_eq!(
             unit_names_in(SystemdUnitScope::UserSession),
-            [Some("app-firefox.scope".to_owned())]
+            [CoredumpOwner::Unit(OwningUnit::User(
+                "app-firefox.scope".to_owned()
+            ))]
         );
     }
 }

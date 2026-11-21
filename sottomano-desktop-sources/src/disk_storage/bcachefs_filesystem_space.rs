@@ -36,7 +36,13 @@ pub struct BcachefsDeviceSpace {
     pub state: String,
     pub free: ByteSize,
     pub capacity: ByteSize,
-    pub holds_metadata: bool,
+    pub allowed_data: AllowedDeviceData,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllowedDeviceData {
+    DataAndMetadata,
+    DataOnly,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -57,7 +63,10 @@ impl BcachefsSpace {
         let mut metadata_free: Vec<ByteSize> = self
             .devices
             .iter()
-            .filter(|device| device.holds_metadata && device.state == WRITABLE_STATE)
+            .filter(|device| {
+                device.allowed_data == AllowedDeviceData::DataAndMetadata
+                    && device.state == WRITABLE_STATE
+            })
             .map(|device| device.free)
             .collect();
         metadata_free.sort_unstable_by(|first, second| second.cmp(first));
@@ -192,10 +201,15 @@ impl BcachefsMember {
                 .to_owned(),
             free: ByteSize::b(buckets.reusable * bucket_bytes),
             capacity: ByteSize::b(buckets.capacity * bucket_bytes),
-            holds_metadata: read_field(&self.dir.join("data_allowed"))?
+            allowed_data: if read_field(&self.dir.join("data_allowed"))?
                 .trim()
                 .split(',')
-                .any(|data_type| data_type == METADATA_DATA_TYPE),
+                .any(|data_type| data_type == METADATA_DATA_TYPE)
+            {
+                AllowedDeviceData::DataAndMetadata
+            } else {
+                AllowedDeviceData::DataOnly
+            },
         })
     }
 }
@@ -360,14 +374,18 @@ zstd                    475G            831G                    172k
 incompressible         1006G           1006G                    166k
 ";
 
-    fn device_with(free_gib: u64, holds_metadata: bool, state: &str) -> BcachefsDeviceSpace {
+    fn device_with(
+        free_gib: u64,
+        allowed_data: AllowedDeviceData,
+        state: &str,
+    ) -> BcachefsDeviceSpace {
         BcachefsDeviceSpace {
             label: String::new(),
             partition: String::new(),
             state: state.to_owned(),
             free: ByteSize::gib(free_gib),
             capacity: ByteSize::gib(1000),
-            holds_metadata,
+            allowed_data,
         }
     }
 
@@ -421,7 +439,10 @@ incompressible         1006G           1006G                    166k
     #[test]
     fn single_replica_headroom_is_the_emptiest_metadata_device() {
         let space = space_with(
-            vec![device_with(10, true, "rw"), device_with(50, true, "rw")],
+            vec![
+                device_with(10, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(50, AllowedDeviceData::DataAndMetadata, "rw"),
+            ],
             1,
         );
         assert_eq!(space.metadata_headroom(), ByteSize::gib(50));
@@ -431,9 +452,9 @@ incompressible         1006G           1006G                    166k
     fn two_replicas_are_limited_by_the_second_emptiest_device() {
         let space = space_with(
             vec![
-                device_with(10, true, "rw"),
-                device_with(50, true, "rw"),
-                device_with(900, false, "rw"),
+                device_with(10, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(50, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(900, AllowedDeviceData::DataOnly, "rw"),
             ],
             2,
         );
@@ -443,7 +464,10 @@ incompressible         1006G           1006G                    166k
     #[test]
     fn too_few_writable_metadata_devices_leave_no_headroom() {
         let space = space_with(
-            vec![device_with(10, true, "rw"), device_with(50, true, "ro")],
+            vec![
+                device_with(10, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(50, AllowedDeviceData::DataAndMetadata, "ro"),
+            ],
             2,
         );
         assert_eq!(space.metadata_headroom(), ByteSize::b(0));
@@ -453,9 +477,9 @@ incompressible         1006G           1006G                    166k
     fn three_replicas_take_the_third_largest() {
         let space = space_with(
             vec![
-                device_with(30, true, "rw"),
-                device_with(10, true, "rw"),
-                device_with(20, true, "rw"),
+                device_with(30, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(10, AllowedDeviceData::DataAndMetadata, "rw"),
+                device_with(20, AllowedDeviceData::DataAndMetadata, "rw"),
             ],
             3,
         );

@@ -1,23 +1,24 @@
-use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    host_machine_identity::hostname1_os_identity::at_micros,
     system_protocol_clients::{
         dbus_change_signals::change_triggers,
         dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
-    systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, manager_signal, systemd_signal},
+    systemd_units_journal::{
+        ManagerProxy, SystemdTimestamp, UNIT_INTERFACE, manager_signal, realtime_usec_timestamp,
+        systemd_signal,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserServiceManager {
     pub version: String,
     pub state: String,
-    pub started_at: Option<DateTime<Utc>>,
+    pub started_at: SystemdTimestamp,
 }
 
 impl SnapshotSource for UserServiceManager {
@@ -43,7 +44,7 @@ async fn manager_state_changes(
     let launched = UserServiceManager {
         version: manager.version().await?,
         state: manager.system_state().await?,
-        started_at: at_micros(manager.userspace_timestamp().await?),
+        started_at: realtime_usec_timestamp(manager.userspace_timestamp().await?),
     };
     let state_triggers = change_triggers(
         &buses.session,

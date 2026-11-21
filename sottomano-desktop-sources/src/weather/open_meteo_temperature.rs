@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    time::Duration,
-};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -13,6 +10,9 @@ use uom::si::{
 };
 
 use super::Error;
+pub use super::wmo_weather_codes::{
+    Daylight, Intensity, SkyCondition, SkyWetness, WeatherCondition,
+};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
@@ -56,162 +56,6 @@ fn celsius_series<'de, D: Deserializer<'de>>(
         .into_iter()
         .map(ThermodynamicTemperature::new::<degree_celsius>)
         .collect())
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Intensity {
-    Light,
-    Moderate,
-    Heavy,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
-#[serde(try_from = "i64")]
-pub enum WeatherCondition {
-    Clear,
-    MainlyClear,
-    PartlyCloudy,
-    Overcast,
-    Fog,
-    RimeFog,
-    Drizzle(Intensity),
-    FreezingDrizzle(Intensity),
-    Rain(Intensity),
-    FreezingRain(Intensity),
-    Snow(Intensity),
-    SnowGrains,
-    RainShowers(Intensity),
-    SnowShowers(Intensity),
-    Thunderstorm,
-    ThunderstormWithHail(Intensity),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SkyWetness {
-    Dry,
-    Precipitating,
-}
-
-impl WeatherCondition {
-    #[must_use]
-    pub const fn sky_wetness(self) -> SkyWetness {
-        match self {
-            Self::Clear
-            | Self::MainlyClear
-            | Self::PartlyCloudy
-            | Self::Overcast
-            | Self::Fog
-            | Self::RimeFog => SkyWetness::Dry,
-            Self::Drizzle(_)
-            | Self::FreezingDrizzle(_)
-            | Self::Rain(_)
-            | Self::FreezingRain(_)
-            | Self::Snow(_)
-            | Self::SnowGrains
-            | Self::RainShowers(_)
-            | Self::SnowShowers(_)
-            | Self::Thunderstorm
-            | Self::ThunderstormWithHail(_) => SkyWetness::Precipitating,
-        }
-    }
-}
-
-impl Display for Intensity {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(match self {
-            Self::Light => "Light",
-            Self::Moderate => "Moderate",
-            Self::Heavy => "Heavy",
-        })
-    }
-}
-
-impl Display for WeatherCondition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::Clear => f.write_str("Clear"),
-            Self::MainlyClear => f.write_str("Mainly clear"),
-            Self::PartlyCloudy => f.write_str("Partly cloudy"),
-            Self::Overcast => f.write_str("Overcast"),
-            Self::Fog => f.write_str("Fog"),
-            Self::RimeFog => f.write_str("Rime fog"),
-            Self::Drizzle(intensity) => write!(f, "{intensity} drizzle"),
-            Self::FreezingDrizzle(intensity) => write!(f, "{intensity} freezing drizzle"),
-            Self::Rain(intensity) => write!(f, "{intensity} rain"),
-            Self::FreezingRain(intensity) => write!(f, "{intensity} freezing rain"),
-            Self::Snow(intensity) => write!(f, "{intensity} snow"),
-            Self::SnowGrains => f.write_str("Snow grains"),
-            Self::RainShowers(intensity) => write!(f, "{intensity} rain showers"),
-            Self::SnowShowers(intensity) => write!(f, "{intensity} snow showers"),
-            Self::Thunderstorm => f.write_str("Thunderstorm"),
-            Self::ThunderstormWithHail(Intensity::Heavy) => {
-                f.write_str("Thunderstorm with heavy hail")
-            }
-            Self::ThunderstormWithHail(_) => f.write_str("Thunderstorm with hail"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
-#[serde(from = "u8")]
-pub enum Daylight {
-    Day,
-    Night,
-}
-
-impl Display for Daylight {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(match self {
-            Self::Day => "Day",
-            Self::Night => "Night",
-        })
-    }
-}
-
-impl From<u8> for Daylight {
-    fn from(is_day: u8) -> Self {
-        if is_day == 0 { Self::Night } else { Self::Day }
-    }
-}
-
-impl TryFrom<i64> for WeatherCondition {
-    type Error = i64;
-
-    fn try_from(code: i64) -> Result<Self, Self::Error> {
-        use Intensity::{Heavy, Light, Moderate};
-        let condition = match code {
-            0 => Self::Clear,
-            1 => Self::MainlyClear,
-            2 => Self::PartlyCloudy,
-            3 => Self::Overcast,
-            45 => Self::Fog,
-            48 => Self::RimeFog,
-            51 => Self::Drizzle(Light),
-            53 => Self::Drizzle(Moderate),
-            55 => Self::Drizzle(Heavy),
-            56 => Self::FreezingDrizzle(Light),
-            57 => Self::FreezingDrizzle(Heavy),
-            61 => Self::Rain(Light),
-            63 => Self::Rain(Moderate),
-            65 => Self::Rain(Heavy),
-            66 => Self::FreezingRain(Light),
-            67 => Self::FreezingRain(Heavy),
-            71 => Self::Snow(Light),
-            73 => Self::Snow(Moderate),
-            75 => Self::Snow(Heavy),
-            77 => Self::SnowGrains,
-            80 => Self::RainShowers(Light),
-            81 => Self::RainShowers(Moderate),
-            82 => Self::RainShowers(Heavy),
-            85 => Self::SnowShowers(Light),
-            86 => Self::SnowShowers(Heavy),
-            95 => Self::Thunderstorm,
-            96 => Self::ThunderstormWithHail(Light),
-            99 => Self::ThunderstormWithHail(Heavy),
-            unrecognized => return Err(unrecognized),
-        };
-        Ok(condition)
-    }
 }
 
 #[derive(Deserialize)]
@@ -262,13 +106,12 @@ impl HourlyTemperatures {
             .zip(self.weather_code)
             .zip(self.is_day)
             .map(|(((time, temp), code), daylight)| {
-                let condition = WeatherCondition::try_from(code)
-                    .inspect_err(|unknown_code| {
-                        tracing::warn!(
-                            "weather: hourly weather code {unknown_code} at {time} is unknown"
-                        );
-                    })
-                    .ok();
+                let condition = SkyCondition::from(code);
+                if let SkyCondition::UnrecognizedCode(unknown_code) = condition {
+                    tracing::warn!(
+                        "weather: hourly weather code {unknown_code} at {time} is unknown"
+                    );
+                }
                 HourlyTemperature {
                     time,
                     temp,
@@ -287,7 +130,7 @@ fn today(values: &[ThermodynamicTemperature]) -> Result<ThermodynamicTemperature
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
-    pub condition: Option<WeatherCondition>,
+    pub condition: SkyCondition,
     pub daylight: Daylight,
     pub temp: ThermodynamicTemperature,
     pub feels: ThermodynamicTemperature,
@@ -307,7 +150,7 @@ pub struct HourlyForecast {
 pub struct HourlyTemperature {
     pub time: DateTime<Utc>,
     pub temp: ThermodynamicTemperature,
-    pub condition: Option<WeatherCondition>,
+    pub condition: SkyCondition,
     pub daylight: Daylight,
 }
 
@@ -335,12 +178,12 @@ impl Temperature {
             here.longitude_degrees()
         );
         let forecast: TemperatureForecast = http_json_client::get_json(&url, &[]).await?;
+        let current_condition = SkyCondition::from(forecast.current.weather_code);
+        if let SkyCondition::UnrecognizedCode(unknown_code) = current_condition {
+            tracing::warn!("weather: current weather code {unknown_code} is unknown");
+        }
         Ok(Temperature {
-            condition: WeatherCondition::try_from(forecast.current.weather_code)
-                .inspect_err(|unknown_code| {
-                    tracing::warn!("weather: current weather code {unknown_code} is unknown");
-                })
-                .ok(),
+            condition: current_condition,
             daylight: forecast.current.is_day,
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,
@@ -389,7 +232,10 @@ mod tests {
             "2026-09-27T09:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(forecast.later.len(), 1);
-        assert_eq!(forecast.later[0].condition, Some(WeatherCondition::Clear));
+        assert_eq!(
+            forecast.later[0].condition,
+            SkyCondition::Recognized(WeatherCondition::Clear)
+        );
         assert_eq!(forecast.earlier[0].daylight, Daylight::Night);
         assert_eq!(forecast.later[0].daylight, Daylight::Day);
     }

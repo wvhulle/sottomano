@@ -24,7 +24,9 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingToast, definition_list, moment_text},
+        ongoing_toast::{
+            NotificationBody, NotificationProgress, OngoingToast, definition_list, moment_text,
+        },
         value_cells::ValueCell,
     },
 };
@@ -70,14 +72,14 @@ pub(super) fn wired_slow_jobs_indicator<'a>(
             key: unit_toast_key(slow_jobs_name(jobs), job.unit.clone()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
-            body: Some(definition_list([
+            body: NotificationBody::Text(definition_list([
                 (
                     "Since",
                     moment_text(DateTime::<Utc>::from(job.started_at), clock.utc(), locale),
                 ),
                 ("Scope", scope_name.to_owned()),
             ])),
-            progress: None,
+            progress: NotificationProgress::Unmeasured,
             since: job.started_at,
             on_body_clicked: open_log(jobs.scope.follow_units_log_args([job.unit.as_str()])),
             action_buttons: Vec::new(),

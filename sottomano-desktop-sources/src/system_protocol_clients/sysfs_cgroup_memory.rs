@@ -64,14 +64,26 @@ impl MemoryEventCounts {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwapUsage {
+    Accounted(ByteSize),
+    NotAccounted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MemoryPressure {
+    StalledPercent(f64),
+    NotReported,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CgroupMemorySample {
     pub current: ByteSize,
     pub high: MemoryBound,
     pub max: MemoryBound,
-    pub swap_current: Option<ByteSize>,
+    pub swap_current: SwapUsage,
     pub swap_max: MemoryBound,
-    pub stalled_percent_last_ten_seconds: Option<f64>,
+    pub stalled_percent_last_ten_seconds: MemoryPressure,
     pub event_counts: MemoryEventCounts,
 }
 
@@ -147,6 +159,19 @@ fn parsed_some_average_ten_seconds(pressure_text: &str) -> Option<f64> {
         })
 }
 
+fn read_swap_usage(cgroup_directory: &Path) -> SwapUsage {
+    read_text(cgroup_directory, "memory.swap.current")
+        .and_then(|swap_text| parsed_byte_count(&swap_text, "memory.swap.current"))
+        .map_or(SwapUsage::NotAccounted, SwapUsage::Accounted)
+}
+
+fn read_memory_pressure(cgroup_directory: &Path) -> MemoryPressure {
+    read_text(cgroup_directory, "memory.pressure")
+        .as_deref()
+        .and_then(parsed_some_average_ten_seconds)
+        .map_or(MemoryPressure::NotReported, MemoryPressure::StalledPercent)
+}
+
 #[must_use]
 pub fn read_cgroup_memory(cgroup_directory: &Path) -> Option<CgroupMemorySample> {
     let current = parsed_byte_count(
@@ -157,12 +182,9 @@ pub fn read_cgroup_memory(cgroup_directory: &Path) -> Option<CgroupMemorySample>
         current,
         high: read_bound(cgroup_directory, "memory.high"),
         max: read_bound(cgroup_directory, "memory.max"),
-        swap_current: read_text(cgroup_directory, "memory.swap.current")
-            .and_then(|swap_text| parsed_byte_count(&swap_text, "memory.swap.current")),
+        swap_current: read_swap_usage(cgroup_directory),
         swap_max: read_bound(cgroup_directory, "memory.swap.max"),
-        stalled_percent_last_ten_seconds: read_text(cgroup_directory, "memory.pressure")
-            .as_deref()
-            .and_then(parsed_some_average_ten_seconds),
+        stalled_percent_last_ten_seconds: read_memory_pressure(cgroup_directory),
         event_counts: read_text(cgroup_directory, "memory.events")
             .as_deref()
             .map(MemoryEventCounts::parsed)
@@ -237,8 +259,9 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::{
-        MemoryBound, MemoryEventCounts, inactive_file_bytes, parsed_some_average_ten_seconds,
-        read_cgroup_memory, unified_cgroup_path, unit_cgroup_enclosing,
+        MemoryBound, MemoryEventCounts, SwapUsage, inactive_file_bytes,
+        parsed_some_average_ten_seconds, read_cgroup_memory, unified_cgroup_path,
+        unit_cgroup_enclosing,
     };
 
     #[test]
@@ -326,7 +349,7 @@ mod tests {
         fs::remove_dir_all(&cgroup_directory).unwrap();
         assert_eq!(sample.current, ByteSize::gib(6));
         assert_eq!(sample.limit(), Some(ByteSize::gib(12)));
-        assert_eq!(sample.swap_current, Some(ByteSize::gib(1)));
+        assert_eq!(sample.swap_current, SwapUsage::Accounted(ByteSize::gib(1)));
         assert_eq!(sample.event_counts.throttled_at_high, 2);
         assert!(!sample.exceeds_high());
     }

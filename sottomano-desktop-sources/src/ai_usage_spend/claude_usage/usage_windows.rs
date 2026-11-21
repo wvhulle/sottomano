@@ -15,6 +15,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         spend_money::{Money, minor_units_money},
+        subscription_plan::SubscriptionPlan,
         usage_quota::Quota,
     },
     delivery_cadence_drivers::PeriodicPolling,
@@ -58,24 +59,59 @@ pub struct WindowUsage {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtraStatus {
     Enabled,
-    Disabled { reason: Option<String> },
+    Disabled,
+    DisabledBecause(String),
+}
+
+impl ExtraStatus {
+    pub(crate) fn disabled(disabled_reason: Option<&str>) -> Self {
+        disabled_reason.map_or(ExtraStatus::Disabled, |reason| {
+            ExtraStatus::DisabledBecause(reason.replace('_', " "))
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExtraSpend {
+    Spent(Money),
+    Unreported,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExtraAllowance {
+    Capped {
+        monthly_limit: Money,
+        used_share: Ratio,
+    },
+    NoCapReported,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExtraUsage {
     pub status: ExtraStatus,
-    pub spent: Option<Money>,
-    pub monthly_limit: Option<Money>,
-    pub used_share: Option<Ratio>,
+    pub spent: ExtraSpend,
+    pub allowance: ExtraAllowance,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SonnetWindow {
+    Tracked(WindowUsage),
+    Untracked,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExtraUsageOffer {
+    Taken(ExtraUsage),
+    NeverUsed,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeUsageWindows {
-    pub plan: Option<String>,
+    pub plan: SubscriptionPlan,
     pub session: WindowUsage,
     pub weekly: WindowUsage,
-    pub sonnet: Option<WindowUsage>,
-    pub extra: Option<ExtraUsage>,
+    pub sonnet: SonnetWindow,
+    pub extra: ExtraUsageOffer,
 }
 
 impl ClaudeUsageWindows {
@@ -97,16 +133,19 @@ impl ClaudeUsageWindows {
     }
 
     fn all_usage_windows(&self) -> impl Iterator<Item = &WindowUsage> {
-        [&self.session, &self.weekly]
-            .into_iter()
-            .chain(&self.sonnet)
+        let sonnet = match &self.sonnet {
+            SonnetWindow::Tracked(sonnet) => Some(sonnet),
+            SonnetWindow::Untracked => None,
+        };
+        [&self.session, &self.weekly].into_iter().chain(sonnet)
     }
 
     #[must_use]
     pub fn sonnet_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
-        self.sonnet
-            .as_ref()?
-            .quota("Claude weekly Sonnet limit", WEEKLY_LENGTH, now)
+        let SonnetWindow::Tracked(sonnet) = &self.sonnet else {
+            return None;
+        };
+        sonnet.quota("Claude weekly Sonnet limit", WEEKLY_LENGTH, now)
     }
 }
 
@@ -125,16 +164,7 @@ impl WindowUsage {
 impl ClaudeUsageWindows {
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        let extra = self
-            .extra
-            .as_ref()
-            .filter(|extra| extra.status == ExtraStatus::Enabled && extra.monthly_limit.is_some())
-            .filter(|_| {
-                self.all_usage_windows()
-                    .any(|window| window.utilization >= Ratio::new::<percent>(100.0))
-            })
-            .and_then(|extra| extra.used_share)
-            .and_then(|used| Quota::within_calendar_month("Claude extra usage", used, now));
+        let extra = self.extra_quota(now);
         [
             self.session_quota(now),
             self.weekly_quota(now),
@@ -144,6 +174,26 @@ impl ClaudeUsageWindows {
         .into_iter()
         .flatten()
         .collect()
+    }
+}
+
+impl ClaudeUsageWindows {
+    fn extra_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
+        let ExtraUsageOffer::Taken(ExtraUsage {
+            status: ExtraStatus::Enabled,
+            allowance: ExtraAllowance::Capped { used_share, .. },
+            ..
+        }) = &self.extra
+        else {
+            return None;
+        };
+        let window_used_up = self
+            .all_usage_windows()
+            .any(|window| window.utilization >= Ratio::new::<percent>(100.0));
+        if !window_used_up {
+            return None;
+        }
+        Quota::within_calendar_month("Claude extra usage", *used_share, now)
     }
 }
 
@@ -171,36 +221,51 @@ impl ClaudeUsageWindows {
             oauth_usage_api::fetch::<Usage>(&key, oauth_usage_api::USAGE_URL).await?;
         Ok(ClaudeUsageWindows {
             plan,
-            extra: usage.overage.as_ref().and_then(Overage::extra_usage),
+            extra: usage
+                .overage
+                .as_ref()
+                .map_or(ExtraUsageOffer::NeverUsed, Overage::extra_usage),
             session: usage.five_hour,
             weekly: usage.seven_day,
-            sonnet: usage.seven_day_sonnet,
+            sonnet: usage
+                .seven_day_sonnet
+                .map_or(SonnetWindow::Untracked, SonnetWindow::Tracked),
         })
     }
 }
 
 impl Overage {
-    fn extra_usage(&self) -> Option<ExtraUsage> {
+    fn extra_usage(&self) -> ExtraUsageOffer {
         let ever_used = self
             .used_credits
             .is_some_and(|credits| credits > Decimal::ZERO);
-        (self.is_enabled || ever_used).then(|| ExtraUsage {
-            status: self.status(),
-            spent: self.used_credits.and_then(|minor| self.money(minor)),
-            monthly_limit: self.monthly_limit.and_then(|minor| self.money(minor)),
-            used_share: self.utilization.map(Ratio::new::<percent>),
+        if !self.is_enabled && !ever_used {
+            return ExtraUsageOffer::NeverUsed;
+        }
+        ExtraUsageOffer::Taken(ExtraUsage {
+            status: if self.is_enabled {
+                ExtraStatus::Enabled
+            } else {
+                ExtraStatus::disabled(self.disabled_reason.as_deref())
+            },
+            spent: self
+                .used_credits
+                .and_then(|minor| self.money(minor))
+                .map_or(ExtraSpend::Unreported, ExtraSpend::Spent),
+            allowance: self.allowance(),
         })
     }
 
-    fn status(&self) -> ExtraStatus {
-        if self.is_enabled {
-            return ExtraStatus::Enabled;
-        }
-        ExtraStatus::Disabled {
-            reason: self
-                .disabled_reason
-                .as_deref()
-                .map(|reason| reason.replace('_', " ")),
+    fn allowance(&self) -> ExtraAllowance {
+        let Some(monthly_limit) = self.monthly_limit.and_then(|minor| self.money(minor)) else {
+            return ExtraAllowance::NoCapReported;
+        };
+        let Some(utilization) = self.utilization else {
+            return ExtraAllowance::NoCapReported;
+        };
+        ExtraAllowance::Capped {
+            monthly_limit,
+            used_share: Ratio::new::<percent>(utilization),
         }
     }
 
@@ -244,12 +309,9 @@ mod tests {
             "2026-09-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
         );
         assert!(usage.seven_day_sonnet.is_none());
-        assert!(
-            usage
-                .overage
-                .as_ref()
-                .and_then(Overage::extra_usage)
-                .is_none()
+        assert_eq!(
+            usage.overage.as_ref().map(Overage::extra_usage),
+            Some(ExtraUsageOffer::NeverUsed)
         );
     }
 
@@ -266,25 +328,26 @@ mod tests {
     #[test]
     fn exhausted_extra_credits_are_reported_in_their_currency() {
         let overage: Overage = serde_json::from_str(OUT_OF_CREDITS_EXTRA).unwrap();
-        let extra = overage.extra_usage().unwrap();
+        let ExtraUsageOffer::Taken(extra) = overage.extra_usage() else {
+            panic!("exhausted credits count as taken extra usage");
+        };
         assert_eq!(
             extra.status,
-            ExtraStatus::Disabled {
-                reason: Some("out of credits".to_owned())
-            }
+            ExtraStatus::DisabledBecause("out of credits".to_owned())
         );
-        assert_eq!(
-            extra.spent.map(|spent| *spent.amount()),
-            Some(Decimal::new(2016, 2))
-        );
-        assert_eq!(
-            extra
-                .monthly_limit
-                .map(|limit| limit.currency().iso_alpha_code),
-            Some("EUR")
-        );
-        let used_percent = extra.used_share.map(|used| used.get::<percent>());
-        assert!(used_percent.is_some_and(|used| (used - 67.2).abs() < 1e-9));
+        let ExtraSpend::Spent(spent) = extra.spent else {
+            panic!("spent credits are reported");
+        };
+        assert_eq!(*spent.amount(), Decimal::new(2016, 2));
+        let ExtraAllowance::Capped {
+            monthly_limit,
+            used_share,
+        } = extra.allowance
+        else {
+            panic!("a monthly limit is reported");
+        };
+        assert_eq!(monthly_limit.currency().iso_alpha_code, "EUR");
+        assert!((used_share.get::<percent>() - 67.2).abs() < 1e-9);
     }
 
     fn windows_with_weekly_use(weekly_percent: f64) -> ClaudeUsageWindows {
@@ -293,15 +356,17 @@ mod tests {
             resets_at: resets_at.parse().ok(),
         };
         ClaudeUsageWindows {
-            plan: None,
+            plan: SubscriptionPlan::Unnamed,
             session: window(40.0, "2026-10-24T12:00:00Z"),
             weekly: window(weekly_percent, "2026-10-30T02:00:00Z"),
-            sonnet: None,
-            extra: Some(ExtraUsage {
+            sonnet: SonnetWindow::Untracked,
+            extra: ExtraUsageOffer::Taken(ExtraUsage {
                 status: ExtraStatus::Enabled,
-                spent: None,
-                monthly_limit: Some(Money::from_decimal(Decimal::from(30), iso::EUR)),
-                used_share: Some(Ratio::new::<percent>(98.0)),
+                spent: ExtraSpend::Unreported,
+                allowance: ExtraAllowance::Capped {
+                    monthly_limit: Money::from_decimal(Decimal::from(30), iso::EUR),
+                    used_share: Ratio::new::<percent>(98.0),
+                },
             }),
         }
     }

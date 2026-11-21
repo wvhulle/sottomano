@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use super::DOCKER_API_ROOT;
 use crate::system_protocol_clients::{
-    http_json_client::{CONNECT_TIMEOUT, Error},
+    http_json_client::{CONNECT_TIMEOUT, Error, ResponseBody},
     protocol_peer_reconnects::subscribed,
 };
 
@@ -47,7 +47,7 @@ async fn opened_event_records(
         })?;
     let status = response.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(Error::status(status, None));
+        return Err(Error::status(status, ResponseBody::NotJson));
     }
     let event_records = response
         .bytes_stream()

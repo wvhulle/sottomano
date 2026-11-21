@@ -6,7 +6,7 @@ use iced::{
 use sottomano_desktop_sources::{
     media_playback_audio::{
         mpris_players,
-        mpris_players::{Command, Media, Status},
+        mpris_players::{Command, CommandOffer, CoverArtUrl, Media, Status, TrackTitle},
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
@@ -47,7 +47,8 @@ pub(super) fn track_indicator<'a>(
     media: &'a Media,
     cover_art: Option<&IconHandle>,
 ) -> GroupIndicator<'a> {
-    let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
+    let raisable = media.owner != OwnerProcess::Unidentified
+        || media.capabilities.raise == CommandOffer::Offered;
     let icon = cover_art.map_or_else(
         || IndicatorIcon::IconGlyph {
             glyph: Phosphor::VinylRecord(Weight::Regular).into(),
@@ -102,7 +103,10 @@ pub(super) fn player_headline_indicator<'a>(
 }
 
 pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {
-    let title = media.title.as_ref().unwrap_or(&media.identity);
+    let title = match &media.title {
+        TrackTitle::Titled(title) => title,
+        TrackTitle::Untitled => &media.identity,
+    };
     vec![span(title.clone()).font(font_faces_of(&config.theme.font).regular)]
 }
 
@@ -120,10 +124,12 @@ pub(super) fn player_hover_card(
 }
 
 pub(super) fn cover_art_load(media: &Media, session: &PlayerSession) -> Option<Task<MediaMessage>> {
-    let url = media
-        .art_url
-        .clone()
-        .filter(|_| session.cover_art.is_none())?;
+    let CoverArtUrl::Advertised(url) = media.art_url.clone() else {
+        return None;
+    };
+    if session.cover_art.is_some() {
+        return None;
+    }
     let bus = media.bus.clone();
     let loading = {
         let url = url.clone();

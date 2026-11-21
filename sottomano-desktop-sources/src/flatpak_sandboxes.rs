@@ -1,19 +1,20 @@
 use std::{
+    collections::HashMap,
     env,
     fs::{self, DirEntry},
     future::ready,
     io,
     path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
-use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     container_family_snapshots::{FamilyDetails, FamilyListings},
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
     delivery_cadence_drivers::{
         ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling, SnapshotDeliveryStreams,
     },
@@ -122,13 +123,13 @@ fn listed_sandboxes_in(
         })
         .filter_map(|entry| {
             let info_text = instance_info_text(&entry.path())?;
-            let instance_info = parsed_instance_info(&info_text);
+            let instance_info = parsed_instance_info(&info_text)?;
             let sandbox_pid = sandbox_pid_in(&entry.path())?;
             let process_directory = proc_root.join(sandbox_pid.to_string());
-            let instance_id = instance_id_of(&entry)?;
+            let instance_id = instance_directory_name(&entry)?;
             process_directory.exists().then_some(FlatpakSandboxListing {
                 instance_id,
-                application_id: instance_info.application_id?,
+                application_id: instance_info.application_id,
             })
         })
         .collect();
@@ -139,11 +140,23 @@ fn listed_sandboxes_in(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlatpakSandbox {
     pub listing: FlatpakSandboxListing,
-    pub runtime_reference: Option<String>,
-    pub branch: Option<String>,
+    pub runtime_reference: FlatpakRuntime,
+    pub branch: FlatpakBranch,
     pub sandbox_pid: u32,
-    pub started_at: Option<SystemTime>,
-    pub memory_in_use: Option<ByteSize>,
+    pub started_at: ContainerStartTime,
+    pub memory_in_use: ContainerMemoryUse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlatpakRuntime {
+    Reference(String),
+    Unstated,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlatpakBranch {
+    Named(String),
+    Unstated,
 }
 
 impl SnapshotSource for FamilyDetails<FlatpakSandbox> {
@@ -166,36 +179,41 @@ impl SnapshotSource for FamilyDetails<FlatpakSandbox> {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct InstanceInfo {
-    application_id: Option<String>,
-    runtime_reference: Option<String>,
-    branch: Option<String>,
+    application_id: String,
+    runtime_reference: FlatpakRuntime,
+    branch: FlatpakBranch,
 }
 
-fn parsed_instance_info(info_text: &str) -> InstanceInfo {
-    let mut instance_info = InstanceInfo::default();
-    let mut current_section = String::new();
+fn parsed_instance_info(info_text: &str) -> Option<InstanceInfo> {
+    let mut current_section = "";
+    let mut info_values: HashMap<(&str, &str), &str> = HashMap::new();
     for info_line in info_text.lines().map(str::trim) {
         if let Some(section_name) = info_line
             .strip_prefix('[')
             .and_then(|bracketed| bracketed.strip_suffix(']'))
         {
-            section_name.clone_into(&mut current_section);
+            current_section = section_name;
             continue;
         }
         let Some((info_key, info_value)) = info_line.split_once('=') else {
             continue;
         };
-        let info_value = Some(info_value.trim().to_owned());
-        match (current_section.as_str(), info_key.trim()) {
-            ("Application", "name") => instance_info.application_id = info_value,
-            ("Application", "runtime") => instance_info.runtime_reference = info_value,
-            ("Instance", "branch") => instance_info.branch = info_value,
-            _ => {}
-        }
+        info_values.insert((current_section, info_key.trim()), info_value.trim());
     }
-    instance_info
+    let info_value = |section_name: &str, info_key: &str| {
+        info_values
+            .get(&(section_name, info_key))
+            .map(|info_value| (*info_value).to_owned())
+    };
+    Some(InstanceInfo {
+        application_id: info_value("Application", "name")?,
+        runtime_reference: info_value("Application", "runtime")
+            .map_or(FlatpakRuntime::Unstated, FlatpakRuntime::Reference),
+        branch: info_value("Instance", "branch")
+            .map_or(FlatpakBranch::Unstated, FlatpakBranch::Named),
+    })
 }
 
 #[derive(Deserialize)]
@@ -280,7 +298,7 @@ fn running_sandboxes_in(
         .filter_map(|entry| {
             let sandbox_directory = entry.path();
             let info_text = instance_info_text(&sandbox_directory)?;
-            let instance_info = parsed_instance_info(&info_text);
+            let instance_info = parsed_instance_info(&info_text)?;
             let sandbox_pid = sandbox_pid_in(&sandbox_directory)?;
             let process_directory = proc_root.join(sandbox_pid.to_string());
             if !process_directory.exists() {
@@ -288,8 +306,8 @@ fn running_sandboxes_in(
             }
             Some(FlatpakSandbox {
                 listing: FlatpakSandboxListing {
-                    instance_id: instance_id_of(&entry)?,
-                    application_id: instance_info.application_id?,
+                    instance_id: instance_directory_name(&entry)?,
+                    application_id: instance_info.application_id,
                 },
                 runtime_reference: instance_info.runtime_reference,
                 branch: instance_info.branch,
@@ -302,8 +320,9 @@ fn running_sandboxes_in(
                             sandbox_directory.display()
                         );
                     })
-                    .ok(),
-                memory_in_use: unit_memory_of_process(sandbox_pid),
+                    .ok()
+                    .into(),
+                memory_in_use: unit_memory_of_process(sandbox_pid).into(),
             })
         })
         .collect();
@@ -311,7 +330,7 @@ fn running_sandboxes_in(
     FamilyDetails { details }
 }
 
-fn instance_id_of(entry: &DirEntry) -> Option<String> {
+fn instance_directory_name(entry: &DirEntry) -> Option<String> {
     entry
         .file_name()
         .into_string()
@@ -325,54 +344,4 @@ fn instance_id_of(entry: &DirEntry) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{env, fs, process};
-
-    use super::{InstanceInfo, parsed_instance_info, running_sandboxes_in};
-
-    #[test]
-    fn the_info_file_names_the_app_runtime_and_branch() {
-        let info_text = [
-            "[Application]",
-            "name=org.mozilla.firefox",
-            "runtime=runtime/org.freedesktop.Platform/x86_64/24.08",
-            "",
-            "[Instance]",
-            "instance-id=1849302754",
-            "branch=stable",
-            "arch=x86_64",
-        ]
-        .join("\n");
-        let info_text = info_text.as_str();
-        assert_eq!(
-            parsed_instance_info(info_text),
-            InstanceInfo {
-                application_id: Some("org.mozilla.firefox".to_owned()),
-                runtime_reference: Some("runtime/org.freedesktop.Platform/x86_64/24.08".to_owned()),
-                branch: Some("stable".to_owned()),
-            }
-        );
-    }
-
-    #[test]
-    fn an_instance_whose_process_has_exited_is_left_out() {
-        let scratch = env::temp_dir().join(format!("sottomano-flatpak-{}", process::id()));
-        let proc_root = scratch.join("proc");
-        let own_pid = process::id();
-        fs::create_dir_all(proc_root.join(own_pid.to_string())).unwrap();
-        for (instance_id, sandbox_pid) in [("1849302754", own_pid), ("2210043981", 4_000_000)] {
-            let instance_directory = scratch.join("instances").join(instance_id);
-            fs::create_dir_all(&instance_directory).unwrap();
-            fs::write(
-                instance_directory.join("info"),
-                "[Application]\nname=org.gnome.Calculator\n",
-            )
-            .unwrap();
-            fs::write(instance_directory.join("pid"), sandbox_pid.to_string()).unwrap();
-        }
-        let listed = running_sandboxes_in(&scratch.join("instances"), &proc_root);
-        fs::remove_dir_all(&scratch).unwrap();
-        assert_eq!(listed.details.len(), 1);
-        assert_eq!(listed.details[0].listing.instance_id, "1849302754");
-    }
-}
+mod flatpak_sandboxes_tests;

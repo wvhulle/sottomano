@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
-    AudioState, ChannelLevels, MuteState, OutputKind, Peaks,
+    AudioState, ChannelLevels, DefaultChannel, DeviceDescription, MuteState, OutputKind, Peaks,
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -21,15 +21,15 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = AudioGroup::default();
     let _ = group.update(
         AudioMessage::State(AudioState {
-            sink: Some(ChannelLevels {
+            sink: DefaultChannel::Resolved(ChannelLevels {
                 percent: 64,
                 mute_state: MuteState::Audible,
-                device: Some("Built-in Audio Analog Stereo".to_owned()),
+                device: DeviceDescription::Described("Built-in Audio Analog Stereo".to_owned()),
             }),
-            source: Some(ChannelLevels {
+            source: DefaultChannel::Resolved(ChannelLevels {
                 percent: 38,
                 mute_state: MuteState::Audible,
-                device: Some("Blue Yeti".to_owned()),
+                device: DeviceDescription::Described("Blue Yeti".to_owned()),
             }),
             output_kind: OutputKind::Headphones,
             windows: Arc::new(HashMap::new()),

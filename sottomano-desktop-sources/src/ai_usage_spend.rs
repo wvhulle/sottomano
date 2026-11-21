@@ -7,5 +7,6 @@ pub mod model_spend_ranking;
 pub mod openrouter_credits;
 pub mod openrouter_model_rankings;
 pub mod spend_money;
+pub mod subscription_plan;
 pub mod usage_quota;
 pub mod working_time_forecast;

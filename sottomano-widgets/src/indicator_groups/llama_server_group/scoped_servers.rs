@@ -1,9 +1,9 @@
-use std::{collections::BTreeMap, mem::take, path::PathBuf};
+use std::{collections::BTreeMap, mem::take};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    ai_usage_spend::llama_server_slots::{LlamaServer, LlamaServerUnit, ModelInstance},
+    ai_usage_spend::llama_server_slots::{DecodeRate, LlamaModel, LlamaServer, LlamaServerUnit},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     systemd_units_journal::{
         SystemdUnitScope, service_commands::ServiceCommands, unit_active_state::UnitActivity,
@@ -255,24 +255,8 @@ impl ScopedLlamaServers {
         }
     }
 
-    pub fn resident_instance(&self, unit: &str) -> Option<ModelInstance> {
-        self.servers
-            .get(unit)?
-            .server
-            .get()?
-            .resident_model()?
-            .instance
-            .clone()
-    }
-
-    pub fn resident_model_file(&self, unit: &str) -> Option<PathBuf> {
-        self.servers
-            .get(unit)?
-            .server
-            .get()?
-            .resident_model()?
-            .model_file
-            .clone()
+    pub fn resident_model(&self, unit: &str) -> Option<&LlamaModel> {
+        self.servers.get(unit)?.server.get()?.resident_model()
     }
 
     pub fn indicators<'a>(
@@ -305,7 +289,7 @@ impl ScopedLlamaServers {
                     ),
                 );
                 let server_busy = server.busy_slots().next().is_some();
-                if server_busy && let Some(rate) = server.generation_rate {
+                if server_busy && let DecodeRate::Measured(rate) = server.generation_rate {
                     rows.push(
                         GenerationRate {
                             rate,

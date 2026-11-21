@@ -11,7 +11,8 @@ use sottomano_desktop_sources::{
         },
         qmp_monitor_events::GuestRunState,
         running_virtual_machines::{
-            GuestPowerControl, RunningVirtualMachine, VirtualMachineOrigin, VirtualMachinesReadout,
+            GuestPowerControl, LaunchContext, RunningVirtualMachine, VirtualMachineOrigin,
+            VirtualMachinesReadout,
         },
     },
     system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
@@ -31,7 +32,7 @@ fn interactive_sample_vm(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: INTERACTIVE_VM_PID,
         origin: VirtualMachineOrigin::SessionUser,
-        launch_context: Some("bootvine".to_owned()),
+        launch_context: LaunchContext::Named("bootvine".to_owned()),
         launch: QemuLaunchArguments {
             machine_name: "sample-vm-slow-services".to_owned(),
             guest_cores: 2,
@@ -60,7 +61,7 @@ fn nixos_test_vm(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: 4200,
         origin: VirtualMachineOrigin::NixosTestBuild,
-        launch_context: Some("bootvine-encrypted-volume".to_owned()),
+        launch_context: LaunchContext::Named("bootvine-encrypted-volume".to_owned()),
         launch: QemuLaunchArguments {
             machine_name: "machine".to_owned(),
             guest_cores: 2,
@@ -83,7 +84,7 @@ fn paused_libvirt_domain(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: 4300,
         origin: VirtualMachineOrigin::LibvirtDomain,
-        launch_context: None,
+        launch_context: LaunchContext::Unidentified,
         launch: QemuLaunchArguments {
             machine_name: "windows11".to_owned(),
             guest_cores: 4,

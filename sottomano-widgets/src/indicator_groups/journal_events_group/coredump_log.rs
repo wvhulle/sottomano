@@ -1,5 +1,7 @@
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::CoredumpEntry;
+use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::{
+    CoredumpEntry, CoredumpOwner,
+};
 use sottomano_toml_config::Config;
 
 use crate::{
@@ -32,10 +34,10 @@ impl From<&CoredumpEntry> for TableRecord<4> {
                 coredump_entry.command.clone().into(),
                 coredump_entry.signal.to_string().into(),
                 coredump_entry.pid.to_string().into(),
-                coredump_entry
-                    .unit
-                    .as_ref()
-                    .map_or(ValueCell::Blank, |unit| unit.name().into()),
+                match &coredump_entry.unit {
+                    CoredumpOwner::Unit(unit) => unit.name().into(),
+                    CoredumpOwner::OutsideUnits => ValueCell::Blank,
+                },
             ],
         )
         .level(coredump_entry.severity)

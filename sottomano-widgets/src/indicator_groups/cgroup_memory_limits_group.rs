@@ -4,7 +4,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cgroup_memory_limits::{LimitedCgroup, LimitedCgroups},
-    system_protocol_clients::sysfs_cgroup_memory::MemoryBound,
+    system_protocol_clients::sysfs_cgroup_memory::{MemoryBound, MemoryPressure, SwapUsage},
 };
 use sottomano_toml_config::Config;
 
@@ -51,7 +51,7 @@ impl LimitedCgroupIndicator<'_> {
             LabeledValue::new("Throttled above", bound_text(memory.high)),
             LabeledValue::new("Hard cap", bound_text(memory.max)),
         ];
-        if let Some(swap_current) = memory.swap_current {
+        if let SwapUsage::Accounted(swap_current) = memory.swap_current {
             detail_entries.push(LabeledValue::new(
                 "Swap",
                 match memory.swap_max {
@@ -60,7 +60,9 @@ impl LimitedCgroupIndicator<'_> {
                 },
             ));
         }
-        if let Some(stalled_percent) = memory.stalled_percent_last_ten_seconds {
+        if let MemoryPressure::StalledPercent(stalled_percent) =
+            memory.stalled_percent_last_ten_seconds
+        {
             detail_entries.push(LabeledValue::new(
                 "Stalled on memory (10 s)",
                 format!("{stalled_percent:.1} %"),
@@ -91,9 +93,10 @@ impl<'a> LimitedCgroupIndicator<'a> {
         if self.killed_this_session {
             IndicatorState::Critical
         } else if memory.exceeds_high()
-            || memory
-                .stalled_percent_last_ten_seconds
-                .is_some_and(|stalled_percent| stalled_percent > STALL_WARNING_PERCENT)
+            || matches!(
+                memory.stalled_percent_last_ten_seconds,
+                MemoryPressure::StalledPercent(stalled_percent) if stalled_percent > STALL_WARNING_PERCENT
+            )
         {
             IndicatorState::Warning
         } else {
@@ -269,7 +272,7 @@ mod tests {
         cgroup_memory_limits::LimitedCgroup,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         system_protocol_clients::sysfs_cgroup_memory::{
-            CgroupMemorySample, MemoryBound, MemoryEventCounts,
+            CgroupMemorySample, MemoryBound, MemoryEventCounts, MemoryPressure, SwapUsage,
         },
     };
 
@@ -283,9 +286,9 @@ mod tests {
                 current,
                 high: MemoryBound::Bytes(ByteSize::gib(10)),
                 max: MemoryBound::Bytes(ByteSize::gib(12)),
-                swap_current: Some(ByteSize::gib(1)),
+                swap_current: SwapUsage::Accounted(ByteSize::gib(1)),
                 swap_max: MemoryBound::Bytes(ByteSize::gib(4)),
-                stalled_percent_last_ten_seconds: Some(0.0),
+                stalled_percent_last_ten_seconds: MemoryPressure::StalledPercent(0.0),
                 event_counts: MemoryEventCounts {
                     oom_kills,
                     ..MemoryEventCounts::default()

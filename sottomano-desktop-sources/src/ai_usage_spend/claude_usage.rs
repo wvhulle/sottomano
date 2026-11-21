@@ -15,16 +15,22 @@ use std::{
 
 use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
+use sottomano_toml_config::secrets::StoredSecret;
 
 pub use self::{
     ccusage_billing_blocks::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     ccusage_model_ranking::ClaudeCcusageModels,
-    enterprise_spend::{ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeOrganization},
-    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+    enterprise_spend::{
+        ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeOrganization, SpendLimit,
+    },
+    usage_windows::{
+        ClaudeUsageWindows, ExtraAllowance, ExtraSpend, ExtraStatus, ExtraUsage, ExtraUsageOffer,
+        SonnetWindow, WindowUsage,
+    },
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    ai_usage_spend::ccusage_cli_reports,
+    ai_usage_spend::{ccusage_cli_reports, subscription_plan::SubscriptionPlan},
     backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
@@ -52,20 +58,22 @@ pub enum Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Error::ChangeWatch(watch_failure) => write!(f, "transcript watch: {watch_failure}"),
-            Error::Credentials => write!(f, "credentials file unreadable"),
-            Error::NoToken => write!(f, "no OAuth token in credentials"),
-            Error::RateLimited(cause) => write!(f, "rate limited: {cause}"),
+            Error::ChangeWatch(watch_failure) => {
+                write!(formatter, "transcript watch: {watch_failure}")
+            }
+            Error::Credentials => write!(formatter, "credentials file unreadable"),
+            Error::NoToken => write!(formatter, "no OAuth token in credentials"),
+            Error::RateLimited(cause) => write!(formatter, "rate limited: {cause}"),
             Error::Backoff { remaining, cause } => write!(
-                f,
+                formatter,
                 "rate limited: {cause}, retrying in {} s",
                 remaining.as_secs()
             ),
-            Error::Fetch(error) => write!(f, "{error}"),
-            Error::Ccusage(error) => write!(f, "ccusage: {error}"),
-            Error::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
+            Error::Fetch(error) => write!(formatter, "{error}"),
+            Error::Ccusage(error) => write!(formatter, "ccusage: {error}"),
+            Error::UnknownCurrency(code) => write!(formatter, "unknown currency {code:?}"),
         }
     }
 }
@@ -161,6 +169,20 @@ fn logins(credentials: PathBuf) -> impl Stream<Item = LoginKind> + Send {
     path_present(credentials.clone()).map(move |_| login_kind(&credentials))
 }
 
+fn credential_paths(credentials: &StoredSecret) -> Vec<PathBuf> {
+    match credentials {
+        StoredSecret::Present(credentials_path) => vec![credentials_path.clone()],
+        StoredSecret::Absent => Vec::new(),
+    }
+}
+
+fn logged_out_kinds(credentials: &StoredSecret) -> Vec<LoginKind> {
+    match credentials {
+        StoredSecret::Present(_) => Vec::new(),
+        StoredSecret::Absent => vec![LoginKind::LoggedOut],
+    }
+}
+
 fn login_polls<S, F>(
     polling: PeriodicPolling,
     OnBus {
@@ -214,9 +236,8 @@ where
                     Availability::Unavailable
                 }
             };
-            let logged_out = logs.credentials.is_none().then_some(LoginKind::LoggedOut);
-            let login_matches = stream::iter(logged_out)
-                .chain(stream::iter(logs.credentials.clone()).flat_map(logins))
+            let login_matches = stream::iter(logged_out_kinds(&logs.credentials))
+                .chain(stream::iter(credential_paths(&logs.credentials)).flat_map(logins))
                 .map(coverage_availability);
             let logs = logs.clone();
             let samples = samples.clone();
@@ -229,7 +250,11 @@ where
     )
 }
 
-fn plan(oauth: &Oauth) -> Option<String> {
+fn plan(oauth: &Oauth) -> SubscriptionPlan {
+    plan_name(oauth).map_or(SubscriptionPlan::Unnamed, SubscriptionPlan::Named)
+}
+
+fn plan_name(oauth: &Oauth) -> Option<String> {
     let subscription = oauth
         .subscription_type
         .as_deref()
@@ -273,29 +298,29 @@ mod tests {
         .unwrap();
         let oauth = credentials.oauth.unwrap();
         assert_eq!(oauth.access_token.as_deref(), Some("t"));
-        assert_eq!(plan(&oauth).as_deref(), Some("Max 20x"));
+        assert_eq!(plan(&oauth), SubscriptionPlan::Named("Max 20x".to_owned()));
     }
 
-    fn plan_of(credentials: &str) -> Option<String> {
+    fn parsed_plan(credentials: &str) -> SubscriptionPlan {
         let credentials: Credentials = serde_json::from_str(credentials).unwrap();
         plan(&credentials.oauth.unwrap())
     }
 
     #[test]
     fn generic_tier_does_not_hide_the_subscription() {
-        let plan = plan_of(
+        let plan = parsed_plan(
             r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_ai",
                 "subscriptionType":"pro","scopes":["user:inference"]}}"#,
         );
-        assert_eq!(plan.as_deref(), Some("Pro"));
+        assert_eq!(plan, SubscriptionPlan::Named("Pro".to_owned()));
     }
 
     #[test]
     fn tier_multiplier_refines_the_subscription() {
-        let plan = plan_of(
+        let plan = parsed_plan(
             r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_max_5x",
                 "subscriptionType":"max"}}"#,
         );
-        assert_eq!(plan.as_deref(), Some("Max 5x"));
+        assert_eq!(plan, SubscriptionPlan::Named("Max 5x".to_owned()));
     }
 }

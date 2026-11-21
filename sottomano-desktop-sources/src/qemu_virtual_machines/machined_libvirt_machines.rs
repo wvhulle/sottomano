@@ -21,7 +21,7 @@ fn libvirt_virtual_machine_paths(listings: Vec<RegisteredMachineListing>) -> Vec
         .collect()
 }
 
-async fn leader_pid_of(
+async fn machine_leader_pid(
     system_bus: &zbus::Connection,
     machine_path: OwnedObjectPath,
 ) -> Option<i32> {
@@ -64,7 +64,7 @@ pub(crate) async fn libvirt_leader_pids(system_bus: &zbus::Connection) -> HashSe
     };
     let mut leader_pids = HashSet::new();
     for machine_path in libvirt_virtual_machine_paths(listings) {
-        if let Some(leader_pid) = leader_pid_of(system_bus, machine_path).await {
+        if let Some(leader_pid) = machine_leader_pid(system_bus, machine_path).await {
             leader_pids.insert(leader_pid);
         }
     }

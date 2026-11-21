@@ -7,8 +7,10 @@ use zbus::proxy;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    host_machine_identity::udev_hardware_identity::host_bridge_subsystem_vendor,
-    non_empty_text::non_empty,
+    host_machine_identity::{
+        fwupd_firmware_upgrades::FirmwareReleaseDate,
+        udev_hardware_identity::{HardwareText, reported},
+    },
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::{BusReadError, DesktopBuses},
@@ -51,10 +53,10 @@ pub struct OperatingSystemIdentity {
     pub kernel: String,
     pub operating_system: String,
     pub distribution_ids: Vec<String>,
-    pub chassis: Option<Chassis>,
+    pub chassis: Chassis,
 }
 
-fn os_release_value<'a>(os_release: &'a str, key: &str) -> Option<&'a str> {
+fn os_release_value<'release>(os_release: &'release str, key: &str) -> Option<&'release str> {
     os_release.lines().find_map(|line| {
         let value = line.trim().strip_prefix(key)?.strip_prefix('=')?;
         Some(value.trim_matches(['"', '\'']))
@@ -124,16 +126,12 @@ async fn identity_changes(
                 kernel,
                 operating_system,
                 distribution_ids,
-                chassis: hostname
-                    .chassis()
-                    .await?
-                    .parse()
-                    .inspect_err(|UnknownChassis { chassis_name }| {
-                        if !chassis_name.is_empty() {
-                            tracing::warn!("os identity: unknown chassis {chassis_name:?}");
-                        }
-                    })
-                    .ok(),
+                chassis: hostname.chassis().await?.parse().unwrap_or_else(
+                    |UnknownChassis { chassis_name }| {
+                        tracing::warn!("os identity: unknown chassis {chassis_name:?}");
+                        Chassis::Undetermined
+                    },
+                ),
             })
         }
     }))
@@ -141,12 +139,11 @@ async fn identity_changes(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineInfo {
-    pub board_pci_vendor: Option<u16>,
-    pub hardware_vendor: Option<String>,
-    pub hardware_model: Option<String>,
-    pub firmware_vendor: Option<String>,
-    pub firmware_version: Option<String>,
-    pub firmware_date: Option<DateTime<Utc>>,
+    pub hardware_vendor: HardwareText,
+    pub hardware_model: HardwareText,
+    pub firmware_vendor: HardwareText,
+    pub firmware_version: HardwareText,
+    pub firmware_date: FirmwareReleaseDate,
 }
 
 fn present_property<Value>(reply: zbus::Result<Value>, property_name: &str) -> Option<Value> {
@@ -159,8 +156,8 @@ fn present_property<Value>(reply: zbus::Result<Value>, property_name: &str) -> O
         .ok()
 }
 
-fn text(reply: zbus::Result<String>, property_name: &str) -> Option<String> {
-    present_property(reply, property_name).and_then(non_empty)
+fn text(reply: zbus::Result<String>, property_name: &str) -> HardwareText {
+    present_property(reply, property_name).map_or(HardwareText::Unreported, |raw| reported(&raw))
 }
 
 pub fn at_micros(usec: u64) -> Option<DateTime<Utc>> {
@@ -182,13 +179,13 @@ impl MachineInfo {
     pub async fn read(system: &zbus::Connection) -> zbus::Result<Self> {
         let hostname = HostnameProxy::new(system).await?;
         Ok(Self {
-            board_pci_vendor: host_bridge_subsystem_vendor(),
             hardware_vendor: text(hostname.hardware_vendor().await, "HardwareVendor"),
             hardware_model: text(hostname.hardware_model().await, "HardwareModel"),
             firmware_vendor: text(hostname.firmware_vendor().await, "FirmwareVendor"),
             firmware_version: text(hostname.firmware_version().await, "FirmwareVersion"),
             firmware_date: present_property(hostname.firmware_date().await, "FirmwareDate")
-                .and_then(at_micros),
+                .and_then(at_micros)
+                .map_or(FirmwareReleaseDate::Undated, FirmwareReleaseDate::Dated),
         })
     }
 }
@@ -205,6 +202,7 @@ pub enum Chassis {
     Embedded,
     VirtualMachine,
     Container,
+    Undetermined,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,6 +225,7 @@ impl FromStr for Chassis {
             "embedded" => Ok(Chassis::Embedded),
             "vm" => Ok(Chassis::VirtualMachine),
             "container" => Ok(Chassis::Container),
+            "" => Ok(Chassis::Undetermined),
             _ => Err(UnknownChassis {
                 chassis_name: chassis.to_owned(),
             }),
@@ -248,6 +247,7 @@ impl Chassis {
             Chassis::Embedded => "embedded",
             Chassis::VirtualMachine => "vm",
             Chassis::Container => "container",
+            Chassis::Undetermined => "",
         }
     }
 }

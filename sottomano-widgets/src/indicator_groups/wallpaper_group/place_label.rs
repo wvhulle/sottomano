@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::wallpaper_place_article::{Position, Wallpaper};
+use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::{
+    PhotoPlaceName, PhotoPosition, Wallpaper,
+};
 
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -14,7 +16,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct Place {
     name: String,
-    position: Option<Position>,
+    position: PhotoPosition,
 }
 
 impl Place {
@@ -36,7 +38,11 @@ impl Place {
     }
 
     pub(super) fn hover_card(&self) -> Vec<Section> {
-        let coordinates = self.position.into_iter().flat_map(|position| {
+        let located_position = match self.position {
+            PhotoPosition::Located(position) => Some(position),
+            PhotoPosition::Unlocated => None,
+        };
+        let coordinates = located_position.into_iter().flat_map(|position| {
             [
                 LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),
                 LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(5)),
@@ -55,9 +61,12 @@ impl Place {
 
 impl Place {
     pub(super) fn wallpaper_place(wallpaper: &Wallpaper) -> Option<Self> {
-        Some(Self {
-            name: wallpaper.place.clone()?,
-            position: wallpaper.position,
-        })
+        match &wallpaper.place {
+            PhotoPlaceName::Named(name) => Some(Self {
+                name: name.clone(),
+                position: wallpaper.position,
+            }),
+            PhotoPlaceName::Unnamed => None,
+        }
     }
 }

@@ -17,15 +17,40 @@ use crate::{
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KernelSetting {
+    Exposed(String),
+    NotExposed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoostSetting {
+    On,
+    Off,
+    NotExposed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpuTuning {
     pub driver: String,
-    pub driver_mode: Option<String>,
-    pub governor: Option<String>,
-    pub energy_preference: Option<String>,
+    pub driver_mode: KernelSetting,
+    pub governor: KernelSetting,
+    pub energy_preference: KernelSetting,
     pub available_energy_preferences: Vec<String>,
-    pub boost: Option<bool>,
-    pub platform_profile: Option<String>,
+    pub boost: BoostSetting,
+    pub platform_profile: KernelSetting,
     pub platform_profile_choices: Vec<String>,
+}
+
+fn read_setting(path: impl AsRef<Path>) -> KernelSetting {
+    read_trimmed(path).map_or(KernelSetting::NotExposed, KernelSetting::Exposed)
+}
+
+fn read_boost(path: impl AsRef<Path>) -> BoostSetting {
+    match read_trimmed(path).as_deref() {
+        Some("1") => BoostSetting::On,
+        Some(_) => BoostSetting::Off,
+        None => BoostSetting::NotExposed,
+    }
 }
 
 fn read_words(path: impl AsRef<Path>) -> Vec<String> {
@@ -41,14 +66,15 @@ fn read_cpu_tuning() -> Result<CpuTuning, FileReadError> {
         driver: read_field(&policy.join("scaling_driver"))?,
         driver_mode: ["amd_pstate/status", "intel_pstate/status"]
             .into_iter()
-            .find_map(|status| read_trimmed(cpu.join(status))),
-        governor: read_trimmed(policy.join("scaling_governor")),
-        energy_preference: read_trimmed(policy.join("energy_performance_preference")),
+            .find_map(|status| read_trimmed(cpu.join(status)))
+            .map_or(KernelSetting::NotExposed, KernelSetting::Exposed),
+        governor: read_setting(policy.join("scaling_governor")),
+        energy_preference: read_setting(policy.join("energy_performance_preference")),
         available_energy_preferences: read_words(
             policy.join("energy_performance_available_preferences"),
         ),
-        boost: read_trimmed(cpu.join("cpufreq/boost")).map(|boost| boost == "1"),
-        platform_profile: read_trimmed(Path::new(PLATFORM_PROFILE).join("platform_profile")),
+        boost: read_boost(cpu.join("cpufreq/boost")),
+        platform_profile: read_setting(Path::new(PLATFORM_PROFILE).join("platform_profile")),
         platform_profile_choices: read_words(
             Path::new(PLATFORM_PROFILE).join("platform_profile_choices"),
         ),

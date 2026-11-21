@@ -1,11 +1,9 @@
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::{
-    host_machine_identity::{
-        hostname1_os_identity::MachineInfo,
-        udev_hardware_identity::{MemoryModule, MemorySlotModule},
-    },
-    non_empty_text::non_empty,
+use sottomano_desktop_sources::host_machine_identity::{
+    fwupd_firmware_upgrades::FirmwareReleaseDate,
+    hostname1_os_identity::MachineInfo,
+    udev_hardware_identity::{HardwareText, MemoryModule, MemorySlotModule, MemoryTransferRate},
 };
 
 use crate::{
@@ -33,11 +31,10 @@ impl MatchingModuleBank {
     fn bank_title(&self) -> String {
         match self.slot_locators.as_slice() {
             [single_locator] => single_locator.clone(),
-            _ => self
-                .module
-                .kind
-                .clone()
-                .unwrap_or_else(|| "Memory".to_owned()),
+            _ => match &self.module.kind {
+                HardwareText::Reported(kind) => kind.clone(),
+                HardwareText::Unreported => "Memory".to_owned(),
+            },
         }
     }
 
@@ -73,63 +70,67 @@ pub struct MemorySlotIndicator {
 impl MemorySlotIndicator {
     fn board_section(&self) -> Option<Section> {
         let machine = &self.machine;
-        (machine.hardware_vendor.is_some() || machine.hardware_model.is_some()).then(|| {
-            let firmware = non_empty(
-                [
-                    machine.firmware_vendor.as_deref(),
-                    machine.firmware_version.as_deref(),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(" "),
-            );
-            let firmware_date = machine.firmware_date.map(|at| ValueCell::Time {
-                at,
-                format: LocalizedTimeFormat::Date,
-            });
-            Section::new(
-                "Board",
-                dictionary_table(
-                    [
-                        machine
-                            .hardware_vendor
-                            .clone()
-                            .map(|hardware_vendor| LabeledValue::new("Vendor", hardware_vendor)),
-                        machine
-                            .hardware_model
-                            .clone()
-                            .map(|hardware_model| LabeledValue::new("Model", hardware_model)),
-                        firmware.map(|firmware_version| {
-                            LabeledValue::new("Firmware", firmware_version)
-                        }),
-                        firmware_date
-                            .map(|firmware_date| LabeledValue::new("Firmware date", firmware_date)),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                ),
-            )
-        })
+        if machine.hardware_vendor == HardwareText::Unreported
+            && machine.hardware_model == HardwareText::Unreported
+        {
+            return None;
+        }
+        let mut board_entries = Vec::new();
+        if let HardwareText::Reported(hardware_vendor) = &machine.hardware_vendor {
+            board_entries.push(LabeledValue::new("Vendor", hardware_vendor.clone()));
+        }
+        if let HardwareText::Reported(hardware_model) = &machine.hardware_model {
+            board_entries.push(LabeledValue::new("Model", hardware_model.clone()));
+        }
+        let firmware_words: Vec<&str> = [&machine.firmware_vendor, &machine.firmware_version]
+            .into_iter()
+            .filter_map(|firmware_text| match firmware_text {
+                HardwareText::Reported(text) => Some(text.as_str()),
+                HardwareText::Unreported => None,
+            })
+            .collect();
+        if !firmware_words.is_empty() {
+            board_entries.push(LabeledValue::new("Firmware", firmware_words.join(" ")));
+        }
+        if let FirmwareReleaseDate::Dated(at) = machine.firmware_date {
+            board_entries.push(LabeledValue::new(
+                "Firmware date",
+                ValueCell::Time {
+                    at,
+                    format: LocalizedTimeFormat::Date,
+                },
+            ));
+        }
+        Some(Section::new("Board", dictionary_table(board_entries)))
     }
 }
 
 impl From<&MatchingModuleBank> for Section {
     fn from(bank: &MatchingModuleBank) -> Self {
         let module = &bank.module;
-        let speed = module.speed_mts.map(|speed| {
-            LabeledValue::new(
+        let speed = match module.transfer_rate {
+            MemoryTransferRate::Reported {
+                megatransfers_per_second,
+            } => Some(LabeledValue::new(
                 "Speed",
-                Quantity::measured(f64::from(speed), DisplayUnit::MegatransfersPerSecond, 0),
-            )
-        });
+                Quantity::measured(
+                    f64::from(megatransfers_per_second),
+                    DisplayUnit::MegatransfersPerSecond,
+                    0,
+                ),
+            )),
+            MemoryTransferRate::Unreported => None,
+        };
         let identity = [
             ("Manufacturer", &module.manufacturer),
             ("Part number", &module.part_number),
             ("Type", &module.kind),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)));
+        .filter_map(|(key, value)| match value {
+            HardwareText::Reported(text) => Some(LabeledValue::new(key, text.as_str())),
+            HardwareText::Unreported => None,
+        });
         let module_count = (bank.slot_locators.len() > 1)
             .then(|| LabeledValue::new("Modules", Quantity::count(bank.slot_locators.len())));
         Section::new(
@@ -188,17 +189,19 @@ impl MemorySlotIndicator {
 mod tests {
     use bytesize::ByteSize;
     use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::{
-        MemoryModule, MemorySlotModule,
+        HardwareText, MemoryModule, MemorySlotModule, MemoryTransferRate,
     };
 
     use super::matching_module_banks;
 
     fn lpddr5_module(size_gibibytes: u64) -> MemoryModule {
         MemoryModule {
-            manufacturer: Some("Samsung".to_owned()),
-            part_number: None,
-            kind: Some("LPDDR5".to_owned()),
-            speed_mts: Some(8533),
+            manufacturer: HardwareText::Reported("Samsung".to_owned()),
+            part_number: HardwareText::Unreported,
+            kind: HardwareText::Reported("LPDDR5".to_owned()),
+            transfer_rate: MemoryTransferRate::Reported {
+                megatransfers_per_second: 8533,
+            },
             size: ByteSize::gib(size_gibibytes),
         }
     }

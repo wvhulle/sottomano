@@ -3,7 +3,9 @@ use std::time::{Duration, Instant};
 use chrono::Locale;
 use iced::Task;
 use sottomano_desktop_sources::battery_power_profiles::{
-    battery_time_forecast::{ChargeCurve, CurveHistory, Estimate, bin_of, time_until_full},
+    battery_time_forecast::{
+        ChargeCurve, CurveHistory, Estimate, charge_bin_index, time_until_full,
+    },
     upower_battery_state::{Battery, ChargeStatus, IdleReason},
 };
 use sottomano_toml_config::severity::Severity;
@@ -31,7 +33,7 @@ use crate::{
     widgets::{
         keyed_record_table::TableRecord,
         localized_quantities::Quantity,
-        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, NotificationBody, NotificationProgress, StateToast},
         value_cells::LabeledValue,
     },
 };
@@ -66,7 +68,7 @@ impl BatteryTimeIndicator {
         self.curve = Some(curve.clone());
         Task::future(sqlite_charge_power_curve::save(
             battery.serial.clone(),
-            bin_of(sample.state_of_charge),
+            charge_bin_index(sample.state_of_charge),
             curve,
         ))
         .discard()
@@ -255,8 +257,8 @@ impl BatteryTime {
                 state_toast: StateToast::NotifyFromSeverity {
                     minimum_severity: Severity::Warning,
                     summary_text: "Battery running out",
-                    body: ToastBody::Text(label),
-                    progress: ToastProgress::Unmeasured,
+                    body: NotificationBody::Text(label),
+                    progress: NotificationProgress::Unmeasured,
                 },
                 ..IndicatorAlerts::default()
             })

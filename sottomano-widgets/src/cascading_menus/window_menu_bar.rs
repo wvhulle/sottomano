@@ -19,7 +19,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        application_menu_nodes::MenuNode,
+        application_menu_nodes::{MenuLabel, MenuNode},
         appmenu_registrar_server::{self, RegisteredMenuBar},
         dbusmenu_menu_bar_layout::DbusMenuLocation,
         focused_window_menu_bar::{
@@ -372,7 +372,9 @@ impl WindowMenuBar {
         self.top_menus()
             .iter()
             .filter_map(|top_menu| {
-                let top_menu_label = top_menu.label.clone()?;
+                let MenuLabel::Labelled(top_menu_label) = top_menu.label.clone() else {
+                    return None;
+                };
                 let header = MenuRowContent::new(top_menu_label.clone()).icon(
                     IconGlyph::from(top_menu_glyph(&top_menu_label)).view(icon_size_px, text_color),
                 );

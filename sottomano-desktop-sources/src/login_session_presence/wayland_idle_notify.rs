@@ -99,7 +99,7 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
         let seat_globals: Vec<_> = conn
             .globals()
             .iter()
-            .filter(|g| g.is::<WlSeat>())
+            .filter(|seat_global| seat_global.is::<WlSeat>())
             .cloned()
             .collect();
         let seats: Vec<WlSeat> = seat_globals
@@ -181,7 +181,11 @@ fn notification_cb<Tag: Copy>(
         ..
     }: EventCtx<DispatchState<Tag>, ExtIdleNotificationV1>,
 ) {
-    let Some((_, tag)) = state.notifications.iter().find(|(n, _)| *n == proxy) else {
+    let Some((_, tag)) = state
+        .notifications
+        .iter()
+        .find(|(notification, _)| *notification == proxy)
+    else {
         return;
     };
     let edge = match event {
@@ -216,7 +220,7 @@ async fn connected_input_idle_edges(
         let edges = notifier
             .edges()
             .await
-            .inspect_err(|e| tracing::warn!("input idle edges: {e}"))
+            .inspect_err(|error| tracing::warn!("input idle edges: {error}"))
             .ok()?;
         let edges = stream::iter(edges.into_iter().map(|tagged| {
             tracing::debug!(edge = ?tagged.edge, "compositor sent input idle edge");

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::shell_prompt_title::{ShellState, ShellTitle, ShellTitleFormat};
+use super::shell_prompt_title::{ForegroundProgram, ShellState, ShellTitle, ShellTitleFormat};
 use crate::desktop_windows_apps::project_directory_labels::project_relative_directory;
 
 const SSH_VALUE_FLAGS: [&str; 20] = [
@@ -21,17 +21,23 @@ pub enum WorkingLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ForegroundProgramName {
+    Identified(String),
+    Unidentified,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ForegroundActivity {
     ShellPrompt {
         shell_name: String,
     },
     ShellCommand {
         command_line: String,
-        program_name: Option<String>,
+        program_name: ForegroundProgramName,
     },
     ProgramTitle {
         title: String,
-        program_name: Option<String>,
+        program_name: ForegroundProgramName,
     },
 }
 
@@ -60,25 +66,40 @@ impl ForegroundActivity {
         match self {
             ForegroundActivity::ShellPrompt { shell_name } => Some(shell_name),
             ForegroundActivity::ShellCommand {
+                program_name: ForegroundProgramName::Identified(program_name),
+                ..
+            }
+            | ForegroundActivity::ProgramTitle {
+                program_name: ForegroundProgramName::Identified(program_name),
+                ..
+            } => Some(program_name),
+            ForegroundActivity::ShellCommand {
                 command_line,
-                program_name,
-            } => program_name
-                .as_deref()
-                .or_else(|| command_line.split_whitespace().next()),
-            ForegroundActivity::ProgramTitle { program_name, .. } => program_name.as_deref(),
+                program_name: ForegroundProgramName::Unidentified,
+            } => command_line.split_whitespace().next(),
+            ForegroundActivity::ProgramTitle {
+                program_name: ForegroundProgramName::Unidentified,
+                ..
+            } => None,
         }
     }
 }
 
-pub struct ActiveTerminalShell<'a> {
-    pub shell: ShellState<'a>,
-    pub shell_name: &'a str,
-    pub foreground_program: Option<&'a [String]>,
+pub struct ActiveTerminalShell<'terminal> {
+    pub shell: ShellState<'terminal>,
+    pub shell_name: &'terminal str,
 }
 
 impl ActiveTerminalShell<'_> {
     pub fn window_label(&self) -> TerminalShellLabel {
-        let program_name = self.foreground_program.and_then(program_name);
+        let foreground_command = match self.shell.foreground_program {
+            ForegroundProgram::Running(command) => Some(command),
+            ForegroundProgram::NoForegroundProgram => None,
+        };
+        let program_name = foreground_command.and_then(program_name).map_or(
+            ForegroundProgramName::Unidentified,
+            ForegroundProgramName::Identified,
+        );
         let title_format = ShellTitleFormat::from(self.shell_name);
         let foreground_activity = match title_format.read(&self.shell) {
             ShellTitle::IdlePrompt => ForegroundActivity::ShellPrompt {
@@ -93,8 +114,7 @@ impl ActiveTerminalShell<'_> {
                 program_name,
             },
         };
-        let remote_host = self
-            .foreground_program
+        let remote_host = foreground_command
             .and_then(ssh_destination_arguments)
             .and_then(ssh_destination_host);
         let working_location = match remote_host {
@@ -148,25 +168,25 @@ fn ssh_destination_host(arguments: &[String]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop_windows_apps::terminal_emulator_windows::shell_prompt_title::PromptPresence;
 
     const HOME: &str = "/home/user";
 
     fn window_label(
         title: &str,
         cwd: &str,
-        foreground_program: Option<&[String]>,
+        foreground_program: ForegroundProgram<'_>,
     ) -> TerminalShellLabel {
         ActiveTerminalShell {
             shell: ShellState {
                 title,
                 cwd: Path::new(cwd),
                 home: Path::new(HOME),
-                at_prompt: false,
+                prompt_presence: PromptPresence::AwayFromPrompt,
                 reported_command_line: "",
-                has_foreground_program: foreground_program.is_some(),
+                foreground_program,
             },
             shell_name: "nu",
-            foreground_program,
         }
         .window_label()
     }
@@ -192,21 +212,29 @@ mod tests {
     fn a_shell_command_without_a_program_is_named_by_its_first_word() {
         let running_command = ForegroundActivity::ShellCommand {
             command_line: "cargo test -p corredo".to_owned(),
-            program_name: None,
+            program_name: ForegroundProgramName::Unidentified,
         };
         assert_eq!(running_command.program_name(), Some("cargo"));
     }
 
     #[test]
     fn a_bare_prompt_names_its_shell_as_the_program() {
-        let prompt_label = window_label("~/project", "/home/user/project", None);
+        let prompt_label = window_label(
+            "~/project",
+            "/home/user/project",
+            ForegroundProgram::NoForegroundProgram,
+        );
         assert_eq!(prompt_label.foreground_activity.program_name(), Some("nu"));
     }
 
     #[test]
     fn an_idle_nushell_prompt_is_titled_with_the_shell_name() {
         assert_eq!(
-            window_label("~/Downloads", "/home/user/Downloads", None),
+            window_label(
+                "~/Downloads",
+                "/home/user/Downloads",
+                ForegroundProgram::NoForegroundProgram
+            ),
             TerminalShellLabel {
                 working_location: local_directory("~/Downloads"),
                 foreground_activity: ForegroundActivity::ShellPrompt {
@@ -223,12 +251,11 @@ mod tests {
                 title: "user@host:/srv",
                 cwd: Path::new("/srv"),
                 home: Path::new(HOME),
-                at_prompt: false,
+                prompt_presence: PromptPresence::AwayFromPrompt,
                 reported_command_line: "",
-                has_foreground_program: false,
+                foreground_program: ForegroundProgram::NoForegroundProgram,
             },
             shell_name: "xonsh",
-            foreground_program: None,
         }
         .window_label();
         assert_eq!(
@@ -242,12 +269,16 @@ mod tests {
     #[test]
     fn a_nushell_command_title_names_the_typed_command() {
         assert_eq!(
-            window_label("~/Downloads> sleep", "/home/user/Downloads", None),
+            window_label(
+                "~/Downloads> sleep",
+                "/home/user/Downloads",
+                ForegroundProgram::NoForegroundProgram
+            ),
             TerminalShellLabel {
                 working_location: local_directory("~/Downloads"),
                 foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "sleep".to_owned(),
-                    program_name: None,
+                    program_name: ForegroundProgramName::Unidentified,
                 },
             }
         );
@@ -257,12 +288,16 @@ mod tests {
     fn a_program_title_is_kept_beside_the_program_name() {
         let claude = cmdline(&["/etc/profiles/per-user/user/bin/claude", "--resume"]);
         assert_eq!(
-            window_label("✳ Session name", "/tmp", Some(&claude)),
+            window_label(
+                "✳ Session name",
+                "/tmp",
+                ForegroundProgram::Running(&claude)
+            ),
             TerminalShellLabel {
                 working_location: local_directory("/tmp"),
                 foreground_activity: ForegroundActivity::ProgramTitle {
                     title: "✳ Session name".to_owned(),
-                    program_name: Some("claude".to_owned()),
+                    program_name: ForegroundProgramName::Identified("claude".to_owned()),
                 },
             }
         );
@@ -272,12 +307,13 @@ mod tests {
     fn ssh_sessions_are_located_on_their_remote_host() {
         let ssh = cmdline(&["ssh", "-p", "2222", "-A", "admin@builder"]);
         assert_eq!(
-            window_label("~> ssh", HOME, Some(&ssh)).working_location,
+            window_label("~> ssh", HOME, ForegroundProgram::Running(&ssh)).working_location,
             WorkingLocation::RemoteHost("builder".to_owned())
         );
         let kitten = cmdline(&["/usr/bin/kitten", "ssh", "builder"]);
         assert_eq!(
-            window_label("~/proj> cargo", HOME, Some(&kitten)).working_location,
+            window_label("~/proj> cargo", HOME, ForegroundProgram::Running(&kitten))
+                .working_location,
             WorkingLocation::RemoteHost("builder".to_owned())
         );
     }

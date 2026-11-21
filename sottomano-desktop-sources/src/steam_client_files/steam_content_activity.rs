@@ -228,7 +228,7 @@ mod tests {
         log_state
     }
 
-    fn stage_of(log_state: &ContentLogState, app_number: u32) -> ContentStage {
+    fn app_content_stage(log_state: &ContentLogState, app_number: u32) -> ContentStage {
         log_state.app_states[&SteamAppId { number: app_number }].stage()
     }
 
@@ -242,22 +242,28 @@ mod tests {
             "AppID 294100 state changed : Fully Installed,",
         ]);
         assert_eq!(
-            stage_of(&log_state, 275_850),
+            app_content_stage(&log_state, 275_850),
             ContentStage::Queued(QueuedUpdateHold::Waiting)
         );
-        assert_eq!(stage_of(&log_state, 284_160), ContentStage::Downloading);
         assert_eq!(
-            stage_of(&log_state, 228_980),
+            app_content_stage(&log_state, 284_160),
+            ContentStage::Downloading
+        );
+        assert_eq!(
+            app_content_stage(&log_state, 228_980),
             ContentStage::Queued(QueuedUpdateHold::Suspended)
         );
-        assert_eq!(stage_of(&log_state, 294_100), ContentStage::Settled);
+        assert_eq!(
+            app_content_stage(&log_state, 294_100),
+            ContentStage::Settled
+        );
     }
 
     #[test]
     fn a_delayed_update_is_due_after_its_delay() {
         let log_state = log_state_after(&["AppID 1478970 state changed : Update Required,Fully \
                                            Installed, (Update delayed for 3600 secs)"]);
-        let ContentStage::Delayed(update_due_at) = stage_of(&log_state, 1_478_970) else {
+        let ContentStage::Delayed(update_due_at) = app_content_stage(&log_state, 1_478_970) else {
             panic!("expected a delayed update");
         };
         assert_eq!(update_due_at.format("%H:%M").to_string(), "12:14");

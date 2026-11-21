@@ -9,15 +9,16 @@ use iced::{
     widget::{Column, Row as RowWidget, Stack, button, button::Status, container, text::Wrapping},
 };
 use sottomano_compositor_model::compositor_window_facts::{Urgency, WindowFocus, WindowTiling};
-use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::{
+    WindowCaption, WindowLabel,
+};
 use sottomano_toml_config::Config;
 
 use crate::{
     hover_cards::{
         PopupMessage,
         hover_card_body::hover_card_figure_payloads::{
-            PlacedPreviewTile, PreviewTile, TileCaption, TileIcon, WorkspaceArrangement,
-            WorkspacePreview,
+            PlacedPreviewTile, PreviewTile, TileIcon, WorkspaceArrangement, WorkspacePreview,
         },
     },
     icon_catalog::{
@@ -126,10 +127,10 @@ impl<'a> WorkspaceSchematic<'a> {
             1.0,
         );
         let label = match &tile.caption {
-            TileCaption::Titled(label) if width >= side * TILE_LABEL_WIDTH_RATIO => {
+            WindowCaption::Labelled(label) if width >= side * TILE_LABEL_WIDTH_RATIO => {
                 Some(self.label(label))
             }
-            TileCaption::Titled(_) | TileCaption::Untitled => None,
+            WindowCaption::Labelled(_) | WindowCaption::Unlabelled => None,
         };
         let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
             .spacing(self.config.theme.spacing.item_gap)

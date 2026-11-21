@@ -1,6 +1,9 @@
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
+    wallpaper_place_article::unsplash_photo_article::{
+        ArticleSummary, PhotoCaption, PhotoCredit, PhotoPlaceName, PhotoPosition, PlaceArticle,
+        Position, Wallpaper, WikipediaArticle,
+    },
 };
 use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
@@ -27,18 +30,18 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 fn milos() -> Wallpaper {
     Wallpaper {
         file_name: "pollonia-milos-unsplash.jpg".to_owned(),
-        caption: Some("Chapel above the harbour of Pollonia".to_owned()),
-        photographer: Some("Anastase Maragos".to_owned()),
+        caption: PhotoCaption::Described("Chapel above the harbour of Pollonia".to_owned()),
+        photographer: PhotoCredit::Photographer("Anastase Maragos".to_owned()),
         photo_url: "https://unsplash.com/photos/pollonia-milos".to_owned(),
-        place: Some("Pollonia, Milos".to_owned()),
-        position: Some(Position {
+        place: PhotoPlaceName::Named("Pollonia, Milos".to_owned()),
+        position: PhotoPosition::Located(Position {
             latitude: Angle::new::<degree>(36.7613),
             longitude: Angle::new::<degree>(24.5226),
         }),
-        article: Some(WikipediaArticle {
+        article: PlaceArticle::Found(WikipediaArticle {
             title: "Pollonia, Milos".to_owned(),
             url: "https://en.wikipedia.org/wiki/Pollonia,_Milos".to_owned(),
-            summary: Some(
+            summary: ArticleSummary::Extract(
                 "Pollonia or Apollonia is a seaside village in the north-eastern part of the \
                  island of Milos, Greece. It is the second harbour of Milos island after \
                  Adamantas and it has taken its name from the temple of Apollo that existed to \

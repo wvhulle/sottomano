@@ -24,12 +24,14 @@ use uom::si::{
 };
 
 use super::pci_gpu_samples::{
-    DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuProcess, GpuProcesses,
-    GpuSnapshot, GpuTemperatureLimits, GpuVendor, PciBusId, VramUsage,
+    DiscoveredGpu, GpuClockSpeed, GpuClocks, GpuFanDuty, GpuHandle, GpuMemory, GpuModel, GpuNames,
+    GpuPerformanceState, GpuPowerLimit, GpuPowerReading, GpuProcess, GpuProcessMemory,
+    GpuProcessName, GpuProcesses, GpuSnapshot, GpuTemperatureLimits, GpuTemperatureReading,
+    GpuTemperatureThreshold, GpuVendor, PciBusId, VramUsage,
 };
 use crate::{
     blocking_background_work::{Panicked, blocking_poll},
-    host_machine_identity::udev_hardware_identity::Adapter,
+    host_machine_identity::udev_hardware_identity::{Adapter, HardwareText},
 };
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
@@ -136,9 +138,13 @@ fn celsius(degrees: u32) -> ThermodynamicTemperature {
 }
 
 fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
-    let database_name = Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.bus_address))?
-        .identity
-        .model?;
+    let HardwareText::Reported(database_name) =
+        Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.bus_address))?
+            .identity
+            .model
+    else {
+        return None;
+    };
     Some(GpuNames::split_database_name(&database_name))
 }
 
@@ -160,7 +166,7 @@ fn unmanaged_model(bus: &PciBusId) -> GpuModel {
             .unwrap_or_else(|| GpuNames::Product("NVIDIA GPU".to_owned())),
         driver: "nvidia".to_owned(),
         temperature_limits: GpuTemperatureLimits::default(),
-        power_limit: None,
+        power_limit: GpuPowerLimit::NotExposed,
     }
 }
 
@@ -176,14 +182,21 @@ fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
                 device.temperature_threshold(TemperatureThreshold::GpuMax),
                 "maximum temperature",
             )
-            .map(celsius),
+            .map_or(GpuTemperatureThreshold::NotExposed, |threshold| {
+                GpuTemperatureThreshold::Reported(celsius(threshold))
+            }),
             slowdown: optional_sample(
                 device.temperature_threshold(TemperatureThreshold::Slowdown),
                 "slowdown temperature",
             )
-            .map(celsius),
+            .map_or(GpuTemperatureThreshold::NotExposed, |threshold| {
+                GpuTemperatureThreshold::Reported(celsius(threshold))
+            }),
         },
-        power_limit: optional_sample(device.enforced_power_limit(), "power limit").map(milliwatts),
+        power_limit: optional_sample(device.enforced_power_limit(), "power limit")
+            .map_or(GpuPowerLimit::NotExposed, |limit| {
+                GpuPowerLimit::Enforced(milliwatts(limit))
+            }),
     })
 }
 
@@ -199,8 +212,10 @@ fn optional_sample<Sample>(sample: Result<Sample, NvmlError>, quantity: &str) ->
         .ok()
 }
 
-fn megahertz_clock(mhz: u32) -> Frequency {
-    Frequency::new::<megahertz>(f64::from(mhz))
+fn reported_clock(clock: Result<u32, NvmlError>, quantity: &str) -> GpuClockSpeed {
+    optional_sample(clock, quantity).map_or(GpuClockSpeed::NotExposed, |clock_megahertz| {
+        GpuClockSpeed::Reported(Frequency::new::<megahertz>(f64::from(clock_megahertz)))
+    })
 }
 
 fn milliwatts(power: u32) -> Power {
@@ -245,14 +260,15 @@ pub(super) async fn read_snapshot(device: NvmlDevice) -> Result<GpuSnapshot, Err
         Ok(GpuSnapshot {
             vendor: GpuVendor::Nvidia,
             load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
-            graphics_clock: optional_sample(device.clock_info(Clock::Graphics), "graphics clock")
-                .map(megahertz_clock),
+            graphics_clock: reported_clock(device.clock_info(Clock::Graphics), "graphics clock"),
             memory: GpuMemory::Dedicated(VramUsage {
                 used: ByteSize::b(memory.used),
                 total: ByteSize::b(memory.total),
             }),
-            temperature: Some(celsius(device.temperature(TemperatureSensor::Gpu)?)),
-            power_draw: Some(milliwatts(device.power_usage()?)),
+            temperature: GpuTemperatureReading::Measured(celsius(
+                device.temperature(TemperatureSensor::Gpu)?,
+            )),
+            power_draw: GpuPowerReading::Drawing(milliwatts(device.power_usage()?)),
         })
     })
     .await
@@ -263,16 +279,18 @@ pub(super) async fn read_clocks(device: NvmlDevice) -> Result<GpuClocks, Error> 
         Ok(GpuClocks {
             performance_state: optional_sample(device.performance_state(), "performance state")
                 .filter(|state| *state != PerformanceState::Unknown)
-                .map(|state| state.as_c()),
-            graphics_clock_ceiling: optional_sample(
+                .map_or(GpuPerformanceState::NotExposed, |state| {
+                    GpuPerformanceState::PowerState(state.as_c())
+                }),
+            graphics_clock_ceiling: reported_clock(
                 device.max_clock_info(Clock::Graphics),
                 "graphics clock ceiling",
-            )
-            .map(megahertz_clock),
-            memory_clock: optional_sample(device.clock_info(Clock::Memory), "memory clock")
-                .map(megahertz_clock),
+            ),
+            memory_clock: reported_clock(device.clock_info(Clock::Memory), "memory clock"),
             fan: optional_sample(device.fan_speed(0), "fan speed")
-                .map(|speed| Ratio::new::<percent>(f64::from(speed))),
+                .map_or(GpuFanDuty::NotExposed, |speed| {
+                    GpuFanDuty::Spinning(Ratio::new::<percent>(f64::from(speed)))
+                }),
             throttle_reasons: Vec::new(),
         })
     })
@@ -330,10 +348,12 @@ fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
                     })
                     .ok()
             })
-            .map(|stat| stat.comm),
+            .map_or(GpuProcessName::Unreadable, |stat| {
+                GpuProcessName::Command(stat.comm)
+            }),
         resident_memory: match info.used_gpu_memory {
-            UsedGpuMemory::Used(bytes) => Some(ByteSize::b(bytes)),
-            UsedGpuMemory::Unavailable => None,
+            UsedGpuMemory::Used(bytes) => GpuProcessMemory::Resident(ByteSize::b(bytes)),
+            UsedGpuMemory::Unavailable => GpuProcessMemory::NotReported,
         },
     })
     .collect();
@@ -344,43 +364,4 @@ fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{GpuNames, combined_gpu_names};
-
-    const NVML_PRODUCT: &str = "NVIDIA GeForce RTX 4090";
-
-    fn combined_with_nvml_product(database_names: Option<GpuNames>) -> GpuNames {
-        combined_gpu_names(database_names, NVML_PRODUCT.to_owned())
-    }
-
-    #[test]
-    fn database_product_is_kept_over_the_branded_nvml_name() {
-        let database_names = GpuNames::ChipWithProduct {
-            chip: "AD102".to_owned(),
-            product: "GeForce RTX 4090".to_owned(),
-        };
-        assert_eq!(
-            combined_with_nvml_product(Some(database_names.clone())),
-            database_names
-        );
-    }
-
-    #[test]
-    fn database_chip_without_single_product_takes_the_nvml_name() {
-        assert_eq!(
-            combined_with_nvml_product(Some(GpuNames::Chip("AD102".to_owned()))),
-            GpuNames::ChipWithProduct {
-                chip: "AD102".to_owned(),
-                product: NVML_PRODUCT.to_owned(),
-            }
-        );
-    }
-
-    #[test]
-    fn missing_database_entry_takes_the_nvml_name() {
-        assert_eq!(
-            combined_with_nvml_product(None),
-            GpuNames::Product(NVML_PRODUCT.to_owned())
-        );
-    }
-}
+mod nvml_gpu_samples_tests;

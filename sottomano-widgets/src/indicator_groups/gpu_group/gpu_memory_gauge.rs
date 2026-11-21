@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
-    GpuMemory, GpuProcesses, SharedGpuMemory,
+    GpuMemory, GpuProcessMemory, GpuProcessName, GpuProcesses, SharedGpuMemory, SystemMemoryReading,
 };
 
 use crate::{
@@ -68,16 +68,17 @@ fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
     );
     let system = Section::new(
         "System memory",
-        dictionary_table(shared.system.as_ref().map(|system| {
-            LabeledValue::new(
+        dictionary_table(match &shared.system {
+            SystemMemoryReading::Read(system) => Some(LabeledValue::new(
                 "Used",
                 format!(
                     "{} of {}",
                     system.used.display().iec(),
                     system.total.display().iec()
                 ),
-            )
-        })),
+            )),
+            SystemMemoryReading::Unreadable => None,
+        }),
     );
     vec![buffers, system]
 }
@@ -86,13 +87,14 @@ pub fn gpu_processes_sections(gpu_processes: &GpuProcesses) -> Vec<Section> {
     vec![Section::new(
         "Processes",
         dictionary_table(gpu_processes.processes.iter().filter_map(|process| {
-            Some(LabeledValue::new(
-                process
-                    .name
-                    .clone()
-                    .unwrap_or_else(|| process.pid.to_string()),
-                Quantity::size(process.resident_memory?),
-            ))
+            let GpuProcessMemory::Resident(resident) = process.resident_memory else {
+                return None;
+            };
+            let process_label = match &process.name {
+                GpuProcessName::Command(command) => command.clone(),
+                GpuProcessName::Unreadable => process.pid.to_string(),
+            };
+            Some(LabeledValue::new(process_label, Quantity::size(resident)))
         })),
     )]
 }

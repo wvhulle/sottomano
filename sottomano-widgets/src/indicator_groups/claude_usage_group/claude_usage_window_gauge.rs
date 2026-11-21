@@ -4,12 +4,17 @@ use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
-        claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+        claude_usage::{
+            ClaudeUsageWindows, ExtraAllowance, ExtraSpend, ExtraUsageOffer, SonnetWindow,
+            WindowUsage,
+        },
+        subscription_plan::SubscriptionPlan,
         usage_quota::{Pace, Quota},
     },
 };
 use uom::si::ratio::percent;
 
+use super::claude_enterprise_credit_spend::extra_status_rows;
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -65,24 +70,12 @@ pub fn claude_usage_windows_indicator(
 
 pub fn claude_usage_windows_hover_card(windows: &ClaudeUsageWindows, clock: Clock) -> Vec<Section> {
     let now = clock.utc();
-    let sonnet = windows.sonnet.as_ref().map(|sonnet| {
-        window_section(
-            "Weekly Sonnet",
-            sonnet,
-            windows.sonnet_quota(now).as_ref(),
-            now,
-        )
-    });
-    [
-        Section::new(
-            "Subscription",
-            dictionary_table(
-                windows
-                    .plan
-                    .as_deref()
-                    .map(|plan| LabeledValue::new("Plan", plan)),
-            ),
-        ),
+    let mut subscription_rows = Vec::new();
+    if let SubscriptionPlan::Named(plan) = &windows.plan {
+        subscription_rows.push(LabeledValue::new("Plan", plan.as_str()));
+    }
+    let mut sections = vec![
+        Section::new("Subscription", dictionary_table(subscription_rows)),
         window_section(
             "Session",
             &windows.session,
@@ -95,11 +88,17 @@ pub fn claude_usage_windows_hover_card(windows: &ClaudeUsageWindows, clock: Cloc
             windows.weekly_quota(now).as_ref(),
             now,
         ),
-    ]
-    .into_iter()
-    .chain(sonnet)
-    .chain([extra_section(windows.extra.as_ref())])
-    .collect::<Vec<_>>()
+    ];
+    if let SonnetWindow::Tracked(sonnet) = &windows.sonnet {
+        sections.push(window_section(
+            "Weekly Sonnet",
+            sonnet,
+            windows.sonnet_quota(now).as_ref(),
+            now,
+        ));
+    }
+    sections.push(extra_section(&windows.extra));
+    sections
 }
 
 fn window_section(
@@ -125,27 +124,30 @@ fn window_section(
     )
 }
 
-fn extra_section(extra: Option<&ExtraUsage>) -> Section {
-    let entries = extra.into_iter().flat_map(|extra| {
-        let (status, reason) = match &extra.status {
-            ExtraStatus::Enabled => ("enabled", None),
-            ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
-        };
-        [
-            Some(LabeledValue::new("Status", status)),
-            reason.map(|reason| LabeledValue::new("Reason", reason)),
-            extra
-                .spent
-                .map(|spent| LabeledValue::new("Spent This Month", Quantity::spend(spent))),
-            extra
-                .monthly_limit
-                .map(|limit| LabeledValue::new("Monthly Limit", Quantity::spend(limit))),
-            extra
-                .used_share
-                .map(|used| LabeledValue::new("Used", Quantity::share(used).decimals(2))),
-        ]
-        .into_iter()
-        .flatten()
-    });
-    Section::new("Extra Usage", dictionary_table(entries))
+fn extra_section(extra: &ExtraUsageOffer) -> Section {
+    let ExtraUsageOffer::Taken(extra) = extra else {
+        return Section::new("Extra Usage", dictionary_table([]));
+    };
+    let mut extra_rows = extra_status_rows(&extra.status);
+    if let ExtraSpend::Spent(spent) = extra.spent {
+        extra_rows.push(LabeledValue::new(
+            "Spent This Month",
+            Quantity::spend(spent),
+        ));
+    }
+    if let ExtraAllowance::Capped {
+        monthly_limit,
+        used_share,
+    } = extra.allowance
+    {
+        extra_rows.push(LabeledValue::new(
+            "Monthly Limit",
+            Quantity::spend(monthly_limit),
+        ));
+        extra_rows.push(LabeledValue::new(
+            "Used",
+            Quantity::share(used_share).decimals(2),
+        ));
+    }
+    Section::new("Extra Usage", dictionary_table(extra_rows))
 }

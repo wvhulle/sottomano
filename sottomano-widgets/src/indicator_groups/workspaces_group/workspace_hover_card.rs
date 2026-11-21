@@ -10,8 +10,7 @@ use crate::{
     hover_cards::hover_card_body::{
         Section,
         hover_card_figure_payloads::{
-            PlacedPreviewTile, PreviewTile, TileCaption, TileIcon, WorkspaceArrangement,
-            WorkspacePreview,
+            PlacedPreviewTile, PreviewTile, TileIcon, WorkspaceArrangement, WorkspacePreview,
         },
     },
     icon_catalog::{drawable_icon_catalog::IconCatalog, window_icons::resolved_window_icon},
@@ -121,10 +120,7 @@ fn preview_tile(
 ) -> PreviewTile {
     PreviewTile {
         window: window.id,
-        caption: match &window.label {
-            Some(label) => TileCaption::Titled(label.clone()),
-            None => TileCaption::Untitled,
-        },
+        caption: window.caption.clone(),
         icon: match resolved_window_icon(icon_catalog, window) {
             Some(icon) => TileIcon::Resolved(icon.clone()),
             None => TileIcon::Unresolved,
@@ -144,6 +140,7 @@ mod tests {
     use sottomano_compositor_model::compositor_window_facts::{
         Urgency, WindowAppId, WindowFocus, WindowPid,
     };
+    use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowCaption;
 
     use super::*;
 
@@ -166,7 +163,7 @@ mod tests {
             pid: WindowPid::Unreported,
             focus: WindowFocus::Unfocused,
             urgency: Urgency::NotUrgent,
-            label: None,
+            caption: WindowCaption::Unlabelled,
             layout: workspace_window_snapshot::WinLayout {
                 placement,
                 tile_size: (800.0, 600.0),

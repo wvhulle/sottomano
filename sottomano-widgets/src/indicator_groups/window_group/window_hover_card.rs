@@ -7,9 +7,14 @@ use sottomano_compositor_model::{
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
     nix_flake_pin::FlakePin,
-    nix_package_facts::{Generation, NixPackageFacts, Origin, UpstreamState},
-    nix_store_provenance::StorePackage,
-    process_tree_inspection::{Inspection, Launch},
+    nix_package_facts::{
+        Generation, NixPackageFacts, NixpkgsListing, Origin, PackageHomepage, PackageLicense,
+        UpstreamState,
+    },
+    nix_store_provenance::{
+        LaunchPackaging, PackageRuntime, PackageVersion, ProfileProvider, StorePackage,
+    },
+    process_tree_inspection::{CgroupScope, Inspection, Launch, LaunchBinary},
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -50,54 +55,52 @@ pub fn window_identity_body(
 
 pub fn inspection_sections(inspection: &Inspection) -> Vec<Section> {
     let provenance = &inspection.provenance;
-    let profile = provenance
-        .profile
-        .as_deref()
-        .map(|profile| LabeledValue::new("Profile", profile));
-    let packages = provenance
-        .package
-        .as_ref()
-        .map(|package| LabeledValue::new("Package", package.name.as_str()))
-        .into_iter()
-        .chain(
-            provenance
-                .runtime
-                .as_ref()
-                .map(|runtime| versioned("Runtime", runtime)),
-        )
-        .chain(
-            provenance
-                .referenced
-                .iter()
-                .map(|referenced| versioned("Referenced", referenced)),
-        )
-        .chain(profile);
+    let mut provenance_rows = Vec::new();
+    if let LaunchPackaging::Packaged { package, runtime } = &provenance.packaging {
+        provenance_rows.push(LabeledValue::new("Package", package.name.as_str()));
+        if let PackageRuntime::Separate(runtime) = runtime {
+            provenance_rows.push(versioned("Runtime", runtime));
+        }
+    }
+    provenance_rows.extend(
+        provenance
+            .referenced
+            .iter()
+            .map(|referenced| versioned("Referenced", referenced)),
+    );
+    if let ProfileProvider::Provided(profile) = &provenance.profile {
+        provenance_rows.push(LabeledValue::new("Profile", profile.as_str()));
+    }
+    provenance_rows.extend(command(inspection));
     vec![Section::new(
         "Provenance",
-        dictionary_table(packages.chain(command(inspection))),
+        dictionary_table(provenance_rows),
     )]
 }
 
 pub fn nix_package_facts_sections(nix_package_facts: &NixPackageFacts) -> Vec<Section> {
-    let nixpkgs = nix_package_facts.nixpkgs.as_ref();
     let closure = &nix_package_facts.closure;
+    let mut derivation_rows = Vec::new();
+    if let NixpkgsListing::Listed(entry) = &nix_package_facts.nixpkgs {
+        if let PackageHomepage::Listed(homepage) = &entry.homepage {
+            derivation_rows.push(LabeledValue::new(
+                "Homepage",
+                homepage_link(homepage.clone()),
+            ));
+        }
+        derivation_rows.push(LabeledValue::new(
+            "Nix file",
+            ValueCell::BrandedLink {
+                label: entry.definition.file.clone(),
+                url: entry.definition.url.clone(),
+                glyph: SimpleIcon::NixOS.into(),
+            },
+        ));
+        if let PackageLicense::Spdx(license) = &entry.license {
+            derivation_rows.push(LabeledValue::new("License", license.as_str()));
+        }
+    }
     let rows = [
-        nixpkgs
-            .and_then(|entry| entry.homepage.clone())
-            .map(|homepage| LabeledValue::new("Homepage", homepage_link(homepage))),
-        nixpkgs.map(|entry| {
-            LabeledValue::new(
-                "Nix file",
-                ValueCell::BrandedLink {
-                    label: entry.definition.file.clone(),
-                    url: entry.definition.url.clone(),
-                    glyph: SimpleIcon::NixOS.into(),
-                },
-            )
-        }),
-        nixpkgs
-            .and_then(|entry| entry.license.as_deref())
-            .map(|license| LabeledValue::new("License", license)),
         Some(LabeledValue::new(
             "Closure size",
             format!(
@@ -116,13 +119,11 @@ pub fn nix_package_facts_sections(nix_package_facts: &NixPackageFacts) -> Vec<Se
         )),
         origin_entry(&nix_package_facts.origin),
     ];
+    derivation_rows.extend(rows.into_iter().flatten());
+    derivation_rows.extend(version_entries(nix_package_facts));
     vec![Section::new(
         "Derivation",
-        dictionary_table(
-            rows.into_iter()
-                .flatten()
-                .chain(version_entries(nix_package_facts)),
-        ),
+        dictionary_table(derivation_rows),
     )]
 }
 
@@ -146,18 +147,18 @@ fn origin_entry(origin: &Origin) -> Option<LabeledValue> {
 }
 
 fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
-    let mut shown_versions: Vec<&str> = nix_package_facts
-        .running
-        .version
-        .as_deref()
-        .into_iter()
-        .collect();
+    let mut shown_versions: Vec<&str> = match &nix_package_facts.running.version {
+        PackageVersion::Versioned(running_version) => vec![running_version.as_str()],
+        PackageVersion::Unversioned => Vec::new(),
+    };
     let mut entries: Vec<LabeledValue> = shown_versions
         .iter()
         .map(|running_version| LabeledValue::new("Running", *running_version))
         .collect();
-    let nixpkgs = nix_package_facts.nixpkgs.as_ref();
-    if let Some(Generation::Rebuilt { version }) = nixpkgs.map(|entry| &entry.generation) {
+    let NixpkgsListing::Listed(nixpkgs) = &nix_package_facts.nixpkgs else {
+        return upstream_entries(nix_package_facts, &shown_versions, entries);
+    };
+    if let Generation::Rebuilt { version } = &nixpkgs.generation {
         let installed_value = if shown_versions.contains(&version.as_str()) {
             "rebuilt, restart to use it".to_owned()
         } else {
@@ -166,7 +167,7 @@ fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
         };
         entries.push(LabeledValue::new("Installed", installed_value).level(Severity::Warning));
     }
-    if let Some(FlakePin::Moved { version }) = nixpkgs.map(|entry| &entry.pin)
+    if let FlakePin::Moved { version } = &nixpkgs.pin
         && !shown_versions.contains(&version.as_str())
     {
         shown_versions.push(version);
@@ -178,8 +179,16 @@ fn version_entries(nix_package_facts: &NixPackageFacts) -> Vec<LabeledValue> {
             .level(Severity::Warning),
         );
     }
-    if let Some(upstream) = &nix_package_facts.upstream
-        && let UpstreamState::Newer { version } = &upstream.state
+    upstream_entries(nix_package_facts, &shown_versions, entries)
+}
+
+fn upstream_entries(
+    nix_package_facts: &NixPackageFacts,
+    shown_versions: &[&str],
+    mut entries: Vec<LabeledValue>,
+) -> Vec<LabeledValue> {
+    let upstream = &nix_package_facts.upstream;
+    if let UpstreamState::Newer { version } = &upstream.state
         && !shown_versions.contains(&version.as_str())
     {
         entries.push(
@@ -199,8 +208,8 @@ fn focus_age(window: &CompositorWindow) -> Option<Duration> {
 
 fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {
     let named = match &package.version {
-        Some(version) => format!("{} {version}", package.name),
-        None => package.name.clone(),
+        PackageVersion::Versioned(version) => format!("{} {version}", package.name),
+        PackageVersion::Unversioned => package.name.clone(),
     };
     LabeledValue::new(key, named)
 }
@@ -213,22 +222,21 @@ fn command(inspected: &Inspection) -> Vec<LabeledValue> {
             let key = if index == 0 { "Command" } else { "" };
             LabeledValue::new(key, argument.as_str())
         });
-    let binary = launched
-        .binary
-        .as_ref()
-        .map(|binary| LabeledValue::new("Binary", ValueCell::Path(binary.clone())));
-    let scope = launched
-        .scope
-        .as_deref()
-        .map(|scope| LabeledValue::new("Scope", scope));
-    binary.into_iter().chain(arguments).chain(scope).collect()
+    let mut command_rows = Vec::new();
+    if let LaunchBinary::Resolved(binary) = &launched.binary {
+        command_rows.push(LabeledValue::new("Binary", ValueCell::Path(binary.clone())));
+    }
+    command_rows.extend(arguments);
+    if let CgroupScope::Unit(scope) = &launched.scope {
+        command_rows.push(LabeledValue::new("Scope", scope.as_str()));
+    }
+    command_rows
 }
 
 fn beyond_binary(launched: &Launch) -> impl Iterator<Item = &String> {
-    let echoes_binary = launched
-        .binary
-        .as_ref()
-        .zip(launched.arguments.first())
-        .is_some_and(|(binary, first)| binary.as_os_str() == first.as_str());
+    let echoes_binary = match (&launched.binary, launched.arguments.first()) {
+        (LaunchBinary::Resolved(binary), Some(first)) => binary.as_os_str() == first.as_str(),
+        (LaunchBinary::Resolved(_) | LaunchBinary::Unreadable, _) => false,
+    };
     launched.arguments.iter().skip(usize::from(echoes_binary))
 }

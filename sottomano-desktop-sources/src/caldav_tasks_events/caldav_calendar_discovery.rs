@@ -1,15 +1,16 @@
 use fast_dav_rs::{CalDavClient, CalendarInfo, WebDavClient, discover_caldav};
 
 use crate::{
-    StateChange, caldav_tasks_events::caldav_agenda::Error,
+    StateChange,
+    caldav_tasks_events::caldav_agenda::{CalendarHolding, Error},
     system_protocol_clients::http_json_client::REQUEST_TIMEOUT,
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct CaldavLogin<'a> {
-    pub server_url: &'a str,
-    pub user: &'a str,
-    pub password: &'a str,
+pub struct CaldavLogin<'credentials> {
+    pub server_url: &'credentials str,
+    pub user: &'credentials str,
+    pub password: &'credentials str,
 }
 
 #[derive(Clone)]
@@ -42,23 +43,28 @@ impl ChangeTracking {
 pub struct CalendarCollection {
     pub href: String,
     pub name: String,
-    pub holds_events: bool,
-    pub holds_tasks: bool,
+    pub event_holding: CalendarHolding,
+    pub task_holding: CalendarHolding,
     pub change_tracking: ChangeTracking,
 }
 
 impl From<CalendarInfo> for CalendarCollection {
     fn from(info: CalendarInfo) -> Self {
-        let advertises = |component: &str| {
-            info.supported_components.is_empty()
+        let advertised_holding = |component: &str| {
+            if info.supported_components.is_empty()
                 || info
                     .supported_components
                     .iter()
                     .any(|supported| supported.eq_ignore_ascii_case(component))
+            {
+                CalendarHolding::Holds
+            } else {
+                CalendarHolding::Lacks
+            }
         };
         Self {
-            holds_events: advertises("VEVENT"),
-            holds_tasks: advertises("VTODO"),
+            event_holding: advertised_holding("VEVENT"),
+            task_holding: advertised_holding("VTODO"),
             name: info
                 .displayname
                 .as_deref()
@@ -145,7 +151,8 @@ mod tests {
             personal.change_tracking,
             ChangeTracking::Token("http://sabre.io/ns/sync/42".to_owned())
         );
-        assert!(personal.holds_events && !personal.holds_tasks);
+        assert_eq!(personal.event_holding, CalendarHolding::Holds);
+        assert_eq!(personal.task_holding, CalendarHolding::Lacks);
         assert_eq!(personal.href, "/remote.php/dav/calendars/wvhulle/personal/");
     }
 
@@ -153,7 +160,8 @@ mod tests {
     fn a_calendar_without_display_name_is_named_after_its_path() {
         let tasks = &listed_calendars()[1];
         assert_eq!(tasks.name, "tasks");
-        assert!(tasks.holds_tasks && !tasks.holds_events);
+        assert_eq!(tasks.task_holding, CalendarHolding::Holds);
+        assert_eq!(tasks.event_holding, CalendarHolding::Lacks);
     }
 
     #[test]

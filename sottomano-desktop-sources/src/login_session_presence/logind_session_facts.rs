@@ -18,6 +18,7 @@ use crate::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
+    systemd_units_journal::graphical_session_target::DesktopName,
 };
 
 const LOGIN_SERVICE: &str = "org.freedesktop.login1";
@@ -66,10 +67,34 @@ pub struct SessionIdentity {
     pub user: String,
     pub uid: u32,
     pub seat: String,
-    pub virtual_terminal: Option<NonZeroU32>,
+    pub virtual_terminal: VirtualTerminal,
     pub login_manager: String,
-    pub desktop: Option<String>,
+    pub desktop: DesktopName,
     pub session_type: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualTerminal {
+    Console(NonZeroU32),
+    NoConsole,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LeaderName {
+    Named(String),
+    Unreadable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GreeterProgram {
+    Identified(String),
+    Unidentified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionIdleness {
+    IdleSince(DateTime<Utc>),
+    Active,
 }
 
 impl SnapshotSource for SessionIdentity {
@@ -96,16 +121,19 @@ async fn identity_changes(
         seat: non_empty(session.seat().await?.0).ok_or_else(|| {
             BusReadError::UnexpectedReply("logind session has no seat".to_owned())
         })?,
-        virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
+        virtual_terminal: match NonZeroU32::new(session.vt_nr().await?) {
+            Some(console) => VirtualTerminal::Console(console),
+            None => VirtualTerminal::NoConsole,
+        },
         login_manager: session.service().await?,
-        desktop: session
-            .desktop()
-            .await
-            .inspect_err(|desktop_failure| {
+        desktop: match session.desktop().await {
+            Ok(desktop_name) if !desktop_name.is_empty() => DesktopName::Named(desktop_name),
+            Ok(_) => DesktopName::Unnamed,
+            Err(desktop_failure) => {
                 tracing::warn!("logind session desktop: {desktop_failure}");
-            })
-            .ok()
-            .and_then(non_empty),
+                DesktopName::Unnamed
+            }
+        },
         session_type: String::new(),
     };
     let changes = change_triggers(
@@ -137,11 +165,11 @@ pub struct SessionInfo {
     pub id: String,
     pub scope: String,
     pub leader: u32,
-    pub leader_name: Option<String>,
-    pub greeter: Option<String>,
+    pub leader_name: LeaderName,
+    pub greeter: GreeterProgram,
     pub state: String,
     pub since: DateTime<Utc>,
-    pub idle_since: Option<DateTime<Utc>>,
+    pub idleness: SessionIdleness,
 }
 
 impl SnapshotSource for SessionInfo {
@@ -165,13 +193,14 @@ async fn session_changes(
         id: session.id().await?,
         scope: session.scope().await?,
         leader,
-        leader_name: process_name(leader),
-        greeter: greeter_program(leader),
+        leader_name: process_name(leader).map_or(LeaderName::Unreadable, LeaderName::Named),
+        greeter: greeter_program(leader)
+            .map_or(GreeterProgram::Unidentified, GreeterProgram::Identified),
         state: session.state().await?,
         since: at_micros(session.timestamp().await?).ok_or_else(|| {
             BusReadError::UnexpectedReply("logind session start time is out of range".to_owned())
         })?,
-        idle_since: None,
+        idleness: SessionIdleness::Active,
     };
     let changes = change_triggers(
         &buses.system,
@@ -182,12 +211,15 @@ async fn session_changes(
         let session = session.clone();
         let info = info.clone();
         async move {
-            let idle = session.idle_hint().await?;
+            let idleness = if session.idle_hint().await? {
+                at_micros(session.idle_since_hint().await?)
+                    .map_or(SessionIdleness::Active, SessionIdleness::IdleSince)
+            } else {
+                SessionIdleness::Active
+            };
             Ok(SessionInfo {
                 state: session.state().await?,
-                idle_since: idle
-                    .then_some(session.idle_since_hint().await?)
-                    .and_then(at_micros),
+                idleness,
                 ..info
             })
         }

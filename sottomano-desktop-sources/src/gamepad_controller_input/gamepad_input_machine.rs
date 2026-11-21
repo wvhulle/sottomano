@@ -80,7 +80,7 @@ pub enum PointerEffect {
     Move(PointerDisplacement),
     Button {
         button: PointerButton,
-        pressed: bool,
+        edge: ButtonEdge,
     },
 }
 
@@ -129,7 +129,13 @@ pub struct GamepadMachine {
     settings: GamepadStreamSettings,
     sticks: BTreeMap<usize, SlotSticks>,
     held_pointer_buttons: BTreeSet<HeldPointerButton>,
-    last_pointer_step: Option<Instant>,
+    pointer_steering: PointerSteering,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointerSteering {
+    Resting,
+    SteppedAt(Instant),
 }
 
 impl GamepadMachine {
@@ -139,7 +145,7 @@ impl GamepadMachine {
             settings,
             sticks: BTreeMap::new(),
             held_pointer_buttons: BTreeSet::new(),
-            last_pointer_step: None,
+            pointer_steering: PointerSteering::Resting,
         }
     }
 
@@ -172,9 +178,10 @@ impl GamepadMachine {
             self.flicking_sticks()
                 .filter_map(|stick| sticks.tracker(stick).next_repeat())
         });
-        let pointer_step = self
-            .last_pointer_step
-            .map(|last_step| last_step + POINTER_TICK);
+        let pointer_step = match self.pointer_steering {
+            PointerSteering::SteppedAt(last_step) => Some(last_step + POINTER_TICK),
+            PointerSteering::Resting => None,
+        };
         repeats.chain(pointer_step).min()
     }
 
@@ -223,8 +230,11 @@ impl GamepadMachine {
                 .chain(self.pointer_step(now).map(MachineEffect::Pointer))
                 .collect(),
         };
-        let steering = self.steering_positions().next().is_some();
-        self.last_pointer_step = steering.then(|| self.last_pointer_step.unwrap_or(now));
+        if self.steering_positions().next().is_none() {
+            self.pointer_steering = PointerSteering::Resting;
+        } else if self.pointer_steering == PointerSteering::Resting {
+            self.pointer_steering = PointerSteering::SteppedAt(now);
+        }
         effects
     }
 
@@ -250,13 +260,13 @@ impl GamepadMachine {
                     .remove(&held)
                     .then_some(PointerEffect::Button {
                         button: pointer_button,
-                        pressed: false,
+                        edge,
                     });
             }
         };
         pressed.then_some(PointerEffect::Button {
             button: pointer_button,
-            pressed: true,
+            edge,
         })
     }
 
@@ -302,7 +312,9 @@ impl GamepadMachine {
     }
 
     fn pointer_step(&mut self, now: Instant) -> Option<PointerEffect> {
-        let last_step = self.last_pointer_step?;
+        let PointerSteering::SteppedAt(last_step) = self.pointer_steering else {
+            return None;
+        };
         let elapsed = now
             .checked_duration_since(last_step)
             .expect("the last pointer step happened at an earlier input");
@@ -323,7 +335,7 @@ impl GamepadMachine {
                 dx: total.dx + more.dx,
                 dy: total.dy + more.dy,
             })?;
-        self.last_pointer_step = Some(now);
+        self.pointer_steering = PointerSteering::SteppedAt(now);
         Some(PointerEffect::Move(displacement))
     }
 }
@@ -396,14 +408,14 @@ mod tests {
             machine.step(trigger(ButtonEdge::Pressed), start)[0],
             MachineEffect::Pointer(PointerEffect::Button {
                 button: PointerButton::Left,
-                pressed: true,
+                edge: ButtonEdge::Pressed,
             })
         );
         assert_eq!(
             machine.step(trigger(ButtonEdge::Released), start)[0],
             MachineEffect::Pointer(PointerEffect::Button {
                 button: PointerButton::Left,
-                pressed: false,
+                edge: ButtonEdge::Released,
             })
         );
     }

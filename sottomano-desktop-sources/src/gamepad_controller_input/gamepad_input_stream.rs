@@ -15,7 +15,12 @@ use super::{
 struct GamepadDriver {
     machine: GamepadMachine,
     raw: BoxStream<'static, RawGamepadEvent>,
-    pointer: Option<VirtualPointer>,
+    pointer: PointerConnection,
+}
+
+enum PointerConnection {
+    Connected(Box<VirtualPointer>),
+    Unavailable,
 }
 
 impl GamepadDriver {
@@ -35,11 +40,11 @@ impl GamepadDriver {
             match effect {
                 MachineEffect::Deliver(input) => delivered.push(input),
                 MachineEffect::Pointer(effect) => {
-                    if let Some(pointer) = self.pointer.as_mut()
+                    if let PointerConnection::Connected(pointer) = &mut self.pointer
                         && let Err(pointer_failure) = pointer.apply(effect).await
                     {
                         tracing::warn!("gamepad: pointer steering stopped: {pointer_failure}");
-                        self.pointer = None;
+                        self.pointer = PointerConnection::Unavailable;
                     }
                 }
             }
@@ -48,14 +53,17 @@ impl GamepadDriver {
     }
 }
 
-async fn connected_pointer(settings: &GamepadStreamSettings) -> Option<VirtualPointer> {
+async fn connected_pointer(settings: &GamepadStreamSettings) -> PointerConnection {
     if settings.steering.virtual_pointer_need() == VirtualPointerNeed::Unneeded {
-        return None;
+        return PointerConnection::Unavailable;
     }
-    VirtualPointer::connect()
-        .await
-        .inspect_err(|e| tracing::warn!("gamepad: pointer steering unavailable: {e}"))
-        .ok()
+    match VirtualPointer::connect().await {
+        Ok(pointer) => PointerConnection::Connected(Box::new(pointer)),
+        Err(error) => {
+            tracing::warn!("gamepad: pointer steering unavailable: {error}");
+            PointerConnection::Unavailable
+        }
+    }
 }
 
 fn driven_inputs(driver: GamepadDriver) -> impl Stream<Item = GamepadInput> + Send {

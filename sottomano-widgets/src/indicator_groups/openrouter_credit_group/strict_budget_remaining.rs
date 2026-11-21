@@ -66,25 +66,19 @@ pub(crate) fn strict_budget_hover_card(budget: &OpenRouterStrictBudget) -> Vec<S
 
 impl From<&KeyLimit> for Section {
     fn from(key_limit: &KeyLimit) -> Self {
-        let resets = key_limit.reset.map(|reset| {
-            let period_name = match reset {
-                LimitReset::Daily => "daily",
-                LimitReset::Weekly => "weekly",
-                LimitReset::Monthly => "monthly",
-            };
-            LabeledValue::new("Resets", period_name)
-        });
+        let mut limit_rows = vec![
+            LabeledValue::new("Limit", Quantity::spend(key_limit.limit)),
+            remaining_entry(key_limit.remaining),
+        ];
+        match key_limit.reset {
+            LimitReset::Daily => limit_rows.push(LabeledValue::new("Resets", "daily")),
+            LimitReset::Weekly => limit_rows.push(LabeledValue::new("Resets", "weekly")),
+            LimitReset::Monthly => limit_rows.push(LabeledValue::new("Resets", "monthly")),
+            LimitReset::Never => {}
+        }
         Section::new(
             SectionTitle::captioned(key_limit.name.as_str(), "API key limit"),
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Limit", Quantity::spend(key_limit.limit))),
-                    Some(remaining_entry(key_limit.remaining)),
-                    resets,
-                ]
-                .into_iter()
-                .flatten(),
-            ),
+            dictionary_table(limit_rows),
         )
     }
 }

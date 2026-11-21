@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
-    GpuClocks, GpuThrottleReason,
+    GpuClockSpeed, GpuClocks, GpuFanDuty, GpuPerformanceState, GpuThrottleReason,
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -64,26 +64,28 @@ pub fn gpu_clocks_sections(gpu_clocks: &GpuClocks) -> Vec<Section> {
             ),
         )
     });
+    let mut performance_rows = Vec::new();
+    if let GpuClockSpeed::Reported(ceiling) = gpu_clocks.graphics_clock_ceiling {
+        performance_rows.push(LabeledValue::new(
+            "Ceiling",
+            Quantity::clock_megahertz(ceiling),
+        ));
+    }
+    if let GpuClockSpeed::Reported(memory) = gpu_clocks.memory_clock {
+        performance_rows.push(LabeledValue::new(
+            "Memory clock",
+            Quantity::clock_megahertz(memory),
+        ));
+    }
+    if let GpuPerformanceState::PowerState(state) = gpu_clocks.performance_state {
+        performance_rows.push(LabeledValue::new("Performance state", format!("P{state}")));
+    }
+    if let GpuFanDuty::Spinning(speed) = gpu_clocks.fan {
+        performance_rows.push(LabeledValue::new("Fan", Quantity::share(speed)));
+    }
     [Section::new(
         "Performance",
-        dictionary_table(
-            [
-                gpu_clocks.graphics_clock_ceiling.map(|ceiling| {
-                    LabeledValue::new("Ceiling", Quantity::clock_megahertz(ceiling))
-                }),
-                gpu_clocks.memory_clock.map(|memory| {
-                    LabeledValue::new("Memory clock", Quantity::clock_megahertz(memory))
-                }),
-                gpu_clocks
-                    .performance_state
-                    .map(|state| LabeledValue::new("Performance state", format!("P{state}"))),
-                gpu_clocks
-                    .fan
-                    .map(|speed| LabeledValue::new("Fan", Quantity::share(speed))),
-            ]
-            .into_iter()
-            .flatten(),
-        ),
+        dictionary_table(performance_rows),
     )]
     .into_iter()
     .chain(throttle_reasons)

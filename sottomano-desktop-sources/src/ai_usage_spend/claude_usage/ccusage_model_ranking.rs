@@ -1,9 +1,10 @@
-use std::{future::ready, path::PathBuf};
+use std::future::ready;
 
 use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
+use sottomano_toml_config::secrets::StoredSecret;
 
-use super::{Error, logins};
+use super::{Error, credential_paths, logged_out_kinds, logins};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
@@ -25,23 +26,18 @@ pub struct ClaudeCcusageModels {
 
 impl SnapshotSource for ClaudeCcusageModels {
     type Error = Error;
-    type StreamInputs = Option<PathBuf>;
+    type StreamInputs = StoredSecret;
 
     const NAME: &'static str = "Claude Code models";
 
     fn delivery_stream(
-        credentials: Option<PathBuf>,
+        credentials: StoredSecret,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(ccusage_cli_reports::ccusage_availability()).while_available(
             move || {
-                let logged_out = credentials
-                    .is_none()
-                    .then_some(SubscriptionCoverage::Uncovered);
-                let subscription_logins = stream::iter(logged_out).chain(
-                    stream::iter(credentials.clone())
-                        .flat_map(logins)
-                        .map(SubscriptionCoverage::from),
-                );
+                let subscription_logins = stream::iter(logged_out_kinds(&credentials))
+                    .chain(stream::iter(credential_paths(&credentials)).flat_map(logins))
+                    .map(SubscriptionCoverage::from);
                 subscription_logins
                     .distinct_until_changed()
                     .switch_map(|subscription_coverage| {

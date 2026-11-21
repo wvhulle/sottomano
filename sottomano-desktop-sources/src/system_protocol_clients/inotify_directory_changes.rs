@@ -37,13 +37,14 @@ impl WatchTarget {
         }
     }
 
-    fn entry_name(&self) -> Option<OsString> {
+    fn entry_filter(&self) -> EntryFilter {
         match self {
-            WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) | WatchTarget::OneLevelTree(_) => {
-                None
-            }
+            WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) => EntryFilter::AnyEntry,
+            WatchTarget::OneLevelTree(directory) => EntryFilter::GrowingTree(directory.clone()),
             WatchTarget::File(file) | WatchTarget::WrittenFile(file) => {
-                file.file_name().map(OsString::from)
+                file.file_name().map_or(EntryFilter::AnyEntry, |name| {
+                    EntryFilter::Entry(name.to_os_string())
+                })
             }
         }
     }
@@ -93,10 +94,15 @@ struct NamedEntry {
     name: OsString,
 }
 
+enum EntryFilter {
+    AnyEntry,
+    Entry(OsString),
+    GrowingTree(PathBuf),
+}
+
 struct Accepted {
     descriptor: WatchDescriptor,
-    name: Option<OsString>,
-    grows_subdirectories: Option<PathBuf>,
+    entry_filter: EntryFilter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,7 +134,9 @@ fn nearest_existing_ancestor(path: &Path) -> Option<(PathBuf, OsString)> {
 
 impl Accepted {
     fn new_subdirectory(&self, event: &inotify::Event<OsString>) -> Option<PathBuf> {
-        let root = self.grows_subdirectories.as_ref()?;
+        let EntryFilter::GrowingTree(root) = &self.entry_filter else {
+            return None;
+        };
         let appeared = event.mask.contains(EventMask::ISDIR)
             && event
                 .mask
@@ -136,6 +144,14 @@ impl Accepted {
         (event.wd == self.descriptor && appeared)
             .then(|| event.name.as_ref().map(|name| root.join(name)))
             .flatten()
+    }
+
+    fn matches(&self, event: &inotify::Event<OsString>) -> bool {
+        event.wd == self.descriptor
+            && match &self.entry_filter {
+                EntryFilter::AnyEntry | EntryFilter::GrowingTree(_) => true,
+                EntryFilter::Entry(name) => event.name.as_ref() == Some(name),
+            }
     }
 }
 
@@ -158,8 +174,7 @@ pub fn armed_watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()>
         if let Ok(descriptor) = watches.add(&symlink.directory, relinking_events()) {
             accepted.push(Accepted {
                 descriptor,
-                name: Some(symlink.name),
-                grows_subdirectories: None,
+                entry_filter: EntryFilter::Entry(symlink.name),
             });
         }
     }
@@ -195,8 +210,7 @@ pub fn armed_watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()>
                 if let Ok(descriptor) = watches.add(&symlink.directory, relinking_events()) {
                     accepted.push(Accepted {
                         descriptor,
-                        name: Some(symlink.name),
-                        grows_subdirectories: None,
+                        entry_filter: EntryFilter::Entry(symlink.name),
                     });
                 }
             }
@@ -204,18 +218,11 @@ pub fn armed_watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()>
                 if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
                     accepted.push(Accepted {
                         descriptor,
-                        name: None,
-                        grows_subdirectories: None,
+                        entry_filter: EntryFilter::AnyEntry,
                     });
                 }
             }
-            let matched = accepted.iter().any(|watched| {
-                event.wd == watched.descriptor
-                    && watched
-                        .name
-                        .as_ref()
-                        .is_none_or(|name| event.name.as_ref() == Some(name))
-            });
+            let matched = accepted.iter().any(|watched| watched.matches(&event));
             ready((fired || matched).then_some(()))
         }))
 }
@@ -232,9 +239,7 @@ fn arm(
     if let Ok(descriptor) = watches.add(&directory, target.watched_events()) {
         accepted.push(Accepted {
             descriptor,
-            name: target.entry_name(),
-            grows_subdirectories: matches!(target, WatchTarget::OneLevelTree(_))
-                .then(|| directory.clone()),
+            entry_filter: target.entry_filter(),
         });
     } else if let Some((existing_ancestor, first_missing)) = nearest_existing_ancestor(&directory)
         && let Ok(descriptor) = watches.add(&existing_ancestor, relinking_events())
@@ -249,8 +254,7 @@ fn arm(
         if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
             accepted.push(Accepted {
                 descriptor,
-                name: None,
-                grows_subdirectories: None,
+                entry_filter: EntryFilter::AnyEntry,
             });
         }
     }

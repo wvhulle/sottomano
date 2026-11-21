@@ -4,6 +4,7 @@ pub mod open_meteo_precipitation_model;
 pub mod open_meteo_temperature;
 pub mod open_meteo_wind;
 pub mod situo_location_fix;
+pub mod wmo_weather_codes;
 
 use crate::system_protocol_clients::http_json_client;
 

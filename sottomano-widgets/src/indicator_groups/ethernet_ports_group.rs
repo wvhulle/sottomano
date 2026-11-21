@@ -6,7 +6,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        ethernet_connection::{Ethernet, EthernetDetails, Port, PortState},
+        ethernet_connection::{Ethernet, EthernetDetails, Port, PortLink, PortState},
         icmp_gateway_latency::GatewayLatencies,
         network_manager_proxies::LinkPhase,
     },
@@ -223,10 +223,10 @@ impl EthernetPortsGroup {
 
     fn port_connection_hover_card(&self, port_state: &PortState) -> Vec<Section> {
         let link_details = self.port_detail_sections(&port_state.name, |port| {
-            port.link
-                .as_ref()
-                .map(link_detail_sections)
-                .unwrap_or_default()
+            let PortLink::Up(link) = &port.link else {
+                return Vec::new();
+            };
+            link_detail_sections(link)
         });
         let mut sections = self
             .ethernet
@@ -241,10 +241,10 @@ impl EthernetPortsGroup {
         family: AddressFamily,
     ) -> Vec<Section> {
         let address_details = self.port_detail_sections(&port_state.name, |port| {
-            port.link
-                .as_ref()
-                .map(|link| family_address_sections(family, link.ipv4.as_ref(), link.ipv6.as_ref()))
-                .unwrap_or_default()
+            let PortLink::Up(link) = &port.link else {
+                return Vec::new();
+            };
+            family_address_sections(family, &link.ipv4, &link.ipv6)
         });
         let router_details = self.gateway_latencies.sections_described_by(|latencies| {
             family_router_sections(latencies, &port_state.name, family)
@@ -254,10 +254,10 @@ impl EthernetPortsGroup {
 
     fn interface_dns_hover_card(&self, port_state: &PortState) -> Vec<Section> {
         self.port_detail_sections(&port_state.name, |port| {
-            port.link
-                .as_ref()
-                .map(|link| dns_server_sections(&link.dns))
-                .unwrap_or_default()
+            let PortLink::Up(link) = &port.link else {
+                return Vec::new();
+            };
+            dns_server_sections(&link.dns)
         })
     }
 

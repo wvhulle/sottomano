@@ -151,48 +151,89 @@ enum ThroughputEvent {
 }
 
 #[derive(Default)]
-struct ThroughputSampler {
+struct UplinkSelection {
     interfaces: Vec<String>,
     metering: Metering,
-    latest: Option<Sample>,
-    rates: Rates,
-    peak: Rates,
+}
+
+enum ThroughputSampler {
+    Unsampled(UplinkSelection),
+    Sampled {
+        selection: UplinkSelection,
+        latest: Sample,
+        rates: Rates,
+        peak: Rates,
+    },
+}
+
+impl Default for ThroughputSampler {
+    fn default() -> Self {
+        Self::Unsampled(UplinkSelection::default())
+    }
 }
 
 impl ThroughputSampler {
+    fn retargeted(self, selection: UplinkSelection) -> Self {
+        match self {
+            Self::Unsampled(_) => Self::Unsampled(selection),
+            Self::Sampled {
+                latest,
+                rates,
+                peak,
+                ..
+            } => Self::Sampled {
+                selection,
+                latest,
+                rates,
+                peak,
+            },
+        }
+    }
+
     fn observed(self, event: ThroughputEvent) -> Self {
         match event {
-            ThroughputEvent::UplinkChanged(uplink) => Self {
+            ThroughputEvent::UplinkChanged(uplink) => self.retargeted(UplinkSelection {
                 interfaces: physical(&uplink.activated_interfaces),
                 metering: uplink.metering,
-                ..self
-            },
-            ThroughputEvent::UplinkAbsent => Self {
-                interfaces: Vec::default(),
-                metering: Metering::Unmetered,
-                ..self
-            },
-            ThroughputEvent::Tick(_) => {
-                let current = capture(&self.interfaces);
-                let rates = self
-                    .latest
-                    .as_ref()
-                    .map_or_else(Rates::default, |previous| current.rates_since(previous));
-                Self {
-                    latest: Some(current),
-                    rates,
-                    peak: self.peak.raised_by(rates),
-                    ..self
+            }),
+            ThroughputEvent::UplinkAbsent => self.retargeted(UplinkSelection::default()),
+            ThroughputEvent::Tick(_) => match self {
+                Self::Unsampled(selection) => Self::Sampled {
+                    latest: capture(&selection.interfaces),
+                    selection,
+                    rates: Rates::default(),
+                    peak: Rates::default(),
+                },
+                Self::Sampled {
+                    selection,
+                    latest,
+                    peak,
+                    ..
+                } => {
+                    let current = capture(&selection.interfaces);
+                    let rates = current.rates_since(&latest);
+                    Self::Sampled {
+                        selection,
+                        latest: current,
+                        rates,
+                        peak: peak.raised_by(rates),
+                    }
                 }
-            }
+            },
             ThroughputEvent::UplinkUnreadable(_) => self,
         }
     }
 
     fn samples(&self) -> Option<InterfaceThroughput> {
-        self.latest
-            .as_ref()
-            .map(|latest| samples(latest, self.rates, self.peak, self.metering))
+        match self {
+            Self::Unsampled(_) => None,
+            Self::Sampled {
+                selection,
+                latest,
+                rates,
+                peak,
+            } => Some(samples(latest, *rates, *peak, selection.metering)),
+        }
     }
 }
 

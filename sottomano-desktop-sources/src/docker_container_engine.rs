@@ -4,7 +4,7 @@ use std::{
     env,
     future::ready,
     path::{Path, PathBuf},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use bytesize::ByteSize;
@@ -16,6 +16,7 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerStartTime,
     delivery_cadence_drivers::{
         CarriedRead, ChangeTriggerStreams, PeriodicPolling, RereadSchedule, SamplingNeed,
         SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
@@ -154,7 +155,7 @@ struct InspectedDockerContainer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ContainerProcessStart {
     pid: i32,
-    started_at: Option<SystemTime>,
+    started_at: ContainerStartTime,
 }
 
 pub(crate) struct DockerEngineSampler {
@@ -206,7 +207,7 @@ impl DockerEngineSampler {
                     container_id,
                     ContainerProcessStart {
                         pid: inspected.state.pid,
-                        started_at: parsed_engine_timestamp(&inspected.state.started_at),
+                        started_at: parsed_engine_timestamp(&inspected.state.started_at).into(),
                     },
                 );
             }
@@ -275,9 +276,15 @@ impl DockerEngineSampler {
             shown_name: container.shown_name(),
             container_name: container.container_name(),
             image: container.image.clone(),
-            started_at: process_start
-                .and_then(|process_start| process_start.started_at)
-                .unwrap_or(UNIX_EPOCH + Duration::from_secs(container.created_unix_seconds)),
+            started_at: match process_start
+                .map_or(ContainerStartTime::Unrecorded, |process_start| {
+                    process_start.started_at
+                }) {
+                ContainerStartTime::StartedAt(started_at) => started_at,
+                ContainerStartTime::Unrecorded => {
+                    UNIX_EPOCH + Duration::from_secs(container.created_unix_seconds)
+                }
+            },
             ci_identity: ContainerCiIdentity::NotWoodpecker,
             cpu_load,
             resident_memory: process_start

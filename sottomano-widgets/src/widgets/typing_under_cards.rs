@@ -11,7 +11,7 @@ use sottomano_compositor_model::{
     compositor_window_facts::TileViewPosition, compositor_window_state::CompositorWindowState,
 };
 use sottomano_desktop_sources::{
-    desktop_windows_apps::window_edge_placement::Placement,
+    desktop_windows_apps::window_edge_placement::{FocusedWindow, Placement},
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };
 use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
@@ -92,7 +92,9 @@ pub fn viewed_window_bounds(placement: &Placement, window_id: u64) -> Option<Rec
 }
 
 fn focused_window_bounds_on(output: &str, placement: &Placement) -> Option<Rectangle> {
-    let window_id = placement.focused_window?;
+    let FocusedWindow::Window(window_id) = placement.focused_window else {
+        return None;
+    };
     let workspace_id = placement.workspace_of_window(window_id)?;
     (placement.output_of_workspace(workspace_id)? == output)
         .then(|| viewed_window_bounds(placement, window_id))

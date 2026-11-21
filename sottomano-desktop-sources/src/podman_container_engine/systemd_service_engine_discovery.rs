@@ -25,11 +25,11 @@ pub enum EngineOwner {
 }
 
 impl Display for EngineOwner {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            EngineOwner::YourUser => f.write_str("Your user"),
-            EngineOwner::Root => f.write_str("Root"),
-            EngineOwner::ServiceUser(user_name) => f.write_str(user_name),
+            EngineOwner::YourUser => formatter.write_str("Your user"),
+            EngineOwner::Root => formatter.write_str("Root"),
+            EngineOwner::ServiceUser(user_name) => formatter.write_str(user_name),
         }
     }
 }

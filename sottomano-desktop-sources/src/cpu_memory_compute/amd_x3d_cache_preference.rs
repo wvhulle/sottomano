@@ -24,8 +24,8 @@ pub struct UnknownX3dMode {
 }
 
 impl fmt::Display for UnknownX3dMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unknown X3D mode {}", self.mode_name)
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "unknown X3D mode {}", self.mode_name)
     }
 }
 

@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
+use sottomano_desktop_sources::systemd_units_journal::{
+    SystemdTimestamp, graphical_session_target::GraphicalSessionTarget,
+};
 
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -36,23 +38,19 @@ impl DesktopServicesFace {
 pub fn graphical_session_target_sections(
     graphical_session_target: &GraphicalSessionTarget,
 ) -> Vec<Section> {
-    let entries = [
-        Some(LabeledValue::new(
-            "State",
-            graphical_session_target.state.clone(),
-        )),
-        graphical_session_target.reached_at.map(|at| {
-            LabeledValue::new(
-                "Ready since",
-                ValueCell::Time {
-                    at,
-                    format: LocalizedTimeFormat::DateAndTime,
-                },
-            )
-        }),
-    ]
-    .into_iter()
-    .flatten();
+    let mut entries = vec![LabeledValue::new(
+        "State",
+        graphical_session_target.state.clone(),
+    )];
+    if let SystemdTimestamp::At(at) = graphical_session_target.reached_at {
+        entries.push(LabeledValue::new(
+            "Ready since",
+            ValueCell::Time {
+                at,
+                format: LocalizedTimeFormat::DateAndTime,
+            },
+        ));
+    }
     vec![Section::new(
         SectionTitle::captioned(
             "Target state",

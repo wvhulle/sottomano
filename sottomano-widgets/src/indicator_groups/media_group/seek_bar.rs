@@ -6,7 +6,7 @@ use corredo::value_controls::{
 use iced::{Element, Task, widget::Row};
 use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, Media, SeekMode, micros,
+    Command, CommandOffer, Media, SeekMode, micros,
 };
 use sottomano_toml_config::Config;
 
@@ -68,7 +68,7 @@ impl SeekBar {
     }
 
     pub fn seek_availability(media: &Media, now: Instant) -> SeekAvailability {
-        if media.capabilities.seek
+        if media.capabilities.seek == CommandOffer::Offered
             && media.progress.length().is_some()
             && media.progress.played(media.status, now).is_some()
         {
@@ -84,7 +84,7 @@ impl SeekBar {
         media: &Media,
         now: Instant,
     ) -> Option<Element<'a, SeekMessage>> {
-        if !media.capabilities.seek {
+        if media.capabilities.seek == CommandOffer::NotOffered {
             return None;
         }
         self.playback.view(
@@ -165,7 +165,10 @@ pub(super) fn seek_by(
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::{
-        media_playback_audio::mpris_players::{Capabilities, PlayerSetting, Progress, Status},
+        media_playback_audio::mpris_players::{
+            Capabilities, CoverArtUrl, PlayerSetting, Progress, Status, TrackAlbum, TrackSource,
+            TrackTitle,
+        },
         system_protocol_clients::dbus_desktop_buses::OwnerProcess,
     };
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
@@ -182,11 +185,10 @@ mod tests {
             bus: "org.mpris.MediaPlayer2.test".to_owned(),
             owner: OwnerProcess::Unidentified,
             identity: "test".to_owned(),
-            desktop_entry: None,
-            title: Some("track".to_owned()),
+            title: TrackTitle::Titled("track".to_owned()),
             artists: Vec::new(),
-            album: None,
-            url: None,
+            album: TrackAlbum::NoAlbum,
+            url: TrackSource::Unlocated,
             status: Status::Paused,
             progress: Progress::Timed {
                 position,
@@ -194,9 +196,9 @@ mod tests {
                 length: Duration::from_secs(300),
                 rate: 1.0,
             },
-            art_url: None,
+            art_url: CoverArtUrl::NotAdvertised,
             capabilities: Capabilities {
-                seek: true,
+                seek: CommandOffer::Offered,
                 ..Capabilities::default()
             },
             queue_order: PlayerSetting::Uncontrollable,

@@ -113,10 +113,10 @@ async fn subscribe_managed_objects<T: Send + 'static>(
 }
 
 #[must_use]
-pub fn interface<'a>(
-    interfaces: &'a HashMap<OwnedInterfaceName, Properties>,
+pub fn interface<'interfaces>(
+    interfaces: &'interfaces HashMap<OwnedInterfaceName, Properties>,
     name: &str,
-) -> Option<&'a Properties> {
+) -> Option<&'interfaces Properties> {
     interfaces
         .iter()
         .find(|(key, _)| key.as_str() == name)

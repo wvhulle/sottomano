@@ -94,13 +94,25 @@ impl AppCategory {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppDescription {
+    Described(String),
+    Undescribed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchSurface {
+    Terminal,
+    Graphical,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchableApp {
     pub app_id: String,
     pub name: String,
-    pub description: Option<String>,
+    pub description: AppDescription,
     pub category: AppCategory,
     pub launch_command: Vec<String>,
-    pub runs_in_terminal: bool,
+    pub launch_surface: LaunchSurface,
 }
 
 impl LaunchableApp {
@@ -131,7 +143,10 @@ impl LaunchableApp {
             name: entry
                 .name(no_locales)
                 .map_or_else(|| entry.id().to_owned(), Cow::into_owned),
-            description: entry.comment(no_locales).map(Cow::into_owned),
+            description: match entry.comment(no_locales) {
+                Some(comment) => AppDescription::Described(comment.into_owned()),
+                None => AppDescription::Undescribed,
+            },
             category: entry
                 .categories()
                 .unwrap_or_default()
@@ -148,7 +163,11 @@ impl LaunchableApp {
                 })
                 .ok()
                 .filter(|command| !command.is_empty())?,
-            runs_in_terminal: entry.terminal(),
+            launch_surface: if entry.terminal() {
+                LaunchSurface::Terminal
+            } else {
+                LaunchSurface::Graphical
+            },
         })
     }
 }
@@ -201,10 +220,10 @@ mod tests {
         compositor_window_state::CompositorWindow,
     };
 
-    use super::{AppCategory, LaunchableApp, OpenAppWindows, open_windows_by_app};
+    use super::{AppCategory, LaunchSurface, LaunchableApp, OpenAppWindows, open_windows_by_app};
     use crate::desktop_windows_apps::desktop_entries::DesktopEntries;
 
-    fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {
+    fn fixture_desktop_entry(app_id: &str, fields: &str) -> DesktopEntry {
         let no_locales: Option<&[&str]> = None;
         DesktopEntry::from_str(
             format!("/{app_id}.desktop"),
@@ -215,10 +234,13 @@ mod tests {
     }
 
     fn app_on_niri(fields: &str) -> Option<LaunchableApp> {
-        LaunchableApp::shown_on_desktops(&entry_of("editor", fields), &["niri".to_owned()])
+        LaunchableApp::shown_on_desktops(
+            &fixture_desktop_entry("editor", fields),
+            &["niri".to_owned()],
+        )
     }
 
-    fn category_of(fields: &str) -> AppCategory {
+    fn shown_app_category(fields: &str) -> AppCategory {
         app_on_niri(fields).expect("the entry is shown").category
     }
 
@@ -237,25 +259,31 @@ mod tests {
     #[test]
     fn an_app_lands_in_the_first_main_category_it_declares() {
         assert_eq!(
-            category_of("Categories=IDE;Office;Development;"),
+            shown_app_category("Categories=IDE;Office;Development;"),
             AppCategory::Office
         );
     }
 
     #[test]
     fn audio_and_video_share_the_multimedia_category() {
-        assert_eq!(category_of("Categories=Audio;"), AppCategory::Multimedia);
-        assert_eq!(category_of("Categories=Video;"), AppCategory::Multimedia);
         assert_eq!(
-            category_of("Categories=AudioVideo;"),
+            shown_app_category("Categories=Audio;"),
+            AppCategory::Multimedia
+        );
+        assert_eq!(
+            shown_app_category("Categories=Video;"),
+            AppCategory::Multimedia
+        );
+        assert_eq!(
+            shown_app_category("Categories=AudioVideo;"),
             AppCategory::Multimedia
         );
     }
 
     #[test]
     fn an_app_without_a_main_category_lands_in_other() {
-        assert_eq!(category_of("Categories=IDE;"), AppCategory::Other);
-        assert_eq!(category_of(""), AppCategory::Other);
+        assert_eq!(shown_app_category("Categories=IDE;"), AppCategory::Other);
+        assert_eq!(shown_app_category(""), AppCategory::Other);
     }
 
     #[test]
@@ -275,17 +303,17 @@ mod tests {
     #[test]
     fn a_terminal_entry_keeps_its_command_and_flag() {
         let app = app_on_niri("Terminal=true").expect("the entry is shown");
-        assert!(app.runs_in_terminal);
+        assert_eq!(app.launch_surface, LaunchSurface::Terminal);
         assert_eq!(app.launch_command, ["editor"]);
     }
 
     #[test]
     fn the_catalog_lists_an_id_once_and_sorts_by_name_ignoring_case() {
         let entries = DesktopEntries::with_entries(vec![
-            entry_of("zeal", ""),
-            entry_of("Atom", ""),
-            entry_of("zeal", "Name=Shadowed copy"),
-            entry_of("mpv", ""),
+            fixture_desktop_entry("zeal", ""),
+            fixture_desktop_entry("Atom", ""),
+            fixture_desktop_entry("zeal", "Name=Shadowed copy"),
+            fixture_desktop_entry("mpv", ""),
         ]);
 
         let app_ids: Vec<String> = entries
@@ -299,7 +327,7 @@ mod tests {
 
     #[test]
     fn the_most_recently_focused_window_is_the_jump_target() {
-        let entries = DesktopEntries::with_entries(vec![entry_of("firefox", "")]);
+        let entries = DesktopEntries::with_entries(vec![fixture_desktop_entry("firefox", "")]);
         let windows = [
             window_focused_at(
                 1,

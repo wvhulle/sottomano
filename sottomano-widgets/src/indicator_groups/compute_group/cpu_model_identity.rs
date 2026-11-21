@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::CpuModel;
+use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::{
+    CpuModel, HardwareText,
+};
 
 use crate::{
     glyph_icons::{
@@ -15,27 +17,22 @@ use crate::{
 };
 
 pub(super) fn cpu_model_panel_visibility(model: &CpuModel) -> PanelVisibility {
-    if model.identity.name.is_some() {
-        PanelVisibility::Shown
-    } else {
-        PanelVisibility::Hidden
+    match model.identity.name {
+        HardwareText::Reported(_) => PanelVisibility::Shown,
+        HardwareText::Unreported => PanelVisibility::Hidden,
     }
 }
 
 pub(super) fn cpu_model_indicator(model: &CpuModel) -> GroupIndicator<'_> {
-    let glyph = model
-        .identity
-        .vendor
-        .and_then(|vendor| vendor.vendor_logo())
-        .map_or_else(
-            || Phosphor::IdentificationCard(Weight::Regular).into(),
-            IconGlyph::from,
-        );
+    let glyph = model.identity.vendor.vendor_logo().map_or_else(
+        || Phosphor::IdentificationCard(Weight::Regular).into(),
+        IconGlyph::from,
+    );
     let label = match &model.architecture.microarchitecture {
-        Some(microarchitecture) if !microarchitecture.is_empty() => {
+        HardwareText::Reported(microarchitecture) => {
             ReadoutLabel::Labeled(microarchitecture.clone())
         }
-        Some(_) | None => ReadoutLabel::Unlabeled,
+        HardwareText::Unreported => ReadoutLabel::Unlabeled,
     };
     GroupIndicator::glyph_only("CPU model", glyph, IndicatorState::Idle)
         .with_readout(IndicatorReadout {

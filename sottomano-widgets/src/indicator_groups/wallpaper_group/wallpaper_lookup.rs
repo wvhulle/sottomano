@@ -11,7 +11,10 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate,
     secret_file_reads::AuthenticatedFetchError,
     system_protocol_clients::{dbus_desktop_buses::OnBus, shell_command_output},
-    wallpaper_place_article::{self, DisplayedWallpaper, Wallpaper},
+    wallpaper_place_article::{
+        self, DisplayedWallpaper,
+        unsplash_photo_article::{self, PlaceArticle, Wallpaper},
+    },
 };
 
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
@@ -33,7 +36,10 @@ impl From<&Wallpaper> for Lookup {
     fn from(wallpaper: &Wallpaper) -> Self {
         Self {
             place: Place::wallpaper_place(wallpaper),
-            article: wallpaper.article.as_ref().map(Article::from),
+            article: match &wallpaper.article {
+                PlaceArticle::Found(article) => Some(Article::from(article)),
+                PlaceArticle::Unmatched => None,
+            },
             photo: Photo::from(wallpaper),
         }
     }
@@ -97,10 +103,10 @@ fn displayed_lookups(
     match credited_photo {
         Err(settled) => stream::iter([settled]).left_stream(),
         Ok((path, id)) => {
-            let unresolved = Lookup::from(&wallpaper_place_article::unresolved(&path, &id));
+            let unresolved = Lookup::from(&unsplash_photo_article::unresolved(&path, &id));
             let resolved = async move {
                 SnapshotDelivery::live_push(
-                    wallpaper_place_article::resolve(path, id, &unsplash_key)
+                    unsplash_photo_article::resolve(path, id, &unsplash_key)
                         .await
                         .map(|wallpaper| Lookup::from(&wallpaper))
                         .map_err(Failure::Resolve),

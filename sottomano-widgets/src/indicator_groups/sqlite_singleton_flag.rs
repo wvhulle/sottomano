@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::sqlite_state_store::{
-    StoreError, flag, in_state_store, singleton_row, with_state_store,
+    StoreError, flag_set_when, in_state_store, singleton_row, with_state_store,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,7 +108,7 @@ async fn write_flag<State: SingletonFlagState>(
                 table = stored_flag.table(),
                 column = stored_flag.column()
             ),
-            (flag(flag_state == State::STORED_AS_SET),),
+            (flag_set_when(flag_state, State::STORED_AS_SET),),
         )
         .await?;
     Ok(())

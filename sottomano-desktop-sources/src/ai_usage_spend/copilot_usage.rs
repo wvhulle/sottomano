@@ -17,7 +17,7 @@ pub use self::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    ai_usage_spend::ccusage_cli_reports,
+    ai_usage_spend::{ccusage_cli_reports, subscription_plan::SubscriptionPlan},
     backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
@@ -92,13 +92,21 @@ struct QuotaSnapshot {
     percent_remaining: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotaReset {
+    At(DateTime<Utc>),
+    Unannounced,
+}
+
 impl UserInfo {
-    fn plan(&self) -> Option<String> {
+    fn plan(&self) -> SubscriptionPlan {
         [&self.access_type_sku, &self.copilot_plan]
             .into_iter()
             .flatten()
             .find(|plan| !plan.is_empty())
-            .cloned()
+            .map_or(SubscriptionPlan::Unnamed, |plan| {
+                SubscriptionPlan::Named(plan.clone())
+            })
     }
 }
 
@@ -164,7 +172,11 @@ async fn user_info(key: &Path) -> Result<UserInfo, Error> {
     .await?)
 }
 
-fn quota_reset(info: &UserInfo) -> Option<DateTime<Utc>> {
+fn quota_reset(info: &UserInfo) -> QuotaReset {
+    quota_reset_instant(info).map_or(QuotaReset::Unannounced, QuotaReset::At)
+}
+
+fn quota_reset_instant(info: &UserInfo) -> Option<DateTime<Utc>> {
     let instant = info.quota_reset_date_utc.as_deref().and_then(|reset_text| {
         reset_text
             .parse()

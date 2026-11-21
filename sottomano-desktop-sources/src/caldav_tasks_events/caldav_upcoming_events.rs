@@ -39,11 +39,7 @@ impl UpcomingEventList {
 
 impl CalendarEntryQuery for UpcomingEvent {
     fn holding(calendar: &CalendarCollection) -> CalendarHolding {
-        if calendar.holds_events {
-            CalendarHolding::Holds
-        } else {
-            CalendarHolding::Lacks
-        }
+        calendar.event_holding
     }
 
     async fn queried(
@@ -60,8 +56,26 @@ struct FetchedSubscription {
     calendar_name: String,
     downloaded_at: Instant,
     window: EventWindow,
-    download_failed: bool,
-    events: Vec<UpcomingEvent>,
+    feed_events: FeedEvents,
+}
+
+enum FeedEvents {
+    Downloaded(Vec<UpcomingEvent>),
+    KeptAfterFailedDownload(Vec<UpcomingEvent>),
+}
+
+impl FeedEvents {
+    fn events(&self) -> &[UpcomingEvent] {
+        match self {
+            Self::Downloaded(events) | Self::KeptAfterFailedDownload(events) => events,
+        }
+    }
+
+    fn into_events(self) -> Vec<UpcomingEvent> {
+        match self {
+            Self::Downloaded(events) | Self::KeptAfterFailedDownload(events) => events,
+        }
+    }
 }
 
 impl FetchedSubscription {
@@ -70,14 +84,13 @@ impl FetchedSubscription {
         subscription: &SubscribedCalendar,
         window: EventWindow,
     ) -> Self {
-        let downloaded_events = downloaded_or_logged(http_client, subscription, window).await;
         Self {
             href: subscription.href.clone(),
             calendar_name: subscription.name.clone(),
             downloaded_at: Instant::now(),
             window,
-            download_failed: downloaded_events.is_none(),
-            events: downloaded_events.unwrap_or_default(),
+            feed_events: downloaded_feed_events(http_client, subscription, window, Vec::new())
+                .await,
         }
     }
 
@@ -87,28 +100,33 @@ impl FetchedSubscription {
         subscription: &SubscribedCalendar,
         window: EventWindow,
     ) -> Self {
-        let downloaded_events = downloaded_or_logged(http_client, subscription, window).await;
         Self {
             calendar_name: subscription.name.clone(),
             downloaded_at: Instant::now(),
             window,
-            download_failed: downloaded_events.is_none(),
-            events: downloaded_events.unwrap_or(self.events),
+            feed_events: downloaded_feed_events(
+                http_client,
+                subscription,
+                window,
+                self.feed_events.into_events(),
+            )
+            .await,
             href: self.href,
         }
     }
 }
 
-async fn downloaded_or_logged(
+async fn downloaded_feed_events(
     http_client: &reqwest::Client,
     subscription: &SubscribedCalendar,
     window: EventWindow,
-) -> Option<Vec<UpcomingEvent>> {
+    kept_events: Vec<UpcomingEvent>,
+) -> FeedEvents {
     match download_feed_events(http_client, subscription, window).await {
-        Ok(events) => Some(events),
+        Ok(events) => FeedEvents::Downloaded(events),
         Err(error) => {
             tracing::warn!("calendar subscription {}: {error}", subscription.name);
-            None
+            FeedEvents::KeptAfterFailedDownload(kept_events)
         }
     }
 }
@@ -177,7 +195,7 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
             .chain(
                 self.fetched_subscriptions
                     .values()
-                    .flat_map(|subscription| subscription.events.iter()),
+                    .flat_map(|subscription| subscription.feed_events.events()),
             )
             .filter(|event| event.phase(now) != EventPhase::Ended)
             .cloned()
@@ -186,7 +204,12 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
         let mut failed_subscription_names: Vec<String> = self
             .fetched_subscriptions
             .values()
-            .filter(|subscription| subscription.download_failed)
+            .filter(|subscription| {
+                matches!(
+                    subscription.feed_events,
+                    FeedEvents::KeptAfterFailedDownload(_)
+                )
+            })
             .map(|subscription| subscription.calendar_name.clone())
             .collect();
         failed_subscription_names.sort();

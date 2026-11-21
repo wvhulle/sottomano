@@ -19,8 +19,8 @@ use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
 use self::{away_reasons::LatestAwayReasons, window_focus_timeline::OngoingWindowFocus};
 pub use self::{
     away_reasons::ScreenEdge,
-    focus_identity::{FocusIdentity, Focused},
-    focus_units::{FocusUnit, Presence, StoredFacet},
+    focus_identity::{FocusIdentity, FocusProject, Focused, ProjectProbeTarget},
+    focus_units::{DailyBudget, FocusUnit, Presence, StoredFacet},
     presence_accounting::{BreakCause, FocusRun, ScreenRun, TakenBreak},
     recorded_spans::{FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
     time_intervals::{Interval, LAST_DAY, LAST_HOUR, TrailingPeriod},
@@ -49,9 +49,9 @@ pub struct FocusLedger {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Accounting<'a> {
-    pub ledger: &'a FocusLedger,
-    pub config: &'a SessionFocusConfig,
+pub struct Accounting<'ledger> {
+    pub ledger: &'ledger FocusLedger,
+    pub config: &'ledger SessionFocusConfig,
 }
 
 impl FocusLedger {
@@ -92,7 +92,10 @@ impl FocusLedger {
     }
 
     #[must_use]
-    pub fn accounted<'a>(&'a self, config: &'a SessionFocusConfig) -> Accounting<'a> {
+    pub fn accounted<'ledger>(
+        &'ledger self,
+        config: &'ledger SessionFocusConfig,
+    ) -> Accounting<'ledger> {
         Accounting {
             ledger: self,
             config,

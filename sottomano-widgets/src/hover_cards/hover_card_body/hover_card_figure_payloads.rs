@@ -5,7 +5,7 @@ use sottomano_compositor_model::{
     compositor_styling_model::AppWindowLayout,
     compositor_window_facts::{Urgency, WindowFocus, WindowTiling},
 };
-use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowCaption;
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
@@ -48,28 +48,12 @@ pub struct ThreadCell {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreviewTile {
     pub window: u64,
-    pub caption: TileCaption,
+    pub caption: WindowCaption,
     pub icon: TileIcon,
     pub tile_size: Size,
     pub focus: WindowFocus,
     pub urgency: Urgency,
     pub tiling: WindowTiling,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TileCaption {
-    Untitled,
-    Titled(WindowLabel),
-}
-
-impl TileCaption {
-    #[must_use]
-    pub fn favicon_key(&self) -> Option<&str> {
-        match self {
-            TileCaption::Titled(label) => label.favicon_key(),
-            TileCaption::Untitled => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

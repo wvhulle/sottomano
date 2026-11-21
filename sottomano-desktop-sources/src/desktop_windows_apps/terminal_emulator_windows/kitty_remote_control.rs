@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     TerminalLabelSource, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
     pty_shell_sessions::child_pids,
-    shell_prompt_title::ShellState,
+    shell_prompt_title::{ForegroundProgram, PromptPresence, ShellState},
     terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
 };
 
@@ -22,7 +22,7 @@ const LISTEN_ON_VARIABLE: &str = "KITTY_LISTEN_ON";
 const KITTY_PID_VARIABLE: &str = "KITTY_PID";
 const UNIX_SCHEME: &[u8] = b"unix:";
 
-pub fn socket_of(kitty_pid: i32) -> Option<PathBuf> {
+pub fn kitty_socket_path(kitty_pid: i32) -> Option<PathBuf> {
     child_pids(kitty_pid)
         .into_iter()
         .filter_map(|child| {
@@ -88,15 +88,15 @@ fn retitle(
 struct NoPayload {}
 
 #[derive(Serialize)]
-struct TitlePayload<'a> {
-    title: &'a str,
+struct TitlePayload<'title> {
+    title: &'title str,
     r#match: String,
     temporary: bool,
 }
 
 #[derive(Serialize)]
-struct Command<'a, P> {
-    cmd: &'a str,
+struct Command<'command, P> {
+    cmd: &'command str,
     version: [u32; 3],
     no_response: bool,
     payload: P,
@@ -185,18 +185,23 @@ impl KittyWindow {
                     .and_then(|procfs_process| procfs_process.stat())
                     .is_ok_and(|stat| stat.pgrp == process.pid)
             })
-            .map(|process| process.cmdline.as_slice());
+            .map_or(ForegroundProgram::NoForegroundProgram, |process| {
+                ForegroundProgram::Running(process.cmdline.as_slice())
+            });
         let active_window = ActiveTerminalShell {
             shell: ShellState {
                 title: &self.title,
                 cwd: &self.cwd,
                 home,
-                at_prompt: self.at_prompt,
+                prompt_presence: if self.at_prompt {
+                    PromptPresence::AtPrompt
+                } else {
+                    PromptPresence::AwayFromPrompt
+                },
                 reported_command_line: &self.last_reported_cmdline,
-                has_foreground_program: foreground_program.is_some(),
+                foreground_program,
             },
             shell_name: &shell_name,
-            foreground_program,
         };
         Some(active_window.window_label())
     }
@@ -248,7 +253,9 @@ mod tests {
     use super::OsWindow;
     use crate::desktop_windows_apps::terminal_emulator_windows::{
         TerminalLabelSource, TerminalWindowKey, TitleProbeTarget,
-        terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
+        terminal_shell_label::{
+            ForegroundActivity, ForegroundProgramName, TerminalShellLabel, WorkingLocation,
+        },
     };
 
     const LISTING: &str = r#"[
@@ -303,7 +310,7 @@ mod tests {
                 working_location: WorkingLocation::LocalDirectory("/srv".to_owned()),
                 foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "pkill".to_owned(),
-                    program_name: None,
+                    program_name: ForegroundProgramName::Unidentified,
                 },
             })
         );

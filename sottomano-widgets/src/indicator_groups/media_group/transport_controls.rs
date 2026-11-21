@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, LoopMode, Media, PlayerSetting, QueueOrder, Status,
+    Command, CommandOffer, LoopMode, Media, PlayerSetting, QueueOrder, Status,
 };
 
 use super::{PlayerInteraction, player_interaction};
@@ -43,7 +43,7 @@ fn shuffle_button(media: &Media) -> Option<TransportButton> {
 }
 
 fn previous_button(media: &Media) -> Option<TransportButton> {
-    media.capabilities.go_previous.then_some(TransportButton {
+    (media.capabilities.go_previous == CommandOffer::Offered).then_some(TransportButton {
         name: "Previous track",
         glyph: Phosphor::SkipBack(Weight::Fill),
         state: IndicatorState::On,
@@ -67,7 +67,7 @@ fn play_or_pause_button(media: &Media) -> Option<TransportButton> {
             Command::Play,
         ),
     };
-    offered.then_some(TransportButton {
+    (offered == CommandOffer::Offered).then_some(TransportButton {
         name: "Play or pause",
         glyph,
         state: IndicatorState::On,
@@ -77,7 +77,7 @@ fn play_or_pause_button(media: &Media) -> Option<TransportButton> {
 }
 
 fn next_button(media: &Media) -> Option<TransportButton> {
-    media.capabilities.go_next.then_some(TransportButton {
+    (media.capabilities.go_next == CommandOffer::Offered).then_some(TransportButton {
         name: "Next track",
         glyph: Phosphor::SkipForward(Weight::Fill),
         state: IndicatorState::On,

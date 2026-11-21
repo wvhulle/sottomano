@@ -40,10 +40,17 @@ impl JobProgress {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum JobPercent {
+    #[default]
+    Unreported,
+    Reported(u8),
+}
+
 #[derive(Default)]
 struct Job {
     app: String,
-    percent: Option<u8>,
+    percent: JobPercent,
     total: u64,
     processed: u64,
 }
@@ -51,8 +58,9 @@ struct Job {
 impl Job {
     fn apply(&mut self, properties: &HashMap<String, OwnedValue>) {
         if let Some(percent) = number(properties, "percent") {
-            self.percent =
-                Some(u8::try_from(percent.min(100)).expect("percent is capped at one hundred"));
+            self.percent = JobPercent::Reported(
+                u8::try_from(percent.min(100)).expect("percent is capped at one hundred"),
+            );
         }
         if let Some(total) = number(properties, "totalBytes") {
             self.total = total;
@@ -63,7 +71,7 @@ impl Job {
     }
 
     fn progress(&self) -> u8 {
-        if let Some(percent) = self.percent {
+        if let JobPercent::Reported(percent) = self.percent {
             return percent.min(100);
         }
         if self.total == 0 {
@@ -211,7 +219,7 @@ async fn open_view(
 ) -> fdo::Result<OwnedObjectPath> {
     let id = tracker.open(app);
     let path = OwnedObjectPath::try_from(format!("{PATH}/JobView_{id}"))
-        .map_err(|e| fdo::Error::Failed(e.to_string()))?;
+        .map_err(|error| fdo::Error::Failed(error.to_string()))?;
     let view = JobView {
         id,
         path: path.clone(),
@@ -281,7 +289,7 @@ impl JobView {
         let percent =
             u8::try_from(percent.min(100)).expect("a percentage capped at 100 fits a byte");
         self.tracker
-            .amend(self.id, |job| job.percent = Some(percent));
+            .amend(self.id, |job| job.percent = JobPercent::Reported(percent));
     }
 
     #[zbus(name = "setTotalAmount")]

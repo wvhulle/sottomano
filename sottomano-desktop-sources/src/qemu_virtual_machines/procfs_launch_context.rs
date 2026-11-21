@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::qemu_virtual_machines::running_virtual_machines::LaunchContext;
+
 const NIX_BUILD_DIRECTORY_PREFIX: &str = "nix-build-";
 const DERIVATION_SUFFIX_MARKER: &str = ".drv-";
 const NIXOS_TEST_RUN_PREFIX: &str = "vm-test-run-";
@@ -53,7 +55,7 @@ pub(crate) fn context_in_mountinfo(mountinfo_text: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn parent_pid_of(pid: i32) -> Option<i32> {
+fn parent_process_pid(pid: i32) -> Option<i32> {
     let stat_text = fs::read_to_string(format!("/proc/{pid}/stat"))
         .inspect_err(|read_failure| {
             tracing::debug!("launch context: cannot read stat of process {pid}: {read_failure}");
@@ -121,7 +123,7 @@ fn installable_attribute(command_line: &[String]) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn command_line_of(pid: i32) -> Vec<String> {
+fn process_command_line(pid: i32) -> Vec<String> {
     fs::read(format!("/proc/{pid}/cmdline")).map_or_else(
         |read_failure| {
             tracing::debug!(
@@ -149,7 +151,7 @@ fn command_line_of(pid: i32) -> Vec<String> {
 fn ancestor_context(pid: i32) -> Option<String> {
     let mut current_pid = pid;
     for _ in 0..ANCESTOR_SEARCH_DEPTH {
-        let command_line = command_line_of(current_pid);
+        let command_line = process_command_line(current_pid);
         if let Some(attribute_name) = installable_attribute(&command_line) {
             return Some(attribute_name);
         }
@@ -168,14 +170,14 @@ fn ancestor_context(pid: i32) -> Option<String> {
             return Some(directory_name);
         }
         current_pid = daemon_client_pid(&command_line)
-            .or_else(|| parent_pid_of(current_pid))
+            .or_else(|| parent_process_pid(current_pid))
             .filter(|next_pid| *next_pid > 1)?;
     }
     None
 }
 
 #[must_use]
-pub(crate) fn launch_context_of(pid: i32) -> Option<String> {
+pub(crate) fn traced_launch_context(pid: i32) -> LaunchContext {
     fs::read_to_string(format!("/proc/{pid}/mountinfo"))
         .inspect_err(|read_failure| {
             tracing::debug!(
@@ -185,6 +187,7 @@ pub(crate) fn launch_context_of(pid: i32) -> Option<String> {
         .ok()
         .and_then(|mountinfo_text| context_in_mountinfo(&mountinfo_text))
         .or_else(|| ancestor_context(pid))
+        .map_or(LaunchContext::Unidentified, LaunchContext::Named)
 }
 
 #[cfg(test)]

@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use bytesize::ByteSize;
 use serde::Deserialize;
 
-use crate::system_protocol_clients::procfs_process_scan::program_stem;
+use crate::{
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
+    system_protocol_clients::procfs_process_scan::program_stem,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MicrovmHypervisor {
@@ -33,14 +36,38 @@ impl MicrovmHypervisor {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HypervisorMachineName {
+    Named(String),
+    Unnamed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GuestKernelImage {
+    Booted(PathBuf),
+    NotOnCommandLine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HypervisorApiSocket {
+    Listening(PathBuf),
+    NotOpened,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchConfigFile {
+    Given(PathBuf),
+    CommandLineOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HypervisorLaunch {
-    pub named_machine: Option<String>,
-    pub guest_memory: Option<ByteSize>,
-    pub guest_cores: Option<u32>,
-    pub kernel: Option<PathBuf>,
-    pub api_socket: Option<PathBuf>,
-    pub config_file: Option<PathBuf>,
+    pub named_machine: HypervisorMachineName,
+    pub guest_memory: GuestMemorySize,
+    pub guest_cores: GuestCoreCount,
+    pub kernel: GuestKernelImage,
+    pub api_socket: HypervisorApiSocket,
+    pub config_file: LaunchConfigFile,
 }
 
 #[must_use]
@@ -59,7 +86,10 @@ pub fn launched_hypervisor(command_line: &[String]) -> Option<MicrovmHypervisor>
     }
 }
 
-fn option_values<'a>(command_line: &'a [String], option_names: &[&str]) -> Vec<&'a str> {
+fn option_values<'arguments>(
+    command_line: &'arguments [String],
+    option_names: &[&str],
+) -> Vec<&'arguments str> {
     let mut found_values = Vec::new();
     let mut arguments = command_line.iter().skip(1);
     while let Some(argument) = arguments.next() {
@@ -79,11 +109,14 @@ fn option_values<'a>(command_line: &'a [String], option_names: &[&str]) -> Vec<&
     found_values
 }
 
-fn option_value<'a>(command_line: &'a [String], option_names: &[&str]) -> Option<&'a str> {
+fn option_value<'arguments>(
+    command_line: &'arguments [String],
+    option_names: &[&str],
+) -> Option<&'arguments str> {
     option_values(command_line, option_names).into_iter().last()
 }
 
-fn keyed_field<'a>(option_value: &'a str, field_key: &str) -> Option<&'a str> {
+fn keyed_field<'option>(option_value: &'option str, field_key: &str) -> Option<&'option str> {
     option_value.split(',').find_map(|field| {
         field
             .strip_prefix(field_key)
@@ -135,23 +168,51 @@ fn parsed_guest_cores(cores_text: &str) -> Option<u32> {
         .ok()
 }
 
+fn kernel_option(command_line: &[String], option_names: &[&str]) -> GuestKernelImage {
+    option_value(command_line, option_names).map_or(GuestKernelImage::NotOnCommandLine, |kernel| {
+        GuestKernelImage::Booted(PathBuf::from(kernel))
+    })
+}
+
+fn machine_name_option(command_line: &[String], option_names: &[&str]) -> HypervisorMachineName {
+    option_value(command_line, option_names).map_or(HypervisorMachineName::Unnamed, |name| {
+        HypervisorMachineName::Named(name.to_owned())
+    })
+}
+
+fn api_socket_option(command_line: &[String], option_names: &[&str]) -> HypervisorApiSocket {
+    option_value(command_line, option_names).map_or(HypervisorApiSocket::NotOpened, |socket| {
+        HypervisorApiSocket::Listening(PathBuf::from(socket))
+    })
+}
+
 fn cloud_hypervisor_launch(command_line: &[String]) -> HypervisorLaunch {
     let memory_option = option_value(command_line, &["--memory"]);
     let cpus_option = option_value(command_line, &["--cpus"]);
     let api_socket_option = option_value(command_line, &["--api-socket"]);
     HypervisorLaunch {
-        named_machine: None,
+        named_machine: HypervisorMachineName::Unnamed,
         guest_memory: memory_option
             .and_then(|memory_option| keyed_field(memory_option, "size"))
-            .and_then(parsed_size_with_suffix),
+            .and_then(parsed_size_with_suffix)
+            .map_or(
+                GuestMemorySize::HypervisorDefault,
+                GuestMemorySize::Configured,
+            ),
         guest_cores: cpus_option
             .and_then(|cpus_option| keyed_field(cpus_option, "boot"))
-            .and_then(parsed_guest_cores),
-        kernel: option_value(command_line, &["--kernel"]).map(PathBuf::from),
-        api_socket: api_socket_option.map(|socket_option| {
-            PathBuf::from(keyed_field(socket_option, "path").unwrap_or(socket_option))
+            .and_then(parsed_guest_cores)
+            .map_or(
+                GuestCoreCount::HypervisorDefault,
+                GuestCoreCount::Configured,
+            ),
+        kernel: kernel_option(command_line, &["--kernel"]),
+        api_socket: api_socket_option.map_or(HypervisorApiSocket::NotOpened, |socket_option| {
+            HypervisorApiSocket::Listening(PathBuf::from(
+                keyed_field(socket_option, "path").unwrap_or(socket_option),
+            ))
         }),
-        config_file: None,
+        config_file: LaunchConfigFile::CommandLineOnly,
     }
 }
 
@@ -167,7 +228,7 @@ struct FirecrackerBootSource {
 }
 
 #[derive(Deserialize)]
-struct FirecrackerConfigFile {
+struct FirecrackerConfigJson {
     #[serde(rename = "machine-config")]
     machine_config: Option<FirecrackerMachineConfig>,
     #[serde(rename = "boot-source")]
@@ -179,25 +240,38 @@ pub fn with_firecracker_config(
     mut launch: HypervisorLaunch,
     config_text: &str,
 ) -> HypervisorLaunch {
-    let Ok(config_file) = serde_json::from_str::<FirecrackerConfigFile>(config_text) else {
+    let Ok(config_file) = serde_json::from_str::<FirecrackerConfigJson>(config_text) else {
         return launch;
     };
     if let Some(machine_config) = config_file.machine_config {
-        launch.guest_memory = machine_config.mem_size_mib.map(ByteSize::mib);
-        launch.guest_cores = machine_config.vcpu_count;
+        launch.guest_memory = machine_config
+            .mem_size_mib
+            .map_or(GuestMemorySize::HypervisorDefault, |mebibytes| {
+                GuestMemorySize::Configured(ByteSize::mib(mebibytes))
+            });
+        launch.guest_cores = machine_config.vcpu_count.map_or(
+            GuestCoreCount::HypervisorDefault,
+            GuestCoreCount::Configured,
+        );
     }
     launch.kernel = config_file
         .boot_source
-        .and_then(|boot_source| boot_source.kernel_image_path);
+        .and_then(|boot_source| boot_source.kernel_image_path)
+        .map_or(GuestKernelImage::NotOnCommandLine, GuestKernelImage::Booted);
     launch
 }
 
 fn firecracker_launch(command_line: &[String]) -> HypervisorLaunch {
     HypervisorLaunch {
-        named_machine: option_value(command_line, &["--id"]).map(str::to_owned),
-        api_socket: option_value(command_line, &["--api-sock"]).map(PathBuf::from),
-        config_file: option_value(command_line, &["--config-file"]).map(PathBuf::from),
-        ..HypervisorLaunch::default()
+        named_machine: machine_name_option(command_line, &["--id"]),
+        guest_memory: GuestMemorySize::HypervisorDefault,
+        guest_cores: GuestCoreCount::HypervisorDefault,
+        kernel: GuestKernelImage::NotOnCommandLine,
+        api_socket: api_socket_option(command_line, &["--api-sock"]),
+        config_file: option_value(command_line, &["--config-file"])
+            .map_or(LaunchConfigFile::CommandLineOnly, |config_file| {
+                LaunchConfigFile::Given(PathBuf::from(config_file))
+            }),
     }
 }
 
@@ -205,28 +279,52 @@ fn crosvm_launch(command_line: &[String]) -> HypervisorLaunch {
     let memory_option = option_value(command_line, &["--mem", "-m"]);
     let cpus_option = option_value(command_line, &["--cpus", "-c"]);
     HypervisorLaunch {
-        guest_memory: memory_option.and_then(|memory_option| {
-            mebibytes(keyed_field(memory_option, "size").unwrap_or(memory_option))
-        }),
-        guest_cores: cpus_option.and_then(|cpus_option| {
-            parsed_guest_cores(keyed_field(cpus_option, "num-cores").unwrap_or(cpus_option))
-        }),
+        named_machine: HypervisorMachineName::Unnamed,
+        guest_memory: memory_option
+            .and_then(|memory_option| {
+                mebibytes(keyed_field(memory_option, "size").unwrap_or(memory_option))
+            })
+            .map_or(
+                GuestMemorySize::HypervisorDefault,
+                GuestMemorySize::Configured,
+            ),
+        guest_cores: cpus_option
+            .and_then(|cpus_option| {
+                parsed_guest_cores(keyed_field(cpus_option, "num-cores").unwrap_or(cpus_option))
+            })
+            .map_or(
+                GuestCoreCount::HypervisorDefault,
+                GuestCoreCount::Configured,
+            ),
         kernel: command_line
             .last()
             .filter(|last_argument| !last_argument.starts_with('-'))
-            .map(PathBuf::from),
-        api_socket: option_value(command_line, &["--socket", "-s"]).map(PathBuf::from),
-        ..HypervisorLaunch::default()
+            .map_or(GuestKernelImage::NotOnCommandLine, |kernel| {
+                GuestKernelImage::Booted(PathBuf::from(kernel))
+            }),
+        api_socket: api_socket_option(command_line, &["--socket", "-s"]),
+        config_file: LaunchConfigFile::CommandLineOnly,
     }
 }
 
 fn kvmtool_launch(command_line: &[String]) -> HypervisorLaunch {
     HypervisorLaunch {
-        named_machine: option_value(command_line, &["--name", "-n"]).map(str::to_owned),
-        guest_memory: option_value(command_line, &["--mem", "-m"]).and_then(mebibytes),
-        guest_cores: option_value(command_line, &["--cpus", "-c"]).and_then(parsed_guest_cores),
-        kernel: option_value(command_line, &["--kernel", "-k"]).map(PathBuf::from),
-        ..HypervisorLaunch::default()
+        named_machine: machine_name_option(command_line, &["--name", "-n"]),
+        guest_memory: option_value(command_line, &["--mem", "-m"])
+            .and_then(mebibytes)
+            .map_or(
+                GuestMemorySize::HypervisorDefault,
+                GuestMemorySize::Configured,
+            ),
+        guest_cores: option_value(command_line, &["--cpus", "-c"])
+            .and_then(parsed_guest_cores)
+            .map_or(
+                GuestCoreCount::HypervisorDefault,
+                GuestCoreCount::Configured,
+            ),
+        kernel: kernel_option(command_line, &["--kernel", "-k"]),
+        api_socket: HypervisorApiSocket::NotOpened,
+        config_file: LaunchConfigFile::CommandLineOnly,
     }
 }
 
@@ -241,112 +339,4 @@ pub fn parsed_launch(hypervisor: MicrovmHypervisor, command_line: &[String]) -> 
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use bytesize::ByteSize;
-
-    use super::{MicrovmHypervisor, launched_hypervisor, parsed_launch, with_firecracker_config};
-
-    fn arguments(command_line: &[&str]) -> Vec<String> {
-        command_line
-            .iter()
-            .map(|argument| (*argument).to_owned())
-            .collect()
-    }
-
-    #[test]
-    fn a_wrapped_nix_program_is_recognised_by_its_stem() {
-        assert_eq!(
-            launched_hypervisor(&arguments(&[
-                "/nix/store/abc-cloud-hypervisor-48.0/bin/.cloud-hypervisor-wrapped",
-                "--memory",
-                "size=512M",
-            ])),
-            Some(MicrovmHypervisor::CloudHypervisor)
-        );
-        assert_eq!(
-            launched_hypervisor(&arguments(&["crosvm", "version"])),
-            None
-        );
-        assert_eq!(
-            launched_hypervisor(&arguments(&["qemu-system-x86_64"])),
-            None
-        );
-    }
-
-    #[test]
-    fn a_microvm_nix_cloud_hypervisor_launch_reads_its_size_cores_and_socket() {
-        let launch = parsed_launch(
-            MicrovmHypervisor::CloudHypervisor,
-            &arguments(&[
-                "cloud-hypervisor",
-                "--cpus",
-                "boot=2",
-                "--memory",
-                "size=1024M,mergeable=on",
-                "--kernel",
-                "/nix/store/xyz-linux-6.18/bzImage",
-                "--api-socket",
-                "path=/var/lib/microvms/ci-builder/ci-builder.sock",
-            ]),
-        );
-        assert_eq!(launch.guest_memory, Some(ByteSize::gib(1)));
-        assert_eq!(launch.guest_cores, Some(2));
-        assert_eq!(
-            launch.api_socket,
-            Some(PathBuf::from(
-                "/var/lib/microvms/ci-builder/ci-builder.sock"
-            ))
-        );
-    }
-
-    #[test]
-    fn a_firecracker_config_file_supplies_size_cores_and_kernel() {
-        let launch = parsed_launch(
-            MicrovmHypervisor::Firecracker,
-            &arguments(&[
-                "firecracker",
-                "--api-sock",
-                "/run/firecracker/sandbox.sock",
-                "--config-file",
-                "/etc/firecracker/sandbox.json",
-                "--id",
-                "sandbox",
-            ]),
-        );
-        let launch = with_firecracker_config(
-            launch,
-            r#"{"machine-config":{"vcpu_count":2,"mem_size_mib":256},"boot-source":{"kernel_image_path":"/srv/vmlinux"}}"#,
-        );
-        assert_eq!(launch.named_machine.as_deref(), Some("sandbox"));
-        assert_eq!(launch.guest_memory, Some(ByteSize::mib(256)));
-        assert_eq!(launch.guest_cores, Some(2));
-        assert_eq!(launch.kernel, Some(PathBuf::from("/srv/vmlinux")));
-    }
-
-    #[test]
-    fn crosvm_and_kvmtool_sizes_are_mebibytes() {
-        let crosvm = parsed_launch(
-            MicrovmHypervisor::Crosvm,
-            &arguments(&[
-                "crosvm",
-                "run",
-                "--mem",
-                "2048",
-                "--cpus",
-                "4",
-                "/boot/vmlinux",
-            ]),
-        );
-        assert_eq!(crosvm.guest_memory, Some(ByteSize::gib(2)));
-        assert_eq!(crosvm.guest_cores, Some(4));
-        assert_eq!(crosvm.kernel, Some(PathBuf::from("/boot/vmlinux")));
-        let kvmtool = parsed_launch(
-            MicrovmHypervisor::Kvmtool,
-            &arguments(&["lkvm", "run", "-m", "512", "-c", "1", "--name", "scratch"]),
-        );
-        assert_eq!(kvmtool.guest_memory, Some(ByteSize::mib(512)));
-        assert_eq!(kvmtool.named_machine.as_deref(), Some("scratch"));
-    }
-}
+mod hypervisor_command_lines_tests;

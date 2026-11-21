@@ -4,7 +4,10 @@ use sottomano_desktop_sinks::{
     apptainer_containers::stop_apptainer_container, sink_write_errors::GuestPowerError,
 };
 use sottomano_desktop_sources::{
-    apptainer_containers::{ApptainerContainer, ApptainerContainerListing, ApptainerProbe},
+    apptainer_containers::{
+        ApptainerContainer, ApptainerContainerListing, ApptainerImage, ApptainerProbe,
+        ContainedCommand, ContainerOwner,
+    },
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
 };
@@ -90,10 +93,10 @@ impl<'a> ApptainerContainerIndicator<'a> {
 
     fn hover_card(container: &ApptainerContainer, clock: Clock) -> Vec<Section> {
         let mut detail_entries = Vec::new();
-        if let Some(image_file) = &container.image_file {
+        if let ApptainerImage::LoopMounted(image_file) = &container.image_file {
             detail_entries.push(LabeledValue::new("Image", image_file.display().to_string()));
         }
-        if let Some(running_command) = &container.running_command {
+        if let ContainedCommand::Running(running_command) = &container.running_command {
             detail_entries.push(LabeledValue::new("Running", running_command.clone()));
         }
         detail_entries.push(LabeledValue::new(
@@ -104,10 +107,10 @@ impl<'a> ApptainerContainerIndicator<'a> {
         detail_entries.extend([
             LabeledValue::new(
                 "Owner",
-                container
-                    .owner_name
-                    .clone()
-                    .unwrap_or_else(|| container.owner_uid.to_string()),
+                match &container.owner {
+                    ContainerOwner::Account(account_name) => account_name.clone(),
+                    ContainerOwner::UnnamedUid(owner_uid) => owner_uid.to_string(),
+                },
             ),
             LabeledValue::new("Runtime", container.runtime_title.clone()),
             LabeledValue::new("PID", container.listing.runtime_pid.to_string()),

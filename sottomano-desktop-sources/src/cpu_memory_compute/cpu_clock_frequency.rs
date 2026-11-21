@@ -54,7 +54,13 @@ pub struct CoreFreq {
     pub core: u32,
     pub frequency: Frequency,
     pub band: FrequencyBand,
-    pub preference_rank: Option<u32>,
+    pub preference_rank: PreferredCoreRank,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreferredCoreRank {
+    NotRanked,
+    Ranked(u32),
 }
 
 #[derive(Debug, Clone, PartialEq)]

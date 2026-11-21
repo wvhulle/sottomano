@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 use sottomano_desktop_sources::{
     desktop_windows_apps::desktop_entries::{DesktopEntries, SchemeHandling},
-    media_playback_audio::mpris_players::Media,
+    media_playback_audio::mpris_players::{Media, TrackAlbum, TrackSource, TrackTitle},
 };
 
 use crate::{
@@ -91,8 +91,20 @@ fn path_segment(value: &str) -> String {
 }
 
 pub fn track_section(media: &Media, desktop_entries: &DesktopEntries) -> Section {
-    let source = media.url.as_ref().and_then(|url| {
-        let label = url.host_str()?.to_owned();
+    let mut metadata_entries = Vec::new();
+    if let TrackTitle::Titled(title) = &media.title {
+        metadata_entries.push(LabeledValue::new("Title", title.clone()));
+    }
+    if let Some(artists) = media.joined_artists() {
+        metadata_entries.push(LabeledValue::new("Artist", artists));
+    }
+    if let TrackAlbum::OnAlbum(album) = &media.album {
+        metadata_entries.push(LabeledValue::new("Album", album.clone()));
+    }
+    if let TrackSource::Located(url) = &media.url
+        && let Some(host) = url.host_str()
+    {
+        let label = host.to_owned();
         let link = match SearchPlatform::hosting(url) {
             Some(spotify @ SearchPlatform::Spotify) => ValueCell::BrandedLink {
                 label,
@@ -111,21 +123,9 @@ pub fn track_section(media: &Media, desktop_entries: &DesktopEntries) -> Section
                 url: url.to_string(),
             },
         };
-        Some(LabeledValue::new("Source", link))
-    });
-    Section::new(
-        "Metadata",
-        dictionary_table(
-            [
-                ("Title", media.title.clone()),
-                ("Artist", media.joined_artists()),
-                ("Album", media.album.clone()),
-            ]
-            .into_iter()
-            .filter_map(|(key, value)| Some(LabeledValue::new(key, value?)))
-            .chain(source),
-        ),
-    )
+        metadata_entries.push(LabeledValue::new("Source", link));
+    }
+    Section::new("Metadata", dictionary_table(metadata_entries))
 }
 
 pub fn playback_section(media: &Media, now: Instant) -> Section {
@@ -156,27 +156,30 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
 }
 
 pub fn search_section(media: &Media, desktop_entries: &DesktopEntries) -> Section {
-    let query = media.title.as_ref().map(|title| {
-        media
-            .joined_artists()
-            .map_or_else(|| title.clone(), |artists| format!("{artists} {title}"))
-    });
-    let playing_on = media.url.as_ref().and_then(SearchPlatform::hosting);
-    let links = query.into_iter().flat_map(move |query| {
-        SearchPlatform::ALL
-            .into_iter()
-            .filter(move |platform| Some(*platform) != playing_on)
-            .map(move |platform| {
-                LabeledValue::new(
-                    platform.name(),
-                    ValueCell::BrandedLink {
-                        label: query.clone(),
-                        url: platform.url(&query, desktop_entries),
-                        glyph: platform.glyph(),
-                    },
-                )
-            })
-    });
+    let TrackTitle::Titled(title) = &media.title else {
+        return Section::new("Search", dictionary_table(Vec::new()));
+    };
+    let query = media
+        .joined_artists()
+        .map_or_else(|| title.clone(), |artists| format!("{artists} {title}"));
+    let playing_on = match &media.url {
+        TrackSource::Located(url) => SearchPlatform::hosting(url),
+        TrackSource::Unlocated => None,
+    };
+    let links: Vec<LabeledValue> = SearchPlatform::ALL
+        .into_iter()
+        .filter(move |platform| Some(*platform) != playing_on)
+        .map(move |platform| {
+            LabeledValue::new(
+                platform.name(),
+                ValueCell::BrandedLink {
+                    label: query.clone(),
+                    url: platform.url(&query, desktop_entries),
+                    glyph: platform.glyph(),
+                },
+            )
+        })
+        .collect();
     Section::new("Search", dictionary_table(links))
 }
 

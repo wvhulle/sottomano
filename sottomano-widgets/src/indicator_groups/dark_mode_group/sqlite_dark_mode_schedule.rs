@@ -1,7 +1,9 @@
 use chrono::TimeDelta;
 use sottomano_desktop_sources::{
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
-    sqlite_state_store::{StoreError, flag, in_state_store, singleton_row, with_state_store},
+    sqlite_state_store::{
+        StoreError, flag_set_when, in_state_store, singleton_row, with_state_store,
+    },
 };
 
 use crate::group_indicators::{indicator_state::IndicatorState, toggle_control::SwitchPosition};
@@ -96,7 +98,7 @@ async fn write_schedule(
          VALUES (0, ?1, ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET armed = ?1, sunrise_offset = ?2, sunset_offset = ?3",
             (
-                flag(schedule.auto_switch_arming == AutoSwitchArming::Armed),
+                flag_set_when(schedule.auto_switch_arming, AutoSwitchArming::Armed),
                 schedule.sun_event_offsets.sunrise_offset.num_seconds(),
                 schedule.sun_event_offsets.sunset_offset.num_seconds(),
             ),

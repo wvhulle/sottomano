@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sottomano_toml_config::severity::Severity;
 use systemd::journal::Journal;
 
-use crate::systemd_units_journal::SystemdUnitScope;
+use crate::systemd_units_journal::{SystemdUnitScope, journal_coredumps::CoredumpOwner};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
@@ -53,9 +53,9 @@ impl MessageId {
 }
 
 impl Display for MessageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         write!(
-            f,
+            formatter,
             "{:0width$x}",
             self.message_uuid,
             width = Self::HEX_DIGITS
@@ -69,9 +69,9 @@ pub struct MalformedMessageId {
 }
 
 impl Display for MalformedMessageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         write!(
-            f,
+            formatter,
             "message id {:?} is not {} hex digits",
             self.message_text,
             MessageId::HEX_DIGITS
@@ -132,7 +132,9 @@ impl JournalTransport {
     }
 }
 
-pub fn either_of(matches: impl IntoIterator<Item = String>) -> impl Iterator<Item = String> {
+pub fn disjunctive_journal_matches(
+    matches: impl IntoIterator<Item = String>,
+) -> impl Iterator<Item = String> {
     matches
         .into_iter()
         .enumerate()
@@ -198,8 +200,12 @@ pub struct UnknownSyslogLevel {
 }
 
 impl Display for UnknownSyslogLevel {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "syslog level {} is beyond debug", self.level_number)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            formatter,
+            "syslog level {} is beyond debug",
+            self.level_number
+        )
     }
 }
 
@@ -233,7 +239,7 @@ pub struct LoggingUnit {
 impl LoggingUnit {
     #[must_use]
     pub fn owning_unit(self) -> Option<OwningUnit> {
-        OwningUnit::innermost_of(self.system, self.user)
+        OwningUnit::innermost_owning_unit(self.system, self.user)
     }
 }
 
@@ -248,7 +254,7 @@ pub struct SubjectUnit {
 impl SubjectUnit {
     #[must_use]
     pub fn owning_unit(self) -> Option<OwningUnit> {
-        OwningUnit::innermost_of(self.system, self.user)
+        OwningUnit::innermost_owning_unit(self.system, self.user)
     }
 }
 
@@ -262,13 +268,14 @@ pub struct CoredumpUnit {
 
 impl CoredumpUnit {
     #[must_use]
-    pub fn owning_unit(self) -> Option<OwningUnit> {
-        OwningUnit::innermost_of(self.system, self.user)
+    pub fn coredump_owner(self) -> CoredumpOwner {
+        OwningUnit::innermost_owning_unit(self.system, self.user)
+            .map_or(CoredumpOwner::OutsideUnits, CoredumpOwner::Unit)
     }
 }
 
 impl OwningUnit {
-    fn innermost_of(system: Option<String>, user: Option<String>) -> Option<Self> {
+    fn innermost_owning_unit(system: Option<String>, user: Option<String>) -> Option<Self> {
         user.map(OwningUnit::User)
             .or_else(|| system.map(OwningUnit::System))
     }

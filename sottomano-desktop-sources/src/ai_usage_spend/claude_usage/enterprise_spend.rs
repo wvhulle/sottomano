@@ -71,11 +71,17 @@ impl TryFrom<MinorAmount> for Money {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SpendLimit {
+    Capped(Money),
+    Uncapped,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeEnterpriseSpend {
     pub status: ExtraStatus,
     pub used: Money,
-    pub limit: Option<Money>,
+    pub limit: SpendLimit,
     pub used_share: Ratio,
     pub working_time: WorkingTime,
 }
@@ -164,35 +170,32 @@ impl ClaudeEnterpriseSpend {
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         let now = now.with_timezone(&Local);
-        self.limit
-            .as_ref()
-            .map(|_| {
+        match self.limit {
+            SpendLimit::Capped(_) => vec![
                 CalendarSpan::month_containing(now.date_naive()).paced_quota(
                     "Claude monthly spend limit",
                     self.used_share,
                     &SpendPacing::WorkingTime(self.working_time.clone()),
                     now,
-                )
-            })
-            .into_iter()
-            .collect()
+                ),
+            ],
+            SpendLimit::Uncapped => Vec::new(),
+        }
     }
 
     fn paced_by(spend: Spend, working_time: WorkingTime) -> Result<Self, Error> {
-        let status = if spend.enabled {
-            ExtraStatus::Enabled
-        } else {
-            ExtraStatus::Disabled {
-                reason: spend
-                    .disabled_reason
-                    .as_deref()
-                    .map(|reason| reason.replace('_', " ")),
-            }
+        let limit = match spend.limit {
+            Some(limit) => SpendLimit::Capped(Money::try_from(limit)?),
+            None => SpendLimit::Uncapped,
         };
         Ok(ClaudeEnterpriseSpend {
-            status,
+            status: if spend.enabled {
+                ExtraStatus::Enabled
+            } else {
+                ExtraStatus::disabled(spend.disabled_reason.as_deref())
+            },
             used: Money::try_from(spend.used)?,
-            limit: spend.limit.map(Money::try_from).transpose()?,
+            limit,
             used_share: Ratio::new::<percent>(spend.percent),
             working_time,
         })
@@ -243,7 +246,7 @@ mod tests {
         let enterprise = enterprise_spend();
         assert_eq!(enterprise.status, ExtraStatus::Enabled);
         assert_eq!(enterprise.used.to_string(), "$1.79");
-        assert!(enterprise.limit.is_none());
+        assert_eq!(enterprise.limit, SpendLimit::Uncapped);
     }
 
     #[test]

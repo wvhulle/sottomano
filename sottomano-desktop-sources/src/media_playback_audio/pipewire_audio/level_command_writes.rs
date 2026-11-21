@@ -2,12 +2,13 @@ use pipewire::spa::{param::ParamType, pod::Pod};
 
 use super::{
     CommandKind, Direction, Target,
-    audio_graph_state::{DefaultNode, Levels},
+    audio_graph_state::{DefaultNode, Levels, NodePlacement, StreamProcess},
     graph_proxy_listeners::BoundAudioSession,
     spa_pod_levels::{level_property, pod_bytes, props_object, route_object},
 };
 use crate::media_playback_audio::pipewire_audio::MuteState;
 
+#[derive(Debug, PartialEq)]
 pub(super) enum LevelChange {
     Volumes(Vec<f32>),
     Mute(MuteState),
@@ -70,7 +71,7 @@ fn apply_to_streams(session: &BoundAudioSession, pid: i32, kind: CommandKind) ->
         .graph
         .streams
         .iter()
-        .filter(|(_, stream)| stream.pid == Some(pid))
+        .filter(|(_, stream)| stream.process == StreamProcess::Process(pid))
         .collect();
     let app_mute_state = if !app_streams.is_empty()
         && app_streams
@@ -105,7 +106,9 @@ fn write_level_change(session: &BoundAudioSession, id: u32, change: &LevelChange
 
 fn write_to_route(session: &BoundAudioSession, id: u32, change: &LevelChange) -> Option<()> {
     let node = session.graph.nodes.get(&id)?;
-    let placement = node.placement.as_ref()?;
+    let NodePlacement::Routed(placement) = &node.placement else {
+        return None;
+    };
     let route = session.graph.active_route(node)?;
     let device = &session.proxies.devices.get(&placement.device)?.proxy;
     let bytes = pod_bytes(&route_object(route.index, placement.route_device, change))?;

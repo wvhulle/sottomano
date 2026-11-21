@@ -49,7 +49,7 @@ impl VolumeIdentity {
     }
 
     #[must_use]
-    pub fn value_of(&self, kind: VolumePropertyKind) -> Option<&str> {
+    pub fn property_value(&self, kind: VolumePropertyKind) -> Option<&str> {
         self.properties
             .iter()
             .find(|property| property.kind == kind)

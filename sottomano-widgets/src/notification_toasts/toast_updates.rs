@@ -67,7 +67,7 @@ use crate::{
     toast_messages::NotificationMessage,
     widgets::{
         announced_level::{LevelToastChange, LevelToastRequest},
-        ongoing_toast::{OngoingKey, OngoingToast},
+        ongoing_toast::{NotificationBody, NotificationProgress, OngoingKey, OngoingToast},
     },
 };
 
@@ -334,8 +334,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 key: OngoingKey::ConfigFile,
                 severity: Severity::Critical,
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
-                body: Some(body),
-                progress: None,
+                body: NotificationBody::Text(body),
+                progress: NotificationProgress::Unmeasured,
                 since: context.clock.wall,
                 on_body_clicked: Routed::from(PopupMessage::OpenUrl(path.display().to_string())),
                 action_buttons: Vec::new(),
@@ -352,7 +352,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let toast_id = self.fresh_shell_toast_id();
         let data = NotificationData {
             severity: Severity::Warning,
-            body: Some(format!(
+            body: NotificationBody::Text(format!(
                 "{}<pre>{}</pre>",
                 escape(failure.reason()),
                 escape(failure.request())
@@ -377,7 +377,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let toast_id = self.fresh_shell_toast_id();
         let data = NotificationData {
             severity: Severity::Critical,
-            body: Some(format!(
+            body: NotificationBody::Text(format!(
                 "Widgets that read D-Bus stay empty.<pre>{}</pre>",
                 escape(failure.to_string())
             )),
@@ -402,7 +402,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let toast_id = self.fresh_shell_toast_id();
         let data = NotificationData {
             severity: Severity::Warning,
-            body: Some(format!(
+            body: NotificationBody::Text(format!(
                 "{}<pre>{}</pre>",
                 stopped_watch.stale_consequence(),
                 escape(failure.to_string())

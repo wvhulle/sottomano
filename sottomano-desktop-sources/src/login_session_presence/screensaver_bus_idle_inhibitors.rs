@@ -1,6 +1,6 @@
 use std::{future::ready, num::NonZeroU32, sync::Arc};
 
-use futures::{Stream, StreamExt, future::join_all, stream};
+use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
 use zbus::{
     Connection, MatchRule, Message, MessageStream,
@@ -12,8 +12,9 @@ use zbus::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource, StateChange,
-    login_session_presence::cgroup_inhibitor_app_names::InhibitorAppNames,
-    non_empty_text::non_empty,
+    login_session_presence::{
+        cgroup_inhibitor_app_names::InhibitorAppNames, inhibit_reason_text::InhibitReason,
+    },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
@@ -21,11 +22,12 @@ const SCREENSAVER_SERVICE: &str = "org.freedesktop.ScreenSaver";
 const SCREENSAVER_INTERFACE: &str = "org.freedesktop.ScreenSaver";
 const BUS_DRIVER_SERVICE: &str = "org.freedesktop.DBus";
 const BUS_DRIVER_INTERFACE: &str = "org.freedesktop.DBus";
+const CALLER_LOOKUPS_IN_FLIGHT: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdleInhibitor {
     pub holder: String,
-    pub reason: Option<String>,
+    pub reason: InhibitReason,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -75,7 +77,7 @@ async fn inhibitor_changes(
         let app_names = Arc::clone(&app_names);
         stream::once(async move {
             match held {
-                Ok(held) => Ok(named_inhibitors(&held, &bus_driver, &app_names).await),
+                Ok(held) => Ok(named_inhibitors(held, bus_driver, app_names).await),
                 Err(monitor_failure) => Err(monitor_failure.into()),
             }
         })
@@ -115,40 +117,51 @@ async fn become_monitor(monitor: &Connection, service_owner: &str) -> zbus::Resu
 }
 
 async fn named_inhibitors(
-    held: &[HeldInhibit],
-    bus_driver: &DBusProxy<'static>,
-    app_names: &InhibitorAppNames,
+    held: Vec<HeldInhibit>,
+    bus_driver: DBusProxy<'static>,
+    app_names: Arc<InhibitorAppNames>,
 ) -> ScreenSaverInhibitors {
     ScreenSaverInhibitors {
-        inhibitors: join_all(held.iter().map(async |inhibit| {
-            let caller_pid = match BusName::try_from(inhibit.caller.as_str()) {
-                Ok(caller) => bus_driver
-                    .get_connection_unix_process_id(caller)
-                    .await
-                    .inspect_err(|lookup_failure| {
-                        tracing::debug!(
-                            "screensaver inhibitors: no process for {}: {lookup_failure}",
-                            inhibit.caller
-                        );
-                    })
-                    .ok(),
-                Err(name_failure) => {
-                    tracing::warn!(
-                        "screensaver inhibitors: invalid caller bus name {}: {name_failure}",
-                        inhibit.caller
-                    );
-                    None
-                }
-            };
-            IdleInhibitor {
-                holder: caller_pid.map_or_else(
-                    || inhibit.stated_name.clone(),
-                    |pid| app_names.lock_holder_app_name(&inhibit.stated_name, pid),
-                ),
-                reason: non_empty(inhibit.reason.clone()),
-            }
-        }))
-        .await,
+        inhibitors: stream::iter(held)
+            .map(move |inhibit| {
+                named_inhibitor(inhibit, bus_driver.clone(), Arc::clone(&app_names))
+            })
+            .buffered(CALLER_LOOKUPS_IN_FLIGHT)
+            .collect()
+            .await,
+    }
+}
+
+async fn named_inhibitor(
+    inhibit: HeldInhibit,
+    bus_driver: DBusProxy<'static>,
+    app_names: Arc<InhibitorAppNames>,
+) -> IdleInhibitor {
+    let caller_pid = match BusName::try_from(inhibit.caller.as_str()) {
+        Ok(caller) => bus_driver
+            .get_connection_unix_process_id(caller)
+            .await
+            .inspect_err(|lookup_failure| {
+                tracing::debug!(
+                    "screensaver inhibitors: no process for {}: {lookup_failure}",
+                    inhibit.caller
+                );
+            })
+            .ok(),
+        Err(name_failure) => {
+            tracing::warn!(
+                "screensaver inhibitors: invalid caller bus name {}: {name_failure}",
+                inhibit.caller
+            );
+            None
+        }
+    };
+    IdleInhibitor {
+        holder: caller_pid.map_or_else(
+            || inhibit.stated_name.clone(),
+            |pid| app_names.lock_holder_app_name(&inhibit.stated_name, pid),
+        ),
+        reason: InhibitReason::from(inhibit.reason),
     }
 }
 

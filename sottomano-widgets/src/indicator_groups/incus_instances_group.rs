@@ -9,8 +9,10 @@ use sottomano_desktop_sources::{
     backing_service_availability::Availability,
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::{ContainerRunState, RunChange},
+    container_runtime_facts::ContainerMemoryUse,
     incus_instances::{
-        DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe, InstanceKind,
+        DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe,
+        InstanceImageDescription, InstanceKind,
     },
     podman_container_engine::libpod_running_containers::EngineReadError,
 };
@@ -102,15 +104,19 @@ struct IncusInstanceIndicator<'a> {
 
 impl<'a> IncusInstanceIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
-        let label = if self.instance.listing.run_state == ContainerRunState::Stopped {
-            Some(self.instance.listing.status_text.to_lowercase())
-        } else {
-            self.instance
-                .global_addresses
-                .first()
-                .cloned()
-                .or_else(|| self.instance.memory_in_use.map(approximate_memory_text))
-        };
+        let label =
+            if self.instance.listing.run_state == ContainerRunState::Stopped {
+                Some(self.instance.listing.status_text.to_lowercase())
+            } else {
+                self.instance.global_addresses.first().cloned().or(
+                    match self.instance.memory_in_use {
+                        ContainerMemoryUse::Measured(memory_in_use) => {
+                            Some(approximate_memory_text(memory_in_use))
+                        }
+                        ContainerMemoryUse::Unaccounted => None,
+                    },
+                )
+            };
         GroupIndicator::glyph_only(
             daemon_instance_name(
                 self.instance_daemon,
@@ -136,7 +142,7 @@ impl<'a> IncusInstanceIndicator<'a> {
             LabeledValue::new("Daemon", self.instance_daemon.product_name()),
             LabeledValue::new("Project", instance.listing.project_name.clone()),
         ];
-        if let Some(memory_in_use) = instance.memory_in_use {
+        if let ContainerMemoryUse::Measured(memory_in_use) = instance.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
                 approximate_memory_text(memory_in_use),
@@ -148,7 +154,8 @@ impl<'a> IncusInstanceIndicator<'a> {
                 .iter()
                 .map(|global_address| LabeledValue::new("Address", global_address.clone())),
         );
-        if let Some(image_description) = &instance.image_description {
+        if let InstanceImageDescription::Described(image_description) = &instance.image_description
+        {
             detail_entries.push(LabeledValue::new("Image", image_description.clone()));
         }
         vec![Section::new("Instance", dictionary_table(detail_entries))]

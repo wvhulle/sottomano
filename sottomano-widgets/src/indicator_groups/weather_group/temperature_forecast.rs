@@ -1,7 +1,7 @@
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
-    weather::open_meteo_temperature::{HourlyTemperature, Temperature},
+    weather::open_meteo_temperature::{HourlyTemperature, SkyCondition, Temperature},
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -28,11 +28,12 @@ pub(crate) const TEMPERATURE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::WeatherIcon(WeatherIcon::Thermometer);
 
 pub fn temperature_indicator(temperature: &Temperature) -> GroupIndicator<'_> {
-    let glyph = temperature
-        .condition
-        .map_or(TEMPERATURE_FALLBACK_GLYPH, |condition| {
+    let glyph = match temperature.condition {
+        SkyCondition::Recognized(condition) => {
             WeatherIcon::Sky(condition, temperature.daylight).into()
-        });
+        }
+        SkyCondition::UnrecognizedCode(_) => TEMPERATURE_FALLBACK_GLYPH,
+    };
     GroupIndicator::glyph_only(Temperature::NAME, glyph, IndicatorState::Idle)
         .with_readout(IndicatorReadout {
             label: ReadoutLabel::Labeled(celsius_text(temperature.temp)),
@@ -43,18 +44,17 @@ pub fn temperature_indicator(temperature: &Temperature) -> GroupIndicator<'_> {
 }
 
 pub fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> {
-    let sky_entry = temperature
-        .condition
-        .map(|condition| LabeledValue::new("Sky", condition.to_string()));
+    let mut now_entries = Vec::new();
+    if let SkyCondition::Recognized(condition) = temperature.condition {
+        now_entries.push(LabeledValue::new("Sky", condition.to_string()));
+    }
+    now_entries.extend([
+        LabeledValue::new("Temperature", weather_temperature(temperature.temp)),
+        LabeledValue::new("Feels like", weather_temperature(temperature.feels)),
+        LabeledValue::new("Humidity", Quantity::share(temperature.humidity)),
+    ]);
     vec![
-        Section::new(
-            "Now",
-            dictionary_table(sky_entry.into_iter().chain([
-                LabeledValue::new("Temperature", weather_temperature(temperature.temp)),
-                LabeledValue::new("Feels like", weather_temperature(temperature.feels)),
-                LabeledValue::new("Humidity", Quantity::share(temperature.humidity)),
-            ])),
-        ),
+        Section::new("Now", dictionary_table(now_entries)),
         Section::new(
             "Today",
             dictionary_table([
@@ -81,6 +81,15 @@ const HOURLY_HEADINGS: [ColumnHeading; 3] = [
 
 impl From<&HourlyTemperature> for TableRecord<3> {
     fn from(hourly_temperature: &HourlyTemperature) -> Self {
+        let (sky_icon_cell, sky_text_cell) = match hourly_temperature.condition {
+            SkyCondition::Recognized(condition) => (
+                ValueCell::IconGlyph(
+                    WeatherIcon::Sky(condition, hourly_temperature.daylight).into(),
+                ),
+                condition.to_string().into(),
+            ),
+            SkyCondition::UnrecognizedCode(_) => (ValueCell::Blank, ValueCell::Blank),
+        };
         TableRecord::with_cells(
             ValueCell::Time {
                 at: hourly_temperature.time,
@@ -88,16 +97,8 @@ impl From<&HourlyTemperature> for TableRecord<3> {
             },
             [
                 weather_temperature(hourly_temperature.temp).into(),
-                hourly_temperature
-                    .condition
-                    .map_or(ValueCell::Blank, |condition| {
-                        ValueCell::IconGlyph(
-                            WeatherIcon::Sky(condition, hourly_temperature.daylight).into(),
-                        )
-                    }),
-                hourly_temperature
-                    .condition
-                    .map_or(ValueCell::Blank, |condition| condition.to_string().into()),
+                sky_icon_cell,
+                sky_text_cell,
             ],
         )
     }

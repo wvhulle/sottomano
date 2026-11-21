@@ -19,14 +19,28 @@ enum EnumeratedDevice {
     ValveAt(PathBuf),
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum PendingSlotReservation {
+    #[default]
+    NoneEstablishing,
+    Establishing(u8),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum LoggedRadioSignal {
+    #[default]
+    NotLogged,
+    Latest(RadioSignalSample),
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SteamControllerLogState {
     enumerated_device: EnumeratedDevice,
     hidraw_by_device_index: BTreeMap<u8, PathBuf>,
     connected_device_indices: Vec<u8>,
-    establishing_device_index: Option<u8>,
+    pending_slot_reservation: PendingSlotReservation,
     xinput_slot_by_device_index: BTreeMap<u8, u8>,
-    latest_radio_signal: Option<RadioSignalSample>,
+    latest_radio_signal: LoggedRadioSignal,
 }
 
 impl SteamControllerLogState {
@@ -59,7 +73,7 @@ impl SteamControllerLogState {
                 device_index,
                 state: ControllerConnectionState::WirelessEstablished,
             } => {
-                self.establishing_device_index = Some(device_index);
+                self.pending_slot_reservation = PendingSlotReservation::Establishing(device_index);
                 if !self.connected_device_indices.contains(&device_index) {
                     self.connected_device_indices.push(device_index);
                 }
@@ -69,15 +83,19 @@ impl SteamControllerLogState {
                     .retain(|connected| *connected != device_index);
                 self.xinput_slot_by_device_index.remove(&device_index);
                 if self.connected_device_indices.is_empty() {
-                    self.latest_radio_signal = None;
+                    self.latest_radio_signal = LoggedRadioSignal::NotLogged;
                 }
             }
             ControllerLogLine::XInputSlotReserved { slot } => {
-                if let Some(device_index) = self.establishing_device_index.take() {
+                if let PendingSlotReservation::Establishing(device_index) =
+                    mem::take(&mut self.pending_slot_reservation)
+                {
                     self.xinput_slot_by_device_index.insert(device_index, slot);
                 }
             }
-            ControllerLogLine::RadioSignal(sample) => self.latest_radio_signal = Some(sample),
+            ControllerLogLine::RadioSignal(sample) => {
+                self.latest_radio_signal = LoggedRadioSignal::Latest(sample);
+            }
             ControllerLogLine::Unrecognised => {}
         }
     }
@@ -94,7 +112,10 @@ impl SteamControllerLogState {
     #[must_use]
     pub fn sole_controller_radio_signal(&self) -> Option<RadioSignalSample> {
         match self.connected_device_indices.as_slice() {
-            [_] => self.latest_radio_signal,
+            [_] => match self.latest_radio_signal {
+                LoggedRadioSignal::Latest(sample) => Some(sample),
+                LoggedRadioSignal::NotLogged => None,
+            },
             _ => None,
         }
     }

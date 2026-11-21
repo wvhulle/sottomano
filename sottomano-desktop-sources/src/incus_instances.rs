@@ -15,6 +15,7 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
+    container_runtime_facts::ContainerMemoryUse,
     delivery_cadence_drivers::PeriodicPolling,
     podman_container_engine::libpod_running_containers::{
         EngineReadError, classified_engine_failure, unavailable_when_socket_missing,
@@ -109,7 +110,7 @@ impl SnapshotSource for FamilyListings<DaemonInstanceListing> {
     }
 }
 
-fn instance_kind_of(instance_type: &str) -> InstanceKind {
+fn listed_instance_kind(instance_type: &str) -> InstanceKind {
     if instance_type == "virtual-machine" {
         InstanceKind::VirtualMachine
     } else {
@@ -150,9 +151,15 @@ pub enum InstanceKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DaemonInstance {
     pub listing: DaemonInstanceListing,
-    pub memory_in_use: Option<ByteSize>,
+    pub memory_in_use: ContainerMemoryUse,
     pub global_addresses: Vec<String>,
-    pub image_description: Option<String>,
+    pub image_description: InstanceImageDescription,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstanceImageDescription {
+    Described(String),
+    Undescribed,
 }
 
 #[derive(Deserialize)]
@@ -205,7 +212,7 @@ impl From<&ListedInstance> for DaemonInstanceListing {
         DaemonInstanceListing {
             instance_name: listed.name.clone(),
             project_name: listed.project.clone(),
-            kind: instance_kind_of(&listed.instance_type),
+            kind: listed_instance_kind(&listed.instance_type),
             run_state: if listed.status == RUNNING_STATUS {
                 ContainerRunState::Running
             } else {
@@ -237,9 +244,13 @@ impl From<ListedInstance> for DaemonInstance {
             memory_in_use: runtime_state
                 .and_then(|runtime_state| runtime_state.memory)
                 .map(|memory_state| ByteSize::b(memory_state.usage))
-                .filter(|usage| usage.as_u64() > 0),
+                .filter(|usage| usage.as_u64() > 0)
+                .into(),
             global_addresses,
-            image_description: listed.config.get("image.description").cloned(),
+            image_description: listed.config.get("image.description").cloned().map_or(
+                InstanceImageDescription::Undescribed,
+                InstanceImageDescription::Described,
+            ),
         }
     }
 }
@@ -300,8 +311,10 @@ mod tests {
     use bytesize::ByteSize;
     use serde_json::json;
 
-    use super::{DaemonInstance, InstanceKind, InstanceListingReply};
-    use crate::container_run_state::ContainerRunState;
+    use super::{DaemonInstance, InstanceImageDescription, InstanceKind, InstanceListingReply};
+    use crate::{
+        container_run_state::ContainerRunState, container_runtime_facts::ContainerMemoryUse,
+    };
 
     #[test]
     fn a_running_container_keeps_its_global_addresses_and_memory() {
@@ -338,13 +351,16 @@ mod tests {
             .map(DaemonInstance::from)
             .collect();
         assert_eq!(instances[0].global_addresses, ["10.41.7.23"]);
-        assert_eq!(instances[0].memory_in_use, Some(ByteSize::mib(256)));
         assert_eq!(
-            instances[0].image_description.as_deref(),
-            Some("Debian trixie amd64")
+            instances[0].memory_in_use,
+            ContainerMemoryUse::Measured(ByteSize::mib(256))
+        );
+        assert_eq!(
+            instances[0].image_description,
+            InstanceImageDescription::Described("Debian trixie amd64".to_owned())
         );
         assert_eq!(instances[1].listing.kind, InstanceKind::VirtualMachine);
         assert_eq!(instances[1].listing.run_state, ContainerRunState::Stopped);
-        assert_eq!(instances[1].memory_in_use, None);
+        assert_eq!(instances[1].memory_in_use, ContainerMemoryUse::Unaccounted);
     }
 }

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use futures::{Stream, future::try_join_all, try_join};
+use futures::{Stream, StreamExt, TryStreamExt, stream, try_join};
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::{
         device_or_absent,
-        network_manager_proxies::{self, ApInfo, DeviceInfo, WirelessProfile},
+        network_manager_proxies::{self, ApInfo, DeviceInfo, NetworkName, WirelessProfile},
         nm_samples,
     },
     system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
@@ -52,12 +52,13 @@ fn strongest_network_per_ssid(access_points: Vec<ApInfo>) -> Vec<VisibleNetwork>
     let mut strongest_by_ssid: HashMap<String, VisibleNetwork> = HashMap::new();
     access_points
         .into_iter()
-        .filter_map(|access_point| {
-            access_point.ssid.map(|ssid| VisibleNetwork {
+        .filter_map(|access_point| match access_point.ssid {
+            NetworkName::Broadcast(ssid) => Some(VisibleNetwork {
                 ssid,
                 signal: access_point.signal,
                 security: access_point.security,
-            })
+            }),
+            NetworkName::Hidden => None,
         })
         .for_each(|visible_network| {
             strongest_by_ssid
@@ -129,12 +130,11 @@ async fn read_nearby_networks(connection: Connection) -> Result<NearbyWifiNetwor
         network_manager_proxies::DeviceKind::Wifi,
     )
     .await?;
-    let adapters = try_join_all(
-        devices
-            .into_iter()
-            .map(|device| adapter_nearby_networks(&connection, device)),
-    )
-    .await?;
+    let adapters = stream::iter(devices)
+        .map(|device| adapter_nearby_networks(&connection, device))
+        .buffered(network_manager_proxies::BUS_OBJECT_READS_IN_FLIGHT)
+        .try_collect::<Vec<_>>()
+        .await?;
     Ok(NearbyWifiNetworks { adapters })
 }
 
@@ -169,11 +169,11 @@ mod tests {
     use uom::si::{f64::Frequency, frequency::megahertz};
     use zbus::zvariant::OwnedObjectPath;
 
-    use super::{ApInfo, WirelessProfile, split_known_networks};
+    use super::{ApInfo, NetworkName, WirelessProfile, split_known_networks};
 
     fn access_point(ssid: &str, signal: i64) -> ApInfo {
         ApInfo {
-            ssid: Some(ssid.to_owned()),
+            ssid: NetworkName::Broadcast(ssid.to_owned()),
             signal,
             frequency: Frequency::new::<megahertz>(2437.0),
             security: "WPA2".to_owned(),
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn hidden_access_points_are_left_out() {
         let hidden_access_point = ApInfo {
-            ssid: None,
+            ssid: NetworkName::Hidden,
             ..access_point("ignored", 90)
         };
         let nearby_networks =

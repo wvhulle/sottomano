@@ -1,7 +1,5 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde_json::Value;
-
 use super::Error;
 use crate::{
     sqlite_state_store::write_rate_limit::{self, Backoff},
@@ -33,8 +31,9 @@ pub async fn still_waiting() -> Option<Error> {
     })
 }
 
-pub async fn schedule_retry(resp: &http_json_client::Response, body: Value) -> Error {
-    let message = http_json_client::failure_message(Some(body));
+pub async fn schedule_retry(resp: http_json_client::Response) -> Error {
+    let server_delay = retry_delay_from_headers(&resp);
+    let message = http_json_client::failure_message(resp.body);
     let attempts = write_rate_limit::load(SOURCE)
         .await
         .map_or(0, |stored| stored.attempts);
@@ -42,7 +41,6 @@ pub async fn schedule_retry(resp: &http_json_client::Response, body: Value) -> E
         tracing::warn!("claude usage: stored attempt count {attempts} is corrupt, counting from 1");
         1
     });
-    let server_delay = retry_delay_from_headers(resp);
     let delay = server_delay
         .unwrap_or_else(|| with_jitter(escalating_delay(attempts)))
         .clamp(MIN_DELAY, MAX_DELAY);
@@ -123,6 +121,7 @@ mod tests {
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
     use super::*;
+    use crate::system_protocol_clients::http_json_client::ResponseBody;
 
     fn response(headers: &[(&str, &str)]) -> http_json_client::Response {
         let mut map = HeaderMap::new();
@@ -135,7 +134,7 @@ mod tests {
         http_json_client::Response {
             status: 429,
             headers: map,
-            body: None,
+            body: ResponseBody::NotJson,
         }
     }
 

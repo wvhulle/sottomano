@@ -161,9 +161,9 @@ fn estimated_word_starts(text: &str, line_start: Duration, line_span: Duration) 
         .collect()
 }
 
-struct ParsedWordTag<'a> {
+struct ParsedWordTag<'line> {
     starts_at: Duration,
-    after_tag: &'a str,
+    after_tag: &'line str,
 }
 
 struct WordTaggedText {

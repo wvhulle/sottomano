@@ -24,7 +24,7 @@ impl ModelRanking {
     }
 
     #[must_use]
-    pub fn cost_of(&self, model: &str) -> Option<Money> {
+    pub fn model_cost(&self, model: &str) -> Option<Money> {
         self.model_spends
             .iter()
             .find(|spend| spend.model == model)
@@ -48,7 +48,7 @@ impl FromIterator<ModelSpend> for ModelRanking {
                 }
                 merged
             });
-        merged.sort_by(|a, b| b.cost.amount().cmp(a.cost.amount()));
+        merged.sort_by(|left_spend, right_spend| right_spend.cost.amount().cmp(left_spend.cost.amount()));
         Self {
             model_spends: merged,
         }
@@ -56,12 +56,12 @@ impl FromIterator<ModelSpend> for ModelRanking {
 }
 
 impl Display for ModelRanking {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         let names: Vec<&str> = self
             .model_spends
             .iter()
             .map(|spend| spend.model.as_str())
             .collect();
-        write!(f, "{}", names.join(", "))
+        write!(formatter, "{}", names.join(", "))
     }
 }

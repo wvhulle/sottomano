@@ -144,7 +144,8 @@ mod tests {
     use chrono::DateTime;
     use sottomano_desktop_sources::disk_storage::{
         bcachefs_filesystem_space::{
-            BcachefsDeviceSpace, BcachefsSpace, CompressedExtents, SnapshotDeletion,
+            AllowedDeviceData, BcachefsDeviceSpace, BcachefsSpace, CompressedExtents,
+            SnapshotDeletion,
         },
         block_filesystem_mounts::{Compression, FilesystemMount},
         btrfs_filesystem_space::{Allocation, BtrfsSpace},
@@ -193,7 +194,7 @@ mod tests {
             state: "rw".to_owned(),
             free: ByteSize::gib(10),
             capacity: ByteSize::gib(100),
-            holds_metadata: true,
+            allowed_data: AllowedDeviceData::DataAndMetadata,
         };
         BcachefsSpace {
             devices: vec![member("nvme0n1p1"), member("nvme1n1p3")],

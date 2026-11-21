@@ -20,7 +20,9 @@ use crate::{
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     },
     delivery_cadence_drivers::PeriodicPolling,
-    host_machine_identity::udev_hardware_identity::{DeviceIdentity, pci_parent_vendor},
+    host_machine_identity::udev_hardware_identity::{
+        DeviceIdentity, ParentPciVendor, pci_parent_vendor,
+    },
     system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
@@ -33,7 +35,7 @@ const UNREPORTED_CRITICAL_CELSIUS: f64 = 70.0;
 pub struct DriveHealth {
     pub device_name: String,
     pub identity: DeviceIdentity,
-    pub pci_vendor: Option<u16>,
+    pub pci_vendor: ParentPciVendor,
     pub temperature: DriveTemperature,
     pub overrides: ThresholdOverrides,
     pub errors: Vec<DeviceErrors>,
@@ -49,10 +51,22 @@ pub struct DriveHealthInputs {
 pub enum DriveTemperature {
     Reported {
         current: ThermodynamicTemperature,
-        warning: Option<ThermodynamicTemperature>,
-        critical: Option<ThermodynamicTemperature>,
+        warning: DriveSensorLimit,
+        critical: DriveSensorLimit,
     },
     Unreported(MissingSensor),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DriveSensorLimit {
+    Reported(ThermodynamicTemperature),
+    Unreported,
+}
+
+impl From<Option<ThermodynamicTemperature>> for DriveSensorLimit {
+    fn from(hwmon_limit: Option<ThermodynamicTemperature>) -> Self {
+        hwmon_limit.map_or(DriveSensorLimit::Unreported, DriveSensorLimit::Reported)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,19 +88,28 @@ impl DriveHealth {
 
     #[must_use]
     pub fn temperature_thresholds(&self) -> TemperatureThresholds {
+        let (warning_limit, critical_limit) = match self.temperature {
+            DriveTemperature::Reported {
+                warning, critical, ..
+            } => (warning, critical),
+            DriveTemperature::Unreported(_) => {
+                (DriveSensorLimit::Unreported, DriveSensorLimit::Unreported)
+            }
+        };
+        let (critical, basis) = match critical_limit {
+            DriveSensorLimit::Reported(critical) => (critical, ThresholdBasis::Reported),
+            DriveSensorLimit::Unreported => (
+                celsius(UNREPORTED_CRITICAL_CELSIUS),
+                ThresholdBasis::Assumed,
+            ),
+        };
         TemperatureThresholds {
-            warning: self
-                .temperature
-                .warning()
-                .unwrap_or_else(|| celsius(UNREPORTED_WARNING_CELSIUS)),
-            critical: self
-                .temperature
-                .critical()
-                .unwrap_or_else(|| celsius(UNREPORTED_CRITICAL_CELSIUS)),
-            basis: match self.temperature.critical() {
-                Some(_) => ThresholdBasis::Reported,
-                None => ThresholdBasis::Assumed,
+            warning: match warning_limit {
+                DriveSensorLimit::Reported(warning) => warning,
+                DriveSensorLimit::Unreported => celsius(UNREPORTED_WARNING_CELSIUS),
             },
+            critical,
+            basis,
         }
         .overridden_by(self.overrides)
     }
@@ -97,20 +120,6 @@ impl DriveTemperature {
     pub fn current(&self) -> Option<ThermodynamicTemperature> {
         match self {
             DriveTemperature::Reported { current, .. } => Some(*current),
-            DriveTemperature::Unreported(_) => None,
-        }
-    }
-
-    fn warning(&self) -> Option<ThermodynamicTemperature> {
-        match self {
-            DriveTemperature::Reported { warning, .. } => *warning,
-            DriveTemperature::Unreported(_) => None,
-        }
-    }
-
-    fn critical(&self) -> Option<ThermodynamicTemperature> {
-        match self {
-            DriveTemperature::Reported { critical, .. } => *critical,
             DriveTemperature::Unreported(_) => None,
         }
     }
@@ -205,8 +214,8 @@ impl DriveTemperature {
             .or_else(|| chosen.sensors.first())?;
         Some(DriveTemperature::Reported {
             current: chosen.chip.temperature(sensor)?,
-            warning: chosen.chip.limit(sensor, LimitKind::Max),
-            critical: chosen.chip.limit(sensor, LimitKind::Crit),
+            warning: chosen.chip.limit(sensor, LimitKind::Max).into(),
+            critical: chosen.chip.limit(sensor, LimitKind::Crit).into(),
         })
     }
 }

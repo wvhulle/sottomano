@@ -52,16 +52,20 @@ pub enum NotifyPushFailure {
 }
 
 impl Display for NotifyPushFailure {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            NotifyPushFailure::Unsupported => write!(f, "server offers no notify_push"),
+            NotifyPushFailure::Unsupported => write!(formatter, "server offers no notify_push"),
             NotifyPushFailure::PasswordUnreadable(secret_error) => {
-                write!(f, "password: {secret_error}")
+                write!(formatter, "password: {secret_error}")
             }
-            NotifyPushFailure::Capabilities(error) => write!(f, "capabilities request: {error}"),
-            NotifyPushFailure::WebSocket(error) => write!(f, "websocket: {error}"),
-            NotifyPushFailure::AuthenticationRefused => write!(f, "credentials refused"),
-            NotifyPushFailure::NoAuthenticationReply => write!(f, "no authentication reply"),
+            NotifyPushFailure::Capabilities(error) => {
+                write!(formatter, "capabilities request: {error}")
+            }
+            NotifyPushFailure::WebSocket(error) => write!(formatter, "websocket: {error}"),
+            NotifyPushFailure::AuthenticationRefused => write!(formatter, "credentials refused"),
+            NotifyPushFailure::NoAuthenticationReply => {
+                write!(formatter, "no authentication reply")
+            }
         }
     }
 }

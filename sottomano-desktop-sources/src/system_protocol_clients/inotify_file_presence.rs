@@ -34,19 +34,12 @@ fn path_availability(path: &Path) -> Availability {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        env, fs,
-        os::unix::fs::symlink,
-        path::{Path, PathBuf},
-        pin::pin,
-        process,
-        time::Duration,
-    };
+    use std::{env, fs, os::unix::fs::symlink, path::PathBuf, pin::pin, process, time::Duration};
 
     use futures::StreamExt;
     use tokio::time::timeout;
 
-    use super::{Availability, path_present};
+    use super::{Availability, path_availability, path_present};
 
     fn scratch_directory(test: &str) -> PathBuf {
         let directory = env::temp_dir().join(format!("sottomano-{test}-{}", process::id()));
@@ -112,22 +105,14 @@ mod tests {
         assert_eq!(after_swap, Ok(Some(Availability::Available)));
     }
 
-    fn availability_of(path: &Path) -> Availability {
-        if path.exists() {
-            Availability::Available
-        } else {
-            Availability::Unavailable
-        }
-    }
-
     #[test]
     fn availability_reflects_existence() {
         let root = scratch_directory("availability-check");
         assert_eq!(
-            availability_of(&root.join("absent")),
+            path_availability(&root.join("absent")),
             Availability::Unavailable
         );
-        assert_eq!(availability_of(&root), Availability::Available);
+        assert_eq!(path_availability(&root), Availability::Available);
         fs::remove_dir_all(&root).unwrap();
     }
 }

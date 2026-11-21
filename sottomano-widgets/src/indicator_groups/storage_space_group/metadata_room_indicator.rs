@@ -15,7 +15,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, NotificationBody, NotificationProgress, StateToast},
         value_cells::LabeledValue,
     },
 };
@@ -117,8 +117,8 @@ impl<'a> MetadataRoomIndicator<'a> {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Critical,
                 summary_text: "No room left for metadata",
-                body: ToastBody::Text(label),
-                progress: ToastProgress::Unmeasured,
+                body: NotificationBody::Text(label),
+                progress: NotificationProgress::Unmeasured,
             },
             ..IndicatorAlerts::default()
         })

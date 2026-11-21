@@ -10,7 +10,7 @@ use sottomano_desktop_sources::{
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,
         network_manager_proxies::{LinkPhase, RadioPower},
-        wifi_connection::{Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
+        wifi_connection::{AdapterAddressing, Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -219,17 +219,10 @@ impl WifiAdaptersGroup {
         family: AddressFamily,
     ) -> Vec<Section> {
         let address_details = self.adapter_detail_sections(&adapter.device, |details| {
-            details
-                .addressing
-                .as_ref()
-                .map(|addressing| {
-                    family_address_sections(
-                        family,
-                        addressing.ipv4.as_ref(),
-                        addressing.ipv6.as_ref(),
-                    )
-                })
-                .unwrap_or_default()
+            let AdapterAddressing::Addressed(addressing) = &details.addressing else {
+                return Vec::new();
+            };
+            family_address_sections(family, &addressing.ipv4, &addressing.ipv6)
         });
         let router_details = self.gateway_latencies.sections_described_by(|latencies| {
             family_router_sections(latencies, &adapter.device, family)
@@ -239,11 +232,10 @@ impl WifiAdaptersGroup {
 
     fn adapter_dns_hover_card(&self, adapter: &WifiAdapter) -> Vec<Section> {
         self.adapter_detail_sections(&adapter.device, |details| {
-            details
-                .addressing
-                .as_ref()
-                .map(|addressing| dns_server_sections(&addressing.dns))
-                .unwrap_or_default()
+            let AdapterAddressing::Addressed(addressing) = &details.addressing else {
+                return Vec::new();
+            };
+            dns_server_sections(&addressing.dns)
         })
     }
 

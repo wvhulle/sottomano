@@ -4,7 +4,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::window_edge_placement::WindowOwner,
-    media_playback_audio::mpris_players::{Command, Media},
+    media_playback_audio::mpris_players::{Command, CommandOffer, Media},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
@@ -22,10 +22,9 @@ pub(super) fn raise(media: &Media) -> Action {
 }
 
 pub(super) fn raise_by_mpris(media: &Media) -> Task<MediaMessage> {
-    if media.capabilities.raise {
-        send(media, Command::Raise)
-    } else {
-        Task::none()
+    match media.capabilities.raise {
+        CommandOffer::Offered => send(media, Command::Raise),
+        CommandOffer::NotOffered => Task::none(),
     }
 }
 

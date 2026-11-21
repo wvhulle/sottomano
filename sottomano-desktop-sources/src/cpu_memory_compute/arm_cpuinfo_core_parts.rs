@@ -60,7 +60,7 @@ impl CorePart {
     }
 }
 
-fn cpuinfo_field<'a>(block: &'a str, name: &str) -> Option<&'a str> {
+fn cpuinfo_field<'cpuinfo>(block: &'cpuinfo str, name: &str) -> Option<&'cpuinfo str> {
     block.lines().find_map(|line| {
         let (key, value) = line.split_once(':')?;
         (key.trim() == name).then(|| value.trim())

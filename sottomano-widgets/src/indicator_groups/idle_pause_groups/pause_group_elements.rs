@@ -1,6 +1,7 @@
 use corredo::gauges::DurationTimeline;
 use sottomano_desktop_sources::login_session_presence::{
-    idle_session_actions::IdleAction, system_hibernate_delay::HibernateDelay,
+    idle_session_actions::IdleAction, kernel_sleep_obstacles::ShutdownSchedule,
+    system_hibernate_delay::HibernateDelay,
 };
 use sottomano_toml_config::Config;
 
@@ -182,10 +183,10 @@ impl IdlePauseGroups {
             rows.extend(self.hibernate_delay_rows(config));
         }
         if pause == IdleAction::PowerOff
-            && let Some(shutdown) = self
+            && let Some(ShutdownSchedule::Scheduled(shutdown)) = self
                 .sleep_obstacles
                 .get()
-                .and_then(|obstacles| obstacles.scheduled_shutdown.as_ref())
+                .map(|obstacles| &obstacles.shutdown_schedule)
         {
             rows.push(
                 ScheduledShutdownIndicator { shutdown }

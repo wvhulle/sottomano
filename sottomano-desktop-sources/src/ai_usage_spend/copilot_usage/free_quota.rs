@@ -1,17 +1,20 @@
 use std::path::PathBuf;
 
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use futures::Stream;
 
-use super::{CopilotPlan, Error, plan_polls, user_info};
-use crate::{SnapshotDelivery, SnapshotSource, system_protocol_clients::dbus_desktop_buses::OnBus};
+use super::{CopilotPlan, Error, QuotaReset, plan_polls, user_info};
+use crate::{
+    SnapshotDelivery, SnapshotSource, ai_usage_spend::subscription_plan::SubscriptionPlan,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
-    pub plan: Option<String>,
+    pub plan: SubscriptionPlan,
     pub chat: i64,
     pub completions: i64,
-    pub reset: Option<DateTime<Utc>>,
+    pub reset: QuotaReset,
 }
 
 impl SnapshotSource for CopilotFree {
@@ -38,7 +41,8 @@ impl CopilotFree {
             reset: info
                 .limited_user_reset_date
                 .filter(|epoch| *epoch > 0)
-                .and_then(|epoch| DateTime::from_timestamp(epoch, 0)),
+                .and_then(|epoch| DateTime::from_timestamp(epoch, 0))
+                .map_or(QuotaReset::Unannounced, QuotaReset::At),
         })
     }
 }

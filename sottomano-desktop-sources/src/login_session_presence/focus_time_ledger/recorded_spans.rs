@@ -35,10 +35,10 @@ impl FocusSpan {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct FocusPiece<'a> {
+pub(super) struct FocusPiece<'units> {
     pub interval: Interval,
     pub window: u64,
-    pub units: &'a [FocusUnit],
+    pub units: &'units [FocusUnit],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

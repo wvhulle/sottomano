@@ -16,7 +16,8 @@ use sottomano_desktop_sources::{
         },
         qmp_monitor_events::GuestRunState,
         running_virtual_machines::{
-            GuestPowerControl, RunningVirtualMachine, VirtualMachineOrigin, VirtualMachinesReadout,
+            GuestPowerControl, LaunchContext, RunningVirtualMachine, VirtualMachineOrigin,
+            VirtualMachinesReadout,
         },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -107,7 +108,7 @@ impl VirtualMachineIndicator<'_> {
             "Origin",
             origin_text(&machine.origin).into_owned(),
         )];
-        if let Some(launch_context) = &machine.launch_context {
+        if let LaunchContext::Named(launch_context) = &machine.launch_context {
             entries.push(LabeledValue::new("Test or project", launch_context.clone()));
         }
         if let Some(cpu_share) = cpu_share_quantity(machine.cpu_load) {
@@ -185,11 +186,13 @@ impl<'a> VirtualMachineIndicator<'a> {
     fn indicator(self) -> GroupIndicator<'a> {
         let machine = self.machine;
         let name = match &machine.launch_context {
-            Some(launch_context) => format!(
+            LaunchContext::Named(launch_context) => format!(
                 "{} from {launch_context} pid {}",
                 machine.launch.machine_name, machine.pid
             ),
-            None => format!("{} pid {}", machine.launch.machine_name, machine.pid),
+            LaunchContext::Unidentified => {
+                format!("{} pid {}", machine.launch.machine_name, machine.pid)
+            }
         };
         let label = match run_state_text(machine.run_state) {
             Some(text) => ReadoutLabel::Labeled(text.to_owned()),

@@ -1,7 +1,8 @@
 use std::net::IpAddr;
 
 use sottomano_desktop_sources::network_connectivity::{
-    icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
+    icmp_gateway_latency::GatewayLatencies,
+    network_manager_proxies::{AddressAssignment, RouterGateway},
     sysfs_interface_faults::InterfaceFaultCounters,
 };
 use sottomano_toml_config::severity::Severity;
@@ -76,37 +77,35 @@ pub fn signal_level(quality: i64) -> Severity {
     }
 }
 
-pub fn address_section(label: &str, block: Option<&AddressBlock>) -> Section {
+pub fn address_section(label: &str, assignment: &AddressAssignment) -> Section {
     let mask_label = if label == "IPv6" {
         "Prefix Length"
     } else {
         "Subnet Mask"
     };
-    let entries = block.into_iter().flat_map(|block| {
-        let gateway = block
-            .gateway
-            .as_deref()
-            .map(|gateway| LabeledValue::new("Gateway (Router)", gateway));
-        [
-            LabeledValue::new("Address", block.address.as_str()),
-            LabeledValue::new(mask_label, block.mask.as_str()),
-        ]
-        .into_iter()
-        .chain(gateway)
-    });
+    let AddressAssignment::Assigned(block) = assignment else {
+        return Section::new(label, dictionary_table(Vec::new()));
+    };
+    let mut entries = vec![
+        LabeledValue::new("Address", block.address.as_str()),
+        LabeledValue::new(mask_label, block.mask.as_str()),
+    ];
+    if let RouterGateway::Routed(gateway) = &block.gateway {
+        entries.push(LabeledValue::new("Gateway (Router)", gateway.as_str()));
+    }
     Section::new(label, dictionary_table(entries))
 }
 
 pub fn family_address_sections(
     family: AddressFamily,
-    ipv4_block: Option<&AddressBlock>,
-    ipv6_block: Option<&AddressBlock>,
+    ipv4_assignment: &AddressAssignment,
+    ipv6_assignment: &AddressAssignment,
 ) -> Vec<Section> {
-    let address_block = match family {
-        AddressFamily::Ipv4 => ipv4_block,
-        AddressFamily::Ipv6 => ipv6_block,
+    let family_assignment = match family {
+        AddressFamily::Ipv4 => ipv4_assignment,
+        AddressFamily::Ipv6 => ipv6_assignment,
     };
-    vec![address_section(family.title(), address_block)]
+    vec![address_section(family.title(), family_assignment)]
 }
 
 pub fn dns_section(servers: &[String]) -> Section {

@@ -1,6 +1,6 @@
 use sottomano_desktop_sources::network_connectivity::{
-    ethernet_connection::{Link, Port, PortState},
-    interface_bus_attachment::InterfaceAttachment,
+    ethernet_connection::{ConnectionProfile, Link, Port, PortLink, PortState},
+    interface_bus_attachment::{AdapterIdentity, InterfaceAttachment},
     network_manager_proxies::LinkPhase,
 };
 
@@ -113,33 +113,33 @@ impl<'a> PortConnectionSwitch<'a> {
 }
 
 pub fn link_detail_sections(link: &Link) -> Vec<Section> {
-    let profile_section = link.connection.as_deref().map(|profile| {
-        Section::new(
+    let mut sections = Vec::new();
+    if let ConnectionProfile::Named(profile) = &link.connection {
+        sections.push(Section::new(
             "Profile",
-            dictionary_table([LabeledValue::new("Network Profile", profile)]),
-        )
-    });
-    profile_section
-        .into_iter()
-        .chain([link_stats_section(
-            "Link",
-            "Link Speed",
-            link.speed,
-            link.mtu,
-            link.fault_counters,
-        )])
-        .collect()
+            dictionary_table([LabeledValue::new("Network Profile", profile.as_str())]),
+        ));
+    }
+    sections.push(link_stats_section(
+        "Link",
+        "Link Speed",
+        link.speed,
+        link.mtu,
+        link.fault_counters,
+    ));
+    sections
 }
 
 pub fn port_identity_sections(port: &Port) -> Vec<Section> {
-    let mac_section = port.link.as_ref().map(|link| {
-        Section::new(
+    let mut sections = Vec::new();
+    if let PortLink::Up(link) = &port.link {
+        sections.push(Section::new(
             "Address",
             dictionary_table([LabeledValue::new("MAC Address", link.mac.as_str())]),
-        )
-    });
-    mac_section
-        .into_iter()
-        .chain(port.adapter.iter().map(Section::from))
-        .collect()
+        ));
+    }
+    if let AdapterIdentity::Identified(adapter) = &port.adapter {
+        sections.push(Section::from(adapter));
+    }
+    sections
 }

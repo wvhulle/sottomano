@@ -291,7 +291,9 @@ mod tests {
     use chrono::{DateTime, Locale, TimeDelta, Utc};
     use corredo::gauges::{SpanInk, SpanWeight, TimelineSpan};
     use sottomano_desktop_sources::login_session_presence::{
-        focus_time_ledger::{FocusLedger, FocusSignal, Focused, Interval, ScreenEdge},
+        focus_time_ledger::{
+            FocusLedger, FocusProject, FocusSignal, Focused, Interval, ScreenEdge,
+        },
         logind_manager::SleepEdge,
     };
     use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
@@ -307,7 +309,7 @@ mod tests {
         FocusSignal::WindowFocused(Focused {
             window,
             app_id: "kitty".to_owned(),
-            project: None,
+            project: FocusProject::OutsideRepository,
         })
     }
 

@@ -42,32 +42,53 @@ struct HeldFlick {
     next_repeat: Instant,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+enum FlickHold {
+    #[default]
+    Released,
+    Held(HeldFlick),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct FlickTracker {
     pub position: StickPosition,
-    held: Option<HeldFlick>,
+    hold: FlickHold,
 }
 
 impl FlickTracker {
-    pub fn move_x(&mut self, x: f32, now: Instant) -> Option<StickDirection> {
-        self.move_to(StickPosition { x, ..self.position }, now)
+    pub fn move_x(&mut self, horizontal_deflection: f32, now: Instant) -> Option<StickDirection> {
+        self.move_to(
+            StickPosition {
+                x: horizontal_deflection,
+                ..self.position
+            },
+            now,
+        )
     }
 
-    pub fn move_y(&mut self, y: f32, now: Instant) -> Option<StickDirection> {
-        self.move_to(StickPosition { y, ..self.position }, now)
+    pub fn move_y(&mut self, vertical_deflection: f32, now: Instant) -> Option<StickDirection> {
+        self.move_to(
+            StickPosition {
+                y: vertical_deflection,
+                ..self.position
+            },
+            now,
+        )
     }
 
     fn move_to(&mut self, position: StickPosition, now: Instant) -> Option<StickDirection> {
         self.position = position;
         if position.reach() < FLICK_RELEASE {
-            self.held = None;
+            self.hold = FlickHold::Released;
             return None;
         }
         let direction = position.engaged_direction()?;
-        if self.held.is_some_and(|held| held.direction == direction) {
+        if let FlickHold::Held(held) = self.hold
+            && held.direction == direction
+        {
             return None;
         }
-        self.held = Some(HeldFlick {
+        self.hold = FlickHold::Held(HeldFlick {
             direction,
             next_repeat: now + FLICK_REPEAT_DELAY,
         });
@@ -76,7 +97,9 @@ impl FlickTracker {
 
     pub fn repeat_due(&mut self, now: Instant) -> Option<StickDirection> {
         let engaged = self.position.engaged_direction();
-        let held = self.held.as_mut()?;
+        let FlickHold::Held(held) = &mut self.hold else {
+            return None;
+        };
         if now < held.next_repeat || engaged != Some(held.direction) {
             return None;
         }
@@ -87,9 +110,10 @@ impl FlickTracker {
     #[must_use]
     pub fn next_repeat(&self) -> Option<Instant> {
         let engaged = self.position.engaged_direction();
-        self.held
-            .filter(|held| engaged == Some(held.direction))
-            .map(|held| held.next_repeat)
+        let FlickHold::Held(held) = self.hold else {
+            return None;
+        };
+        (engaged == Some(held.direction)).then_some(held.next_repeat)
     }
 }
 

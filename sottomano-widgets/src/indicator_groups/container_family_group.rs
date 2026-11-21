@@ -279,12 +279,13 @@ mod tests {
         container_family_snapshots::{FamilyDetails, FamilyListings},
         container_run_state::ContainerRunState,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+        guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
         lxc_containers::LxcContainerListing,
         virtualbox_machines::{
             RegisteredVirtualBoxMachine, VirtualBoxFrontend, VirtualBoxMachine,
-            VirtualBoxMachineListing, VirtualBoxMachineListings,
+            VirtualBoxMachineListing, VirtualBoxMachineListings, VirtualBoxSettingsFile,
         },
-        vmware_machines::{VmwareMachine, VmwareMachineListing},
+        vmware_machines::{VmwareGuestOs, VmwareMachine, VmwareMachineListing},
     };
 
     use super::{ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction, RowPower};
@@ -352,9 +353,9 @@ mod tests {
                     machine_name: "detailed".to_owned(),
                     configuration_file: PathBuf::from("/vm/detailed.vmx"),
                 },
-                guest_os: None,
-                guest_memory: None,
-                guest_cores: None,
+                guest_os: VmwareGuestOs::Undeclared,
+                guest_memory: GuestMemorySize::HypervisorDefault,
+                guest_cores: GuestCoreCount::HypervisorDefault,
                 started_at: clock.wall,
                 memory_in_use: ByteSize::mib(512),
             }],
@@ -431,9 +432,9 @@ mod tests {
                 details: vec![VirtualBoxMachine {
                     listing: running_listing,
                     frontend: VirtualBoxFrontend::Headless,
-                    guest_memory: None,
-                    guest_cores: None,
-                    settings_file: None,
+                    guest_memory: GuestMemorySize::HypervisorDefault,
+                    guest_cores: GuestCoreCount::HypervisorDefault,
+                    settings_file: VirtualBoxSettingsFile::NotInDefaultFolder,
                     started_at: clock.wall,
                     memory_in_use: ByteSize::gib(2),
                 }],

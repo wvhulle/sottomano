@@ -1,4 +1,4 @@
-use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::LlamaSlot;
+use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotWork};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
@@ -19,7 +19,10 @@ pub struct SlotOccupancy<'a> {
 
 impl<'a> SlotOccupancy<'a> {
     fn busy(&self) -> usize {
-        self.slots.iter().filter(|slot| slot.processing).count()
+        self.slots
+            .iter()
+            .filter(|slot| slot.work == SlotWork::Processing)
+            .count()
     }
 
     #[allow(clippy::cast_precision_loss)]

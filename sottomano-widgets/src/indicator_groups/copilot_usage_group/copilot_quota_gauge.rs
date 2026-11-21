@@ -1,7 +1,8 @@
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
-        copilot_usage::{CopilotMetered, USER_ENDPOINT},
+        copilot_usage::{CopilotMetered, QuotaReset, USER_ENDPOINT},
+        subscription_plan::SubscriptionPlan,
         usage_quota::Quota,
     },
 };
@@ -57,18 +58,23 @@ pub fn copilot_metered_panel_visibility(metered: &CopilotMetered) -> PanelVisibi
 }
 
 pub fn copilot_metered_hover_card(metered: &CopilotMetered) -> Vec<Section> {
+    let mut subscription_rows = Vec::new();
+    if let SubscriptionPlan::Named(plan) = &metered.plan {
+        subscription_rows.push(LabeledValue::new("Plan", plan.as_str()));
+    }
+    subscription_rows.push(LabeledValue::new("Source", USER_ENDPOINT));
+    let mut reset_rows = Vec::new();
+    if let QuotaReset::At(at) = metered.reset {
+        reset_rows.push(LabeledValue::new(
+            "Resets",
+            ValueCell::Time {
+                at,
+                format: LocalizedTimeFormat::Date,
+            },
+        ));
+    }
     vec![
-        Section::new(
-            "Subscription",
-            dictionary_table(
-                metered
-                    .plan
-                    .as_deref()
-                    .map(|plan| LabeledValue::new("Plan", plan))
-                    .into_iter()
-                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
-            ),
-        ),
+        Section::new("Subscription", dictionary_table(subscription_rows)),
         Section::new(
             metered.quota.clone(),
             dictionary_table(
@@ -88,15 +94,7 @@ pub fn copilot_metered_hover_card(metered: &CopilotMetered) -> Vec<Section> {
                     LabeledValue::new("Limit", Quantity::count(metered.limit)),
                 ]
                 .into_iter()
-                .chain(metered.reset.map(|at| {
-                    LabeledValue::new(
-                        "Resets",
-                        ValueCell::Time {
-                            at,
-                            format: LocalizedTimeFormat::Date,
-                        },
-                    )
-                })),
+                .chain(reset_rows),
             ),
         ),
     ]

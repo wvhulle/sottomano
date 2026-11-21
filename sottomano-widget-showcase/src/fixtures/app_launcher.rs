@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use corredo::popovers::NestedMenuAction;
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
-    AppCategory, LaunchableApp, OpenAppWindows,
+    AppCategory, AppDescription, LaunchSurface, LaunchableApp, OpenAppWindows,
 };
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::{
@@ -239,10 +239,10 @@ fn long_utility_app(app_id: &str) -> LaunchableApp {
     LaunchableApp {
         app_id: app_id.to_owned(),
         name: app_id.to_owned(),
-        description: None,
+        description: AppDescription::Undescribed,
         category: AppCategory::Utility,
         launch_command: vec![app_id.to_owned()],
-        runs_in_terminal: false,
+        launch_surface: LaunchSurface::Graphical,
     }
 }
 
@@ -261,10 +261,10 @@ fn launchable_app(app: &CatalogApp) -> LaunchableApp {
     LaunchableApp {
         app_id: app.app_id.to_owned(),
         name: app.name.to_owned(),
-        description: Some(app.description.to_owned()),
+        description: AppDescription::Described(app.description.to_owned()),
         category: app.category,
         launch_command: vec![app.app_id.to_owned()],
-        runs_in_terminal: false,
+        launch_surface: LaunchSurface::Graphical,
     }
 }
 

@@ -78,7 +78,7 @@ impl From<&Path> for HidBus {
     }
 }
 
-fn hid_peripheral_of(hid_device: &Path) -> Option<HidPeripheral> {
+fn sysfs_hid_peripheral(hid_device: &Path) -> Option<HidPeripheral> {
     let sysfs_name = hid_device.file_name()?.to_str()?;
     Some(HidPeripheral {
         kernel_device: format!("+hid:{sysfs_name}"),
@@ -95,7 +95,7 @@ pub fn hid_peripherals_with_address(hardware_address: &str) -> Vec<HidPeripheral
             uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
                 .is_some_and(|unique| unique.eq_ignore_ascii_case(hardware_address))
         })
-        .filter_map(|hid_device| hid_peripheral_of(&hid_device))
+        .filter_map(|hid_device| sysfs_hid_peripheral(&hid_device))
         .collect()
 }
 

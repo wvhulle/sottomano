@@ -18,7 +18,9 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress, definition_list},
+        ongoing_toast::{
+            IndicatorAlerts, NotificationBody, NotificationProgress, StateToast, definition_list,
+        },
         value_cells::LabeledValue,
     },
 };
@@ -71,8 +73,8 @@ pub fn memory_indicator(memory: &Memory, locale: Locale) -> GroupIndicator<'_> {
         state_toast: StateToast::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "RAM almost full",
-            body: ToastBody::Text(toast_body),
-            progress: ToastProgress::Measured(fill),
+            body: NotificationBody::Text(toast_body),
+            progress: NotificationProgress::Measured(fill),
         },
         ..IndicatorAlerts::default()
     })
@@ -137,7 +139,7 @@ mod tests {
         let nearly_full = memory_at(95);
         let toast_indicator = memory_indicator(&nearly_full, Locale::en_US);
         let StateToast::NotifyFromSeverity {
-            body: ToastBody::Text(toast_body),
+            body: NotificationBody::Text(toast_body),
             ..
         } = toast_indicator.alerts.state_toast.clone()
         else {

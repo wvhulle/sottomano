@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
+use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::{
+    PhotoCaption, PhotoCredit, Wallpaper,
+};
 
 use crate::{
     glyph_icons::simple_icons::SimpleIcon,
@@ -14,8 +16,8 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct Photo {
     pub(super) file_name: String,
-    photographer: Option<String>,
-    caption: Option<String>,
+    photographer: PhotoCredit,
+    caption: PhotoCaption,
     url: String,
 }
 
@@ -28,8 +30,10 @@ impl Photo {
         )
         .with_readout(IndicatorReadout {
             label: match &self.photographer {
-                Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
-                Some(_) | None => ReadoutLabel::Unlabeled,
+                PhotoCredit::Photographer(text) if !text.is_empty() => {
+                    ReadoutLabel::Labeled(text.clone())
+                }
+                PhotoCredit::Photographer(_) | PhotoCredit::Uncredited => ReadoutLabel::Unlabeled,
             },
             gauge: ReadoutGauge::Ungauged,
             badge: ReadoutBadge::Unbadged,
@@ -44,9 +48,12 @@ impl Photo {
                 dictionary_table(
                     [
                         Some(LabeledValue::new("File", self.file_name.as_str())),
-                        self.photographer
-                            .as_deref()
-                            .map(|photographer| LabeledValue::new("Photographer", photographer)),
+                        match &self.photographer {
+                            PhotoCredit::Photographer(photographer) => {
+                                Some(LabeledValue::new("Photographer", photographer.as_str()))
+                            }
+                            PhotoCredit::Uncredited => None,
+                        },
                         Some(LabeledValue::new(
                             "Unsplash",
                             ValueCell::BrandedLink {
@@ -62,11 +69,12 @@ impl Photo {
             ),
             Section::new(
                 "Caption",
-                dictionary_table(
-                    self.caption
-                        .as_deref()
-                        .map(|caption| LabeledValue::new(" ", caption)),
-                ),
+                dictionary_table(match &self.caption {
+                    PhotoCaption::Described(caption) => {
+                        Some(LabeledValue::new(" ", caption.as_str()))
+                    }
+                    PhotoCaption::Undescribed => None,
+                }),
             ),
         ]
     }

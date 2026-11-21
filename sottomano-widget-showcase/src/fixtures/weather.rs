@@ -14,7 +14,8 @@ use sottomano_desktop_sources::{
         open_meteo_pollen::{Allergen, AllergenConcentration, Pollen},
         open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
         open_meteo_temperature::{
-            Daylight, HourlyForecast, HourlyTemperature, Intensity, Temperature, WeatherCondition,
+            Daylight, HourlyForecast, HourlyTemperature, Intensity, SkyCondition, Temperature,
+            WeatherCondition,
         },
         open_meteo_wind::Wind,
         situo_location_fix::Location,
@@ -81,7 +82,7 @@ fn hourly(
             .expect("the current hour is representable")
             + TimeDelta::hours(hours_from_now),
         temp: celsius(degrees),
-        condition: Some(condition),
+        condition: SkyCondition::Recognized(condition),
         daylight,
     }
 }
@@ -146,7 +147,7 @@ fn fixture_messages(clock: Clock) -> [WeatherMessage; 5] {
         )),
         WeatherMessage::Temperature(SnapshotDelivery::fixture_delivered(
             Ok(Temperature {
-                condition: Some(WeatherCondition::PartlyCloudy),
+                condition: SkyCondition::Recognized(WeatherCondition::PartlyCloudy),
                 daylight: Daylight::Day,
                 temp: celsius(18.0),
                 feels: celsius(17.0),

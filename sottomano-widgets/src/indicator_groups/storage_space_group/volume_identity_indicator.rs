@@ -29,14 +29,14 @@ impl<'a> VolumeIdentityIndicator<'a> {
     pub(super) fn indicator(self) -> GroupIndicator<'a> {
         let volume = &self.usage.volume;
         let fs_type = &self.usage.mount.fs_type;
-        let format_text = match volume.value_of(VolumePropertyKind::Version) {
+        let format_text = match volume.property_value(VolumePropertyKind::Version) {
             Some(version) if version.starts_with(|first: char| first.is_ascii_digit()) => {
                 format!("{fs_type} {version}")
             }
             Some(named_version) => named_version.to_owned(),
             None => fs_type.clone(),
         };
-        let label = match volume.value_of(VolumePropertyKind::Label) {
+        let label = match volume.property_value(VolumePropertyKind::Label) {
             Some(volume_label) => format!("{format_text}  “{volume_label}”"),
             None => format_text,
         };

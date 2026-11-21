@@ -14,7 +14,9 @@ use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activati
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
-        status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayItemIcon, TrayUpdate},
+        status_notifier_tray::{
+            self, Status, TrayHost, TrayItem, TrayItemIcon, TrayMenuPath, TrayTooltip, TrayUpdate,
+        },
         window_edge_placement::WindowOwner,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -245,13 +247,19 @@ impl TrayGroup {
     }
 
     fn item_hover_card(item: &TrayItem) -> Vec<Section> {
-        let tip = item.tooltip.as_ref();
-        let title = tip
-            .and_then(|tip| tip.title.clone())
-            .unwrap_or_else(|| item.name().to_owned());
-        vec![match tip.and_then(|tip| tip.body.clone()) {
-            Some(body) => Section::new(title, SectionWidget::paragraph(body)),
-            None => Section::new("Tooltip", SectionWidget::paragraph(title)),
+        vec![match &item.tooltip {
+            TrayTooltip::NoTooltip => {
+                Section::new("Tooltip", SectionWidget::paragraph(item.name.clone()))
+            }
+            TrayTooltip::TitleOnly(title) => {
+                Section::new("Tooltip", SectionWidget::paragraph(title.clone()))
+            }
+            TrayTooltip::BodyOnly(body) => {
+                Section::new(item.name.clone(), SectionWidget::paragraph(body.clone()))
+            }
+            TrayTooltip::TitledBody { title, body } => {
+                Section::new(title.clone(), SectionWidget::paragraph(body.clone()))
+            }
         }]
     }
 
@@ -267,11 +275,11 @@ impl TrayGroup {
             .get()
             .into_iter()
             .flatten()
-            .find(|item| item.name() == item_name)
+            .find(|item| item.name == item_name)
         else {
             return Vec::new();
         };
-        let Some(menu_path) = item.menu_path.clone() else {
+        let TrayMenuPath::Exported(menu_path) = item.menu_path.clone() else {
             return Vec::new();
         };
         let item_address = item.address.clone();
@@ -337,7 +345,7 @@ impl TrayGroup {
                 let item_rule = config.indicator_groups.tray.rule(&item.id);
                 let press_actions = item_press_actions(&item_rule, &item_window);
                 GroupIndicator::composed(
-                    item.name().to_owned(),
+                    item.name.clone(),
                     IndicatorIcon::Absent,
                     IndicatorValue::drawn(move |reveal| {
                         let icon_sources = DrawableIconSources {

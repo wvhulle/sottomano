@@ -36,7 +36,10 @@ impl SplitAppTitle {
     }
 }
 
-pub(crate) fn title_without_brand<'a>(title: &'a str, brands: &[&str]) -> Option<&'a str> {
+pub(crate) fn title_without_brand<'title>(
+    title: &'title str,
+    brands: &[&str],
+) -> Option<&'title str> {
     brands.iter().find_map(|brand| {
         SEPARATORS
             .iter()

@@ -64,10 +64,12 @@ impl<'a> KernelFace<'a> {
                         "OS",
                         self.system.operating_system.clone(),
                     )),
-                    self.system
-                        .chassis
-                        .map(Chassis::stored_name)
-                        .map(|chassis_kind| LabeledValue::new("Chassis", chassis_kind)),
+                    match self.system.chassis {
+                        Chassis::Undetermined => None,
+                        known_chassis => {
+                            Some(LabeledValue::new("Chassis", known_chassis.stored_name()))
+                        }
+                    },
                     Some(LabeledValue::new(
                         "Wiki",
                         ValueCell::BrandedLink {

@@ -1,4 +1,4 @@
-use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::GpuPowerDraw;
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{GpuPowerDraw, GpuPowerLimit};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Power, power::watt},
@@ -42,9 +42,13 @@ pub fn gpu_power_hover_card(power: &GpuPowerDraw) -> Vec<Section> {
                     "Draw",
                     Quantity::power(power.draw).decimals(0),
                 )),
-                power
-                    .limit
-                    .map(|limit| LabeledValue::new("Limit", Quantity::power(limit).decimals(0))),
+                match power.limit {
+                    GpuPowerLimit::Enforced(limit) => Some(LabeledValue::new(
+                        "Limit",
+                        Quantity::power(limit).decimals(0),
+                    )),
+                    GpuPowerLimit::NotExposed => None,
+                },
             ]
             .into_iter()
             .flatten(),

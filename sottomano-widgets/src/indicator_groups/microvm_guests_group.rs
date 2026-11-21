@@ -8,9 +8,11 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
     microvm_guests::{
-        MicrovmGuest, MicrovmGuestListing, MicrovmProbe, MicrovmUnit, MicrovmUnits, api_socket_of,
-        hypervisor_command_lines::MicrovmHypervisor,
+        EnclosingUnit, MicrovmGuest, MicrovmGuestListing, MicrovmProbe, MicrovmUnit, MicrovmUnits,
+        hypervisor_command_lines::{GuestKernelImage, HypervisorApiSocket, MicrovmHypervisor},
+        power_button_socket,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitActivity},
@@ -115,6 +117,10 @@ impl<'a> MicrovmGuestListingIndicator<'a> {
     }
 }
 
+fn managed_by(machine: &MicrovmGuest, unit: &MicrovmUnit) -> bool {
+    matches!(&machine.enclosing_unit, EnclosingUnit::Service(unit_name) if *unit_name == unit.unit_name)
+}
+
 struct MicrovmGuestIndicator<'a> {
     machine: &'a MicrovmGuest,
 }
@@ -126,20 +132,20 @@ impl MicrovmGuestIndicator<'_> {
             LabeledValue::new("Hypervisor", machine.hypervisor.product_name()),
             LabeledValue::new("Memory use", approximate_memory_text(machine.memory_in_use)),
         ];
-        if let Some(guest_memory) = machine.launch.guest_memory {
+        if let GuestMemorySize::Configured(guest_memory) = machine.launch.guest_memory {
             detail_entries.push(LabeledValue::new("Guest memory", guest_memory.to_string()));
         }
-        if let Some(guest_cores) = machine.launch.guest_cores {
+        if let GuestCoreCount::Configured(guest_cores) = machine.launch.guest_cores {
             detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
         }
         detail_entries.extend(uptime_entry(clock, machine.started_at));
-        if let Some(unit_name) = &machine.unit_name {
+        if let EnclosingUnit::Service(unit_name) = &machine.enclosing_unit {
             detail_entries.push(LabeledValue::new("Unit", unit_name.clone()));
         }
-        if let Some(kernel) = &machine.launch.kernel {
+        if let GuestKernelImage::Booted(kernel) = &machine.launch.kernel {
             detail_entries.push(LabeledValue::new("Kernel", kernel.display().to_string()));
         }
-        if let Some(api_socket) = &machine.launch.api_socket {
+        if let HypervisorApiSocket::Listening(api_socket) = &machine.launch.api_socket {
             detail_entries.push(LabeledValue::new(
                 "API socket",
                 api_socket.display().to_string(),
@@ -351,7 +357,7 @@ impl MicrovmGuestsGroup {
             .get()?
             .details
             .iter()
-            .find(|machine| machine.unit_name.as_deref() == Some(unit.unit_name.as_str()))
+            .find(|machine| managed_by(machine, unit))
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
@@ -409,16 +415,13 @@ impl MicrovmGuestsGroup {
         &'a self,
         units: &'a [MicrovmUnit],
     ) -> Vec<GroupIndicator<'a>> {
-        let managed_by_unit = |unit_name: Option<&str>| {
-            units
-                .iter()
-                .any(|unit| Some(unit.unit_name.as_str()) == unit_name)
-        };
+        let managed_by_unit =
+            |machine: &MicrovmGuest| units.iter().any(|unit| managed_by(machine, unit));
         if let Some(detail) = self.detail.get() {
             return detail
                 .details
                 .iter()
-                .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
+                .filter(|machine| !managed_by_unit(machine))
                 .map(|machine| {
                     let row = MicrovmGuestIndicator { machine }
                         .indicator()
@@ -427,7 +430,7 @@ impl MicrovmGuestsGroup {
                                 MicrovmGuestIndicator { machine }.hover_card(clock),
                             )
                         }));
-                    match api_socket_of(machine) {
+                    match power_button_socket(machine) {
                         Some(api_socket) => row.on_stop_press(
                             POWER_BUTTON_HINT,
                             MicrovmGuestsInteraction::PressPowerButton(

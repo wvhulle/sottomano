@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::systemd_units_journal::user_service_manager::UserServiceManager;
+use sottomano_desktop_sources::systemd_units_journal::{
+    SystemdTimestamp, user_service_manager::UserServiceManager,
+};
 
 use crate::{
     glyph_icons::{
@@ -47,33 +49,24 @@ impl ServiceManagerFace {
 }
 
 pub fn user_service_manager_sections(user_service_manager: &UserServiceManager) -> Vec<Section> {
+    let mut entries = vec![
+        LabeledValue::new("systemd version", user_service_manager.version.clone()),
+        LabeledValue::new("State", user_service_manager.state.clone()),
+    ];
+    if let SystemdTimestamp::At(at) = user_service_manager.started_at {
+        entries.push(LabeledValue::new(
+            "Running since",
+            ValueCell::Time {
+                at,
+                format: LocalizedTimeFormat::DateAndTime,
+            },
+        ));
+    }
     vec![Section::new(
         SectionTitle::captioned(
             "Status",
             "One instance per user; it outlives this login and stops at your last logout.",
         ),
-        dictionary_table(
-            [
-                Some(LabeledValue::new(
-                    "systemd version",
-                    user_service_manager.version.clone(),
-                )),
-                Some(LabeledValue::new(
-                    "State",
-                    user_service_manager.state.clone(),
-                )),
-                user_service_manager.started_at.map(|at| {
-                    LabeledValue::new(
-                        "Running since",
-                        ValueCell::Time {
-                            at,
-                            format: LocalizedTimeFormat::DateAndTime,
-                        },
-                    )
-                }),
-            ]
-            .into_iter()
-            .flatten(),
-        ),
+        dictionary_table(entries),
     )]
 }

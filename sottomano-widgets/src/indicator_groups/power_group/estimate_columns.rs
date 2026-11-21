@@ -1,5 +1,7 @@
 use chrono::Locale;
-use sottomano_desktop_sources::battery_power_profiles::battery_time_forecast::Estimate;
+use sottomano_desktop_sources::battery_power_profiles::battery_time_forecast::{
+    Estimate, LatestBound,
+};
 
 use crate::widgets::{
     keyed_record_table::ColumnHeading, localized_durations::duration_text, value_cells::ValueCell,
@@ -61,9 +63,10 @@ impl Forecast {
             Forecast::Estimated(estimate) => [
                 ValueCell::duration(estimate.earliest),
                 ValueCell::duration(estimate.time),
-                estimate
-                    .latest
-                    .map_or_else(|| "∞".into(), ValueCell::duration),
+                match estimate.latest {
+                    LatestBound::Within(latest) => ValueCell::duration(latest),
+                    LatestBound::Unbounded => "∞".into(),
+                },
             ],
             Forecast::Unavailable(reason) => [
                 ValueCell::Blank,

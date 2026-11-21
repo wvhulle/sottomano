@@ -4,7 +4,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, TryStreamExt, future::join_all, try_join};
+use futures::{Stream, StreamExt, TryStreamExt, stream, try_join};
 use serde_json::Value as Json;
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
@@ -21,6 +21,8 @@ use crate::{
         shell_command_output::{self, WatchedCommandError},
     },
 };
+
+const KERNEL_TUNNEL_READS_IN_FLIGHT: usize = 4;
 
 const CONNECTED_WINDOW: Duration = Duration::from_secs(180);
 const STATISTICS_RECHECK: Duration = Duration::from_secs(10);
@@ -109,7 +111,7 @@ impl Peer {
     fn configured(peer_settings: WireguardPeerSettings) -> Self {
         Self {
             public_key: peer_settings.public_key,
-            endpoint: PeerEndpoint::from(peer_settings.endpoint),
+            endpoint: peer_settings.endpoint,
             allowed_ips: peer_settings.allowed_ips,
             traffic: PeerTraffic::Unobserved,
         }
@@ -321,8 +323,9 @@ impl Tunnel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TunnelAddress {
-    pub ip: Option<String>,
+pub enum TunnelAddress {
+    Assigned(String),
+    Unassigned,
 }
 
 impl SnapshotSource for TunnelAddress {
@@ -350,11 +353,7 @@ async fn address_changes(
         .map_err(ChangeWatchFailure::from);
     Ok(addressing.triggered_rereads(move || {
         let tunnel = watched.inputs.clone();
-        async move {
-            Ok(TunnelAddress {
-                ip: interface_ip(&tunnel).await,
-            })
-        }
+        async move { Ok(interface_ip(&tunnel).await) }
     }))
 }
 
@@ -406,15 +405,16 @@ async fn read_wireguard(system: Connection) -> zbus::Result<Wireguard> {
         }
         Err(bus_error) => return Err(bus_error),
     };
-    let kernel_tunnel_statuses = join_all(kernel_wireguard_interfaces().await.into_iter().map(
-        |interface| async move {
+    let kernel_tunnel_statuses = stream::iter(kernel_wireguard_interfaces().await)
+        .map(|interface| async move {
             let sample = read_kernel_tunnel(&interface).await;
             (interface, sample)
-        },
-    ))
-    .await
-    .into_iter()
-    .collect();
+        })
+        .buffered(KERNEL_TUNNEL_READS_IN_FLIGHT)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect();
     Ok(assemble_tunnels(
         profiles,
         &active_wireguards,
@@ -584,13 +584,16 @@ fn dump_counter(fields: &[&str], position: usize) -> Option<u64> {
         .ok()
 }
 
-async fn interface_ip(iface: &str) -> Option<String> {
-    let address_listing = shell_command_output::output("ip", &["-j", "-4", "addr", "show", iface])
-        .await
-        .inspect_err(|listing_error| {
-            tracing::debug!("wireguard: cannot list addresses of {iface}: {listing_error}");
-        })
-        .ok()?;
+async fn interface_ip(iface: &str) -> TunnelAddress {
+    let Ok(address_listing) =
+        shell_command_output::output("ip", &["-j", "-4", "addr", "show", iface])
+            .await
+            .inspect_err(|listing_error| {
+                tracing::debug!("wireguard: cannot list addresses of {iface}: {listing_error}");
+            })
+    else {
+        return TunnelAddress::Unassigned;
+    };
     serde_json::from_str::<Json>(&address_listing)
         .inspect_err(|parse_failure| {
             tracing::warn!("wireguard: invalid address listing for {iface}: {parse_failure}");
@@ -603,6 +606,7 @@ async fn interface_ip(iface: &str) -> Option<String> {
             let prefix = addr.get("prefixlen").and_then(Json::as_u64).unwrap_or(32);
             Some(format!("{local}/{prefix}"))
         })
+        .map_or(TunnelAddress::Unassigned, TunnelAddress::Assigned)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -673,7 +677,7 @@ mod tests {
     fn host_peer_settings(public_key: &str, allowed_ip: &str) -> WireguardPeerSettings {
         WireguardPeerSettings {
             public_key: public_key.to_owned(),
-            endpoint: None,
+            endpoint: PeerEndpoint::Roaming,
             allowed_ips: vec![allowed_ip.to_owned()],
         }
     }

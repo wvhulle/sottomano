@@ -64,20 +64,55 @@ pub enum Residency {
     Resident,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum NotifyingAppName {
+    Named(String),
+    #[default]
+    Unnamed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum NotificationBody {
+    #[default]
+    Bodiless,
+    Text(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum NotificationProgress {
+    #[default]
+    Unmeasured,
+    Measured(Ratio),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SenderWindowHint {
+    Window(u64),
+    #[default]
+    Unhinted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DesktopEntryHint {
+    Entry(String),
+    #[default]
+    Unhinted,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct NotificationData {
     pub id: u32,
-    pub app_name: Option<String>,
+    pub app_name: NotifyingAppName,
     pub app_icon: SpecAppIcon,
     pub summary: String,
-    pub body: Option<String>,
+    pub body: NotificationBody,
     pub actions: Vec<NotifAction>,
     pub severity: Severity,
     pub expire_timeout: ExpireTimeout,
-    pub window_id_hint: Option<u64>,
+    pub window_id_hint: SenderWindowHint,
     pub sender: OwnerProcess,
     pub sender_ancestry: Vec<u32>,
-    pub desktop_entry: Option<String>,
+    pub desktop_entry: DesktopEntryHint,
     pub image: SpecImage,
     pub image_role: ImageRole,
     pub sound_request: SoundRequest,
@@ -85,7 +120,7 @@ pub struct NotificationData {
     pub residency: Residency,
     pub persistence: Persistence,
     pub stack_tag: StackTag,
-    pub progress: Option<Ratio>,
+    pub progress: NotificationProgress,
     pub reply: ReplyPrompt,
 }
 
@@ -93,7 +128,7 @@ impl NotificationData {
     pub fn shell_notification(id: u32, summary: impl Into<String>) -> Self {
         Self {
             id,
-            app_name: Some("sottomano".to_owned()),
+            app_name: NotifyingAppName::Named("sottomano".to_owned()),
             summary: summary.into(),
             ..Self::default()
         }

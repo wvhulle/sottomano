@@ -1,7 +1,10 @@
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
-    host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
+    host_machine_identity::{
+        fwupd_firmware_upgrades::{FirmwareReleaseDate, FirmwareUpgrade, ReleaseSummary, Urgency},
+        udev_hardware_identity::HardwareText,
+    },
 };
 use sottomano_toml_config::{Config, severity::Severity};
 
@@ -20,7 +23,9 @@ use crate::{
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingToastActionButton, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{
+            NotificationBody, NotificationProgress, OngoingToastActionButton, StateToast,
+        },
         value_cells::ValueCell,
     },
 };
@@ -104,8 +109,8 @@ pub(super) fn firmware_upgrades_indicator(upgrades: &[FirmwareUpgrade]) -> Group
         .with_state_toast(StateToast::NotifyFromSeverity {
             minimum_severity: Severity::Warning,
             summary_text: "Firmware upgrade available",
-            body: ToastBody::Bodiless,
-            progress: ToastProgress::Unmeasured,
+            body: NotificationBody::Bodiless,
+            progress: NotificationProgress::Unmeasured,
         })
         .with_panel_visibility(firmware_upgrades_panel_visibility(upgrades))
 }
@@ -115,25 +120,27 @@ impl From<&FirmwareUpgrade> for TableRecord<6> {
         TableRecord::with_cells(
             firmware_upgrade.device.clone(),
             [
-                firmware_upgrade
-                    .vendor
-                    .clone()
-                    .map_or(ValueCell::Blank, ValueCell::from),
+                match &firmware_upgrade.vendor {
+                    HardwareText::Reported(vendor) => ValueCell::from(vendor.clone()),
+                    HardwareText::Unreported => ValueCell::Blank,
+                },
                 firmware_upgrade.current_version.clone().into(),
                 firmware_upgrade.offered_version.clone().into(),
-                firmware_upgrade
-                    .offered_released
-                    .map_or(ValueCell::Blank, |at| ValueCell::Time {
+                match firmware_upgrade.offered_released {
+                    FirmwareReleaseDate::Dated(at) => ValueCell::Time {
                         at,
                         format: LocalizedTimeFormat::Date,
-                    }),
-                firmware_upgrade
-                    .urgency
-                    .map_or(ValueCell::Blank, |urgency| urgency.title().into()),
-                firmware_upgrade
-                    .summary
-                    .clone()
-                    .map_or(ValueCell::Blank, ValueCell::from),
+                    },
+                    FirmwareReleaseDate::Undated => ValueCell::Blank,
+                },
+                match firmware_upgrade.urgency {
+                    Urgency::Unspecified => ValueCell::Blank,
+                    stated_urgency => stated_urgency.title().into(),
+                },
+                match &firmware_upgrade.summary {
+                    ReleaseSummary::Summarized(summary) => ValueCell::from(summary.clone()),
+                    ReleaseSummary::Unsummarized => ValueCell::Blank,
+                },
             ],
         )
         .level(firmware_upgrade.severity())

@@ -79,7 +79,7 @@ impl SecretFile {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub enum StoredSecret {
     #[default]
     Absent,

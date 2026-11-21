@@ -4,7 +4,7 @@ use tokio::task::spawn_blocking;
 use crate::{
     desktop_windows_apps::{
         desktop_entries::DesktopEntries,
-        process_tree_inspection::{binary_name, launch},
+        process_tree_inspection::{CgroupScope, binary_name, launch},
     },
     non_empty_text::non_empty,
 };
@@ -45,10 +45,13 @@ impl InhibitorAppNames {
     }
 
     fn scope_app_name(&self, process_id: i32, process: &Proc) -> Option<String> {
-        let own_scope = launch(process_id)?.scope?;
+        let CgroupScope::Unit(own_scope) = launch(process_id)?.scope else {
+            return None;
+        };
         let parent_id = logged_process_stat(process)?.ppid;
-        let parent_scope = launch(parent_id).and_then(|parent| parent.scope);
-        if parent_scope.as_deref() == Some(own_scope.as_str()) {
+        if launch(parent_id)
+            .is_some_and(|parent| parent.scope == CgroupScope::Unit(own_scope.clone()))
+        {
             return None;
         }
         let app_id = app_id_of_cgroup_leaf(&own_scope)?;

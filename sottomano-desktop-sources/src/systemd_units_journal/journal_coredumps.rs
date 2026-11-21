@@ -66,8 +66,8 @@ impl CoreDumpingSignal {
 }
 
 impl Display for CoreDumpingSignal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(self.name())
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.write_str(self.name())
     }
 }
 
@@ -77,8 +77,12 @@ pub struct NotACoreDumpingSignal {
 }
 
 impl Display for NotACoreDumpingSignal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "signal {} does not dump core", self.signal_number)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            formatter,
+            "signal {} does not dump core",
+            self.signal_number
+        )
     }
 }
 
@@ -129,9 +133,31 @@ pub struct CoredumpEntry {
     pub executable: PathBuf,
     pub signal: CoreDumpingSignal,
     pub pid: pid_t,
-    pub unit: Option<OwningUnit>,
-    pub stored_file: Option<PathBuf>,
+    pub unit: CoredumpOwner,
+    pub core_file: CoreFileStorage,
     pub severity: Severity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CoredumpOwner {
+    Unit(OwningUnit),
+    OutsideUnits,
+}
+
+impl CoredumpOwner {
+    #[must_use]
+    pub const fn unit_scope(&self) -> SystemdUnitScope {
+        match self {
+            CoredumpOwner::Unit(unit) => unit.unit_scope(),
+            CoredumpOwner::OutsideUnits => SystemdUnitScope::SystemWide,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CoreFileStorage {
+    OnDisk(PathBuf),
+    NotOnDisk,
 }
 
 impl CoredumpEntry {
@@ -142,8 +168,10 @@ impl CoredumpEntry {
             executable: record.executable,
             signal: record.signal,
             pid: record.pid,
-            unit: record.unit.owning_unit(),
-            stored_file: record.stored_file,
+            unit: record.unit.coredump_owner(),
+            core_file: record
+                .stored_file
+                .map_or(CoreFileStorage::NotOnDisk, CoreFileStorage::OnDisk),
             severity: record.priority.severity(),
         }
     }
@@ -179,7 +207,9 @@ impl CoredumpEntry {
             .system(true)
             .current_user(unit_scope == SystemdUnitScope::UserSession)
             .open()
-            .inspect_err(|e| tracing::warn!("coredump of {unit_name}: journal open failed: {e}"))
+            .inspect_err(|error| {
+                tracing::warn!("coredump of {unit_name}: journal open failed: {error}");
+            })
             .ok()?;
         let mut latest_entry = || -> io::Result<_> {
             MessageId::COREDUMP.add_match(&mut journal)?;
@@ -191,10 +221,14 @@ impl CoredumpEntry {
             Ok(Some((record, journal.timestamp()?)))
         };
         let (record, at) = latest_entry()
-            .inspect_err(|e| tracing::warn!("coredump of {unit_name}: journal read failed: {e}"))
+            .inspect_err(|error| {
+                tracing::warn!("coredump of {unit_name}: journal read failed: {error}");
+            })
             .ok()??;
         let record = decode_record(record)
-            .inspect_err(|e| tracing::warn!("coredump of {unit_name}: malformed record: {e}"))
+            .inspect_err(|error| {
+                tracing::warn!("coredump of {unit_name}: malformed record: {error}");
+            })
             .ok()?;
         Some(Self::stamped(record, at))
     }
@@ -236,8 +270,8 @@ mod tests {
     use super::*;
     use crate::system_protocol_clients::journal_follow::journal_record;
 
-    fn firefox_coredump<'a>(
-        varying_fields: impl IntoIterator<Item = (&'a str, &'a str)>,
+    fn firefox_coredump<'field>(
+        varying_fields: impl IntoIterator<Item = (&'field str, &'field str)>,
     ) -> JournalRecord {
         journal_record(
             [
@@ -266,8 +300,8 @@ mod tests {
                 executable: PathBuf::from("/usr/bin/firefox"),
                 signal: CoreDumpingSignal::Segfault,
                 pid: 4121,
-                unit: Some(OwningUnit::User("app-firefox.scope".to_owned())),
-                stored_file: None,
+                unit: CoredumpOwner::Unit(OwningUnit::User("app-firefox.scope".to_owned())),
+                core_file: CoreFileStorage::NotOnDisk,
                 severity: Severity::Critical,
             })
         );

@@ -1,37 +1,23 @@
+mod cpu_cache_levels;
+mod cpu_model_identity;
+mod host_hardware_snapshot;
+mod memory_slot_modules;
+
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
-use bytesize::ByteSize;
-use futures::{Stream, StreamExt, stream};
-use serde_json::Value;
-
-use crate::{
-    SnapshotDelivery, SnapshotSource,
-    blocking_background_work::{Panicked, blocking_poll},
-    host_machine_identity::hostname1_os_identity::MachineInfo,
-    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, shell_command_output},
+pub use cpu_cache_levels::{
+    CacheInstances, CacheKind, CacheLevel, CachePosition, UnknownCacheKind,
 };
+pub use cpu_model_identity::{CpuArchitecture, CpuCoreCounts, CpuIdentity, CpuModel, CpuVendor};
+pub use host_hardware_snapshot::{HostHardware, HostHardwareError};
+pub use memory_slot_modules::{MemoryModule, MemorySlotModule, MemoryTransferRate};
 
 const UDEV_DATA: &str = "/run/udev/data";
-const CPU_INFO: &str = "/proc/cpuinfo";
-const HOST_BRIDGE_DEVICE: &str = "/sys/bus/pci/devices/0000:00:00.0";
-const CPU_DEVICES: &str = "/sys/devices/system/cpu";
-const INXI_PROGRAM: &str = "inxi";
-const INXI_CPU_REPORT_ARGS: [&str; 8] = [
-    "--tty",
-    "--cpu",
-    "-xxx",
-    "-a",
-    "--output",
-    "json",
-    "--output-file",
-    "print",
-];
 const FIRMWARE_PLACEHOLDERS: [&str; 9] = [
     "",
     "Not Specified",
@@ -44,26 +30,41 @@ const FIRMWARE_PLACEHOLDERS: [&str; 9] = [
     "0000",
 ];
 
-#[must_use]
-pub fn reported(raw: &str) -> Option<String> {
-    let value = raw.trim();
-    let placeholder = FIRMWARE_PLACEHOLDERS
-        .iter()
-        .any(|placeholder| placeholder.eq_ignore_ascii_case(value));
-    (!placeholder).then(|| value.to_owned())
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum HardwareText {
+    Reported(String),
+    #[default]
+    Unreported,
 }
 
-pub fn sysfs_attribute(path: impl AsRef<Path>) -> Option<String> {
+fn firmware_placeholder(trimmed: &str) -> bool {
+    FIRMWARE_PLACEHOLDERS
+        .iter()
+        .any(|placeholder| placeholder.eq_ignore_ascii_case(trimmed))
+}
+
+#[must_use]
+pub fn reported(raw: &str) -> HardwareText {
+    let trimmed = raw.trim();
+    if firmware_placeholder(trimmed) {
+        HardwareText::Unreported
+    } else {
+        HardwareText::Reported(trimmed.to_owned())
+    }
+}
+
+pub fn sysfs_attribute(path: impl AsRef<Path>) -> HardwareText {
     let path = path.as_ref();
-    let raw = fs::read_to_string(path)
-        .inspect_err(|read_failure| {
+    fs::read_to_string(path).map_or_else(
+        |read_failure| {
             tracing::debug!(
                 "hardware identity: cannot read {}: {read_failure}",
                 path.display()
             );
-        })
-        .ok()?;
-    reported(&raw)
+            HardwareText::Unreported
+        },
+        |raw| reported(&raw),
+    )
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -106,15 +107,15 @@ impl UdevProperties {
 
     #[must_use]
     pub fn value(&self, key: &str) -> Option<String> {
-        reported(self.properties_by_key.get(key)?)
+        let trimmed = self.properties_by_key.get(key)?.trim();
+        (!firmware_placeholder(trimmed)).then(|| trimmed.to_owned())
     }
 
-    fn vendor(&self) -> Option<String> {
-        self.value("ID_VENDOR_FROM_DATABASE")
-    }
-
-    fn model(&self) -> Option<String> {
-        self.value("ID_MODEL_FROM_DATABASE")
+    #[must_use]
+    pub fn text(&self, key: &str) -> HardwareText {
+        self.properties_by_key
+            .get(key)
+            .map_or(HardwareText::Unreported, |raw| reported(raw))
     }
 }
 
@@ -185,25 +186,28 @@ impl BusId {
 }
 
 impl Display for BusId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            BusId::Pci { vendor, device } => write!(f, "{vendor:04x}:{device:04x}"),
-            BusId::Usb { vendor, product } => write!(f, "{vendor:04x}:{product:04x}"),
+            BusId::Pci { vendor, device } => write!(formatter, "{vendor:04x}:{device:04x}"),
+            BusId::Usb { vendor, product } => write!(formatter, "{vendor:04x}:{product:04x}"),
         }
     }
 }
 
-#[must_use]
-pub fn host_bridge_subsystem_vendor() -> Option<u16> {
-    hex_attribute(&Path::new(HOST_BRIDGE_DEVICE).join("subsystem_vendor"))
-        .filter(|vendor| *vendor != 0)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParentPciVendor {
+    Identified { vendor_code: u16 },
+    Unidentified,
 }
 
-pub(crate) fn pci_parent_vendor(device: &Path) -> Option<u16> {
+pub(crate) fn pci_parent_vendor(device: &Path) -> ParentPciVendor {
     let parent = device.join("device");
-    (link_target_name(&parent.join("subsystem")).as_deref() == Some("pci"))
-        .then(|| hex_attribute(&parent.join("vendor")))
-        .flatten()
+    if link_target_name(&parent.join("subsystem")).as_deref() != Some("pci") {
+        return ParentPciVendor::Unidentified;
+    }
+    hex_attribute(&parent.join("vendor")).map_or(ParentPciVendor::Unidentified, |vendor_code| {
+        ParentPciVendor::Identified { vendor_code }
+    })
 }
 
 fn hex_attribute(path: &Path) -> Option<u16> {
@@ -228,21 +232,23 @@ fn hex_attribute(path: &Path) -> Option<u16> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeviceIdentity {
-    pub vendor: Option<String>,
-    pub model: Option<String>,
-    pub serial: Option<String>,
-    pub revision: Option<String>,
+    pub vendor: HardwareText,
+    pub model: HardwareText,
+    pub serial: HardwareText,
+    pub revision: HardwareText,
 }
 
 impl DeviceIdentity {
     #[must_use]
     pub fn read_drive_controller(controller: &Path) -> Self {
         DeviceIdentity {
-            vendor: None,
+            vendor: HardwareText::Unreported,
             model: sysfs_attribute(controller.join("model")),
             serial: sysfs_attribute(controller.join("serial")),
-            revision: sysfs_attribute(controller.join("firmware_rev"))
-                .or_else(|| sysfs_attribute(controller.join("rev"))),
+            revision: match sysfs_attribute(controller.join("firmware_rev")) {
+                HardwareText::Unreported => sysfs_attribute(controller.join("rev")),
+                firmware_revision @ HardwareText::Reported(_) => firmware_revision,
+            },
         }
     }
 
@@ -252,7 +258,7 @@ impl DeviceIdentity {
             vendor: sysfs_attribute(supply.join("manufacturer")),
             model: sysfs_attribute(supply.join("model_name")),
             serial: sysfs_attribute(supply.join("serial_number")),
-            revision: None,
+            revision: HardwareText::Unreported,
         }
     }
 }
@@ -261,7 +267,13 @@ impl DeviceIdentity {
 pub struct Adapter {
     pub identity: DeviceIdentity,
     pub bus_id: BusId,
-    pub driver: Option<String>,
+    pub driver: KernelDriver,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KernelDriver {
+    Bound(String),
+    Unbound,
 }
 
 impl Adapter {
@@ -285,13 +297,14 @@ impl Adapter {
         let properties = UdevProperties::from(bus_device.as_path());
         Some(Adapter {
             identity: DeviceIdentity {
-                vendor: properties.vendor(),
-                model: properties.model(),
-                serial: None,
-                revision: None,
+                vendor: properties.text("ID_VENDOR_FROM_DATABASE"),
+                model: properties.text("ID_MODEL_FROM_DATABASE"),
+                serial: HardwareText::Unreported,
+                revision: HardwareText::Unreported,
             },
             bus_id,
-            driver: link_target_name(&function.join("driver")),
+            driver: link_target_name(&function.join("driver"))
+                .map_or(KernelDriver::Unbound, KernelDriver::Bound),
         })
     }
 
@@ -301,642 +314,18 @@ impl Adapter {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HostHardware {
-    pub cpu: CpuModel,
-    pub memory: Vec<MemorySlotModule>,
-    pub machine: MachineInfo,
-}
-
-#[derive(Debug, Clone)]
-pub enum HostHardwareError {
-    HostnamedUnreadable(zbus::Error),
-    Panicked,
-}
-
-impl From<zbus::Error> for HostHardwareError {
-    fn from(error: zbus::Error) -> Self {
-        Self::HostnamedUnreadable(error)
-    }
-}
-
-impl From<Panicked> for HostHardwareError {
-    fn from(Panicked: Panicked) -> Self {
-        Self::Panicked
-    }
-}
-
-impl Display for HostHardwareError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::HostnamedUnreadable(error) => write!(f, "cannot read hostnamed: {error}"),
-            Self::Panicked => write!(f, "hardware read panicked"),
-        }
-    }
-}
-
-impl SnapshotSource for HostHardware {
-    type Error = HostHardwareError;
-    type StreamInputs = DesktopBuses;
-
-    const NAME: &'static str = "Host hardware";
-
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(Self::read(buses)).map(SnapshotDelivery::single_read)
-    }
-}
-
-impl HostHardware {
-    async fn read(buses: DesktopBuses) -> Result<Self, HostHardwareError> {
-        let machine = MachineInfo::read(&buses.system).await?;
-        blocking_poll(move || {
-            Ok(HostHardware {
-                cpu: CpuModel::current(),
-                memory: memory_modules(&UdevProperties::dmi()),
-                machine,
-            })
-        })
-        .await
-    }
-}
-
-fn cpuinfo_field<'a>(core: &'a str, name: &str) -> Option<&'a str> {
-    core.lines().find_map(|line| {
-        let (key, value) = line.split_once(':')?;
-        (key.trim() == name).then(|| value.trim())
-    })
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CpuModel {
-    pub identity: CpuIdentity,
-    pub architecture: CpuArchitecture,
-    pub topology: CpuCoreCounts,
-    pub caches: Vec<CacheLevel>,
-}
-
-impl CpuModel {
-    #[must_use]
-    pub fn current() -> Self {
-        let cpuinfo = fs::read_to_string(CPU_INFO).unwrap_or_else(|read_failure| {
-            tracing::warn!("cpu model: cannot read {CPU_INFO}: {read_failure}");
-            String::new()
-        });
-        let first_core = cpuinfo.split("\n\n").next().unwrap_or_default();
-        CpuModel {
-            identity: CpuIdentity::parse(first_core),
-            architecture: CpuArchitecture::current(),
-            topology: CpuCoreCounts::parse(first_core),
-            caches: cache_levels(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CpuIdentity {
-    pub vendor: Option<CpuVendor>,
-    pub name: Option<String>,
-    pub microcode: Option<String>,
-}
-
-impl CpuIdentity {
-    fn parse(first_core: &str) -> Self {
-        let field = |name| cpuinfo_field(first_core, name).map(str::to_owned);
-        CpuIdentity {
-            vendor: CpuVendor::reported_by_core(first_core),
-            name: field("model name"),
-            microcode: field("microcode"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CpuVendor {
-    Amd,
-    Intel,
-    Arm,
-    Apple,
-    Qualcomm,
-    HiSilicon,
-}
-
-impl CpuVendor {
-    fn reported_by_core(first_core: &str) -> Option<Self> {
-        match cpuinfo_field(first_core, "vendor_id") {
-            Some("AuthenticAMD") => return Some(CpuVendor::Amd),
-            Some("GenuineIntel") => return Some(CpuVendor::Intel),
-            _ => {}
-        }
-        match cpuinfo_field(first_core, "CPU implementer")? {
-            "0x41" => Some(CpuVendor::Arm),
-            "0x61" => Some(CpuVendor::Apple),
-            "0x51" => Some(CpuVendor::Qualcomm),
-            "0x48" => Some(CpuVendor::HiSilicon),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct CpuCoreCounts {
-    pub cores: Option<u32>,
-    pub threads: Option<u32>,
-}
-
-impl CpuCoreCounts {
-    fn parse(first_core: &str) -> Self {
-        let count = |name| {
-            let count_text = cpuinfo_field(first_core, name)?;
-            count_text
-                .parse()
-                .inspect_err(|parse_failure| {
-                    tracing::warn!(
-                        "cpu model: invalid {name} count {count_text:?}: {parse_failure}"
-                    );
-                })
-                .ok()
-        };
-        CpuCoreCounts {
-            cores: count("cpu cores"),
-            threads: count("siblings"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CpuArchitecture {
-    pub microarchitecture: Option<String>,
-    pub process: Option<String>,
-    pub released: Option<String>,
-    pub x86_64_level: Option<String>,
-}
-
-impl CpuArchitecture {
-    fn current() -> Self {
-        shell_command_output::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
-            .inspect_err(|command_failure| {
-                tracing::debug!("cpu architecture: cannot run {INXI_PROGRAM}: {command_failure}");
-            })
-            .ok()
-            .and_then(|report| {
-                serde_json::from_str(&report)
-                    .inspect_err(|json_failure| {
-                        tracing::warn!(
-                            "cpu architecture: invalid {INXI_PROGRAM} json report: {json_failure}"
-                        );
-                    })
-                    .ok()
-            })
-            .map(|report| Self::from(&report))
-            .unwrap_or_default()
-    }
-}
-
-impl From<&Value> for CpuArchitecture {
-    fn from(report: &Value) -> Self {
-        let field = |name| inxi_field(report, name);
-        CpuArchitecture {
-            microarchitecture: field("arch"),
-            process: field("process"),
-            released: field("built"),
-            x86_64_level: field("level"),
-        }
-    }
-}
-
-fn inxi_field(report: &Value, name: &str) -> Option<String> {
-    match report {
-        Value::Array(entries) => entries.iter().find_map(|entry| inxi_field(entry, name)),
-        Value::Object(fields) => fields.iter().find_map(|(key, value)| {
-            match key.rsplit_once('#').map(|(_, field_name)| field_name) {
-                Some(field_name) if field_name == name => inxi_scalar(value),
-                _ => inxi_field(value, name),
-            }
-        }),
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => None,
-    }
-}
-
-fn inxi_scalar(value: &Value) -> Option<String> {
-    match value {
-        Value::String(text) => Some(text.clone()),
-        Value::Number(number) => Some(number.to_string()),
-        Value::Null | Value::Bool(_) | Value::Array(_) | Value::Object(_) => None,
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CacheKind {
-    Data,
-    Instruction,
-    Unified,
-}
-
-#[derive(Debug)]
-pub struct UnknownCacheKind;
-
-impl FromStr for CacheKind {
-    type Err = UnknownCacheKind;
-
-    fn from_str(kind: &str) -> Result<Self, UnknownCacheKind> {
-        match kind {
-            "Data" => Ok(CacheKind::Data),
-            "Instruction" => Ok(CacheKind::Instruction),
-            "Unified" => Ok(CacheKind::Unified),
-            _ => Err(UnknownCacheKind),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CachePosition {
-    pub level: u8,
-    pub kind: CacheKind,
-}
-
-impl Display for CachePosition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let level = self.level;
-        match self.kind {
-            CacheKind::Data => write!(f, "L{level} data"),
-            CacheKind::Instruction => write!(f, "L{level} instruction"),
-            CacheKind::Unified => write!(f, "L{level}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct CacheInstance {
-    position: CachePosition,
-    size: ByteSize,
-    shared_cpus: String,
-}
-
-impl CacheInstance {
-    fn read(index: &Path) -> Option<Self> {
-        let text = |name: &str| {
-            let attribute_path = index.join(name);
-            let raw = fs::read_to_string(&attribute_path)
-                .inspect_err(|read_failure| {
-                    tracing::debug!(
-                        "cpu caches: cannot read {}: {read_failure}",
-                        attribute_path.display()
-                    );
-                })
-                .ok()?;
-            Some(raw.trim().to_owned())
-        };
-        let number = |name: &str| {
-            let number_text = text(name)?;
-            number_text
-                .parse::<u64>()
-                .inspect_err(|parse_failure| {
-                    tracing::warn!(
-                        "cpu caches: invalid {name} {number_text:?} in {}: {parse_failure}",
-                        index.display()
-                    );
-                })
-                .ok()
-        };
-        Some(CacheInstance {
-            position: CachePosition {
-                level: u8::try_from(number("level")?)
-                    .inspect_err(|conversion_failure| {
-                        tracing::warn!(
-                            "cpu caches: cache level out of range in {}: {conversion_failure}",
-                            index.display()
-                        );
-                    })
-                    .ok()?,
-                kind: text("type")?
-                    .parse()
-                    .inspect_err(|unknown_kind: &UnknownCacheKind| {
-                        tracing::warn!(?unknown_kind, "cpu cache kind not recognised");
-                    })
-                    .ok()?,
-            },
-            size: ByteSize::b(
-                number("ways_of_associativity")?
-                    * number("number_of_sets")?
-                    * number("coherency_line_size")?
-                    * number("physical_line_partition")?,
-            ),
-            shared_cpus: text("shared_cpu_list")?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CacheInstances {
-    pub size: ByteSize,
-    pub count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CacheLevel {
-    pub position: CachePosition,
-    pub instances: Vec<CacheInstances>,
-}
-
-impl From<&[CacheInstance]> for CacheLevel {
-    fn from(instances: &[CacheInstance]) -> Self {
-        CacheLevel {
-            position: instances[0].position,
-            instances: instances
-                .chunk_by(|a, b| a.size == b.size)
-                .map(|same_size| CacheInstances {
-                    size: same_size[0].size,
-                    count: same_size.len(),
-                })
-                .collect(),
-        }
-    }
-}
-
-fn cache_levels() -> Vec<CacheLevel> {
-    let instances = fs::read_dir(CPU_DEVICES)
-        .inspect_err(|listing_failure| {
-            tracing::warn!("cpu caches: cannot list {CPU_DEVICES}: {listing_failure}");
-        })
-        .into_iter()
-        .flatten()
-        .filter_map(|cpu_entry| {
-            cpu_entry
-                .inspect_err(|entry_failure| {
-                    tracing::debug!(
-                        "cpu caches: skipping unreadable entry of {CPU_DEVICES}: {entry_failure}"
-                    );
-                })
-                .ok()
-        })
-        .filter_map(|cpu| {
-            let cache_directory = cpu.path().join("cache");
-            fs::read_dir(&cache_directory)
-                .inspect_err(|listing_failure| {
-                    tracing::debug!(
-                        "cpu caches: cannot list {}: {listing_failure}",
-                        cache_directory.display()
-                    );
-                })
-                .ok()
-        })
-        .flatten()
-        .filter_map(|index_entry| {
-            index_entry
-                .inspect_err(|entry_failure| {
-                    tracing::debug!("cpu caches: skipping unreadable cache entry: {entry_failure}");
-                })
-                .ok()
-        })
-        .filter_map(|index| CacheInstance::read(&index.path()));
-    cache_levels_of(instances)
-}
-
-fn cache_levels_of(instances: impl IntoIterator<Item = CacheInstance>) -> Vec<CacheLevel> {
-    let mut distinct: Vec<CacheInstance> = instances
-        .into_iter()
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
-    distinct.sort_by(|a, b| a.position.cmp(&b.position).then(b.size.cmp(&a.size)));
-    distinct
-        .chunk_by(|a, b| a.position == b.position)
-        .map(CacheLevel::from)
-        .collect()
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MemoryModule {
-    pub manufacturer: Option<String>,
-    pub part_number: Option<String>,
-    pub kind: Option<String>,
-    pub speed_mts: Option<u32>,
-    pub size: ByteSize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemorySlotModule {
-    pub locator: String,
-    pub module: MemoryModule,
-}
-
-fn memory_modules(properties: &UdevProperties) -> Vec<MemorySlotModule> {
-    (0..)
-        .map_while(|slot| MemorySlot::read(properties, slot))
-        .filter_map(MemorySlot::populated)
-        .collect()
-}
-
-enum MemorySlot {
-    Populated(MemorySlotModule),
-    Empty,
-}
-
-impl MemorySlot {
-    fn read(properties: &UdevProperties, slot: usize) -> Option<Self> {
-        let key = |field: &str| format!("MEMORY_DEVICE_{slot}_{field}");
-        let locator = properties.properties_by_key.get(&key("LOCATOR"))?;
-        let Some(size) = properties
-            .value(&key("SIZE"))
-            .and_then(|bytes| {
-                bytes
-                    .parse()
-                    .inspect_err(|parse_failure| {
-                        tracing::warn!(
-                            "memory modules: invalid size {bytes:?} of slot {slot}: \
-                             {parse_failure}"
-                        );
-                    })
-                    .ok()
-            })
-            .map(ByteSize::b)
-        else {
-            return Some(MemorySlot::Empty);
-        };
-        Some(MemorySlot::Populated(MemorySlotModule {
-            locator: locator.clone(),
-            module: MemoryModule {
-                manufacturer: properties.value(&key("MANUFACTURER")),
-                part_number: properties.value(&key("PART_NUMBER")),
-                kind: properties.value(&key("TYPE")),
-                speed_mts: properties
-                    .value(&key("CONFIGURED_SPEED_MTS"))
-                    .or_else(|| properties.value(&key("SPEED_MTS")))
-                    .and_then(|speed| {
-                        speed
-                            .parse()
-                            .inspect_err(|parse_failure| {
-                                tracing::warn!(
-                                    "memory modules: invalid speed {speed:?} of slot {slot}: \
-                                     {parse_failure}"
-                                );
-                            })
-                            .ok()
-                    }),
-                size,
-            },
-        }))
-    }
-
-    fn populated(self) -> Option<MemorySlotModule> {
-        match self {
-            MemorySlot::Populated(slot_module) => Some(slot_module),
-            MemorySlot::Empty => None,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const RAPHAEL_CPUINFO_CORE: &str = "processor\t: 0\nvendor_id\t: AuthenticAMD\nmodel name\t: \
-                                        AMD Ryzen 9 7950X3D 16-Core Processor\nmicrocode\t: \
-                                        0xa60120c\nsiblings\t: 32\ncpu cores\t: 16\n";
-
-    const RAPHAEL_INXI_REPORT: &str = r#"[{"000#1#0#CPU":[{"004#1#2#arch":"Zen 4","008#0#2#built":"2022+","009#0#2#process":"TSMC n5 (5nm)","006#1#2#level":"v4","002#0#2#bits":64},{"018#1#3#cores":16}]}]"#;
-
-    const SOLDERED_LPDDR5: &str = "\
-E:MEMORY_DEVICE_0_SIZE=4294967296
-E:MEMORY_DEVICE_0_LOCATOR=Controller0-ChannelA
-E:MEMORY_DEVICE_0_TYPE=LPDDR5
-E:MEMORY_DEVICE_0_CONFIGURED_SPEED_MTS=8533
-E:MEMORY_DEVICE_0_MANUFACTURER=Samsung
-E:MEMORY_DEVICE_0_PART_NUMBER=Not Specified
-E:MEMORY_DEVICE_1_SIZE=4294967296
-E:MEMORY_DEVICE_1_LOCATOR=Controller0-ChannelB
-E:MEMORY_DEVICE_1_TYPE=LPDDR5
-E:MEMORY_DEVICE_1_CONFIGURED_SPEED_MTS=8533
-E:MEMORY_DEVICE_1_MANUFACTURER=Samsung
-E:MEMORY_DEVICE_2_LOCATOR=Controller1-ChannelA
-E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
-";
-
-    #[test]
-    fn cpuinfo_yields_name_microcode_and_topology() {
-        assert_eq!(
-            CpuIdentity::parse(RAPHAEL_CPUINFO_CORE),
-            CpuIdentity {
-                vendor: Some(CpuVendor::Amd),
-                name: Some("AMD Ryzen 9 7950X3D 16-Core Processor".to_owned()),
-                microcode: Some("0xa60120c".to_owned()),
-            }
-        );
-        assert_eq!(
-            CpuCoreCounts::parse(RAPHAEL_CPUINFO_CORE),
-            CpuCoreCounts {
-                cores: Some(16),
-                threads: Some(32),
-            }
-        );
-    }
-
-    #[test]
-    fn cpuinfo_vendor_covers_x86_and_arm_implementers() {
-        assert_eq!(
-            CpuVendor::reported_by_core("vendor_id\t: GenuineIntel\n"),
-            Some(CpuVendor::Intel)
-        );
-        assert_eq!(
-            CpuVendor::reported_by_core(
-                "processor\t: 0\nCPU implementer\t: 0x61\nCPU part\t: 0x022\n"
-            ),
-            Some(CpuVendor::Apple)
-        );
-        assert_eq!(
-            CpuVendor::reported_by_core("vendor_id\t: HygonGenuine\n"),
-            None
-        );
-    }
-
-    #[test]
-    fn inxi_report_fields_are_found_by_name() {
-        let report = serde_json::from_str(RAPHAEL_INXI_REPORT).unwrap();
-        assert_eq!(
-            CpuArchitecture::from(&report),
-            CpuArchitecture {
-                microarchitecture: Some("Zen 4".to_owned()),
-                process: Some("TSMC n5 (5nm)".to_owned()),
-                released: Some("2022+".to_owned()),
-                x86_64_level: Some("v4".to_owned()),
-            }
-        );
-    }
-
-    #[test]
-    fn shared_caches_are_counted_once_and_grouped_by_size() {
-        let unified = |level, size, shared_cpus: &str| CacheInstance {
-            position: CachePosition {
-                level,
-                kind: CacheKind::Unified,
-            },
-            size,
-            shared_cpus: shared_cpus.to_owned(),
-        };
-        let instances = [
-            unified(2, ByteSize::mib(1), "0,16"),
-            unified(2, ByteSize::mib(1), "1,17"),
-            unified(3, ByteSize::mib(32), "8-15,24-31"),
-            unified(2, ByteSize::mib(1), "0,16"),
-            unified(3, ByteSize::mib(96), "0-7,16-23"),
-            unified(3, ByteSize::mib(96), "0-7,16-23"),
-        ];
-        assert_eq!(
-            cache_levels_of(instances),
-            vec![
-                CacheLevel {
-                    position: CachePosition {
-                        level: 2,
-                        kind: CacheKind::Unified,
-                    },
-                    instances: vec![CacheInstances {
-                        size: ByteSize::mib(1),
-                        count: 2,
-                    }],
-                },
-                CacheLevel {
-                    position: CachePosition {
-                        level: 3,
-                        kind: CacheKind::Unified,
-                    },
-                    instances: vec![
-                        CacheInstances {
-                            size: ByteSize::mib(96),
-                            count: 1,
-                        },
-                        CacheInstances {
-                            size: ByteSize::mib(32),
-                            count: 1,
-                        },
-                    ],
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn populated_slots_are_kept_per_locator_and_empty_slots_skipped() {
-        let modules = memory_modules(&UdevProperties::parse(SOLDERED_LPDDR5));
-        let samsung_lpddr5 = MemorySlotModule {
-            locator: "Controller0-ChannelA".to_owned(),
-            module: MemoryModule {
-                manufacturer: Some("Samsung".to_owned()),
-                part_number: None,
-                kind: Some("LPDDR5".to_owned()),
-                speed_mts: Some(8533),
-                size: ByteSize::gib(4),
-            },
-        };
-        assert_eq!(modules.len(), 2);
-        assert_eq!(modules[0], samsung_lpddr5);
-        assert_eq!(modules[1].locator, "Controller0-ChannelB");
-    }
-
     #[test]
     fn firmware_placeholders_are_not_reported() {
-        assert_eq!(reported("  To Be Filled By O.E.M. "), None);
-        assert_eq!(reported("not specified"), None);
-        assert_eq!(reported(" BYD "), Some("BYD".to_owned()));
+        assert_eq!(
+            reported("  To Be Filled By O.E.M. "),
+            HardwareText::Unreported
+        );
+        assert_eq!(reported("not specified"), HardwareText::Unreported);
+        assert_eq!(reported(" BYD "), HardwareText::Reported("BYD".to_owned()));
     }
 
     #[test]

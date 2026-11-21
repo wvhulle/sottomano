@@ -7,6 +7,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::ChangeTriggerStreams,
+    host_machine_identity::udev_hardware_identity::{HardwareText, reported},
     system_protocol_clients::{
         dbus_desktop_buses::{
             BusReadError, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
@@ -39,6 +40,7 @@ trait Fwupd {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Urgency {
+    Unspecified,
     Low,
     Medium,
     High,
@@ -55,6 +57,7 @@ impl TryFrom<u32> for Urgency {
 
     fn try_from(code: u32) -> Result<Self, UnknownUrgencyCode> {
         match code {
+            0 => Ok(Urgency::Unspecified),
             1 => Ok(Urgency::Low),
             2 => Ok(Urgency::Medium),
             3 => Ok(Urgency::High),
@@ -68,6 +71,7 @@ impl Urgency {
     #[must_use]
     pub fn title(self) -> &'static str {
         match self {
+            Urgency::Unspecified => "Unspecified",
             Urgency::Low => "Low",
             Urgency::Medium => "Medium",
             Urgency::High => "High",
@@ -79,20 +83,33 @@ impl Urgency {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirmwareUpgrade {
     pub device: String,
-    pub vendor: Option<String>,
+    pub vendor: HardwareText,
     pub current_version: String,
     pub offered_version: String,
-    pub offered_released: Option<DateTime<Utc>>,
-    pub urgency: Option<Urgency>,
-    pub summary: Option<String>,
+    pub offered_released: FirmwareReleaseDate,
+    pub urgency: Urgency,
+    pub summary: ReleaseSummary,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FirmwareReleaseDate {
+    Dated(DateTime<Utc>),
+    #[default]
+    Undated,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReleaseSummary {
+    Summarized(String),
+    Unsummarized,
 }
 
 impl FirmwareUpgrade {
     #[must_use]
     pub fn severity(&self) -> Severity {
         match self.urgency {
-            Some(Urgency::High | Urgency::Critical) => Severity::Critical,
-            Some(Urgency::Low | Urgency::Medium) | None => Severity::Warning,
+            Urgency::High | Urgency::Critical => Severity::Critical,
+            Urgency::Unspecified | Urgency::Low | Urgency::Medium => Severity::Warning,
         }
     }
 }
@@ -185,7 +202,8 @@ impl FirmwareUpgrade {
     fn offered(device: &Properties, release: &Properties) -> Option<Self> {
         Some(Self {
             device: prop(device, "Name")?,
-            vendor: prop(device, "Vendor"),
+            vendor: prop::<String>(device, "Vendor")
+                .map_or(HardwareText::Unreported, |vendor| reported(&vendor)),
             current_version: prop(device, "Version")?,
             offered_version: prop(release, "Version")?,
             offered_released: prop::<u64>(release, "Created")
@@ -199,15 +217,17 @@ impl FirmwareUpgrade {
                         })
                         .ok()
                 })
-                .and_then(|seconds| DateTime::from_timestamp(seconds, 0)),
-            urgency: prop::<u32>(release, "Urgency").and_then(|code| {
-                Urgency::try_from(code)
-                    .inspect_err(|unknown_code| {
-                        tracing::warn!(?unknown_code, "firmware urgency code not recognised");
-                    })
-                    .ok()
+                .and_then(|seconds| DateTime::from_timestamp(seconds, 0))
+                .map_or(FirmwareReleaseDate::Undated, FirmwareReleaseDate::Dated),
+            urgency: prop::<u32>(release, "Urgency").map_or(Urgency::Unspecified, |code| {
+                Urgency::try_from(code).unwrap_or_else(|unknown_code| {
+                    tracing::warn!(?unknown_code, "firmware urgency code not recognised");
+                    Urgency::Unspecified
+                })
             }),
-            summary: prop(release, "Summary"),
+            summary: prop::<String>(release, "Summary")
+                .filter(|summary| !summary.is_empty())
+                .map_or(ReleaseSummary::Unsummarized, ReleaseSummary::Summarized),
         })
     }
 }

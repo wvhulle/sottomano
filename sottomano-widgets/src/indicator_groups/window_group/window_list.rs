@@ -29,7 +29,10 @@ use sottomano_desktop_sources::{
         nix_package_facts::{NixPackageFacts, PackageWatch},
         process_tree_inspection::{Inspection, Process, Watched},
         terminal_emulator_windows::{self, WindowProcesses},
-        unity_launcher_badges::{self, LauncherEntries, LauncherEntry},
+        unity_launcher_badges::{
+            self, LauncherCount, LauncherEntries, LauncherEntry, LauncherProgress,
+        },
+        window_title_labels::WindowCaption,
         workspace_window_snapshot,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
@@ -719,14 +722,21 @@ impl Extras<'_> {
         if config.indicator_groups.window.progress == ElementVisibility::Hidden {
             return None;
         }
-        self.job
-            .map(|percent| f32::from(percent) / 100.0)
-            .or_else(|| self.launcher?.progress)
+        if let Some(percent) = self.job {
+            return Some(f32::from(percent) / 100.0);
+        }
+        match self.launcher?.progress {
+            LauncherProgress::Shown(progress) => Some(progress),
+            LauncherProgress::Hidden => None,
+        }
     }
 
     fn count(&self, config: &Config) -> Option<i64> {
         match config.indicator_groups.window.count_badge {
-            ElementVisibility::Shown => self.launcher?.count,
+            ElementVisibility::Shown => match self.launcher?.count {
+                LauncherCount::Shown(count) => Some(count),
+                LauncherCount::Hidden => None,
+            },
             ElementVisibility::Hidden => None,
         }
     }
@@ -804,7 +814,10 @@ fn glyph_color(
 
 impl WindowSlot<'_> {
     fn attention(&self) -> WindowAttention {
-        let launcher_urgent = self.extras.launcher.is_some_and(|entry| entry.urgent);
+        let launcher_urgent = self
+            .extras
+            .launcher
+            .is_some_and(|entry| entry.urgency == Urgency::Urgent);
         if self.window_entry.urgency == Urgency::Urgent || launcher_urgent {
             WindowAttention::Urgent
         } else {
@@ -924,19 +937,21 @@ impl WindowSlot<'_> {
 
     fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let config = self.slot_context.config;
-        let title = self.window_entry.label.as_ref().map(|label| {
-            self.presentation.styled_title(
-                WindowTitle::new(label, config)
-                    .opacity(self.opacity)
-                    .wrapping(Wrapping::None),
-                self.tile_marking(),
-            )
-        });
-        Row::new()
-            .extend(self.badged_icon(icons))
-            .extend(title.map(|title| {
-                capped_window_title(title, config, self.slot_context.window_title_length)
-            }))
+        let title_row = Row::new().extend(self.badged_icon(icons));
+        let title_row = match &self.window_entry.caption {
+            WindowCaption::Labelled(label) => title_row.push(capped_window_title(
+                self.presentation.styled_title(
+                    WindowTitle::new(label, config)
+                        .opacity(self.opacity)
+                        .wrapping(Wrapping::None),
+                    self.tile_marking(),
+                ),
+                config,
+                self.slot_context.window_title_length,
+            )),
+            WindowCaption::Unlabelled => title_row,
+        };
+        title_row
             .extend(self.audio_glyph())
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
@@ -1043,6 +1058,7 @@ impl WindowSlot<'_> {
     fn slot_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListInteraction>> {
         let Some(brand_icon) = self
             .window_entry
+            .caption
             .program_name()
             .and_then(program_brand_icon)
         else {
@@ -1065,7 +1081,7 @@ impl WindowSlot<'_> {
     ) -> Option<Element<'a, WindowListInteraction>> {
         window_icon(
             icons.favicons,
-            self.window_entry.favicon_key(),
+            self.window_entry.caption.favicon_key(),
             icons.icon_for(self.window_entry),
             self.slot_context.config.theme.font.icon_size_px,
             self.opacity,

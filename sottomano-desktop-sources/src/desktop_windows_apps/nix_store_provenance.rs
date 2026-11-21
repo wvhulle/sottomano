@@ -12,10 +12,16 @@ const STORE: &str = "/nix/store/";
 const HASH_LEN: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageVersion {
+    Versioned(String),
+    Unversioned,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorePackage {
     pub root: PathBuf,
     pub name: String,
-    pub version: Option<String>,
+    pub version: PackageVersion,
 }
 
 impl StorePackage {
@@ -32,12 +38,12 @@ impl StorePackage {
             Some(start) => Self {
                 root,
                 name: named[..start].to_owned(),
-                version: Some(named[start + 1..].to_owned()),
+                version: PackageVersion::Versioned(named[start + 1..].to_owned()),
             },
             None => Self {
                 root,
                 name: named.to_owned(),
-                version: None,
+                version: PackageVersion::Unversioned,
             },
         })
     }
@@ -64,15 +70,44 @@ pub fn below_derivation(path: &str) -> Option<&str> {
         .map(|(_, below)| below)
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageRuntime {
+    WithinPackage,
+    Separate(StorePackage),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProfileProvider {
+    OutsideProfiles,
+    Provided(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchPackaging {
+    Unpackaged,
+    Packaged {
+        package: StorePackage,
+        runtime: PackageRuntime,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provenance {
-    pub package: Option<StorePackage>,
-    pub runtime: Option<StorePackage>,
+    pub packaging: LaunchPackaging,
     pub referenced: Vec<StorePackage>,
-    pub profile: Option<String>,
+    pub profile: ProfileProvider,
 }
 
 impl Provenance {
+    #[must_use]
+    pub fn untraced() -> Self {
+        Self {
+            packaging: LaunchPackaging::Unpackaged,
+            referenced: Vec::new(),
+            profile: ProfileProvider::OutsideProfiles,
+        }
+    }
+
     #[must_use]
     pub fn trace_launch(binary: &Path, arguments: &[String], app_id: &WindowAppId) -> Self {
         let executing = package(binary);
@@ -90,25 +125,35 @@ impl Provenance {
             }
             WindowAppId::Unreported => None,
         };
-        let package = identified.or_else(|| executing.clone());
-        let runtime = executing.filter(|exe| {
-            package
-                .as_ref()
-                .is_none_or(|primary| primary.name != exe.name)
-        });
+        let packaging = match identified.or_else(|| executing.clone()) {
+            None => LaunchPackaging::Unpackaged,
+            Some(package) => LaunchPackaging::Packaged {
+                runtime: match executing {
+                    Some(exe) if exe.name != package.name => PackageRuntime::Separate(exe),
+                    Some(_) | None => PackageRuntime::WithinPackage,
+                },
+                package,
+            },
+        };
+        let shown_names: Vec<&str> = match &packaging {
+            LaunchPackaging::Unpackaged => Vec::new(),
+            LaunchPackaging::Packaged {
+                package,
+                runtime: PackageRuntime::WithinPackage,
+            } => vec![package.name.as_str()],
+            LaunchPackaging::Packaged {
+                package,
+                runtime: PackageRuntime::Separate(runtime),
+            } => vec![package.name.as_str(), runtime.name.as_str()],
+        };
+        let referenced = candidates
+            .into_iter()
+            .filter(|found| !shown_names.contains(&found.name.as_str()))
+            .collect();
         Self {
-            referenced: candidates
-                .into_iter()
-                .filter(|found| {
-                    ![package.as_ref(), runtime.as_ref()]
-                        .into_iter()
-                        .flatten()
-                        .any(|shown| shown.name == found.name)
-                })
-                .collect(),
+            referenced,
             profile: profile(binary),
-            package,
-            runtime,
+            packaging,
         }
     }
 }
@@ -138,9 +183,13 @@ fn store_paths(argument: &str) -> impl Iterator<Item = StorePackage> + '_ {
         .filter_map(StorePackage::parse)
 }
 
-fn profile(exe: &Path) -> Option<String> {
-    let installed = package(exe)?;
-    let name = command_name(exe)?;
+fn profile(exe: &Path) -> ProfileProvider {
+    let Some(installed) = package(exe) else {
+        return ProfileProvider::OutsideProfiles;
+    };
+    let Some(name) = command_name(exe) else {
+        return ProfileProvider::OutsideProfiles;
+    };
     profile_roots()
         .filter_map(|root| {
             canonicalize(&root)
@@ -153,6 +202,7 @@ fn profile(exe: &Path) -> Option<String> {
                 .ok()
         })
         .find_map(|root| provider(&root, &name, &installed))
+        .map_or(ProfileProvider::OutsideProfiles, ProfileProvider::Provided)
 }
 
 fn profile_roots() -> impl Iterator<Item = PathBuf> {
@@ -220,12 +270,15 @@ fn command_name(exe: &Path) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn found(path: &str) -> Option<(String, Option<String>)> {
+    fn found(path: &str) -> Option<(String, PackageVersion)> {
         package(Path::new(path)).map(|found| (found.name, found.version))
     }
 
-    fn store(name: &str, version: Option<&str>) -> (String, Option<String>) {
-        (name.to_owned(), version.map(str::to_owned))
+    fn store(name: &str, version: &str) -> (String, PackageVersion) {
+        (
+            name.to_owned(),
+            PackageVersion::Versioned(version.to_owned()),
+        )
     }
 
     #[test]
@@ -249,27 +302,27 @@ mod tests {
     fn version_splits_at_first_dash_not_followed_by_a_letter() {
         assert_eq!(
             found("/nix/store/pbsm8dv4d5nhdmdr494ibwsq393cvka2-kitty-0.48.2/bin/.kitty-wrapped"),
-            Some(store("kitty", Some("0.48.2")))
+            Some(store("kitty", "0.48.2"))
         );
         assert_eq!(
             found("/nix/store/hgc5zar9zz8lzsxwhyc0m7yw8i68a97z-electron-unwrapped-43.2.0/libexec"),
-            Some(store("electron-unwrapped", Some("43.2.0")))
+            Some(store("electron-unwrapped", "43.2.0"))
         );
         assert_eq!(
             found("/nix/store/bfqsxlviikq7vlp36kasy5hhamlxlkd2-nodejs-slim-24.19.0/bin/node"),
-            Some(store("nodejs-slim", Some("24.19.0")))
+            Some(store("nodejs-slim", "24.19.0"))
         );
         assert_eq!(
             found("/nix/store/65pq3m921w1d0ks0d79i7is78w6pv2r0-nu-inline-diagnostics-0.114.2/bin"),
-            Some(store("nu-inline-diagnostics", Some("0.114.2")))
+            Some(store("nu-inline-diagnostics", "0.114.2"))
         );
         assert_eq!(
             found("/nix/store/v8llyqw71lygr2llhmcc8ya5bdlzq45v-bash-5.3p9/bin/bash"),
-            Some(store("bash", Some("5.3p9")))
+            Some(store("bash", "5.3p9"))
         );
         assert_eq!(
             found("/nix/store/0gcdf9qcnxgjbq88wf8grvh217z9iqfh-spotify-1.2.92.147.g5b8f9367/bin"),
-            Some(store("spotify", Some("1.2.92.147.g5b8f9367")))
+            Some(store("spotify", "1.2.92.147.g5b8f9367"))
         );
     }
 
@@ -277,7 +330,7 @@ mod tests {
     fn unversioned_derivation_keeps_whole_name() {
         assert_eq!(
             found("/nix/store/r0q93kwqisbgskg5h9iyzkrncz7gb5lm-claude-code/bin/claude"),
-            Some(store("claude-code", None))
+            Some(("claude-code".to_owned(), PackageVersion::Unversioned))
         );
     }
 

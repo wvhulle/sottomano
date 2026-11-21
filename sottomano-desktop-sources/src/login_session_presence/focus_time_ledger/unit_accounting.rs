@@ -5,7 +5,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
     Accounting,
-    focus_units::FocusUnit,
+    focus_units::{DailyBudget, FocusUnit},
     recorded_spans::FocusPiece,
     time_intervals::{Interval, LAST_DAY, merged, overlaps_with},
 };
@@ -15,7 +15,7 @@ use crate::ai_usage_spend::usage_quota::Quota;
 pub struct UnitTotal {
     pub unit: FocusUnit,
     pub spent: TimeDelta,
-    pub budget: Option<TimeDelta>,
+    pub budget: DailyBudget,
 }
 
 impl Accounting<'_> {
@@ -160,14 +160,15 @@ impl Accounting<'_> {
 impl UnitTotal {
     #[must_use]
     pub fn budget_status(&self, now: DateTime<Utc>) -> Option<BudgetStatus> {
-        self.budget.map(|budget| {
-            BudgetStatus::within_last_day(
-                Cow::Owned(self.unit.label().into_owned()),
-                self.spent,
-                budget,
-                now,
-            )
-        })
+        let DailyBudget::Limited(budget) = self.budget else {
+            return None;
+        };
+        Some(BudgetStatus::within_last_day(
+            Cow::Owned(self.unit.label().into_owned()),
+            self.spent,
+            budget,
+            now,
+        ))
     }
 }
 

@@ -19,14 +19,19 @@ use sottomano_desktop_sources::{
         desktop_entries::DesktopEntries,
         nix_flake_pin::FlakePin,
         nix_package_facts::{
-            ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
-            UpstreamState,
+            ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, NixpkgsListing,
+            Origin, PackageHomepage, PackageLicense, Upstream, UpstreamState,
         },
-        nix_store_provenance::{Provenance, StorePackage},
-        process_tree_inspection::{Inspection, Launch, Process},
+        nix_store_provenance::{
+            LaunchPackaging, PackageRuntime, PackageVersion, ProfileProvider, Provenance,
+            StorePackage,
+        },
+        process_tree_inspection::{CgroupScope, Inspection, Launch, LaunchBinary, Process},
         terminal_emulator_windows::{
             WindowProcesses,
-            terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
+            terminal_shell_label::{
+                ForegroundActivity, ForegroundProgramName, TerminalShellLabel, WorkingLocation,
+            },
         },
         workspace_window_snapshot::Snapshot,
     },
@@ -288,7 +293,7 @@ fn terminal_label_in(
 fn typed_command(command_line: &str) -> ForegroundActivity {
     ForegroundActivity::ShellCommand {
         command_line: command_line.to_owned(),
-        program_name: None,
+        program_name: ForegroundProgramName::Unidentified,
     }
 }
 
@@ -460,7 +465,7 @@ fn foot_store_package() -> StorePackage {
     StorePackage {
         root: PathBuf::from("/nix/store/7rj0kcq2w9j8foot-1.23.1"),
         name: "foot".to_owned(),
-        version: Some("1.23.1".to_owned()),
+        version: PackageVersion::Versioned("1.23.1".to_owned()),
     }
 }
 
@@ -469,15 +474,17 @@ fn terminal_inspection() -> Inspection {
     Inspection {
         pid: TERMINAL_PID,
         launch: Launch {
-            binary: Some(foot.root.join("bin/foot")),
+            binary: LaunchBinary::Resolved(foot.root.join("bin/foot")),
             arguments: Vec::new(),
-            scope: Some("niri.service".to_owned()),
+            scope: CgroupScope::Unit("niri.service".to_owned()),
         },
         provenance: Provenance {
-            package: Some(foot),
-            runtime: None,
+            packaging: LaunchPackaging::Packaged {
+                package: foot,
+                runtime: PackageRuntime::WithinPackage,
+            },
             referenced: Vec::new(),
-            profile: Some("home-manager-path".to_owned()),
+            profile: ProfileProvider::Provided("home-manager-path".to_owned()),
         },
     }
 }
@@ -494,14 +501,13 @@ fn terminal_package_facts() -> NixPackageFacts {
             by: vec!["cache.nixos.org-1".to_owned()],
         },
         registered: showcase_epoch() - Duration::from_hours(9 * 24),
-        nixpkgs: Some(NixpkgsEntry {
+        nixpkgs: NixpkgsListing::Listed(NixpkgsEntry {
             definition: Definition {
                 file: "pkgs/by-name/fo/foot/package.nix".to_owned(),
                 url: "https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/fo/foot/package.nix".to_owned(),
             },
-            homepage: Some("https://codeberg.org/dnkl/foot".to_owned()),
-            description: Some("Fast, lightweight and minimalistic Wayland terminal emulator".to_owned()),
-            license: Some("MIT".to_owned()),
+            homepage: PackageHomepage::Listed("https://codeberg.org/dnkl/foot".to_owned()),
+            license: PackageLicense::Spdx("MIT".to_owned()),
             generation: Generation::Rebuilt {
                 version: "1.23.2".to_owned(),
             },
@@ -509,11 +515,11 @@ fn terminal_package_facts() -> NixPackageFacts {
                 version: "1.23.4".to_owned(),
             },
         }),
-        upstream: Some(Upstream {
+        upstream: Upstream {
             branch: "nixos-unstable".to_owned(),
             state: UpstreamState::Newer {
                 version: "1.24.0".to_owned(),
             },
-        }),
+        },
     }
 }

@@ -71,7 +71,7 @@ mod tests {
 
     use super::*;
 
-    fn window_of(outcomes: &[ProbeOutcome]) -> ProbeWindow {
+    fn recorded_probe_window(outcomes: &[ProbeOutcome]) -> ProbeWindow {
         outcomes.iter().fold(
             ProbeWindow::empty(IpAddr::V4(Ipv4Addr::LOCALHOST)),
             |window, outcome| window.recorded(*outcome),
@@ -80,13 +80,14 @@ mod tests {
 
     #[test]
     fn fast_answers_without_loss_are_quiet() {
-        let window = window_of(&[ProbeOutcome::Answered(Duration::from_millis(12)); 10]);
+        let window =
+            recorded_probe_window(&[ProbeOutcome::Answered(Duration::from_millis(12)); 10]);
         assert_eq!(probe_window_severity(&window), Severity::Normal);
     }
 
     #[test]
     fn heavy_loss_is_critical_even_when_answers_are_fast() {
-        let window = window_of(&[
+        let window = recorded_probe_window(&[
             ProbeOutcome::Answered(Duration::from_millis(12)),
             ProbeOutcome::Lost,
             ProbeOutcome::Lost,
@@ -97,7 +98,7 @@ mod tests {
 
     #[test]
     fn no_answers_at_all_is_critical() {
-        let window = window_of(&[ProbeOutcome::Lost; 3]);
+        let window = recorded_probe_window(&[ProbeOutcome::Lost; 3]);
         assert_eq!(probe_window_severity(&window), Severity::Critical);
     }
 }

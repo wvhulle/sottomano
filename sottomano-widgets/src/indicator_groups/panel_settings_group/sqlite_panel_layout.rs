@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_state_store, real, with_state_store,
+    Columns, StoreError, flag_set_when, in_state_store, real, with_state_store,
 };
 
 use super::{GroupCollapsing, PanelGroupFraming, PanelLayout};
@@ -51,8 +51,8 @@ pub(super) async fn write_layout(
              ON CONFLICT(id) DO UPDATE SET disconnected_groups = ?1, auto_collapse_groups = ?2, \
              float_offset_px = ?3",
             (
-                flag(panel_layout.group_framing == PanelGroupFraming::Disconnected),
-                flag(panel_layout.group_collapsing == GroupCollapsing::OnFocusLoss),
+                flag_set_when(panel_layout.group_framing, PanelGroupFraming::Disconnected),
+                flag_set_when(panel_layout.group_collapsing, GroupCollapsing::OnFocusLoss),
                 real(panel_layout.float_offset_px),
             ),
         )

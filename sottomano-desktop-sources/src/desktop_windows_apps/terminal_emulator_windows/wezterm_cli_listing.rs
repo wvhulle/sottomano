@@ -62,7 +62,7 @@ fn shown_panes(panes: Vec<WeztermPane>) -> Vec<ShownWeztermPane> {
         .collect()
 }
 
-fn socket_of(wezterm_pid: i32) -> Option<PathBuf> {
+fn wezterm_socket_path(wezterm_pid: i32) -> Option<PathBuf> {
     child_pids(wezterm_pid).into_iter().find_map(|child| {
         let environment = Proc::new(child)
             .and_then(|child_process| child_process.environ())
@@ -83,7 +83,7 @@ fn list_panes(wezterm_pid: i32) -> io::Result<Vec<WeztermPane>> {
         .exe()
         .map_err(io::Error::other)?;
     let cli_binary = gui_binary.with_file_name(CLI_BINARY);
-    let socket = socket_of(wezterm_pid)
+    let socket = wezterm_socket_path(wezterm_pid)
         .ok_or_else(|| io::Error::other("wezterm exposes no unix socket to its shells"))?;
     let listing = Command::new(cli_binary)
         .env(SOCKET_VARIABLE, socket)

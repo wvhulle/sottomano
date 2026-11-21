@@ -1,5 +1,6 @@
 use sottomano_desktop_sources::cpu_memory_compute::{
-    pci_gpu_samples::GpuTemperatureLimits, temperature_thresholds::celsius_text,
+    pci_gpu_samples::{GpuTemperatureLimits, GpuTemperatureThreshold},
+    temperature_thresholds::celsius_text,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::ThermodynamicTemperature;
@@ -14,7 +15,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
-        ongoing_toast::{IndicatorAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{IndicatorAlerts, NotificationBody, NotificationProgress, StateToast},
         value_cells::LabeledValue,
     },
 };
@@ -43,8 +44,8 @@ impl GpuTemperatureLabel {
             state_toast: StateToast::NotifyFromSeverity {
                 minimum_severity: Severity::Critical,
                 summary_text: "GPU overheating",
-                body: ToastBody::Text(label),
-                progress: ToastProgress::Unmeasured,
+                body: NotificationBody::Text(label),
+                progress: NotificationProgress::Unmeasured,
             },
             ..IndicatorAlerts::default()
         })
@@ -52,9 +53,7 @@ impl GpuTemperatureLabel {
     }
 
     fn display_state(&self) -> IndicatorState {
-        let reached = |limit: Option<ThermodynamicTemperature>| {
-            limit.is_some_and(|limit| self.current >= limit)
-        };
+        let reached = |threshold: GpuTemperatureThreshold| matches!(threshold, GpuTemperatureThreshold::Reported(limit) if self.current >= limit);
         if reached(self.limits.slowdown) {
             Severity::Critical.into()
         } else if reached(self.limits.target_max) {
@@ -65,6 +64,19 @@ impl GpuTemperatureLabel {
     }
 
     pub fn hover_card(&self) -> Vec<Section> {
+        let mut threshold_rows = Vec::new();
+        if let GpuTemperatureThreshold::Reported(target) = self.limits.target_max {
+            threshold_rows.push(LabeledValue::new(
+                "Target maximum",
+                Quantity::temperature(target),
+            ));
+        }
+        if let GpuTemperatureThreshold::Reported(slowdown) = self.limits.slowdown {
+            threshold_rows.push(LabeledValue::new(
+                "Slows down at",
+                Quantity::temperature(slowdown),
+            ));
+        }
         vec![
             Section::new(
                 "Now",
@@ -73,21 +85,7 @@ impl GpuTemperatureLabel {
                     Quantity::temperature(self.current),
                 )]),
             ),
-            Section::new(
-                "Thresholds",
-                dictionary_table(
-                    [
-                        self.limits.target_max.map(|target| {
-                            LabeledValue::new("Target maximum", Quantity::temperature(target))
-                        }),
-                        self.limits.slowdown.map(|slowdown| {
-                            LabeledValue::new("Slows down at", Quantity::temperature(slowdown))
-                        }),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                ),
-            ),
+            Section::new("Thresholds", dictionary_table(threshold_rows)),
         ]
     }
 }

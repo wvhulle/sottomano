@@ -8,15 +8,21 @@ mod time_until_full;
 use std::time::Duration;
 
 pub use charge_power_by_state_of_charge::{
-    CHARGE_BINS, ChargeCurve, CurveHistory, PowerBin, bin_of,
+    CHARGE_BINS, ChargeCurve, CurveHistory, PowerBin, charge_bin_index,
 };
 pub use discharge_power_regression::RegressionState;
 pub use time_until_empty::time_until_empty;
 pub use time_until_full::time_until_full;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LatestBound {
+    Within(Duration),
+    Unbounded,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Estimate {
     pub time: Duration,
     pub earliest: Duration,
-    pub latest: Option<Duration>,
+    pub latest: LatestBound,
 }

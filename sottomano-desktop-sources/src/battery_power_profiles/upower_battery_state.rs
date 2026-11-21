@@ -24,7 +24,9 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
-    host_machine_identity::udev_hardware_identity::{DeviceIdentity, sysfs_attribute},
+    host_machine_identity::udev_hardware_identity::{
+        DeviceIdentity, HardwareText, sysfs_attribute,
+    },
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::DesktopBuses,
@@ -110,12 +112,13 @@ pub struct Battery {
     pub charge_behaviour: ChargeBehaviour,
     pub serial: String,
     pub identity: DeviceIdentity,
-    pub technology: Option<String>,
+    pub technology: HardwareText,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ChargerSupply {
-    pub limit: Option<ChargerLimit>,
+pub enum ChargerSupply {
+    Online(ChargerLimit),
+    NoChargerOnline,
 }
 
 impl SnapshotSource for ChargerSupply {
@@ -133,11 +136,13 @@ impl SnapshotSource for ChargerSupply {
 
 impl ChargerSupply {
     fn poll(_key: ()) -> impl Future<Output = Result<Self, FileReadError>> + Send {
-        ready(Ok(ChargerSupply {
-            limit: list_dir(POWER_SUPPLY)
-                .iter()
-                .find_map(|supply| ChargerLimit::read_online_supply(supply)),
-        }))
+        ready(Ok(list_dir(POWER_SUPPLY)
+            .iter()
+            .find_map(|supply| ChargerLimit::read_online_supply(supply))
+            .map_or(
+                ChargerSupply::NoChargerOnline,
+                ChargerSupply::Online,
+            )))
     }
 }
 
@@ -240,8 +245,8 @@ trait UPower {
 
 fn present(system: Connection) -> impl Stream<Item = Availability> + Send {
     subscribed(system, device_changes).map(|present| {
-        present.unwrap_or_else(|e| {
-            tracing::warn!("upower device watch: {e}");
+        present.unwrap_or_else(|error| {
+            tracing::warn!("upower device watch: {error}");
             battery_availability()
         })
     })
@@ -337,10 +342,11 @@ const POWER_SUPPLY: &str = "/sys/class/power_supply";
 fn first_power_supply(prefix: &str) -> Option<PathBuf> {
     let mut entries: Vec<PathBuf> = list_dir(POWER_SUPPLY)
         .into_iter()
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with(prefix))
+        .filter(|entry_path| {
+            entry_path
+                .file_name()
+                .and_then(|file_name| file_name.to_str())
+                .is_some_and(|file_name| file_name.starts_with(prefix))
         })
         .collect();
     entries.sort();
@@ -362,7 +368,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
             identity: DeviceIdentity::default(),
-            technology: None,
+            technology: HardwareText::Unreported,
         }
     }
 

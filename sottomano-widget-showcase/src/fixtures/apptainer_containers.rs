@@ -3,7 +3,10 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    apptainer_containers::{ApptainerContainer, ApptainerContainerListing},
+    apptainer_containers::{
+        ApptainerContainer, ApptainerContainerListing, ApptainerImage, ContainedCommand,
+        ContainerOwner,
+    },
     container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -29,10 +32,13 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                         container_name: "pytorch_24.08".to_owned(),
                     },
                     runtime_title: "Apptainer runtime parent".to_owned(),
-                    image_file: Some(PathBuf::from("/home/user/images/pytorch_24.08.sif")),
-                    running_command: Some("python3 train.py --epochs 40".to_owned()),
-                    owner_uid: 1000,
-                    owner_name: Some("user".to_owned()),
+                    image_file: ApptainerImage::LoopMounted(PathBuf::from(
+                        "/home/user/images/pytorch_24.08.sif",
+                    )),
+                    running_command: ContainedCommand::Running(
+                        "python3 train.py --epochs 40".to_owned(),
+                    ),
+                    owner: ContainerOwner::Account("user".to_owned()),
                     started_at: clock.wall - Duration::from_mins(73),
                     memory_in_use: ByteSize::mib(5_870),
                 }],

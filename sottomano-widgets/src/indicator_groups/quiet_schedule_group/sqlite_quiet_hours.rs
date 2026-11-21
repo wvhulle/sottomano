@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
 use sottomano_desktop_sources::sqlite_state_store::{
-    StoreError, flag, in_state_store, singleton_row, with_state_store,
+    StoreError, flag_set_when, in_state_store, singleton_row, with_state_store,
 };
 
 use crate::indicator_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
@@ -88,7 +88,10 @@ async fn write_schedule(
          VALUES (0, ?1, ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET follows_schedule = ?1, start_minutes = ?2, end_minutes = ?3",
             (
-                flag(schedule.schedule_adherence == QuietScheduleAdherence::Followed),
+                flag_set_when(
+                    schedule.schedule_adherence,
+                    QuietScheduleAdherence::Followed,
+                ),
                 minutes_since_midnight(schedule.start),
                 minutes_since_midnight(schedule.end),
             ),

@@ -6,7 +6,7 @@ use iced::{
 use iced_test::Simulator;
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        status_notifier_tray::{Status, TrayItem, TrayItemIcon},
+        status_notifier_tray::{Status, TrayItem, TrayItemIcon, TrayMenuPath, TrayTooltip},
         window_edge_placement::WindowOwner,
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -30,10 +30,10 @@ fn item_needing_attention() -> TrayItem {
         address: ":1.4167".to_owned(),
         owner: OwnerProcess::Identified(4167),
         id: "chat".to_owned(),
-        title: None,
+        name: "chat".to_owned(),
         status: Status::NeedsAttention,
-        tooltip: None,
-        menu_path: None,
+        tooltip: TrayTooltip::NoTooltip,
+        menu_path: TrayMenuPath::NotExported,
         icon: TrayItemIcon::NoIcon,
         menu: Vec::new(),
     }

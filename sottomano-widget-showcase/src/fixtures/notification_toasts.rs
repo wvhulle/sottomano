@@ -12,7 +12,10 @@ use sottomano_compositor_model::{
     },
 };
 use sottomano_desktop_sources::desktop_notifications::{
-    notification_data::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
+    notification_data::{
+        ActionTint, ExpireTimeout, NotifAction, NotificationBody, NotificationData,
+        NotificationProgress, NotifyingAppName, SenderWindowHint,
+    },
     spec_hints::SoundRequest,
 };
 use sottomano_toml_config::severity::Severity;
@@ -77,9 +80,9 @@ pub const WINDOW_SUMMARY: &str = "Build finished";
 pub fn arrival() -> ShowcasedGroup {
     desk(NotificationData {
         id: ARRIVAL_TOAST,
-        app_name: Some("Calendar".to_owned()),
+        app_name: NotifyingAppName::Named("Calendar".to_owned()),
         summary: ARRIVAL_SUMMARY.to_owned(),
-        body: Some("Room 2 with the platform team".to_owned()),
+        body: NotificationBody::Text("Room 2 with the platform team".to_owned()),
         expire_timeout: ExpireTimeout::After(Duration::from_secs(3)),
         ..quiet_toast()
     })
@@ -92,9 +95,9 @@ pub fn progress() -> ShowcasedGroup {
 pub fn actions() -> ShowcasedGroup {
     desk(NotificationData {
         id: ACTIONS_TOAST,
-        app_name: Some("Calendar".to_owned()),
+        app_name: NotifyingAppName::Named("Calendar".to_owned()),
         summary: ACTIONS_SUMMARY.to_owned(),
-        body: Some("Design review, Thursday 14:00".to_owned()),
+        body: NotificationBody::Text("Design review, Thursday 14:00".to_owned()),
         actions: vec![
             action("accept", "Accept"),
             action("later", "Later"),
@@ -108,10 +111,10 @@ pub fn actions() -> ShowcasedGroup {
 pub fn next_to_window() -> ShowcasedGroup {
     desk(NotificationData {
         id: WINDOW_TOAST,
-        app_name: Some("foot".to_owned()),
+        app_name: NotifyingAppName::Named("foot".to_owned()),
         summary: WINDOW_SUMMARY.to_owned(),
-        body: Some("cargo build finished in 42 s".to_owned()),
-        window_id_hint: Some(EDITOR_WINDOW),
+        body: NotificationBody::Text("cargo build finished in 42 s".to_owned()),
+        window_id_hint: SenderWindowHint::Window(EDITOR_WINDOW),
         expire_timeout: ExpireTimeout::Never,
         ..quiet_toast()
     })
@@ -128,10 +131,10 @@ fn download(tick: u32) -> NotificationData {
     let done = (f64::from(tick) * PROGRESS_STEP_PERCENT).min(100.0);
     NotificationData {
         id: PROGRESS_TOAST,
-        app_name: Some("Downloads".to_owned()),
+        app_name: NotifyingAppName::Named("Downloads".to_owned()),
         summary: "nixos-25.11.iso".to_owned(),
-        body: Some("Downloading".to_owned()),
-        progress: Some(Ratio::new::<percent>(done)),
+        body: NotificationBody::Text("Downloading".to_owned()),
+        progress: NotificationProgress::Measured(Ratio::new::<percent>(done)),
         expire_timeout: ExpireTimeout::Never,
         ..quiet_toast()
     }
@@ -155,8 +158,8 @@ fn action(key: &str, label: &str) -> NotifAction {
 
 fn desk(opening: NotificationData) -> ShowcasedGroup {
     let editor_view = match opening.window_id_hint {
-        Some(_) => EDITOR_POSITION_IN_VIEW,
-        None => TileViewPosition::OutsideView,
+        SenderWindowHint::Window(_) => EDITOR_POSITION_IN_VIEW,
+        SenderWindowHint::Unhinted => TileViewPosition::OutsideView,
     };
     let compositor =
         CompositorWindowState::indexed_by_id([desk_workspace()], [editor_window(editor_view)]);

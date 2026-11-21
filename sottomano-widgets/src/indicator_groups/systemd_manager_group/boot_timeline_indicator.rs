@@ -4,7 +4,10 @@ use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
-    systemd_units_journal::boot_timeline::{BootTimeline, DurationComparison, RankedActivations},
+    systemd_units_journal::boot_timeline::{
+        BootTimeline, DurationComparison, PreviousBootComparison, RankedActivations,
+        UserStartupProgress,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -57,12 +60,10 @@ fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
 }
 
 pub(super) fn boot_timeline_hover_card(timeline: &BootTimeline) -> Vec<Section> {
-    let comparison = timeline.startup_comparison.as_ref();
-    let login_gap = timeline
-        .user_startup
-        .as_ref()
-        .and_then(|user| user.started_at.checked_sub(timeline.system_startup.finish));
-    let session = timeline.user_startup.as_ref().map(|user| user.duration);
+    let comparison = match &timeline.startup_comparison {
+        PreviousBootComparison::Compared(comparison) => Some(comparison),
+        PreviousBootComparison::NoPreviousBoot => None,
+    };
     let stage_records = timeline.phases.present().into_iter().map(|phase| {
         timeline_record(
             phase.stage.name(),
@@ -73,24 +74,25 @@ pub(super) fn boot_timeline_hover_card(timeline: &BootTimeline) -> Vec<Section> 
     });
     let os_startup_total = timeline_record(
         "OS startup",
-        timeline.phases.os_startup().total(),
+        timeline.phases.os_startup.total(),
         comparison.map(|comparison| &comparison.os_startup),
         "kernel, initrd and userspace together, shown on the bar",
     );
-    let login_records: Vec<TableRecord<2>> = [
-        login_gap
-            .map(|gap| login_record("login", gap, "waiting for the first user session manager")),
-        session.map(|duration| {
-            login_record(
-                "user session",
-                duration,
-                "user systemd starting units until the default target",
-            )
-        }),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let mut login_records: Vec<TableRecord<2>> = Vec::new();
+    if let UserStartupProgress::Finished(user) = &timeline.user_startup {
+        if let Some(gap) = user.started_at.checked_sub(timeline.system_startup.finish) {
+            login_records.push(login_record(
+                "login",
+                gap,
+                "waiting for the first user session manager",
+            ));
+        }
+        login_records.push(login_record(
+            "user session",
+            user.duration,
+            "user systemd starting units until the default target",
+        ));
+    }
     let caption = match comparison {
         Some(_) => {
             "Difference is this boot against the previous one in the journal. Firmware and loader \
@@ -134,23 +136,22 @@ pub(super) fn boot_timeline_indicator(
     locale: Locale,
 ) -> GroupIndicator<'_> {
     let label = match &timeline.startup_comparison {
-        Some(comparison) => {
+        PreviousBootComparison::Compared(comparison) => {
             Quantity::signed_share(comparison.os_startup.change).localized_text(locale)
         }
-        None => duration_text(
-            Duration::from_secs(timeline.phases.os_startup().total().as_secs()),
+        PreviousBootComparison::NoPreviousBoot => duration_text(
+            Duration::from_secs(timeline.phases.os_startup.total().as_secs()),
             locale,
         ),
     };
     let base = GroupIndicator::glyph_only(
         BootTimeline::NAME,
         Phosphor::RocketLaunch(Weight::Regular).into(),
-        timeline
-            .startup_comparison
-            .as_ref()
-            .map(|comparison| comparison.os_startup.severity)
-            .unwrap_or_default()
-            .into(),
+        match &timeline.startup_comparison {
+            PreviousBootComparison::Compared(comparison) => comparison.os_startup.severity,
+            PreviousBootComparison::NoPreviousBoot => Severity::default(),
+        }
+        .into(),
     )
     .with_hover_card(Box::new(move |_| boot_timeline_hover_card(timeline)));
     base.with_label(ReadoutLabel::Labeled(label))
@@ -166,39 +167,29 @@ impl<'a> StartupUnits<'a> {
             .system_startup
             .slowest_units
             .slow_count()
-            .checked_add(
-                self.timeline
-                    .user_startup
-                    .as_ref()
-                    .map_or(0, |user| user.slowest_units.slow_count()),
-            )
+            .checked_add(match &self.timeline.user_startup {
+                UserStartupProgress::Finished(user) => user.slowest_units.slow_count(),
+                UserStartupProgress::AwaitingLogin => 0,
+            })
             .expect("fewer than usize::MAX units are slow to start")
     }
 
     fn state(&self) -> IndicatorState {
-        let slowness_state = |ranked: &RankedActivations| -> IndicatorState {
+        let slowest_severity = |ranked: &RankedActivations| -> Severity {
             ranked
                 .slowest_first
                 .iter()
                 .map(|activation| activation.severity)
                 .max()
                 .unwrap_or_default()
-                .into()
         };
-        let user_state = self
-            .timeline
-            .user_startup
-            .as_ref()
-            .map(|user| slowness_state(&user.slowest_units));
-        [
-            Some(slowness_state(&self.timeline.system_startup.slowest_units)),
-            user_state,
-        ]
-        .into_iter()
-        .flatten()
-        .map(IndicatorState::severity)
-        .max()
-        .unwrap_or_default()
+        let system_severity = slowest_severity(&self.timeline.system_startup.slowest_units);
+        match &self.timeline.user_startup {
+            UserStartupProgress::Finished(user) => {
+                system_severity.max(slowest_severity(&user.slowest_units))
+            }
+            UserStartupProgress::AwaitingLogin => system_severity,
+        }
         .into()
     }
 
@@ -219,22 +210,17 @@ impl<'a> StartupUnits<'a> {
                 })),
             )
         };
-        let user_section = self
-            .timeline
-            .user_startup
-            .as_ref()
-            .map(|user| blame_section(&user.slowest_units, "Slowest user units at login"));
-        let sections: Vec<Section> = [
-            Some(blame_section(
-                &self.timeline.system_startup.slowest_units,
-                "Slowest system units at boot",
-            )),
-            user_section,
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        sections.into_iter().collect::<Vec<_>>()
+        let mut sections = vec![blame_section(
+            &self.timeline.system_startup.slowest_units,
+            "Slowest system units at boot",
+        )];
+        if let UserStartupProgress::Finished(user) = &self.timeline.user_startup {
+            sections.push(blame_section(
+                &user.slowest_units,
+                "Slowest user units at login",
+            ));
+        }
+        sections
     }
 
     pub fn indicator(self) -> GroupIndicator<'a> {

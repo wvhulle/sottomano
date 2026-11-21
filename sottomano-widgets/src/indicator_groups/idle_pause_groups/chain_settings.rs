@@ -44,7 +44,7 @@ impl IdlePauseGroups {
         let capability = self
             .sleep_obstacles
             .get()
-            .map(|obstacles| obstacles.capability_of(SleepState::SuspendThenHibernate));
+            .map(|obstacles| obstacles.sleep_state_capability(SleepState::SuspendThenHibernate));
         match capability_availability(capability) {
             ActionAvailability::Available => SuspendThenHibernateSupport::Permitted,
             ActionAvailability::Unavailable => SuspendThenHibernateSupport::Refused,

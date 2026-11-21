@@ -144,7 +144,7 @@ fn backlights(samples: Vec<BacklightSample>) -> Vec<Backlight> {
             }
         })
         .collect();
-    list.sort_by(|a, b| a.serial.cmp(&b.serial));
+    list.sort_by(|left_display, right_display| left_display.serial.cmp(&right_display.serial));
     list
 }
 
@@ -177,7 +177,7 @@ fn internal_names() -> HashSet<String> {
 pub fn internal_brightness_frac() -> Option<f64> {
     let panel = first_backlight()?;
     let current = read_i64(panel.join("brightness"))?;
-    let max = read_i64(panel.join("max_brightness")).filter(|m| *m > 0)?;
+    let max = read_i64(panel.join("max_brightness")).filter(|max_level| *max_level > 0)?;
     Some((current as f64 / max as f64).clamp(0.0, 1.0))
 }
 

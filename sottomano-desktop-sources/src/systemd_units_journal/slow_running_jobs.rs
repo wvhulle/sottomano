@@ -1,10 +1,11 @@
 use std::time::{Duration, Instant, SystemTime};
 
-use futures::{Stream, StreamExt, future::join_all};
+use futures::{Stream, StreamExt, stream};
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    JobRow, ManagerProxy, ServiceProxy, SystemdUnitScope, manager_signal, state_changed_at,
+    JobRow, ManagerProxy, ServiceProxy, SystemdUnitScope, UNIT_PROPERTY_READS_IN_FLIGHT,
+    UnitStateChange, manager_signal, state_changed_at,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -69,20 +70,25 @@ struct RunningJob {
     id: u32,
     unit: String,
     job_type: String,
-    started_at: Option<SystemTime>,
-    runs_oneshot_service: bool,
+    started_at: UnitStateChange,
+    startup_kind: UnitStartupKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnitStartupKind {
+    OneshotService,
+    NotOneshotService,
 }
 
 impl RunningJob {
-    fn runs_until_work_finishes(&self) -> bool {
-        self.runs_oneshot_service && self.job_type == START_JOB_TYPE
-    }
-
     fn slow_from(&self, slow_after: Duration) -> Option<SystemTime> {
-        if self.runs_until_work_finishes() {
+        if self.startup_kind == UnitStartupKind::OneshotService && self.job_type == START_JOB_TYPE {
             return None;
         }
-        Some(self.started_at? + slow_after)
+        let UnitStateChange::At(started_at) = self.started_at else {
+            return None;
+        };
+        Some(started_at + slow_after)
     }
 }
 
@@ -145,7 +151,9 @@ fn slow_jobs(running: &[RunningJob], slow_after: Duration, now: SystemTime) -> V
     running
         .iter()
         .filter_map(|job| {
-            let started_at = job.started_at?;
+            let UnitStateChange::At(started_at) = job.started_at else {
+                return None;
+            };
             (job.slow_from(slow_after)? <= now).then(|| SlowJob {
                 unit: job.unit.clone(),
                 job_type: job.job_type.clone(),
@@ -158,17 +166,19 @@ fn slow_jobs(running: &[RunningJob], slow_after: Duration, now: SystemTime) -> V
 async fn running_jobs(manager: &ManagerProxy<'static>) -> zbus::Result<Vec<RunningJob>> {
     let rows = manager.list_jobs().await?;
     let connection = manager.inner().connection();
-    Ok(join_all(
+    Ok(stream::iter(
         rows.into_iter()
-            .filter(|row| row.state == RUNNING_JOB_STATE)
-            .map(|row| running_job(connection, row)),
+            .filter(|row| row.state == RUNNING_JOB_STATE),
     )
+    .map(|row| running_job(connection, row))
+    .buffered(UNIT_PROPERTY_READS_IN_FLIGHT)
+    .collect()
     .await)
 }
 
 async fn running_job(connection: &zbus::Connection, row: JobRow) -> RunningJob {
     RunningJob {
-        runs_oneshot_service: is_oneshot_service(connection, row.unit_path.clone()).await,
+        startup_kind: unit_startup_kind(connection, row.unit_path.clone()).await,
         started_at: state_changed_at(connection, row.unit_path).await,
         id: row.id,
         unit: row.unit,
@@ -176,17 +186,20 @@ async fn running_job(connection: &zbus::Connection, row: JobRow) -> RunningJob {
     }
 }
 
-async fn is_oneshot_service(connection: &zbus::Connection, unit_path: OwnedObjectPath) -> bool {
+async fn unit_startup_kind(
+    connection: &zbus::Connection,
+    unit_path: OwnedObjectPath,
+) -> UnitStartupKind {
     let Ok(builder) = ServiceProxy::builder(connection).path(unit_path) else {
-        return false;
+        return UnitStartupKind::NotOneshotService;
     };
     let Ok(service) = builder.cache_properties(CacheProperties::No).build().await else {
-        return false;
+        return UnitStartupKind::NotOneshotService;
     };
-    service
-        .service_startup_kind()
-        .await
-        .is_ok_and(|startup_kind| startup_kind == ONESHOT_SERVICE_KIND)
+    match service.service_startup_kind().await {
+        Ok(startup_kind) if startup_kind == ONESHOT_SERVICE_KIND => UnitStartupKind::OneshotService,
+        Ok(_) | Err(_) => UnitStartupKind::NotOneshotService,
+    }
 }
 
 #[cfg(test)]
@@ -196,18 +209,19 @@ mod tests {
     #[test]
     fn the_earliest_job_not_yet_slow_decides_the_next_wake_up() {
         let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
-        let job = |id: u32, started_secs_ago: Option<u64>| RunningJob {
+        let job = |id: u32, started_at: UnitStateChange| RunningJob {
             id,
             unit: format!("unit{id}.service"),
             job_type: "stop".to_owned(),
-            started_at: started_secs_ago.map(|ago| start - Duration::from_secs(ago)),
-            runs_oneshot_service: false,
+            started_at,
+            startup_kind: UnitStartupKind::NotOneshotService,
         };
+        let started_secs_ago = |ago: u64| UnitStateChange::At(start - Duration::from_secs(ago));
         let running = [
-            job(1, Some(30)),
-            job(2, Some(4)),
-            job(3, Some(7)),
-            job(4, None),
+            job(1, started_secs_ago(30)),
+            job(2, started_secs_ago(4)),
+            job(3, started_secs_ago(7)),
+            job(4, UnitStateChange::Unrecorded),
         ];
         let slow_after = Duration::from_secs(10);
         assert_eq!(
@@ -228,8 +242,8 @@ mod tests {
             id,
             unit: format!("oneshot{id}.service"),
             job_type: job_type.to_owned(),
-            started_at: Some(start - Duration::from_secs(60)),
-            runs_oneshot_service: true,
+            started_at: UnitStateChange::At(start - Duration::from_secs(60)),
+            startup_kind: UnitStartupKind::OneshotService,
         };
         let running = [oneshot_job(1, "start"), oneshot_job(2, "stop")];
         let slow_after = Duration::from_secs(10);

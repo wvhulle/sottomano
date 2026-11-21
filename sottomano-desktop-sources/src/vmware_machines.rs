@@ -11,6 +11,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::PeriodicPolling,
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
     system_protocol_clients::{
         procfs_process_scan::{program_stem, readable_text, scan_processes},
         sysfs_attribute_reads::FileReadError,
@@ -77,7 +78,7 @@ fn named_machines() -> Result<FamilyListings<VmwareMachineListing>, FileReadErro
         .matched_processes
         .iter()
         .filter_map(|scanned| {
-            let configuration_file = configuration_file_of(&scanned.command_line)?;
+            let configuration_file = vmx_configuration_file(&scanned.command_line)?;
             Some(VmwareMachineListing {
                 pid: scanned.pid,
                 machine_name: file_stem_text(&configuration_file),
@@ -90,11 +91,17 @@ fn named_machines() -> Result<FamilyListings<VmwareMachineListing>, FileReadErro
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VmwareGuestOs {
+    Declared(String),
+    Undeclared,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmwareMachine {
     pub listing: VmwareMachineListing,
-    pub guest_os: Option<String>,
-    pub guest_memory: Option<ByteSize>,
-    pub guest_cores: Option<u32>,
+    pub guest_os: VmwareGuestOs,
+    pub guest_memory: GuestMemorySize,
+    pub guest_cores: GuestCoreCount,
     pub started_at: SystemTime,
     pub memory_in_use: ByteSize,
 }
@@ -125,7 +132,7 @@ fn parsed_vmx_entries(vmx_text: &str) -> HashMap<String, String> {
         .collect()
 }
 
-fn configuration_file_of(command_line: &[String]) -> Option<PathBuf> {
+fn vmx_configuration_file(command_line: &[String]) -> Option<PathBuf> {
     command_line
         .iter()
         .rev()
@@ -147,7 +154,7 @@ fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, FileReadError> {
         .matched_processes
         .iter()
         .filter_map(|scanned| {
-            let configuration_file = configuration_file_of(&scanned.command_line)?;
+            let configuration_file = vmx_configuration_file(&scanned.command_line)?;
             let vmx_entries = readable_text(&configuration_file)
                 .map(|vmx_text| parsed_vmx_entries(&vmx_text))
                 .unwrap_or_default();
@@ -160,7 +167,10 @@ fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, FileReadError> {
                         .unwrap_or_else(|| file_stem_text(&configuration_file)),
                     configuration_file: configuration_file.clone(),
                 },
-                guest_os: vmx_entries.get("guestos").cloned(),
+                guest_os: vmx_entries
+                    .get("guestos")
+                    .cloned()
+                    .map_or(VmwareGuestOs::Undeclared, VmwareGuestOs::Declared),
                 guest_memory: vmx_entries
                     .get("memsize")
                     .and_then(|memory_mebibytes| {
@@ -175,18 +185,27 @@ fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, FileReadError> {
                             })
                             .ok()
                     })
-                    .map(ByteSize::mib),
-                guest_cores: vmx_entries.get("numvcpus").and_then(|cpu_count| {
-                    cpu_count
-                        .parse()
-                        .inspect_err(|parse_failure| {
-                            tracing::warn!(
-                                "vmware: numvcpus {cpu_count} in {} is malformed: {parse_failure}",
-                                configuration_file.display()
-                            );
-                        })
-                        .ok()
-                }),
+                    .map_or(GuestMemorySize::HypervisorDefault, |memory_mebibytes| {
+                        GuestMemorySize::Configured(ByteSize::mib(memory_mebibytes))
+                    }),
+                guest_cores: vmx_entries
+                    .get("numvcpus")
+                    .and_then(|cpu_count| {
+                        cpu_count
+                            .parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "vmware: numvcpus {cpu_count} in {} is malformed: \
+                                     {parse_failure}",
+                                    configuration_file.display()
+                                );
+                            })
+                            .ok()
+                    })
+                    .map_or(
+                        GuestCoreCount::HypervisorDefault,
+                        GuestCoreCount::Configured,
+                    ),
                 started_at: scanned.started_at,
                 memory_in_use: ByteSize::b(
                     process_scan
@@ -205,7 +224,7 @@ fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, FileReadError> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{configuration_file_of, parsed_vmx_entries};
+    use super::{parsed_vmx_entries, vmx_configuration_file};
 
     #[test]
     fn a_vmx_file_names_its_machine_size_and_guest() {
@@ -234,7 +253,7 @@ mod tests {
         .map(|argument| (*argument).to_owned())
         .collect();
         assert_eq!(
-            configuration_file_of(&command_line),
+            vmx_configuration_file(&command_line),
             Some(PathBuf::from("/home/user/vmware/Ubuntu/Ubuntu.vmx"))
         );
     }

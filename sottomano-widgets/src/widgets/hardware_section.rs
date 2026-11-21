@@ -2,8 +2,13 @@ use sottomano_desktop_sources::{
     battery_power_profiles::upower_battery_state::Battery,
     cpu_memory_compute::pci_gpu_samples::{GpuModel, GpuNames},
     disk_storage::drive_temperature_health::DriveHealth,
-    host_machine_identity::udev_hardware_identity::{Adapter, CpuModel, DeviceIdentity},
-    network_connectivity::modem_manager_mobile::Mobile,
+    host_machine_identity::udev_hardware_identity::{
+        Adapter, CpuCoreCounts, CpuModel, DeviceIdentity, HardwareText, KernelDriver,
+        ParentPciVendor,
+    },
+    network_connectivity::{
+        interface_bus_attachment::AdapterIdentity, modem_manager_mobile::Mobile,
+    },
 };
 
 use crate::{
@@ -24,15 +29,15 @@ impl Section {
 
 impl From<&CpuModel> for Section {
     fn from(model: &CpuModel) -> Self {
-        let vendor_logo = model
-            .identity
-            .vendor
-            .and_then(|vendor| vendor.vendor_logo());
-        let named_model = model
-            .identity
-            .name
-            .as_deref()
-            .map(|name| LabeledValue::logo_prefixed("Model", vendor_logo, name));
+        let vendor_logo = model.identity.vendor.vendor_logo();
+        let named_model = match &model.identity.name {
+            HardwareText::Reported(name) => Some(LabeledValue::logo_prefixed(
+                "Model",
+                vendor_logo,
+                name.as_str(),
+            )),
+            HardwareText::Unreported => None,
+        };
         let identity = [
             ("Microarchitecture", &model.architecture.microarchitecture),
             ("Process", &model.architecture.process),
@@ -41,20 +46,15 @@ impl From<&CpuModel> for Section {
             ("Microcode", &model.identity.microcode),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)));
+        .filter_map(|(key, value)| reported_entry(key, value));
         let identity = named_model.into_iter().chain(identity);
-        let counts = [
-            model
-                .topology
-                .cores
-                .map(|count| LabeledValue::new("Cores", Quantity::count(count))),
-            model
-                .topology
-                .threads
-                .map(|count| LabeledValue::new("Threads", Quantity::count(count))),
-        ]
-        .into_iter()
-        .flatten();
+        let counts = match model.topology {
+            CpuCoreCounts::Counted { cores, threads } => vec![
+                LabeledValue::new("Cores", Quantity::count(cores)),
+                LabeledValue::new("Threads", Quantity::count(threads)),
+            ],
+            CpuCoreCounts::UnlistedInCpuinfo => Vec::new(),
+        };
         let caches = model.caches.iter().map(|cache| {
             let sizes = cache
                 .instances
@@ -81,50 +81,61 @@ impl From<&CpuModel> for Section {
     }
 }
 
+fn reported_entry(key: &'static str, value: &HardwareText) -> Option<LabeledValue> {
+    match value {
+        HardwareText::Reported(text) => Some(LabeledValue::new(key, text.as_str())),
+        HardwareText::Unreported => None,
+    }
+}
+
 fn device_identity_entries(
     identity: &DeviceIdentity,
     vendor_logo: Option<SimpleIcon>,
 ) -> impl Iterator<Item = LabeledValue> + '_ {
-    let named_vendor = identity
-        .vendor
-        .as_deref()
-        .map(|vendor| LabeledValue::logo_prefixed("Vendor", vendor_logo, vendor));
-    let model_logo = match identity.vendor {
-        Some(_) => None,
-        None => vendor_logo,
+    let (named_vendor, model_logo) = match &identity.vendor {
+        HardwareText::Reported(vendor) => (
+            Some(LabeledValue::logo_prefixed(
+                "Vendor",
+                vendor_logo,
+                vendor.as_str(),
+            )),
+            None,
+        ),
+        HardwareText::Unreported => (None, vendor_logo),
     };
-    let named_model = identity
-        .model
-        .as_deref()
-        .map(|model| LabeledValue::logo_prefixed("Model", model_logo, model));
+    let named_model = match &identity.model {
+        HardwareText::Reported(model) => Some(LabeledValue::logo_prefixed(
+            "Model",
+            model_logo,
+            model.as_str(),
+        )),
+        HardwareText::Unreported => None,
+    };
     named_vendor.into_iter().chain(named_model).chain(
         [
             ("Serial", &identity.serial),
             ("Firmware", &identity.revision),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
+        .filter_map(|(key, value)| reported_entry(key, value)),
     )
 }
 
 impl From<&DriveHealth> for Section {
     fn from(drive: &DriveHealth) -> Self {
-        let vendor_logo = drive.pci_vendor.and_then(|vendor| {
-            PciVendorId {
-                vendor_code: vendor,
+        let vendor_logo = match drive.pci_vendor {
+            ParentPciVendor::Identified { vendor_code } => {
+                PciVendorId { vendor_code }.vendor_logo()
             }
-            .vendor_logo()
-        });
+            ParentPciVendor::Unidentified => None,
+        };
         Section::hardware_identity(device_identity_entries(&drive.identity, vendor_logo))
     }
 }
 
 impl From<&Battery> for Section {
     fn from(battery: &Battery) -> Self {
-        let technology = battery
-            .technology
-            .as_deref()
-            .map(|technology| LabeledValue::new("Technology", technology));
+        let technology = reported_entry("Technology", &battery.technology);
         Section::hardware_identity(
             device_identity_entries(&battery.identity, None).chain(technology),
         )
@@ -133,10 +144,12 @@ impl From<&Battery> for Section {
 
 impl From<&Mobile> for Section {
     fn from(modem: &Mobile) -> Self {
-        Section::hardware_identity(
-            device_identity_entries(&modem.identity, None)
-                .chain(modem.adapter.iter().flat_map(adapter_bus_entries)),
-        )
+        Section::hardware_identity(device_identity_entries(&modem.identity, None).chain(
+            match &modem.adapter {
+                AdapterIdentity::Identified(adapter) => adapter_bus_entries(adapter).collect(),
+                AdapterIdentity::Virtual => Vec::new(),
+            },
+        ))
     }
 }
 
@@ -171,10 +184,10 @@ impl From<&GpuModel> for Section {
 }
 
 fn adapter_bus_entries(adapter: &Adapter) -> impl Iterator<Item = LabeledValue> + '_ {
-    let driver = adapter
-        .driver
-        .as_deref()
-        .map(|driver| LabeledValue::new("Driver", driver));
+    let driver = match &adapter.driver {
+        KernelDriver::Bound(driver) => Some(LabeledValue::new("Driver", driver.as_str())),
+        KernelDriver::Unbound => None,
+    };
     [LabeledValue::new(
         adapter.bus_id.bus_name(),
         adapter.bus_id.to_string(),

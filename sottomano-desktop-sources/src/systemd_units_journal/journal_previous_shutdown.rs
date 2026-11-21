@@ -15,7 +15,9 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
     system_protocol_clients::journal_follow::decode_record,
-    systemd_units_journal::journal_record_fields::{MessageId, OwningUnit, SubjectUnit, either_of},
+    systemd_units_journal::journal_record_fields::{
+        MessageId, OwningUnit, SubjectUnit, disjunctive_journal_matches,
+    },
 };
 
 const SLOWEST_STOP_COUNT: usize = 10;
@@ -72,7 +74,7 @@ impl LastShutdown {
         ["-b", "-1", "-x", "-n", "all"]
             .map(String::from)
             .into_iter()
-            .chain(either_of(
+            .chain(disjunctive_journal_matches(
                 self.slowest_stops
                     .iter()
                     .map(|stop| stop.unit.logged_by_match()),
@@ -185,8 +187,8 @@ impl JobResult {
 }
 
 impl Display for JobResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(self.label())
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.write_str(self.label())
     }
 }
 
@@ -343,7 +345,9 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
     while let Some(record) = journal.next_entry()? {
         let at = journal.timestamp()?;
         let decoded = decode_record(record)
-            .inspect_err(|e| tracing::debug!("systemd last shutdown: malformed record: {e}"))
+            .inspect_err(|error| {
+                tracing::debug!("systemd last shutdown: malformed record: {error}");
+            })
             .ok();
         events.extend(decoded.and_then(|record| ShutdownEvent::recorded_at(record, at)));
     }

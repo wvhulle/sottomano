@@ -1,12 +1,10 @@
-use std::time::SystemTime;
-
-use futures::{Stream, StreamExt, future::join_all};
+use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    ManagerProxy, ServiceProxy, SystemdUnitScope, UNIT_INTERFACE, UnitRow, manager_signal,
-    state_changed_at, systemd_signal,
+    ManagerProxy, ServiceProxy, SystemdUnitScope, UNIT_INTERFACE, UNIT_PROPERTY_READS_IN_FLIGHT,
+    UnitRow, UnitStateChange, manager_signal, state_changed_at, systemd_signal,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -34,9 +32,18 @@ pub struct ServiceOutcome {
 #[derive(Debug, Clone)]
 pub struct FailedUnitInfo {
     pub name: String,
-    pub service_outcome: Option<ServiceOutcome>,
-    pub at: Option<SystemTime>,
-    pub crash: Option<CoredumpEntry>,
+    pub ending: ServiceEnding,
+    pub at: UnitStateChange,
+}
+
+#[derive(Debug, Clone)]
+pub enum ServiceEnding {
+    Unreported,
+    Ended(ServiceOutcome),
+    CoreDumped {
+        outcome: ServiceOutcome,
+        coredump: CoredumpEntry,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -111,11 +118,11 @@ async fn failed_units(
 ) -> zbus::Result<Vec<FailedUnitInfo>> {
     let rows = manager.list_units_filtered(&[FAILED_STATE]).await?;
     let connection = manager.inner().connection();
-    Ok(join_all(
-        rows.into_iter()
-            .map(|row| failed_unit(connection, unit_scope, row)),
-    )
-    .await)
+    Ok(stream::iter(rows)
+        .map(|row| failed_unit(connection, unit_scope, row))
+        .buffered(UNIT_PROPERTY_READS_IN_FLIGHT)
+        .collect()
+        .await)
 }
 
 async fn failed_unit(
@@ -123,30 +130,39 @@ async fn failed_unit(
     unit_scope: SystemdUnitScope,
     row: UnitRow,
 ) -> FailedUnitInfo {
-    let service_outcome = service_outcome(connection, row.unit_path.clone()).await;
-    let crashed = service_outcome
-        .as_ref()
-        .is_some_and(|outcome| outcome.result == CORE_DUMP_RESULT);
-    let crash = if crashed {
-        let name = row.name.clone();
-        spawn_blocking(move || CoredumpEntry::latest_of_unit(unit_scope, &name))
-            .await
-            .inspect_err(|join_failure| {
-                tracing::warn!(
-                    "failed unit {}: coredump lookup did not finish: {join_failure}",
-                    row.name
-                );
-            })
-            .ok()
-            .flatten()
-    } else {
-        None
-    };
+    let ending = service_ending(connection, unit_scope, &row).await;
     FailedUnitInfo {
         at: state_changed_at(connection, row.unit_path).await,
-        service_outcome,
+        ending,
         name: row.name,
-        crash,
+    }
+}
+
+async fn service_ending(
+    connection: &zbus::Connection,
+    unit_scope: SystemdUnitScope,
+    row: &UnitRow,
+) -> ServiceEnding {
+    let Some(outcome) = service_outcome(connection, row.unit_path.clone()).await else {
+        return ServiceEnding::Unreported;
+    };
+    if outcome.result != CORE_DUMP_RESULT {
+        return ServiceEnding::Ended(outcome);
+    }
+    let name = row.name.clone();
+    let coredump = spawn_blocking(move || CoredumpEntry::latest_of_unit(unit_scope, &name))
+        .await
+        .inspect_err(|join_failure| {
+            tracing::warn!(
+                "failed unit {}: coredump lookup did not finish: {join_failure}",
+                row.name
+            );
+        })
+        .ok()
+        .flatten();
+    match coredump {
+        Some(coredump) => ServiceEnding::CoreDumped { outcome, coredump },
+        None => ServiceEnding::Ended(outcome),
     }
 }
 

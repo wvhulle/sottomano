@@ -108,7 +108,7 @@ mod tests {
         directory
     }
 
-    fn follow_of(log_path: PathBuf) -> AppendedLogFollow {
+    fn fresh_log_follow(log_path: PathBuf) -> AppendedLogFollow {
         AppendedLogFollow {
             log_path,
             read_offset: 0,
@@ -120,7 +120,7 @@ mod tests {
     fn only_finished_lines_are_yielded_and_the_tail_waits() {
         let log_path = scratch_directory("tail").join("content_log.txt");
         fs::write(&log_path, "first\nsecond\nthi").expect("seed log");
-        let mut follow = follow_of(log_path.clone());
+        let mut follow = fresh_log_follow(log_path.clone());
         assert_eq!(follow.appended_lines().expect("read"), ["first", "second"]);
         let mut appender = fs::OpenOptions::new()
             .append(true)
@@ -135,7 +135,7 @@ mod tests {
     fn a_truncated_log_is_read_again_from_the_start() {
         let log_path = scratch_directory("rotation").join("controller.txt");
         fs::write(&log_path, "old line one\nold line two\n").expect("seed log");
-        let mut follow = follow_of(log_path.clone());
+        let mut follow = fresh_log_follow(log_path.clone());
         follow.appended_lines().expect("read");
         fs::write(&log_path, "new\n").expect("rotate log");
         assert_eq!(follow.appended_lines().expect("read"), ["new"]);
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn a_missing_log_yields_nothing() {
-        let mut follow = follow_of(scratch_directory("missing").join("absent.txt"));
+        let mut follow = fresh_log_follow(scratch_directory("missing").join("absent.txt"));
         assert!(follow.appended_lines().expect("read").is_empty());
     }
 }

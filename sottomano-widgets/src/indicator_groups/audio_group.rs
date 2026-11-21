@@ -10,8 +10,8 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{
-        self, AudioConnectError, AudioEvent, AudioState, ChannelLevels, Commands, Peaks, Target,
-        WindowAudio,
+        self, AudioConnectError, AudioEvent, AudioState, ChannelLevels, Commands, DefaultChannel,
+        DeviceDescription, Peaks, Target, WindowAudio,
     },
 };
 use sottomano_toml_config::Config;
@@ -158,8 +158,8 @@ impl AudioGroup {
                 Task::none()
             }
             AudioMessage::State(state) => {
-                feed(&mut self.sink_control, state.sink.as_ref());
-                feed(&mut self.source_control, state.source.as_ref());
+                feed(&mut self.sink_control, &state.sink);
+                feed(&mut self.source_control, &state.source);
                 self.sink_control.set_icon(audio_output_icon(&state));
                 self.state
                     .receive(SnapshotDelivery::live_push(Ok(state)), clock);
@@ -264,26 +264,30 @@ impl AudioGroup {
         sample: &ChannelLevels,
         control: &SliderControl,
     ) -> Vec<Section> {
-        let device = sample
-            .device
-            .as_deref()
-            .map(|device| LabeledValue::new("Device", device));
-        self.state.hover_card_with(vec![Section::new(
-            "Level",
-            dictionary_table(
-                [
-                    LabeledValue::new(kind.label(), control.readout_cell()),
-                    LabeledValue::new("State", sample.mute_state.label()),
-                ]
-                .into_iter()
-                .chain(device),
-            ),
-        )])
+        let mut level_entries = vec![
+            LabeledValue::new(kind.label(), control.readout_cell()),
+            LabeledValue::new("State", sample.mute_state.label()),
+        ];
+        if let DeviceDescription::Described(device) = &sample.device {
+            level_entries.push(LabeledValue::new("Device", device.as_str()));
+        }
+        self.state
+            .hover_card_with(vec![Section::new("Level", dictionary_table(level_entries))])
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> IndicatorGroupContent<'a> {
-        let sink = self.state.get().and_then(|state| state.sink.as_ref());
-        let source = self.state.get().and_then(|state| state.source.as_ref());
+        let resolved_levels = |channel: &'a DefaultChannel| match channel {
+            DefaultChannel::Resolved(levels) => Some(levels),
+            DefaultChannel::Unresolved => None,
+        };
+        let sink = self
+            .state
+            .get()
+            .and_then(|state| resolved_levels(&state.sink));
+        let source = self
+            .state
+            .get()
+            .and_then(|state| resolved_levels(&state.source));
         let mut rows = Vec::new();
         if let Some(sink_levels) = sink {
             rows.push(

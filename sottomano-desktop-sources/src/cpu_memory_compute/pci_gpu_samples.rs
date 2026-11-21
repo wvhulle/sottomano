@@ -7,12 +7,16 @@ use std::{
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt, future::join, stream};
 use uom::si::{
-    f64::{Frequency, Power, Ratio, ThermodynamicTemperature},
+    f64::{Power, Ratio},
     ratio::ratio,
 };
 
+pub use super::gpu_driver_readings::{
+    GpuClockSpeed, GpuFanDuty, GpuPerformanceState, GpuPowerLimit, GpuPowerReading,
+    GpuProcessMemory, GpuProcessName, GpuTemperatureReading, GpuTemperatureThreshold,
+    SystemMemoryReading,
+};
 use super::{
-    memory_usage::Memory,
     nvml_gpu_samples::{self, NvmlDevice},
     qmlib_gpu_sampler::{self, DrmGpuWorker},
 };
@@ -36,13 +40,22 @@ pub struct GpuModel {
     pub names: GpuNames,
     pub driver: String,
     pub temperature_limits: GpuTemperatureLimits,
-    pub power_limit: Option<Power>,
+    pub power_limit: GpuPowerLimit,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GpuTemperatureLimits {
-    pub target_max: Option<ThermodynamicTemperature>,
-    pub slowdown: Option<ThermodynamicTemperature>,
+    pub target_max: GpuTemperatureThreshold,
+    pub slowdown: GpuTemperatureThreshold,
+}
+
+impl Default for GpuTemperatureLimits {
+    fn default() -> Self {
+        GpuTemperatureLimits {
+            target_max: GpuTemperatureThreshold::NotExposed,
+            slowdown: GpuTemperatureThreshold::NotExposed,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -161,13 +174,15 @@ pub enum Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Error::Nvml(error) => error.fmt(f),
-            Error::Qmlib(message) => write!(f, "GPU stats: {message}"),
-            Error::DeviceVanished => f.write_str("GPU no longer listed by the DRM subsystem"),
-            Error::WorkerStopped => f.write_str("GPU sampling thread stopped"),
-            Error::Panicked => f.write_str("GPU read panicked"),
+            Error::Nvml(error) => error.fmt(formatter),
+            Error::Qmlib(message) => write!(formatter, "GPU stats: {message}"),
+            Error::DeviceVanished => {
+                formatter.write_str("GPU no longer listed by the DRM subsystem")
+            }
+            Error::WorkerStopped => formatter.write_str("GPU sampling thread stopped"),
+            Error::Panicked => formatter.write_str("GPU read panicked"),
         }
     }
 }
@@ -187,8 +202,8 @@ impl From<nvml_gpu_samples::Error> for Error {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuProcess {
     pub pid: u32,
-    pub name: Option<String>,
-    pub resident_memory: Option<ByteSize>,
+    pub name: GpuProcessName,
+    pub resident_memory: GpuProcessMemory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -207,7 +222,7 @@ impl VramUsage {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GpuPowerDraw {
     pub draw: Power,
-    pub limit: Option<Power>,
+    pub limit: GpuPowerLimit,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -220,17 +235,17 @@ pub enum GpuMemory {
 pub struct SharedGpuMemory {
     pub resident: ByteSize,
     pub allocated: ByteSize,
-    pub system: Option<Memory>,
+    pub system: SystemMemoryReading,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuSnapshot {
     pub vendor: GpuVendor,
     pub load: Ratio,
-    pub graphics_clock: Option<Frequency>,
+    pub graphics_clock: GpuClockSpeed,
     pub memory: GpuMemory,
-    pub temperature: Option<ThermodynamicTemperature>,
-    pub power_draw: Option<Power>,
+    pub temperature: GpuTemperatureReading,
+    pub power_draw: GpuPowerReading,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,10 +269,10 @@ pub enum GpuThrottleReason {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuClocks {
-    pub performance_state: Option<u32>,
-    pub graphics_clock_ceiling: Option<Frequency>,
-    pub memory_clock: Option<Frequency>,
-    pub fan: Option<Ratio>,
+    pub performance_state: GpuPerformanceState,
+    pub graphics_clock_ceiling: GpuClockSpeed,
+    pub memory_clock: GpuClockSpeed,
+    pub fan: GpuFanDuty,
     pub throttle_reasons: Vec<GpuThrottleReason>,
 }
 

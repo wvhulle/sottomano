@@ -2,17 +2,18 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use sottomano_compositor_model::{
     compositor_window_facts::{
-        ScrollingPosition, TileViewPosition, Urgency, WindowAppId, WindowFocus, WindowPid,
-        WindowTiling, WindowTitle, WindowWorkspace, WorkspaceActivity, WorkspaceName,
+        Urgency, WindowAppId, WindowFocus, WindowWorkspace, WorkspaceActivity, WorkspaceName,
         WorkspaceOutput,
     },
-    compositor_window_state::{CompositorWindow, CompositorWindowLayout, CompositorWindowState},
+    compositor_window_state::CompositorWindowState,
 };
 
-use crate::desktop_windows_apps::{
-    terminal_emulator_windows::WindowProcesses,
-    window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
-};
+mod window_entry_layout;
+
+use window_entry_layout::win_entry;
+pub use window_entry_layout::{WinEntry, WinLayout, WorkspacePlacement};
+
+use crate::desktop_windows_apps::terminal_emulator_windows::WindowProcesses;
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceIndicator {
@@ -23,9 +24,9 @@ pub struct WorkspaceIndicator {
     pub urgency: Urgency,
 }
 
-pub struct ActiveWorkspace<'a> {
-    pub output: &'a str,
-    pub name: &'a WorkspaceName,
+pub struct ActiveWorkspace<'snapshot> {
+    pub output: &'snapshot str,
+    pub name: &'snapshot WorkspaceName,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -253,174 +254,6 @@ fn column_after_move(column: usize, from: usize, to: usize) -> usize {
         column + 1
     } else {
         column
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub enum WorkspacePlacement {
-    ScrollingTile {
-        column: usize,
-        tile: usize,
-    },
-    ScreenPosition {
-        horizontal: f64,
-        vertical: f64,
-    },
-    #[default]
-    Unplaced,
-}
-
-impl WorkspacePlacement {
-    fn from_compositor_layout(layout: &CompositorWindowLayout) -> Self {
-        match (layout.scrolling_position, layout.tile_position_in_view) {
-            (ScrollingPosition::Tile { column, tile }, _) => {
-                WorkspacePlacement::ScrollingTile { column, tile }
-            }
-            (
-                ScrollingPosition::OutsideScrolling,
-                TileViewPosition::InView {
-                    horizontal,
-                    vertical,
-                },
-            ) => WorkspacePlacement::ScreenPosition {
-                horizontal,
-                vertical,
-            },
-            (ScrollingPosition::OutsideScrolling, TileViewPosition::OutsideView) => {
-                WorkspacePlacement::Unplaced
-            }
-        }
-    }
-
-    fn reading_rank(self) -> u8 {
-        match self {
-            WorkspacePlacement::ScrollingTile { .. } => 0,
-            WorkspacePlacement::ScreenPosition { .. } => 1,
-            WorkspacePlacement::Unplaced => 2,
-        }
-    }
-
-    fn compare_reading_order(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (
-                WorkspacePlacement::ScrollingTile {
-                    column: left_column,
-                    tile: left_tile,
-                },
-                WorkspacePlacement::ScrollingTile {
-                    column: right_column,
-                    tile: right_tile,
-                },
-            ) => (left_column, left_tile).cmp(&(right_column, right_tile)),
-            (
-                WorkspacePlacement::ScreenPosition {
-                    horizontal: left_horizontal,
-                    vertical: left_vertical,
-                },
-                WorkspacePlacement::ScreenPosition {
-                    horizontal: right_horizontal,
-                    vertical: right_vertical,
-                },
-            ) => left_horizontal
-                .total_cmp(right_horizontal)
-                .then_with(|| left_vertical.total_cmp(right_vertical)),
-            _ => self.reading_rank().cmp(&other.reading_rank()),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WinLayout {
-    pub placement: WorkspacePlacement,
-    pub tile_size: (f64, f64),
-    pub tiling: WindowTiling,
-}
-
-impl WinLayout {
-    #[must_use]
-    pub fn column(&self) -> Option<usize> {
-        match self.placement {
-            WorkspacePlacement::ScrollingTile { column, .. } => Some(column),
-            WorkspacePlacement::ScreenPosition { .. } | WorkspacePlacement::Unplaced => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WinEntry {
-    pub id: u64,
-    pub app_id: WindowAppId,
-    pub pid: WindowPid,
-    pub focus: WindowFocus,
-    pub urgency: Urgency,
-    pub layout: WinLayout,
-    pub label: Option<WindowLabel>,
-}
-
-impl WinEntry {
-    pub fn icon_candidates(&self) -> Vec<IconCandidate> {
-        self.label
-            .as_ref()
-            .and_then(WindowLabel::theme_icon)
-            .map(IconCandidate::Theme)
-            .into_iter()
-            .chain(match &self.app_id {
-                WindowAppId::Reported(app_id) => Some(IconCandidate::AppId(app_id.clone())),
-                WindowAppId::Unreported => None,
-            })
-            .collect()
-    }
-
-    #[must_use]
-    pub fn favicon_key(&self) -> Option<&str> {
-        self.label.as_ref()?.favicon_key()
-    }
-
-    #[must_use]
-    pub fn program_name(&self) -> Option<&str> {
-        self.label.as_ref()?.program_name()
-    }
-
-    #[must_use]
-    pub fn group_key(&self) -> Option<WindowGroupKey<'_>> {
-        self.label
-            .as_ref()
-            .and_then(WindowLabel::group_key)
-            .or(match &self.app_id {
-                WindowAppId::Reported(app_id) => Some(WindowGroupKey::Application(app_id)),
-                WindowAppId::Unreported => None,
-            })
-    }
-}
-
-fn win_entry(window: &CompositorWindow, processes: &WindowProcesses) -> WinEntry {
-    let label = match processes.terminal_label_in(window.id) {
-        Some(terminal_label) => Some(WindowLabel::TerminalShell(terminal_label.clone())),
-        None => match (&window.app_id, &window.title) {
-            (WindowAppId::Reported(app_id), WindowTitle::Titled(title)) => {
-                Some(WindowLabel::classify(app_id, title))
-            }
-            (WindowAppId::Reported(app_id), WindowTitle::Untitled) => {
-                Some(WindowLabel::classify(app_id, app_id))
-            }
-            (WindowAppId::Unreported, WindowTitle::Titled(title)) => {
-                Some(WindowLabel::Titled(title.clone()))
-            }
-            (WindowAppId::Unreported, WindowTitle::Untitled) => None,
-        },
-    };
-    WinEntry {
-        id: window.id,
-        app_id: window.app_id.clone(),
-        pid: window.pid,
-        focus: window.focus,
-        urgency: window.urgency,
-        label,
-        layout: WinLayout {
-            placement: WorkspacePlacement::from_compositor_layout(&window.layout),
-            tile_size: window.layout.tile_size,
-            tiling: window.tiling,
-        },
     }
 }
 

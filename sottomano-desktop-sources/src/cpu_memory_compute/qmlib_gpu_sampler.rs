@@ -26,12 +26,17 @@ use uom::si::{
 use super::{
     memory_usage::read_meminfo,
     pci_gpu_samples::{
-        DiscoveredGpu, Error, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuProcess,
-        GpuProcesses, GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, GpuVendor, PciBusId,
-        SharedGpuMemory, VramUsage,
+        DiscoveredGpu, Error, GpuClockSpeed, GpuClocks, GpuFanDuty, GpuHandle, GpuMemory,
+        GpuPerformanceState, GpuPowerReading, GpuProcess, GpuProcessMemory, GpuProcessName,
+        GpuProcesses, GpuSnapshot, GpuTemperatureReading, GpuThrottleReason, GpuVendor, PciBusId,
+        SharedGpuMemory, SystemMemoryReading, VramUsage,
     },
 };
 use crate::blocking_background_work::blocking;
+
+mod drm_gpu_listing;
+
+use drm_gpu_listing::listed_gpus;
 
 const SCAN_EVERY_PROCESS: &str = "";
 const MINIMUM_REFRESH_GAP: Duration = Duration::from_secs(1);
@@ -49,8 +54,9 @@ pub struct DrmGpuWorker {
 }
 
 impl Debug for DrmGpuWorker {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct("DrmGpuWorker")
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter
+            .debug_struct("DrmGpuWorker")
             .field("bus", &self.bus)
             .finish_non_exhaustive()
     }
@@ -134,55 +140,6 @@ pub(super) async fn discover_drm_gpus() -> Vec<DiscoveredGpu> {
     .await
 }
 
-struct ListedGpu {
-    bus: PciBusId,
-    model: GpuModel,
-}
-
-fn listed_gpus() -> Vec<ListedGpu> {
-    let devices = match DrmDevices::find_devices(&Vec::new(), &HashMap::new()) {
-        Ok(devices) => devices,
-        Err(failure) => {
-            tracing::warn!("gpu discovery: {failure:#}");
-            return Vec::new();
-        }
-    };
-    devices
-        .devices()
-        .into_iter()
-        .filter_map(|bus| devices.device_info(bus))
-        .filter(|device| device.has_driver())
-        .filter_map(|device| {
-            Some(ListedGpu {
-                bus: PciBusId {
-                    bus_address: device.pci_dev.clone(),
-                },
-                model: GpuModel {
-                    vendor: gpu_vendor_of_pci_id(&device.vendor_id)?,
-                    names: GpuNames::split_database_name(&device.device),
-                    driver: device.drv_name.clone(),
-                    temperature_limits: GpuTemperatureLimits::default(),
-                    power_limit: None,
-                },
-            })
-        })
-        .collect()
-}
-
-fn gpu_vendor_of_pci_id(vendor_id: &str) -> Option<GpuVendor> {
-    let vendor_number = u16::from_str_radix(vendor_id, 16)
-        .inspect_err(|parse_failure| {
-            tracing::warn!("gpu discovery: invalid pci vendor id {vendor_id:?}: {parse_failure}");
-        })
-        .ok()?;
-    match vendor_number {
-        0x10de => Some(GpuVendor::Nvidia),
-        0x8086 => Some(GpuVendor::Intel),
-        0x1002 => Some(GpuVendor::Amd),
-        _ => None,
-    }
-}
-
 fn qmlib_failure(failure: impl Display) -> Error {
     Error::Qmlib(format!("{failure:#}"))
 }
@@ -191,7 +148,13 @@ struct GpuSampleWorker {
     bus: PciBusId,
     vendor: GpuVendor,
     devices: DrmDevices,
-    last_refresh: Option<Instant>,
+    last_refresh: DeviceRefresh,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DeviceRefresh {
+    NeverRefreshed,
+    RefreshedAt(Instant),
 }
 
 struct ClientSample {
@@ -214,7 +177,7 @@ impl GpuSampleWorker {
             bus,
             vendor,
             devices,
-            last_refresh: None,
+            last_refresh: DeviceRefresh::NeverRefreshed,
         };
         worker.device()?;
         Ok(worker)
@@ -238,18 +201,18 @@ impl GpuSampleWorker {
     }
 
     fn refresh_when_stale(&mut self) -> Result<(), Error> {
-        if self.last_refresh.is_some_and(|refreshed_at| {
-            Instant::now()
+        if let DeviceRefresh::RefreshedAt(refreshed_at) = self.last_refresh
+            && Instant::now()
                 .checked_duration_since(refreshed_at)
                 .expect("the last gpu refresh happened before now")
                 < MINIMUM_REFRESH_GAP
-        }) {
+        {
             return Ok(());
         }
         catch_unwind(AssertUnwindSafe(|| self.devices.refresh()))
             .map_err(|_| Error::Panicked)?
             .map_err(qmlib_failure)?;
-        self.last_refresh = Some(Instant::now());
+        self.last_refresh = DeviceRefresh::RefreshedAt(Instant::now());
         Ok(())
     }
 
@@ -286,18 +249,26 @@ impl GpuSampleWorker {
                 .freqs
                 .first()
                 .filter(|frequencies| frequencies.act_freq > 0)
-                .map(|frequencies| megahertz_frequency(frequencies.act_freq)),
+                .map_or(GpuClockSpeed::NotExposed, |frequencies| {
+                    GpuClockSpeed::Reported(megahertz_frequency(frequencies.act_freq))
+                }),
             memory: Self::gpu_memory(device),
             temperature: device
                 .dev_type
                 .is_discrete()
                 .then(|| device.temps.first())
                 .flatten()
-                .map(|sensor| ThermodynamicTemperature::new::<degree_celsius>(sensor.temp)),
+                .map_or(GpuTemperatureReading::NoSensor, |sensor| {
+                    GpuTemperatureReading::Measured(
+                        ThermodynamicTemperature::new::<degree_celsius>(sensor.temp),
+                    )
+                }),
             power_draw: device
                 .power
                 .as_ref()
-                .map(|power| Power::new::<watt>(power.gpu_cur_power)),
+                .map_or(GpuPowerReading::NotExposed, |power| {
+                    GpuPowerReading::Drawing(Power::new::<watt>(power.gpu_cur_power))
+                }),
         })
     }
 
@@ -322,11 +293,13 @@ impl GpuSampleWorker {
                 .iter()
                 .map(|client| ByteSize::b(client.memory.smem_used))
                 .sum(),
-            system: read_meminfo()
-                .inspect_err(|meminfo_failure| {
+            system: match read_meminfo() {
+                Ok(system_memory) => SystemMemoryReading::Read(system_memory),
+                Err(meminfo_failure) => {
                     tracing::warn!("gpu memory: cannot read system memory: {meminfo_failure}");
-                })
-                .ok(),
+                    SystemMemoryReading::Unreadable
+                }
+            },
         })
     }
 
@@ -334,16 +307,18 @@ impl GpuSampleWorker {
         let device = self.device()?;
         let frequencies = device.freqs.first();
         Ok(GpuClocks {
-            performance_state: None,
-            memory_clock: None,
-            fan: None,
+            performance_state: GpuPerformanceState::NotExposed,
+            memory_clock: GpuClockSpeed::NotExposed,
+            fan: GpuFanDuty::NotExposed,
             graphics_clock_ceiling: device
                 .freq_limits
                 .first()
                 .map(|limits| limits.maximum)
                 .or_else(|| frequencies.map(|frequencies| frequencies.max_freq))
                 .filter(|maximum| *maximum > 0)
-                .map(megahertz_frequency),
+                .map_or(GpuClockSpeed::NotExposed, |maximum| {
+                    GpuClockSpeed::Reported(megahertz_frequency(maximum))
+                }),
             throttle_reasons: frequencies
                 .map(|frequencies| active_throttle_reasons(&frequencies.throttle_reasons))
                 .unwrap_or_default(),
@@ -359,12 +334,12 @@ impl GpuSampleWorker {
                 .entry(client.pid)
                 .or_insert_with(|| GpuProcess {
                     pid: client.pid,
-                    name: Some(client.name),
-                    resident_memory: Some(ByteSize::b(0)),
+                    name: GpuProcessName::Command(client.name),
+                    resident_memory: GpuProcessMemory::Resident(ByteSize::b(0)),
                 });
-            process.resident_memory = process
-                .resident_memory
-                .map(|accumulated| accumulated + resident);
+            if let GpuProcessMemory::Resident(accumulated) = &mut process.resident_memory {
+                *accumulated += resident;
+            }
         }
         let mut processes: Vec<GpuProcess> = processes_by_pid.into_values().collect();
         processes.sort_by_key(|process| Reverse(process.resident_memory));
@@ -409,56 +384,4 @@ fn active_throttle_reasons(reasons: &DrmDeviceThrottleReasons) -> Vec<GpuThrottl
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{GpuNames, GpuVendor, gpu_vendor_of_pci_id};
-
-    #[test]
-    fn reads_vendor_from_udev_hex_in_either_case() {
-        assert_eq!(gpu_vendor_of_pci_id("10DE"), Some(GpuVendor::Nvidia));
-        assert_eq!(gpu_vendor_of_pci_id("10de"), Some(GpuVendor::Nvidia));
-        assert_eq!(gpu_vendor_of_pci_id("8086"), Some(GpuVendor::Intel));
-        assert_eq!(gpu_vendor_of_pci_id("1002"), Some(GpuVendor::Amd));
-        assert_eq!(gpu_vendor_of_pci_id("1AF4"), None);
-    }
-
-    #[test]
-    fn splits_chip_from_single_product_name() {
-        assert_eq!(
-            GpuNames::split_database_name(
-                "GB206GLM [RTX PRO 2000 Blackwell Generation Laptop GPU]"
-            ),
-            GpuNames::ChipWithProduct {
-                chip: "GB206GLM".to_owned(),
-                product: "RTX PRO 2000 Blackwell Generation Laptop GPU".to_owned(),
-            }
-        );
-    }
-
-    #[test]
-    fn keeps_only_chip_when_products_are_alternatives() {
-        assert_eq!(
-            GpuNames::split_database_name("Arrow Lake-P [Arc Pro 130T/140T]"),
-            GpuNames::Chip("Arrow Lake-P".to_owned())
-        );
-    }
-
-    #[test]
-    fn unbracketed_name_is_the_chip() {
-        assert_eq!(
-            GpuNames::split_database_name("Navi 31"),
-            GpuNames::Chip("Navi 31".to_owned())
-        );
-    }
-
-    #[test]
-    fn preferred_name_is_the_product_when_known() {
-        assert_eq!(
-            GpuNames::split_database_name("AD102 [GeForce RTX 4090]").preferred_name(),
-            "GeForce RTX 4090"
-        );
-        assert_eq!(
-            GpuNames::split_database_name("Navi 31").preferred_name(),
-            "Navi 31"
-        );
-    }
-}
+mod qmlib_gpu_sampler_tests;

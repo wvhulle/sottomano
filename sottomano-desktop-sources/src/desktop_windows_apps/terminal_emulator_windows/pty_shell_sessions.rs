@@ -8,7 +8,7 @@ use rustix::{fs::stat as file_status, process::getuid};
 
 use super::{
     TerminalLabelSource, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
-    shell_prompt_title::ShellState,
+    shell_prompt_title::{ForegroundProgram, PromptPresence, ShellState},
     terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
 };
 
@@ -35,21 +35,26 @@ pub struct ShellSession {
 impl ShellSession {
     pub fn terminal_label(&self, niri_title: &str, home: &Path) -> Option<TerminalShellLabel> {
         let shell_name = program_name(&self.shell_command)?;
-        let foreground_program = match &self.foreground {
-            ShellForeground::AtPrompt => None,
-            ShellForeground::Running(command) => Some(command.as_slice()),
+        let (prompt_presence, foreground_program) = match &self.foreground {
+            ShellForeground::AtPrompt => (
+                PromptPresence::AtPrompt,
+                ForegroundProgram::NoForegroundProgram,
+            ),
+            ShellForeground::Running(command) => (
+                PromptPresence::AwayFromPrompt,
+                ForegroundProgram::Running(command.as_slice()),
+            ),
         };
         let active_shell = ActiveTerminalShell {
             shell: ShellState {
                 title: niri_title,
                 cwd: &self.cwd,
                 home,
-                at_prompt: foreground_program.is_none(),
+                prompt_presence,
                 reported_command_line: "",
-                has_foreground_program: foreground_program.is_some(),
+                foreground_program,
             },
             shell_name: shell_name.trim_start_matches(LOGIN_SHELL_PREFIX),
-            foreground_program,
         };
         Some(active_shell.window_label())
     }
@@ -72,7 +77,7 @@ impl ProcessSessionFacts {
     }
 }
 
-fn pty_number_of(tty_major: i32, tty_minor: i32) -> Option<u32> {
+fn pseudo_terminal_number(tty_major: i32, tty_minor: i32) -> Option<u32> {
     if !PTY_MAJOR_NUMBERS.contains(&tty_major) {
         return None;
     }
@@ -138,7 +143,7 @@ fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<Shell
         return None;
     }
     let (tty_major, tty_minor) = stat.tty_nr();
-    let pty_number = pty_number_of(tty_major, tty_minor)?;
+    let pty_number = pseudo_terminal_number(tty_major, tty_minor)?;
     let pty_path = PathBuf::from(format!("/dev/pts/{pty_number}"));
     let pty_status = file_status(&pty_path)
         .inspect_err(|status_failure| {
@@ -251,10 +256,10 @@ mod tests {
 
     #[test]
     fn only_pseudo_terminals_have_a_pty_number() {
-        assert_eq!(pty_number_of(136, 7), Some(7));
-        assert_eq!(pty_number_of(137, 2), Some(258));
-        assert_eq!(pty_number_of(4, 1), None);
-        assert_eq!(pty_number_of(0, 0), None);
+        assert_eq!(pseudo_terminal_number(136, 7), Some(7));
+        assert_eq!(pseudo_terminal_number(137, 2), Some(258));
+        assert_eq!(pseudo_terminal_number(4, 1), None);
+        assert_eq!(pseudo_terminal_number(0, 0), None);
     }
 
     #[test]

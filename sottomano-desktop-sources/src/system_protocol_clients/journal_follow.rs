@@ -151,7 +151,7 @@ impl<E: JournalEvent> WindowedJournal<E> {
 
 fn admitted_event<E: JournalEvent>(record: JournalRecord, at: SystemTime) -> Option<E> {
     decode_record(record)
-        .inspect_err(|e| tracing::debug!("journal: malformed {} record: {e}", E::NAME))
+        .inspect_err(|error| tracing::debug!("journal: malformed {} record: {error}", E::NAME))
         .ok()
         .and_then(|record| E::admit(record, at))
 }
@@ -287,7 +287,9 @@ impl<'de> Deserializer<'de> for JournalFieldValue {
 }
 
 #[cfg(test)]
-pub fn journal_record<'a>(fields: impl IntoIterator<Item = (&'a str, &'a str)>) -> JournalRecord {
+pub fn journal_record<'fields>(
+    fields: impl IntoIterator<Item = (&'fields str, &'fields str)>,
+) -> JournalRecord {
     fields
         .into_iter()
         .map(|(name, value)| (name.to_owned(), value.to_owned()))

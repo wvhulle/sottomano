@@ -11,6 +11,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::PeriodicPolling,
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
     system_protocol_clients::{
         procfs_process_scan::{ScannedProcess, program_stem, readable_text, scan_processes},
         shell_command_output::{self, blocking},
@@ -162,12 +163,18 @@ pub enum VirtualBoxFrontend {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VirtualBoxSettingsFile {
+    Found(PathBuf),
+    NotInDefaultFolder,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBoxMachine {
     pub listing: VirtualBoxMachineListing,
     pub frontend: VirtualBoxFrontend,
-    pub guest_memory: Option<ByteSize>,
-    pub guest_cores: Option<u32>,
-    pub settings_file: Option<PathBuf>,
+    pub guest_memory: GuestMemorySize,
+    pub guest_cores: GuestCoreCount,
+    pub settings_file: VirtualBoxSettingsFile,
     pub started_at: SystemTime,
     pub memory_in_use: ByteSize,
 }
@@ -185,18 +192,21 @@ impl SnapshotSource for FamilyDetails<VirtualBoxMachine> {
     }
 }
 
-fn option_value<'a>(command_line: &'a [String], option_names: &[&str]) -> Option<&'a str> {
+fn option_value<'arguments>(
+    command_line: &'arguments [String],
+    option_names: &[&str],
+) -> Option<&'arguments str> {
     command_line
         .windows(2)
         .find(|argument_pair| option_names.contains(&argument_pair[0].as_str()))
         .map(|argument_pair| argument_pair[1].as_str())
 }
 
-fn quoted_attribute<'a>(
-    settings_text: &'a str,
+fn quoted_attribute<'settings>(
+    settings_text: &'settings str,
     element_start: &str,
     attribute_name: &str,
-) -> Option<&'a str> {
+) -> Option<&'settings str> {
     let element_text = &settings_text[settings_text.find(element_start)?..];
     let element_text = &element_text[..element_text.find('>')?];
     let attribute_marker = format!("{attribute_name}=\"");
@@ -205,11 +215,16 @@ fn quoted_attribute<'a>(
     Some(&after_marker[..after_marker.find('"')?])
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct MachineSettings {
-    guest_memory: Option<ByteSize>,
-    guest_cores: Option<u32>,
+    guest_memory: GuestMemorySize,
+    guest_cores: GuestCoreCount,
 }
+
+const UNREADABLE_SETTINGS: MachineSettings = MachineSettings {
+    guest_memory: GuestMemorySize::HypervisorDefault,
+    guest_cores: GuestCoreCount::HypervisorDefault,
+};
 
 fn parsed_machine_settings(settings_text: &str) -> MachineSettings {
     MachineSettings {
@@ -224,7 +239,9 @@ fn parsed_machine_settings(settings_text: &str) -> MachineSettings {
                     })
                     .ok()
             })
-            .map(ByteSize::mib),
+            .map_or(GuestMemorySize::HypervisorDefault, |ram_mebibytes| {
+                GuestMemorySize::Configured(ByteSize::mib(ram_mebibytes))
+            }),
         guest_cores: quoted_attribute(settings_text, "<CPU", "count")
             .and_then(|cpu_count| {
                 cpu_count
@@ -236,7 +253,11 @@ fn parsed_machine_settings(settings_text: &str) -> MachineSettings {
                     })
                     .ok()
             })
-            .or_else(|| settings_text.contains("<CPU").then_some(1)),
+            .or_else(|| settings_text.contains("<CPU").then_some(1))
+            .map_or(
+                GuestCoreCount::HypervisorDefault,
+                GuestCoreCount::Configured,
+            ),
     }
 }
 
@@ -262,12 +283,18 @@ fn scanned_machines() -> Result<FamilyDetails<VirtualBoxMachine>, FileReadError>
         .filter_map(|scanned| {
             let listing = listed_machine(scanned)?;
             let settings_file = default_settings_file(&listing.machine_name)
-                .filter(|settings_file| settings_file.is_file());
-            let settings = settings_file
-                .as_deref()
-                .and_then(readable_text)
-                .map(|settings_text| parsed_machine_settings(&settings_text))
-                .unwrap_or_default();
+                .filter(|settings_file| settings_file.is_file())
+                .map_or(
+                    VirtualBoxSettingsFile::NotInDefaultFolder,
+                    VirtualBoxSettingsFile::Found,
+                );
+            let settings = match &settings_file {
+                VirtualBoxSettingsFile::Found(settings_path) => readable_text(settings_path)
+                    .map_or(UNREADABLE_SETTINGS, |settings_text| {
+                        parsed_machine_settings(&settings_text)
+                    }),
+                VirtualBoxSettingsFile::NotInDefaultFolder => UNREADABLE_SETTINGS,
+            };
             Some(VirtualBoxMachine {
                 listing,
                 frontend: if program_stem(&scanned.command_line) == Some("VBoxHeadless") {
@@ -293,8 +320,11 @@ fn scanned_machines() -> Result<FamilyDetails<VirtualBoxMachine>, FileReadError>
 }
 
 #[must_use]
-pub fn settings_folder_of(machine: &VirtualBoxMachine) -> Option<&Path> {
-    machine.settings_file.as_deref()?.parent()
+pub fn settings_folder(machine: &VirtualBoxMachine) -> Option<&Path> {
+    match &machine.settings_file {
+        VirtualBoxSettingsFile::Found(settings_path) => settings_path.parent(),
+        VirtualBoxSettingsFile::NotInDefaultFolder => None,
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +335,7 @@ mod tests {
         MachineSettings, RegisteredVirtualBoxMachine, VirtualBoxMachineListing, option_value,
         parsed_machine_list, parsed_machine_settings, stopped_among,
     };
+    use crate::guest_machine_sizing::{GuestCoreCount, GuestMemorySize};
 
     #[test]
     fn registered_machines_not_running_are_stopped() {
@@ -359,8 +390,8 @@ mod tests {
         assert_eq!(
             parsed_machine_settings(settings_text),
             MachineSettings {
-                guest_memory: Some(ByteSize::gib(8)),
-                guest_cores: Some(4),
+                guest_memory: GuestMemorySize::Configured(ByteSize::gib(8)),
+                guest_cores: GuestCoreCount::Configured(4),
             }
         );
     }

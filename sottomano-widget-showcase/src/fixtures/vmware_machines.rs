@@ -5,7 +5,8 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    vmware_machines::{VmwareMachine, VmwareMachineListing},
+    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
+    vmware_machines::{VmwareGuestOs, VmwareMachine, VmwareMachineListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -27,9 +28,9 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                         machine_name: "Ubuntu 26.04".to_owned(),
                         configuration_file: PathBuf::from("/home/user/vmware/Ubuntu/Ubuntu.vmx"),
                     },
-                    guest_os: Some("ubuntu-64".to_owned()),
-                    guest_memory: Some(ByteSize::gib(4)),
-                    guest_cores: Some(2),
+                    guest_os: VmwareGuestOs::Declared("ubuntu-64".to_owned()),
+                    guest_memory: GuestMemorySize::Configured(ByteSize::gib(4)),
+                    guest_cores: GuestCoreCount::Configured(2),
                     started_at: clock.wall - Duration::from_mins(22),
                     memory_in_use: ByteSize::mib(4_310),
                 }],

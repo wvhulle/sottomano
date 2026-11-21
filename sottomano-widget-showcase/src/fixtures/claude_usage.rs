@@ -6,13 +6,15 @@ use rusty_money::iso;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
-        ccusage_cli_reports::{BillingBlock, Period, RecentUsage, Usage},
+        ccusage_cli_reports::{BillingBlock, BlockProjection, Period, RecentUsage, Usage},
         claude_usage::{
             ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods, ClaudeUsageWindows,
-            ExtraStatus, ExtraUsage, SubscriptionCoverage, WindowUsage,
+            ExtraAllowance, ExtraSpend, ExtraStatus, ExtraUsage, ExtraUsageOffer, SonnetWindow,
+            SubscriptionCoverage, WindowUsage,
         },
         model_spend_ranking::{ModelRanking, ModelSpend},
         spend_money::{Money, usd},
+        subscription_plan::SubscriptionPlan,
         working_time_forecast::{CalendarSpan, SpendBudget, SpendPacing},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
@@ -77,21 +79,23 @@ fn usage_windows(tick: u32, clock: Clock) -> ClaudeUsageWindows {
     let spent_cents = 1981 + 37 * tick;
     let limit_cents = 3000;
     ClaudeUsageWindows {
-        plan: Some("Max".to_owned()),
+        plan: SubscriptionPlan::Named("Max".to_owned()),
         session: window(42.0 + 2.0 * elapsed_ticks, TimeDelta::minutes(95), clock),
         weekly: window(31.0 + 0.5 * elapsed_ticks, TimeDelta::days(3), clock),
-        sonnet: Some(window(
+        sonnet: SonnetWindow::Tracked(window(
             12.0 + 0.5 * elapsed_ticks,
             TimeDelta::days(3),
             clock,
         )),
-        extra: Some(ExtraUsage {
+        extra: ExtraUsageOffer::Taken(ExtraUsage {
             status: ExtraStatus::Enabled,
-            spent: Some(euro_cents(spent_cents)),
-            monthly_limit: Some(euro_cents(limit_cents)),
-            used_share: Some(Ratio::new::<percent>(
-                f64::from(spent_cents) / f64::from(limit_cents) * 100.0,
-            )),
+            spent: ExtraSpend::Spent(euro_cents(spent_cents)),
+            allowance: ExtraAllowance::Capped {
+                monthly_limit: euro_cents(limit_cents),
+                used_share: Ratio::new::<percent>(
+                    f64::from(spent_cents) / f64::from(limit_cents) * 100.0,
+                ),
+            },
         }),
     }
 }
@@ -171,14 +175,14 @@ fn local_log_periods(clock: Clock) -> ClaudeCcusagePeriods {
 }
 
 fn active_billing_block(clock: Clock) -> ClaudeCcusageBlock {
-    ClaudeCcusageBlock {
-        active: Some(BillingBlock {
-            cost: dollar_cents(1_274),
-            ends_at: clock.utc() + TimeDelta::minutes(95),
-            cost_per_hour: Some(dollar_cents(397)),
-            projected_cost: Some(dollar_cents(1_903)),
-        }),
-    }
+    ClaudeCcusageBlock::Active(BillingBlock {
+        cost: dollar_cents(1_274),
+        ends_at: clock.utc() + TimeDelta::minutes(95),
+        projection: BlockProjection::Projected {
+            cost_per_hour: dollar_cents(397),
+            projected_cost: dollar_cents(1_903),
+        },
+    })
 }
 
 fn subscription_model_ranking() -> ClaudeCcusageModels {

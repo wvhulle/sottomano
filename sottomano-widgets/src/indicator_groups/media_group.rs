@@ -14,7 +14,10 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::desktop_entries::DesktopEntries,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
-        mpris_players::{Command, Media, PlayerBusOwner, PlayerBusOwners, Progress, Status},
+        mpris_players::{
+            Command, CoverArtUrl, Media, PlayerBusOwner, PlayerBusOwners, Progress, Status,
+            TrackTitle,
+        },
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
@@ -285,7 +288,7 @@ impl MediaGroup {
     fn titled_players(&self) -> Vec<&Media> {
         let mut titled: Vec<&Media> = self
             .all_players()
-            .filter(|media| media.title.is_some())
+            .filter(|media| matches!(media.title, TrackTitle::Titled(_)))
             .collect();
         titled.sort_by(|left, right| left.bus.cmp(&right.bus));
         titled
@@ -330,7 +333,9 @@ impl MediaGroup {
             MediaMessage::ArtLoaded { bus, url, handle } => {
                 let still_shown = self
                     .player(&bus)
-                    .is_some_and(|media| media.art_url.as_deref() == Some(url.as_str()));
+                    .is_some_and(|media| {
+                        matches!(&media.art_url, CoverArtUrl::Advertised(shown) if *shown == url)
+                    });
                 if let Some(handle) = handle.filter(|_| still_shown)
                     && let Some(session) = self.sessions.get_mut(&bus)
                 {
@@ -382,7 +387,9 @@ impl MediaGroup {
             if session
                 .cover_art
                 .as_ref()
-                .is_some_and(|art| media.art_url.as_deref() != Some(art.url.as_str()))
+                .is_some_and(|art| {
+                    !matches!(&media.art_url, CoverArtUrl::Advertised(shown) if *shown == art.url)
+                })
             {
                 session.cover_art = None;
             }
@@ -443,7 +450,7 @@ impl MediaGroup {
                 }
                 let media = player_snapshot
                     .get()
-                    .filter(|media| media.title.is_some())?;
+                    .filter(|media| matches!(media.title, TrackTitle::Titled(_)))?;
                 player_group(
                     config,
                     clock,
@@ -650,7 +657,7 @@ mod tests {
 
     fn singing_player(title: &str, clock: Clock) -> Media {
         Media {
-            title: Some(title.to_owned()),
+            title: TrackTitle::Titled(title.to_owned()),
             artists: vec!["The Harbour Lights".to_owned()],
             progress: Progress::Timed {
                 position: Duration::from_secs(15),
@@ -703,7 +710,8 @@ mod tests {
                     .lyrics_query()
                     .expect("a timed, titled track has a query"),
                 delivery: SnapshotDelivery::single_read(Err(http_json_client::Error::status(
-                    503, None,
+                    503,
+                    http_json_client::ResponseBody::NotJson,
                 ))),
             },
             clock,

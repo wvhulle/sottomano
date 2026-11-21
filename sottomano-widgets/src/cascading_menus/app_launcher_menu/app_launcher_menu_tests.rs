@@ -1,7 +1,7 @@
 use std::{collections::HashMap, iter::once};
 
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
-    AppCategory, LaunchableApp, OpenAppWindows,
+    AppCategory, AppDescription, LaunchSurface, LaunchableApp, OpenAppWindows,
 };
 use sottomano_toml_config::Config;
 
@@ -18,10 +18,10 @@ fn app_named(app_id: &str, category: AppCategory) -> LaunchableApp {
     LaunchableApp {
         app_id: app_id.to_owned(),
         name: app_id.to_owned(),
-        description: None,
+        description: AppDescription::Undescribed,
         category,
         launch_command: vec![app_id.to_owned()],
-        runs_in_terminal: false,
+        launch_surface: LaunchSurface::Graphical,
     }
 }
 

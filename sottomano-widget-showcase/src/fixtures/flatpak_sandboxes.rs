@@ -4,8 +4,9 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::FamilyDetails,
+    container_runtime_facts::{ContainerMemoryUse, ContainerStartTime},
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    flatpak_sandboxes::{FlatpakSandbox, FlatpakSandboxListing},
+    flatpak_sandboxes::{FlatpakBranch, FlatpakRuntime, FlatpakSandbox, FlatpakSandboxListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -29,11 +30,13 @@ fn flatpak_sandbox(
             application_id: application_id.to_owned(),
             instance_id: instance_id.to_owned(),
         },
-        runtime_reference: Some("runtime/org.freedesktop.Platform/x86_64/24.08".to_owned()),
-        branch: Some("stable".to_owned()),
+        runtime_reference: FlatpakRuntime::Reference(
+            "runtime/org.freedesktop.Platform/x86_64/24.08".to_owned(),
+        ),
+        branch: FlatpakBranch::Named("stable".to_owned()),
         sandbox_pid,
-        started_at: Some(clock.wall - running_for),
-        memory_in_use: Some(memory_in_use),
+        started_at: ContainerStartTime::StartedAt(clock.wall - running_for),
+        memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
     }
 }
 

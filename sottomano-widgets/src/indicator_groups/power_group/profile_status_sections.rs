@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::battery_power_profiles::power_profiles_daemon::{
-    ProfileHold, ProfileStatus,
+    PerformanceDegradation, ProfileHold, ProfileStatus,
 };
 
 use crate::{
@@ -29,23 +29,24 @@ impl From<&ProfileHold> for TableRecord<2> {
 }
 
 pub fn profile_status_sections(profile_status: &ProfileStatus) -> Vec<Section> {
-    let held_by = (!profile_status.holds.is_empty()).then(|| {
-        Section::new(
+    let mut sections = Vec::new();
+    if !profile_status.holds.is_empty() {
+        sections.push(Section::new(
             SectionTitle::captioned(
                 "Held by",
                 "Apps holding a profile until they finish; the slider follows them.",
             ),
             headed_table(HOLD_HEADINGS, profile_status.holds.iter()),
-        )
-    });
-    let degraded = profile_status.degraded.as_ref().map(|reason| {
-        Section::new(
+        ));
+    }
+    if let PerformanceDegradation::Degraded { reason } = &profile_status.degraded {
+        sections.push(Section::new(
             SectionTitle::captioned(
                 "Performance degraded",
                 "The daemon is throttling performance until this clears.",
             ),
             dictionary_table([LabeledValue::new("Reason", reason.clone())]),
-        )
-    });
-    [held_by, degraded].into_iter().flatten().collect()
+        ));
+    }
+    sections
 }
