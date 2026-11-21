@@ -20,7 +20,7 @@ use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator, indicator_state::IndicatorState,
-        timeline_row::timeline_row,
+        slider_control::SliderActivity, timeline_row::timeline_row,
     },
     hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
     indicator_groups::{
@@ -44,6 +44,16 @@ pub(super) fn pause_glyph(pause: IdleAction) -> Phosphor {
         IdleAction::Sleep => Phosphor::Bed(Weight::Regular),
         IdleAction::Hibernate => Phosphor::Snowflake(Weight::Regular),
         IdleAction::PowerOff => Phosphor::Power(Weight::Regular),
+    }
+}
+
+pub(super) fn stage_slider_glyph(stage: IdleAction) -> fn(f32, SliderActivity) -> Phosphor {
+    match stage {
+        IdleAction::Lock => |_, activity| Phosphor::Lock(activity.into()),
+        IdleAction::ScreenOff => |_, activity| Phosphor::Monitor(activity.into()),
+        IdleAction::Sleep => |_, activity| Phosphor::Bed(activity.into()),
+        IdleAction::Hibernate => |_, activity| Phosphor::Snowflake(activity.into()),
+        IdleAction::PowerOff => |_, activity| Phosphor::Power(activity.into()),
     }
 }
 
@@ -191,7 +201,7 @@ impl IdlePauseGroups {
     fn timeline_indicator<'a>(&'a self, config: &'a Config, clock: Clock) -> GroupIndicator<'a> {
         timeline_row(
             "Timeline",
-            Phosphor::Timer(Weight::Regular).into(),
+            Phosphor::ClockCountdown(Weight::Regular).into(),
             move || self.shown_idle_timeline(config, clock),
             Box::new(move |card_clock| self.timeline_sections(config, card_clock)),
         )

@@ -25,7 +25,10 @@ use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{
-    glyph_icons::{icon_glyph::IconGlyph, phosphor::Phosphor},
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{
@@ -57,6 +60,15 @@ pub struct SliderShownIndicator {
 pub enum SliderActivity {
     Active,
     Inactive,
+}
+
+impl From<SliderActivity> for Weight {
+    fn from(activity: SliderActivity) -> Self {
+        match activity {
+            SliderActivity::Active => Weight::Fill,
+            SliderActivity::Inactive => Weight::Regular,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

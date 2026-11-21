@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    glyph_icons::phosphor::{Phosphor, Weight},
+    glyph_icons::phosphor::Phosphor,
     group_indicators::slider_control::{
         Action, ControlMessage, SliderActivity, SliderCaption, SliderControl,
     },
@@ -26,18 +26,23 @@ pub struct IdleTimer {
 
 impl IdleTimer {
     #[must_use]
-    pub fn new(name: &'static str) -> Self {
+    pub fn new(name: &'static str, glyph: fn(f32, SliderActivity) -> Phosphor) -> Self {
         Self {
-            control: SliderControl::new(name, 0.0..=MAX_POSITION, Phosphor::Timer(Weight::Regular))
-                .readout(|value, locale| {
-                    timeout_at(value).map_or_else(
-                        || "∞".to_owned(),
-                        |offset| format!("+{}", duration_text(offset, locale)),
-                    )
-                })
-                .label(|value, locale| {
-                    timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
-                }),
+            control: SliderControl::new(
+                name,
+                0.0..=MAX_POSITION,
+                glyph(0.0, SliderActivity::Inactive),
+            )
+            .glyph(glyph)
+            .readout(|value, locale| {
+                timeout_at(value).map_or_else(
+                    || "∞".to_owned(),
+                    |offset| format!("+{}", duration_text(offset, locale)),
+                )
+            })
+            .label(|value, locale| {
+                timeout_at(value).map(|offset| format!("+{}", duration_text(offset, locale)))
+            }),
             timeout: None,
             availability: ActionAvailability::Available,
         }

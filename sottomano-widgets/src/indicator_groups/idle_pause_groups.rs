@@ -33,6 +33,7 @@ use self::{
     pause_blocker_indicators::{
         PauseBlocker, PauseFacts, TimerArming, pause_blockers, pause_title,
     },
+    pause_group_elements::stage_slider_glyph,
     stage_schedule_cards::stage_caption,
 };
 pub use self::{
@@ -65,7 +66,7 @@ struct IdlePause {
 impl IdlePause {
     fn new(stage: IdleAction) -> Self {
         Self {
-            timer: IdleTimer::new(pause_title(stage)),
+            timer: IdleTimer::new(pause_title(stage), stage_slider_glyph(stage)),
         }
     }
 }
