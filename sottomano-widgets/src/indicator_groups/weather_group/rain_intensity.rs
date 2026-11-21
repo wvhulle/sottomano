@@ -28,14 +28,14 @@ use crate::{
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
-    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_grouped_table},
     indicator_groups::weather_group::{
         precipitation_type_forecast::{
             MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
         },
         rain_forecast_ranking::{
-            RainRateIndicator, RankedRainProvider, RankedRateSource, frames_not_yet_over,
-            ranked_by_method, rate_indicators_by_rank,
+            RainForecastMethod, RainRateIndicator, RankedRainProvider, RankedRateSource,
+            frames_not_yet_over, ranked_by_method, rate_indicators_by_rank,
         },
     },
     widgets::{
@@ -304,12 +304,11 @@ impl<'a> RainSources<'a> {
         radar_source.into_iter().chain(model_source).collect()
     }
 
-    fn caption(self, clock: Clock) -> String {
+    fn source_rows(self, clock: Clock) -> Vec<LabeledValue> {
         ranked_by_method(self.rate_sources(clock))
             .iter()
-            .map(|source| format!("{}: {}", source.method, source.provider_name))
-            .collect::<Vec<_>>()
-            .join(" · ")
+            .map(|source| LabeledValue::new(method_source_key(source.method), source.provider_name))
+            .collect()
     }
 }
 
@@ -397,9 +396,16 @@ impl RainForecast<'_> {
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => "Next 2 hours",
         };
         Section::new(
-            SectionTitle::captioned(title, self.sources.caption(clock)),
-            dictionary_table(entries),
+            title,
+            dictionary_table(entries.into_iter().chain(self.sources.source_rows(clock))),
         )
+    }
+}
+
+fn method_source_key(method: RainForecastMethod) -> &'static str {
+    match method {
+        RainForecastMethod::RadarNowcast => "Radar source",
+        RainForecastMethod::NumericalWeatherModel => "Model source",
     }
 }
 
@@ -1031,7 +1037,7 @@ mod tests {
     }
 
     #[test]
-    fn the_caption_lists_providers_from_most_to_least_trusted() {
+    fn source_rows_list_providers_from_most_to_least_trusted() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0]);
         let model = model_quarters(clock, &[WeatherCondition::Overcast]);
@@ -1040,8 +1046,11 @@ mod tests {
             model: &model,
         };
         assert_eq!(
-            sources.caption(clock),
-            "radar: Buienradar · model: Open-Meteo"
+            sources.source_rows(clock),
+            vec![
+                LabeledValue::new("Radar source", "Buienradar"),
+                LabeledValue::new("Model source", "Open-Meteo"),
+            ]
         );
     }
 

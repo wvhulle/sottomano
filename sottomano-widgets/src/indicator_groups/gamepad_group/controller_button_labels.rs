@@ -21,17 +21,6 @@ pub enum ControllerFamily {
 
 impl ControllerFamily {
     #[must_use]
-    pub fn described_button(self, button: GamepadButton) -> String {
-        let label = self.button_label(button);
-        let position = button.position_name();
-        if label == position {
-            label.to_owned()
-        } else {
-            format!("{label} · {position}")
-        }
-    }
-
-    #[must_use]
     pub const fn controller_model(self) -> ControllerModel {
         match self {
             ControllerFamily::PlayStation => ControllerModel::DualSense,
@@ -183,18 +172,5 @@ mod tests {
         let steam = ControllerFamily::from(VALVE_USB_VENDOR);
         assert_eq!(steam.button_label(GamepadButton::Guide), "Steam");
         assert_eq!(steam.controller_model(), ControllerModel::SteamController);
-    }
-
-    #[test]
-    fn buttons_are_described_by_label_and_position() {
-        let playstation = ControllerFamily::PlayStation;
-        assert_eq!(
-            playstation.described_button(GamepadButton::RightTrigger),
-            "R2 · right trigger"
-        );
-        assert_eq!(
-            playstation.described_button(GamepadButton::DpadUp),
-            "D-pad up"
-        );
     }
 }

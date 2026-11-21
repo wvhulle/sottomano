@@ -17,8 +17,8 @@ use iced::{
 };
 
 pub use self::timeline_layout::{
-    MarkShape, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark, TimelineScale,
-    TimelineSpan,
+    MarkMeasure, MarkShape, RailPresence, SpanInk, SpanWeight, TimelineAxis, TimelineMark,
+    TimelineScale, TimelineSpan,
 };
 use self::{
     timeline_layout::{
@@ -154,10 +154,15 @@ impl DurationTimeline {
         let time_column_width = widest_text(is_event, |mark| mark.time_text.clone());
         let event_detail_x = time_column_width + COLUMN_GAP_PX;
         let ring_extent = size_px * EVENT_RING_SCALE;
-        let rail_x = event_detail_x
-            + widest_text(is_event, |mark| mark.detail_text.clone())
-            + COLUMN_GAP_PX
-            + ring_extent / 2.0;
+        let event_measure_x =
+            event_detail_x + widest_text(is_event, |mark| mark.detail_text.clone());
+        let widest_measure = widest_text(is_event, |mark| mark.measure.measure_text().to_owned());
+        let event_measure_x = if widest_measure > 0.0 {
+            event_measure_x + COLUMN_GAP_PX
+        } else {
+            event_measure_x
+        };
+        let rail_x = event_measure_x + widest_measure + COLUMN_GAP_PX + ring_extent / 2.0;
         let interval_glyph_x = rail_x + ring_extent / 2.0 + COLUMN_GAP_PX;
         let widest_interval_glyph_run = self
             .marks
@@ -173,6 +178,7 @@ impl DurationTimeline {
         ColumnLayout {
             time_column_width,
             event_detail_x,
+            event_measure_x,
             rail_x,
             interval_glyph_x,
             interval_text_x,
@@ -307,6 +313,7 @@ impl DurationTimeline {
         let ColumnLayout {
             time_column_width,
             event_detail_x,
+            event_measure_x,
             rail_x,
             interval_glyph_x,
             interval_text_x,
@@ -363,6 +370,14 @@ impl DurationTimeline {
                         Alignment::Left,
                         text_color(theme),
                     ));
+                    if let MarkMeasure::Measured(measure_text) = &mark.measure {
+                        frame.fill_text(self.label_text(
+                            measure_text,
+                            Point::new(event_measure_x, *mark_y),
+                            Alignment::Left,
+                            secondary_text_color(theme),
+                        ));
+                    }
                 }
                 MarkShape::Interval { .. } => {
                     let faint_color = secondary_text_color(theme);
@@ -446,6 +461,7 @@ impl DurationTimeline {
 struct ColumnLayout {
     time_column_width: f32,
     event_detail_x: f32,
+    event_measure_x: f32,
     rail_x: f32,
     interval_glyph_x: f32,
     interval_text_x: f32,

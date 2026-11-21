@@ -3,13 +3,12 @@ use std::{borrow::Cow, time::Duration};
 use chrono::{DateTime, TimeDelta, Utc};
 
 use super::{
-    DurationTimeline, MarkShape, NowCursor, RailPresence, SpanInk, SpanWeight, TimelineAxis,
-    TimelineDirection, TimelineMark, TimelineScale, TimelineSpan,
+    DurationTimeline, MarkMeasure, MarkShape, NowCursor, RailPresence, SpanInk, SpanWeight,
+    TimelineAxis, TimelineDirection, TimelineMark, TimelineScale, TimelineSpan,
 };
 use crate::theming::TextFace;
 
 const APPROXIMATE_TIME_PREFIX: &str = "~";
-const CAPTION_SEPARATOR: &str = " · ";
 
 pub trait TimelineTextFormat {
     fn clock_time_text(&self, at: DateTime<Utc>) -> String;
@@ -115,25 +114,13 @@ fn glyph_svgs(glyph: EventGlyph) -> Vec<&'static [u8]> {
     }
 }
 
-fn event_caption(
-    title: &str,
-    measure: EventMeasure,
-    text_format: &impl TimelineTextFormat,
-) -> String {
+fn event_mark_measure(measure: EventMeasure, text_format: &impl TimelineTextFormat) -> MarkMeasure {
     match measure {
-        EventMeasure::Unmeasured => title.to_owned(),
+        EventMeasure::Unmeasured => MarkMeasure::Unmeasured,
         EventMeasure::OffsetFromAnchor(offset) => {
-            format!(
-                "{title}{CAPTION_SEPARATOR}+{}",
-                text_format.length_text(offset)
-            )
+            MarkMeasure::Measured(format!("+{}", text_format.length_text(offset)))
         }
-        EventMeasure::Lasting(length) => {
-            format!(
-                "{title}{CAPTION_SEPARATOR}{}",
-                text_format.length_text(length)
-            )
-        }
+        EventMeasure::Lasting(length) => MarkMeasure::Measured(text_format.length_text(length)),
     }
 }
 
@@ -256,6 +243,7 @@ impl WallClockTimeline {
                           time_text: String,
                           glyph: EventGlyph,
                           detail_text: String,
+                          measure: MarkMeasure,
                           ink: SpanInk,
                           rail_presence: RailPresence| TimelineMark {
             at: window.offset_of(at),
@@ -263,6 +251,7 @@ impl WallClockTimeline {
             glyph_svgs: glyph_svgs(glyph),
             time_text,
             detail_text,
+            measure,
             ink,
             rail_presence,
         };
@@ -272,6 +261,7 @@ impl WallClockTimeline {
                 text_format.clock_time_text(at),
                 edge.glyph,
                 edge.title.clone().into_owned(),
+                MarkMeasure::Unmeasured,
                 edge.ink,
                 RailPresence::LabeledColumnOnly,
             )
@@ -291,7 +281,8 @@ impl WallClockTimeline {
                         }
                     },
                     event.glyph,
-                    event_caption(&event.title, event.measure, text_format),
+                    event.title.clone().into_owned(),
+                    event_mark_measure(event.measure, text_format),
                     event.ink,
                     event.rail_presence,
                 )
@@ -322,6 +313,7 @@ impl WallClockTimeline {
                             "{title} {}",
                             text_format.length_text(clock_span.until - clock_span.from)
                         ),
+                        measure: MarkMeasure::Unmeasured,
                         ink: clock_span.ink,
                         rail_presence: RailPresence::LabeledColumnOnly,
                     }),
@@ -367,7 +359,7 @@ mod tests {
         ClockSpan, EdgeEvent, EventGlyph, EventMeasure, SpanCaption, SpanEdges, TimePrecision,
         TimelineEvent, TimelineTextFormat, WallClockTimeline,
     };
-    use crate::gauges::{RailPresence, SpanInk, SpanWeight, TimelineSpan};
+    use crate::gauges::{MarkMeasure, RailPresence, SpanInk, SpanWeight, TimelineSpan};
 
     struct MinuteText;
 
@@ -419,11 +411,11 @@ mod tests {
         }
     }
 
-    fn mark_texts(timeline: &WallClockTimeline) -> Vec<(String, String)> {
+    fn mark_texts(timeline: &WallClockTimeline) -> Vec<(String, String, MarkMeasure)> {
         timeline
             .marks(timeline.window(), &MinuteText)
             .into_iter()
-            .map(|mark| (mark.time_text, mark.detail_text))
+            .map(|mark| (mark.time_text, mark.detail_text, mark.measure))
             .collect()
     }
 
@@ -475,10 +467,26 @@ mod tests {
         assert_eq!(
             mark_texts(&timeline),
             vec![
-                ("~12:00".to_owned(), "Due · +45m".to_owned()),
-                ("10:50".to_owned(), "Idle".to_owned()),
-                ("11:00".to_owned(), "Active".to_owned()),
-                (String::new(), "Break 10m".to_owned()),
+                (
+                    "~12:00".to_owned(),
+                    "Due".to_owned(),
+                    MarkMeasure::Measured("+45m".to_owned())
+                ),
+                (
+                    "10:50".to_owned(),
+                    "Idle".to_owned(),
+                    MarkMeasure::Unmeasured
+                ),
+                (
+                    "11:00".to_owned(),
+                    "Active".to_owned(),
+                    MarkMeasure::Unmeasured
+                ),
+                (
+                    String::new(),
+                    "Break 10m".to_owned(),
+                    MarkMeasure::Unmeasured
+                ),
             ]
         );
     }
@@ -490,7 +498,7 @@ mod tests {
             .clock_spans([break_span(90, 100)]);
         let details: Vec<String> = mark_texts(&timeline)
             .into_iter()
-            .map(|(_, detail_text)| detail_text)
+            .map(|(_, detail_text, _)| detail_text)
             .collect();
         assert_eq!(details, ["Idle", "Break 10m"]);
     }

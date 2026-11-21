@@ -434,12 +434,7 @@ impl SliderControl {
         let SliderLevelAnnouncing::Announcing(announcement) = &self.level_announcing else {
             return LevelNotice::Unannounced;
         };
-        let readout = self.readout_text(locale);
-        let body_text = match self.slider_activity {
-            SliderActivity::Active => readout,
-            SliderActivity::Inactive => format!("Muted · {readout}"),
-        };
-        match announcement.level(self.range_fill(), body_text) {
+        match announcement.level(self.range_fill(), self.readout_text(locale)) {
             Some(level) => LevelNotice::Announced {
                 level,
                 glyph: self

@@ -68,12 +68,29 @@ pub enum MarkShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MarkMeasure {
+    Measured(String),
+    Unmeasured,
+}
+
+impl MarkMeasure {
+    #[must_use]
+    pub fn measure_text(&self) -> &str {
+        match self {
+            MarkMeasure::Measured(measure_text) => measure_text,
+            MarkMeasure::Unmeasured => "",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimelineMark {
     pub at: Duration,
     pub shape: MarkShape,
     pub glyph_svgs: Vec<&'static [u8]>,
     pub time_text: String,
     pub detail_text: String,
+    pub measure: MarkMeasure,
     pub ink: SpanInk,
     pub rail_presence: RailPresence,
 }
@@ -176,8 +193,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        MarkShape, PixelRun, RailPresence, SpanInk, TimelineAxis, TimelineMark, TimelineScale,
-        glyphs_merged_by_time, marks_in_time_order, runs_around_gaps,
+        MarkMeasure, MarkShape, PixelRun, RailPresence, SpanInk, TimelineAxis, TimelineMark,
+        TimelineScale, glyphs_merged_by_time, marks_in_time_order, runs_around_gaps,
     };
 
     const ONE_MINUTE_KNEE: TimelineScale = TimelineScale::Logarithmic {
@@ -225,6 +242,7 @@ mod tests {
             glyph_svgs: glyph_svgs.to_vec(),
             time_text: String::new(),
             detail_text: detail_text.to_owned(),
+            measure: MarkMeasure::Unmeasured,
             ink: SpanInk::Strong,
             rail_presence: RailPresence::OnCompactRail,
         }

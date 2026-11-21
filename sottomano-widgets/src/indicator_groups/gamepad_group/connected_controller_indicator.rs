@@ -241,7 +241,7 @@ impl ConnectedControllerIndicator<'_> {
 
     fn stick_callouts(&self) -> impl Iterator<Item = DiagramCallout> {
         let navigation = &self.bindings.navigation;
-        let navigation_label = [
+        let axis_labels = [
             axis_label(
                 navigation.action(StickDirection::Left),
                 navigation.action(StickDirection::Right),
@@ -252,15 +252,17 @@ impl ConnectedControllerIndicator<'_> {
                 navigation.action(StickDirection::Down),
                 "↕",
             ),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join(" · ");
-        let navigating = navigation.stick.map(|stick| DiagramCallout {
-            anchor: stick_anchor(stick),
-            label: navigation_label,
-            level: Severity::Normal,
+        ];
+        let navigating = navigation.stick.into_iter().flat_map(move |stick| {
+            axis_labels
+                .clone()
+                .into_iter()
+                .flatten()
+                .map(move |axis_label_text| DiagramCallout {
+                    anchor: stick_anchor(stick),
+                    label: axis_label_text,
+                    level: Severity::Normal,
+                })
         });
         let pointing = self.bindings.pointer.stick.map(|stick| DiagramCallout {
             anchor: stick_anchor(stick),
@@ -270,7 +272,7 @@ impl ConnectedControllerIndicator<'_> {
                 StickSharing::Separate => Severity::Normal,
             },
         });
-        navigating.into_iter().chain(pointing)
+        navigating.chain(pointing)
     }
 
     fn button_callouts(&self) -> impl Iterator<Item = DiagramCallout> {

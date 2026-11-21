@@ -71,15 +71,11 @@ impl SessionFace<'_> {
             FocusUnit::App(_) => true,
             FocusUnit::Project(_) => false,
         });
-        let unit_row = |key, total: &UnitTotal| {
-            (
-                key,
-                format!(
-                    "{} · {}",
-                    escape(total.unit.label().as_ref()),
-                    duration_text(total.spent, locale)
-                ),
-            )
+        let unit_rows = |name_key, spent_key, total: &UnitTotal| {
+            [
+                (name_key, escape(total.unit.label().as_ref()).into_owned()),
+                (spent_key, duration_text(total.spent, locale)),
+            ]
         };
         Some(definition_list(
             [
@@ -90,8 +86,16 @@ impl SessionFace<'_> {
                 ),
             ]
             .into_iter()
-            .chain(most_used_project.map(|total| unit_row("Project", total)))
-            .chain(most_used_app.map(|total| unit_row("App", total))),
+            .chain(
+                most_used_project
+                    .into_iter()
+                    .flat_map(|total| unit_rows("Project", "Time on project", total)),
+            )
+            .chain(
+                most_used_app
+                    .into_iter()
+                    .flat_map(|total| unit_rows("App", "Time in app", total)),
+            ),
         ))
     }
 
@@ -277,7 +281,8 @@ mod tests {
             snooze: None,
         };
         let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();
-        assert!(summary.contains("<dt>App</dt><dd>firefox · 40m</dd>"));
+        assert!(summary.contains("<dt>App</dt><dd>firefox</dd>"));
+        assert!(summary.contains("<dt>Time in app</dt><dd>40m</dd>"));
         assert!(!summary.contains("kitty"));
     }
 }

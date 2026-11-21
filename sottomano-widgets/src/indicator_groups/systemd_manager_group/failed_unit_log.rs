@@ -158,12 +158,9 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
             ("Signal", crash.signal.to_string()),
             (
                 "Process",
-                format!(
-                    "{} · PID {}",
-                    escape(crash.executable.display().to_string()),
-                    crash.pid
-                ),
+                escape(crash.executable.display().to_string()).into_owned(),
             ),
+            ("PID", crash.pid.to_string()),
         ]
         .into_iter()
         .chain(crash.stored_file.as_ref().map(|file| {

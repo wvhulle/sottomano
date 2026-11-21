@@ -101,7 +101,7 @@ fn last_input_event(clock: Clock) -> TimelineEvent {
         at: clock.utc(),
         precision: TimePrecision::Exact,
         glyph: EventGlyph::Plain,
-        title: Cow::Borrowed("Now · last input"),
+        title: Cow::Borrowed("Last input"),
         measure: EventMeasure::Unmeasured,
         ink: SpanInk::Strong,
         rail_presence: RailPresence::LabeledColumnOnly,

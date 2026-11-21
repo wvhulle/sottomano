@@ -1,0 +1,10 @@
+id: middle-dot-separator
+valid:
+  - "fn label() -> String { format!(\"{left}, {right}\") }"
+  - "mod tests { fn fixture() -> &'static str { \"Odin-rs · GitHub - Chromium\" } }"
+invalid:
+  - "fn label() -> String { format!(\"{left} · {right}\") }"
+  - "fn label(parts: &[String]) -> String { parts.join(\" · \") }"
+  - "fn label() -> String { \"Now · last input\".to_owned() }"
+  - "const CAPTION_SEPARATOR: &str = \" · \";"
+  - "const SEPARATOR_CHAR: char = '·';"

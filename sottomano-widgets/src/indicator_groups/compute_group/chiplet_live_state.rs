@@ -45,20 +45,27 @@ impl ChipletLiveState<'_> {
         }
     }
 
-    pub fn temperature_text(&self, group: &CoreGroup) -> Option<String> {
-        let samples = &self.temperature?.samples;
-        let temperatures: Vec<String> = group
+    pub fn temperature_rows(&self, group: &CoreGroup) -> Vec<LabeledValue> {
+        let Some(temperature) = self.temperature else {
+            return Vec::new();
+        };
+        group
             .chiplets
             .iter()
             .filter_map(|chiplet| {
-                let label = format!("Tccd{}", chiplet.position + 1);
-                samples
+                let sensor_label = format!("Tccd{}", chiplet.position + 1);
+                temperature
+                    .samples
                     .iter()
-                    .find(|sample| sample.label == label)
-                    .map(|sample| celsius_text(sample.temperature))
+                    .find(|sample| sample.label == sensor_label)
+                    .map(|sample| {
+                        LabeledValue::new(
+                            format!("CCD {}", chiplet.position + 1),
+                            celsius_text(sample.temperature),
+                        )
+                    })
             })
-            .collect();
-        (!temperatures.is_empty()).then(|| temperatures.join(" · "))
+            .collect()
     }
 
     pub fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<LabeledValue> {

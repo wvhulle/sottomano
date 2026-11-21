@@ -69,16 +69,25 @@ pub(super) fn cpu_clock_hover_card(cpu_clock: &CpuClock) -> Vec<Section> {
 
 impl ChipletLiveState<'_> {
     pub fn clock_sections(&self, clock: &CpuClock, loads: Option<&CpuCoreLoads>) -> Vec<Section> {
+        let chiplet_temperature_rows: Vec<LabeledValue> = clock
+            .topology
+            .core_groups
+            .iter()
+            .flat_map(|group| self.temperature_rows(group))
+            .collect();
+        let temperature_section = (!chiplet_temperature_rows.is_empty()).then(|| {
+            Section::new(
+                "Chiplet temperatures",
+                dictionary_table(chiplet_temperature_rows),
+            )
+        });
         clock
             .topology
             .core_groups
             .iter()
             .enumerate()
             .map(|(position, group)| {
-                let title = match self.temperature_text(group) {
-                    Some(temperature) => format!("{} · {temperature}", self.title(group)),
-                    None => self.title(group),
-                };
+                let title = self.title(group);
                 let table = ChipletClockTable {
                     clock,
                     loads,
@@ -102,6 +111,7 @@ impl ChipletLiveState<'_> {
                     Section::new(title, table)
                 }
             })
+            .chain(temperature_section)
             .collect()
     }
 }
