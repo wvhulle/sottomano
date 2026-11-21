@@ -92,7 +92,9 @@ impl KeyValuesBlock {
 }
 
 fn line_comment(input: &mut &str) -> ModalResult<()> {
-    preceded(('/', '/'), till_line_ending).void().parse_next(input)
+    preceded(('/', '/'), till_line_ending)
+        .void()
+        .parse_next(input)
 }
 
 fn insignificant(input: &mut &str) -> ModalResult<()> {
@@ -203,13 +205,17 @@ mod tests {
             .texts()
             .map(|(app_id, size)| (app_id, size.parse().expect("numeric size")))
             .collect();
-        assert_eq!(sizes, [("620", 12_792_163_663), ("1091500", 66_818_683_782)]);
+        assert_eq!(
+            sizes,
+            [("620", 12_792_163_663), ("1091500", 66_818_683_782)]
+        );
     }
 
     #[test]
     fn app_manifest_fields_parse_into_numbers() {
         let manifest = parse_keyvalues_document(
-            "\"AppState\"\n{\n\t\"appid\"\t\t\"1091500\"\n\t\"name\"\t\t\"Cyberpunk 2077\"\n\t\"StateFlags\"\t\t\"4\"\n}\n",
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"1091500\"\n\t\"name\"\t\t\"Cyberpunk \
+             2077\"\n\t\"StateFlags\"\t\t\"4\"\n}\n",
         )
         .expect("valid manifest");
         let app_state = manifest.block("AppState").expect("app state");
@@ -221,7 +227,8 @@ mod tests {
     #[test]
     fn escapes_and_comments_are_understood() {
         let document = parse_keyvalues_document(
-            "\u{2f}\u{2f} header comment\n\"root\" { \"quote\" \"say \\\"hi\\\"\" \u{2f}\u{2f} trailing\n bare value }",
+            "\u{2f}\u{2f} header comment\n\"root\" { \"quote\" \"say \\\"hi\\\"\" \u{2f}\u{2f} \
+             trailing\n bare value }",
         )
         .expect("valid document");
         let root = document.block("root").expect("root block");
@@ -231,7 +238,8 @@ mod tests {
 
     #[test]
     fn an_unclosed_block_is_reported_with_its_offset() {
-        let failure = parse_keyvalues_document("\"root\" { \"key\" \"value\"").expect_err("unclosed");
+        let failure =
+            parse_keyvalues_document("\"root\" { \"key\" \"value\"").expect_err("unclosed");
         assert!(failure.reason.contains("closing brace"), "{failure}");
     }
 }

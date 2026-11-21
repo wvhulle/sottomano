@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
+
 use super::*;
 use crate::{
     gamepad_controller_input::{
@@ -12,7 +14,6 @@ use crate::{
         virtual_gamepad_slots::{SteamVirtualSlot, VirtualSlotControllerType},
     },
 };
-use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
 
 fn steam_virtual_pad(evdev_slot: usize, xinput_slot: u8) -> ConnectedGamepad {
     ConnectedGamepad {
@@ -72,9 +73,10 @@ fn latest_roster(events: Vec<RawGamepadEvent>) -> Vec<ConnectedGamepad> {
 fn hardware_address(gamepad: &ConnectedGamepad) -> Option<&str> {
     match &gamepad.origin {
         GamepadOrigin::Physical(PhysicalGamepadLink {
-            identity: ControllerIdentity::Addressed {
-                hardware_address, ..
-            },
+            identity:
+                ControllerIdentity::Addressed {
+                    hardware_address, ..
+                },
             ..
         }) => Some(hardware_address),
         GamepadOrigin::Physical(_) | GamepadOrigin::Virtual => None,
@@ -93,7 +95,8 @@ const SECOND_SLOT_LOG: [&str; 6] = [
     "  type: 28de 1304",
     "  path: /dev/hidraw13",
     "[2026-11-19 21:34:11] !! Steam controller device opened for index 3.",
-    "[2026-11-20 11:00:17] SetLocalControllerConnectionState for 3 to wireless_established because Event from device",
+    "[2026-11-20 11:00:17] SetLocalControllerConnectionState for 3 to wireless_established \
+     because Event from device",
     "[2026-11-20 11:00:17] Steam Controller reserving XInput slot 1",
 ];
 
@@ -104,17 +107,25 @@ fn another_controllers_steam_pad_is_never_a_steam_controller() {
         vec![virtual_slot(0, VirtualSlotControllerType::OtherController)],
         &[],
     ))));
-    pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Streaming));
-    let roster = latest_roster(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-        steam_virtual_pad(18, 0),
-    ]))));
+    pairing.absorb(DeviceSignal::Dongle(
+        dongle_slot(2),
+        DongleSample::Streaming,
+    ));
+    let roster = latest_roster(
+        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
+            steam_virtual_pad(18, 0),
+        ]))),
+    );
     assert_eq!(roster, [steam_virtual_pad(18, 0)]);
 }
 
 #[test]
 fn the_controller_log_pairs_a_pad_with_its_dongle_slot() {
     let mut pairing = SteamInputPairing::default();
-    pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Streaming));
+    pairing.absorb(DeviceSignal::Dongle(
+        dongle_slot(2),
+        DongleSample::Streaming,
+    ));
     pairing.absorb(DeviceSignal::Dongle(
         dongle_slot(3),
         DongleSample::Battery(GamepadPower::Charging(76)),
@@ -126,10 +137,12 @@ fn the_controller_log_pairs_a_pad_with_its_dongle_slot() {
         ],
         &SECOND_SLOT_LOG,
     ))));
-    let roster = latest_roster(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-        steam_virtual_pad(18, 0),
-        steam_virtual_pad(19, 1),
-    ]))));
+    let roster = latest_roster(
+        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
+            steam_virtual_pad(18, 0),
+            steam_virtual_pad(19, 1),
+        ]))),
+    );
     assert_eq!(roster[1].name, STEAM_CONTROLLER_NAME);
     assert_eq!(roster[1].power, GamepadPower::Charging(76));
     assert_eq!(hardware_address(&roster[1]), Some("FXA0000000002"));
@@ -144,10 +157,15 @@ fn a_lone_pad_and_a_lone_live_slot_pair_without_the_log() {
         vec![virtual_slot(0, VirtualSlotControllerType::SteamController)],
         &[],
     ))));
-    pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Streaming));
-    let roster = latest_roster(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-        steam_virtual_pad(18, 0),
-    ]))));
+    pairing.absorb(DeviceSignal::Dongle(
+        dongle_slot(2),
+        DongleSample::Streaming,
+    ));
+    let roster = latest_roster(
+        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
+            steam_virtual_pad(18, 0),
+        ]))),
+    );
     assert!(matches!(
         &roster[0].origin,
         GamepadOrigin::Physical(PhysicalGamepadLink {
@@ -172,12 +190,20 @@ fn a_button_edge_pairs_the_pad_with_the_slot_that_changed_with_it() {
         ],
         &[],
     ))));
-    pairing.absorb(DeviceSignal::Dongle(dongle_slot(2), DongleSample::Streaming));
-    pairing.absorb(DeviceSignal::Dongle(dongle_slot(3), DongleSample::Streaming));
-    let unpaired = latest_roster(pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
-        steam_virtual_pad(18, 0),
-        steam_virtual_pad(19, 1),
-    ]))));
+    pairing.absorb(DeviceSignal::Dongle(
+        dongle_slot(2),
+        DongleSample::Streaming,
+    ));
+    pairing.absorb(DeviceSignal::Dongle(
+        dongle_slot(3),
+        DongleSample::Streaming,
+    ));
+    let unpaired = latest_roster(
+        pairing.absorb(DeviceSignal::Raw(RawGamepadEvent::Roster(vec![
+            steam_virtual_pad(18, 0),
+            steam_virtual_pad(19, 1),
+        ]))),
+    );
     assert_eq!(unpaired[1], steam_virtual_pad(19, 1));
     pairing.absorb(DeviceSignal::DongleButtonsChanged(
         dongle_slot(3),

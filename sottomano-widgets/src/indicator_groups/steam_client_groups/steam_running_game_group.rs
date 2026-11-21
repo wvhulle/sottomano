@@ -9,7 +9,8 @@ use super::SteamClientInteraction;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorIcon, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -96,10 +97,10 @@ pub(super) fn running_game_group<'game>(
     game: &'game RunningSteamGame,
     expansion: &'game IndicatorGroupExpansion,
     locale: Locale,
+    game_icon: IndicatorIcon,
 ) -> IndicatorGroupContent<'game> {
     let app_id = game.app_id;
-    let headline_indicator = launch_indicator(game)
-        .with_headline_glyph(Phosphor::GameController(Weight::Regular).into());
+    let headline_indicator = launch_indicator(game).with_icon(game_icon);
     IndicatorGroupContent::expandable_instance(
         IndicatorGroupIdentity::durable(
             IndicatorGroupFamily::SteamRunningGame,

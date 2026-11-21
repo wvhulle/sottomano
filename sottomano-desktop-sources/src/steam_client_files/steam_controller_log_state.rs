@@ -51,7 +51,8 @@ impl SteamControllerLogState {
                 if let EnumeratedDevice::ValveAt(hidraw_node) =
                     mem::take(&mut self.enumerated_device)
                 {
-                    self.hidraw_by_device_index.insert(device_index, hidraw_node);
+                    self.hidraw_by_device_index
+                        .insert(device_index, hidraw_node);
                 }
             }
             ControllerLogLine::ConnectionStateChanged {
@@ -132,7 +133,10 @@ mod tests {
             "[2026-11-20 11:00:17] Steam Controller reserving XInput slot 0",
         ]);
         let state = state_after(&lines);
-        assert_eq!(state.xinput_slot_behind(Path::new("/dev/hidraw11")), Some(0));
+        assert_eq!(
+            state.xinput_slot_behind(Path::new("/dev/hidraw11")),
+            Some(0)
+        );
         assert_eq!(state.xinput_slot_behind(Path::new("/dev/hidraw10")), None);
     }
 
@@ -158,7 +162,10 @@ mod tests {
              because Event from device",
         );
         let disconnected = state_after(&lines);
-        assert_eq!(disconnected.xinput_slot_behind(Path::new("/dev/hidraw10")), None);
+        assert_eq!(
+            disconnected.xinput_slot_behind(Path::new("/dev/hidraw10")),
+            None
+        );
         assert_eq!(disconnected.sole_controller_radio_signal(), None);
     }
 
@@ -175,7 +182,10 @@ mod tests {
             "[2026-11-20 11:15:17] 502 pkts 132+  0 int 4 RSSI -52dBm chan 76/ 2 ",
         ]);
         let state = state_after(&lines);
-        assert_eq!(state.xinput_slot_behind(Path::new("/dev/hidraw11")), Some(1));
+        assert_eq!(
+            state.xinput_slot_behind(Path::new("/dev/hidraw11")),
+            Some(1)
+        );
         assert_eq!(state.sole_controller_radio_signal(), None);
     }
 }

@@ -49,9 +49,15 @@ pub enum ContentLogLine {
         app_id: SteamAppId,
         progress: UpdateProgress,
     },
-    UpdateFinished { app_id: SteamAppId },
-    UpdateCanceled { app_id: SteamAppId },
-    DownloadRate { megabits_per_second: f64 },
+    UpdateFinished {
+        app_id: SteamAppId,
+    },
+    UpdateCanceled {
+        app_id: SteamAppId,
+    },
+    DownloadRate {
+        megabits_per_second: f64,
+    },
     ClientStarted,
     Unrecognised,
 }
@@ -115,7 +121,14 @@ fn update_started(input: &mut &str) -> Result<ContentLogLine> {
         byte_fraction("stage"),
     )
         .map(
-            |(app_id, (downloaded_bytes, download_total_bytes), _, _, _, (staged_bytes, stage_total_bytes))| {
+            |(
+                app_id,
+                (downloaded_bytes, download_total_bytes),
+                _,
+                _,
+                _,
+                (staged_bytes, stage_total_bytes),
+            )| {
                 ContentLogLine::UpdateStarted {
                     app_id,
                     progress: UpdateProgress {
@@ -183,8 +196,8 @@ mod tests {
     fn state_changes_list_flags_and_a_delay() {
         assert_eq!(
             ContentLogLine::from(
-                "AppID 1478970 state changed : Update Required,Fully Installed, \
-                 (Update delayed for 59703 secs)"
+                "AppID 1478970 state changed : Update Required,Fully Installed, (Update delayed \
+                 for 59703 secs)"
             ),
             ContentLogLine::StateChanged {
                 app_id: SteamAppId { number: 1_478_970 },
@@ -201,8 +214,8 @@ mod tests {
     fn suspended_updates_are_held() {
         assert_eq!(
             ContentLogLine::from(
-                "AppID 228980 state changed : Update Required,Fully Installed,Update Queued,\
-                 Update Started, (Suspended)"
+                "AppID 228980 state changed : Update Required,Fully Installed,Update \
+                 Queued,Update Started, (Suspended)"
             ),
             ContentLogLine::StateChanged {
                 app_id: SteamAppId { number: 228_980 },
@@ -221,8 +234,8 @@ mod tests {
     fn update_progress_reports_download_and_stage_bytes() {
         assert_eq!(
             ContentLogLine::from(
-                "AppID 228980 update started : download 400/678, store 0/0, reuse 242/242, \
-                 delta 0/0, stage 100/697 "
+                "AppID 228980 update started : download 400/678, store 0/0, reuse 242/242, delta \
+                 0/0, stage 100/697 "
             ),
             ContentLogLine::UpdateStarted {
                 app_id: SteamAppId { number: 228_980 },
@@ -245,7 +258,9 @@ mod tests {
             }
         );
         assert_eq!(
-            ContentLogLine::from("AppID 275850 finished update, 1 mounted depots (BuildID 1) : 1 (1),"),
+            ContentLogLine::from(
+                "AppID 275850 finished update, 1 mounted depots (BuildID 1) : 1 (1),"
+            ),
             ContentLogLine::UpdateFinished {
                 app_id: SteamAppId { number: 275_850 }
             }

@@ -6,11 +6,11 @@ use iced_widget::{
 
 use crate::{
     callout_layout::{CalloutLayout, CalloutSide, DiagramMetrics, callout_layout},
+    controller_front_artwork::{ControllerArtwork, body_size},
     controller_model::ControllerModel,
     diagram_anchor::DiagramAnchor,
     diagram_style::{Style, StyleFn, default},
     leader_lines::LeaderLines,
-    controller_front_artwork::{ControllerArtwork, body_size},
 };
 
 const DEFAULT_BODY_WIDTH: f32 = 280.0;

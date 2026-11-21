@@ -44,7 +44,10 @@ impl AppendedLogFollow {
         log_file.seek(SeekFrom::Start(self.read_offset))?;
         let appended_length = log_file.read_to_end(&mut self.unfinished_bytes)?;
         self.read_offset += appended_length as u64;
-        let Some(last_newline) = self.unfinished_bytes.iter().rposition(|byte| *byte == b'\n')
+        let Some(last_newline) = self
+            .unfinished_bytes
+            .iter()
+            .rposition(|byte| *byte == b'\n')
         else {
             return Ok(Vec::new());
         };

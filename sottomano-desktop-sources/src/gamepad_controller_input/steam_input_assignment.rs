@@ -100,7 +100,9 @@ pub fn steam_pad_assignments<'facts>(
     };
     for pad in &steam_pads {
         let logged_interface = known_interfaces.keys().find(|interface| {
-            facts.controller_log.xinput_slot_behind(&interface.hidraw_node)
+            facts
+                .controller_log
+                .xinput_slot_behind(&interface.hidraw_node)
                 == Some(pad.virtual_slot.slot)
         });
         if let Some(interface) = logged_interface {

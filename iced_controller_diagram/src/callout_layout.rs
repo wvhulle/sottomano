@@ -1,9 +1,9 @@
 use iced_widget::core::{Point, Rectangle, Size};
 
 use crate::{
+    controller_front_artwork::{anchor_point, body_size},
     controller_model::ControllerModel,
     diagram_anchor::DiagramAnchor,
-    controller_front_artwork::{anchor_point, body_size},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

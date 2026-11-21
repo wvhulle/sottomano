@@ -188,7 +188,8 @@ impl DesktopShell {
                     .iter()
                     .map(|app_id| app_icon_request(app_id)),
             )
-            .chain(self.notifications.icon_requests());
+            .chain(self.notifications.icon_requests())
+            .chain(self.indicator_groups.steam_client_groups.icon_requests());
         self.icon_catalog
             .request(requests, &self.desktop_entries)
             .map(Message::IconCatalog)

@@ -199,10 +199,15 @@ impl<'a> GroupIndicator<'a> {
         glyph: IconGlyph,
         state: IndicatorState,
     ) -> Self {
+        Self::icon_only(name, IndicatorIcon::IconGlyph { glyph, state })
+    }
+
+    #[must_use]
+    pub fn icon_only(name: impl Into<Cow<'static, str>>, icon: IndicatorIcon) -> Self {
         Self::assembled_row(
             IndicatorFace {
                 name: name.into(),
-                icon: IndicatorIcon::IconGlyph { glyph, state },
+                icon,
                 ordinal: IdentityOrdinal::Unnumbered,
             },
             RowValueControl::IndicatorReadout(IndicatorReadout {
@@ -219,13 +224,7 @@ impl<'a> GroupIndicator<'a> {
     #[must_use]
     pub fn with_headline_glyph(self, glyph: IconGlyph) -> Self {
         let state = self.shown_state();
-        Self {
-            face: IndicatorFace {
-                icon: IndicatorIcon::IconGlyph { glyph, state },
-                ..self.face
-            },
-            ..self
-        }
+        self.with_icon(IndicatorIcon::IconGlyph { glyph, state })
     }
 
     pub(crate) fn handle_view(
@@ -260,8 +259,11 @@ impl<'a> GroupIndicator<'a> {
     }
 
     #[must_use]
-    pub fn with_face(self, face: IndicatorFace) -> Self {
-        Self { face, ..self }
+    pub fn with_icon(self, icon: IndicatorIcon) -> Self {
+        Self {
+            face: IndicatorFace { icon, ..self.face },
+            ..self
+        }
     }
 
     #[must_use]

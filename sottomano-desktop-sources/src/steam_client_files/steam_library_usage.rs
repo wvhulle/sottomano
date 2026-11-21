@@ -49,7 +49,9 @@ pub enum SteamLibraryReadFailure {
     FreeSpaceOverflow,
 }
 
-fn read_library_usage(steam_root: &SteamRoot) -> Result<SteamLibraryUsage, SteamLibraryReadFailure> {
+fn read_library_usage(
+    steam_root: &SteamRoot,
+) -> Result<SteamLibraryUsage, SteamLibraryReadFailure> {
     let folders = library_folder_paths(steam_root)?
         .iter()
         .map(|folder_path| {

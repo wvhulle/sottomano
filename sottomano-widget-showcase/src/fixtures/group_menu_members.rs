@@ -2,9 +2,8 @@ use sottomano_widgets::clock::Clock;
 
 use crate::{
     fixtures::{
-        audio, compute, docker_engines, incus_instances, media, memory_board,
-        nspawn_containers, podman_engines, tailnet, virtual_machines, voice_dictation,
-        wireguard_tunnels,
+        audio, compute, docker_engines, incus_instances, media, memory_board, nspawn_containers,
+        podman_engines, tailnet, virtual_machines, voice_dictation, wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,

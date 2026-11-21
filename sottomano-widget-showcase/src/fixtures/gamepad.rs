@@ -1,17 +1,19 @@
 use std::time::Duration;
 
-use sottomano_desktop_sources::steam_client_files::steam_log_lines::controller_log_lines::RadioSignalSample;
-use sottomano_desktop_sources::gamepad_controller_input::{
-    accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
-    evdev_gamepad_devices::{
-        ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower, GamepadTransport,
-        InputRoute, PhysicalGamepadLink, UsbCableState,
+use sottomano_desktop_sources::{
+    gamepad_controller_input::{
+        accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
+        evdev_gamepad_devices::{
+            ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower, GamepadTransport,
+            InputRoute, PhysicalGamepadLink, UsbCableState,
+        },
+        gamepad_input_machine::GamepadInput,
+        player_indicator_leds::{LitPlayer, PlayerIndicator},
+        steam_dongle_hidraw::{STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR},
+        steam_input_facts::{FirmwareStatus, PairingEvidence, RadioReading, SteamInputFacts},
+        steam_input_pairing::STEAM_CONTROLLER_NAME,
     },
-    gamepad_input_machine::GamepadInput,
-    player_indicator_leds::{LitPlayer, PlayerIndicator},
-    steam_dongle_hidraw::{STEAM_VIRTUAL_PAD_PRODUCT, VALVE_USB_VENDOR},
-    steam_input_facts::{FirmwareStatus, PairingEvidence, RadioReading, SteamInputFacts},
-    steam_input_pairing::STEAM_CONTROLLER_NAME,
+    steam_client_files::steam_log_lines::controller_log_lines::RadioSignalSample,
 };
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_widgets::indicator_groups::gamepad_group::{GamepadGroup, GamepadMessage};

@@ -62,7 +62,10 @@ mod tests {
     #[test]
     fn a_new_check_forgets_updates_it_no_longer_reports() {
         let mut state = HardwareUpdateState::default();
-        state.absorb(available("FXA0000000002", SteamHardwareKind::ControllerOverRadio));
+        state.absorb(available(
+            "FXA0000000002",
+            SteamHardwareKind::ControllerOverRadio,
+        ));
         state.absorb(HardwareUpdateLogLine::CheckStarted);
         assert_eq!(state.pending_update_for("FXA0000000002"), None);
     }

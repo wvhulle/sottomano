@@ -83,11 +83,15 @@ fn installed_app(
         app_id: SteamAppId {
             number: app_state.parsed("appid").ok_or_else(|| missing("appid"))?,
         },
-        name: app_state.text("name").ok_or_else(|| missing("name"))?.to_owned(),
-        install_directory: library_folder
-            .join("steamapps")
-            .join("common")
-            .join(app_state.text("installdir").ok_or_else(|| missing("installdir"))?),
+        name: app_state
+            .text("name")
+            .ok_or_else(|| missing("name"))?
+            .to_owned(),
+        install_directory: library_folder.join("steamapps").join("common").join(
+            app_state
+                .text("installdir")
+                .ok_or_else(|| missing("installdir"))?,
+        ),
         size_on_disk_bytes: app_state.parsed("SizeOnDisk").unwrap_or_default(),
         bytes_to_download: app_state.parsed("BytesToDownload").unwrap_or_default(),
         bytes_downloaded: app_state.parsed("BytesDownloaded").unwrap_or_default(),

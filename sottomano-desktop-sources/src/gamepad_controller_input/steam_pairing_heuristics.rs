@@ -62,7 +62,10 @@ mod tests {
 
     #[test]
     fn the_handle_spells_the_serial_without_its_x() {
-        assert_eq!(serial_number_from_steam_handle(0xfa00_0000_0001), "FXA0000000001");
+        assert_eq!(
+            serial_number_from_steam_handle(0xfa00_0000_0001),
+            "FXA0000000001"
+        );
     }
 
     #[test]
@@ -78,7 +81,10 @@ mod tests {
     fn two_slots_changing_together_are_ambiguous() {
         let edge_at = Instant::now();
         let changes = BTreeMap::from([(dongle_slot(2), edge_at), (dongle_slot(3), edge_at)]);
-        assert_eq!(interface_changing_with_edge(edge_at, &changes, |_| true), None);
+        assert_eq!(
+            interface_changing_with_edge(edge_at, &changes, |_| true),
+            None
+        );
         assert_eq!(
             interface_changing_with_edge(edge_at, &changes, |interface| {
                 interface.interface_number == 3

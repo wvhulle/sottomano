@@ -86,7 +86,9 @@ fn hid_device_name(hid_device: &Path) -> Option<String> {
 
 fn is_puck_hid_id(hid_id: &str) -> bool {
     STEAM_PUCK_PRODUCTS.iter().any(|product| {
-        hid_id.eq_ignore_ascii_case(&format!("0003:0000{VALVE_USB_VENDOR:04X}:0000{product:04X}"))
+        hid_id.eq_ignore_ascii_case(&format!(
+            "0003:0000{VALVE_USB_VENDOR:04X}:0000{product:04X}"
+        ))
     })
 }
 

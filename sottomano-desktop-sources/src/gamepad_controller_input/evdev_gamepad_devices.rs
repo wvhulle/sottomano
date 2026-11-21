@@ -26,11 +26,11 @@ use super::{
 };
 use crate::{
     battery_power_profiles::upower_battery_state::ChargeStatus,
+    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
+    network_connectivity::hid_sysfs_bluetooth_peripherals::DeviceBattery,
     steam_client_files::{
         steam_controller_facts::steam_controller_facts, steam_root_location::SteamRoot,
     },
-    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
-    network_connectivity::hid_sysfs_bluetooth_peripherals::DeviceBattery,
     system_protocol_clients::{
         inotify_directory_changes::{self, WatchTarget},
         sysfs_attribute_reads,
@@ -747,7 +747,9 @@ fn connected_gamepad_events(
     });
     let button_change_signals = correlated_interfaces.into_iter().map(|interface| {
         dongle_button_changes(interface)
-            .map(|(interface, changed_at)| DeviceSignal::DongleButtonsChanged(interface, changed_at))
+            .map(|(interface, changed_at)| {
+                DeviceSignal::DongleButtonsChanged(interface, changed_at)
+            })
             .boxed()
     });
     let steam_root = if steam_virtual_pad_count > 0 {

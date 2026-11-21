@@ -121,7 +121,8 @@ impl ContentLogState {
 
     fn absorb_lines(&mut self, lines: &[String]) {
         for line in lines {
-            if let LogLineShape::Stamped { logged_at, message } = LogLineShape::from(line.as_str()) {
+            if let LogLineShape::Stamped { logged_at, message } = LogLineShape::from(line.as_str())
+            {
                 self.absorb(logged_at, ContentLogLine::from(message));
             }
         }
@@ -180,8 +181,8 @@ impl SnapshotSource for SteamContentActivity {
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let followed = SteamRoot::located().map(|steam_root| {
-            let library_folders = library_folder_paths(&steam_root)
-                .unwrap_or_else(|manifest_failure| {
+            let library_folders =
+                library_folder_paths(&steam_root).unwrap_or_else(|manifest_failure| {
                     tracing::debug!("{manifest_failure}");
                     Vec::new()
                 });
@@ -236,7 +237,8 @@ mod tests {
         let log_state = log_state_after(&[
             "AppID 275850 state changed : Fully Installed,Update Queued,",
             "AppID 284160 state changed : Fully Installed,Update Queued,Update Running,",
-            "AppID 228980 state changed : Update Required,Fully Installed,Update Queued,Update Started, (Suspended)",
+            "AppID 228980 state changed : Update Required,Fully Installed,Update Queued,Update \
+             Started, (Suspended)",
             "AppID 294100 state changed : Fully Installed,",
         ]);
         assert_eq!(
@@ -253,16 +255,12 @@ mod tests {
 
     #[test]
     fn a_delayed_update_is_due_after_its_delay() {
-        let log_state = log_state_after(&[
-            "AppID 1478970 state changed : Update Required,Fully Installed, (Update delayed for 3600 secs)",
-        ]);
+        let log_state = log_state_after(&["AppID 1478970 state changed : Update Required,Fully \
+                                           Installed, (Update delayed for 3600 secs)"]);
         let ContentStage::Delayed(update_due_at) = stage_of(&log_state, 1_478_970) else {
             panic!("expected a delayed update");
         };
-        assert_eq!(
-            update_due_at.format("%H:%M").to_string(),
-            "12:14"
-        );
+        assert_eq!(update_due_at.format("%H:%M").to_string(), "12:14");
     }
 
     #[test]

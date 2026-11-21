@@ -6,6 +6,7 @@ use sottomano_desktop_sinks::steam_client_pages::SteamClientPage;
 use sottomano_desktop_sources::steam_client_files::{
     steam_app_manifests::InstalledSteamApp,
     steam_library_usage::{SteamLibraryFolderUsage, SteamLibraryUsage},
+    steam_log_lines::SteamAppId,
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -14,7 +15,9 @@ use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_drawing::{
+            IndicatorIcon, IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel,
+        },
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -87,28 +90,25 @@ fn installed_game_indicator<'library>(
     folder_usage: &'library SteamLibraryFolderUsage,
     library_bytes: u64,
     locale: Locale,
+    game_icon: IndicatorIcon,
 ) -> GroupIndicator<'library> {
     let share = library_share(installed_app, library_bytes);
-    GroupIndicator::glyph_only(
-        installed_app.name.clone(),
-        Phosphor::GameController(Weight::Regular).into(),
-        IndicatorState::Idle,
-    )
-    .with_readout(IndicatorReadout {
-        label: ReadoutLabel::Labeled(size_text(installed_app.size_on_disk_bytes, locale)),
-        gauge: ReadoutGauge::Gauged {
-            fill: share,
-            live: share,
-        },
-        badge: ReadoutBadge::Unbadged,
-    })
-    .with_hover_card(Box::new(move |_| {
-        installed_game_hover_card(installed_app, folder_usage, share, locale)
-    }))
-    .on_press(
-        "launch this game through Steam",
-        SteamClientInteraction::OpenPage(SteamClientPage::GameLaunch(installed_app.app_id)),
-    )
+    GroupIndicator::icon_only(installed_app.name.clone(), game_icon)
+        .with_readout(IndicatorReadout {
+            label: ReadoutLabel::Labeled(size_text(installed_app.size_on_disk_bytes, locale)),
+            gauge: ReadoutGauge::Gauged {
+                fill: share,
+                live: share,
+            },
+            badge: ReadoutBadge::Unbadged,
+        })
+        .with_hover_card(Box::new(move |_| {
+            installed_game_hover_card(installed_app, folder_usage, share, locale)
+        }))
+        .on_press(
+            "launch this game through Steam",
+            SteamClientInteraction::OpenPage(SteamClientPage::GameLaunch(installed_app.app_id)),
+        )
 }
 
 fn library_folders_hover_card(library_usage: &SteamLibraryUsage, locale: Locale) -> Vec<Section> {
@@ -158,6 +158,7 @@ pub(super) fn library_group<'library>(
     library_usage: &'library SteamLibraryUsage,
     expansion: &'library IndicatorGroupExpansion,
     locale: Locale,
+    game_icon: impl Fn(SteamAppId) -> IndicatorIcon,
 ) -> Option<IndicatorGroupContent<'library>> {
     if library_usage.folders.is_empty() {
         return None;
@@ -186,7 +187,13 @@ pub(super) fn library_group<'library>(
         installed_games
             .into_iter()
             .map(|(folder_usage, installed_app)| {
-                installed_game_indicator(installed_app, folder_usage, library_bytes, locale)
+                installed_game_indicator(
+                    installed_app,
+                    folder_usage,
+                    library_bytes,
+                    locale,
+                    game_icon(installed_app.app_id),
+                )
             }),
     ))
 }

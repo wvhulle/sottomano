@@ -57,6 +57,12 @@ impl DesktopShell {
             Message::Session(msg) => self.update_session(msg),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
+            steam_message @ Message::SteamClient(_) => {
+                let routed = self
+                    .indicator_groups
+                    .route(steam_message, &self.config, self.clock);
+                Task::batch([routed, self.request_icons()])
+            }
             Message::WindowMenuBar(msg) => self.update_window_menu_bar(msg),
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
@@ -170,7 +176,6 @@ impl DesktopShell {
             | Message::PendingUpgrades(_)
             | Message::WifiAdapters(_)
             | Message::MobileModems(_)
-            | Message::SteamClient(_)
             | Message::EthernetPorts(_)
             | Message::BluetoothAdapters(_)
             | Message::Reachability(_)

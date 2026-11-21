@@ -16,7 +16,9 @@ use super::{
         hardware_update_log_lines::HardwareUpdateLogLine,
     },
     steam_root_location::SteamRoot,
-    virtual_gamepad_slots::{SteamVirtualSlot, VirtualSlotTableSyntaxError, parse_virtual_slot_table},
+    virtual_gamepad_slots::{
+        SteamVirtualSlot, VirtualSlotTableSyntaxError, parse_virtual_slot_table,
+    },
 };
 use crate::{
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure},
@@ -110,12 +112,11 @@ pub fn steam_controller_facts(
     steam_root: &SteamRoot,
 ) -> impl Stream<Item = SteamControllerFacts> + Send + use<> {
     let table_path = steam_root.config_file(VIRTUAL_SLOT_TABLE_FILE);
-    let slot_changes = inotify_directory_changes::changes(vec![WatchTarget::File(
-        table_path.clone(),
-    )])
-    .triggered_rereads(move || ready(read_virtual_slot_table(&table_path)))
-    .filter_map(logged_failures_skipped(VIRTUAL_SLOT_TABLE_FILE))
-    .map(FactsChange::VirtualSlots);
+    let slot_changes =
+        inotify_directory_changes::changes(vec![WatchTarget::File(table_path.clone())])
+            .triggered_rereads(move || ready(read_virtual_slot_table(&table_path)))
+            .filter_map(logged_failures_skipped(VIRTUAL_SLOT_TABLE_FILE))
+            .map(FactsChange::VirtualSlots);
     let controller_changes = followed_log(
         steam_root.log_file(CONTROLLER_LOG_FILE),
         CONTROLLER_LOG_FILE,

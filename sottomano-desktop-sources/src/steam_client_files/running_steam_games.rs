@@ -93,7 +93,8 @@ impl GameProcessLogState {
 
     fn absorb_lines(&mut self, lines: &[String]) {
         for line in lines {
-            if let LogLineShape::Stamped { logged_at, message } = LogLineShape::from(line.as_str()) {
+            if let LogLineShape::Stamped { logged_at, message } = LogLineShape::from(line.as_str())
+            {
                 self.absorb(logged_at, GameProcessLogLine::from(message));
             }
         }
@@ -130,8 +131,8 @@ impl SnapshotSource for RunningSteamGames {
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let followed = SteamRoot::located().map(|steam_root| {
-            let library_folders = library_folder_paths(&steam_root)
-                .unwrap_or_else(|manifest_failure| {
+            let library_folders =
+                library_folder_paths(&steam_root).unwrap_or_else(|manifest_failure| {
                     tracing::debug!("{manifest_failure}");
                     Vec::new()
                 });

@@ -11,12 +11,15 @@ impl DesktopShell {
             .indicator_groups
             .gamepad_group
             .group_contents(&self.config.indicator_groups.gamepad);
-        let steam_groups =
-            steam_client_groups.group_contents(self.clock, self.config.calendar.locale);
+        let steam_groups = steam_client_groups.group_contents(
+            self.clock,
+            self.config.calendar.locale,
+            &self.icon_catalog,
+        );
         self.group_menu(
             GroupMenuTopic::Gaming,
             controller_groups.into_iter().chain(steam_groups),
         )
-        .with_handle_badge(steam_client_groups.handle_badge())
+        .with_handle_badge(steam_client_groups.handle_badge(&self.icon_catalog))
     }
 }

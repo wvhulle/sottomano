@@ -25,14 +25,21 @@ pub struct RadioSignalSample {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControllerLogLine {
     LocalDeviceFound,
-    DeviceUsbIds { vendor: u16, product: u16 },
+    DeviceUsbIds {
+        vendor: u16,
+        product: u16,
+    },
     DevicePath(PathBuf),
-    DeviceOpened { device_index: u8 },
+    DeviceOpened {
+        device_index: u8,
+    },
     ConnectionStateChanged {
         device_index: u8,
         state: ControllerConnectionState,
     },
-    XInputSlotReserved { slot: u8 },
+    XInputSlotReserved {
+        slot: u8,
+    },
     RadioSignal(RadioSignalSample),
     Unrecognised,
 }
@@ -83,10 +90,12 @@ fn connection_state_changed(input: &mut &str) -> Result<ControllerLogLine> {
         preceded("SetLocalControllerConnectionState for ", dec_uint),
         preceded(" to ", connection_state),
     )
-        .map(|(device_index, state)| ControllerLogLine::ConnectionStateChanged {
-            device_index,
-            state,
-        })
+        .map(
+            |(device_index, state)| ControllerLogLine::ConnectionStateChanged {
+                device_index,
+                state,
+            },
+        )
         .parse_next(input)
 }
 
@@ -204,8 +213,8 @@ mod tests {
         );
         assert_eq!(
             meaning(
-                "[2026-11-20 11:15:17] 694 pkts  50+126 int 3 RSSI -53dBm chan 76/ 2 \
-                 Disconnect (Spontaneous)"
+                "[2026-11-20 11:15:17] 694 pkts  50+126 int 3 RSSI -53dBm chan 76/ 2 Disconnect \
+                 (Spontaneous)"
             ),
             ControllerLogLine::RadioSignal(RadioSignalSample {
                 rssi_dbm: -53,

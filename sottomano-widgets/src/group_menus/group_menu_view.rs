@@ -28,7 +28,7 @@ use crate::{
         hover_card_content::HoverCardContent,
         hoverable,
     },
-    icon_catalog::window_icons::WindowAssets,
+    icon_catalog::{icon_handle::IconHandle, window_icons::WindowAssets},
     indicator_groups::{
         indicator_group_content::{
             GroupEvent, GroupToastRequests, IndicatorGroupContent, edge_indicator,
@@ -71,10 +71,11 @@ pub struct GroupMenuView<'a> {
     handle_badge: MenuHandleBadge,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MenuHandleBadge {
     Unbadged,
     Badged(Phosphor),
+    ImageBadged(IconHandle),
 }
 
 pub struct InspectionCard<'c, 'a> {
@@ -234,11 +235,17 @@ impl<'a> GroupMenuView<'a> {
             .unwrap_or_default();
         let icon_size = config.theme.font.icon_size_px;
         let topic_glyph = IconGlyph::from(self.messenger.topic.glyph()).view(icon_size, text_color);
-        let glyph: Element<'a, GroupEvent> = match self.handle_badge {
+        let glyph: Element<'a, GroupEvent> = match &self.handle_badge {
             MenuHandleBadge::Unbadged => topic_glyph,
+            MenuHandleBadge::ImageBadged(badge_image) => {
+                row![topic_glyph, badge_image.view(icon_size, 1.0)]
+                    .spacing(icon_size * 0.25)
+                    .align_y(Alignment::Center)
+                    .into()
+            }
             MenuHandleBadge::Badged(badge_glyph) => row![
                 topic_glyph,
-                IconGlyph::from(badge_glyph).view(icon_size * BADGE_SCALE, text_color)
+                IconGlyph::from(*badge_glyph).view(icon_size * BADGE_SCALE, text_color)
             ]
             .align_y(Alignment::End)
             .into(),

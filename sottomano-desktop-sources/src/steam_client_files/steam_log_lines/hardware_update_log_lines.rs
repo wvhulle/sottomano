@@ -19,7 +19,9 @@ pub enum HardwareUpdateLogLine {
         hardware: SteamHardwareKind,
         serial_number: String,
     },
-    UpdateCompleted { serial_number: String },
+    UpdateCompleted {
+        serial_number: String,
+    },
     Unrecognised,
 }
 
@@ -60,9 +62,11 @@ fn update_available(input: &mut &str) -> Result<HardwareUpdateLogLine> {
 
 fn update_completed(input: &mut &str) -> Result<HardwareUpdateLogLine> {
     preceded("update complete: ", take_till(1.., char::is_whitespace))
-        .map(|serial_number: &str| HardwareUpdateLogLine::UpdateCompleted {
-            serial_number: serial_number.to_owned(),
-        })
+        .map(
+            |serial_number: &str| HardwareUpdateLogLine::UpdateCompleted {
+                serial_number: serial_number.to_owned(),
+            },
+        )
         .parse_next(input)
 }
 

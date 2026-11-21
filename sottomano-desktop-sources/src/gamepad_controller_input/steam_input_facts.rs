@@ -65,7 +65,11 @@ impl SteamInputFacts {
                     SteamHardwareKind::ControllerOverUsb,
                 ],
             ),
-            dongle_firmware: firmware_status(facts, dongle_serial, &[SteamHardwareKind::PuckDongle]),
+            dongle_firmware: firmware_status(
+                facts,
+                dongle_serial,
+                &[SteamHardwareKind::PuckDongle],
+            ),
         }
     }
 }
