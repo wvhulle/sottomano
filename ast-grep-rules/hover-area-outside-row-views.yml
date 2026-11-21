@@ -2,19 +2,7 @@ id: hover-area-outside-row-views
 language: rust
 severity: error
 message: "`$CALL` creates a hover area outside the row, group face and standalone views, giving one row several cards or targets."
-note: A row has exactly one hover area, made by its row view from its IndicatorKey; declare a button's actions on the row with with_button_actions instead of wrapping the button in its own hover area.
-files:
-  - sottomano-widgets/src/**/*.rs
-  - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
-ignores:
-  - sottomano-widgets/src/hover_cards/hover_area.rs
-  - sottomano-widgets/src/group_indicators/group_indicator/indicator_views.rs
-  - sottomano-widgets/src/indicator_groups/indicator_group_content.rs
-  - sottomano-widgets/src/group_menus/group_menu_view.rs
-  - sottomano-widgets/src/indicator_groups/window_group/window_list.rs
-  - sottomano-widgets/src/indicator_groups/workspaces_group.rs
-  - sottomano-widgets/src/indicator_groups/workspaces_group/workspace_slot.rs
+note: A row has exactly one hover area, made by its row view from its IndicatorKey; declare a button's actions on the row with with_button_actions instead of wrapping the button in its own hover area. A group face or standalone view wraps itself in a hover area only in its method named hovered.
 rule:
   kind: call_expression
   pattern: $CALL
@@ -27,3 +15,15 @@ rule:
         has:
           field: name
           pattern: hoverable
+  not:
+    any:
+      - inside:
+          matches: rust-test-module
+          stopBy: end
+      - inside:
+          kind: function_item
+          stopBy: end
+          has:
+            field: name
+            any:
+            - pattern: hovered

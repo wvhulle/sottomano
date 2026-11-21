@@ -4,6 +4,8 @@ valid:
   - "fn label(delivery: SourceDelivery) -> &'static str { match delivery { SourceDelivery::Loading => \"loading\", SourceDelivery::Delivered(_) | SourceDelivery::Failed | SourceDelivery::Offline => \"\" } }"
   - "fn offline(delivery: SourceDelivery) -> bool { if let SourceDelivery::Offline = delivery { true } else { false } }"
   - "mod tests { fn expected() -> SectionSource { SectionSource::Snapshot { source_name: \"Wi-Fi\", delivery: SourceDelivery::Failed } } }"
+  - "impl<S> SubscribedSnapshot<S> { fn sections_described_by(&self) -> Vec<Section> { self.sections.map(|section| section.stamped_by::<S>(SourceDelivery::Failed)) } }"
+  - "impl Section { fn stamped_by(self, delivery: SourceDelivery) -> Self { Self { source: SectionSource::Snapshot { source_name: S::NAME, delivery }, ..self } } }"
 invalid:
   - "fn card() -> SectionSource { SectionSource::Snapshot { source_name: \"Wi-Fi\", delivery: SourceDelivery::Loading } }"
   - "fn stamp(at: DateTime<Utc>) -> DeliveryStamp { DeliveryStamp { cadence: DeliveryCadence::Live, delivered_at: at } }"

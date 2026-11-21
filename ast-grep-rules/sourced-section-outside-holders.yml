@@ -2,18 +2,11 @@ id: sourced-section-outside-holders
 language: rust
 severity: error
 message: "`$CONSTRUCTION` decides which source a section came from outside the snapshot holders."
-note: Build sections with Section::new and let SubscribedSnapshot or HoverFetchedSnapshot stamp them with hover_card_with or sections_described_by.
+note: Build sections with Section::new and let SubscribedSnapshot or HoverFetchedSnapshot stamp them with hover_card_with or sections_described_by. Only the stamping methods sections_described_by, Section::stamped_by and AbsenceCause::source_state construct a source.
 files:
   - sottomano-widgets/src/**/*.rs
   - sottomano-shell/src/**/*.rs
   - sottomano-widget-showcase/src/**/*.rs
-ignores:
-  - sottomano-widgets/src/hover_cards/hover_card_body.rs
-  - sottomano-widgets/src/hover_cards/hover_card_body/hover_card_source_delivery.rs
-  - sottomano-widgets/src/hover_cards/hover_card_content.rs
-  - sottomano-widgets/src/widgets/subscribed_snapshot.rs
-  - sottomano-widgets/src/widgets/hover_fetched_snapshot.rs
-  - sottomano-widgets/src/group_indicators/snapshot_absence.rs
 rule:
   pattern: $CONSTRUCTION
   any:
@@ -37,6 +30,16 @@ rule:
             - kind: or_pattern
           stopBy: end
   not:
-    inside:
-      matches: rust-test-module
-      stopBy: end
+    any:
+      - inside:
+          matches: rust-test-module
+          stopBy: end
+      - inside:
+          kind: function_item
+          stopBy: end
+          has:
+            field: name
+            any:
+            - pattern: sections_described_by
+            - pattern: stamped_by
+            - pattern: source_state

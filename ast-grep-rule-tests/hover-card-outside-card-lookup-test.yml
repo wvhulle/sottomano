@@ -1,5 +1,7 @@
 id: hover-card-outside-card-lookup
 valid:
   - "fn wifi_card(&self) -> Vec<Section> { self.wifi.hover_card_with(vec![Section::new(\"Radio\", dictionary_table([]))]) }"
+  - "impl DesktopShell { fn described_hover_card(&self, target: &HoverTarget) -> Option<HoverCard> { HoverCard::new(self.sections(target), CardHeader::Unheaded) } }"
+  - "mod tests { fn card() -> Option<HoverCard> { HoverCard::new([], CardHeader::Unheaded) } }"
 invalid:
   - "fn wifi_card(sections: Vec<Section>) -> Option<HoverCard> { HoverCard::new(sections, CardHeader::Unheaded) }"

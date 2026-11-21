@@ -1,6 +1,8 @@
 id: hover-area-outside-row-views
 valid:
   - "fn transport(config: &Config) -> Element<'_, Message> { row([previous_button(config), next_button(config)]).into() }"
+  - "impl<'a> PanelSlot<'a> { fn hovered(self, target: HoverTarget) -> Element<'a, Message> { self.arranged(|content| hoverable(NestedMenuOpenTrigger::Hover, content, target, Message::HoverCard)) } }"
+  - "mod tests { fn hovered_area<'a>() -> Element<'a, Message> { hoverable(NestedMenuOpenTrigger::Hover, content, HoverTarget::Workspace(7), identity) } }"
 invalid:
   - "fn next_button<'a>(content: Element<'a, Message>, target: HoverTarget) -> Element<'a, Message> { hoverable(NestedMenuOpenTrigger::Hover, content, target, Message::HoverCard) }"
   - "fn seek_bar<'a>(content: Element<'a, Message>, target: HoverTarget) -> Element<'a, Message> { hover_cards::hoverable(NestedMenuOpenTrigger::Hover, content, target, Message::HoverCard) }"
