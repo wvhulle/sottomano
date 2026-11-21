@@ -531,7 +531,7 @@ impl WindowList {
         let ArrangedWindowRows {
             groups,
             presentations,
-            ungrouped_highlight_look,
+            ungrouped_slot_look,
         } = match slot_context.window_row_layout {
             WindowRowLayout::Flat => arranged_flat_rows(order.len()),
             WindowRowLayout::GroupedByLocation => {
@@ -578,7 +578,7 @@ impl WindowList {
             .map(|window_entry| window_slot_key(window_entry, workspace));
         let pager = reorderable_list(slots, edge, config)
             .highlight(focused_key, primary_color)
-            .ungrouped_highlight_look(ungrouped_highlight_look)
+            .ungrouped_slot_look(ungrouped_slot_look)
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);

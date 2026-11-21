@@ -273,7 +273,6 @@ impl ShowcaseState {
                 popup: PopupAppearances {
                     overlay: self.appearance.overlays,
                     menu: self.appearance.menus,
-                    background_fade: CardBackgroundFade::Resting,
                 },
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },

@@ -1,4 +1,4 @@
-use corredo::drag_reorder::UngroupedHighlightLook;
+use corredo::drag_reorder::UngroupedSlotLook;
 
 use super::window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation};
 
@@ -6,13 +6,13 @@ pub(super) fn arranged_flat_rows<'a>(window_count: usize) -> ArrangedWindowRows<
     ArrangedWindowRows {
         groups: Vec::new(),
         presentations: vec![WindowSlotPresentation::Flat; window_count],
-        ungrouped_highlight_look: UngroupedHighlightLook::EdgeBand,
+        ungrouped_slot_look: UngroupedSlotLook::EdgeBand,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{UngroupedHighlightLook, WindowSlotPresentation, arranged_flat_rows};
+    use super::{UngroupedSlotLook, WindowSlotPresentation, arranged_flat_rows};
 
     #[test]
     fn flat_rows_have_no_groups_and_present_every_window_alone() {
@@ -22,9 +22,9 @@ mod tests {
             arranged_rows.presentations,
             [WindowSlotPresentation::Flat; 3]
         );
-        assert_eq!(
-            arranged_rows.ungrouped_highlight_look,
-            UngroupedHighlightLook::EdgeBand
-        );
+        assert!(matches!(
+            arranged_rows.ungrouped_slot_look,
+            UngroupedSlotLook::EdgeBand
+        ));
     }
 }

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use corredo::{
-    drag_reorder::{SlotGroup, SlotTileInset, UngroupedHighlightLook},
+    drag_reorder::{SlotGroup, SlotTileInset, UngroupedSlotLook},
     theming::{LINE_HEIGHT, background_color, background_weak_color, primary_color},
 };
 use iced::{
@@ -192,10 +192,13 @@ pub(super) fn arranged_keyed_groups<'a>(
     ArrangedWindowRows {
         groups,
         presentations: slot_presentations(&group_positions, order.len()),
-        ungrouped_highlight_look: UngroupedHighlightLook::AccentTile(SlotTileInset {
-            thickness: tile_inset_thickness,
-            enclosure_radius: slot_context.panel_corner_radius_px,
-        }),
+        ungrouped_slot_look: UngroupedSlotLook::RestingTile {
+            tile_inset: SlotTileInset {
+                thickness: tile_inset_thickness,
+                enclosure_radius: slot_context.panel_corner_radius_px,
+            },
+            resting_color: Box::new(background_color),
+        },
     }
 }
 

@@ -13,7 +13,7 @@ use super::{
     slot_underlay::{PaintedRow, SlotPainter},
 };
 use crate::{
-    drag_reorder::slot_group::{SlotTileInset, TileNeighbours},
+    drag_reorder::slot_group::SlotTileInset,
     orientation::{Axis, Edge},
     theming::{ThemedColor, style_metrics::pill_corners},
     transitions::{MotionState, eased_animation, motion_of},
@@ -25,7 +25,6 @@ const BACKDROP_TINT_ALPHA: f32 = 0.3;
 pub(super) enum HighlightMark {
     Tile {
         tile_inset: SlotTileInset,
-        tile_neighbours: TileNeighbours,
     },
     EdgeBand {
         edge: Edge,
@@ -153,13 +152,9 @@ pub(super) fn fill_slot_mark(
     color: Color,
 ) {
     match *mark {
-        HighlightMark::Tile {
-            tile_inset,
-            tile_neighbours,
-        } => renderer.fill_quad(
-            tile_inset.tile_on_slot(pager_axis, slot, tile_neighbours),
-            color,
-        ),
+        HighlightMark::Tile { tile_inset } => {
+            renderer.fill_quad(tile_inset.tile_on_slot(pager_axis, slot), color);
+        }
         HighlightMark::EdgeBand { edge, corners, .. } => renderer.fill_quad(
             renderer::Quad {
                 bounds: edge_backdrop(edge, row_bounds, slot),

@@ -24,12 +24,6 @@ pub struct SlotTileInset {
     pub enclosure_radius: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(super) struct TileNeighbours {
-    pub(super) leading: bool,
-    pub(super) trailing: bool,
-}
-
 pub(super) fn tile_quad(bounds: Rectangle, corners: Radius) -> renderer::Quad {
     renderer::Quad {
         bounds,
@@ -63,100 +57,10 @@ impl SlotTileInset {
         (self.enclosure_radius - self.thickness).max(0.0)
     }
 
-    fn joined_tile_corners(self, pager_axis: Axis, tile_neighbours: TileNeighbours) -> Radius {
-        let rounded = Radius::from(self.inner_radius());
-        let leading_joined = match (tile_neighbours.leading, pager_axis) {
-            (false, _) => rounded,
-            (true, Axis::Horizontal) => rounded.left(0.0),
-            (true, Axis::Vertical) => rounded.top(0.0),
-        };
-        match (tile_neighbours.trailing, pager_axis) {
-            (false, _) => leading_joined,
-            (true, Axis::Horizontal) => leading_joined.right(0.0),
-            (true, Axis::Vertical) => leading_joined.bottom(0.0),
-        }
-    }
-
-    pub(super) fn tile_on_slot(
-        self,
-        pager_axis: Axis,
-        slot: Rectangle,
-        tile_neighbours: TileNeighbours,
-    ) -> renderer::Quad {
+    pub(super) fn tile_on_slot(self, pager_axis: Axis, slot: Rectangle) -> renderer::Quad {
         tile_quad(
             self.inner_surface(pager_axis, slot),
-            self.joined_tile_corners(pager_axis, tile_neighbours),
+            self.inner_radius().into(),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iced::border::Radius;
-
-    use super::{SlotTileInset, TileNeighbours};
-    use crate::orientation::Axis;
-
-    const TILE_INSET: SlotTileInset = SlotTileInset {
-        thickness: 3.0,
-        enclosure_radius: 8.0,
-    };
-
-    #[test]
-    fn tile_without_neighbours_keeps_every_inner_corner() {
-        let corners = TILE_INSET.joined_tile_corners(Axis::Horizontal, TileNeighbours::default());
-        assert_eq!(corners, Radius::from(5.0));
-    }
-
-    #[test]
-    fn horizontal_tile_squares_the_side_facing_each_neighbour() {
-        let leading_only = TileNeighbours {
-            leading: true,
-            trailing: false,
-        };
-        let trailing_only = TileNeighbours {
-            leading: false,
-            trailing: true,
-        };
-        assert_eq!(
-            TILE_INSET.joined_tile_corners(Axis::Horizontal, leading_only),
-            Radius::default().right(5.0)
-        );
-        assert_eq!(
-            TILE_INSET.joined_tile_corners(Axis::Horizontal, trailing_only),
-            Radius::default().left(5.0)
-        );
-    }
-
-    #[test]
-    fn vertical_tile_squares_the_side_facing_each_neighbour() {
-        let leading_only = TileNeighbours {
-            leading: true,
-            trailing: false,
-        };
-        let trailing_only = TileNeighbours {
-            leading: false,
-            trailing: true,
-        };
-        assert_eq!(
-            TILE_INSET.joined_tile_corners(Axis::Vertical, leading_only),
-            Radius::default().bottom(5.0)
-        );
-        assert_eq!(
-            TILE_INSET.joined_tile_corners(Axis::Vertical, trailing_only),
-            Radius::default().top(5.0)
-        );
-    }
-
-    #[test]
-    fn tile_between_two_neighbours_has_no_rounded_corners() {
-        let both_sides = TileNeighbours {
-            leading: true,
-            trailing: true,
-        };
-        assert_eq!(
-            TILE_INSET.joined_tile_corners(Axis::Horizontal, both_sides),
-            Radius::default()
-        );
     }
 }

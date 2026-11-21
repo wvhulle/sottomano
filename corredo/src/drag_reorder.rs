@@ -15,7 +15,7 @@ use iced::{
     window,
 };
 pub use list_end_corners::ListEndCorners;
-pub use reorderable_list::{ReorderableList, SlotAlarm, UngroupedHighlightLook, reorderable_list};
+pub use reorderable_list::{ReorderableList, SlotAlarm, UngroupedSlotLook, reorderable_list};
 pub use slot_group::{SlotGroup, SlotTileInset};
 
 use crate::theming::FrameStyle;

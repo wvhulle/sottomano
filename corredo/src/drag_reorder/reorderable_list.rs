@@ -11,9 +11,10 @@ mod hover_glow;
 mod row_arrangement;
 mod row_painters;
 mod sliding_row;
+mod slot_marking;
 mod slot_underlay;
-mod tile_joins;
 mod travelling_highlight;
+mod ungrouped_tiles;
 
 use alarm_tiles::AlarmTiles;
 use group_enclosures::{EnclosedGroup, GroupEnclosures};
@@ -21,8 +22,9 @@ use hover_glow::HoverGlow;
 use row_arrangement::RowArrangement;
 use row_painters::{RowPainters, alarm_tiles_of, grouped_slots_of};
 use sliding_row::SlidingRow;
-use tile_joins::SlotMarking;
+use slot_marking::SlotMarking;
 use travelling_highlight::{HighlightedSlot, TravellingHighlight};
+use ungrouped_tiles::UngroupedTiles;
 
 use crate::{
     drag_reorder::{
@@ -36,10 +38,21 @@ use crate::{
 const DEFAULT_INDICATOR_MOTION: Duration = Duration::from_millis(160);
 const DEFAULT_GROUP_GAP_PX: f32 = 4.0;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum UngroupedHighlightLook {
+pub enum UngroupedSlotLook<'a> {
     EdgeBand,
-    AccentTile(SlotTileInset),
+    RestingTile {
+        tile_inset: SlotTileInset,
+        resting_color: ThemedColor<'a>,
+    },
+}
+
+impl UngroupedSlotLook<'_> {
+    pub(super) fn tile_inset(&self) -> Option<SlotTileInset> {
+        match self {
+            UngroupedSlotLook::EdgeBand => None,
+            UngroupedSlotLook::RestingTile { tile_inset, .. } => Some(*tile_inset),
+        }
+    }
 }
 
 pub fn reorderable_list<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
@@ -55,7 +68,7 @@ pub fn reorderable_list<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
         motion: DEFAULT_INDICATOR_MOTION,
         indicator_thickness: ACCENT_STROKE_PX,
         highlight: None,
-        ungrouped_highlight_look: UngroupedHighlightLook::EdgeBand,
+        ungrouped_slot_look: UngroupedSlotLook::EdgeBand,
         alarms: Vec::new(),
         groups: Vec::new(),
         group_gap: DEFAULT_GROUP_GAP_PX,
@@ -83,7 +96,7 @@ pub struct ReorderableList<'a, Message, SlotKey> {
     motion: Duration,
     indicator_thickness: f32,
     highlight: Option<SlotHighlight<'a, SlotKey>>,
-    ungrouped_highlight_look: UngroupedHighlightLook,
+    ungrouped_slot_look: UngroupedSlotLook<'a>,
     alarms: Vec<SlotAlarm<'a>>,
     groups: Vec<SlotGroup<'a, Message>>,
     group_gap: f32,
@@ -128,8 +141,8 @@ impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
     }
 
     #[must_use]
-    pub fn ungrouped_highlight_look(mut self, look: UngroupedHighlightLook) -> Self {
-        self.ungrouped_highlight_look = look;
+    pub fn ungrouped_slot_look(mut self, look: UngroupedSlotLook<'a>) -> Self {
+        self.ungrouped_slot_look = look;
         self
     }
 
@@ -189,7 +202,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             motion,
             indicator_thickness,
             highlight,
-            ungrouped_highlight_look,
+            ungrouped_slot_look,
             alarms,
             groups,
             group_gap,
@@ -199,25 +212,19 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
         } = self;
         let pager_axis = edge.running_axis();
         let slot_count = keys.len();
-        let groups: Vec<_> = groups
-            .into_iter()
-            .filter(|group| !group.positions.is_empty() && group.positions.end <= slot_count)
-            .collect();
+        let groups = groups_within_slots(groups, slot_count);
         let grouped_slots = grouped_slots_of(&groups);
         let highlighted_position = highlight
             .as_ref()
             .and_then(|slot_highlight| keys.iter().position(|key| *key == slot_highlight.key));
         let slot_marking = SlotMarking {
             grouped_slots: &grouped_slots,
-            ungrouped_look: ungrouped_highlight_look,
-            marked_positions: highlighted_position
-                .into_iter()
-                .chain(alarms.iter().map(|alarm| alarm.position))
-                .collect(),
+            ungrouped_look: &ungrouped_slot_look,
         };
         let row_arrangement = RowArrangement::interleave_group_headings(
             slot_count,
             &grouped_slots,
+            &ungrouped_slot_look,
             spacing,
             group_gap,
         );
@@ -275,11 +282,26 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
                 pager_axis,
                 enclosed_groups,
             },
+            ungrouped_tiles: UngroupedTiles {
+                pager_axis,
+                slot_positions: slot_marking.ungrouped_positions(slot_count),
+                ungrouped_look: ungrouped_slot_look,
+            },
         }
         .painted_under(sliding_row);
         let departing_row = exiting_with(painted_row, left_list_message);
         wheel_selecting(departing_row, wheel_select, keys, highlighted_position)
     }
+}
+
+fn groups_within_slots<Message>(
+    groups: Vec<SlotGroup<'_, Message>>,
+    slot_count: usize,
+) -> Vec<SlotGroup<'_, Message>> {
+    groups
+        .into_iter()
+        .filter(|group| !group.positions.is_empty() && group.positions.end <= slot_count)
+        .collect()
 }
 
 fn exiting_with<'a, Message: Clone + 'a>(

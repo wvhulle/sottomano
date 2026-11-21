@@ -5,9 +5,10 @@ use super::{
     alarm_tiles::{AlarmTile, AlarmTiles},
     group_enclosures::GroupEnclosures,
     hover_glow::{HoverGlow, SlotGlow},
+    slot_marking::{GroupedSlots, SlotMarking},
     slot_underlay::{PaintedRow, SlotPainter, SlotUnderlay},
-    tile_joins::{GroupedSlots, SlotMarking},
     travelling_highlight::{HighlightTravelState, TravellingHighlight},
+    ungrouped_tiles::UngroupedTiles,
 };
 use crate::{
     drag_reorder::slot_group::{SlotGroup, SlotTileInset},
@@ -19,6 +20,7 @@ pub(super) struct RowPainters<'a> {
     pub(super) hover_glow: HoverGlow,
     pub(super) travelling_highlight: TravellingHighlight<'a>,
     pub(super) group_enclosures: GroupEnclosures<'a>,
+    pub(super) ungrouped_tiles: UngroupedTiles<'a>,
 }
 
 #[derive(Default)]
@@ -92,6 +94,8 @@ impl SlotPainter for RowPainters<'_> {
     ) {
         self.group_enclosures
             .draw_under(painted_with(&painted_row, &()), renderer, theme);
+        self.ungrouped_tiles
+            .draw_under(painted_with(&painted_row, &()), renderer, theme);
         self.hover_glow.draw_under(
             painted_with(&painted_row, &painted_row.painter_state.slot_glows),
             renderer,
@@ -143,7 +147,6 @@ pub(super) fn alarm_tiles_of<'a>(
             Some(AlarmTile {
                 slot_position: alarm.position,
                 tile_inset: slot_marking.tile_inset_at(alarm.position)?,
-                tile_neighbours: slot_marking.tile_neighbours(alarm.position),
                 color: alarm.color,
             })
         })

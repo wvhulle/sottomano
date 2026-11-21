@@ -1,5 +1,5 @@
 use corredo::{
-    drag_reorder::{SlotGroup, UngroupedHighlightLook},
+    drag_reorder::{SlotGroup, UngroupedSlotLook},
     theming::background_color,
 };
 
@@ -62,7 +62,7 @@ impl WindowSlotPresentation {
 pub(super) struct ArrangedWindowRows<'a> {
     pub(super) groups: Vec<SlotGroup<'a, WindowListInteraction>>,
     pub(super) presentations: Vec<WindowSlotPresentation>,
-    pub(super) ungrouped_highlight_look: UngroupedHighlightLook,
+    pub(super) ungrouped_slot_look: UngroupedSlotLook<'a>,
 }
 
 #[cfg(test)]
