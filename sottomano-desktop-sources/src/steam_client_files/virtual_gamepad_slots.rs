@@ -135,11 +135,19 @@ pub fn parse_virtual_slot_table(
 mod tests {
     use super::*;
 
-    const TWO_SLOTS: &str = "[slot 0]\nname=Steam \
-                             Controller\nVID=0x28de\nPID=0x1302\nhandle=0x0000fa0000000001\\
-                             ntype=steam\n[slot 1]\nname=DualSense Wireless \
-                             Controller\nVID=0x054c\nPID=0x0ce6\nhandle=0x0000000000000002\\
-                             ntype=ps5\n";
+    const TWO_SLOTS: &str = r"[slot 0]
+name=Steam Controller
+VID=0x28de
+PID=0x1302
+handle=0x0000fa0000000001
+type=steam
+[slot 1]
+name=DualSense Wireless Controller
+VID=0x054c
+PID=0x0ce6
+handle=0x0000000000000002
+type=ps5
+";
 
     #[test]
     fn each_slot_names_its_physical_controller() {
