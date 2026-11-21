@@ -1,0 +1,11 @@
+id: single-letter-lifetime
+valid:
+  - "struct Row<'row> { label: &'row str }"
+  - "impl Row<'_> { fn label(&self) -> &str { self.label } }"
+  - "fn label() -> &'static str { \"\" }"
+  - "impl<'row> Row<'row> { fn view(&self, label: Element<'row, Message>) {} }"
+invalid:
+  - "struct Row<'a> { label: &'a str }"
+  - "impl<'a> Row<'a> {}"
+  - "fn view<'row, 'b: 'row>(label: &'b str) {}"
+  - "fn bound<F: for<'c> Fn(&'c str)>() {}"

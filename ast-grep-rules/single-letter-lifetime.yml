@@ -1,0 +1,21 @@
+id: single-letter-lifetime
+language: rust
+severity: error
+message: "Lifetime `'$NAME` says nothing about what the borrow outlives."
+note: Name it after what the references borrow from, as in 'config, 'row or 'assets; renaming the declaration renames every use with it. '_ stays for an elided lifetime the reader need not track.
+labels:
+  NAME:
+    style: primary
+    message: name it after the borrowed owner
+rule:
+  kind: identifier
+  pattern: $NAME
+  regex: ^[a-z]$
+  inside:
+    kind: lifetime
+    any:
+      - inside:
+          kind: lifetime_parameter
+          field: name
+      - inside:
+          kind: for_lifetimes
