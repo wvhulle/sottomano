@@ -37,11 +37,9 @@ rustix = { version = "1.1.5", features = ["param"] }
 signal-hook = "0.3.18"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing-chrome = "0.7.2"
-reqwest.workspace = true
 tokio.workspace = true
 turso.workspace = true
 zbus.workspace = true
-uom.workspace = true
 libm = "0.2.16"
 
 [dev-dependencies]

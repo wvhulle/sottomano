@@ -59,7 +59,6 @@ systemd = "0.10.1"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net"] }
 tokio-stream.workspace = true
-tokio-util.workspace = true
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = [
   "connect",
   "rustls-tls-native-roots",
