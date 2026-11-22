@@ -18,6 +18,7 @@ impl DesktopShell {
                 self.indicator_groups
                     .weather_group
                     .group_content(config, self.clock),
+                self.indicator_groups.location_group.group_content(),
                 self.indicator_groups
                     .quiet_schedule_group
                     .group_content(config),

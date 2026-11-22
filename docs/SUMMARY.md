@@ -18,6 +18,7 @@
   - [Compute](guide/compute.md)
   - [Memory and board](guide/memory-and-board.md)
   - [Weather](guide/weather.md)
+  - [Location](guide/location.md)
   - [Audio and media](guide/audio-and-media.md)
   - [More of the top panel](guide/top-panel-extras.md)
   - [Wallpaper](guide/wallpaper.md)

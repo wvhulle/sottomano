@@ -11,6 +11,10 @@ impl ShellIndicatorGroups {
                 .weather_group
                 .update(delivery, clock)
                 .map(Message::Weather),
+            Message::Location(delivery) => self
+                .location_group
+                .update(delivery, clock)
+                .map(Message::Location),
             Message::Wallpaper(delivery) => self
                 .wallpaper_group
                 .update(delivery, clock)

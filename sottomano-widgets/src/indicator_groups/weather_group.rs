@@ -4,7 +4,6 @@ use sottomano_toml_config::Config;
 use crate::indicator_groups::{
     indicator_group_identity::IndicatorGroupFamily,
     weather_group::{
-        geolocation_fix::{LOCATION_FALLBACK_GLYPH, location_hover_card, location_indicator},
         pollen_count_gauge::{POLLEN_FALLBACK_GLYPH, allergen_hover_card, allergen_indicator},
         rain_intensity::{
             PRECIPITATION_MODEL_FALLBACK_GLYPH, RAIN_FALLBACK_GLYPH,
@@ -15,7 +14,6 @@ use crate::indicator_groups::{
     },
 };
 
-mod geolocation_fix;
 mod pollen_count_gauge;
 mod precipitation_type_forecast;
 #[cfg(test)]
@@ -29,9 +27,12 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     weather::{
-        buienradar_rain::Rain, open_meteo_pollen::Pollen,
-        open_meteo_precipitation_model::PrecipitationModel, open_meteo_temperature::Temperature,
-        open_meteo_wind::Wind, situo_location_fix::Location,
+        buienradar_rain::Rain,
+        open_meteo_pollen::Pollen,
+        open_meteo_precipitation_model::PrecipitationModel,
+        open_meteo_temperature::Temperature,
+        open_meteo_wind::Wind,
+        situo_location_fix::{ForecastGrid, Location},
     },
 };
 
@@ -69,7 +70,6 @@ pub enum WeatherBusRequest {
 #[derive(Debug, Clone, Copy)]
 pub enum WeatherInteraction {
     Expansion(IndicatorGroupExpansionMessage),
-    RefreshLocation,
     OnBuses(WeatherBusRequest),
 }
 
@@ -106,24 +106,28 @@ impl WeatherGroup {
     ) -> Subscription<WeatherMessage> {
         let demand = demand.expanded_when(self.expansion.state);
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
-        let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
+        let (Some(here), Some(buses)) = (self.location.get(), buses) else {
             return location;
         };
-        let online_here = || OnBus {
+        let online_on = |forecast_grid| OnBus {
             buses: buses.clone(),
-            inputs: here,
+            inputs: here.position_on(forecast_grid),
         };
         Subscription::batch([
             location,
-            snapshot_subscription::<Temperature>(online_here()).map(WeatherMessage::Temperature),
-            snapshot_subscription::<Rain>(online_here()).map(WeatherMessage::Rain),
-            snapshot_subscription::<PrecipitationModel>(online_here())
+            snapshot_subscription::<Temperature>(online_on(ForecastGrid::OpenMeteo))
+                .map(WeatherMessage::Temperature),
+            snapshot_subscription::<Rain>(online_on(ForecastGrid::Buienradar))
+                .map(WeatherMessage::Rain),
+            snapshot_subscription::<PrecipitationModel>(online_on(ForecastGrid::OpenMeteo))
                 .map(WeatherMessage::PrecipitationModel),
             demand.while_indicators_shown(
-                snapshot_subscription::<Wind>(online_here()).map(WeatherMessage::Wind),
+                snapshot_subscription::<Wind>(online_on(ForecastGrid::OpenMeteo))
+                    .map(WeatherMessage::Wind),
             ),
             demand.while_indicators_shown(
-                snapshot_subscription::<Pollen>(online_here()).map(WeatherMessage::Pollen),
+                snapshot_subscription::<Pollen>(online_on(ForecastGrid::OpenMeteo))
+                    .map(WeatherMessage::Pollen),
             ),
         ])
     }
@@ -149,9 +153,6 @@ impl WeatherGroup {
             WeatherInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            WeatherInteraction::RefreshLocation => {
-                return first_delivery::<Location>(()).map(WeatherMessage::Location);
-            }
             WeatherInteraction::OnBuses(_) => {}
         }
         Task::none()
@@ -163,26 +164,29 @@ impl WeatherGroup {
         buses: &DesktopBuses,
     ) -> Task<WeatherMessage> {
         let WeatherBusRequest::Refresh(source) = request;
-        let Some(here) = self.location.get().map(Location::position) else {
+        let Some(here) = self.location.get() else {
             return first_delivery::<Location>(()).map(WeatherMessage::Location);
         };
-        let online_here = || OnBus {
+        let online_on = |forecast_grid| OnBus {
             buses: buses.clone(),
-            inputs: here,
+            inputs: here.position_on(forecast_grid),
         };
         match source {
             WeatherSource::Temperature => {
-                first_delivery::<Temperature>(online_here()).map(WeatherMessage::Temperature)
+                first_delivery::<Temperature>(online_on(ForecastGrid::OpenMeteo))
+                    .map(WeatherMessage::Temperature)
             }
-            WeatherSource::Wind => first_delivery::<Wind>(online_here()).map(WeatherMessage::Wind),
+            WeatherSource::Wind => {
+                first_delivery::<Wind>(online_on(ForecastGrid::OpenMeteo)).map(WeatherMessage::Wind)
+            }
             WeatherSource::Rain => Task::batch([
-                first_delivery::<Rain>(online_here()).map(WeatherMessage::Rain),
-                first_delivery::<PrecipitationModel>(online_here())
+                first_delivery::<Rain>(online_on(ForecastGrid::Buienradar))
+                    .map(WeatherMessage::Rain),
+                first_delivery::<PrecipitationModel>(online_on(ForecastGrid::OpenMeteo))
                     .map(WeatherMessage::PrecipitationModel),
             ]),
-            WeatherSource::Pollen => {
-                first_delivery::<Pollen>(online_here()).map(WeatherMessage::Pollen)
-            }
+            WeatherSource::Pollen => first_delivery::<Pollen>(online_on(ForecastGrid::OpenMeteo))
+                .map(WeatherMessage::Pollen),
         }
     }
 
@@ -265,17 +269,6 @@ impl WeatherGroup {
             .refreshed_by(refresh_online(WeatherSource::Wind))
     }
 
-    fn wired_location_indicator<'view>(
-        &'view self,
-        location_row: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        location_row
-            .with_hover_card(Box::new(move |_| {
-                self.location.sections_described_by(location_hover_card)
-            }))
-            .refreshed_by(WeatherInteraction::RefreshLocation)
-    }
-
     fn temperature_headline(&self) -> GroupIndicator<'_> {
         self.wired_temperature_indicator(self.temperature.indicator(
             |held_snapshot| temperature_indicator(held_snapshot),
@@ -342,15 +335,6 @@ impl WeatherGroup {
                     }))
                     .refreshed_by(refresh_online(WeatherSource::Pollen)),
             );
-        }
-        if !self.location.awaits_first_delivery() {
-            let location_row = self.location.indicator(
-                |held_snapshot| location_indicator(held_snapshot),
-                LOCATION_FALLBACK_GLYPH,
-            );
-            if location_row.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_location_indicator(location_row));
-            }
         }
         self.list_temperature(&mut rows);
         IndicatorGroupContent::expandable(

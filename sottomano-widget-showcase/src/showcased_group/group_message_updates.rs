@@ -20,6 +20,9 @@ impl ShowcasedGroup {
             (ShowcasedGroup::Weather(group), ShowcaseMessage::Weather(delivery)) => {
                 let _ = group.update(delivery, clock);
             }
+            (ShowcasedGroup::Location(group), ShowcaseMessage::Location(delivery)) => {
+                let _ = group.update(delivery, clock);
+            }
             (ShowcasedGroup::ClaudeUsage(group), ShowcaseMessage::ClaudeUsage(delivery)) => {
                 let _ = group.update(delivery, clock);
             }

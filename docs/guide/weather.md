@@ -3,7 +3,7 @@
 <div class="beside">
 <div class="beside-text">
 
-Conditions where you are, from the location fix to rain and pollen.
+Conditions where you are: temperature, rain, wind and pollen, at the position the [location](location.md) group reports.
 
 </div>
 
@@ -21,6 +21,5 @@ These open from the weather group like the rain reading above.
 
 | Reading | What it shows |
 |---|---|
-| Location | How rough the location fix is and which source produced it. |
 | Wind | Wind speed, gusts and direction, with the Beaufort force in the panel. |
 | Pollen | Today's pollen per allergen. |

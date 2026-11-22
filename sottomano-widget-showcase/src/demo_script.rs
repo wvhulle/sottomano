@@ -99,6 +99,7 @@ pub const DEMOS: &[Demo] = &[
     indicator_group_demos::APP_LAUNCHER_OVERFLOW,
     indicator_group_demos::TAILNET_EXIT_NODE,
     indicator_group_demos::WEATHER_CONDITIONS,
+    indicator_group_demos::LOCATION_FIX,
     guest_machine_demos::MICROVM_GUESTS_CLOUD_HYPERVISOR,
     guest_machine_demos::LXC_CONTAINERS_RUNNING,
     guest_machine_demos::FLATPAK_SANDBOXES_APP,

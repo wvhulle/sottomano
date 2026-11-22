@@ -14,7 +14,7 @@ use crate::{
     indicator_groups::{
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         weather_group::{
-            WeatherInteraction,
+            WeatherBusRequest, WeatherInteraction, WeatherSource,
             rain_forecast_ranking::{RADAR_FRAME_LENGTH, frames_not_yet_over},
         },
     },
@@ -183,7 +183,7 @@ fn rain_starting_soon_raises_a_toast() {
     let toast = rain_indicator
         .toast_requests(
             &IndicatorGroupIdentity::sole(IndicatorGroupFamily::Weather),
-            WeatherInteraction::RefreshLocation.into(),
+            WeatherInteraction::OnBuses(WeatherBusRequest::Refresh(WeatherSource::Rain)).into(),
             Locale::default(),
             clock,
         )

@@ -37,6 +37,9 @@ impl ShowcasedGroup {
             (ShowcasedGroup::Weather(group), IndicatorGroupInteraction::Weather(interaction)) => {
                 let _ = group.interact(interaction);
             }
+            (ShowcasedGroup::Location(group), IndicatorGroupInteraction::Location(interaction)) => {
+                let _ = group.interact(interaction);
+            }
             (
                 ShowcasedGroup::ClaudeUsage(group),
                 IndicatorGroupInteraction::ClaudeUsage(interaction),

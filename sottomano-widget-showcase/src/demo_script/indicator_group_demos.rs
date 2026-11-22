@@ -12,7 +12,7 @@ use crate::{
     demo_script::{Demo, DemoBackdrop, GroupShown, Step, indicator_row, instance_row},
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, gamepad, idle_lock,
-        login_session, tailnet, unchanging, voice_dictation, wallpaper, weather,
+        location, login_session, tailnet, unchanging, voice_dictation, wallpaper, weather,
     },
 };
 
@@ -55,6 +55,19 @@ pub(super) const TAILNET_EXIT_NODE: Demo = Demo {
             IndicatorGroupFamily::Tailnet,
             "Exit via home-server",
         )),
+    ],
+};
+
+pub(super) const LOCATION_FIX: Demo = Demo {
+    name: "location_fix",
+    group: location::group,
+    live: |_| unchanging(),
+    backdrop: DemoBackdrop::Transparent,
+    shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
+    script: &[
+        Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
+        Step::PressText("Location"),
+        Step::Hover(indicator_row(IndicatorGroupFamily::Location, "Estimate")),
     ],
 };
 

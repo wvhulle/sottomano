@@ -46,6 +46,7 @@ impl ShellIndicatorGroups {
             self.weather_group
                 .subscription(buses, source_demand(IndicatorGroupFamily::Weather))
                 .map(Message::Weather),
+            self.location_group.subscription().map(Message::Location),
             self.wallpaper_group
                 .subscription(buses)
                 .map(Message::Wallpaper),

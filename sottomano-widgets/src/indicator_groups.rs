@@ -30,6 +30,7 @@ mod interface_address_sections;
 mod interface_group_titles;
 pub mod journal_events_group;
 pub mod llama_server_group;
+pub mod location_group;
 pub mod login_session_group;
 pub mod lxc_containers_group;
 pub mod media_group;

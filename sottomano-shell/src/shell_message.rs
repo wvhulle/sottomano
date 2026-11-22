@@ -38,10 +38,11 @@ use sottomano_widgets::{
         incus_instances_group::IncusInstancesMessage, indicator_group_content::GroupEvent,
         indicator_group_interaction::IndicatorGroupInteraction,
         journal_events_group::JournalEventsMessage, llama_server_group::LlamaServerMessage,
-        login_session_group::LoginSessionMessage, lxc_containers_group::LxcContainersMessage,
-        media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
-        microvm_guests_group::MicrovmGuestsMessage, mobile_modems_group::MobileModemsMessage,
-        monitor_group::MonitorMessage, network_manager_vpn_group::NetworkManagerVpnMessage,
+        location_group::LocationMessage, login_session_group::LoginSessionMessage,
+        lxc_containers_group::LxcContainersMessage, media_group::MediaMessage,
+        memory_board_group::MemoryBoardMessage, microvm_guests_group::MicrovmGuestsMessage,
+        mobile_modems_group::MobileModemsMessage, monitor_group::MonitorMessage,
+        network_manager_vpn_group::NetworkManagerVpnMessage,
         notification_group::NotificationGroupMessage,
         nspawn_containers_group::NspawnContainersMessage,
         openrouter_credit_group::OpenRouterCreditMessage,
@@ -79,6 +80,7 @@ pub enum OutputChange {
 #[derive(Debug, IntoStaticStr)]
 pub enum Message {
     Weather(WeatherMessage),
+    Location(LocationMessage),
     Wallpaper(WallpaperMessage),
     Caldav(CaldavMessage),
     Power(PowerMessage),

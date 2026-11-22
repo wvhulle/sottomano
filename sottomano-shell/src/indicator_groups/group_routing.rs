@@ -95,6 +95,10 @@ impl ShellIndicatorGroups {
                 .weather_group
                 .interact(interaction)
                 .map(Message::Weather),
+            IndicatorGroupInteraction::Location(interaction) => self
+                .location_group
+                .interact(interaction)
+                .map(Message::Location),
             IndicatorGroupInteraction::Wallpaper(expansion) => self
                 .wallpaper_group
                 .interact(expansion)

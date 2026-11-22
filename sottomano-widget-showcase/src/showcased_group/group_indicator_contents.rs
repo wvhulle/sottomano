@@ -16,6 +16,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
             ShowcasedGroup::MemoryBoard(group) => group.group_content(locale),
             ShowcasedGroup::Weather(group) => group.group_content(config, clock),
+            ShowcasedGroup::Location(group) => group.group_content(),
             ShowcasedGroup::ClaudeUsage(group) => group.group_content(clock),
             ShowcasedGroup::Wallpaper(group) => group.group_content(),
             ShowcasedGroup::Audio(group) => group.group_content(config),

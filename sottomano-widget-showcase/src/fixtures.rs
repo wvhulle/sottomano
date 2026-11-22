@@ -49,6 +49,7 @@ pub mod group_menu_members;
 pub mod host_hardware;
 pub mod idle_lock;
 pub mod incus_instances;
+pub mod location;
 pub mod login_session;
 pub mod lxc_containers;
 pub mod media;

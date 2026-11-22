@@ -37,6 +37,7 @@ use sottomano_widgets::{
         incus_instances_group::IncusInstancesGroup,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
+        location_group::LocationGroup,
         login_session_group::LoginSessionGroup,
         lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
@@ -81,6 +82,7 @@ use crate::shell_message::Message;
 
 pub struct ShellIndicatorGroups {
     pub weather_group: WeatherGroup,
+    pub location_group: LocationGroup,
     pub wallpaper_group: WallpaperGroup,
     pub caldav_group: CaldavGroup,
     pub power_group: PowerGroup,
@@ -154,6 +156,7 @@ impl ShellIndicatorGroups {
     ) -> Self {
         Self {
             weather_group: WeatherGroup::default(),
+            location_group: LocationGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
             caldav_group: CaldavGroup::new(&secrets),
             power_group: PowerGroup::default(),
@@ -290,6 +293,7 @@ impl ShellIndicatorGroups {
         self.gamepad_group.collapse();
         self.clock_group.collapse();
         self.weather_group.collapse();
+        self.location_group.collapse();
         self.compute_group.collapse();
         self.memory_board_group.collapse();
         self.gpu_group.collapse();

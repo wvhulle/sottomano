@@ -23,12 +23,12 @@ use sottomano_widgets::{
         compute_group::ComputeGroup, docker_engines_group::DockerEnginesGroup,
         flatpak_sandboxes_group::FlatpakSandboxesGroup, gamepad_group::GamepadGroup,
         idle_pause_groups::IdlePauseGroups, incus_instances_group::IncusInstancesGroup,
-        indicator_group_content::IndicatorGroupContent, login_session_group::LoginSessionGroup,
-        lxc_containers_group::LxcContainersGroup, media_group::MediaGroup,
-        memory_board_group::MemoryBoardGroup, microvm_guests_group::MicrovmGuestsGroup,
-        nspawn_containers_group::NspawnContainersGroup, podman_engines_group::PodmanEnginesGroup,
-        session_focus_group::SessionFocusGroup, tailnet_group::TailnetGroup,
-        virtual_machines_group::VirtualMachinesGroup,
+        indicator_group_content::IndicatorGroupContent, location_group::LocationGroup,
+        login_session_group::LoginSessionGroup, lxc_containers_group::LxcContainersGroup,
+        media_group::MediaGroup, memory_board_group::MemoryBoardGroup,
+        microvm_guests_group::MicrovmGuestsGroup, nspawn_containers_group::NspawnContainersGroup,
+        podman_engines_group::PodmanEnginesGroup, session_focus_group::SessionFocusGroup,
+        tailnet_group::TailnetGroup, virtual_machines_group::VirtualMachinesGroup,
         virtualbox_machines_group::VirtualBoxMachinesGroup,
         vmware_machines_group::VmwareMachinesGroup, voice_dictation_group::VoiceDictationGroup,
         wallpaper_group::WallpaperGroup, waydroid_container_group::WaydroidContainerGroup,
@@ -65,6 +65,7 @@ pub enum ShowcasedGroup {
     Compute(Box<ComputeGroup>),
     MemoryBoard(Box<MemoryBoardGroup>),
     Weather(Box<WeatherGroup>),
+    Location(Box<LocationGroup>),
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdlePauseGroups>),
@@ -134,6 +135,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
+            | ShowcasedGroup::Location(_)
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::Audio(_)
@@ -270,6 +272,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
+            | ShowcasedGroup::Location(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)

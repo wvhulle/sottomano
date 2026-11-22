@@ -162,6 +162,7 @@ impl DesktopShell {
                 Task::none()
             }
             group_message @ (Message::Weather(_)
+            | Message::Location(_)
             | Message::Wallpaper(_)
             | Message::Caldav(_)
             | Message::Power(_)

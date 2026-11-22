@@ -34,6 +34,7 @@ use crate::{
         indicator_group_content::IndicatorGroupExpansionMessage,
         journal_events_group::JournalEventsInteraction,
         llama_server_group::LlamaServerInteraction,
+        location_group::LocationInteraction,
         login_session_group::{LoginSessionBusRequest, LoginSessionInteraction},
         lxc_containers_group::LxcContainersInteraction,
         media_group::MediaInteraction,
@@ -76,6 +77,7 @@ use crate::{
 #[derive(Debug, Clone, IntoStaticStr)]
 pub enum IndicatorGroupInteraction {
     Weather(WeatherInteraction),
+    Location(LocationInteraction),
     Wallpaper(IndicatorGroupExpansionMessage),
     Caldav(IndicatorGroupExpansionMessage),
     Power(PowerInteraction),
@@ -138,6 +140,12 @@ pub enum IndicatorGroupInteraction {
     WindowGroup(WindowGroupInteraction),
     AppLauncher(AppLauncherMessage),
     GroupMenus(GroupMenuMessage),
+}
+
+impl From<LocationInteraction> for IndicatorGroupInteraction {
+    fn from(interaction: LocationInteraction) -> Self {
+        IndicatorGroupInteraction::Location(interaction)
+    }
 }
 
 impl From<WeatherInteraction> for IndicatorGroupInteraction {
