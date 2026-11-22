@@ -6,13 +6,6 @@
       inherit (config.sottomano) cargoBuild desktopRuntime;
       inherit (cargoBuild) commonArgs;
       inherit (desktopRuntime) gsettingsRuntime soundThemeShare;
-      awsLcInstallPrefix = pkgs.symlinkJoin {
-        name = "aws-lc-install-prefix";
-        paths = [
-          pkgs.aws-lc.dev
-          pkgs.aws-lc.out
-        ];
-      };
     in
     {
       apps.icon-svg-exports.program = pkgs.writeShellScriptBin "icon-svg-exports" ''
@@ -42,7 +35,6 @@
           // {
             LD_LIBRARY_PATH = "${lib.makeLibraryPath (lib.remove pkgs.openssl commonArgs.buildInputs)}:${pkgs.addDriverRunpath.driverLink}/lib";
             SHOWCASE_APP_ICONS = desktopRuntime.showcaseAppIcons;
-            AWS_LC_SYS_SYSTEM_DIR = "${awsLcInstallPrefix}";
           };
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
