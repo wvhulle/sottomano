@@ -25,7 +25,6 @@ freedesktop-desktop-entry = "0.8.3"
 futures.workspace = true
 futures-rx.workspace = true
 jiff.workspace = true
-icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
 icu_locale_core.workspace = true
 image.workspace = true
 inotify = "0.11.5"

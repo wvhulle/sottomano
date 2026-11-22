@@ -2,15 +2,15 @@ use std::{
     collections::HashMap,
     mem,
     path::PathBuf,
-    str::{FromStr, Utf8Error},
+    str::Utf8Error,
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
+use calcard::icalendar::ICalendar;
 use chrono::Local;
 use fast_dav_rs::CalendarObject;
 use futures::{Stream, future::try_join_all};
-use icalendar::Calendar;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, StateChange,
@@ -76,7 +76,7 @@ impl From<fast_dav_rs::Error> for Error {
 
 pub(super) struct CalendarResource {
     pub href: String,
-    pub calendar: Calendar,
+    pub calendar: ICalendar,
 }
 
 pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<CalendarResource> {
@@ -87,16 +87,14 @@ pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<Calendar
                 tracing::warn!("calendar object {}: response has no data", object.href);
                 return None;
             };
-            match Calendar::from_str(calendar_data) {
-                Ok(calendar) => Some(CalendarResource {
-                    calendar,
-                    href: object.href,
-                }),
-                Err(parse_error) => {
-                    tracing::warn!("calendar object {}: {parse_error}", object.href);
-                    None
-                }
-            }
+            let Ok(calendar) = ICalendar::parse(calendar_data) else {
+                tracing::warn!("calendar object {}: data is not iCalendar", object.href);
+                return None;
+            };
+            Some(CalendarResource {
+                calendar,
+                href: object.href,
+            })
         })
         .collect()
 }

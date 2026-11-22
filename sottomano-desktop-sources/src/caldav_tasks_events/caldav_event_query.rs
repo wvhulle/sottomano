@@ -1,11 +1,12 @@
+use calcard::icalendar::{ICalendarComponent, ICalendarComponentType, ICalendarProperty};
 use chrono::{DateTime, Days, Local, NaiveDate};
 use fast_dav_rs::{CalendarQueryOptions, TimeRange};
-use icalendar::{Component, Event, EventLike};
 
 use crate::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment,
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
+    webcal_feed_expansion::text_property,
 };
 
 const CALDAV_UTC_FORMAT: &str = "%Y%m%dT%H%M%SZ";
@@ -137,36 +138,53 @@ fn upcoming_events(resources: &[CalendarResource], calendar_name: &str) -> Vec<U
     resources
         .iter()
         .flat_map(|resource| {
-            resource.calendar.events().filter_map(move |event| {
-                calendar_object_event(&resource.href, event, calendar_name)
-            })
+            resource
+                .calendar
+                .components
+                .iter()
+                .filter(|component| component.component_type == ICalendarComponentType::VEvent)
+                .filter_map(move |event| {
+                    calendar_object_event(&resource.href, event, calendar_name)
+                })
         })
         .collect()
 }
 
 fn calendar_object_event(
     object_href: &str,
-    event: &Event,
+    event: &ICalendarComponent,
     calendar_name: &str,
 ) -> Option<UpcomingEvent> {
-    let Some(event_start) = event.get_start() else {
+    let Some(start) = written_moment(event, &ICalendarProperty::Dtstart) else {
         tracing::warn!("calendar object {object_href}: event has no readable start");
         return None;
     };
-    let start = AgendaMoment::from(event_start);
     Some(UpcomingEvent {
-        summary: displayed_summary(event.get_summary().unwrap_or_default()),
+        summary: displayed_summary(
+            text_property(event, &ICalendarProperty::Summary).unwrap_or_default(),
+        ),
         calendar: calendar_name.to_owned(),
         origin: EventOrigin::CalendarObject {
             object_href: object_href.to_owned(),
-            recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::from),
+            recurrence_id: written_moment(event, &ICalendarProperty::RecurrenceId).unwrap_or(start),
         },
         start,
-        end: event
-            .get_end()
-            .map_or_else(|| start.default_event_end(), AgendaMoment::from),
-        location: event.get_location().unwrap_or_default().trim().to_owned(),
+        end: written_moment(event, &ICalendarProperty::Dtend)
+            .unwrap_or_else(|| start.default_event_end()),
+        location: text_property(event, &ICalendarProperty::Location)
+            .unwrap_or_default()
+            .trim()
+            .to_owned(),
     })
+}
+
+pub(super) fn written_moment(
+    component: &ICalendarComponent,
+    property: &ICalendarProperty,
+) -> Option<AgendaMoment> {
+    component
+        .property(property)
+        .and_then(AgendaMoment::from_calendar_entry)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,17 +195,15 @@ pub enum WindowOverlap {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
+    use calcard::icalendar::ICalendar;
     use chrono::{TimeDelta, TimeZone, Utc};
-    use icalendar::Calendar;
 
     use super::*;
 
     fn parsed(ics: &str) -> Vec<UpcomingEvent> {
         let resource = CalendarResource {
             href: "/remote.php/dav/calendars/wvhulle/personal/fixture.ics".to_owned(),
-            calendar: Calendar::from_str(ics).unwrap(),
+            calendar: ICalendar::parse(ics).unwrap(),
         };
         upcoming_events(&[resource], "Personal")
     }

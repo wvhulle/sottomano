@@ -1,9 +1,11 @@
 use std::str::FromStr;
 
-use calcard::common::timezone::Tz as CalendarZone;
+use calcard::{
+    common::{DateTimeResult, timezone::Tz as CalendarZone},
+    icalendar::ICalendarEntry,
+};
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use chrono_tz::Tz;
-use icalendar::{CalendarDateTime, DatePerhapsTime};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgendaMoment {
@@ -12,30 +14,27 @@ pub enum AgendaMoment {
     Zoned(DateTime<Tz>),
 }
 
-impl From<DatePerhapsTime> for AgendaMoment {
-    fn from(moment: DatePerhapsTime) -> Self {
-        match moment {
-            DatePerhapsTime::Date(day) => AgendaMoment::AllDay(day),
-            DatePerhapsTime::DateTime(CalendarDateTime::Floating(wall_clock)) => {
-                AgendaMoment::Floating(wall_clock)
-            }
-            DatePerhapsTime::DateTime(CalendarDateTime::Utc(instant)) => {
-                AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC))
-            }
-            DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone { date_time, tzid }) => {
-                let Some(zone) = resolved_zone(&tzid) else {
-                    return AgendaMoment::Floating(date_time);
-                };
-                let Some(instant) = zone.from_local_datetime(&date_time).earliest() else {
-                    return AgendaMoment::Floating(date_time);
-                };
-                AgendaMoment::Zoned(instant)
-            }
-        }
-    }
-}
-
 impl AgendaMoment {
+    #[must_use]
+    pub fn from_calendar_entry(entry: &ICalendarEntry) -> Option<Self> {
+        let written_moment = entry.values.first()?.as_partial_date_time()?;
+        let DateTimeResult { date_time, offset } = written_moment.to_date_time()?;
+        if !written_moment.has_time() {
+            return Some(AgendaMoment::AllDay(date_time.date()));
+        }
+        if let Some(utc_offset) = offset {
+            let instant = utc_offset.from_local_datetime(&date_time).single()?;
+            return Some(AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)));
+        }
+        let Some(zone) = entry.tz_id().and_then(resolved_zone) else {
+            return Some(AgendaMoment::Floating(date_time));
+        };
+        let Some(instant) = zone.from_local_datetime(&date_time).earliest() else {
+            return Some(AgendaMoment::Floating(date_time));
+        };
+        Some(AgendaMoment::Zoned(instant))
+    }
+
     #[must_use]
     pub fn default_event_end(self) -> Self {
         match self {
@@ -122,9 +121,9 @@ pub enum DeadlinePassage {
 
 #[cfg(test)]
 mod tests {
+    use calcard::icalendar::{ICalendar, ICalendarProperty};
     use chrono::{NaiveDate, TimeZone, Utc};
     use chrono_tz::{America::New_York, Europe::Brussels};
-    use icalendar::CalendarDateTime;
 
     use super::*;
 
@@ -135,13 +134,23 @@ mod tests {
             .unwrap()
     }
 
+    fn written_start(dtstart_line: &str) -> AgendaMoment {
+        let calendar = ICalendar::parse(format!(
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:fixture\r\n{dtstart_line}\r\nEND:VEVENT\r\\
+             nEND:VCALENDAR\r\n"
+        ))
+        .unwrap();
+        calendar
+            .components
+            .iter()
+            .find_map(|component| component.property(&ICalendarProperty::Dtstart))
+            .and_then(AgendaMoment::from_calendar_entry)
+            .unwrap()
+    }
+
     #[test]
     fn a_zoned_time_keeps_its_source_zone_and_instant() {
-        let moment =
-            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-                date_time: wall_clock(14),
-                tzid: "Europe/Brussels".to_owned(),
-            }));
+        let moment = written_start("DTSTART;TZID=Europe/Brussels:20261030T140000");
         assert_eq!(moment.source_zone(), Some(Brussels));
         assert_eq!(
             moment.starts_in(&Utc),
@@ -152,11 +161,7 @@ mod tests {
 
     #[test]
     fn a_windows_zone_name_resolves_to_its_iana_zone() {
-        let moment =
-            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-                date_time: wall_clock(14),
-                tzid: "W. Europe Standard Time".to_owned(),
-            }));
+        let moment = written_start("DTSTART;TZID=W. Europe Standard Time:20261030T140000");
         assert_eq!(
             moment.starts_in(&Utc),
             Utc.with_ymd_and_hms(2026, 10, 30, 13, 0, 0).unwrap()
@@ -165,19 +170,30 @@ mod tests {
 
     #[test]
     fn an_unknown_zone_name_falls_back_to_the_viewers_wall_clock() {
-        let moment =
-            AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
-                date_time: wall_clock(14),
-                tzid: "Olympus Mons Standard Time".to_owned(),
-            }));
+        let moment = written_start("DTSTART;TZID=Olympus Mons Standard Time:20261030T140000");
         assert_eq!(moment, AgendaMoment::Floating(wall_clock(14)));
         assert_eq!(moment.starts_in(&New_York).naive_local(), wall_clock(14));
     }
 
     #[test]
+    fn a_time_without_zone_is_floating() {
+        assert_eq!(
+            written_start("DTSTART:20261030T140000"),
+            AgendaMoment::Floating(wall_clock(14))
+        );
+    }
+
+    #[test]
+    fn a_date_value_is_an_all_day_moment() {
+        assert_eq!(
+            written_start("DTSTART;VALUE=DATE:20261030"),
+            AgendaMoment::AllDay(NaiveDate::from_ymd_opt(2026, 10, 30).unwrap())
+        );
+    }
+
+    #[test]
     fn a_utc_time_is_zoned_in_utc() {
-        let instant = Utc.with_ymd_and_hms(2026, 10, 30, 23, 30, 0).unwrap();
-        let moment = AgendaMoment::from(DatePerhapsTime::DateTime(CalendarDateTime::Utc(instant)));
+        let moment = written_start("DTSTART:20261030T233000Z");
         assert_eq!(moment.source_zone(), Some(Tz::UTC));
         assert_eq!(
             moment.day_in(&Brussels),

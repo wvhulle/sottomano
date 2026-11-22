@@ -1,14 +1,17 @@
 use std::cmp::Ordering;
 
+use calcard::icalendar::{
+    ICalendarComponent, ICalendarComponentType, ICalendarProperty, ICalendarStatus,
+};
 use chrono::{DateTime, Local};
 use fast_dav_rs::caldav::{CalendarQueryFilter, PropFilter};
-use icalendar::{Component, Todo, TodoStatus};
 
 use crate::caldav_tasks_events::{
     agenda_moment_zones::{AgendaMoment, DeadlinePassage},
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
-    caldav_event_query::displayed_summary,
+    caldav_event_query::{displayed_summary, written_moment},
+    webcal_feed_expansion::text_property,
 };
 
 const LOWEST_PRIORITY: u32 = 9;
@@ -155,12 +158,14 @@ fn open_tasks(resources: &[CalendarResource], calendar_name: &str) -> Vec<OpenTa
         .flat_map(|resource| {
             resource
                 .calendar
-                .todos()
+                .components
+                .iter()
+                .filter(|component| component.component_type == ICalendarComponentType::VTodo)
                 .filter(|todo| {
-                    todo.get_completed().is_none()
+                    !todo.has_property(&ICalendarProperty::Completed)
                         && !matches!(
-                            todo.get_status(),
-                            Some(TodoStatus::Completed | TodoStatus::Cancelled)
+                            todo.status(),
+                            Some(ICalendarStatus::Completed | ICalendarStatus::Cancelled)
                         )
                 })
                 .map(move |todo| open_task(&resource.href, todo, calendar_name))
@@ -168,36 +173,41 @@ fn open_tasks(resources: &[CalendarResource], calendar_name: &str) -> Vec<OpenTa
         .collect()
 }
 
-fn open_task(object_href: &str, todo: &Todo, calendar_name: &str) -> OpenTask {
+fn open_task(object_href: &str, todo: &ICalendarComponent, calendar_name: &str) -> OpenTask {
     OpenTask {
-        summary: displayed_summary(todo.get_summary().unwrap_or_default()),
+        summary: displayed_summary(
+            text_property(todo, &ICalendarProperty::Summary).unwrap_or_default(),
+        ),
         calendar: calendar_name.to_owned(),
         object_href: object_href.to_owned(),
-        deadline: todo.get_due().map_or(TaskDeadline::Undated, |due| {
-            TaskDeadline::Due(AgendaMoment::from(due))
-        }),
-        priority: todo
-            .get_priority()
+        deadline: written_moment(todo, &ICalendarProperty::Due)
+            .map_or(TaskDeadline::Undated, TaskDeadline::Due),
+        priority: integer_property(todo, &ICalendarProperty::Priority)
+            .and_then(|priority| u32::try_from(priority).ok())
             .map_or(TaskPriority::Unranked, TaskPriority::from),
         progress: task_progress(todo),
     }
 }
 
-fn task_progress(todo: &Todo) -> TaskProgress {
-    match todo.get_percent_complete() {
+fn integer_property(component: &ICalendarComponent, property: &ICalendarProperty) -> Option<i64> {
+    component.property(property)?.values.first()?.as_integer()
+}
+
+fn task_progress(todo: &ICalendarComponent) -> TaskProgress {
+    let percent_complete = integer_property(todo, &ICalendarProperty::PercentComplete)
+        .and_then(|percent| u8::try_from(percent).ok());
+    match percent_complete {
         Some(percent) if percent > 0 => TaskProgress::PercentComplete(percent),
-        _ if todo.get_status() == Some(TodoStatus::InProcess) => TaskProgress::Started,
+        _ if todo.status() == Some(&ICalendarStatus::InProcess) => TaskProgress::Started,
         _ => TaskProgress::NotStarted,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
+    use calcard::icalendar::ICalendar;
     use chrono::{NaiveDate, TimeDelta, TimeZone};
     use chrono_tz::Europe::Brussels;
-    use icalendar::Calendar;
 
     use super::*;
 
@@ -205,7 +215,7 @@ mod tests {
         let task_list = include_str!("caldav_fixtures/mixed_task_list.ics");
         let resource = CalendarResource {
             href: "/remote.php/dav/calendars/wvhulle/tasks/list.ics".to_owned(),
-            calendar: Calendar::from_str(task_list).unwrap(),
+            calendar: ICalendar::parse(task_list).unwrap(),
         };
         open_tasks(&[resource], "Tasks")
     }

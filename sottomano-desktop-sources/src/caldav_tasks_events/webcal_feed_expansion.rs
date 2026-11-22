@@ -234,7 +234,7 @@ fn start_precision(component: &ICalendarComponent) -> StartPrecision {
     }
 }
 
-fn text_property<'component>(
+pub(super) fn text_property<'component>(
     component: &'component ICalendarComponent,
     property: &ICalendarProperty,
 ) -> Option<&'component str> {
