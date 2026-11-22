@@ -22,7 +22,7 @@ unicode-segmentation = { version = "1", optional = true }
 
 [dev-dependencies]
 iced = { version = "0.14.0", features = ["advanced", "svg", "canvas"] }
-iced_test = "0.14.0"
+iced_test.workspace = true
 
 [features]
 chrono = ["dep:chrono"]

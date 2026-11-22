@@ -18,7 +18,7 @@ bytesize.workspace = true
 calcard = "0.3.14"
 chrono.workspace = true
 chrono-tz.workspace = true
-color = "0.3.3"
+color.workspace = true
 evdev = { version = "0.13.2", features = ["stream-trait"] }
 fast-dav-rs = "0.19.0"
 freedesktop-desktop-entry = "0.8.3"
@@ -30,21 +30,21 @@ image.workspace = true
 inotify = "0.11.5"
 ipnet = { version = "2.12.2", features = ["serde"] }
 
-nalgebra.workspace = true
+nalgebra = "0.35"
 nvml-wrapper = "0.13.0"
 perf-event2 = "0.7.4"
 pin-project-lite = "0.2.17"
 pipewire = "0.10.1"
 procfs = { version = "0.18.0", default-features = false }
 qmlib = { version = "2.3.0", default-features = false }
-rustix = { version = "1.1.5", features = ["fs", "net", "process", "time"] }
+rustix = { workspace = true, features = ["fs", "net", "process", "time"] }
 notulist-client.workspace = true
 reqwest = { workspace = true, features = ["stream"] }
 roxmltree = "0.21.2"
 rust_decimal.workspace = true
 rusty-money.workspace = true
 serde.workspace = true
-serde_json = "1.0.154"
+serde_json.workspace = true
 x11rb = "0.13.2"
 situo-client.workspace = true
 sunrise = "3.0.0"
@@ -52,7 +52,10 @@ system-tray.workspace = true
 systemd = "0.10.1"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net"] }
-tokio-stream.workspace = true
+tokio-stream = { version = "0.1.19", default-features = false, features = [
+  "sync",
+  "time",
+] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = [
   "connect",
   "rustls-tls-native-roots",
@@ -63,13 +66,13 @@ url = "2.5.8"
 turso.workspace = true
 uom.workspace = true
 usvg.workspace = true
-virt = { version = "0.4.3", optional = true }
-winnow.workspace = true
-wayland-client = "0.31.15"
+virt = { workspace = true, optional = true }
+winnow = "1.0.4"
+wayland-client.workspace = true
 wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
 wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
 zbus.workspace = true
-zbus_xml.workspace = true
+zbus_xml = "5.2.1"
 
 [features]
 libvirt-domains = ["dep:virt"]

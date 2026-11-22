@@ -10,7 +10,7 @@ workspace = true
 [dependencies]
 chrono.workspace = true
 chrono-tz.workspace = true
-color = { version = "0.3.3", features = ["serde"] }
+color = { workspace = true, features = ["serde"] }
 jiff.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true

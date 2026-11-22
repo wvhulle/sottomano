@@ -30,10 +30,10 @@ iced.workspace = true
 iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true
 iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
-wayland-client = "0.31.15"
+wayland-client.workspace = true
 tracing.workspace = true
 strum.workspace = true
-rustix = { version = "1.1.5", features = ["param"] }
+rustix = { workspace = true, features = ["param"] }
 signal-hook = "0.3.18"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing-chrome = "0.7.2"

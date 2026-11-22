@@ -50,11 +50,9 @@ chrono = { version = "0.4.45", default-features = false, features = [
 ] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 clap = { version = "4.6.7", features = ["derive"] }
-fixed_decimal = { version = "0.7.3", features = ["ryu"] }
+color = "0.3.3"
 futures = "0.3.34"
 futures-rx = "=0.4.0"
-icu_decimal = { version = "2.4.0", features = ["alloc"] }
-icu_experimental = "0.7.0"
 jiff = { version = "0.2.38", default-features = false, features = [
   "serde",
   "std",
@@ -62,7 +60,6 @@ jiff = { version = "0.2.38", default-features = false, features = [
   "tzdb-zoneinfo",
 ] }
 icu_locale_core = "2.3.0"
-icu_provider = { version = "2.4.0", features = ["logging"] }
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
@@ -78,8 +75,8 @@ iced = { version = "0.14.0", default-features = false, features = [
   "svg",
   "canvas",
 ] }
+iced_test = "0.14.0"
 iced_controller_diagram = { path = "iced_controller_diagram", version = "0.1.0" }
-exwlshellev = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 image = { version = "0.25.10", default-features = false, features = [
   "png",
@@ -88,16 +85,15 @@ image = { version = "0.25.10", default-features = false, features = [
   "ico",
   "gif",
 ] }
-kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
-nalgebra = "0.35"
-niri-ipc = { git = "https://github.com/niri-wm/niri", branch = "main" }
 notulist-client = { git = "https://codeberg.org/wvhulle/notulist", branch = "main" }
 reqwest = { version = "0.13.5", default-features = false, features = [
   "rustls",
 ] }
+rustix = "1.1.5"
 rust_decimal = { version = "1.43.0", features = ["serde-float"] }
 rusty-money = "0.5.1"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 strum = { version = "0.26", features = ["derive"] }
 situo-client = { git = "https://codeberg.org/wvhulle/situo", branch = "main" }
 system-tray = "0.8.9"
@@ -111,14 +107,8 @@ tokio = { version = "1.53.3", features = [
   "time",
   "sync",
 ] }
-tokio-stream = { version = "0.1.19", default-features = false, features = [
-  "sync",
-  "time",
-] }
-tokio-util = { version = "0.7.20", features = ["codec"] }
 toml = "1.1.8"
 tracing = "0.1.44"
-unicode-segmentation = "1.13.3"
 turso = { version = "0.8.3", default-features = false }
 uom = { version = "0.38.0", default-features = false, features = [
   "autoconvert",
@@ -126,13 +116,13 @@ uom = { version = "0.38.0", default-features = false, features = [
   "si",
   "std",
 ] }
+virt = "0.4.3"
 usvg = "0.48.1"
-winnow = "1.0.4"
+wayland-client = "0.31.15"
 zbus = { version = "5.19.0", default-features = false, features = [
   "tokio",
   "blocking-api",
 ] }
-zbus_xml = "5.2.1"
 
 [patch.crates-io]
 iced = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }

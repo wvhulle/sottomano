@@ -22,9 +22,9 @@ sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
-fixed_decimal.workspace = true
-icu_decimal.workspace = true
-icu_experimental.workspace = true
+fixed_decimal = { version = "0.7.3", features = ["ryu"] }
+icu_decimal = { version = "2.4.0", features = ["alloc"] }
+icu_experimental = "0.7.0"
 icu_locale_core.workspace = true
 jiff.workspace = true
 iced.workspace = true
@@ -46,4 +46,4 @@ zbus.workspace = true
 [dev-dependencies]
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 sottomano-compositors = { path = "../sottomano-compositors", features = ["niri"] }
-iced_test = "0.14.0"
+iced_test.workspace = true
