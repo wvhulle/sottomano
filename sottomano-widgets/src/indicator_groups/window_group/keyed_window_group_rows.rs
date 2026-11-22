@@ -190,7 +190,7 @@ fn keyed_group_heading<'view>(
                 text(heading_text)
                     .size(config.theme.font.text_size_px)
                     .line_height(LINE_HEIGHT)
-                    .font(resolved_font_faces(&config.theme.font).regular)
+                    .font(resolved_font_faces(&config.theme.font).italic)
                     .style(tint.text_style()),
             )
             .spacing(config.theme.spacing.item_gap)
