@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use nalgebra::{Matrix3, Vector3};
-use sottomano_desktop_sources::{
+
+use crate::{
     battery_power_profiles::{
         battery_time_forecast::RegressionState, power_profiles_daemon::Profile,
     },
@@ -10,7 +11,7 @@ use sottomano_desktop_sources::{
 
 const UPPER_TRIANGLE_ENTRIES: usize = 6;
 
-pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
+pub async fn load_power_regressions(battery: String) -> HashMap<Profile, RegressionState> {
     with_state_store("power regression: load failed", async |connection| {
         read_models(connection, &battery).await
     })
@@ -18,7 +19,7 @@ pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     .unwrap_or_default()
 }
 
-pub async fn save(battery: String, profile: Profile, state: RegressionState) {
+pub async fn save_power_regression(battery: String, profile: Profile, state: RegressionState) {
     with_state_store("power regression: save failed", async |connection| {
         write_model(connection, &battery, profile, state).await
     })
@@ -153,9 +154,9 @@ async fn write_model(
 #[cfg(test)]
 mod tests {
     use nalgebra::{Matrix3, Vector3};
-    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::{Profile, RegressionState, read_models, write_model};
+    use crate::sqlite_state_store::migrated_in_memory_store;
 
     fn distinct_state() -> RegressionState {
         RegressionState {

@@ -5,7 +5,10 @@ use sottomano_desktop_sinks::battery_power_profiles::power_profile_selection;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
-        battery_time_forecast::{Estimate, RegressionState, time_until_empty},
+        battery_time_forecast::{
+            Estimate, RegressionState, load_power_regressions, save_power_regression,
+            time_until_empty,
+        },
         power_profiles_daemon::{Conditions, Profile, ProfileStatus},
         upower_battery_state::{Battery, ChargeStatus},
     },
@@ -24,7 +27,6 @@ use crate::{
         power_draw_gauge::LaptopDrawEstimate,
         profile_status_sections::profile_status_sections,
         sample_spacing::SampleSpacing,
-        sqlite_power_draw_regression,
     },
     widgets::{
         keyed_record_table::TableRecord, subscribed_snapshot::SubscribedSnapshot,
@@ -258,7 +260,7 @@ impl PowerProfileControl {
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
             .observe(sample.conditions, sample.draw, since_previous);
         models.insert(sample.profile, next);
-        Task::future(sqlite_power_draw_regression::save(
+        Task::future(save_power_regression(
             battery.serial.clone(),
             sample.profile,
             next,
@@ -271,8 +273,7 @@ impl PowerProfileControl {
             return Task::none();
         }
         self.profile_models = DrainModelLearning::Loading;
-        Task::future(sqlite_power_draw_regression::load(serial.to_string()))
-            .map(PowerProfileMessage::Loaded)
+        Task::future(load_power_regressions(serial.to_string())).map(PowerProfileMessage::Loaded)
     }
 
     fn drain_estimates(&self) -> Option<HashMap<Profile, Option<Estimate>>> {

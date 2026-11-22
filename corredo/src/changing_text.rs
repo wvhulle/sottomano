@@ -15,5 +15,7 @@ pub use karaoke_line::{KaraokeColors, KaraokeLine, LineSweep, SweepMotion};
 mod markup_text;
 #[cfg(feature = "markup")]
 pub use markup_text::MarkupText;
+#[cfg(feature = "markup")]
+pub use quick_xml::escape::escape as escape_markup;
 mod text_effects;
 pub use text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects};

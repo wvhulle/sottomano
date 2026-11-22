@@ -167,7 +167,7 @@ pub async fn echo_round_trip(
     )
     .map_err(io::Error::from)
     .and_then(|icmp_socket| UdpSocket::from_std(StdUdpSocket::from(icmp_socket)))
-        .map_err(|denied| LatencyProbeError::IcmpSocketDenied(denied.to_string()))?;
+    .map_err(|denied| LatencyProbeError::IcmpSocketDenied(denied.to_string()))?;
     let exchange = async {
         icmp_socket.connect(target).await?;
         let sent_at = Instant::now();

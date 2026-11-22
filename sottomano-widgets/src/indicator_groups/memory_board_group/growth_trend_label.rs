@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::Locale;
-use quick_xml::escape::escape;
+use corredo::changing_text::escape_markup;
 use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::memory_growth_trend::{
@@ -46,7 +46,7 @@ fn near_exhaustion(growth: &MemoryGrowth) -> Option<Duration> {
 
 fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (String, String) {
     (
-        escape(process.name.as_str()).into_owned(),
+        escape_markup(process.name.as_str()).into_owned(),
         growth_rate_text(process.growth_per_minute, locale),
     )
 }

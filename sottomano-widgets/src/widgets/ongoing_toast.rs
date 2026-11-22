@@ -1,7 +1,7 @@
 use std::{borrow::Cow, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale, Utc};
-use quick_xml::escape::escape;
+use corredo::changing_text::escape_markup;
 pub use sottomano_desktop_sources::desktop_notifications::notification_data::{
     NotificationBody, NotificationProgress,
 };
@@ -82,7 +82,7 @@ fn quota_pace_body(quotas: &[Quota], now: DateTime<Utc>, locale: Locale) -> Stri
         .map(|quota| {
             format!(
                 "<b>{}</b>{}",
-                escape(quota.label.as_ref()),
+                escape_markup(quota.label.as_ref()),
                 quota_rows(quota, now, locale)
             )
         })

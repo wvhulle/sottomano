@@ -7,7 +7,6 @@ mod power_profile_control;
 mod profile_status_sections;
 mod sample_spacing;
 mod sqlite_charge_power_curve;
-mod sqlite_power_draw_regression;
 
 use battery_charge_gauge::{battery_hover_card, battery_indicator};
 use battery_time_indicator::{BatteryTime, BatteryTimeIndicator};

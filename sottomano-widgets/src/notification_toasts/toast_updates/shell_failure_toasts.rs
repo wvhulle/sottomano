@@ -1,7 +1,7 @@
 use std::{borrow::Cow, path::Path};
 
+use corredo::changing_text::escape_markup;
 use iced::{Task, time::Instant};
-use quick_xml::escape::escape;
 use sottomano_compositor_model::compositor_requests::CompositorRequestFailure;
 use sottomano_desktop_sources::{
     delivery_cadence_drivers::ChangeWatchFailure,
@@ -26,14 +26,14 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         error: &LoadError,
         context: &ToastContext,
     ) -> Task<Routed> {
-        let message = escape(error.message()).into_owned();
+        let message = escape_markup(error.message()).into_owned();
         let body = match error.offending_line() {
             Some(line) => format!(
                 "{message}<pre>{} {}<u>{}</u>{}</pre>",
                 line.number,
-                escape(line.before),
-                escape(line.offending),
-                escape(line.after),
+                escape_markup(line.before),
+                escape_markup(line.offending),
+                escape_markup(line.after),
             ),
             None => message,
         };
@@ -63,8 +63,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             severity: Severity::Warning,
             body: NotificationBody::Text(format!(
                 "{}<pre>{}</pre>",
-                escape(failure.reason()),
-                escape(failure.request())
+                escape_markup(failure.reason()),
+                escape_markup(failure.request())
             )),
             ..NotificationData::shell_notification(toast_id, failure.summary())
         };
@@ -88,7 +88,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             severity: Severity::Critical,
             body: NotificationBody::Text(format!(
                 "Widgets that read D-Bus stay empty.<pre>{}</pre>",
-                escape(failure.to_string())
+                escape_markup(failure.to_string())
             )),
             ..NotificationData::shell_notification(toast_id, "Could not connect to the D-Bus buses")
         };
@@ -114,7 +114,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             body: NotificationBody::Text(format!(
                 "{}<pre>{}</pre>",
                 stopped_watch.stale_consequence(),
-                escape(failure.to_string())
+                escape_markup(failure.to_string())
             )),
             ..NotificationData::shell_notification(toast_id, "A change watch stopped")
         };

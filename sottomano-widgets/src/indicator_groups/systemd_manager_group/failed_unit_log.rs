@@ -1,8 +1,8 @@
 use std::{borrow::Cow, cmp::Reverse};
 
 use chrono::{DateTime, Locale, Utc};
+use corredo::changing_text::escape_markup;
 use iced::alignment::Horizontal;
-use quick_xml::escape::escape;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
     systemd_units_journal::{
@@ -168,14 +168,14 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
             ("Signal", coredump.signal.to_string()),
             (
                 "Process",
-                escape(coredump.executable.display().to_string()).into_owned(),
+                escape_markup(coredump.executable.display().to_string()).into_owned(),
             ),
             ("PID", coredump.pid.to_string()),
         ]);
         if let CoreFileStorage::OnDisk(file) = &coredump.core_file {
             rows.push((
                 "Core",
-                format!("<tt>{}</tt>", escape(file.display().to_string())),
+                format!("<tt>{}</tt>", escape_markup(file.display().to_string())),
             ));
         }
     }

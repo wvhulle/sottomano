@@ -1,7 +1,7 @@
 use std::{iter::once, time::Duration};
 
 use chrono::{DateTime, Locale, Utc};
-use quick_xml::escape::escape;
+use corredo::changing_text::escape_markup;
 use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::{
@@ -86,7 +86,7 @@ fn temperature_toast_text(temperature: &Temperature, clock: Clock, locale: Local
     let sensor = temperature.hottest_sample().map(|sample| {
         (
             "Sensor",
-            escape(format!("{} {}", sample.chip, sample.label)).into_owned(),
+            escape_markup(format!("{} {}", sample.chip, sample.label)).into_owned(),
         )
     });
     let above_since = match temperature.critical_since {

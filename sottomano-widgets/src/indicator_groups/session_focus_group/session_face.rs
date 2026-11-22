@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
-use quick_xml::escape::escape;
+use corredo::changing_text::escape_markup;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, Interval, ScreenRun, UnitTotal,
 };
@@ -75,7 +75,10 @@ impl SessionFace<'_> {
         });
         let unit_rows = |name_key, spent_key, total: &UnitTotal| {
             [
-                (name_key, escape(total.unit.label().as_ref()).into_owned()),
+                (
+                    name_key,
+                    escape_markup(total.unit.label().as_ref()).into_owned(),
+                ),
                 (spent_key, duration_text(total.spent, locale)),
             ]
         };
