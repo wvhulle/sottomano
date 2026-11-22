@@ -6168,7 +6168,7 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 [[package]]
 name = "situo-client"
 version = "0.1.0"
-source = "git+https://codeberg.org/wvhulle/situo?branch=main#ad0c9499a9226d2b32cdc8903bd73a7f1e165ce6"
+source = "git+https://codeberg.org/wvhulle/situo?branch=main#bfdc0dc85c53b62437db15752c2eefbf6f87d29f"
 dependencies = [
  "futures-util",
  "jiff",
