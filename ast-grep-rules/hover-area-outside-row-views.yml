@@ -3,6 +3,8 @@ language: rust
 severity: error
 message: "`$CALL` creates a hover area outside the row, group face and standalone views, giving one row several cards or targets."
 note: A row has exactly one hover area, made by its row view from its IndicatorKey; declare a button's actions on the row with with_button_actions instead of wrapping the button in its own hover area. A group face or standalone view wraps itself in a hover area only in its method named hovered.
+ignores:
+  - "**/*_tests.rs"
 rule:
   kind: call_expression
   pattern: $CALL

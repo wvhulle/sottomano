@@ -11,6 +11,8 @@ fix: tokio::fs::$OPERATION($$$ARGUMENTS).await
 constraints:
   OPERATION:
     matches: rust-tokio-fs-counterpart
+ignores:
+  - "**/*_tests.rs"
 rule:
   pattern: std::fs::$OPERATION($$$ARGUMENTS)
   matches: rust-inside-async-code

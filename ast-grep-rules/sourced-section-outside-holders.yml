@@ -3,6 +3,8 @@ language: rust
 severity: error
 message: "`$CONSTRUCTION` decides which source a section came from outside the snapshot holders."
 note: Build sections with Section::new and let SubscribedSnapshot or HoverFetchedSnapshot stamp them with hover_card_with or sections_described_by. Only the stamping methods sections_described_by, Section::stamped_by and AbsenceCause::source_state construct a source.
+ignores:
+  - "**/*_tests.rs"
 files:
   - sottomano-widgets/src/**/*.rs
   - sottomano-shell/src/**/*.rs

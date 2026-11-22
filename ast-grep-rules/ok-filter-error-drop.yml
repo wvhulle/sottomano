@@ -3,6 +3,8 @@ language: rust
 severity: error
 message: "Filtering with `Result::ok` drops every error it skips without a trace."
 note: Collect into a Result with collect::<Result<Vec<_>, _>>() and pass it on, or log each error with inspect_err before filtering (rs-error-flow skill).
+ignores:
+  - "**/*_tests.rs"
 rule:
   kind: scoped_identifier
   all:

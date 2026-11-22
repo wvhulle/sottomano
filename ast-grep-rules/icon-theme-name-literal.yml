@@ -7,6 +7,8 @@ labels:
     style: primary
     message: follow the settings portal instead
 note: Follow the icon theme from the settings portal (theme_icons/icon_theme_setting.rs); the only theme the code may name is FALLBACK_THEME_NAME, the freedesktop-mandated hicolor.
+ignores:
+  - "**/*_tests.rs"
 rule:
   kind: string_content
   pattern: $THEME

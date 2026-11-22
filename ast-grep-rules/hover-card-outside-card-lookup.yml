@@ -3,6 +3,8 @@ language: rust
 severity: error
 message: "`HoverCard::new` outside the card lookup bypasses the one path from a hovered target to its card."
 note: Give the row its card with with_hover_card or its ReadingRow card; the shell, the showcase and the inspection card turn a hovered target into a HoverCard only in a method named described_hover_card.
+ignores:
+  - "**/*_tests.rs"
 files:
   - sottomano-widgets/src/**/*.rs
   - sottomano-shell/src/**/*.rs

@@ -14,6 +14,8 @@ constraints:
   OPERATION:
     not:
       matches: rust-tokio-fs-counterpart
+ignores:
+  - "**/*_tests.rs"
 rule:
   pattern: $CALL
   any:

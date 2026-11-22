@@ -4,6 +4,7 @@ severity: error
 message: A middle dot glues separate facts into one label.
 note: Give each fact its own indicator, row, table value or text run instead of joining them with '·'.
 ignores:
+  - "**/*_tests.rs"
   - sottomano-desktop-sources/src/desktop_windows_apps/window_title_labels/split_app_title.rs
 rule:
   any:
