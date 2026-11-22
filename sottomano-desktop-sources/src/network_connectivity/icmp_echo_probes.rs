@@ -114,7 +114,17 @@ impl ProbeWindow {
 pub fn probe_address(host: IpAddr, interface: &str) -> SocketAddr {
     match host {
         IpAddr::V6(address) if address.is_unicast_link_local() => {
-            SocketAddr::V6(SocketAddrV6::new(address, 0, 0, interface_index(interface)))
+            scoped_probe_address(host, interface_index(interface))
+        }
+        host => SocketAddr::new(host, 0),
+    }
+}
+
+#[must_use]
+pub fn scoped_probe_address(host: IpAddr, interface_index: u32) -> SocketAddr {
+    match host {
+        IpAddr::V6(address) if address.is_unicast_link_local() => {
+            SocketAddr::V6(SocketAddrV6::new(address, 0, 0, interface_index))
         }
         host => SocketAddr::new(host, 0),
     }
@@ -256,12 +266,12 @@ mod tests {
     #[test]
     fn link_local_gateways_are_scoped_to_their_interface() {
         let link_local = IpAddr::V6("fe80::1".parse().unwrap());
-        let SocketAddr::V6(scoped) = probe_address(link_local, "lo") else {
+        let SocketAddr::V6(scoped) = scoped_probe_address(link_local, 7) else {
             panic!("expected an IPv6 probe address");
         };
-        assert_eq!(scoped.scope_id(), 1);
+        assert_eq!(scoped.scope_id(), 7);
         let global = IpAddr::V6("2001:db8::1".parse().unwrap());
-        assert_eq!(probe_address(global, "lo"), SocketAddr::new(global, 0));
+        assert_eq!(scoped_probe_address(global, 7), SocketAddr::new(global, 0));
     }
 
     #[tokio::test]

@@ -4,7 +4,6 @@
     let
       inherit (pkgs) lib;
       inherit (config.sottomano) cargoBuild desktopRuntime;
-      inherit (cargoBuild) commonArgs;
       inherit (desktopRuntime) gsettingsRuntime soundThemeShare;
     in
     {
@@ -17,23 +16,20 @@
       '';
 
       devShells.default = cargoBuild.craneLib.devShell {
-        packages =
-          commonArgs.nativeBuildInputs
-          ++ commonArgs.buildInputs
-          ++ [
-            pkgs.glib.bin
-            pkgs.mdbook
-            pkgs.mdbook-mermaid
-            config.treefmt.build.wrapper
-          ]
-          ++ config.pre-commit.settings.enabledPackages
-          ++ desktopRuntime.runtimeDeps;
+        inputsFrom = [ cargoBuild.workspaceArtifacts ];
+        packages = [
+          pkgs.glib.bin
+          pkgs.mdbook
+          pkgs.mdbook-mermaid
+          config.treefmt.build.wrapper
+        ]
+        ++ config.pre-commit.settings.enabledPackages
+        ++ desktopRuntime.runtimeDeps;
         env =
           desktopRuntime.allocatorEnv
           // desktopRuntime.iconAssetEnv
-          // desktopRuntime.linkedSystemLibraryEnv
           // {
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS = "-C link-arg=-Wl,-rpath,${lib.makeLibraryPath desktopRuntime.runtimeDlopenLibraries}:${pkgs.addDriverRunpath.driverLink}/lib";
+            LD_LIBRARY_PATH = "${lib.makeLibraryPath desktopRuntime.runtimeDlopenLibraries}:${pkgs.addDriverRunpath.driverLink}/lib";
             SHOWCASE_APP_ICONS = desktopRuntime.showcaseAppIcons;
           };
         shellHook = ''

@@ -75,11 +75,7 @@
             checkoutDrv;
       };
 
-      linkedSystemLibraryEnv = {
-        ZSTD_SYS_USE_PKG_CONFIG = "1";
-      };
-
-      dependencyBuildArgs = linkedSystemLibraryEnv // {
+      dependencyBuildArgs = {
         inherit src;
         cargoVendorDir = vendoredCargoDeps;
         version = (lib.importTOML ../Cargo.toml).workspace.package.version;
@@ -95,7 +91,6 @@
           pkgs.pipewire
           pkgs.openssl
           pkgs.libvirt
-          pkgs.zstd
         ];
       };
 
@@ -222,7 +217,6 @@
             runtimeDlopenLibraries
             allocatorEnv
             iconAssetEnv
-            linkedSystemLibraryEnv
             showcaseAppIcons
             ;
 
