@@ -6168,7 +6168,7 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 [[package]]
 name = "situo-client"
 version = "0.1.0"
-source = "git+https://codeberg.org/wvhulle/situo?branch=main#6201d60ebebe50cfa03c9f0daa2385ebd321ec9e"
+source = "git+https://codeberg.org/wvhulle/situo?branch=main#e068085609a6a33c05ec86e02ae0dc888df8ade1"
 dependencies = [
  "futures",
  "jiff",
@@ -6445,7 +6445,6 @@ dependencies = [
  "futures",
  "futures-rx",
  "http",
- "http-body-util",
  "hyper-tls",
  "hyper-util",
  "icu_locale_core",
