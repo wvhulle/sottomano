@@ -16,26 +16,6 @@ pub enum AgendaMoment {
 
 impl AgendaMoment {
     #[must_use]
-    pub fn from_calendar_entry(entry: &ICalendarEntry) -> Option<Self> {
-        let written_moment = entry.values.first()?.as_partial_date_time()?;
-        let DateTimeResult { date_time, offset } = written_moment.to_date_time()?;
-        if !written_moment.has_time() {
-            return Some(AgendaMoment::AllDay(date_time.date()));
-        }
-        if let Some(utc_offset) = offset {
-            let instant = utc_offset.from_local_datetime(&date_time).single()?;
-            return Some(AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)));
-        }
-        let Some(zone) = entry.tz_id().and_then(resolved_zone) else {
-            return Some(AgendaMoment::Floating(date_time));
-        };
-        let Some(instant) = zone.from_local_datetime(&date_time).earliest() else {
-            return Some(AgendaMoment::Floating(date_time));
-        };
-        Some(AgendaMoment::Zoned(instant))
-    }
-
-    #[must_use]
     pub fn default_event_end(self) -> Self {
         match self {
             AgendaMoment::AllDay(day) => day.succ_opt().map_or(self, AgendaMoment::AllDay),
@@ -86,6 +66,48 @@ impl AgendaMoment {
             AgendaMoment::Zoned(instant) => Some(instant.timezone()),
             AgendaMoment::AllDay(_) | AgendaMoment::Floating(_) => None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum UnreadableCalendarMoment {
+    #[error("value is not a date or date-time")]
+    NotDateTime,
+    #[error("date-time is out of range")]
+    OutOfRange,
+    #[error("UTC offset does not map to a single instant")]
+    AmbiguousOffset,
+}
+
+impl TryFrom<&ICalendarEntry> for AgendaMoment {
+    type Error = UnreadableCalendarMoment;
+
+    fn try_from(entry: &ICalendarEntry) -> Result<Self, Self::Error> {
+        let written_moment = entry
+            .values
+            .first()
+            .and_then(|value| value.as_partial_date_time())
+            .ok_or(UnreadableCalendarMoment::NotDateTime)?;
+        let DateTimeResult { date_time, offset } = written_moment
+            .to_date_time()
+            .ok_or(UnreadableCalendarMoment::OutOfRange)?;
+        if !written_moment.has_time() {
+            return Ok(AgendaMoment::AllDay(date_time.date()));
+        }
+        if let Some(utc_offset) = offset {
+            let instant = utc_offset
+                .from_local_datetime(&date_time)
+                .single()
+                .ok_or(UnreadableCalendarMoment::AmbiguousOffset)?;
+            return Ok(AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)));
+        }
+        let Some(zone) = entry.tz_id().and_then(resolved_zone) else {
+            return Ok(AgendaMoment::Floating(date_time));
+        };
+        let Some(instant) = zone.from_local_datetime(&date_time).earliest() else {
+            return Ok(AgendaMoment::Floating(date_time));
+        };
+        Ok(AgendaMoment::Zoned(instant))
     }
 }
 
@@ -144,7 +166,7 @@ mod tests {
             .components
             .iter()
             .find_map(|component| component.property(&ICalendarProperty::Dtstart))
-            .and_then(AgendaMoment::from_calendar_entry)
+            .map(|entry| AgendaMoment::try_from(entry).unwrap())
             .unwrap()
     }
 

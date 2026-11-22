@@ -183,7 +183,15 @@ fn open_task(object_href: &str, todo: &ICalendarComponent, calendar_name: &str) 
         deadline: written_moment(todo, &ICalendarProperty::Due)
             .map_or(TaskDeadline::Undated, TaskDeadline::Due),
         priority: integer_property(todo, &ICalendarProperty::Priority)
-            .and_then(|priority| u32::try_from(priority).ok())
+            .and_then(|priority| {
+                u32::try_from(priority)
+                    .inspect_err(|error| {
+                        tracing::warn!(
+                            "calendar object {object_href}: priority {priority}: {error}"
+                        );
+                    })
+                    .ok()
+            })
             .map_or(TaskPriority::Unranked, TaskPriority::from),
         progress: task_progress(todo),
     }
@@ -194,8 +202,12 @@ fn integer_property(component: &ICalendarComponent, property: &ICalendarProperty
 }
 
 fn task_progress(todo: &ICalendarComponent) -> TaskProgress {
-    let percent_complete = integer_property(todo, &ICalendarProperty::PercentComplete)
-        .and_then(|percent| u8::try_from(percent).ok());
+    let percent_complete =
+        integer_property(todo, &ICalendarProperty::PercentComplete).and_then(|percent| {
+            u8::try_from(percent)
+                .inspect_err(|error| tracing::warn!("task progress {percent}%: {error}"))
+                .ok()
+        });
     match percent_complete {
         Some(percent) if percent > 0 => TaskProgress::PercentComplete(percent),
         _ if todo.status() == Some(&ICalendarStatus::InProcess) => TaskProgress::Started,

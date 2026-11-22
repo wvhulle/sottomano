@@ -182,9 +182,10 @@ pub(super) fn written_moment(
     component: &ICalendarComponent,
     property: &ICalendarProperty,
 ) -> Option<AgendaMoment> {
-    component
-        .property(property)
-        .and_then(AgendaMoment::from_calendar_entry)
+    let entry = component.property(property)?;
+    AgendaMoment::try_from(entry)
+        .inspect_err(|error| tracing::warn!("calendar property {property:?}: {error}"))
+        .ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
