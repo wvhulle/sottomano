@@ -2,6 +2,7 @@ use std::env;
 
 use futures::{Stream, StreamExt, stream};
 use sottomano_compositors::compositor_connection::compositor_version;
+use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -100,10 +101,14 @@ impl SnapshotSource for GraphicalSessionTarget {
 async fn target_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<GraphicalSessionTarget, BusReadError>> + Send, BusReadError> {
-    let manager = ManagerProxy::new(&buses.session).await?;
+    let manager = ManagerProxy::builder(&buses.session)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     manager.ensure_subscribed().await?;
     let unit = UnitProxy::builder(&buses.session)
         .path(manager.load_unit(GRAPHICAL_TARGET).await?)?
+        .cache_properties(CacheProperties::No)
         .build()
         .await?;
     let changes = change_triggers(

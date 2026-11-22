@@ -3,6 +3,7 @@ use std::future::ready;
 use futures::{Stream, StreamExt, stream};
 use zbus::{
     proxy,
+    proxy::CacheProperties,
     zvariant::{OwnedValue, Value},
 };
 
@@ -48,7 +49,10 @@ pub fn icon_theme_changes(
 async fn followed_icon_themes(
     session_bus: zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = String> + Send> {
-    let portal_settings = PortalSettingsProxy::new(&session_bus).await?;
+    let portal_settings = PortalSettingsProxy::builder(&session_bus)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let setting_changes = portal_settings.receive_setting_changed().await?;
     let current_theme = portal_settings
         .read_one(INTERFACE_SETTINGS_NAMESPACE, ICON_THEME_KEY)

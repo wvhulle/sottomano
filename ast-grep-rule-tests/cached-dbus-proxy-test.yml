@@ -1,0 +1,13 @@
+id: cached-dbus-proxy
+valid:
+  - "async fn daemon(system: &Connection) -> zbus::Result<PowerProfilesProxy<'static>> { PowerProfilesProxy::builder(system).cache_properties(CacheProperties::No).build().await }"
+  - "async fn session(system: &Connection, path: OwnedObjectPath) -> zbus::Result<SessionProxy<'static>> { SessionProxy::builder(system).path(path)?.cache_properties(CacheProperties::No).build().await }"
+  - "async fn backlight(system: &Connection) -> zbus::Result<ClightdBacklightProxy<'static>> { proxy::Builder::new(system).cache_properties(CacheProperties::No).build().await }"
+  - "async fn bus(connection: &Connection) -> zbus::Result<DBusProxy<'static>> { DBusProxy::new(connection).await }"
+  - "async fn objects(connection: &Connection) -> zbus::Result<ObjectManagerProxy<'static>> { ObjectManagerProxy::new(connection, SERVICE, PATH).await }"
+  - "async fn objects(connection: &Connection) -> zbus::Result<fdo::ObjectManagerProxy<'static>> { fdo::ObjectManagerProxy::new(connection, SERVICE, PATH).await }"
+  - "fn layout() -> Row { Row::new() }"
+invalid:
+  - "async fn daemon(system: &Connection) -> zbus::Result<PowerProfilesProxy<'static>> { PowerProfilesProxy::new(system).await }"
+  - "async fn session(system: &Connection, path: OwnedObjectPath) -> zbus::Result<SessionProxy<'static>> { SessionProxy::builder(system).path(path)?.build().await }"
+  - "async fn backlight(system: &Connection) -> zbus::Result<ClightdBacklightProxy<'static>> { proxy::Builder::new(system).build().await }"

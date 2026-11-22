@@ -110,7 +110,10 @@ pub fn config_file() -> Option<PathBuf> {
 
 pub async fn current_calibration() -> Result<BrightnessCalibration, BusReadError> {
     let session = Connection::session().await?;
-    let conf_backlight = ConfBacklightProxy::new(&session).await?;
+    let conf_backlight = ConfBacklightProxy::builder(&session)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let no_auto_calibration = conf_backlight.no_auto_calib().await?;
     Ok(if no_auto_calibration {
         BrightnessCalibration::Fixed

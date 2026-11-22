@@ -1,7 +1,7 @@
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, MediaPlayer2Proxy, PlayerProxy, QueueOrder, micros,
 };
-use zbus::Connection;
+use zbus::{Connection, proxy::CacheProperties};
 
 use crate::sink_write_errors::BusWriteError;
 
@@ -10,12 +10,14 @@ pub async fn control(bus: String, command: Command) -> Result<(), BusWriteError>
     let player = || async {
         PlayerProxy::builder(&session)
             .destination(bus.clone())?
+            .cache_properties(CacheProperties::No)
             .build()
             .await
     };
     let root = || async {
         MediaPlayer2Proxy::builder(&session)
             .destination(bus.clone())?
+            .cache_properties(CacheProperties::No)
             .build()
             .await
     };

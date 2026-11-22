@@ -7,6 +7,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::shell_command_output,
 };
+use zbus::proxy::CacheProperties;
 
 use crate::sink_write_errors::{BusWriteError, SessionActionError};
 
@@ -36,7 +37,10 @@ pub async fn perform_session_action(
 }
 
 async fn perform_logind_action(session_action: SessionAction) -> zbus::Result<()> {
-    let manager = ManagerProxy::new(&zbus::Connection::system().await?).await?;
+    let manager = ManagerProxy::builder(&zbus::Connection::system().await?)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     match session_action {
         SessionAction::ScreenOff | SessionAction::LogOut | SessionAction::RestartShell => Ok(()),
         SessionAction::Lock => manager.lock_session(&logind_manager::session_id()).await,

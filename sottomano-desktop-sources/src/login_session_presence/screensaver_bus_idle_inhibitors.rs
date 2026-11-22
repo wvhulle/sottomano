@@ -7,6 +7,7 @@ use zbus::{
     fdo::{DBusProxy, MonitoringProxy},
     message::Type as MessageType,
     names::BusName,
+    proxy::CacheProperties,
     zvariant::DynamicDeserialize,
 };
 
@@ -106,7 +107,9 @@ async fn become_monitor(monitor: &Connection, service_owner: &str) -> zbus::Resu
         .interface(BUS_DRIVER_INTERFACE)?
         .member("NameOwnerChanged")?
         .build();
-    MonitoringProxy::new(monitor)
+    MonitoringProxy::builder(monitor)
+        .cache_properties(CacheProperties::No)
+        .build()
         .await?
         .become_monitor(
             &[screensaver_calls, service_replies, connection_closures],

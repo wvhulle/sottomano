@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
 use sottomano_toml_config::severity::Severity;
-use zbus::proxy;
+use zbus::{proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -141,7 +141,10 @@ fn signalled_upgrades(
 async fn upgrades_on_daemon_changes(
     system: zbus::Connection,
 ) -> Result<impl Stream<Item = Result<Vec<FirmwareUpgrade>, BusReadError>> + Send, BusReadError> {
-    let fwupd = FwupdProxy::new(&system).await?;
+    let fwupd = FwupdProxy::builder(&system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let changes = stream::select(
         stream::select(
             fwupd
@@ -162,7 +165,10 @@ async fn upgrades_on_daemon_changes(
 }
 
 async fn pending_upgrades(system: &zbus::Connection) -> Result<Vec<FirmwareUpgrade>, BusReadError> {
-    let fwupd = FwupdProxy::new(system).await?;
+    let fwupd = FwupdProxy::builder(system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let devices = match fwupd.get_devices().await.map_err(BusReadError::from) {
         Err(BusReadError::Absent) => return Ok(Vec::new()),
         listed => listed?,

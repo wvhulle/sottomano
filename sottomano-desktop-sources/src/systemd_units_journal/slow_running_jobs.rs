@@ -190,10 +190,13 @@ async fn unit_startup_kind(
     connection: &zbus::Connection,
     unit_path: OwnedObjectPath,
 ) -> UnitStartupKind {
-    let Ok(builder) = ServiceProxy::builder(connection).path(unit_path) else {
+    let Ok(builder) = ServiceProxy::builder(connection)
+        .cache_properties(CacheProperties::No)
+        .path(unit_path)
+    else {
         return UnitStartupKind::NotOneshotService;
     };
-    let Ok(service) = builder.cache_properties(CacheProperties::No).build().await else {
+    let Ok(service) = builder.build().await else {
         return UnitStartupKind::NotOneshotService;
     };
     match service.service_startup_kind().await {

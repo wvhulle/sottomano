@@ -1,6 +1,7 @@
 use std::env;
 
 use futures::{StreamExt, future, stream};
+use zbus::proxy::CacheProperties;
 
 use super::{logind_manager::ManagerProxy, session_power_actions::SessionAction};
 
@@ -101,7 +102,11 @@ pub async fn read() -> Permissions {
     let Ok(system) = zbus::Connection::system().await else {
         return Permissions::default();
     };
-    let Ok(proxy) = ManagerProxy::new(&system).await else {
+    let Ok(proxy) = ManagerProxy::builder(&system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+    else {
         return Permissions::default();
     };
     Permissions {

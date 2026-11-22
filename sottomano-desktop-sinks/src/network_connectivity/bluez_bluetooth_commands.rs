@@ -1,7 +1,7 @@
 use sottomano_desktop_sources::network_connectivity::bluez_bluetooth::{
     BluezAdapterProxy, BluezDeviceProxy, read_bluetooth,
 };
-use zbus::{Connection, zvariant::OwnedObjectPath};
+use zbus::{Connection, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::sink_write_errors::BusWriteError;
 
@@ -9,6 +9,7 @@ pub async fn toggle_adapter_power(adapter: OwnedObjectPath) -> Result<(), BusWri
     let connection = Connection::system().await?;
     let proxy = BluezAdapterProxy::builder(&connection)
         .path(adapter)?
+        .cache_properties(CacheProperties::No)
         .build()
         .await?;
     let powered = proxy.powered().await?;
@@ -18,6 +19,7 @@ pub async fn toggle_adapter_power(adapter: OwnedObjectPath) -> Result<(), BusWri
 async fn disconnect_on(connection: &Connection, device: OwnedObjectPath) -> zbus::Result<()> {
     BluezDeviceProxy::builder(connection)
         .path(device)?
+        .cache_properties(CacheProperties::No)
         .build()
         .await?
         .disconnect()

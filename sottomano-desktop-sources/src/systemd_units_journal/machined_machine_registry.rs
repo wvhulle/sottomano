@@ -1,5 +1,5 @@
 use futures::{Stream, StreamExt, stream};
-use zbus::{proxy, zvariant::OwnedObjectPath};
+use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::system_protocol_clients::protocol_peer_reconnects::subscribed;
 
@@ -79,6 +79,7 @@ pub(crate) async fn registered_machine_at(
 ) -> zbus::Result<RegisteredMachineProxy<'static>> {
     RegisteredMachineProxy::builder(system_bus)
         .path(machine_path)?
+        .cache_properties(CacheProperties::No)
         .build()
         .await
 }
@@ -86,7 +87,9 @@ pub(crate) async fn registered_machine_at(
 pub(crate) async fn registered_machine_listings(
     system_bus: &zbus::Connection,
 ) -> zbus::Result<Vec<RegisteredMachineListing>> {
-    MachineManagerProxy::new(system_bus)
+    MachineManagerProxy::builder(system_bus)
+        .cache_properties(CacheProperties::No)
+        .build()
         .await?
         .list_machines()
         .await
@@ -95,7 +98,10 @@ pub(crate) async fn registered_machine_listings(
 async fn subscribed_machine_set_changes(
     system_bus: zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + Send> {
-    let manager = MachineManagerProxy::new(&system_bus).await?;
+    let manager = MachineManagerProxy::builder(&system_bus)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let registered = manager.receive_machine_new().await?.map(|_| Ok(()));
     let unregistered = manager.receive_machine_removed().await?.map(|_| Ok(()));
     Ok(stream::select(registered, unregistered))

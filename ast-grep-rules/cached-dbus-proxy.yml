@@ -1,0 +1,49 @@
+id: cached-dbus-proxy
+language: rust
+severity: error
+message: "This D-Bus proxy caches properties, so a property re-read after a change signal can race zbus's cache update and return the old value."
+note: Build it with $PROXY::builder(connection).cache_properties(CacheProperties::No).build(). The zbus standard-interface proxies (DBus, ObjectManager, Introspectable, Properties, Peer) have no cached properties and stay exempt.
+utils:
+  uncached-builder-chain:
+    inside:
+      kind: field_expression
+      has:
+        field: field
+        regex: ^cache_properties$
+      stopBy: end
+rule:
+  any:
+    - kind: call_expression
+      has:
+        field: function
+        kind: scoped_identifier
+        all:
+          - has:
+              field: name
+              regex: ^new$
+          - has:
+              field: path
+              any:
+                - all:
+                    - regex: Proxy$
+                    - not:
+                        regex: (^|::)(DBus|ObjectManager|Introspectable|Properties|Peer)Proxy$
+                - regex: ^(zbus::)?proxy::Builder$
+      not:
+        matches: uncached-builder-chain
+    - kind: call_expression
+      has:
+        field: function
+        kind: scoped_identifier
+        all:
+          - has:
+              field: name
+              regex: ^builder$
+          - has:
+              field: path
+              all:
+                - regex: Proxy$
+                - not:
+                    regex: (^|::)(DBus|ObjectManager|Introspectable|Properties|Peer)Proxy$
+      not:
+        matches: uncached-builder-chain

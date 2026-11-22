@@ -2,6 +2,7 @@ use std::{pin::pin, sync::Arc};
 
 use futures::{Stream, StreamExt, stream};
 use tokio::select;
+use zbus::proxy::CacheProperties;
 
 use super::{
     ManagerProxy, ScopedSystemdUnit, UNIT_INTERFACE, UnitProxy, connect_systemd_bus, systemd_signal,
@@ -110,11 +111,15 @@ async fn activity_changes(
     connection: zbus::Connection,
     unit: String,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<UnitActivity>> + Send> {
-    let manager = ManagerProxy::new(&connection).await?;
+    let manager = ManagerProxy::builder(&connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     manager.ensure_subscribed().await?;
     let unit_path = manager.load_unit(&unit).await?;
     let unit = UnitProxy::builder(&connection)
         .path(unit_path.clone())?
+        .cache_properties(CacheProperties::No)
         .build()
         .await?;
     let changes = change_triggers(
@@ -166,7 +171,10 @@ impl UnitControl {
 
     async fn job_result(&self, change: RunChange) -> zbus::Result<String> {
         let connection = connect_systemd_bus(self.unit_scope).await?;
-        let manager = ManagerProxy::new(&connection).await?;
+        let manager = ManagerProxy::builder(&connection)
+            .cache_properties(CacheProperties::No)
+            .build()
+            .await?;
         manager.ensure_subscribed().await?;
         let mut removed_jobs = manager.receive_job_removed().await?;
         let mut removed_meanwhile = Vec::new();

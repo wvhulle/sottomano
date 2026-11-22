@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use futures::{Stream, StreamExt};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
-use zbus::{Connection, proxy};
+use zbus::{Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -63,7 +63,10 @@ impl SnapshotSource for ColorTemperature {
 async fn relay_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<ColorTemperature, BusReadError>> + Send, BusReadError> {
-    let relay = GammaRelayProxy::new(&buses.session).await?;
+    let relay = GammaRelayProxy::builder(&buses.session)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let changes = change_triggers(
         &buses.session,
         [properties_changed_rule(RELAY_SERVICE, RELAY_INTERFACE)?],
@@ -90,5 +93,8 @@ impl ColorTemperature {
 }
 
 pub async fn session_gamma_relay() -> zbus::Result<GammaRelayProxy<'static>> {
-    GammaRelayProxy::new(&Connection::session().await?).await
+    GammaRelayProxy::builder(&Connection::session().await?)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
 }

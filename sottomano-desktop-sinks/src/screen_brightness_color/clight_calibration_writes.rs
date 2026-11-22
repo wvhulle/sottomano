@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::BusReadError,
 };
-use zbus::Connection;
+use zbus::{Connection, proxy::CacheProperties};
 
 use crate::screen_brightness_color::clightd_backlight_writes;
 
@@ -57,7 +57,9 @@ pub async fn flip() -> Result<(), BusReadError> {
 
 async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), BusReadError> {
     let session = Connection::session().await?;
-    ConfBacklightProxy::new(&session)
+    ConfBacklightProxy::builder(&session)
+        .cache_properties(CacheProperties::No)
+        .build()
         .await?
         .set_no_auto_calib(calibration == BrightnessCalibration::Fixed)
         .await?;
@@ -66,7 +68,9 @@ async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), BusRe
 
 async fn capture() {
     let captured = async {
-        ClightDaemonProxy::new(&Connection::session().await?)
+        ClightDaemonProxy::builder(&Connection::session().await?)
+            .cache_properties(CacheProperties::No)
+            .build()
             .await?
             .capture(true, false)
             .await

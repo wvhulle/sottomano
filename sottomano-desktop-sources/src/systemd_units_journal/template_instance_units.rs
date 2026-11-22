@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
+use zbus::proxy::CacheProperties;
+
 use super::{ManagerProxy, UnitRow};
 use crate::systemd_units_journal::unit_active_state::UnitActivity;
 
@@ -84,7 +86,10 @@ pub(crate) async fn listed_template_instances(
     connection: &zbus::Connection,
     template_prefixes: &[&str],
 ) -> zbus::Result<Vec<TemplateInstanceUnit>> {
-    let manager = ManagerProxy::new(connection).await?;
+    let manager = ManagerProxy::builder(connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let unit_patterns: Vec<String> = template_prefixes
         .iter()
         .map(|template_prefix| format!("{template_prefix}@*{SERVICE_SUFFIX}"))

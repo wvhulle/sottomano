@@ -20,7 +20,7 @@ use uom::si::{
     power::{microwatt, watt},
     ratio::{percent, ratio},
 };
-use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
+use zbus::{Connection, proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -265,7 +265,10 @@ fn battery_availability() -> Availability {
 async fn device_changes(
     system: Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Availability>> + Send> {
-    let upower = UPowerProxy::new(&system).await?;
+    let upower = UPowerProxy::builder(&system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let changes = select(
         upower.receive_device_added().await?.map(drop),
         upower.receive_device_removed().await?.map(drop),

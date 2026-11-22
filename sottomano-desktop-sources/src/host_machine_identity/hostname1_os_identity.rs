@@ -2,7 +2,7 @@ use std::{fs, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
-use zbus::proxy;
+use zbus::{proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -106,7 +106,10 @@ async fn identity_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<OperatingSystemIdentity, BusReadError>> + Send, BusReadError>
 {
-    let hostname = HostnameProxy::new(&buses.system).await?;
+    let hostname = HostnameProxy::builder(&buses.system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;
     let distribution_ids = current_distribution_ids();
@@ -177,7 +180,10 @@ pub fn at_micros(usec: u64) -> Option<DateTime<Utc>> {
 
 impl MachineInfo {
     pub async fn read(system: &zbus::Connection) -> zbus::Result<Self> {
-        let hostname = HostnameProxy::new(system).await?;
+        let hostname = HostnameProxy::builder(system)
+            .cache_properties(CacheProperties::No)
+            .build()
+            .await?;
         Ok(Self {
             hardware_vendor: text(hostname.hardware_vendor().await, "HardwareVendor"),
             hardware_model: text(hostname.hardware_model().await, "HardwareModel"),

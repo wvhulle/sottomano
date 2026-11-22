@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
 use procfs::process::Process as Proc;
-use zbus::{proxy, zvariant::OwnedObjectPath};
+use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -154,9 +154,14 @@ async fn identity_changes(
 }
 
 async fn own_session(system: &zbus::Connection) -> Result<SessionProxy<'static>, BusReadError> {
-    let manager = ManagerProxy::new(system).await?;
+    let manager = ManagerProxy::builder(system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let path = manager.get_session(&session_id()).await?;
-    let session_builder = SessionProxy::builder(system).path(path)?;
+    let session_builder = SessionProxy::builder(system)
+        .cache_properties(CacheProperties::No)
+        .path(path)?;
     Ok(session_builder.build().await?)
 }
 

@@ -8,7 +8,7 @@ use std::{
 
 use futures::{Stream, StreamExt};
 use tokio::fs;
-use zbus::proxy;
+use zbus::{proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -123,7 +123,11 @@ impl SnapshotSource for WaydroidListing {
 }
 
 async fn waydroid_session(system_bus: &zbus::Connection) -> HashMap<String, String> {
-    let session = match WaydroidContainerManagerProxy::new(system_bus).await {
+    let session = match WaydroidContainerManagerProxy::builder(system_bus)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+    {
         Ok(manager) => manager.get_session().await,
         Err(proxy_failure) => Err(proxy_failure),
     };
