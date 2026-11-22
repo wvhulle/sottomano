@@ -48,7 +48,9 @@ impl FromIterator<ModelSpend> for ModelRanking {
                 }
                 merged
             });
-        merged.sort_by(|left_spend, right_spend| right_spend.cost.amount().cmp(left_spend.cost.amount()));
+        merged.sort_by(|left_spend, right_spend| {
+            right_spend.cost.amount().cmp(left_spend.cost.amount())
+        });
         Self {
             model_spends: merged,
         }

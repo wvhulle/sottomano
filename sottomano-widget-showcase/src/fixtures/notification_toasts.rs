@@ -25,7 +25,10 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     fixtures::sample,
     showcase_message::ShowcaseMessage,
-    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts, TerminalLine},
+    showcased_group::{
+        SHOWCASE_OUTPUT, ShowcasedGroup,
+        showcased_toasts::{ShowcasedToasts, TerminalLine},
+    },
 };
 
 const DESK_WORKSPACE: u64 = 1;

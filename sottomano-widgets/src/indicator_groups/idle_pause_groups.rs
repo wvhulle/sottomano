@@ -31,8 +31,10 @@ use sottomano_desktop_sources::{
 use self::{
     chain_stage_rows::HibernateDelayApply,
     pause_blocker_indicators::{
-        PauseBlocker, ScreensaverFacts, TimerArming, pause_blockers_with_sleep_obstacles,
-        pause_title, screensaver_pause_blockers,
+        PauseBlocker, TimerArming, pause_title,
+        sleep_obstacle_blockers::{
+            ScreensaverFacts, pause_blockers_with_sleep_obstacles, screensaver_pause_blockers,
+        },
     },
     pause_group_elements::stage_slider_glyph,
     stage_schedule_cards::stage_caption,

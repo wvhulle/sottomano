@@ -30,7 +30,7 @@ use crate::{
     icon_catalog::{icon_handle::IconHandle, window_icons::WindowAssets},
     indicator_groups::{
         indicator_group_content::{
-            GroupEvent, GroupToastRequests, IndicatorGroupContent, edge_indicator,
+            GroupEvent, GroupToastRequests, IndicatorGroupContent, group_panel_view::edge_indicator,
         },
         indicator_group_identity::IndicatorGroupIdentity,
         indicator_group_interaction::IndicatorGroupInteraction,
@@ -43,6 +43,8 @@ const BADGE_SCALE: f32 = 0.6;
 mod group_menu_cascade;
 #[cfg(test)]
 mod group_menu_layout_tests;
+#[cfg(test)]
+mod inspection_card_tests;
 #[cfg(test)]
 mod row_pointer_tests;
 

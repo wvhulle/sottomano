@@ -4,8 +4,9 @@ use sottomano_desktop_sources::desktop_windows_apps::{
 };
 
 use super::{
-    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, focused_by_wheel,
-    order_restore, shown_workspaces,
+    WorkspacesMessage, dragged,
+    empty_workspace_folding::{EmptyWorkspaceFolding, shown_workspaces},
+    empty_workspaces_toggle, focused_by_wheel, order_restore,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },
@@ -84,7 +85,10 @@ mod tests {
         },
         indicator_groups::{
             window_group::{WindowRowLayout, WindowTitleLength},
-            workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage},
+            workspaces_group::{
+                WorkspacesMessage,
+                empty_workspace_folding::{EmptyWorkspaceFolding, EmptyWorkspaces},
+            },
         },
         widgets::{
             pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},

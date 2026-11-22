@@ -9,13 +9,9 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     container_run_state::ContainerRunState,
-    container_runtime_facts::ContainerMemoryUse,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
-    waydroid_container::{
-        SessionLcdDensity, SessionUserName, WaydroidListing, WaydroidProbe, WaydroidReadout,
-        WaydroidState,
-    },
+    waydroid_container::{WaydroidListing, WaydroidProbe, WaydroidReadout, WaydroidState},
 };
 
 use crate::{
@@ -28,21 +24,25 @@ use crate::{
     },
     group_indicators::{
         group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::hover_card_body::{Section, dictionary_table},
+    hover_cards::hover_card_body::Section,
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        process_usage_cells::approximate_memory_text,
     },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
+};
+
+mod waydroid_status_indicators;
+
+use self::waydroid_status_indicators::{
+    ShownWaydroid, WaydroidContainerIndicator, WaydroidSessionIndicator,
 };
 
 const WAYDROID_CONTAINER_UNIT: &str = "waydroid-container.service";
@@ -56,124 +56,6 @@ const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
         turning_off: "stop the Android container",
     },
 };
-
-#[derive(Clone, Copy)]
-enum ShownWaydroid<'view> {
-    Detailed(&'view WaydroidReadout),
-    Listed(&'view WaydroidListing),
-}
-
-impl<'view> ShownWaydroid<'view> {
-    fn state(self) -> &'view WaydroidState {
-        match self {
-            ShownWaydroid::Detailed(readout) => &readout.state,
-            ShownWaydroid::Listed(listing) => &listing.state,
-        }
-    }
-
-    fn container(self) -> ContainerRunState {
-        self.state().container_run_state()
-    }
-}
-
-struct WaydroidContainerIndicator<'view> {
-    shown: ShownWaydroid<'view>,
-}
-
-impl<'view> WaydroidContainerIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        let label = match self.shown {
-            ShownWaydroid::Detailed(WaydroidReadout {
-                memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
-                ..
-            }) if self.shown.container() == ContainerRunState::Running => {
-                approximate_memory_text(*memory_in_use)
-            }
-            ShownWaydroid::Detailed(_) | ShownWaydroid::Listed(_) => {
-                self.shown.container().label().to_owned()
-            }
-        };
-        GroupIndicator::glyph_only(
-            "Container",
-            Phosphor::Package(Weight::Regular).into(),
-            self.shown.container().into(),
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        let mut detail_entries = vec![
-            LabeledValue::new("State", self.shown.container().label()),
-            LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
-        ];
-        if let ShownWaydroid::Detailed(WaydroidReadout {
-            memory_in_use: ContainerMemoryUse::Measured(memory_in_use),
-            ..
-        }) = self.shown
-        {
-            detail_entries.push(LabeledValue::new(
-                "Memory use",
-                approximate_memory_text(*memory_in_use),
-            ));
-        }
-        vec![Section::new("Status", dictionary_table(detail_entries))]
-    }
-}
-
-struct WaydroidSessionIndicator<'view> {
-    state: &'view WaydroidState,
-}
-
-impl<'view> WaydroidSessionIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        let label = match self.state {
-            WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
-            WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
-        };
-        let state = match self.state {
-            WaydroidState::Session { .. } => IndicatorState::On,
-            WaydroidState::ContainerOnly | WaydroidState::Absent => IndicatorState::Off,
-        };
-        GroupIndicator::glyph_only(
-            "Session",
-            Phosphor::DeviceMobile(Weight::Regular).into(),
-            state,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(label),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        let WaydroidState::Session {
-            session_state,
-            user_name,
-            lcd_density,
-        } = self.state
-        else {
-            return vec![Section::new(
-                "Status",
-                dictionary_table([LabeledValue::new("Session", "none")]),
-            )];
-        };
-        let mut detail_entries = vec![LabeledValue::new("Session", session_state.clone())];
-        if let SessionUserName::Reported(user_name) = user_name {
-            detail_entries.push(LabeledValue::new("User", user_name.clone()));
-        }
-        if let SessionLcdDensity::Reported(lcd_density) = lcd_density {
-            detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
-        }
-        vec![Section::new("Status", dictionary_table(detail_entries))]
-    }
-}
 
 pub struct WaydroidContainerGroup {
     probe: SubscribedSnapshot<WaydroidProbe>,

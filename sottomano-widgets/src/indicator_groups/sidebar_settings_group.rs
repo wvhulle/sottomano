@@ -21,7 +21,9 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
-        workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
+        workspaces_group::empty_workspace_folding::{
+            EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer,
+        },
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
@@ -272,7 +274,7 @@ impl SidebarSettingsGroup {
 #[cfg(test)]
 mod tests {
     use super::{SidebarSettingsGroup, SidebarSettingsMessage, WorkspacesPlacement};
-    use crate::indicator_groups::workspaces_group::EmptyWorkspaces;
+    use crate::indicator_groups::workspaces_group::empty_workspace_folding::EmptyWorkspaces;
 
     #[test]
     fn a_loaded_placement_reads_back_unchanged() {

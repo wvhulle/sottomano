@@ -1,3 +1,8 @@
+mod guest_interaction_conversions;
+mod hardware_interaction_conversions;
+mod network_interaction_conversions;
+mod settings_interaction_conversions;
+
 use strum::IntoStaticStr;
 
 use crate::{
@@ -141,78 +146,6 @@ impl From<WeatherInteraction> for IndicatorGroupInteraction {
     }
 }
 
-impl From<PowerInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: PowerInteraction) -> Self {
-        IndicatorGroupInteraction::Power(interaction)
-    }
-}
-
-impl From<ComputeInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: ComputeInteraction) -> Self {
-        IndicatorGroupInteraction::Compute(interaction)
-    }
-}
-
-impl From<MemoryBoardInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: MemoryBoardInteraction) -> Self {
-        IndicatorGroupInteraction::MemoryBoard(interaction)
-    }
-}
-
-impl From<GamepadInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: GamepadInteraction) -> Self {
-        IndicatorGroupInteraction::Gamepad(interaction)
-    }
-}
-
-impl From<GpuInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: GpuInteraction) -> Self {
-        IndicatorGroupInteraction::Gpu(interaction)
-    }
-}
-
-impl From<StorageInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: StorageInteraction) -> Self {
-        IndicatorGroupInteraction::Storage(interaction)
-    }
-}
-
-impl From<DriveInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: DriveInteraction) -> Self {
-        IndicatorGroupInteraction::Drive(interaction)
-    }
-}
-
-impl From<PanelSettingsMessage> for IndicatorGroupInteraction {
-    fn from(interaction: PanelSettingsMessage) -> Self {
-        IndicatorGroupInteraction::PanelSettings(interaction)
-    }
-}
-
-impl From<SidebarSettingsMessage> for IndicatorGroupInteraction {
-    fn from(interaction: SidebarSettingsMessage) -> Self {
-        IndicatorGroupInteraction::SidebarSettings(interaction)
-    }
-}
-
-impl From<AppearancePresetsMessage> for IndicatorGroupInteraction {
-    fn from(interaction: AppearancePresetsMessage) -> Self {
-        IndicatorGroupInteraction::AppearancePresets(interaction)
-    }
-}
-
-impl From<OverlaySettingsMessage> for IndicatorGroupInteraction {
-    fn from(interaction: OverlaySettingsMessage) -> Self {
-        IndicatorGroupInteraction::OverlaySettings(interaction)
-    }
-}
-
-impl From<CompositorStylingMessage> for IndicatorGroupInteraction {
-    fn from(interaction: CompositorStylingMessage) -> Self {
-        IndicatorGroupInteraction::CompositorStyling(interaction)
-    }
-}
-
 impl From<ClockInteraction> for IndicatorGroupInteraction {
     fn from(interaction: ClockInteraction) -> Self {
         IndicatorGroupInteraction::Clock(interaction)
@@ -252,60 +185,6 @@ impl From<JournalEventsInteraction> for IndicatorGroupInteraction {
 impl From<PendingUpgradesInteraction> for IndicatorGroupInteraction {
     fn from(interaction: PendingUpgradesInteraction) -> Self {
         IndicatorGroupInteraction::PendingUpgrades(interaction)
-    }
-}
-
-impl From<ReachabilityInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: ReachabilityInteraction) -> Self {
-        IndicatorGroupInteraction::Reachability(interaction)
-    }
-}
-
-impl From<TailnetInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: TailnetInteraction) -> Self {
-        IndicatorGroupInteraction::Tailnet(interaction)
-    }
-}
-
-impl From<WireguardTunnelsInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: WireguardTunnelsInteraction) -> Self {
-        IndicatorGroupInteraction::WireguardTunnels(interaction)
-    }
-}
-
-impl From<NetworkManagerVpnInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: NetworkManagerVpnInteraction) -> Self {
-        IndicatorGroupInteraction::NetworkManagerVpns(interaction)
-    }
-}
-
-impl From<WifiAdaptersInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: WifiAdaptersInteraction) -> Self {
-        IndicatorGroupInteraction::WifiAdapters(interaction)
-    }
-}
-
-impl From<SteamClientInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: SteamClientInteraction) -> Self {
-        IndicatorGroupInteraction::SteamClient(interaction)
-    }
-}
-
-impl From<MobileModemsInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: MobileModemsInteraction) -> Self {
-        IndicatorGroupInteraction::MobileModems(interaction)
-    }
-}
-
-impl From<EthernetPortsInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: EthernetPortsInteraction) -> Self {
-        IndicatorGroupInteraction::EthernetPorts(interaction)
-    }
-}
-
-impl From<BluetoothInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: BluetoothInteraction) -> Self {
-        IndicatorGroupInteraction::BluetoothAdapters(interaction)
     }
 }
 
@@ -384,72 +263,6 @@ impl From<OpenRouterCreditInteraction> for IndicatorGroupInteraction {
 impl From<LlamaServerInteraction> for IndicatorGroupInteraction {
     fn from(interaction: LlamaServerInteraction) -> Self {
         IndicatorGroupInteraction::LlamaServer(interaction)
-    }
-}
-
-impl From<VirtualMachinesInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: VirtualMachinesInteraction) -> Self {
-        IndicatorGroupInteraction::VirtualMachines(interaction)
-    }
-}
-
-impl From<NspawnContainersInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: NspawnContainersInteraction) -> Self {
-        IndicatorGroupInteraction::NspawnContainers(interaction)
-    }
-}
-
-impl From<CgroupMemoryLimitsInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: CgroupMemoryLimitsInteraction) -> Self {
-        IndicatorGroupInteraction::CgroupMemoryLimits(interaction)
-    }
-}
-
-impl From<ApptainerContainersInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: ApptainerContainersInteraction) -> Self {
-        IndicatorGroupInteraction::ApptainerContainers(interaction)
-    }
-}
-
-impl From<VmwareMachinesInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: VmwareMachinesInteraction) -> Self {
-        IndicatorGroupInteraction::VmwareMachines(interaction)
-    }
-}
-
-impl From<VirtualBoxMachinesInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: VirtualBoxMachinesInteraction) -> Self {
-        IndicatorGroupInteraction::VirtualBoxMachines(interaction)
-    }
-}
-
-impl From<WaydroidContainerInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: WaydroidContainerInteraction) -> Self {
-        IndicatorGroupInteraction::WaydroidContainer(interaction)
-    }
-}
-
-impl From<FlatpakSandboxesInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: FlatpakSandboxesInteraction) -> Self {
-        IndicatorGroupInteraction::FlatpakSandboxes(interaction)
-    }
-}
-
-impl From<LxcContainersInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: LxcContainersInteraction) -> Self {
-        IndicatorGroupInteraction::LxcContainers(interaction)
-    }
-}
-
-impl From<IncusInstancesInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: IncusInstancesInteraction) -> Self {
-        IndicatorGroupInteraction::IncusInstances(interaction)
-    }
-}
-
-impl From<MicrovmGuestsInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: MicrovmGuestsInteraction) -> Self {
-        IndicatorGroupInteraction::MicrovmGuests(interaction)
     }
 }
 

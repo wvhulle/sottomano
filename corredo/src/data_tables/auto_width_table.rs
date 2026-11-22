@@ -1,4 +1,5 @@
-use std::ops::Range;
+mod cell_placement_metrics;
+pub(super) mod table_row_assembly;
 
 use iced::{
     Alignment, Element, Event, Length, Rectangle, Size, Vector,
@@ -10,10 +11,9 @@ use iced::{
     },
     alignment::{Horizontal, Vertical},
     mouse::{Cursor, Interaction},
-    widget::Space,
 };
 
-use crate::width_layout::fair_column_widths;
+use self::cell_placement_metrics::{cell_starts, span};
 
 pub struct AutoWidthColumn<'view, Row, Message> {
     header: Element<'view, Message>,
@@ -71,149 +71,6 @@ pub struct AutoWidthTable<'view, Message> {
     row_gap: f32,
 }
 
-pub fn auto_width_table<'view, Row: Clone, Message>(
-    columns: impl IntoIterator<Item = AutoWidthColumn<'view, Row, Message>>,
-    rows: impl IntoIterator<Item = Row>,
-) -> AutoWidthTable<'view, Message> {
-    auto_width_spanning_table(columns, rows.into_iter().map(SpannableRow::Columned))
-}
-
-pub fn auto_width_spanning_table<'view, Row: Clone, Message>(
-    columns: impl IntoIterator<Item = AutoWidthColumn<'view, Row, Message>>,
-    rows: impl IntoIterator<Item = SpannableRow<'view, Row, Message>>,
-) -> AutoWidthTable<'view, Message> {
-    let column_parts = columns
-        .into_iter()
-        .fold(ColumnParts::empty(), ColumnParts::with_column);
-    let alignments = column_parts
-        .views
-        .iter()
-        .map(|column_view| column_view.alignment)
-        .collect();
-    let table_cells = rows.into_iter().fold(
-        TableCells {
-            cells: column_parts.headers,
-            row_spans: vec![RowSpan::Columned],
-        },
-        |table_cells, row| table_cells.with_row(row, &column_parts.views),
-    );
-    AutoWidthTable {
-        cells: table_cells.cells,
-        row_spans: table_cells.row_spans,
-        alignments,
-        column_gap: 0.0,
-        row_gap: 0.0,
-    }
-}
-
-struct ColumnView<'view, Row, Message> {
-    view: Box<dyn Fn(Row) -> Element<'view, Message> + 'view>,
-    alignment: CellAlignment,
-}
-
-struct ColumnParts<'view, Row, Message> {
-    headers: Vec<Element<'view, Message>>,
-    views: Vec<ColumnView<'view, Row, Message>>,
-}
-
-impl<'view, Row, Message> ColumnParts<'view, Row, Message> {
-    fn empty() -> Self {
-        Self {
-            headers: Vec::new(),
-            views: Vec::new(),
-        }
-    }
-
-    fn with_column(mut self, column: AutoWidthColumn<'view, Row, Message>) -> Self {
-        self.headers.push(column.header);
-        self.views.push(ColumnView {
-            view: column.view,
-            alignment: CellAlignment {
-                align_x: column.align_x,
-                align_y: column.align_y,
-            },
-        });
-        self
-    }
-}
-
-struct TableCells<'view, Message> {
-    cells: Vec<Element<'view, Message>>,
-    row_spans: Vec<RowSpan>,
-}
-
-impl<'view, Message> TableCells<'view, Message> {
-    fn with_row<Row: Clone>(
-        mut self,
-        row: SpannableRow<'view, Row, Message>,
-        views: &[ColumnView<'view, Row, Message>],
-    ) -> Self {
-        match row {
-            SpannableRow::Columned(row) => {
-                self.cells.extend(
-                    views
-                        .iter()
-                        .map(|column_view| (column_view.view)(row.clone())),
-                );
-                self.row_spans.push(RowSpan::Columned);
-            }
-            SpannableRow::FullWidth(element) => {
-                self.cells.push(element);
-                self.row_spans.push(RowSpan::FullWidth);
-            }
-        }
-        self
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PlacedCell {
-    row: usize,
-    column: usize,
-    position: usize,
-    row_span: RowSpan,
-}
-
-pub fn auto_width_grid<'view, Message: 'view>(
-    column_alignments: Vec<Horizontal>,
-    rows: impl IntoIterator<Item = Vec<Element<'view, Message>>>,
-) -> AutoWidthTable<'view, Message> {
-    auto_width_spanning_grid(
-        column_alignments,
-        rows.into_iter().map(SpannableRow::Columned),
-    )
-}
-
-pub fn auto_width_spanning_grid<'view, Message: 'view>(
-    column_alignments: Vec<Horizontal>,
-    rows: impl IntoIterator<Item = SpannableRow<'view, Vec<Element<'view, Message>>, Message>>,
-) -> AutoWidthTable<'view, Message> {
-    let column_count = column_alignments.len();
-    let (row_spans, cells): (Vec<RowSpan>, Vec<Vec<Element<'view, Message>>>) = rows
-        .into_iter()
-        .map(|row| match row {
-            SpannableRow::Columned(mut row_cells) => {
-                row_cells.resize_with(column_count, || Space::new().into());
-                (RowSpan::Columned, row_cells)
-            }
-            SpannableRow::FullWidth(element) => (RowSpan::FullWidth, vec![element]),
-        })
-        .unzip();
-    AutoWidthTable {
-        row_spans,
-        cells: cells.into_iter().flatten().collect(),
-        alignments: column_alignments
-            .into_iter()
-            .map(|align_x| CellAlignment {
-                align_x,
-                align_y: Vertical::Center,
-            })
-            .collect(),
-        column_gap: 0.0,
-        row_gap: 0.0,
-    }
-}
-
 impl<'view, Message: 'view> From<AutoWidthTable<'view, Message>> for Element<'view, Message> {
     fn from(table: AutoWidthTable<'view, Message>) -> Self {
         Element::new(table)
@@ -237,63 +94,6 @@ impl<Message> AutoWidthTable<'_, Message> {
             .iter_mut()
             .for_each(|alignment| alignment.align_y = align_y);
         self
-    }
-
-    fn fitted_column_widths(
-        &self,
-        placed_cells: &[PlacedCell],
-        nodes: &[Node],
-        max_width: f32,
-    ) -> Vec<f32> {
-        let natural_widths: Vec<f32> = (0..self.column_count())
-            .map(|column| {
-                placed_cells
-                    .iter()
-                    .filter(|placed| {
-                        placed.row_span == RowSpan::Columned && placed.column == column
-                    })
-                    .filter_map(|placed| nodes.get(placed.position))
-                    .map(|node| node.size().width)
-                    .fold(0.0, f32::max)
-            })
-            .collect();
-        let room_for_cells = max_width - total_gap(natural_widths.len(), self.column_gap);
-        if natural_widths.iter().sum::<f32>() > room_for_cells {
-            fair_column_widths(&natural_widths, room_for_cells)
-        } else {
-            natural_widths
-        }
-    }
-
-    fn column_count(&self) -> usize {
-        self.alignments.len().max(1)
-    }
-
-    fn placed_cells(&self) -> Vec<PlacedCell> {
-        let column_count = self.column_count();
-        self.row_spans
-            .iter()
-            .enumerate()
-            .scan(0, |next_cell, (row, row_span)| {
-                let cell_count = match row_span {
-                    RowSpan::Columned => column_count,
-                    RowSpan::FullWidth => 1,
-                };
-                let row_cells: Range<usize> = *next_cell..*next_cell + cell_count;
-                *next_cell = row_cells.end;
-                Some(
-                    row_cells
-                        .enumerate()
-                        .map(move |(column, position)| PlacedCell {
-                            row,
-                            column,
-                            position,
-                            row_span: *row_span,
-                        }),
-                )
-            })
-            .flatten()
-            .collect()
     }
 }
 
@@ -512,26 +312,4 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AutoWidthTable<'_
             translation,
         )
     }
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn total_gap(cell_count: usize, gap: f32) -> f32 {
-    cell_count
-        .checked_sub(1)
-        .map_or(0.0, |gap_count| gap * gap_count as f32)
-}
-
-fn span(extents: &[f32], gap: f32) -> f32 {
-    extents.iter().sum::<f32>() + total_gap(extents.len(), gap)
-}
-
-fn cell_starts(extents: &[f32], gap: f32) -> Vec<f32> {
-    extents
-        .iter()
-        .scan(0.0, |start, extent| {
-            let current = *start;
-            *start += extent + gap;
-            Some(current)
-        })
-        .collect()
 }

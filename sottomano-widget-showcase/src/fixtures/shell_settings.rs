@@ -11,7 +11,10 @@ use sottomano_widgets::{
     },
 };
 
-use crate::showcased_group::{ShowcasedGroup, ShowcasedShellSettings, ShownSettingItems};
+use crate::showcased_group::{
+    ShowcasedGroup,
+    showcased_shell_settings::{ShowcasedShellSettings, ShownSettingItems},
+};
 
 const UNREAD_CONFIG_HOME: &str = "showcase-never-reads-this";
 

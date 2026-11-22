@@ -1,16 +1,21 @@
-use crate::group_indicators::indicator_state::IndicatorState;
+#[cfg(test)]
+mod panel_settings_tests;
+mod setting_switch_toggles;
 mod sqlite_panel_layout;
 
 use iced::Task;
 use sottomano_toml_config::Config;
 
+use self::setting_switch_toggles::{
+    disconnected_toggle, pinned_groups_toggle, window_row_layout_toggle, window_title_length_toggle,
+};
 use crate::{
     background_work::logged_failure_task,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     indicator_groups::{
         indicator_group_content::{
@@ -19,7 +24,6 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag,
-        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         window_group::{WindowRowLayout, WindowTitleLength},
     },
     widgets::{
@@ -44,15 +48,6 @@ impl PanelGroupFraming {
     }
 }
 
-impl From<PanelGroupFraming> for SwitchPosition {
-    fn from(group_framing: PanelGroupFraming) -> Self {
-        match group_framing {
-            PanelGroupFraming::Disconnected => SwitchPosition::On,
-            PanelGroupFraming::Joined => SwitchPosition::Off,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupCollapsing {
     OnFocusLoss,
@@ -65,45 +60,6 @@ impl GroupCollapsing {
         match self {
             GroupCollapsing::OnFocusLoss => GroupCollapsing::StayExpanded,
             GroupCollapsing::StayExpanded => GroupCollapsing::OnFocusLoss,
-        }
-    }
-}
-
-impl From<GroupCollapsing> for SwitchPosition {
-    fn from(group_collapsing: GroupCollapsing) -> Self {
-        match group_collapsing {
-            GroupCollapsing::StayExpanded => SwitchPosition::On,
-            GroupCollapsing::OnFocusLoss => SwitchPosition::Off,
-        }
-    }
-}
-
-impl SingletonFlagState for WindowRowLayout {
-    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowsGroupedByLocation;
-    const STORED_AS_SET: Self = WindowRowLayout::GroupedByLocation;
-    const STORED_AS_CLEARED: Self = WindowRowLayout::Flat;
-}
-
-impl From<WindowRowLayout> for SwitchPosition {
-    fn from(window_row_layout: WindowRowLayout) -> Self {
-        match window_row_layout {
-            WindowRowLayout::GroupedByLocation => SwitchPosition::On,
-            WindowRowLayout::Flat => SwitchPosition::Off,
-        }
-    }
-}
-
-impl SingletonFlagState for WindowTitleLength {
-    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowTitlesCapped;
-    const STORED_AS_SET: Self = WindowTitleLength::Capped;
-    const STORED_AS_CLEARED: Self = WindowTitleLength::Full;
-}
-
-impl From<WindowTitleLength> for SwitchPosition {
-    fn from(window_title_length: WindowTitleLength) -> Self {
-        match window_title_length {
-            WindowTitleLength::Capped => SwitchPosition::On,
-            WindowTitleLength::Full => SwitchPosition::Off,
         }
     }
 }
@@ -128,54 +84,6 @@ impl Default for PanelLayout {
 pub enum Action {
     Run(Task<PanelSettingsMessage>),
     Reflow(Task<PanelSettingsMessage>),
-}
-
-fn disconnected_toggle(group_framing: PanelGroupFraming) -> IconToggle {
-    IconToggle::new(
-        "Disconnected groups",
-        Phosphor::Pill(Weight::Regular),
-        group_framing,
-        SwitchPresses {
-            turning_on: "draw each group in its own frame",
-            turning_off: "join the groups into one panel",
-        },
-    )
-}
-
-fn pinned_groups_toggle(group_collapsing: GroupCollapsing) -> IconToggle {
-    IconToggle::new(
-        "Stay expanded",
-        Phosphor::PushPin(Weight::Regular),
-        group_collapsing,
-        SwitchPresses {
-            turning_on: "keep groups open until their handle is clicked",
-            turning_off: "collapse groups when another window takes focus",
-        },
-    )
-}
-
-fn window_row_layout_toggle(window_row_layout: WindowRowLayout) -> IconToggle {
-    IconToggle::new(
-        "Group windows by directory",
-        Phosphor::Folders(Weight::Regular),
-        window_row_layout,
-        SwitchPresses {
-            turning_on: "enclose neighbouring windows from one directory under one heading",
-            turning_off: "show every window on its own with its directory",
-        },
-    )
-}
-
-fn window_title_length_toggle(window_title_length: WindowTitleLength) -> IconToggle {
-    IconToggle::new(
-        "Cap window titles",
-        Phosphor::Scissors(Weight::Regular),
-        window_title_length,
-        SwitchPresses {
-            turning_on: "cut long window titles off at the configured width",
-            turning_off: "show every window title in full",
-        },
-    )
 }
 
 #[derive(Debug, Clone)]
@@ -418,86 +326,5 @@ impl PanelSettingsGroup {
                     .indicators(config, PanelSettingsMessage::Appearance),
             ),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
-
-    use super::{
-        GroupCollapsing, PanelGroupFraming, PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
-        sqlite_panel_layout::{read_layout, write_layout},
-    };
-    use crate::indicator_groups::window_group::WindowRowLayout;
-
-    #[tokio::test]
-    async fn panel_layout_survives_a_round_trip() {
-        let connection = migrated_in_memory_store().await;
-        let stored = PanelLayout {
-            group_framing: PanelGroupFraming::Disconnected,
-            group_collapsing: GroupCollapsing::StayExpanded,
-            float_offset_px: 3.25,
-        };
-        write_layout(&connection, stored).await.unwrap();
-        assert_eq!(read_layout(&connection).await.unwrap(), stored);
-    }
-
-    #[tokio::test]
-    async fn an_unwritten_panel_layout_keeps_its_defaults() {
-        let connection = migrated_in_memory_store().await;
-        assert_eq!(
-            read_layout(&connection).await.unwrap(),
-            PanelLayout::default()
-        );
-    }
-
-    #[tokio::test]
-    async fn the_panel_layout_table_refuses_a_missing_value() {
-        let connection = migrated_in_memory_store().await;
-        let refused = connection
-            .execute(
-                "INSERT INTO panel_layout (id, disconnected_groups, auto_collapse_groups, \
-                 float_offset_px) VALUES (0, NULL, 1, 0.0)",
-                (),
-            )
-            .await;
-        assert!(refused.is_err());
-    }
-
-    #[test]
-    fn windows_are_grouped_by_location_until_a_stored_layout_says_otherwise() {
-        let mut panel_settings_group = PanelSettingsGroup::default();
-        assert_eq!(
-            panel_settings_group.window_row_layout,
-            WindowRowLayout::GroupedByLocation
-        );
-        let _ = panel_settings_group.update(PanelSettingsMessage::WindowRowLayoutLoaded(
-            WindowRowLayout::Flat,
-        ));
-        assert_eq!(
-            panel_settings_group.window_row_layout,
-            WindowRowLayout::Flat
-        );
-    }
-
-    #[test]
-    fn a_loaded_panel_layout_reads_back_unchanged() {
-        let loaded = PanelLayout {
-            group_framing: PanelGroupFraming::Disconnected,
-            group_collapsing: GroupCollapsing::StayExpanded,
-            float_offset_px: 6.0,
-        };
-        let mut panel_settings_group = PanelSettingsGroup::default();
-        let _ = panel_settings_group.update(PanelSettingsMessage::LayoutLoaded(loaded));
-        assert_eq!(
-            panel_settings_group.group_framing,
-            PanelGroupFraming::Disconnected
-        );
-        assert_eq!(
-            panel_settings_group.group_collapsing,
-            GroupCollapsing::StayExpanded
-        );
-        assert!((panel_settings_group.float_offset_px() - 6.0).abs() < f32::EPSILON);
     }
 }

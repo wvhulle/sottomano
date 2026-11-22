@@ -1,3 +1,7 @@
+mod slider_control_indicator;
+mod slider_control_updates;
+mod slider_control_views;
+
 use std::{
     borrow::Cow,
     error::Error,
@@ -8,20 +12,10 @@ use std::{
 
 use chrono::Locale;
 use corredo::{
-    changing_text::{MeasuredReadout, ReadoutLabels, steady_width_text},
     transitions::ExpansionState,
-    value_controls::{
-        ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
-        SliderGesture, SliderMessage, SourceTracking, ValueWrite, WriteOutcome,
-    },
+    value_controls::{ExpandingSlider, ScrollWrites, SecondaryPress},
 };
-use iced::{
-    Alignment, Element, Length, Task,
-    alignment::Horizontal,
-    mouse::ScrollDelta,
-    widget::{Row, mouse_area, text, text::Wrapping},
-};
-use sottomano_toml_config::{Config, severity::Severity};
+use iced::mouse::ScrollDelta;
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{
@@ -29,23 +23,13 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{
-            IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, ReadoutBadge,
-            ReadoutGauge, ReadoutLabel, indicator_drawing, labeled_indicator,
-        },
-        indicator_state::IndicatorState,
-    },
+    group_indicators::indicator_drawing::{IndicatorFace, IndicatorReadout},
     hover_cards::{
         MouseGesture, PressAction,
         hover_card_body::{Section, dictionary_table},
     },
     widgets::{
-        announced_level::{LevelAnnouncement, LevelChangeOrigin},
-        ongoing_toast::{IndicatorAlerts, LevelNotice},
-        slider_look::slider_look,
-        text::{panel_text, resolved_text_face, row_key_label},
+        announced_level::LevelAnnouncement,
         value_cells::{LabeledValue, SliderReadout, ValueCell},
     },
 };
@@ -76,8 +60,6 @@ pub enum SeverityDirection {
     HigherWorse,
     LowerWorse,
 }
-
-const CAPTION_WIDTH_IN_TEXT_SIZES: f32 = 7.0;
 
 pub struct SliderControl {
     pub name: Cow<'static, str>,
@@ -141,22 +123,6 @@ struct SeverityThresholds {
     severity_direction: SeverityDirection,
 }
 
-impl SeverityThresholds {
-    fn level(&self, value: f32) -> Severity {
-        let hit = |threshold: f32| match self.severity_direction {
-            SeverityDirection::HigherWorse => value >= threshold,
-            SeverityDirection::LowerWorse => value <= threshold,
-        };
-        if hit(self.urgent) {
-            Severity::Critical
-        } else if hit(self.warn) {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum ControlMessage {
     Press,
@@ -188,40 +154,6 @@ impl Display for ControlWriteFailure {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ControlWriteFailure::Rejected(write_error) => write!(formatter, "{write_error}"),
-        }
-    }
-}
-
-impl ControlMessage {
-    pub fn commit<WriteError: Error + Send + Sync + 'static>(
-        label: &'static str,
-        value: f32,
-        write: impl Future<Output = Result<(), WriteError>> + Send + 'static,
-    ) -> Task<ControlMessage> {
-        let device_write = async move {
-            write
-                .await
-                .map_err(|write_error| ControlWriteFailure::Rejected(Arc::new(write_error)))
-        };
-        Task::perform(device_write, move |write_outcome| {
-            if let Err(write_failure) = &write_outcome {
-                tracing::warn!("{label}: {write_failure}");
-            }
-            ControlMessage::DeviceAccepted {
-                value,
-                write_outcome,
-            }
-        })
-    }
-
-    pub fn persisted<StoreFailure: Error + Send + Sync + 'static>(
-        value: f32,
-        store_outcome: Result<(), StoreFailure>,
-    ) -> ControlMessage {
-        ControlMessage::Persisted {
-            value,
-            write_outcome: store_outcome
-                .map_err(|store_failure| ControlWriteFailure::Rejected(Arc::new(store_failure))),
         }
     }
 }
@@ -396,323 +328,6 @@ impl SliderControl {
                 self.readout_cell(),
             )]),
         )]
-    }
-
-    fn severity(&self) -> Severity {
-        match &self.severity_scale {
-            SliderSeverityScale::Thresholded(thresholds) => {
-                thresholds.level(self.expanding_slider.synced_value.shown_value())
-            }
-            SliderSeverityScale::Unrated => Severity::Normal,
-        }
-    }
-
-    #[must_use]
-    pub fn shown_state(&self) -> IndicatorState {
-        match self.slider_activity {
-            SliderActivity::Active => self.severity().into(),
-            SliderActivity::Inactive => IndicatorState::Off,
-        }
-    }
-
-    fn shown_label(&self, locale: Locale) -> ReadoutLabel {
-        let SliderLabelFormat::Labeled(format) = self.label_format else {
-            return ReadoutLabel::Unlabeled;
-        };
-        match format(self.expanding_slider.synced_value.shown_value(), locale) {
-            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-            Some(_) | None => ReadoutLabel::Unlabeled,
-        }
-    }
-
-    fn shown_gauge(&self) -> ReadoutGauge {
-        if self.gauge == SliderGauge::Ungauged {
-            return ReadoutGauge::Ungauged;
-        }
-        let fill = self.range_fill();
-        ReadoutGauge::Gauged {
-            fill,
-            live: fill * Ratio::new::<ratio::ratio>(f64::from(self.live)),
-        }
-    }
-
-    fn level_notice(&self, locale: Locale) -> LevelNotice {
-        let SliderLevelAnnouncing::Announcing(announcement) = &self.level_announcing else {
-            return LevelNotice::Unannounced;
-        };
-        match announcement.level(self.range_fill(), self.readout_text(locale)) {
-            Some(level) => LevelNotice::Announced {
-                level,
-                glyph: self
-                    .effective_icon()
-                    .with_weight(self.shown_state().weight()),
-            },
-            None => LevelNotice::Unannounced,
-        }
-    }
-
-    #[must_use]
-    pub fn indicator(&self, locale: Locale) -> GroupIndicator<'_> {
-        GroupIndicator::glyph_only(self.name.clone(), self.effective_icon(), self.shown_state())
-            .with_readout(self.indicator_readout(locale))
-            .with_alerts(self.indicator_alerts(locale))
-            .with_hover_card(Box::new(|_| self.readout_hover_card()))
-    }
-
-    pub(crate) fn indicator_face(&self) -> IndicatorFace {
-        IndicatorFace {
-            name: self.name.clone(),
-            icon: IndicatorIcon::IconGlyph {
-                glyph: self.effective_icon(),
-                state: self.shown_state(),
-            },
-            ordinal: IdentityOrdinal::Unnumbered,
-        }
-    }
-
-    pub(crate) fn indicator_readout(&self, locale: Locale) -> IndicatorReadout {
-        IndicatorReadout {
-            label: self.shown_label(locale),
-            gauge: self.shown_gauge(),
-            badge: ReadoutBadge::Unbadged,
-        }
-    }
-
-    pub(crate) fn indicator_alerts(&self, locale: Locale) -> IndicatorAlerts {
-        IndicatorAlerts {
-            level: self.level_notice(locale),
-            ..IndicatorAlerts::default()
-        }
-    }
-
-    fn effective_icon(&self) -> IconGlyph {
-        match self.glyph_source {
-            SliderGlyphSource::ValueDriven(glyph) => glyph(
-                self.expanding_slider.synced_value.shown_value(),
-                self.slider_activity,
-            )
-            .into(),
-            SliderGlyphSource::FixedIcon => self.icon,
-        }
-    }
-
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn update(&mut self, msg: ControlMessage) -> Action {
-        match msg {
-            ControlMessage::Press => self.gestured(SliderGesture::Toggle),
-            ControlMessage::Scroll(delta) => self.gestured(SliderGesture::Scroll(delta)),
-            ControlMessage::Set(position) => self.gestured(SliderGesture::Drag(position)),
-            ControlMessage::Release => self.gestured(SliderGesture::Release),
-            ControlMessage::DeviceAccepted {
-                value,
-                write_outcome,
-            } => into_action(
-                self.expanding_slider
-                    .update(SliderMessage::AbsoluteWritten {
-                        value,
-                        outcome: slider_write_outcome(&write_outcome),
-                    }),
-            ),
-            ControlMessage::Persisted {
-                value,
-                write_outcome,
-            } => {
-                let follow_up = self
-                    .expanding_slider
-                    .update(SliderMessage::AbsoluteWritten {
-                        value,
-                        outcome: slider_write_outcome(&write_outcome),
-                    });
-                match write_outcome {
-                    Ok(()) => {
-                        self.expanding_slider
-                            .update(SliderMessage::SourceReported(value));
-                    }
-                    Err(store_failure) => tracing::warn!("slider value not saved: {store_failure}"),
-                }
-                into_action(follow_up)
-            }
-            ControlMessage::Adjusted(value) => into_action(
-                self.expanding_slider
-                    .update(SliderMessage::RelativeWritten(value)),
-            ),
-            ControlMessage::AdjustFailed => {
-                self.expanding_slider.update(SliderMessage::RelativeFailed);
-                Action::None
-            }
-            ControlMessage::Sample(sample) => {
-                let tracking_before = self.expanding_slider.synced_value.source_tracking();
-                let shown_before = self.expanding_slider.synced_value.shown_value();
-                self.expanding_slider
-                    .update(SliderMessage::SourceReported(sample));
-                let moved = (self.expanding_slider.synced_value.shown_value() - shown_before).abs()
-                    >= self.expanding_slider.slider_step / 2.0;
-                let change_origin = match tracking_before {
-                    SourceTracking::FollowingSource if moved => LevelChangeOrigin::OutsidePanel,
-                    SourceTracking::FollowingSource | SourceTracking::Diverging => {
-                        LevelChangeOrigin::FromPanel
-                    }
-                };
-                if let SliderLevelAnnouncing::Announcing(announcement) = &mut self.level_announcing
-                {
-                    announcement.device_reported(change_origin);
-                }
-                Action::None
-            }
-            ControlMessage::Level(level) => {
-                self.live = level;
-                Action::None
-            }
-            ControlMessage::Activity(slider_activity) => {
-                let change_origin = if slider_activity == self.slider_activity {
-                    LevelChangeOrigin::FromPanel
-                } else {
-                    LevelChangeOrigin::OutsidePanel
-                };
-                self.slider_activity = slider_activity;
-                if let SliderLevelAnnouncing::Announcing(announcement) = &mut self.level_announcing
-                {
-                    announcement.device_reported(change_origin);
-                }
-                Action::None
-            }
-            ControlMessage::Right => Action::Right,
-        }
-    }
-
-    fn gestured(&mut self, gesture: SliderGesture) -> Action {
-        into_action(
-            self.expanding_slider
-                .update(SliderMessage::Gesture(gesture)),
-        )
-    }
-
-    #[must_use]
-    pub fn view<'view>(
-        &'view self,
-        config: &'view Config,
-        shown_indicator: SliderShownIndicator,
-        reveal: f32,
-    ) -> Element<'view, ControlMessage> {
-        let SliderShownIndicator { face, readout } = shown_indicator;
-        self.expanding_slider.view(
-            ExpandingSliderParts {
-                collapsed: Box::new(move || match self.label_format {
-                    SliderLabelFormat::Labeled(_) => {
-                        labeled_indicator(config, &face, &readout, reveal)
-                    }
-                    SliderLabelFormat::Unlabeled => {
-                        indicator_drawing(config, &face, &readout, reveal)
-                    }
-                }),
-                face: Box::new(move || self.state_glyph(config)),
-                readout: Box::new(move || self.readout_view(config)),
-                look: Box::new(move || slider_look(config, self.severity())),
-                decorate: Box::new(|content, _| content),
-                gap_px: config.theme.spacing.item_gap,
-                expansion_duration: config.group_items.slider_expansion_duration,
-            },
-            ControlMessage::from,
-        )
-    }
-
-    #[must_use]
-    pub fn always_open_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
-        let opened = Row::with_children([self.state_glyph(config), self.menu_view(config)])
-            .spacing(config.theme.spacing.item_gap)
-            .align_y(Alignment::Center);
-        let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
-        if let SliderRightClick::Bound(_) = self.right_click {
-            area = area.on_right_press(ControlMessage::Right);
-        }
-        area.into()
-    }
-
-    #[must_use]
-    pub fn menu_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
-        let open_row = self.expanding_slider.open_row(
-            slider_look(config, self.severity()),
-            self.readout_view(config),
-            config.theme.spacing.item_gap,
-            ControlMessage::from,
-        );
-        match &self.caption {
-            SliderCaption::Uncaptioned => open_row,
-            SliderCaption::Captioned(caption_text) => Row::with_children([
-                row_key_label(&config.theme.font, caption_text.clone().into_owned())
-                    .wrapping(Wrapping::None)
-                    .width(Length::Fixed(
-                        config.theme.font.text_size_px * CAPTION_WIDTH_IN_TEXT_SIZES,
-                    ))
-                    .into(),
-                open_row,
-            ])
-            .spacing(config.theme.spacing.item_gap)
-            .align_y(Alignment::Center)
-            .into(),
-        }
-    }
-
-    fn state_glyph<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
-        let state = self.shown_state();
-        self.effective_icon()
-            .with_weight(state.weight())
-            .view(config.theme.font.icon_size_px, move |theme| {
-                state.color(theme)
-            })
-    }
-
-    fn readout_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
-        steady_width_text(
-            MeasuredReadout::new(
-                ReadoutLabels {
-                    owner: self.name.clone(),
-                    range: self.expanding_slider.range.clone(),
-                    step: self.expanding_slider.slider_step,
-                    format: self.readout,
-                    context: config.calendar.locale,
-                },
-                resolved_text_face(&config.theme.font),
-            ),
-            panel_text(
-                &config.theme.font,
-                self.readout_text(config.calendar.locale),
-            )
-            .wrapping(Wrapping::None)
-            .width(Length::Fill)
-            .align_x(Horizontal::Center)
-            .style(text::base),
-        )
-        .into()
-    }
-}
-
-impl From<SliderGesture> for ControlMessage {
-    fn from(gesture: SliderGesture) -> Self {
-        match gesture {
-            SliderGesture::Toggle => Self::Press,
-            SliderGesture::Scroll(delta) => Self::Scroll(delta),
-            SliderGesture::Drag(position) => Self::Set(position),
-            SliderGesture::Release => Self::Release,
-            SliderGesture::SecondaryPress => Self::Right,
-        }
-    }
-}
-
-fn slider_write_outcome(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOutcome {
-    match write_outcome {
-        Ok(()) => WriteOutcome::Accepted,
-        Err(_) => WriteOutcome::Rejected,
-    }
-}
-
-fn into_action(slider_effect: SliderEffect) -> Action {
-    match slider_effect {
-        SliderEffect::Write(ValueWrite::Absolute(value)) => Action::Commit(value),
-        SliderEffect::Write(ValueWrite::Relative(delta)) => Action::Adjust(delta),
-        SliderEffect::Opened => Action::Opened,
-        SliderEffect::SecondaryPressed => Action::Right,
-        SliderEffect::Closed | SliderEffect::Unchanged => Action::None,
     }
 }
 

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use bytesize::ByteSize;
 
 use super::{
-    block_filesystem_mounts::{Compression, KernelDevice},
+    block_filesystem_mounts::{KernelDevice, mount_compression_options::Compression},
     filesystem_device_errors::{DeviceErrors, ErrorCount},
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::{

@@ -1,35 +1,23 @@
 mod slot_extras;
 #[cfg(test)]
 mod window_list_tests;
+mod window_process_hover;
 mod window_slot;
+mod workspace_row_view;
+mod workspace_slide_tracking;
 
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
 
-use corredo::{
-    drag_reorder::{ListDeparture, SlotAlarm},
-    orientation::Axis,
-    selection_scroll::ScrollEdgeFade,
-    theming::{danger_color, primary_color},
-    transitions::{DepartingPane, MotionState, SlideBand, SwapPane, sliding_pane_swap},
-};
-use iced::{
-    Animation, Element, Subscription, Task,
-    animation::Easing,
-    widget::{Row, container},
-};
+use corredo::transitions::{DepartingPane, SwapPane, sliding_pane_swap};
+use iced::{Element, Subscription, widget::container};
 use slot_extras::{Extras, WindowSound, slot_press_actions};
-use sottomano_compositor_model::compositor_window_facts::{
-    Urgency, WindowAppId, WindowFocus, WindowPid,
-};
+use sottomano_compositor_model::compositor_window_facts::{Urgency, WindowAppId, WindowPid};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         kde_job_view_progress::{self, JobProgress},
-        nix_package_facts::{NixPackageFacts, PackageWatch},
-        process_tree_inspection::{Inspection, Process, Watched},
+        nix_package_facts::NixPackageFacts,
+        process_tree_inspection::{Inspection, Process},
         terminal_emulator_windows::{self, WindowProcesses},
         unity_launcher_badges::{self, LauncherCount, LauncherEntries, LauncherProgress},
         workspace_window_snapshot,
@@ -40,36 +28,19 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{
     Config,
     indicator_groups::{ElementVisibility, TerminalAgentUse, WindowAgentsConfig},
-    screen_edges::Position,
 };
-use window_slot::{UrgencyMarking, WindowSlot};
+use window_process_hover::ProcessHover;
+use workspace_slide_tracking::{
+    DepartingWorkspace, OutputWorkspaces, panel_slide_band, workspace_index,
+};
 
 use crate::{
     clock::Clock,
-    desktop_panels::{
-        panel_frame::panel_frame,
-        panel_slot::dragged_slot_content,
-        panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent, window_source_workspace},
-    },
-    hover_cards::{HoverCardMessage, PressAction, hover_card_body::Section},
+    desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, window_source_workspace},
+    hover_cards::{HoverCardMessage, PressAction},
     icon_catalog::window_icons::WindowAssets,
-    indicator_groups::window_group::{
-        WindowRowLayout, WindowTitleLength,
-        flat_window_rows::arranged_flat_rows,
-        keyed_window_group_rows::arranged_keyed_groups,
-        process_tree::{Folding, process_tree_widget},
-        window_hover_card::{inspection_sections, nix_package_facts_sections},
-        window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
-    },
-    widgets::{
-        DISABLED_ALPHA,
-        configured_scroll::configured_scroll,
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        pointer_drag::{
-            DragActivity, DragView, DraggedPanelSlot, PanelSlotList,
-            reorderable_list::reorderable_list,
-        },
-    },
+    indicator_groups::window_group::{WindowTitleLength, process_tree::Folding},
+    widgets::{hover_fetched_snapshot::HoverFetchedSnapshot, pointer_drag::DragView},
 };
 
 fn maximum_window_title_width_px(config: &Config) -> f32 {
@@ -94,13 +65,6 @@ fn capped_window_title<'view, Message: 'view>(
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-enum ProcessHover {
-    #[default]
-    Idle,
-    Watching(u64),
-}
-
 #[derive(Default)]
 pub struct WindowList {
     launcher: LauncherEntries,
@@ -112,46 +76,6 @@ pub struct WindowList {
     inspection: HoverFetchedSnapshot<Inspection>,
     package_facts: HoverFetchedSnapshot<NixPackageFacts>,
     output_workspaces: HashMap<String, OutputWorkspaces>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ShownWorkspace {
-    workspace_id: u64,
-    workspace_index: u8,
-}
-
-#[derive(Debug, Clone)]
-struct DepartureSlide {
-    departed: ShownWorkspace,
-    animation: Animation<bool>,
-}
-
-#[derive(Debug, Clone)]
-enum WorkspaceSlide {
-    Settled,
-    Sliding(DepartureSlide),
-}
-
-#[derive(Debug, Clone)]
-struct OutputWorkspaces {
-    shown: ShownWorkspace,
-    workspace_slide: WorkspaceSlide,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum DepartingWorkspace {
-    Absent,
-    SlidingAway {
-        departed: ShownWorkspace,
-        slide_progress: f32,
-    },
-}
-
-fn started_slide(now: Instant, slide_duration: Duration) -> Animation<bool> {
-    Animation::new(false)
-        .easing(Easing::EaseOutCubic)
-        .duration(slide_duration)
-        .go(true, now)
 }
 
 fn shown_workspace(
@@ -167,37 +91,6 @@ fn shown_workspace(
                 .any(|indicator| indicator.id == *source)
         })
         .or_else(|| compositor.active_workspace_id(output))
-}
-
-fn panel_slide_band(slot_context: PanelSlotContext<'_>) -> SlideBand {
-    let frame_depth_px = slot_context.config.desktop_panels.height;
-    let float_offset_px = slot_context.panel_float_offset_px;
-    let window_gap_px = slot_context.compositor_window_gaps_px;
-    match slot_context.edge {
-        Position::Top => SlideBand::AlongTopEdge {
-            frame_depth_px,
-            float_offset_px,
-            window_gap_px,
-        },
-        Position::Bottom => SlideBand::AlongBottomEdge {
-            frame_depth_px,
-            float_offset_px,
-            window_gap_px,
-        },
-        Position::Left => SlideBand::OwnBounds,
-    }
-}
-
-fn workspace_index(
-    compositor: &workspace_window_snapshot::Snapshot,
-    output: &str,
-    workspace: u64,
-) -> u8 {
-    compositor
-        .workspaces_for_output(output)
-        .iter()
-        .find(|indicator| indicator.id == workspace)
-        .map_or(0, |indicator| indicator.idx)
 }
 
 #[derive(Debug)]
@@ -247,71 +140,6 @@ impl WindowList {
     pub fn launcher_entry_subscription(buses: &DesktopBuses) -> Subscription<WindowListMessage> {
         Subscription::run_with(buses.clone(), unity_launcher_badges::entry_updates)
             .map(WindowListMessage::LauncherEntriesChanged)
-    }
-
-    pub fn hover_process(
-        &mut self,
-        watched: Option<Watched>,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<WindowListMessage> {
-        let Some(watched) = watched else {
-            self.hovered_window = ProcessHover::Idle;
-            self.process_tree.stop();
-            self.inspection.stop();
-            self.package_facts.stop();
-            return Task::none();
-        };
-        self.hovered_window = ProcessHover::Watching(watched.window);
-        Task::batch([
-            self.process_tree.start_hover_fetch(
-                watched.clone(),
-                WindowListMessage::ProcessTreeScanned,
-                config,
-                clock,
-            ),
-            self.inspection.start_hover_fetch(
-                watched.clone(),
-                |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
-                config,
-                clock,
-            ),
-            self.package_facts.start_hover_fetch(
-                PackageWatch {
-                    watched,
-                    upstream_branch: config.indicator_groups.window.nixpkgs_branch.clone(),
-                    nixos_flake: config.indicator_groups.window.nixos_flake.clone(),
-                },
-                |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
-                config,
-                clock,
-            ),
-        ])
-    }
-
-    #[must_use]
-    pub fn process_sections(&self) -> Vec<Section> {
-        let ProcessHover::Watching(window) = self.hovered_window else {
-            return Vec::new();
-        };
-        [
-            self.inspection.sections_described_by(inspection_sections),
-            self.package_facts
-                .sections_described_by(nix_package_facts_sections),
-            self.process_tree.sections_described_by(|tree| {
-                let kept = self
-                    .window_processes
-                    .window_terminal_pids(window)
-                    .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
-                vec![Section::new(
-                    "Processes",
-                    process_tree_widget(&kept, &self.folding),
-                )]
-            }),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
     }
 
     pub fn update(&mut self, msg: WindowListMessage, clock: Clock) -> Action {
@@ -408,238 +236,6 @@ impl WindowList {
         )
     }
 
-    pub fn observe_active_workspaces(
-        &mut self,
-        compositor: &workspace_window_snapshot::Snapshot,
-        clock: Clock,
-        slide_duration: Duration,
-    ) {
-        compositor
-            .active_workspace_ids_by_output()
-            .for_each(|(output, workspace_id)| {
-                let arrived = ShownWorkspace {
-                    workspace_id,
-                    workspace_index: workspace_index(compositor, output, workspace_id),
-                };
-                self.observe_output(output, arrived, clock.instant, slide_duration);
-            });
-    }
-
-    fn observe_output(
-        &mut self,
-        output: &str,
-        arrived: ShownWorkspace,
-        now: Instant,
-        slide_duration: Duration,
-    ) {
-        match self.output_workspaces.get_mut(output) {
-            Some(observed) if observed.shown.workspace_id != arrived.workspace_id => {
-                observed.workspace_slide = if slide_duration.is_zero() {
-                    WorkspaceSlide::Settled
-                } else {
-                    WorkspaceSlide::Sliding(DepartureSlide {
-                        departed: observed.shown,
-                        animation: started_slide(now, slide_duration),
-                    })
-                };
-                observed.shown = arrived;
-            }
-            Some(observed) => observed.shown = arrived,
-            None => {
-                self.output_workspaces.insert(
-                    output.to_owned(),
-                    OutputWorkspaces {
-                        shown: arrived,
-                        workspace_slide: WorkspaceSlide::Settled,
-                    },
-                );
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn workspace_slide_motion(&self, now: Instant) -> MotionState {
-        let any_sliding = self.output_workspaces.values().any(|observed| {
-            matches!(
-                &observed.workspace_slide,
-                WorkspaceSlide::Sliding(departure_slide)
-                    if departure_slide.animation.is_animating(now)
-            )
-        });
-        if any_sliding {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
-    }
-
-    pub fn settle_workspace_slides(&mut self, now: Instant) {
-        self.output_workspaces.values_mut().for_each(|observed| {
-            if let WorkspaceSlide::Sliding(departure_slide) = &observed.workspace_slide
-                && !departure_slide.animation.is_animating(now)
-            {
-                observed.workspace_slide = WorkspaceSlide::Settled;
-            }
-        });
-    }
-
-    fn departing_workspace(
-        &self,
-        output: &str,
-        arriving_workspace: u64,
-        now: Instant,
-    ) -> DepartingWorkspace {
-        match self.output_workspaces.get(output) {
-            Some(OutputWorkspaces {
-                workspace_slide: WorkspaceSlide::Sliding(departure_slide),
-                ..
-            }) if departure_slide.departed.workspace_id != arriving_workspace
-                && departure_slide.animation.is_animating(now) =>
-            {
-                DepartingWorkspace::SlidingAway {
-                    departed: departure_slide.departed,
-                    slide_progress: departure_slide.animation.interpolate(0.0, 1.0, now),
-                }
-            }
-            Some(_) | None => DepartingWorkspace::Absent,
-        }
-    }
-
-    fn workspace_row<'view>(
-        &'view self,
-        compositor: &workspace_window_snapshot::Snapshot,
-        icons: WindowAssets<'view>,
-        audio: Option<&HashMap<i32, WindowAudio>>,
-        workspace: u64,
-        slot_context: PanelSlotContext<'_>,
-    ) -> Element<'view, WindowListInteraction> {
-        let PanelSlotContext {
-            config, edge, drag, ..
-        } = slot_context;
-        let windows = compositor.windows_on_workspace(workspace);
-        if windows.is_empty() {
-            return Row::new().into();
-        }
-        let order = drag.previewed(windows, |window_entry| {
-            window_slot_key(window_entry, workspace)
-        });
-        let focused_position = order
-            .iter()
-            .position(|window_entry| window_entry.focus == WindowFocus::Focused);
-        let ArrangedWindowRows {
-            groups,
-            presentations,
-            ungrouped_slot_look,
-        } = match slot_context.window_row_layout {
-            WindowRowLayout::Flat => arranged_flat_rows(order.len()),
-            WindowRowLayout::GroupedByLocation => {
-                arranged_keyed_groups(&order, icons, slot_context)
-            }
-        };
-        let window_slots: Vec<_> = order
-            .iter()
-            .enumerate()
-            .map(|(position_in_panel, window_entry)| {
-                let item = window_slot_key(window_entry, workspace);
-                let opacity = match drag.drag {
-                    DragActivity::Dragging(active_drag) if active_drag.item == item => {
-                        DISABLED_ALPHA
-                    }
-                    DragActivity::Dragging(_) | DragActivity::Idle => 1.0,
-                };
-                WindowSlot {
-                    window_entry,
-                    item,
-                    extras: self.extras(window_entry, audio, config),
-                    position_in_panel,
-                    opacity,
-                    presentation: presentations
-                        .get(position_in_panel)
-                        .copied()
-                        .unwrap_or(WindowSlotPresentation::Flat),
-                    slot_context,
-                }
-            })
-            .collect();
-        let alarms = window_slots
-            .iter()
-            .filter(|window_slot| window_slot.urgency_marking() == UrgencyMarking::Tile)
-            .map(|window_slot| SlotAlarm {
-                position: window_slot.position_in_panel,
-                color: Box::new(danger_color),
-            })
-            .collect();
-        let slots = window_slots
-            .iter()
-            .map(|window_slot| (window_slot.item, window_slot.view(icons)));
-        let pager = reorderable_list(slots, edge, config)
-            .ungrouped_slot_look(ungrouped_slot_look)
-            .alarms(alarms)
-            .groups(groups)
-            .draggable(PanelSlotList::Windows, &drag, dragged);
-        let scrolled_pager = |pager| {
-            configured_scroll(pager, Axis::Horizontal, config)
-                .edge_fade(ScrollEdgeFade::away_from_frame(
-                    slot_context.panel_frame_style,
-                    maximum_window_title_width_px(config),
-                ))
-                .showing(workspace)
-        };
-        let Some(focused_position) = focused_position else {
-            return scrolled_pager(pager).into();
-        };
-        let focused_key = window_slot_key(order[focused_position], workspace);
-        scrolled_pager(pager.highlight(focused_key, primary_color))
-            .selected(focused_position)
-            .into()
-    }
-
-    #[must_use]
-    pub fn drag_ghost<'view>(
-        &'view self,
-        compositor: &workspace_window_snapshot::Snapshot,
-        icons: WindowAssets<'view>,
-        audio: Option<&HashMap<i32, WindowAudio>>,
-        window: u64,
-        slot_context: PanelSlotContext<'_>,
-    ) -> Option<Element<'view, WindowListInteraction>> {
-        let PanelSlotContext { config, drag, .. } = slot_context;
-        let workspace = window_source_workspace(&drag)?;
-        let window_entry = compositor
-            .windows_on_workspace(workspace)
-            .iter()
-            .find(|window_entry| window_entry.id == window)?;
-        let window_slot = WindowSlot {
-            window_entry,
-            item: window_slot_key(window_entry, workspace),
-            extras: self.extras(window_entry, audio, config),
-            position_in_panel: 0,
-            opacity: 1.0,
-            presentation: WindowSlotPresentation::Flat,
-            slot_context,
-        };
-        if drag.list_departure() == ListDeparture::LeftOwnList {
-            let inset = config.theme.spacing.surface_inset;
-            let circle = drag
-                .ghost_frame
-                .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
-            return Some(
-                panel_frame(
-                    container(window_slot.slot_icon(icons)?).padding(inset),
-                    circle,
-                )
-                .into(),
-            );
-        }
-        Some(
-            panel_frame(
-                dragged_slot_content(window_slot.button_content(icons), config),
-                drag.ghost_frame,
-            )
-            .into(),
-        )
-    }
-
     #[must_use]
     pub fn window_press_actions(
         &self,
@@ -701,18 +297,4 @@ impl WindowList {
             launcher_urgency: launcher.map_or(Urgency::NotUrgent, |entry| entry.urgency),
         }
     }
-}
-
-fn window_slot_key(
-    window_entry: &workspace_window_snapshot::WinEntry,
-    workspace: u64,
-) -> DraggedPanelSlot {
-    DraggedPanelSlot::Window {
-        window: window_entry.id,
-        workspace,
-    }
-}
-
-fn dragged(event: SlotDragEvent) -> WindowListInteraction {
-    WindowListInteraction::Drag(DragMessage::Pointer(event))
 }

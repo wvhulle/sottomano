@@ -5,7 +5,7 @@ use sottomano_toml_config::indicator_groups::gamepad_bindings::VirtualPointerNee
 use tokio::time::timeout_at;
 
 use super::{
-    evdev_gamepad_devices::{RawGamepadEvent, raw_gamepad_events},
+    evdev_gamepad_devices::{RawGamepadEvent, gamepad_node_discovery::raw_gamepad_events},
     gamepad_input_machine::{
         GamepadInput, GamepadMachine, GamepadStreamSettings, MachineEffect, MachineInput,
     },

@@ -1,3 +1,5 @@
+mod microvm_guest_indicators;
+
 use std::{borrow::Cow, collections::BTreeMap, mem::take, path::PathBuf};
 
 use iced::{Subscription, Task};
@@ -7,38 +9,35 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::{FamilyDetails, FamilyListings},
-    container_run_state::ContainerRunState,
-    guest_machine_sizing::{GuestCoreCount, GuestMemorySize},
     microvm_guests::{
         EnclosingUnit, MicrovmGuest, MicrovmGuestListing, MicrovmProbe, MicrovmUnit, MicrovmUnits,
-        hypervisor_command_lines::{GuestKernelImage, HypervisorApiSocket, MicrovmHypervisor},
-        power_button_socket,
+        hypervisor_command_lines::MicrovmHypervisor, power_button_socket,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitActivity},
 };
 
+use self::microvm_guest_indicators::{
+    MicrovmGuestIndicator, MicrovmGuestListingIndicator, MicrovmUnitIndicator,
+};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
         toggle_control::{SwitchPosition, SwitchPresses},
-        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
+        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        process_usage_cells::{approximate_memory_text, uptime_entry},
     },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const POWER_BUTTON_HINT: &str = "press the guest's power button";
@@ -51,132 +50,8 @@ const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
     },
 };
 
-struct MicrovmUnitIndicator<'view> {
-    unit: &'view MicrovmUnit,
-    activity: UnitActivity,
-}
-
-impl<'view> MicrovmUnitIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        let state = match self.activity {
-            UnitActivity::Running => IndicatorState::On,
-            UnitActivity::Starting | UnitActivity::Stopping => IndicatorState::Pending,
-            UnitActivity::Stopped => IndicatorState::Off,
-        };
-        GroupIndicator::glyph_only(
-            self.unit.instance_name.clone(),
-            Phosphor::Lightning(Weight::Regular).into(),
-            state,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(activity_text(self.activity).to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("State", activity_text(self.activity)),
-                LabeledValue::new("Unit", self.unit.unit_name.clone()),
-            ]),
-        )]
-    }
-}
-
-struct MicrovmGuestListingIndicator<'view> {
-    listing: &'view MicrovmGuestListing,
-}
-
-impl<'view> MicrovmGuestListingIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            self.listing.machine_name.clone(),
-            Phosphor::Lightning(Weight::Regular).into(),
-            ContainerRunState::Running.into(),
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(|_| Self::hover_card()))
-    }
-
-    fn hover_card() -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([LabeledValue::new(
-                "State",
-                ContainerRunState::Running.label(),
-            )]),
-        )]
-    }
-}
-
 fn managed_by(machine: &MicrovmGuest, unit: &MicrovmUnit) -> bool {
     matches!(&machine.enclosing_unit, EnclosingUnit::Service(unit_name) if *unit_name == unit.unit_name)
-}
-
-struct MicrovmGuestIndicator<'view> {
-    machine: &'view MicrovmGuest,
-}
-
-impl MicrovmGuestIndicator<'_> {
-    fn detail_entries(&self, clock: Clock) -> Vec<LabeledValue> {
-        let machine = self.machine;
-        let mut detail_entries = vec![
-            LabeledValue::new("Hypervisor", machine.hypervisor.product_name()),
-            LabeledValue::new("Memory use", approximate_memory_text(machine.memory_in_use)),
-        ];
-        if let GuestMemorySize::Configured(guest_memory) = machine.launch.guest_memory {
-            detail_entries.push(LabeledValue::new("Guest memory", guest_memory.to_string()));
-        }
-        if let GuestCoreCount::Configured(guest_cores) = machine.launch.guest_cores {
-            detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
-        }
-        detail_entries.extend(uptime_entry(clock, machine.started_at));
-        if let EnclosingUnit::Service(unit_name) = &machine.enclosing_unit {
-            detail_entries.push(LabeledValue::new("Unit", unit_name.clone()));
-        }
-        if let GuestKernelImage::Booted(kernel) = &machine.launch.kernel {
-            detail_entries.push(LabeledValue::new("Kernel", kernel.display().to_string()));
-        }
-        if let HypervisorApiSocket::Listening(api_socket) = &machine.launch.api_socket {
-            detail_entries.push(LabeledValue::new(
-                "API socket",
-                api_socket.display().to_string(),
-            ));
-        }
-        detail_entries.push(LabeledValue::new("PID", machine.listing.pid.to_string()));
-        detail_entries
-    }
-}
-
-impl<'view> MicrovmGuestIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            self.machine.listing.machine_name.clone(),
-            Phosphor::Lightning(Weight::Regular).into(),
-            IndicatorState::On,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |card_clock| self.hover_card(card_clock)))
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Machine",
-            dictionary_table(self.detail_entries(clock)),
-        )]
-    }
 }
 
 #[derive(Default)]

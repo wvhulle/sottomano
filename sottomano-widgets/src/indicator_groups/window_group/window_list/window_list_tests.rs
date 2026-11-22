@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use corredo::transitions::MotionState;
 use iced::{
     Element, Settings, Size,
     widget::{text, text::Wrapping},
@@ -10,8 +11,8 @@ use sottomano_desktop_sources::desktop_windows_apps::desktop_entries::DesktopEnt
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use super::{
-    DepartingWorkspace, MotionState, ShownWorkspace, WindowList, WindowListInteraction,
-    capped_window_title, maximum_window_title_width_px,
+    WindowList, WindowListInteraction, capped_window_title, maximum_window_title_width_px,
+    workspace_slide_tracking::{DepartingWorkspace, ShownWorkspace},
 };
 use crate::{
     clock::Clock,

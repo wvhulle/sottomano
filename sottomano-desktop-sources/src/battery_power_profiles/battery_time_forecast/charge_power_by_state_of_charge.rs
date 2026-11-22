@@ -157,7 +157,10 @@ mod tests {
             )
             .learned()
             .expect("learned");
-        assert_eq!(curve[charge_bin_index(fraction_ratio(0.9))], curve[charge_bin_index(fraction_ratio(0.52))]);
+        assert_eq!(
+            curve[charge_bin_index(fraction_ratio(0.9))],
+            curve[charge_bin_index(fraction_ratio(0.52))]
+        );
     }
 
     #[test]

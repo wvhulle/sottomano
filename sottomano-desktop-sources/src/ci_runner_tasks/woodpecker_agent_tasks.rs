@@ -16,7 +16,8 @@ use crate::{
     delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
         libpod_running_containers::{
-            ContainerCiIdentity, EngineContainers, EngineReadError, EngineSampler, RunningContainer,
+            ContainerCiIdentity, EngineContainers, EngineReadError, RunningContainer,
+            libpod_engine_sampler::EngineSampler,
         },
         running_set_changes::deliveries_on_running_set_changes,
     },

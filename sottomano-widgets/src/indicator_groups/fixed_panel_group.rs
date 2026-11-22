@@ -6,7 +6,7 @@ use crate::{
     clock::Clock,
     group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
     hover_cards::{CardHeader, HoverTarget, MenuHandleIndicator},
-    indicator_groups::indicator_group_content::{GroupEvent, fixed_view},
+    indicator_groups::indicator_group_content::{GroupEvent, group_panel_view::fixed_view},
 };
 
 pub enum FixedPanelGroup<'view> {

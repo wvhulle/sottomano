@@ -1,4 +1,6 @@
 mod gpu_clock_label;
+mod gpu_device_access;
+mod gpu_device_rows;
 mod gpu_load_gauge;
 mod gpu_memory_gauge;
 mod gpu_power_label;
@@ -6,18 +8,12 @@ mod gpu_temperature_label;
 
 use std::collections::BTreeMap;
 
-use gpu_clock_label::GpuClockLabel;
-use gpu_load_gauge::{gpu_load_hover_card, gpu_load_indicator};
-use gpu_memory_gauge::gpu_memory_indicator;
-use gpu_power_label::{gpu_power_hover_card, gpu_power_indicator};
-use gpu_temperature_label::GpuTemperatureLabel;
+use gpu_device_access::{GpuDevice, GpuDeviceAccess};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_samples::{
-        GpuClockSpeed, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw,
-        GpuPowerReading, GpuProcesses, GpuRuntimePower, GpuSnapshot, GpuTemperatureReading,
-        PciBusId,
+        GpuClocks, GpuDiscovery, GpuProcesses, GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
 use sottomano_toml_config::Config;
@@ -25,20 +21,11 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, snapshot_absence::AbsenceCause},
+    group_indicators::snapshot_absence::AbsenceCause,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
-        gpu_group::{
-            gpu_clock_label::gpu_clocks_sections,
-            gpu_memory_gauge::{gpu_memory_sections, gpu_processes_sections},
-        },
-        indicator_group_content::{
-            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-        },
-        indicator_group_identity::{
-            IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
-        },
+        indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
@@ -58,75 +45,9 @@ enum GpuFetchedDetail {
     Processes,
 }
 
-enum GpuDeviceAccess {
-    Readable {
-        handle: GpuHandle,
-        snapshot: SubscribedSnapshot<GpuSnapshot>,
-    },
-    Unreadable {
-        handle_failure: AbsenceCause<GpuSnapshot>,
-    },
-}
-
-struct GpuDevice {
-    model: GpuModel,
-    access: GpuDeviceAccess,
-    runtime_power: GpuRuntimePower,
-    expansion: IndicatorGroupExpansion,
-}
-
-impl GpuDevice {
-    fn readable_handle(&self) -> Option<&GpuHandle> {
-        match &self.access {
-            GpuDeviceAccess::Readable { handle, .. } => Some(handle),
-            GpuDeviceAccess::Unreadable { .. } => None,
-        }
-    }
-
-    fn latest_snapshot(&self) -> Option<&GpuSnapshot> {
-        match &self.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => snapshot.get(),
-            GpuDeviceAccess::Unreadable { .. } => None,
-        }
-    }
-
-    fn clock_label(&self) -> Option<GpuClockLabel> {
-        let GpuClockSpeed::Reported(current) = self.latest_snapshot()?.graphics_clock else {
-            return None;
-        };
-        Some(GpuClockLabel { current })
-    }
-
-    fn memory(&self) -> Option<GpuMemory> {
-        Some(self.latest_snapshot()?.memory.clone())
-    }
-
-    fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
-        let GpuTemperatureReading::Measured(current) = self.latest_snapshot()?.temperature else {
-            return None;
-        };
-        Some(GpuTemperatureLabel {
-            current,
-            limits: self.model.temperature_limits,
-        })
-    }
-
-    fn power_label(&self) -> Option<GpuPowerDraw> {
-        let GpuPowerReading::Drawing(draw) = self.latest_snapshot()?.power_draw else {
-            return None;
-        };
-        Some(GpuPowerDraw {
-            draw,
-            limit: self.model.power_limit,
-        })
-    }
-}
-
 fn gpu_group_identity(bus: &PciBusId) -> IndicatorGroupIdentity {
     IndicatorGroupIdentity::durable(IndicatorGroupFamily::Gpu, bus.bus_address.clone())
 }
-
-const GPU_LOAD_GLYPH: Phosphor = Phosphor::GraphicsCard(Weight::Regular);
 
 #[derive(Default)]
 pub struct GpuGroup {
@@ -320,195 +241,6 @@ impl GpuGroup {
         }
     }
 
-    fn device_headline<'view>(
-        &'view self,
-        bus: &'view PciBusId,
-        device: &'view GpuDevice,
-    ) -> GroupIndicator<'view> {
-        match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => self
-                .wired_gpu_load_indicator(
-                    bus,
-                    device,
-                    snapshot,
-                    snapshot.indicator(
-                        |held_snapshot| gpu_load_indicator(held_snapshot),
-                        GPU_LOAD_GLYPH.into(),
-                    ),
-                )
-                .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
-            GpuDeviceAccess::Unreadable { handle_failure } => handle_failure
-                .indicator(GPU_LOAD_GLYPH.into())
-                .with_hover_card(Box::new(move |_| {
-                    [handle_failure.source_state()]
-                        .into_iter()
-                        .chain(self.model_sections(device))
-                        .collect()
-                }))
-                .refreshed_by(GpuInteraction::Refresh(bus.clone()))
-                .with_headline_glyph(Phosphor::CubeTransparent(Weight::Regular).into()),
-        }
-    }
-
-    fn list_device<'view>(
-        &'view self,
-        bus: &'view PciBusId,
-        device: &'view GpuDevice,
-        indicators: &mut Vec<GroupIndicator<'view>>,
-    ) {
-        match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => {
-                if !snapshot.awaits_first_delivery() {
-                    indicators.insert(
-                        0,
-                        self.wired_gpu_load_indicator(
-                            bus,
-                            device,
-                            snapshot,
-                            snapshot.indicator(
-                                |held_snapshot| gpu_load_indicator(held_snapshot),
-                                GPU_LOAD_GLYPH.into(),
-                            ),
-                        ),
-                    );
-                }
-            }
-            GpuDeviceAccess::Unreadable { handle_failure } => indicators.insert(
-                0,
-                handle_failure
-                    .indicator(GPU_LOAD_GLYPH.into())
-                    .with_hover_card(Box::new(move |_| {
-                        [handle_failure.source_state()]
-                            .into_iter()
-                            .chain(self.model_sections(device))
-                            .collect()
-                    }))
-                    .refreshed_by(GpuInteraction::Refresh(bus.clone())),
-            ),
-        }
-    }
-
-    fn model_sections(&self, device: &GpuDevice) -> Vec<Section> {
-        self.discovery
-            .sections_described_by(|_| vec![Section::from(&device.model)])
-    }
-
-    fn wired_gpu_load_indicator<'view>(
-        &'view self,
-        bus: &'view PciBusId,
-        device: &'view GpuDevice,
-        snapshot: &'view SubscribedSnapshot<GpuSnapshot>,
-        load_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        load_indicator
-            .with_hover_card(Box::new(move |_| {
-                snapshot
-                    .sections_described_by(gpu_load_hover_card)
-                    .into_iter()
-                    .chain(self.model_sections(device))
-                    .collect()
-            }))
-            .refreshed_by(GpuInteraction::Refresh(bus.clone()))
-    }
-
-    fn device_indicators<'view>(
-        &'view self,
-        bus: &'view PciBusId,
-        device: &'view GpuDevice,
-    ) -> Vec<GroupIndicator<'view>> {
-        let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
-            return Vec::new();
-        };
-        let refresh = || GpuInteraction::Refresh(bus.clone());
-        let mut rows = Vec::new();
-        if let Some(clock_label) = device.clock_label() {
-            rows.push(
-                clock_label
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        let mut sections = snapshot.hover_card_with(clock_label.hover_card());
-                        sections.extend(self.hovered_sections(bus, |group| {
-                            group.clocks.sections_described_by(gpu_clocks_sections)
-                        }));
-                        sections
-                    }))
-                    .fetching_on_hover(
-                        GpuInteraction::StartClocksFetch(bus.clone()),
-                        GpuInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(refresh()),
-            );
-        }
-        if let Some(memory) = device.memory() {
-            let card_memory = memory.clone();
-            rows.push(
-                gpu_memory_indicator(memory)
-                    .with_hover_card(Box::new(move |_| {
-                        let mut sections =
-                            snapshot.hover_card_with(gpu_memory_sections(&card_memory));
-                        sections.extend(self.hovered_sections(bus, |group| {
-                            group
-                                .processes
-                                .sections_described_by(gpu_processes_sections)
-                        }));
-                        sections
-                    }))
-                    .fetching_on_hover(
-                        GpuInteraction::StartProcessesFetch(bus.clone()),
-                        GpuInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(refresh()),
-            );
-        }
-        if let Some(temperature_label) = device.temperature_label() {
-            rows.push(
-                temperature_label
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        snapshot.hover_card_with(temperature_label.hover_card())
-                    }))
-                    .refreshed_by(refresh()),
-            );
-        }
-        if let Some(power_label) = device.power_label() {
-            rows.push(
-                gpu_power_indicator(power_label)
-                    .with_hover_card(Box::new(move |_| {
-                        snapshot.hover_card_with(gpu_power_hover_card(&power_label))
-                    }))
-                    .refreshed_by(refresh()),
-            );
-        }
-        rows
-    }
-
-    pub fn group_contents(&self) -> impl Iterator<Item = IndicatorGroupContent<'_>> {
-        self.devices
-            .iter()
-            .zip(IndicatorGroupTitle::numbered_namesakes(
-                self.devices
-                    .values()
-                    .map(|device| device.model.names.preferred_name().to_owned()),
-            ))
-            .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
-            .map(move |((bus, device), group_title)| {
-                let expanded_bus = bus.clone();
-                let headline_indicator = self.device_headline(bus, device);
-                let mut lead_indicators = Vec::new();
-                self.list_device(bus, device, &mut lead_indicators);
-                IndicatorGroupContent::expandable_instance(
-                    gpu_group_identity(bus),
-                    group_title,
-                    headline_indicator,
-                    &device.expansion,
-                    move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    lead_indicators
-                        .into_iter()
-                        .chain(self.device_indicators(bus, device)),
-                )
-            })
-    }
-
     fn refresh(&self, bus: PciBusId) -> Task<GpuMessage> {
         let Some(device) = self.devices.get(&bus) else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
@@ -528,7 +260,8 @@ impl GpuGroup {
 mod tests {
     use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::GpuNames;
 
-    use super::{IndicatorGroupTitle, PciBusId, gpu_group_identity};
+    use super::{PciBusId, gpu_group_identity};
+    use crate::indicator_groups::indicator_group_identity::IndicatorGroupTitle;
 
     fn numbered_gpu_titles(product_names: &[&str]) -> Vec<String> {
         let discovered_names: Vec<GpuNames> = product_names

@@ -1,19 +1,12 @@
+mod gapped_rail_strokes;
+mod labeled_column_drawing;
 mod timeline_layout;
 mod vertical_scale;
 
 use std::time::Duration;
 
 use iced::{
-    Color, Element, Length, Point, Rectangle, Renderer, Size, Theme,
-    advanced::svg::Svg,
-    alignment::Vertical,
-    mouse::Cursor,
-    widget::{
-        canvas,
-        canvas::{LineCap, Stroke},
-        svg,
-        text::Alignment,
-    },
+    Color, Element, Length, Point, Rectangle, Renderer, Size, Theme, mouse::Cursor, widget::canvas,
 };
 
 pub use self::timeline_layout::{
@@ -21,16 +14,13 @@ pub use self::timeline_layout::{
     TimelineScale, TimelineSpan,
 };
 use self::{
-    timeline_layout::{
-        PixelRun, center_inside, estimated_text_width, glyphs_merged_by_time, marks_in_time_order,
-        runs_around_gaps,
+    gapped_rail_strokes::{
+        RailGeometry, RailOrientation, draw_glyph_sized, ink_color, padded_gaps, rail_stroke,
     },
+    timeline_layout::{PixelRun, center_inside, glyphs_merged_by_time, marks_in_time_order},
     vertical_scale::{VerticalMetrics, VerticalScale},
 };
-use crate::theming::{
-    LINE_HEIGHT, TextFace, background_strong_color, danger_color, primary_color,
-    secondary_text_color, text_color, warning_color,
-};
+use crate::theming::{TextFace, background_strong_color, text_color};
 
 const COMPACT_TEXT_ROWS: f32 = 1.2;
 const THIN_STROKE_PX: f32 = 2.5;
@@ -137,53 +127,6 @@ impl DurationTimeline {
             .width(width)
             .height(Length::Fixed(height))
             .into()
-    }
-
-    fn column_layout(&self) -> ColumnLayout {
-        let size_px = self.label_face.size_px;
-        let widest_text = |shape_filter: fn(&MarkShape) -> bool,
-                           text_of: fn(&TimelineMark) -> String| {
-            self.marks
-                .iter()
-                .filter(|mark| shape_filter(&mark.shape))
-                .map(|mark| estimated_text_width(&text_of(mark), size_px))
-                .fold(0.0, f32::max)
-        };
-        let is_event = |shape: &MarkShape| *shape == MarkShape::PointEvent;
-        let is_interval = |shape: &MarkShape| matches!(shape, MarkShape::Interval { .. });
-        let time_column_width = widest_text(is_event, |mark| mark.time_text.clone());
-        let event_detail_x = time_column_width + COLUMN_GAP_PX;
-        let ring_extent = size_px * EVENT_RING_SCALE;
-        let event_measure_x =
-            event_detail_x + widest_text(is_event, |mark| mark.detail_text.clone());
-        let widest_measure = widest_text(is_event, |mark| mark.measure.measure_text().to_owned());
-        let event_measure_x = if widest_measure > 0.0 {
-            event_measure_x + COLUMN_GAP_PX
-        } else {
-            event_measure_x
-        };
-        let rail_x = event_measure_x + widest_measure + COLUMN_GAP_PX + ring_extent / 2.0;
-        let interval_glyph_x = rail_x + ring_extent / 2.0 + COLUMN_GAP_PX;
-        let widest_interval_glyph_run = self
-            .marks
-            .iter()
-            .filter(|mark| is_interval(&mark.shape))
-            .map(|mark| self.glyph_extent(mark.glyph_svgs.len()))
-            .fold(0.0, f32::max);
-        let interval_text_x = if widest_interval_glyph_run > 0.0 {
-            interval_glyph_x + widest_interval_glyph_run + GLYPH_GAP_PX * 2.0
-        } else {
-            interval_glyph_x
-        };
-        ColumnLayout {
-            time_column_width,
-            event_detail_x,
-            event_measure_x,
-            rail_x,
-            interval_glyph_x,
-            interval_text_x,
-            natural_width: interval_text_x + widest_text(is_interval, interval_label_text),
-        }
     }
 
     fn row_height(&self) -> f32 {
@@ -304,253 +247,6 @@ impl DurationTimeline {
                 );
             }
         }
-    }
-
-    fn draw_labeled_column(&self, frame: &mut canvas::Frame, theme: &Theme) {
-        let scale = self.vertical_scale();
-        let size_px = self.label_face.size_px;
-        let ring_radius = size_px * EVENT_RING_SCALE / 2.0;
-        let ColumnLayout {
-            time_column_width,
-            event_detail_x,
-            event_measure_x,
-            rail_x,
-            interval_glyph_x,
-            interval_text_x,
-            ..
-        } = self.column_layout();
-        let ring_runs: Vec<PixelRun> = self
-            .marks
-            .iter()
-            .zip(&scale.mark_ys)
-            .filter(|(mark, _)| mark.shape == MarkShape::PointEvent && !mark.glyph_svgs.is_empty())
-            .map(|(_, mark_y)| PixelRun {
-                start: mark_y - ring_radius,
-                end: mark_y + ring_radius,
-            })
-            .chain(scale.compressed_gap_ys.iter().map(|gap_y| PixelRun {
-                start: gap_y - COMPRESSION_TICK_PX,
-                end: gap_y + COMPRESSION_TICK_PX,
-            }))
-            .collect();
-        let rail = RailGeometry {
-            orientation: RailOrientation::Vertical { rail_x },
-            whole_run: PixelRun {
-                start: scale.top_y(),
-                end: scale.bottom_y(),
-            },
-            gaps: padded_gaps(&ring_runs),
-        };
-        self.draw_spans_along(frame, theme, &rail, |offset| {
-            scale.vertical_position_at(offset)
-        });
-        for gap_y in &scale.compressed_gap_ys {
-            for tick_offset in [-COMPRESSION_TICK_PX, COMPRESSION_TICK_PX] {
-                frame.stroke(
-                    &canvas::Path::line(
-                        Point::new(rail_x - COMPRESSION_TICK_PX, gap_y + tick_offset + 2.0),
-                        Point::new(rail_x + COMPRESSION_TICK_PX, gap_y + tick_offset - 2.0),
-                    ),
-                    rail_stroke(secondary_text_color(theme), THIN_STROKE_PX / 2.0),
-                );
-            }
-        }
-        for (mark, mark_y) in self.marks.iter().zip(&scale.mark_ys) {
-            let mark_color = ink_color(mark.ink, theme);
-            match mark.shape {
-                MarkShape::PointEvent => {
-                    self.draw_event_ring(frame, mark, Point::new(rail_x, *mark_y), mark_color);
-                    frame.fill_text(self.label_text(
-                        &mark.time_text,
-                        Point::new(time_column_width, *mark_y),
-                        Alignment::Right,
-                        secondary_text_color(theme),
-                    ));
-                    frame.fill_text(self.label_text(
-                        &mark.detail_text,
-                        Point::new(event_detail_x, *mark_y),
-                        Alignment::Left,
-                        text_color(theme),
-                    ));
-                    if let MarkMeasure::Measured(measure_text) = &mark.measure {
-                        frame.fill_text(self.label_text(
-                            measure_text,
-                            Point::new(event_measure_x, *mark_y),
-                            Alignment::Left,
-                            secondary_text_color(theme),
-                        ));
-                    }
-                }
-                MarkShape::Interval { .. } => {
-                    let faint_color = secondary_text_color(theme);
-                    for (glyph_index, glyph_svg) in mark.glyph_svgs.iter().enumerate() {
-                        #[expect(
-                            clippy::cast_precision_loss,
-                            reason = "a mark joins a handful of glyphs"
-                        )]
-                        let glyph_center_x = interval_glyph_x
-                            + size_px / 2.0
-                            + glyph_index as f32 * (size_px + GLYPH_GAP_PX);
-                        self.draw_glyph(
-                            frame,
-                            glyph_svg,
-                            Point::new(glyph_center_x, *mark_y),
-                            faint_color,
-                        );
-                    }
-                    frame.fill_text(self.label_text(
-                        &interval_label_text(mark),
-                        Point::new(interval_text_x, *mark_y),
-                        Alignment::Left,
-                        faint_color,
-                    ));
-                }
-            }
-        }
-    }
-
-    fn draw_event_ring(
-        &self,
-        frame: &mut canvas::Frame,
-        mark: &TimelineMark,
-        center: Point,
-        color: Color,
-    ) {
-        let Some(first_glyph) = mark.glyph_svgs.first() else {
-            return;
-        };
-        let size_px = self.label_face.size_px;
-        frame.stroke(
-            &canvas::Path::circle(
-                center,
-                size_px * EVENT_RING_SCALE / 2.0 - THIN_STROKE_PX / 2.0,
-            ),
-            Stroke::default()
-                .with_color(color)
-                .with_width(THIN_STROKE_PX / 1.5),
-        );
-        draw_glyph_sized(
-            frame,
-            first_glyph,
-            center,
-            color,
-            size_px * EVENT_GLYPH_SCALE,
-        );
-    }
-
-    fn label_text(
-        &self,
-        content: &str,
-        anchor: Point,
-        align_x: Alignment,
-        color: Color,
-    ) -> canvas::Text {
-        canvas::Text {
-            content: content.to_owned(),
-            position: anchor,
-            color,
-            size: self.label_face.size_px.into(),
-            line_height: LINE_HEIGHT,
-            font: self.label_face.font,
-            align_x,
-            align_y: Vertical::Center,
-            ..canvas::Text::default()
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct ColumnLayout {
-    time_column_width: f32,
-    event_detail_x: f32,
-    event_measure_x: f32,
-    rail_x: f32,
-    interval_glyph_x: f32,
-    interval_text_x: f32,
-    natural_width: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum RailOrientation {
-    Horizontal { rail_y: f32 },
-    Vertical { rail_x: f32 },
-}
-
-struct RailGeometry {
-    orientation: RailOrientation,
-    whole_run: PixelRun,
-    gaps: Vec<PixelRun>,
-}
-
-impl RailGeometry {
-    fn point_at(&self, along: f32) -> Point {
-        match self.orientation {
-            RailOrientation::Horizontal { rail_y } => Point::new(along, rail_y),
-            RailOrientation::Vertical { rail_x } => Point::new(rail_x, along),
-        }
-    }
-
-    fn stroke_gapped(&self, frame: &mut canvas::Frame, run: PixelRun, stroke: Stroke<'static>) {
-        let ascending_run = PixelRun {
-            start: run.start.min(run.end),
-            end: run.start.max(run.end),
-        };
-        for visible_run in runs_around_gaps(ascending_run, &self.gaps) {
-            frame.stroke(
-                &canvas::Path::line(
-                    self.point_at(visible_run.start),
-                    self.point_at(visible_run.end),
-                ),
-                stroke,
-            );
-        }
-    }
-}
-
-fn draw_glyph_sized(
-    frame: &mut canvas::Frame,
-    glyph_svg: &'static [u8],
-    center: Point,
-    color: Color,
-    size_px: f32,
-) {
-    frame.draw_svg(
-        Rectangle::new(
-            Point::new(center.x - size_px / 2.0, center.y - size_px / 2.0),
-            Size::new(size_px, size_px),
-        ),
-        Svg::new(svg::Handle::from_memory(glyph_svg)).color(color),
-    );
-}
-
-fn interval_label_text(mark: &TimelineMark) -> String {
-    mark.detail_text.clone()
-}
-
-fn padded_gaps(glyph_runs: &[PixelRun]) -> Vec<PixelRun> {
-    glyph_runs
-        .iter()
-        .map(|glyph_run| PixelRun {
-            start: glyph_run.start - GLYPH_CLEARANCE_PX,
-            end: glyph_run.end + GLYPH_CLEARANCE_PX,
-        })
-        .collect()
-}
-
-fn rail_stroke(color: Color, width: f32) -> Stroke<'static> {
-    Stroke::default()
-        .with_color(color)
-        .with_width(width)
-        .with_line_cap(LineCap::Butt)
-}
-
-fn ink_color(ink: SpanInk, theme: &Theme) -> Color {
-    match ink {
-        SpanInk::Faint => background_strong_color(theme),
-        SpanInk::Strong => secondary_text_color(theme),
-        SpanInk::Accent => primary_color(theme),
-        SpanInk::Warning => warning_color(theme),
-        SpanInk::Critical => danger_color(theme),
     }
 }
 

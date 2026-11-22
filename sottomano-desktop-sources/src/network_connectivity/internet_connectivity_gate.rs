@@ -39,7 +39,11 @@ impl Display for InternetUnreachable {
             }
             Self::Connecting(UplinkIdentity::Unnamed) => write!(formatter, "connecting"),
             Self::CaptivePortal(UplinkIdentity::Named(uplink)) => {
-                write!(formatter, "{} asks for a portal login", described_uplink(uplink))
+                write!(
+                    formatter,
+                    "{} asks for a portal login",
+                    described_uplink(uplink)
+                )
             }
             Self::CaptivePortal(UplinkIdentity::Unnamed) => {
                 write!(formatter, "the network asks for a portal login")

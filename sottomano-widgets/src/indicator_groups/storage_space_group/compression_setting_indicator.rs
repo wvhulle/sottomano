@@ -1,7 +1,8 @@
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
-    bcachefs_filesystem_space::BcachefsSpace, block_filesystem_mounts::Compression,
+    bcachefs_filesystem_space::BcachefsSpace,
+    block_filesystem_mounts::mount_compression_options::Compression,
 };
 
 use crate::{

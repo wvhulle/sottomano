@@ -6,8 +6,9 @@ use sottomano_desktop_sources::desktop_windows_apps::{
 use sottomano_toml_config::screen_edges::Position;
 
 use super::{
-    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, focused_by_wheel,
-    order_restore, shown_workspaces,
+    WorkspacesMessage, dragged,
+    empty_workspace_folding::{EmptyWorkspaceFolding, shown_workspaces},
+    empty_workspaces_toggle, focused_by_wheel, order_restore,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },

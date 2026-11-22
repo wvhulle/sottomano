@@ -32,7 +32,10 @@ use sottomano_desktop_sources::{
     theme_icons::icon_requests::IconRequest,
 };
 use sottomano_toml_config::{Config, severity::Severity};
-use toast_card::{CardBadge, CardIcon, CardImage, ToastCard};
+use toast_card::{
+    ToastCard,
+    toast_card_icons::{CardBadge, CardIcon, CardImage},
+};
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, ToastKind, ToastPresence};
 use toast_placement::{AnchoredToast, ToastAnchor};

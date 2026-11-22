@@ -1,22 +1,8 @@
-use std::{collections::HashMap, ops::ControlFlow};
-
-use corredo::theming::{background_color, primary_color, secondary_text_color, success_color};
-use iced::{
-    Color, Element, Font, Length, Padding, Theme, border,
-    widget::{Column, Row, container, stack, text},
-};
-use iced_controller_diagram::ControllerArtwork;
-use sottomano_compositor_model::{
-    compositor_styling_model::AppWindowLayout,
-    compositor_window_facts::{TileViewPosition, WindowFocus, WorkspaceName},
-    compositor_window_state::CompositorWindowState,
-};
+use iced::Element;
+use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::{
-        configured_workspace_order::ConfiguredWorkspaces, desktop_entries::DesktopEntries,
-        workspace_window_snapshot::Snapshot,
-    },
+    desktop_windows_apps::desktop_entries::DesktopEntries,
 };
 use sottomano_toml_config::{
     Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,
@@ -24,116 +10,55 @@ use sottomano_toml_config::{
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMenu,
     clock::Clock,
-    desktop_panels::{panel_frame::inward_outlined_sides, panel_slot_drag::PanelSlotContext},
     group_indicators::group_indicator::HoverFetch,
-    group_menus::group_menu_state::GroupMenuState,
     hover_cards::{
-        CardHeader, HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+        CardHeader, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
     },
-    icon_catalog::{
-        drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
-    },
+    icon_catalog::drawable_icon_catalog::IconCatalog,
     indicator_groups::{
-        appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
-        apptainer_containers_group::ApptainerContainersGroup,
-        audio_group::AudioGroup,
-        caldav_group::CaldavGroup,
-        cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
-        ci_runs_group::CiRunsGroup,
-        claude_usage_group::ClaudeUsageGroup,
-        compositor_styling_group::CompositorStylingGroup,
-        compute_group::ComputeGroup,
-        docker_engines_group::DockerEnginesGroup,
-        flatpak_sandboxes_group::FlatpakSandboxesGroup,
-        gamepad_group::GamepadGroup,
-        idle_pause_groups::IdlePauseGroups,
-        incus_instances_group::IncusInstancesGroup,
-        indicator_group_content::IndicatorGroupContent,
-        indicator_group_interaction::IndicatorGroupInteraction,
-        login_session_group::LoginSessionGroup,
-        lxc_containers_group::LxcContainersGroup,
-        media_group::MediaGroup,
-        memory_board_group::MemoryBoardGroup,
-        microvm_guests_group::MicrovmGuestsGroup,
-        nspawn_containers_group::NspawnContainersGroup,
-        overlay_settings_group::OverlaySettingsGroup,
-        panel_settings_group::PanelSettingsGroup,
-        podman_engines_group::PodmanEnginesGroup,
-        session_focus_group::SessionFocusGroup,
-        sidebar_settings_group::SidebarSettingsGroup,
-        tailnet_group::TailnetGroup,
+        appearance_presets_group::AppearancePresetsGroup,
+        apptainer_containers_group::ApptainerContainersGroup, audio_group::AudioGroup,
+        caldav_group::CaldavGroup, cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
+        ci_runs_group::CiRunsGroup, claude_usage_group::ClaudeUsageGroup,
+        compute_group::ComputeGroup, docker_engines_group::DockerEnginesGroup,
+        flatpak_sandboxes_group::FlatpakSandboxesGroup, gamepad_group::GamepadGroup,
+        idle_pause_groups::IdlePauseGroups, incus_instances_group::IncusInstancesGroup,
+        indicator_group_content::IndicatorGroupContent, login_session_group::LoginSessionGroup,
+        lxc_containers_group::LxcContainersGroup, media_group::MediaGroup,
+        memory_board_group::MemoryBoardGroup, microvm_guests_group::MicrovmGuestsGroup,
+        nspawn_containers_group::NspawnContainersGroup, podman_engines_group::PodmanEnginesGroup,
+        session_focus_group::SessionFocusGroup, tailnet_group::TailnetGroup,
         virtual_machines_group::VirtualMachinesGroup,
         virtualbox_machines_group::VirtualBoxMachinesGroup,
-        vmware_machines_group::VmwareMachinesGroup,
-        voice_dictation_group::VoiceDictationGroup,
-        wallpaper_group::WallpaperGroup,
-        waydroid_container_group::WaydroidContainerGroup,
-        weather_group::WeatherGroup,
-        window_group::{
-            WindowGroup, WindowInspection, WindowRowLayout, WindowTarget, WindowTitleLength,
-        },
+        vmware_machines_group::VmwareMachinesGroup, voice_dictation_group::VoiceDictationGroup,
+        wallpaper_group::WallpaperGroup, waydroid_container_group::WaydroidContainerGroup,
+        weather_group::WeatherGroup, window_group::WindowInspection,
         wireguard_tunnels_group::WireguardTunnelsGroup,
-        workspaces_group::{
-            EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
-            workspace_hover_card,
-        },
     },
-    widgets::{
-        appearance_presets::{AppearancePreset, ShellAppearance},
-        pointer_drag::{DragActivity, DragView},
-    },
+    widgets::appearance_presets::{AppearancePreset, ShellAppearance},
 };
 
 use crate::{
-    fixtures::{desktop_session, hover_fetch_replies},
+    fixtures::{desktop_session::terminal_hover_inspection, hover_fetch_replies},
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
-    showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
+    showcased_group::{
+        showcased_desktop_session::ShowcasedDesktopSession,
+        showcased_shell_settings::ShowcasedShellSettings, showcased_toasts::ShowcasedToasts,
+    },
 };
 
-pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
-const TERMINAL_PADDING_PX: f32 = 10.0;
-const WINDOW_CORNER_RADIUS_PX: f32 = 8.0;
-const FOCUS_RING_WIDTH_PX: f32 = 3.0;
+mod group_indicator_contents;
+mod group_interactions;
+mod group_message_updates;
+pub mod showcased_desktop_session;
+pub mod showcased_shell_settings;
+pub mod showcased_toasts;
 
-fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
-    snapshot
-        .workspaces_for_output(SHOWCASE_OUTPUT)
-        .iter()
-        .filter_map(|indicator| match &indicator.name {
-            WorkspaceName::Named(name) => Some(name.clone()),
-            WorkspaceName::Unnamed => None,
-        })
-        .collect()
-}
+pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
 
 #[must_use]
 pub fn recorded_look() -> ShellAppearance {
     AppearancePreset::ClearDark.applied_to(ShellAppearance::default())
-}
-
-fn undragged_slot_context(
-    config: &Config,
-    edge: Position,
-    clock: Clock,
-    window_row_layout: WindowRowLayout,
-) -> PanelSlotContext<'_> {
-    let panel_appearance = recorded_look().panels;
-    PanelSlotContext {
-        config,
-        edge,
-        drag: DragView {
-            drag: DragActivity::Idle,
-            ghost_frame: panel_appearance.frame,
-        },
-        clock,
-        panel_corner_radius_px: panel_appearance.frame.corner_radius_px,
-        panel_float_offset_px: 0.0,
-        compositor_window_gaps_px: 0.0,
-        panel_frame_style: panel_appearance.frame,
-        window_row_layout,
-        window_title_length: WindowTitleLength::default(),
-    }
 }
 
 pub enum ShowcasedGroup {
@@ -180,44 +105,6 @@ pub struct ShowcasedAppearancePresets {
     pub appearance: ShellAppearance,
 }
 
-pub struct ShowcasedShellSettings {
-    pub panels: PanelSettingsGroup,
-    pub sidebar: SidebarSettingsGroup,
-    pub overlays: OverlaySettingsGroup,
-    pub menus: GroupMenuState,
-    pub compositor_styling: CompositorStylingGroup,
-    pub shown_items: ShownSettingItems,
-}
-
-#[derive(Clone, Copy)]
-pub enum ShownSettingItems {
-    SharingAUnit,
-    Remaining,
-}
-
-impl ShowcasedShellSettings {
-    fn group_contents<'view>(
-        &'view self,
-        config: &'view Config,
-    ) -> Vec<IndicatorGroupContent<'view>> {
-        let inert_settings = [
-            self.panels.group_content(config),
-            self.sidebar.group_content(config),
-            self.overlays.group_content(config),
-            self.compositor_styling.group_content(config),
-            self.menus.settings_content(config),
-        ];
-        match self.shown_items {
-            ShownSettingItems::SharingAUnit => inert_settings
-                .map(IndicatorGroupContent::only_aligned_indicators)
-                .into(),
-            ShownSettingItems::Remaining => inert_settings
-                .map(IndicatorGroupContent::only_unaligned_indicators)
-                .into(),
-        }
-    }
-}
-
 pub struct ShowcasedAppLauncher {
     pub group: AppLauncherMenu,
     pub icon_catalog: IconCatalog,
@@ -228,196 +115,9 @@ pub struct ShowcasedGamepad {
     pub bindings: GamepadBindingsConfig,
 }
 
-pub struct ShowcasedToasts {
-    pub compositor: CompositorWindowState,
-    pub opening: Vec<NotificationData>,
-    pub terminal_scrollback: &'static [TerminalLine],
-}
-
-pub enum TerminalLine {
-    Prompt {
-        directory: &'static str,
-        command: &'static str,
-    },
-    Status {
-        verb: &'static str,
-        detail: &'static str,
-    },
-}
-
-impl TerminalLine {
-    fn view<'view>(&self) -> Element<'view, ShowcaseInteraction> {
-        match self {
-            TerminalLine::Prompt { directory, command } => {
-                terminal_row(directory, primary_color, command)
-            }
-            TerminalLine::Status { verb, detail } => terminal_row(verb, success_color, detail),
-        }
-    }
-}
-
-fn terminal_row<'view>(
-    lead: &'static str,
-    lead_color: fn(&Theme) -> Color,
-    rest: &'static str,
-) -> Element<'view, ShowcaseInteraction> {
-    Row::with_children([
-        text(lead)
-            .font(Font::MONOSPACE)
-            .style(move |theme| text::Style {
-                color: Some(lead_color(theme)),
-            })
-            .into(),
-        text(rest).font(Font::MONOSPACE).style(text::base).into(),
-    ])
-    .into()
-}
-
-impl ShowcasedToasts {
-    fn window_frames(&self) -> Element<'_, ShowcaseInteraction> {
-        let frames = self.compositor.windows.values().filter_map(|window| {
-            let TileViewPosition::InView {
-                horizontal,
-                vertical,
-            } = window.layout.tile_position_in_view
-            else {
-                return None;
-            };
-            let (width, height) = window.layout.window_size;
-            let focus_ring: fn(&Theme) -> Color = match window.focus {
-                WindowFocus::Focused => primary_color,
-                WindowFocus::Unfocused => secondary_text_color,
-            };
-            let scrollback =
-                Column::with_children(self.terminal_scrollback.iter().map(TerminalLine::view));
-            let frame = container(scrollback)
-                .padding(TERMINAL_PADDING_PX)
-                .width(Length::Fixed(f32::from(
-                    u16::try_from(width).expect("fixture window widths fit in u16"),
-                )))
-                .height(Length::Fixed(f32::from(
-                    u16::try_from(height).expect("fixture window heights fit in u16"),
-                )))
-                .style(move |theme| container::Style {
-                    background: Some(background_color(theme).into()),
-                    border: border::rounded(WINDOW_CORNER_RADIUS_PX)
-                        .color(focus_ring(theme))
-                        .width(FOCUS_RING_WIDTH_PX),
-                    ..container::Style::default()
-                });
-            Some(
-                container(frame)
-                    .padding(Padding::ZERO.top(vertical as f32).left(horizontal as f32))
-                    .into(),
-            )
-        });
-        stack(frames).into()
-    }
-}
-
 pub struct ShowcasedMedia {
     pub group: MediaGroup,
     pub desktop_entries: DesktopEntries,
-}
-
-pub struct ShowcasedDesktopSession {
-    pub window_group: WindowGroup,
-    pub window_row_layout: WindowRowLayout,
-    pub compositor: CompositorWindowState,
-    pub snapshot: Snapshot,
-    pub icon_catalog: IconCatalog,
-    pub desktop_entries: DesktopEntries,
-    pub favicons: Favicons,
-    pub controller_artwork: ControllerArtwork,
-}
-
-impl ShowcasedDesktopSession {
-    fn sidebar_groups<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> Vec<Element<'view, ShowcaseInteraction>> {
-        sidebar_column::vertical_view(
-            &self.snapshot,
-            SHOWCASE_OUTPUT,
-            Some(&configured_in_fixture_order(&self.snapshot)),
-            &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            recorded_look().sidebar.frame.drawn_corners(
-                inward_outlined_sides(Position::Left).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
-            ),
-            undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
-        )
-        .map(|workspaces| workspaces.map(ShowcaseInteraction::from))
-        .into_iter()
-        .collect()
-    }
-
-    fn workspaces_and_windows<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> Vec<Element<'view, ShowcaseInteraction>> {
-        let snapshot = &self.snapshot;
-        let workspaces = inline_strip::inline_view(
-            snapshot,
-            SHOWCASE_OUTPUT,
-            Some(&configured_in_fixture_order(snapshot)),
-            &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
-        )
-        .map(|workspaces| workspaces.map(ShowcaseInteraction::from));
-        let windows = self
-            .window_group
-            .view(
-                snapshot,
-                WindowAssets {
-                    icon_catalog: &self.icon_catalog,
-                    desktop_entries: &self.desktop_entries,
-                    favicons: &self.favicons,
-                    controller_artwork: &self.controller_artwork,
-                },
-                None,
-                SHOWCASE_OUTPUT,
-                undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
-            )
-            .map(|element| element.map(ShowcaseInteraction::from));
-        workspaces.into_iter().chain(windows).collect()
-    }
-
-    fn standalone_hover_card(
-        &self,
-        target: &HoverTarget,
-        config: &Config,
-        clock: Clock,
-    ) -> Vec<Section> {
-        let silent_windows = HashMap::new();
-        let window_press_actions = |window: u64| {
-            self.window_group
-                .window_press_actions(&self.snapshot, &silent_windows, window, config)
-        };
-        match target {
-            HoverTarget::Window(WindowTarget::Usage(window)) => {
-                WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
-                    .into_iter()
-                    .chain(Section::press_actions(window_press_actions(*window)))
-                    .collect()
-            }
-            HoverTarget::Window(WindowTarget::Inspect(window)) => self
-                .window_group
-                .window_list
-                .process_sections()
-                .into_iter()
-                .chain(Section::press_actions(window_press_actions(*window)))
-                .collect(),
-            HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
-                &self.snapshot,
-                &self.icon_catalog,
-                AppWindowLayout::default(),
-                *workspace,
-            ),
-            _ => Vec::new(),
-        }
-    }
 }
 
 impl ShowcasedGroup {
@@ -483,81 +183,6 @@ impl ShowcasedGroup {
         }
     }
 
-    fn interactive_group_contents<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'view>> {
-        let locale = config.calendar.locale;
-        let sole_group = match self {
-            ShowcasedGroup::Compute(group) => group.group_content(clock, locale),
-            ShowcasedGroup::MemoryBoard(group) => group.group_content(locale),
-            ShowcasedGroup::Weather(group) => group.group_content(config, clock),
-            ShowcasedGroup::ClaudeUsage(group) => group.group_content(clock),
-            ShowcasedGroup::Wallpaper(group) => group.group_content(),
-            ShowcasedGroup::Audio(group) => group.group_content(config),
-            ShowcasedGroup::VoiceDictation(group) => group.group_content(),
-            ShowcasedGroup::Caldav(group) => {
-                group.group_content(&config.indicator_groups.caldav, clock, locale)
-            }
-            ShowcasedGroup::Tailnet(group) => group.group_content(clock),
-            ShowcasedGroup::WireguardTunnels(group) => group.group_content(),
-            ShowcasedGroup::LoginSession(group) => group.group_content(),
-            ShowcasedGroup::SessionFocus(group) => group.group_content(config, clock),
-            ShowcasedGroup::AppearancePresets(presets) => {
-                presets.group.group_content(&presets.appearance)
-            }
-            listed_group => return listed_group.listed_group_contents(config, clock),
-        };
-        vec![sole_group]
-    }
-
-    fn listed_group_contents<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'view>> {
-        match self {
-            ShowcasedGroup::Media(media) => media
-                .group
-                .group_contents(config, &media.desktop_entries, clock)
-                .collect(),
-            ShowcasedGroup::IdleTimeouts(group) => vec![group.idle_chain_group(config, clock)],
-            ShowcasedGroup::Gamepad(gamepad) => gamepad
-                .group
-                .group_contents(&gamepad.bindings)
-                .into_iter()
-                .collect(),
-            guest_group => guest_group.guest_group_contents(config, clock),
-        }
-    }
-
-    fn guest_group_contents<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> Vec<IndicatorGroupContent<'view>> {
-        let locale = config.calendar.locale;
-        let guest_group = match self {
-            ShowcasedGroup::PodmanEngines(group) => group.group_content(),
-            ShowcasedGroup::VirtualMachines(group) => group.group_content(),
-            ShowcasedGroup::NspawnContainers(group) => group.group_content(),
-            ShowcasedGroup::DockerEngines(group) => group.group_content(),
-            ShowcasedGroup::ApptainerContainers(group) => group.group_content(),
-            ShowcasedGroup::VmwareMachines(group) => group.group_content(),
-            ShowcasedGroup::VirtualBoxMachines(group) => group.group_content(),
-            ShowcasedGroup::WaydroidContainer(group) => group.group_content(),
-            ShowcasedGroup::FlatpakSandboxes(group) => group.group_content(),
-            ShowcasedGroup::LxcContainers(group) => group.group_content(),
-            ShowcasedGroup::IncusInstances(group) => group.group_content(),
-            ShowcasedGroup::MicrovmGuests(group) => group.group_content(),
-            ShowcasedGroup::CgroupMemoryLimits(group) => group.group_content(config),
-            ShowcasedGroup::CiRuns(group) => group.group_content(clock, locale),
-            _ => return Vec::new(),
-        };
-        vec![guest_group]
-    }
-
     pub fn panel_groups<'view>(
         &'view self,
         config: &'view Config,
@@ -576,372 +201,6 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn update(
-        &mut self,
-        message: ShowcaseMessage,
-        clock: Clock,
-    ) -> Result<(), Box<ShowcaseMessage>> {
-        match (self, message) {
-            (ShowcasedGroup::Compute(group), ShowcaseMessage::Compute(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::MemoryBoard(group), ShowcaseMessage::MemoryBoard(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Weather(group), ShowcaseMessage::Weather(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::ClaudeUsage(group), ShowcaseMessage::ClaudeUsage(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Media(media), ShowcaseMessage::Media(delivery)) => {
-                let _ = media.group.update(delivery, clock);
-            }
-            (ShowcasedGroup::IdleTimeouts(group), ShowcaseMessage::IdleTimeouts(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Wallpaper(group), ShowcaseMessage::Wallpaper(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Audio(group), ShowcaseMessage::Audio(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Gamepad(gamepad), ShowcaseMessage::Gamepad(delivery)) => {
-                let _ = gamepad.group.update(delivery, &gamepad.bindings);
-            }
-            (ShowcasedGroup::VoiceDictation(group), ShowcaseMessage::VoiceDictation(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Caldav(group), ShowcaseMessage::Caldav(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::WireguardTunnels(group),
-                ShowcaseMessage::WireguardTunnels(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::Tailnet(group), ShowcaseMessage::Tailnet(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::LoginSession(group), ShowcaseMessage::LoginSession(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
-                ShowcaseMessage::WindowGroup(delivery),
-            ) => {
-                let _ = session.window_group.update(delivery, clock);
-            }
-            (ShowcasedGroup::MenuMembers(groups), unclaimed) => {
-                return groups
-                    .iter_mut()
-                    .try_fold(unclaimed, |unclaimed, member| {
-                        match member.update(unclaimed, clock) {
-                            Ok(()) => ControlFlow::Break(()),
-                            Err(still_unclaimed) => ControlFlow::Continue(*still_unclaimed),
-                        }
-                    })
-                    .continue_value()
-                    .map_or(Ok(()), |unclaimed| Err(Box::new(unclaimed)));
-            }
-            (guest_group, unclaimed) => return guest_group.update_guest_group(unclaimed, clock),
-        }
-        Ok(())
-    }
-
-    fn update_guest_group(
-        &mut self,
-        message: ShowcaseMessage,
-        clock: Clock,
-    ) -> Result<(), Box<ShowcaseMessage>> {
-        match (self, message) {
-            (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::VirtualMachines(group),
-                ShowcaseMessage::VirtualMachines(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::NspawnContainers(group),
-                ShowcaseMessage::NspawnContainers(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::CiRuns(group), ShowcaseMessage::CiRuns(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::DockerEngines(group), ShowcaseMessage::DockerEngines(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::ApptainerContainers(group),
-                ShowcaseMessage::ApptainerContainers(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::VmwareMachines(group), ShowcaseMessage::VmwareMachines(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::VirtualBoxMachines(group),
-                ShowcaseMessage::VirtualBoxMachines(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::WaydroidContainer(group),
-                ShowcaseMessage::WaydroidContainer(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::FlatpakSandboxes(group),
-                ShowcaseMessage::FlatpakSandboxes(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::LxcContainers(group), ShowcaseMessage::LxcContainers(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::IncusInstances(group), ShowcaseMessage::IncusInstances(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (ShowcasedGroup::MicrovmGuests(group), ShowcaseMessage::MicrovmGuests(delivery)) => {
-                let _ = group.update(delivery, clock);
-            }
-            (
-                ShowcasedGroup::CgroupMemoryLimits(group),
-                ShowcaseMessage::CgroupMemoryLimits(delivery),
-            ) => {
-                let _ = group.update(delivery, clock);
-            }
-            (_, unclaimed) => return Err(Box::new(unclaimed)),
-        }
-        Ok(())
-    }
-
-    pub fn interact(
-        &mut self,
-        group_interaction: IndicatorGroupInteraction,
-        config: &Config,
-        clock: Clock,
-    ) -> Result<(), Box<IndicatorGroupInteraction>> {
-        match (self, group_interaction) {
-            (
-                ShowcasedGroup::AppLauncher(launcher),
-                IndicatorGroupInteraction::AppLauncher(launcher_message),
-            ) => {
-                let _ = launcher.group.update(launcher_message, config);
-            }
-            (ShowcasedGroup::Compute(group), IndicatorGroupInteraction::Compute(interaction)) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (
-                ShowcasedGroup::MemoryBoard(group),
-                IndicatorGroupInteraction::MemoryBoard(interaction),
-            ) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (ShowcasedGroup::Weather(group), IndicatorGroupInteraction::Weather(interaction)) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::ClaudeUsage(group),
-                IndicatorGroupInteraction::ClaudeUsage(interaction),
-            ) => {
-                let _ = group.interact(interaction, config);
-            }
-            (ShowcasedGroup::Media(media), IndicatorGroupInteraction::Media(interaction)) => {
-                let _ = media.group.interact(interaction, clock);
-            }
-            (
-                ShowcasedGroup::IdleTimeouts(group),
-                IndicatorGroupInteraction::IdleTimeouts(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (ShowcasedGroup::Wallpaper(group), IndicatorGroupInteraction::Wallpaper(expansion)) => {
-                let _ = group.interact(expansion);
-            }
-            (ShowcasedGroup::Audio(group), IndicatorGroupInteraction::Audio(message)) => {
-                let _ = group.update(message, clock);
-            }
-            (ShowcasedGroup::Gamepad(gamepad), IndicatorGroupInteraction::Gamepad(interaction)) => {
-                let _ = gamepad.group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::VoiceDictation(group),
-                IndicatorGroupInteraction::VoiceDictation(interaction),
-            ) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (ShowcasedGroup::Caldav(group), IndicatorGroupInteraction::Caldav(expansion)) => {
-                let _ = group.interact(expansion);
-            }
-            (
-                ShowcasedGroup::WireguardTunnels(group),
-                IndicatorGroupInteraction::WireguardTunnels(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (ShowcasedGroup::Tailnet(group), IndicatorGroupInteraction::Tailnet(interaction)) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (
-                ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
-                IndicatorGroupInteraction::WindowGroup(interaction),
-            ) => {
-                let _ = session.window_group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::AppearancePresets(presets),
-                IndicatorGroupInteraction::AppearancePresets(presets_message),
-            ) => match presets_message {
-                AppearancePresetsMessage::Apply(preset) => {
-                    presets.appearance = preset.applied_to(presets.appearance);
-                }
-                AppearancePresetsMessage::Expansion(expansion) => {
-                    presets.group.update_expansion(expansion);
-                }
-            },
-            (ShowcasedGroup::MenuMembers(groups), unclaimed) => {
-                return groups
-                    .iter_mut()
-                    .try_fold(unclaimed, |unclaimed, member| {
-                        match member.interact(unclaimed, config, clock) {
-                            Ok(()) => ControlFlow::Break(()),
-                            Err(still_unclaimed) => ControlFlow::Continue(*still_unclaimed),
-                        }
-                    })
-                    .continue_value()
-                    .map_or(Ok(()), |unclaimed| Err(Box::new(unclaimed)));
-            }
-            (other_group, unclaimed) => {
-                return other_group.interact_session_groups(unclaimed, config, clock);
-            }
-        }
-        Ok(())
-    }
-
-    fn interact_session_groups(
-        &mut self,
-        group_interaction: IndicatorGroupInteraction,
-        config: &Config,
-        clock: Clock,
-    ) -> Result<(), Box<IndicatorGroupInteraction>> {
-        match (self, group_interaction) {
-            (
-                ShowcasedGroup::LoginSession(group),
-                IndicatorGroupInteraction::LoginSession(interaction),
-            ) => {
-                let _ = group.interact(interaction, config, clock);
-            }
-            (
-                ShowcasedGroup::SessionFocus(group),
-                IndicatorGroupInteraction::SessionFocus(message),
-            ) => {
-                let _ = group.update(message, &config.indicator_groups.session_focus, clock);
-            }
-            (guest_group, unclaimed) => return guest_group.interact_guest_group(unclaimed),
-        }
-        Ok(())
-    }
-
-    fn interact_guest_group(
-        &mut self,
-        group_interaction: IndicatorGroupInteraction,
-    ) -> Result<(), Box<IndicatorGroupInteraction>> {
-        match (self, group_interaction) {
-            (
-                ShowcasedGroup::PodmanEngines(group),
-                IndicatorGroupInteraction::PodmanEngines(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::VirtualMachines(group),
-                IndicatorGroupInteraction::VirtualMachines(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::NspawnContainers(group),
-                IndicatorGroupInteraction::NspawnContainers(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (ShowcasedGroup::CiRuns(group), IndicatorGroupInteraction::CiRuns(interaction)) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::DockerEngines(group),
-                IndicatorGroupInteraction::DockerEngines(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::ApptainerContainers(group),
-                IndicatorGroupInteraction::ApptainerContainers(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::VmwareMachines(group),
-                IndicatorGroupInteraction::VmwareMachines(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::VirtualBoxMachines(group),
-                IndicatorGroupInteraction::VirtualBoxMachines(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::WaydroidContainer(group),
-                IndicatorGroupInteraction::WaydroidContainer(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::FlatpakSandboxes(group),
-                IndicatorGroupInteraction::FlatpakSandboxes(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::LxcContainers(group),
-                IndicatorGroupInteraction::LxcContainers(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::IncusInstances(group),
-                IndicatorGroupInteraction::IncusInstances(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::MicrovmGuests(group),
-                IndicatorGroupInteraction::MicrovmGuests(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (
-                ShowcasedGroup::CgroupMemoryLimits(group),
-                IndicatorGroupInteraction::CgroupMemoryLimits(interaction),
-            ) => {
-                let _ = group.interact(interaction);
-            }
-            (_, unclaimed) => return Err(Box::new(unclaimed)),
-        }
-        Ok(())
-    }
-
     pub fn start_hovered_fetch(
         &mut self,
         target: &HoverTarget,
@@ -957,7 +216,7 @@ impl ShowcasedGroup {
                 config,
                 clock,
             );
-            return desktop_session::on_hover(target)
+            return terminal_hover_inspection::on_hover(target)
                 .into_iter()
                 .map(ShowcaseMessage::WindowGroup)
                 .collect();

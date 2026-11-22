@@ -244,7 +244,10 @@ mod tests {
     #[test]
     fn window_keeps_only_the_latest_probes() {
         let outcomes = vec![ProbeOutcome::Lost; WINDOW_PROBES + 5];
-        assert_eq!(recorded_probe_window(&outcomes).outcomes.len(), WINDOW_PROBES);
+        assert_eq!(
+            recorded_probe_window(&outcomes).outcomes.len(),
+            WINDOW_PROBES
+        );
     }
 
     #[test]

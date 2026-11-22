@@ -1,3 +1,8 @@
+#[cfg(test)]
+mod delivery_cadence_tests;
+mod periodic_polling_deliveries;
+mod snapshot_delivery_constructors;
+
 use std::{
     collections::VecDeque,
     future::{Future, ready},
@@ -7,22 +12,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Local};
 use futures::{
-    FutureExt, Stream, StreamExt, TryStreamExt,
-    stream::{self, Fuse, FusedStream},
+    Stream, StreamExt,
+    stream::{Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::time::{
-    Instant as TokioClockInstant, MissedTickBehavior, Sleep, interval, sleep, sleep_until,
-};
-use tokio_stream::wrappers::IntervalStream;
+use tokio::time::{Instant as TokioClockInstant, Sleep, sleep, sleep_until};
 
-use crate::{
-    SnapshotDelivery, SnapshotSource,
-    blocking_background_work::{Panicked, blocking_poll},
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
-};
+use crate::{SnapshotDelivery, SnapshotSource};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChangeWatchFailure {
@@ -80,11 +77,6 @@ fn uncarried_reads<ReadFuture>(
     move |()| UncarriedRead {
         read_future: read(),
     }
-}
-
-enum BlockingState<State> {
-    Unbuilt,
-    Built(State),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,8 +305,6 @@ impl<Source: SnapshotSource, DeliveryStream: Stream<Item = SnapshotDelivery<Sour
 {
 }
 
-const SHORTEST_POLL_PERIOD: Duration = Duration::from_secs(1);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PeriodicPolling {
     pub poll_period: Duration,
@@ -332,172 +322,6 @@ pub enum DeliveryCadence {
 pub enum SamplingNeed {
     KeepSampling,
     Settled,
-}
-
-impl PeriodicPolling {
-    #[must_use]
-    pub const fn every(poll_period: Duration) -> Self {
-        if poll_period.as_nanos() < SHORTEST_POLL_PERIOD.as_nanos() {
-            Self {
-                poll_period: SHORTEST_POLL_PERIOD,
-            }
-        } else {
-            Self { poll_period }
-        }
-    }
-
-    pub(crate) fn poll_ticks(self) -> impl Stream<Item = Self> + Send {
-        let mut timer = interval(self.poll_period);
-        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        IntervalStream::new(timer).map(move |_| self)
-    }
-
-    pub fn poll_deliveries<Source, PollFuture>(
-        self,
-        poll: impl Fn() -> PollFuture + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        PollFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
-    {
-        self.poll_deliveries_carrying((), uncarried_reads(poll))
-    }
-
-    fn poll_deliveries_carrying<Source, State, PollFuture>(
-        self,
-        carried_state: State,
-        poll: impl FnMut(State) -> PollFuture + Send + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        State: Send + 'static,
-        PollFuture: Future<Output = CarriedRead<State, Result<Source, Source::Error>>> + Send,
-    {
-        stream::pending::<Result<(), Source::Error>>()
-            .paced_rereads_carrying(Duration::ZERO, carried_state, poll, move |_| {
-                RereadSchedule::RecheckAt(TokioClockInstant::now().into_std() + self.poll_period)
-            })
-            .map(move |snapshot_fetch| SnapshotDelivery::SnapshotDelivered {
-                snapshot_fetch,
-                delivery_cadence: DeliveryCadence::PeriodicPolling(self),
-            })
-            .repeats_as_unchanged()
-    }
-
-    pub fn blocking_poll_deliveries_carrying<Source, State>(
-        self,
-        fresh_state: impl Fn() -> State + Send + Sync + Clone + 'static,
-        read: impl Fn(&mut State) -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        Source::Error: From<Panicked>,
-        State: Send + 'static,
-    {
-        self.poll_deliveries_carrying(BlockingState::Unbuilt, move |blocking_state| {
-            let fresh_state = fresh_state.clone();
-            let read = read.clone();
-            blocking_poll(move || {
-                let mut state = match blocking_state {
-                    BlockingState::Unbuilt => fresh_state(),
-                    BlockingState::Built(state) => state,
-                };
-                let snapshot_fetch = read(&mut state);
-                Ok(CarriedRead {
-                    carried_state: BlockingState::Built(state),
-                    snapshot_fetch,
-                })
-            })
-            .map(|blocking_read| {
-                blocking_read.unwrap_or_else(|Panicked| CarriedRead {
-                    carried_state: BlockingState::Unbuilt,
-                    snapshot_fetch: Err(Source::Error::from(Panicked)),
-                })
-            })
-        })
-    }
-
-    pub fn blocking_poll_deliveries<Source>(
-        self,
-        read: impl Fn() -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        Source::Error: From<Panicked>,
-    {
-        self.poll_deliveries(move || blocking_poll(read.clone()))
-    }
-
-    pub fn blocking_poll_deliveries_after_setup<Source, Prepared>(
-        self,
-        setup: impl Future<Output = Result<Prepared, Source::Error>> + Send,
-        read: impl Fn(Prepared) -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        Source::Error: From<Panicked>,
-        Prepared: Clone + Send + 'static,
-    {
-        self.poll_deliveries_after_setup(setup, move |prepared| {
-            let read = read.clone();
-            blocking_poll(move || read(prepared))
-        })
-    }
-
-    pub fn poll_deliveries_after_setup<Source, Prepared, PollFuture>(
-        self,
-        setup: impl Future<Output = Result<Prepared, Source::Error>> + Send,
-        poll: impl Fn(Prepared) -> PollFuture + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource + PartialEq,
-        Prepared: Clone + Send + 'static,
-        PollFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
-    {
-        stream::once(setup)
-            .map_ok(move |prepared| {
-                let poll = poll.clone();
-                self.poll_deliveries(move || poll(prepared.clone())).map(Ok)
-            })
-            .try_flatten()
-            .map(|delivery| {
-                delivery.unwrap_or_else(|failure| SnapshotDelivery::single_read(Err(failure)))
-            })
-    }
-
-    pub fn boundary_aligned_deliveries<Source: SnapshotSource>(
-        self,
-        snapshot: impl Fn() -> Source + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send {
-        stream::unfold(snapshot, move |snapshot| async move {
-            sleep(until_next_boundary(Local::now(), self.poll_period)).await;
-            let delivered = SnapshotDelivery::SnapshotDelivered {
-                snapshot_fetch: Ok(snapshot()),
-                delivery_cadence: DeliveryCadence::PeriodicPolling(self),
-            };
-            Some((delivered, snapshot))
-        })
-    }
-
-    pub fn triggered_deliveries<Source, TriggerFailure, ReadFuture>(
-        self,
-        triggers: impl Stream<Item = Result<(), TriggerFailure>> + Send + 'static,
-        read: impl FnMut() -> ReadFuture + Send + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
-    where
-        Source: SnapshotSource,
-        TriggerFailure: Into<Source::Error>,
-        ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
-    {
-        triggered_deliveries_with_recheck(
-            triggers,
-            Duration::ZERO,
-            self,
-            (),
-            uncarried_reads(read),
-            |_| SamplingNeed::KeepSampling,
-        )
-    }
 }
 
 pub fn triggered_deliveries_with_recheck<Source, State, TriggerFailure, ReadFuture>(
@@ -537,255 +361,4 @@ where
             delivery_cadence: delivery_cadence_after(&snapshot_fetch),
             snapshot_fetch,
         })
-}
-
-impl<Source: SnapshotSource> SnapshotDelivery<Source> {
-    pub fn live_push(snapshot_fetch: Result<Source, Source::Error>) -> Self {
-        SnapshotDelivery::SnapshotDelivered {
-            snapshot_fetch,
-            delivery_cadence: DeliveryCadence::LivePush,
-        }
-    }
-
-    pub fn single_read(snapshot_fetch: Result<Source, Source::Error>) -> Self {
-        SnapshotDelivery::SnapshotDelivered {
-            snapshot_fetch,
-            delivery_cadence: DeliveryCadence::SingleRead,
-        }
-    }
-
-    pub fn live_push_deliveries<ConnectInputs, ReadStream, ConnectFuture>(
-        connect_inputs: ConnectInputs,
-        connect: impl FnMut(ConnectInputs) -> ConnectFuture + Send,
-    ) -> impl Stream<Item = Self> + Send
-    where
-        ConnectInputs: Clone + Send,
-        Source: PartialEq,
-        ReadStream: Stream<Item = Result<Source, Source::Error>> + Send,
-        ConnectFuture: Future<Output = Result<ReadStream, Source::Error>> + Send,
-    {
-        subscribed(connect_inputs, connect)
-            .map(SnapshotDelivery::live_push)
-            .repeats_as_unchanged()
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn fixture_delivered(
-        snapshot_fetch: Result<Source, Source::Error>,
-        delivery_cadence: DeliveryCadence,
-    ) -> Self {
-        SnapshotDelivery::SnapshotDelivered {
-            snapshot_fetch,
-            delivery_cadence,
-        }
-    }
-
-    pub fn single_read_deliveries(
-        read: impl Future<Output = Result<Source, Source::Error>> + Send,
-    ) -> impl Stream<Item = Self> + Send {
-        stream::once(read).map(SnapshotDelivery::single_read)
-    }
-}
-
-fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
-    let secs_into = now
-        .timestamp()
-        .rem_euclid(period.as_secs().cast_signed())
-        .cast_unsigned();
-    let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
-    Duration::from_secs(period.as_secs() - secs_into)
-        .checked_sub(Duration::from_nanos(subsec_ns))
-        .expect("at least a whole second remains before the next boundary")
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fmt::{Display, Formatter, Result as FmtResult};
-
-    use chrono::TimeZone;
-    use futures::{StreamExt, channel::mpsc, future::pending, stream};
-    use tokio::time::timeout;
-
-    use super::*;
-
-    #[derive(Debug, Clone, PartialEq)]
-    struct CountedSnapshot {
-        snapshot_count: u32,
-    }
-
-    #[derive(Debug, Clone)]
-    struct NeverFails;
-
-    impl Display for NeverFails {
-        fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-            write!(formatter, "never fails")
-        }
-    }
-
-    impl SnapshotSource for CountedSnapshot {
-        type Error = NeverFails;
-        type StreamInputs = ();
-
-        const NAME: &'static str = "Counted snapshot";
-
-        fn delivery_stream(_inputs: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-            stream::empty()
-        }
-    }
-
-    fn delivered_cadence(delivery: &SnapshotDelivery<CountedSnapshot>) -> DeliveryCadence {
-        let SnapshotDelivery::SnapshotDelivered {
-            delivery_cadence, ..
-        } = delivery
-        else {
-            panic!("expected a delivered snapshot, got {delivery:?}");
-        };
-        *delivery_cadence
-    }
-
-    #[test]
-    fn a_zero_poll_period_is_raised_to_the_shortest_period() {
-        assert_eq!(
-            PeriodicPolling::every(Duration::ZERO).poll_period,
-            SHORTEST_POLL_PERIOD
-        );
-        assert_eq!(
-            PeriodicPolling::every(Duration::from_secs(5)).poll_period,
-            Duration::from_secs(5)
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn polled_deliveries_carry_their_period_and_repeats_arrive_unchanged() {
-        let polling = PeriodicPolling::every(Duration::from_secs(3));
-        let deliveries: Vec<_> = polling
-            .poll_deliveries(|| ready(Ok(CountedSnapshot { snapshot_count: 7 })))
-            .take(2)
-            .collect()
-            .await;
-        assert_eq!(
-            delivered_cadence(&deliveries[0]),
-            DeliveryCadence::PeriodicPolling(polling)
-        );
-        assert!(matches!(deliveries[1], SnapshotDelivery::SnapshotUnchanged));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn repeated_unavailability_is_never_reported_unchanged() {
-        let deliveries: Vec<SnapshotDelivery<CountedSnapshot>> = stream::iter([
-            SnapshotDelivery::SourceUnavailable,
-            SnapshotDelivery::SourceUnavailable,
-        ])
-        .repeats_as_unchanged()
-        .collect()
-        .await;
-        assert!(
-            deliveries
-                .iter()
-                .all(|delivery| matches!(delivery, SnapshotDelivery::SourceUnavailable))
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn spaced_rereads_drain_burst_triggers_and_wait_the_gap() {
-        let minimum_trigger_gap = Duration::from_mins(1);
-        let started = TokioClockInstant::now();
-        let (trigger_sender, trigger_receiver) = mpsc::unbounded::<Result<(), &'static str>>();
-        let mut read_count = 0_u32;
-        let mut rereads = Box::pin(trigger_receiver.paced_rereads(
-            minimum_trigger_gap,
-            move || {
-                read_count += 1;
-                ready(Ok::<_, &'static str>(read_count))
-            },
-            |_| RereadSchedule::WaitForTrigger,
-        ));
-        assert_eq!(rereads.next().await, Some(Ok(1)));
-        assert_eq!(started.elapsed(), Duration::ZERO);
-        trigger_sender.unbounded_send(Ok(())).unwrap();
-        trigger_sender.unbounded_send(Ok(())).unwrap();
-        assert_eq!(rereads.next().await, Some(Ok(2)));
-        assert_eq!(started.elapsed(), minimum_trigger_gap);
-        assert!(
-            timeout(minimum_trigger_gap * 10, rereads.next())
-                .await
-                .is_err()
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn triggers_drain_while_a_read_is_pending() {
-        let (trigger_sender, trigger_receiver) = mpsc::channel::<Result<(), &'static str>>(4);
-        let mut rereads =
-            Box::pin(trigger_receiver.triggered_rereads(pending::<Result<(), &'static str>>));
-        let pending_read = tokio::spawn(async move { rereads.next().await });
-        let sent_triggers = timeout(
-            Duration::from_secs(1),
-            stream::repeat(Ok(()))
-                .take(200)
-                .map(Ok)
-                .forward(trigger_sender),
-        )
-        .await;
-        pending_read.abort();
-        assert!(
-            matches!(sent_triggers, Ok(Ok(()))),
-            "triggers backed up while a read was pending"
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_trigger_failure_is_delivered_before_the_next_read() {
-        let (trigger_sender, trigger_receiver) = mpsc::unbounded::<Result<(), &'static str>>();
-        let mut read_count = 0_u32;
-        let mut rereads = Box::pin(trigger_receiver.triggered_rereads(move || {
-            read_count += 1;
-            ready(Ok::<_, &'static str>(read_count))
-        }));
-        assert_eq!(rereads.next().await, Some(Ok(1)));
-        trigger_sender.unbounded_send(Err("watch stopped")).unwrap();
-        trigger_sender.unbounded_send(Ok(())).unwrap();
-        assert_eq!(rereads.next().await, Some(Err("watch stopped")));
-        assert_eq!(rereads.next().await, Some(Ok(2)));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn triggered_deliveries_recheck_on_the_polling_period() {
-        let recheck = PeriodicPolling::every(Duration::from_mins(15));
-        let mut deliveries = Box::pin(
-            recheck.triggered_deliveries(stream::pending::<Result<(), NeverFails>>(), || {
-                ready(Ok(CountedSnapshot { snapshot_count: 1 }))
-            }),
-        );
-        let first = deliveries.next().await.unwrap();
-        assert_eq!(
-            delivered_cadence(&first),
-            DeliveryCadence::LivePushWithRecheck(recheck)
-        );
-        let started_waiting = TokioClockInstant::now();
-        deliveries.next().await.unwrap();
-        assert_eq!(started_waiting.elapsed(), recheck.poll_period);
-    }
-
-    #[test]
-    fn boundary_delay_completes_the_period() {
-        let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_millis(750)
-        );
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(60)),
-            Duration::from_millis(19750)
-        );
-    }
-
-    #[test]
-    fn exact_boundary_waits_a_full_period() {
-        let now = Local.timestamp_opt(1_000, 0).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_secs(1)
-        );
-    }
 }

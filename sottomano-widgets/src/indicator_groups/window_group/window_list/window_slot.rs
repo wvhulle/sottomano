@@ -20,8 +20,9 @@ use sottomano_desktop_sources::{
 };
 
 use super::{
-    WindowListInteraction, capped_window_title, dragged,
+    WindowListInteraction, capped_window_title,
     slot_extras::{Extras, TilePress, WindowSound, audible_pid, entry_tile_press},
+    workspace_row_view::dragged,
 };
 use crate::{
     desktop_panels::{

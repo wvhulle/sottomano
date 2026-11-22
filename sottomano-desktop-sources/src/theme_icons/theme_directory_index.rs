@@ -1,16 +1,19 @@
+mod index_theme_metadata;
+#[cfg(test)]
+mod theme_directory_index_tests;
+
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     env, io,
     path::{Path, PathBuf},
 };
 
-use freedesktop_desktop_entry::{DecodeError, GenericEntry};
+use freedesktop_desktop_entry::DecodeError;
 use futures::{StreamExt, stream};
+use index_theme_metadata::{ThemeMetadata, parsed_theme_metadata};
 use tokio::fs;
 
 pub const FALLBACK_THEME_NAME: &str = "hicolor";
-const ICON_THEME_SECTION: &str = "Icon Theme";
-const DEFAULT_THRESHOLD_PX: u16 = 2;
 const DEFAULT_DATA_DIRECTORIES: &str = "/usr/local/share:/usr/share";
 const ICON_FILE_EXTENSIONS: [&str; 3] = ["png", "svg", "xpm"];
 const DIRECTORY_LISTINGS_IN_FLIGHT: usize = 16;
@@ -63,32 +66,6 @@ pub enum ThemeIndexError {
         directory: PathBuf,
         list_failure: io::Error,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-enum DirectorySizingError {
-    #[error("declares no Size")]
-    UndeclaredSize,
-    #[error("{key} is not a pixel count: {value}")]
-    InvalidPixels { key: &'static str, value: String },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DeclaredPixels {
-    Undeclared,
-    Declared(u16),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct DirectoryDeclaration {
-    relative_path: String,
-    sizing: DirectorySizing,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-struct ThemeMetadata {
-    inherited_themes: Vec<String>,
-    directory_declarations: Vec<DirectoryDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -348,199 +325,4 @@ async fn listed_icon_files(directory: &Path) -> Result<Vec<ListedIconFile>, Them
         }
     }
     Ok(listed_files)
-}
-
-fn parsed_theme_metadata(
-    index_file: &Path,
-    index_text: &str,
-) -> Result<ThemeMetadata, ThemeIndexError> {
-    let theme_file = GenericEntry::from_str(index_file, index_text).map_err(|decode_failure| {
-        ThemeIndexError::MalformedThemeFile {
-            file: index_file.to_path_buf(),
-            decode_failure,
-        }
-    })?;
-    let theme_entry = |group_name: &str, key: &str| -> Option<String> {
-        theme_file
-            .groups
-            .group(group_name)
-            .and_then(|group| group.entry(key))
-            .map(str::to_owned)
-    };
-    let directory_declarations = listed_values(theme_entry(ICON_THEME_SECTION, "Directories"))
-        .into_iter()
-        .filter(|relative_path| {
-            theme_entry(relative_path, "Scale").is_none_or(|scale| scale == "1")
-        })
-        .filter_map(|relative_path| {
-            match directory_sizing(&|key| theme_entry(&relative_path, key)) {
-                Ok(sizing) => Some(DirectoryDeclaration {
-                    relative_path,
-                    sizing,
-                }),
-                Err(sizing_failure) => {
-                    tracing::debug!(
-                        index_file = %index_file.display(),
-                        relative_path,
-                        %sizing_failure,
-                        "icon theme: skipping a directory"
-                    );
-                    None
-                }
-            }
-        })
-        .collect();
-    Ok(ThemeMetadata {
-        inherited_themes: listed_values(theme_entry(ICON_THEME_SECTION, "Inherits")),
-        directory_declarations,
-    })
-}
-
-fn listed_values(declared_list: Option<String>) -> Vec<String> {
-    declared_list.map_or_else(Vec::new, |list_text| {
-        list_text
-            .split(',')
-            .map(str::trim)
-            .filter(|item| !item.is_empty())
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-fn declared_pixels(
-    directory_entry: &dyn Fn(&'static str) -> Option<String>,
-    key: &'static str,
-) -> Result<DeclaredPixels, DirectorySizingError> {
-    let Some(value) = directory_entry(key) else {
-        return Ok(DeclaredPixels::Undeclared);
-    };
-    value
-        .trim()
-        .parse()
-        .map(DeclaredPixels::Declared)
-        .map_err(|_| DirectorySizingError::InvalidPixels { key, value })
-}
-
-fn directory_sizing(
-    directory_entry: &dyn Fn(&'static str) -> Option<String>,
-) -> Result<DirectorySizing, DirectorySizingError> {
-    let DeclaredPixels::Declared(side_px) = declared_pixels(directory_entry, "Size")? else {
-        return Err(DirectorySizingError::UndeclaredSize);
-    };
-    let pixels_or_side = |key| -> Result<u16, DirectorySizingError> {
-        Ok(match declared_pixels(directory_entry, key)? {
-            DeclaredPixels::Declared(pixels) => pixels,
-            DeclaredPixels::Undeclared => side_px,
-        })
-    };
-    Ok(match directory_entry("Type").as_deref() {
-        Some("Fixed") => DirectorySizing::Fixed { side_px },
-        Some("Scalable") => DirectorySizing::Scalable {
-            min_px: pixels_or_side("MinSize")?,
-            max_px: pixels_or_side("MaxSize")?,
-        },
-        Some(_) | None => DirectorySizing::Threshold {
-            side_px,
-            threshold_px: match declared_pixels(directory_entry, "Threshold")? {
-                DeclaredPixels::Declared(threshold_px) => threshold_px,
-                DeclaredPixels::Undeclared => DEFAULT_THRESHOLD_PX,
-            },
-        },
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::process;
-
-    use super::*;
-
-    const EXAMPLE_THEME_INDEX: &str = r"[Icon Theme]
-Name=Example-Dark
-Inherits=example-base,hicolor
-Directories=actions/16,actions/16@2x,apps/scalable,broken
-
-[actions/16]
-Size=16
-Type=Fixed
-
-[actions/16@2x]
-Size=16
-Scale=2
-Type=Fixed
-
-[apps/scalable]
-Size=16
-MinSize=16
-MaxSize=512
-Type=Scalable
-
-[broken]
-Size=large
-";
-
-    #[test]
-    fn theme_metadata_keeps_unscaled_sized_directories_and_inheritance() {
-        let metadata =
-            parsed_theme_metadata(Path::new("Example-Dark/index.theme"), EXAMPLE_THEME_INDEX)
-                .expect("example index parses");
-        assert_eq!(metadata.inherited_themes, ["example-base", "hicolor"]);
-        assert_eq!(
-            metadata.directory_declarations,
-            [
-                DirectoryDeclaration {
-                    relative_path: "actions/16".to_owned(),
-                    sizing: DirectorySizing::Fixed { side_px: 16 },
-                },
-                DirectoryDeclaration {
-                    relative_path: "apps/scalable".to_owned(),
-                    sizing: DirectorySizing::Scalable {
-                        min_px: 16,
-                        max_px: 512
-                    },
-                },
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn an_installed_theme_is_indexed_with_its_icon_files() {
-        let theme_root = env::temp_dir().join(format!("sottomano-theme-index-{}", process::id()));
-        let action_directory = theme_root.join("Example-Dark/actions/16");
-        fs::create_dir_all(&action_directory)
-            .await
-            .expect("scratch theme directory is creatable");
-        fs::write(
-            theme_root.join("Example-Dark/index.theme"),
-            EXAMPLE_THEME_INDEX,
-        )
-        .await
-        .expect("scratch index is writable");
-        fs::write(action_directory.join("edit-select.svg"), "<svg/>")
-            .await
-            .expect("scratch icon is writable");
-        let theme_index = indexed_icon_theme(
-            "Example-Dark".to_owned(),
-            IconSearchRoots {
-                theme_roots: vec![theme_root.clone()],
-                pixmap_directories: Vec::new(),
-            },
-        )
-        .await
-        .expect("scratch theme indexes");
-        fs::remove_dir_all(&theme_root)
-            .await
-            .expect("scratch theme is removable");
-        let indexed_theme_names: Vec<&str> = theme_index
-            .searched_themes
-            .iter()
-            .map(|indexed_theme| indexed_theme.theme_name.as_str())
-            .collect();
-        assert_eq!(indexed_theme_names, ["Example-Dark"]);
-        assert!(
-            theme_index.searched_themes[0].sized_directories[0]
-                .icon_files
-                .contains_key("edit-select")
-        );
-    }
 }

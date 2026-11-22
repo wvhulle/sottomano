@@ -1,3 +1,5 @@
+mod popup_trigger_overlay;
+
 use iced::{
     Element, Event, Length, Rectangle, Size, Theme, Vector,
     advanced::{
@@ -11,6 +13,7 @@ use iced::{
     widget::container,
 };
 
+use self::popup_trigger_overlay::PopupOverlay;
 use crate::{
     orientation::Edge,
     popovers::{AnchoredPopup, anchored_popup},
@@ -230,86 +233,6 @@ impl<'view, Message: Clone + 'view> Widget<Message, Theme, iced::Renderer>
             popup: &mut self.popup,
             tree: &mut popup_tree[0],
         })))
-    }
-}
-
-struct PopupOverlay<'tree, 'view, Message> {
-    popup: &'tree mut AnchoredPopup<'view, Message>,
-    tree: &'tree mut Tree,
-}
-
-impl<Message: Clone> overlay::Overlay<Message, Theme, iced::Renderer>
-    for PopupOverlay<'_, '_, Message>
-{
-    fn layout(&mut self, renderer: &iced::Renderer, bounds: Size) -> Node {
-        Widget::<Message, Theme, iced::Renderer>::layout(
-            self.popup,
-            self.tree,
-            renderer,
-            &Limits::new(Size::ZERO, bounds),
-        )
-    }
-
-    fn draw(
-        &self,
-        renderer: &mut iced::Renderer,
-        theme: &Theme,
-        style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: Cursor,
-    ) {
-        Widget::<Message, Theme, iced::Renderer>::draw(
-            &*self.popup,
-            self.tree,
-            renderer,
-            theme,
-            style,
-            layout,
-            cursor,
-            &layout.bounds(),
-        );
-    }
-
-    fn operate(
-        &mut self,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        Widget::<Message, Theme, iced::Renderer>::operate(
-            self.popup, self.tree, layout, renderer, operation,
-        );
-    }
-
-    fn update(
-        &mut self,
-        event: &Event,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        renderer: &iced::Renderer,
-        clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-    ) {
-        let viewport = layout.bounds();
-        Widget::<Message, Theme, iced::Renderer>::update(
-            self.popup, self.tree, event, layout, cursor, renderer, clipboard, shell, &viewport,
-        );
-    }
-
-    fn mouse_interaction(
-        &self,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        renderer: &iced::Renderer,
-    ) -> mouse::Interaction {
-        Widget::<Message, Theme, iced::Renderer>::mouse_interaction(
-            &*self.popup,
-            self.tree,
-            layout,
-            cursor,
-            &layout.bounds(),
-            renderer,
-        )
     }
 }
 

@@ -7,15 +7,10 @@ use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        tailscale_exit_nodes::{
-            ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitRoutingSwitch,
-            TailscaleExitNodes,
-        },
+        tailscale_exit_nodes::{ExitRoutingSwitch, TailscaleExitNodes},
         tailscale_inbound_access::TailscaleInboundAccess,
         tailscale_policy_file::TailscalePolicyFile,
-        tailscale_status::{
-            ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
-        },
+        tailscale_status::{ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch},
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, OnBus},
@@ -37,7 +32,6 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::hover_card_body::Section,
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
@@ -47,9 +41,7 @@ use crate::{
             own_node_hover_card::OwnNodeIndicator,
             tailscale_access_hover_card::{
                 InboundAccessIndicator, PolicyFileIndicator, tailscale_inbound_access_sections,
-                tailscale_policy_file_sections,
             },
-            tailscale_exit_node_hover_card::{ExitNodeChoiceIndicator, ExitNodeLanAccessIndicator},
             tailscale_exit_offer_hover_card::ExitOfferIndicator,
             tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_indicator},
         },
@@ -62,46 +54,21 @@ use crate::{
 const TAILNET_MEMBERSHIP_GLYPH: Phosphor = Phosphor::Plugs(Weight::Regular);
 const TAILSCALE_EXIT_NODES_GLYPH: Phosphor = Phosphor::SignOut(Weight::Regular);
 
+mod exit_node_switch_rows;
 mod own_node_hover_card;
+mod policy_file_access;
+#[cfg(test)]
+mod tailnet_switch_tests;
 mod tailscale_access_hover_card;
 mod tailscale_exit_node_hover_card;
 mod tailscale_exit_offer_hover_card;
 mod tailscale_mesh_hover_card;
 
+use self::policy_file_access::PolicyFileAccess;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TailnetBusRequest {
     StartPolicyFileFetch,
-}
-
-enum PolicyFileAccess {
-    NoApiToken,
-    ApiToken {
-        token_path: PathBuf,
-        policy_file: Box<HoverFetchedSnapshot<TailscalePolicyFile>>,
-    },
-}
-
-impl PolicyFileAccess {
-    fn stop_hover_fetch(&mut self) {
-        if let PolicyFileAccess::ApiToken { policy_file, .. } = self {
-            policy_file.stop();
-        }
-    }
-
-    fn receive(&mut self, delivery: SnapshotDelivery<TailscalePolicyFile>, clock: Clock) {
-        if let PolicyFileAccess::ApiToken { policy_file, .. } = self {
-            policy_file.receive(delivery, clock);
-        }
-    }
-
-    fn sections(&self) -> Vec<Section> {
-        match self {
-            PolicyFileAccess::NoApiToken => Vec::new(),
-            PolicyFileAccess::ApiToken { policy_file, .. } => {
-                policy_file.sections_described_by(tailscale_policy_file_sections)
-            }
-        }
-    }
 }
 
 pub struct TailnetGroup {
@@ -352,104 +319,6 @@ impl TailnetGroup {
             )
     }
 
-    fn exit_offer_indicator(tailnet: &Tailnet) -> GroupIndicator<'_> {
-        let indicator = ExitOfferIndicator { tailnet }.indicator();
-        match tailnet.offer_control() {
-            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => {
-                indicator.on_switch_press(
-                    SwitchPosition::On,
-                    "stop offering this machine as an exit node",
-                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
-                )
-            }
-            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StartOffering) => {
-                indicator.on_switch_press(
-                    SwitchPosition::Off,
-                    "offer this machine as an exit node",
-                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
-                )
-            }
-            ExitOfferControl::BlockedByExitNodeInUse => indicator,
-        }
-    }
-
-    fn running_exit_node_choices(&self) -> Option<&ExitNodeChoices> {
-        match self.tailscale_exit_nodes.get()? {
-            TailscaleExitNodes::Running(exit_node_choices) => Some(exit_node_choices),
-            TailscaleExitNodes::NotRunning => None,
-        }
-    }
-
-    fn exit_node_choice_indicator<'view>(
-        exit_node_option: &'view ExitNodeOption,
-        exit_node_choices: &'view ExitNodeChoices,
-    ) -> GroupIndicator<'view> {
-        let exit_node_indicator = ExitNodeChoiceIndicator {
-            exit_node_option,
-            exit_node_choices,
-        }
-        .indicator();
-        match exit_node_choices.control_for_option(exit_node_option) {
-            ExitNodeControl::Switchable(exit_routing_switch) => exit_node_indicator
-                .on_switch_press(
-                    exit_node_option.node_use,
-                    match exit_node_option.node_use {
-                        ExitNodeUse::InUse => "stop using the exit node",
-                        ExitNodeUse::Unused => "use the exit node",
-                    },
-                    TailnetInteraction::SwitchExitRouting(exit_routing_switch),
-                ),
-            ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => exit_node_indicator,
-        }
-    }
-
-    fn exit_node_lan_access_indicator(exit_node_choices: &ExitNodeChoices) -> GroupIndicator<'_> {
-        ExitNodeLanAccessIndicator { exit_node_choices }
-            .indicator()
-            .on_switch_press(
-                exit_node_choices.lan_access,
-                match exit_node_choices.lan_access {
-                    ExitNodeLanAccess::Allowed => "cut local network access through exit nodes",
-                    ExitNodeLanAccess::Blocked => "keep local network access through exit nodes",
-                },
-                TailnetInteraction::SwitchExitRouting(exit_node_choices.lan_access_switch()),
-            )
-    }
-
-    fn exit_node_choice_indicators(&self) -> Vec<GroupIndicator<'_>> {
-        let Some(exit_node_choices) = self.running_exit_node_choices() else {
-            return Vec::new();
-        };
-        let mut exit_node_indicators: Vec<_> = exit_node_choices
-            .options
-            .iter()
-            .map(|exit_node_option| {
-                Self::exit_node_choice_indicator(exit_node_option, exit_node_choices)
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale_exit_nodes.hover_card_with(
-                            ExitNodeChoiceIndicator {
-                                exit_node_option,
-                                exit_node_choices,
-                            }
-                            .hover_card(),
-                        )
-                    }))
-            })
-            .collect();
-        if !exit_node_choices.options.is_empty() {
-            exit_node_indicators.push(
-                Self::exit_node_lan_access_indicator(exit_node_choices).with_hover_card(Box::new(
-                    move |_| {
-                        self.tailscale_exit_nodes.hover_card_with(
-                            ExitNodeLanAccessIndicator { exit_node_choices }.hover_card(),
-                        )
-                    },
-                )),
-            );
-        }
-        exit_node_indicators
-    }
-
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
         let mut rows = Vec::new();
         if !self.tailscale.awaits_first_delivery() {
@@ -516,160 +385,5 @@ impl TailnetGroup {
                 tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
             }),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_desktop_sources::network_connectivity::{
-        tailscale_exit_nodes::ExitNodeReachability,
-        tailscale_status::{ExitNodeOffer, KeyExpiry, NodeCapabilities, Peer, PeerPath},
-    };
-
-    use super::*;
-    use crate::{
-        group_indicators::indicator_gestures::IndicatorGesture,
-        indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
-    };
-
-    fn tailnet_offering(exit_offer: ExitNodeOffer, exit_node_use: ExitNodeUse) -> Tailnet {
-        Tailnet {
-            tailnet_name: "example.ts.net".to_owned(),
-            own_node: Peer {
-                name: "workstation".to_owned(),
-                ip: "100.1.1.9".to_owned(),
-                os: "linux".to_owned(),
-                path: PeerPath::Idle,
-                received_bytes: 0,
-                sent_bytes: 0,
-                tags: Vec::new(),
-            },
-            online: Vec::new(),
-            total_peers: 0,
-            own_capabilities: NodeCapabilities::default(),
-            exit_offer,
-            exit_node_use,
-            key_expiry: KeyExpiry::Disabled,
-            health_warnings: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn the_offer_indicator_is_inert_while_an_exit_node_is_in_use() {
-        let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
-        assert!(matches!(
-            TailnetGroup::exit_offer_indicator(&tailnet)
-                .gestures
-                .clone()
-                .left,
-            IndicatorGesture::Inert
-        ));
-    }
-
-    fn group_running_tailnet(tailnet_group: TailnetGroup) -> TailnetGroup {
-        let mut running_group = tailnet_group;
-        let _ = running_group.update(
-            TailnetMessage::Tailscale(SnapshotDelivery::live_push(Ok(Tailscale::Running(
-                Box::new(tailnet_offering(
-                    ExitNodeOffer::NotOffered,
-                    ExitNodeUse::Unused,
-                )),
-            )))),
-            Clock::real(),
-        );
-        running_group
-    }
-
-    fn lists_policy_file_indicator(tailnet_group: &TailnetGroup) -> bool {
-        tailnet_group
-            .group_content(Clock::real())
-            .indicator_keys()
-            .iter()
-            .any(|indicator_key| indicator_key.name == "Policy file")
-    }
-
-    #[test]
-    fn the_policy_file_indicator_needs_an_api_token() {
-        let without_token = group_running_tailnet(TailnetGroup::without_policy_file());
-        assert!(!lists_policy_file_indicator(&without_token));
-        let with_token =
-            group_running_tailnet(TailnetGroup::with_policy_file(PathBuf::from("token")));
-        assert!(lists_policy_file_indicator(&with_token));
-    }
-
-    #[test]
-    fn an_approved_offer_can_be_stopped() {
-        let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
-        assert!(matches!(
-            TailnetGroup::exit_offer_indicator(&tailnet)
-                .gestures
-                .clone()
-                .left,
-            IndicatorGesture::Performs {
-                message: IndicatorGroupInteraction::Tailnet(TailnetInteraction::SwitchExitOffer(
-                    ExitOfferSwitch::StopOffering
-                )),
-                ..
-            }
-        ));
-    }
-
-    fn reachable_exit_node(reachability: ExitNodeReachability) -> ExitNodeOption {
-        ExitNodeOption {
-            name: "zbook".to_owned(),
-            ip: "100.1.1.1".to_owned(),
-            reachability,
-            node_use: ExitNodeUse::Unused,
-        }
-    }
-
-    fn exit_node_choices_while(exit_offer: ExitNodeOffer) -> ExitNodeChoices {
-        ExitNodeChoices {
-            options: Vec::new(),
-            offer: exit_offer,
-            lan_access: ExitNodeLanAccess::Blocked,
-        }
-    }
-
-    #[test]
-    fn an_online_exit_node_indicator_can_be_pressed() {
-        assert!(!matches!(
-            TailnetGroup::exit_node_choice_indicator(
-                &reachable_exit_node(ExitNodeReachability::Online),
-                &exit_node_choices_while(ExitNodeOffer::NotOffered)
-            )
-            .gestures
-            .clone()
-            .left,
-            IndicatorGesture::Inert
-        ));
-    }
-
-    #[test]
-    fn an_exit_node_indicator_is_inert_while_this_machine_advertises() {
-        assert!(matches!(
-            TailnetGroup::exit_node_choice_indicator(
-                &reachable_exit_node(ExitNodeReachability::Online),
-                &exit_node_choices_while(ExitNodeOffer::Approved)
-            )
-            .gestures
-            .clone()
-            .left,
-            IndicatorGesture::Inert
-        ));
-    }
-
-    #[test]
-    fn an_offline_exit_node_indicator_is_inert() {
-        assert!(matches!(
-            TailnetGroup::exit_node_choice_indicator(
-                &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
-                &exit_node_choices_while(ExitNodeOffer::NotOffered)
-            )
-            .gestures
-            .clone()
-            .left,
-            IndicatorGesture::Inert
-        ));
     }
 }

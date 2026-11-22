@@ -1,4 +1,43 @@
-use sottomano_desktop_sources::delivery_cadence_drivers::ChangeWatchFailure;
+mod shell_failure_toasts;
+mod toast_action_invocation;
+mod widget_toast_serving;
+
+use iced::{
+    Task,
+    futures::{StreamExt, stream},
+    time::Instant,
+    window::Id,
+};
+use sottomano_desktop_sinks::desktop_notifications::{
+    alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
+    freedesktop_notification_signals::notification_signal_sink,
+};
+use sottomano_desktop_sources::{
+    desktop_notifications::notification_data::{Outbound, Residency, close_reason},
+    desktop_windows_apps::window_edge_placement::Placement,
+};
+use sottomano_toml_config::Config;
+
+use super::{
+    DEFAULT_ACTION, HoveredToast, NotificationLayer, SignalConnection, ToastContext,
+    toast_card::toast_card_icons::{self, CardIcons},
+    toast_chimes::arrival_chime,
+    toast_lifecycle::{
+        BodyClick, CardStart, EventSource, ExitPace, Notification, ToastContent, ToastKind,
+        ToastPresence,
+        toast_countdown::{Countdown, lifetime},
+    },
+    toast_placement::{AnchoredWindowFocus, ToastWindow, delegated_sender_window, placement_for},
+};
+use crate::{
+    hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
+    indicator_groups::quiet_schedule_group::quiet_window::QuietPhase,
+    notification_toasts::{
+        NotificationSettings, ToastLayerHost,
+        toast_lifecycle::{FadeState, ToastSender, toast_countdown::CountdownExpiry},
+    },
+    toast_messages::NotificationMessage,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StoppedChangeWatch {
@@ -18,59 +57,6 @@ impl StoppedChangeWatch {
         }
     }
 }
-use std::{borrow::Cow, iter, mem, path::Path};
-
-use iced::{
-    Task,
-    futures::{StreamExt, stream},
-    time::Instant,
-    window::Id,
-};
-use quick_xml::escape::escape;
-use sottomano_compositor_model::compositor_requests::{
-    CompositorRequest, CompositorRequestFailure, FocusFollow,
-};
-use sottomano_desktop_sinks::desktop_notifications::{
-    alert_sound_player::SoundTheme, alert_sound_policy::ToastSlot,
-    freedesktop_notification_signals::notification_signal_sink,
-};
-use sottomano_desktop_sources::{
-    desktop_notifications::{
-        notification_data::{NotificationData, Outbound, Residency, close_reason},
-        spec_hints::Persistence,
-    },
-    desktop_windows_apps::window_edge_placement::Placement,
-};
-use sottomano_toml_config::{Config, LoadError, severity::Severity};
-
-use super::{
-    DEFAULT_ACTION, HoveredToast, NotificationLayer, SignalConnection, SnoozedOngoingToast,
-    ToastContext,
-    toast_card::{self, CardIcons},
-    toast_chimes::arrival_chime,
-    toast_lifecycle::{
-        BodyClick, CardStart, Countdown, EventSource, ExitPace, Notification, ToastContent,
-        ToastKind, ToastPresence, lifetime,
-    },
-    toast_placement::{AnchoredWindowFocus, ToastWindow, delegated_sender_window, placement_for},
-};
-use crate::{
-    background_work::compositor_request,
-    hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
-    indicator_groups::{
-        indicator_group_content::GroupToastRequests, quiet_schedule_group::quiet_window::QuietPhase,
-    },
-    layer_surfaces::{ActivationTokenOutcome, activation_token_request},
-    notification_toasts::{
-        NotificationSettings, ToastLayerHost,
-        toast_lifecycle::{CountdownExpiry, FadeState, ToastSender},
-    },
-    toast_messages::NotificationMessage,
-    widgets::{
-        announced_level::{LevelToastChange, LevelToastRequest},
-        ongoing_toast::{NotificationBody, NotificationProgress, OngoingKey, OngoingToast},
-    },
-};
 
 impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub fn adopt_sound_theme(&mut self, theme: SoundTheme) {
@@ -169,333 +155,6 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         }
     }
 
-    fn previewed_file(&self, id: u32) -> Option<String> {
-        self.showing()
-            .find(|toast| toast.data.id == id)?
-            .icons
-            .previewed_file()
-            .and_then(|file| {
-                let file_text = file.to_str().map(str::to_owned);
-                if file_text.is_none() {
-                    tracing::warn!(
-                        "toast {id}: previewed file {} is not unicode, so it cannot be opened or \
-                         copied",
-                        file.display()
-                    );
-                }
-                file_text
-            })
-    }
-
-    fn open_previewed_file(&mut self, id: u32, context: &ToastContext) -> Task<Routed> {
-        let Some(file) = self.previewed_file(id) else {
-            return Task::none();
-        };
-        Task::batch([
-            Task::done(Routed::from(PopupMessage::OpenUrl(file))),
-            self.close_all(
-                [id],
-                close_reason::DISMISSED,
-                context.config,
-                context.clock.instant,
-            ),
-        ])
-    }
-
-    fn copy_previewed_file_path(&self, id: u32) -> Task<Routed> {
-        self.previewed_file(id).map_or_else(Task::none, |file| {
-            Task::done(Routed::from(PopupMessage::CopyText(file)))
-        })
-    }
-
-    pub fn show_widget_toasts(
-        &mut self,
-        requests: GroupToastRequests,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let ongoing_toasts = self.show_ongoing_toasts(
-            requests
-                .ongoing_toasts
-                .into_iter()
-                .map(|ongoing_toast| ongoing_toast.map_messages(Routed::from))
-                .collect(),
-            context,
-        );
-        let previous_levels = mem::replace(&mut self.previous_levels, requests.levels.clone());
-        let level_toasts: Vec<Task<Routed>> = requests
-            .levels
-            .into_iter()
-            .filter(|sample| sample.change_since(&previous_levels) == LevelToastChange::Changed)
-            .map(|sample| self.announce_level(sample.map_message(Routed::from), context))
-            .collect();
-        Task::batch(iter::once(ongoing_toasts).chain(level_toasts))
-    }
-
-    fn show_ongoing_toasts(
-        &mut self,
-        active: Vec<OngoingToast<Routed>>,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        if context.quiet_phase == QuietPhase::Active {
-            return Task::none();
-        }
-        self.snoozed.retain(|snoozed| {
-            active
-                .iter()
-                .any(|toast| toast.key == snoozed.key && toast.severity <= snoozed.snoozed_at)
-        });
-        let cleared: Vec<u32> = self
-            .showing()
-            .filter(|toast| {
-                matches!(&toast.kind, ToastKind::Ongoing { key: shown, .. }
-                    if matches!(shown, OngoingKey::Sample(_) | OngoingKey::SampleDetail { .. })
-                        && !active.iter().any(|toast| toast.key == *shown))
-            })
-            .map(|toast| toast.data.id)
-            .collect();
-        let closed = self.close_all(
-            cleared,
-            close_reason::CLOSED_BY_CALL,
-            context.config,
-            context.clock.instant,
-        );
-        let to_raise: Vec<OngoingToast<Routed>> = active
-            .into_iter()
-            .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
-            .filter(|toast| {
-                !self.showing().any(|notif| {
-                    notif.ongoing_key() == Some(&toast.key)
-                        && notif.data.severity >= toast.severity
-                        && notif.data.body == toast.body
-                        && notif.data.progress == toast.progress
-                })
-            })
-            .collect();
-        let raised: Vec<Task<Routed>> = to_raise
-            .into_iter()
-            .map(|toast| self.serve_ongoing(toast, context))
-            .collect();
-        Task::batch(iter::once(closed).chain(raised))
-    }
-
-    fn serve_ongoing(
-        &mut self,
-        mut toast: OngoingToast<Routed>,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let shown = self
-            .showing()
-            .find(|notif| notif.ongoing_key() == Some(&toast.key))
-            .map(|toast| (toast.data.id, toast.ongoing_since()));
-        let toast_id = match shown {
-            Some((id, since)) => {
-                toast.since = since.unwrap_or(toast.since);
-                id
-            }
-            None => self.fresh_shell_toast_id(),
-        };
-        self.serve(ToastContent::ongoing(toast, toast_id), context)
-    }
-
-    fn announce_level(
-        &mut self,
-        sample: LevelToastRequest<Routed>,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let toast_id = self
-            .showing()
-            .find(|notif| notif.announced_indicator() == Some(&sample.indicator))
-            .map_or_else(|| self.fresh_shell_toast_id(), |toast| toast.data.id);
-        self.serve(
-            ToastContent::level_announcement(sample, toast_id, context.clock.wall),
-            context,
-        )
-    }
-
-    pub fn show_config_error(
-        &mut self,
-        path: &Path,
-        error: &LoadError,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let message = escape(error.message()).into_owned();
-        let body = match error.offending_line() {
-            Some(line) => format!(
-                "{message}<pre>{} {}<u>{}</u>{}</pre>",
-                line.number,
-                escape(line.before),
-                escape(line.offending),
-                escape(line.after),
-            ),
-            None => message,
-        };
-        self.serve_ongoing(
-            OngoingToast {
-                widget_name: "Configuration".into(),
-                key: OngoingKey::ConfigFile,
-                severity: Severity::Critical,
-                summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
-                body: NotificationBody::Text(body),
-                progress: NotificationProgress::Unmeasured,
-                since: context.clock.wall,
-                on_body_clicked: Routed::from(PopupMessage::OpenUrl(path.display().to_string())),
-                action_buttons: Vec::new(),
-            },
-            context,
-        )
-    }
-
-    pub fn show_compositor_failure(
-        &mut self,
-        failure: &CompositorRequestFailure,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let toast_id = self.fresh_shell_toast_id();
-        let data = NotificationData {
-            severity: Severity::Warning,
-            body: NotificationBody::Text(format!(
-                "{}<pre>{}</pre>",
-                escape(failure.reason()),
-                escape(failure.request())
-            )),
-            ..NotificationData::shell_notification(toast_id, failure.summary())
-        };
-        self.serve(
-            ToastContent::shell_failure(
-                data,
-                Routed::from(PopupMessage::CopyText(failure.to_string())),
-                context.clock.wall,
-            ),
-            context,
-        )
-    }
-
-    pub fn show_bus_failure(
-        &mut self,
-        failure: &zbus::Error,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let toast_id = self.fresh_shell_toast_id();
-        let data = NotificationData {
-            severity: Severity::Critical,
-            body: NotificationBody::Text(format!(
-                "Widgets that read D-Bus stay empty.<pre>{}</pre>",
-                escape(failure.to_string())
-            )),
-            ..NotificationData::shell_notification(toast_id, "Could not connect to the D-Bus buses")
-        };
-        self.serve(
-            ToastContent::shell_failure(
-                data,
-                Routed::from(PopupMessage::CopyText(failure.to_string())),
-                context.clock.wall,
-            ),
-            context,
-        )
-    }
-
-    pub fn show_change_watch_failure(
-        &mut self,
-        stopped_watch: StoppedChangeWatch,
-        failure: &ChangeWatchFailure,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let toast_id = self.fresh_shell_toast_id();
-        let data = NotificationData {
-            severity: Severity::Warning,
-            body: NotificationBody::Text(format!(
-                "{}<pre>{}</pre>",
-                stopped_watch.stale_consequence(),
-                escape(failure.to_string())
-            )),
-            ..NotificationData::shell_notification(toast_id, "A change watch stopped")
-        };
-        self.serve(
-            ToastContent::shell_failure(
-                data,
-                Routed::from(PopupMessage::CopyText(failure.to_string())),
-                context.clock.wall,
-            ),
-            context,
-        )
-    }
-
-    pub fn withdraw_config_error(&mut self, config: &Config, now: Instant) -> Task<Routed> {
-        let shown: Vec<u32> = self
-            .showing()
-            .filter(|notif| notif.ongoing_key() == Some(&OngoingKey::ConfigFile))
-            .map(|toast| toast.data.id)
-            .collect();
-        self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
-    }
-
-    fn hold_while_quiet(&mut self, toast: ToastContent<Routed>) -> Task<Routed> {
-        if !matches!(
-            toast.kind,
-            ToastKind::Event {
-                source: EventSource::DbusClient,
-                ..
-            }
-        ) {
-            return Task::none();
-        }
-        match toast.data.persistence {
-            Persistence::Transient => self.emit_in_order(vec![Outbound::Closed {
-                id: toast.data.id,
-                reason: close_reason::EXPIRED,
-            }]),
-            Persistence::Retained => {
-                self.held.retain(|held| held.id != toast.data.id);
-                self.held.push(toast.data);
-                Task::none()
-            }
-        }
-    }
-
-    pub fn release_held(&mut self, context: &ToastContext) -> Task<Routed> {
-        let held: Vec<NotificationData> = mem::take(&mut self.held);
-        Task::batch(held.into_iter().map(|data| {
-            self.serve(
-                ToastContent {
-                    data,
-                    kind: ToastKind::Event {
-                        at: context.clock.wall,
-                        source: EventSource::DbusClient,
-                    },
-                    body_click: BodyClick::DbusDefaultAction,
-                },
-                context,
-            )
-        }))
-    }
-
-    fn drop_held(&mut self, id: u32) -> Task<Routed> {
-        let was_held = self.held.iter().any(|held| held.id == id);
-        self.held.retain(|held| held.id != id);
-        if was_held {
-            self.emit_in_order(vec![Outbound::Closed {
-                id,
-                reason: close_reason::CLOSED_BY_CALL,
-            }])
-        } else {
-            Task::none()
-        }
-    }
-
-    fn snooze_ongoing_toast(&mut self, toast_id: u32) {
-        let snoozed = self
-            .showing()
-            .find(|toast| toast.data.id == toast_id)
-            .and_then(|toast| match &toast.kind {
-                ToastKind::Ongoing { key, .. } => Some(SnoozedOngoingToast {
-                    key: key.clone(),
-                    snoozed_at: toast.data.severity,
-                }),
-                ToastKind::Event { .. } => None,
-            });
-        self.snoozed.extend(snoozed);
-    }
-
     fn serve(&mut self, toast: ToastContent<Routed>, context: &ToastContext) -> Task<Routed> {
         let ToastContext {
             placement,
@@ -523,7 +182,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let icons = toast
             .kind
             .glyph()
-            .map_or_else(|| toast_card::resolve_icons(data), CardIcons::from);
+            .map_or_else(|| toast_card_icons::resolve_icons(data), CardIcons::from);
         let now = clock.instant;
         let countdown = Countdown::counting(
             lifetime(
@@ -691,131 +350,6 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         }
     }
 
-    fn activate_action(
-        &mut self,
-        id: u32,
-        key: &str,
-        context: &ToastContext,
-        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Routed> {
-        let placement = &context.placement;
-        if let Some(routed_message) = self.routed_message_for(id, key) {
-            self.snooze_ongoing_toast(id);
-            return Task::batch([
-                Task::done(routed_message),
-                self.close_all(
-                    [id],
-                    close_reason::DISMISSED,
-                    context.config,
-                    context.clock.instant,
-                ),
-            ]);
-        }
-        let declares_default_action = self.showing().any(|notif| {
-            notif.data.id == id
-                && notif
-                    .data
-                    .actions
-                    .iter()
-                    .any(|action| action.key == DEFAULT_ACTION)
-        });
-        if key == DEFAULT_ACTION && declares_default_action {
-            return self.hand_default_action_back_to_sender(id, toast_surface_on);
-        }
-
-        let survives_action_invocation = self
-            .showing()
-            .any(|toast| toast.data.id == id && toast.data.residency == Residency::Resident);
-        let window_action = self
-            .anchored_window_id(id, placement)
-            .and_then(|window| action_on_window(key, window, placement));
-        let activation = match window_action {
-            Some(task) => task,
-            None if key == DEFAULT_ACTION => Task::none(),
-            None => self.emit_in_order(vec![Outbound::ActionInvoked {
-                id,
-                key: key.to_owned(),
-            }]),
-        };
-
-        if survives_action_invocation {
-            activation
-        } else {
-            activation.chain(self.close_all(
-                [id],
-                close_reason::DISMISSED,
-                context.config,
-                context.clock.instant,
-            ))
-        }
-    }
-
-    fn hand_default_action_back_to_sender(
-        &self,
-        id: u32,
-        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Routed> {
-        let toast_surface = self
-            .showing()
-            .find(|toast| toast.data.id == id)
-            .and_then(|toast| toast.place.assigned_output())
-            .and_then(toast_surface_on);
-        let Some(toast_surface) = toast_surface else {
-            return Task::done(Routed::from(NotificationMessage::DefaultActivated {
-                id,
-                token: ActivationTokenOutcome::Unavailable,
-            }));
-        };
-
-        let token_request = activation_token_request(toast_surface);
-        Task::batch([
-            Task::done(Routed::from(token_request.surface_request)),
-            Task::future(token_request.token_arrival).map(move |token| {
-                Routed::from(NotificationMessage::DefaultActivated { id, token })
-            }),
-        ])
-    }
-
-    fn invoke_default(
-        &mut self,
-        id: u32,
-        token: ActivationTokenOutcome,
-        context: &ToastContext,
-    ) -> Task<Routed> {
-        let survives_action_invocation = self
-            .showing()
-            .any(|toast| toast.data.id == id && toast.data.residency == Residency::Resident);
-        let action_invoked = Outbound::ActionInvoked {
-            id,
-            key: DEFAULT_ACTION.to_owned(),
-        };
-        let mut outbound = match token {
-            ActivationTokenOutcome::Issued(token) => {
-                vec![Outbound::ActivationToken { id, token }, action_invoked]
-            }
-            ActivationTokenOutcome::Unavailable => vec![action_invoked],
-        };
-
-        if survives_action_invocation {
-            return self.emit_in_order(outbound);
-        }
-
-        outbound.extend(
-            self.withdraw_showing(
-                [id],
-                ExitPace::Dismissed,
-                context.config,
-                context.clock.instant,
-            )
-            .into_iter()
-            .map(|id| Outbound::Closed {
-                id,
-                reason: close_reason::DISMISSED,
-            }),
-        );
-        self.emit_in_order(outbound)
-    }
-
     pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Routed> {
         match &self.signal_connection {
             SignalConnection::Connected(signals) if !outbound.is_empty() => Task::future(
@@ -837,28 +371,5 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         self.live.iter_mut().for_each(|notif| {
             notif.place = placement_for(notif.place.window, placement, notifications, config);
         });
-    }
-}
-
-fn action_on_window<Routed: ToastLayerHost>(
-    key: &str,
-    window: u64,
-    placement: &Placement,
-) -> Option<Task<Routed>> {
-    match key {
-        DEFAULT_ACTION => Some(compositor_request(CompositorRequest::FocusWindow(window))),
-        "quit" => Some(compositor_request(CompositorRequest::CloseWindow(window))),
-        "move" => Some(
-            placement
-                .active_workspace_for_move()
-                .map_or_else(Task::none, |target| {
-                    compositor_request(CompositorRequest::MoveWindowToWorkspace {
-                        window,
-                        workspace: target,
-                        focus_follow: FocusFollow::FollowWindow,
-                    })
-                }),
-        ),
-        _ => None,
     }
 }

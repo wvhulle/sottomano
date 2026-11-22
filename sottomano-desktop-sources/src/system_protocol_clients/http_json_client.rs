@@ -1,23 +1,24 @@
+mod pinned_address_fetches;
+
 use std::{
     error::Error as StdError,
     fmt::{Display, Formatter, Result as FmtResult},
     iter::successors,
-    net::SocketAddr,
     path::Path,
     time::Duration,
 };
 
+use pinned_address_fetches::{fetched, header_map};
 use reqwest::{
-    ClientBuilder, Method, Url,
-    header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue},
+    ClientBuilder, Method,
+    header::{CONTENT_TYPE, HeaderMap},
 };
 use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::Value;
-use tokio::{net::lookup_host, time::timeout};
+use tokio::time::timeout;
 use uom::si::{f64::Ratio, ratio::percent};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const RESOLVE_TIMEOUT: Duration = Duration::from_secs(5);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 pub const TOO_MANY_REQUESTS_STATUS: u16 = 429;
 pub const SERVER_ERROR_STATUS: u16 = 500;
@@ -299,144 +300,10 @@ pub fn decode<T: DeserializeOwned>(body: ResponseBody) -> Result<T, Error> {
     serde_json::from_value(json_value).map_err(|error| Error::Decode(error.to_string()))
 }
 
-struct ResolvedTarget {
-    url: Url,
-    host: String,
-    pinned_addresses: PinnedAddresses,
-}
-
-enum PinnedAddresses {
-    Resolved {
-        domain: String,
-        addresses: Vec<SocketAddr>,
-    },
-    LiteralAddress,
-}
-
-struct FetchedBytes {
-    status: u16,
-    headers: HeaderMap,
-    body_bytes: Vec<u8>,
-}
-
-async fn resolved_target(url: &str) -> Result<ResolvedTarget, Error> {
-    let url = Url::parse(url).map_err(|_| Error::Url(url.to_owned()))?;
-    let host = url
-        .host_str()
-        .ok_or_else(|| Error::Url(url.to_string()))?
-        .to_owned();
-    let port = url
-        .port_or_known_default()
-        .ok_or_else(|| Error::Url(url.to_string()))?;
-    let pinned_addresses = match url.domain() {
-        Some(domain) => PinnedAddresses::Resolved {
-            domain: domain.to_owned(),
-            addresses: resolved_addresses(domain, port).await?,
-        },
-        None => PinnedAddresses::LiteralAddress,
-    };
-    Ok(ResolvedTarget {
-        url,
-        host,
-        pinned_addresses,
-    })
-}
-
-async fn resolved_addresses(domain: &str, port: u16) -> Result<Vec<SocketAddr>, Error> {
-    let unresolved = || Error::HostNotResolved {
-        host: domain.to_owned(),
-    };
-    let addresses: Vec<SocketAddr> = timeout(RESOLVE_TIMEOUT, lookup_host((domain, port)))
-        .await
-        .map_err(|_| unresolved())?
-        .map_err(|_| unresolved())?
-        .collect();
-    if addresses.is_empty() {
-        return Err(unresolved());
-    }
-    Ok(addresses)
-}
-
-impl ResolvedTarget {
-    fn client(&self) -> Result<reqwest::Client, Error> {
-        let builder = ClientBuilder::new().connect_timeout(CONNECT_TIMEOUT);
-        let builder = match &self.pinned_addresses {
-            PinnedAddresses::Resolved { domain, addresses } => {
-                builder.resolve_to_addrs(domain, addresses)
-            }
-            PinnedAddresses::LiteralAddress => builder,
-        };
-        builder
-            .build()
-            .map_err(|error| Error::Client(error.to_string()))
-    }
-
-    fn unreachable(&self, failure: &reqwest::Error) -> Error {
-        Error::Unreachable {
-            host: self.host.clone(),
-            detail: innermost_cause(failure),
-        }
-    }
-}
-
 fn innermost_cause(failure: &(dyn StdError + 'static)) -> String {
     successors(Some(failure), |&cause| cause.source())
         .last()
         .map_or_else(|| failure.to_string(), ToString::to_string)
-}
-
-fn header_map(headers: &[(&str, &str)]) -> Result<HeaderMap, Error> {
-    let mut header_map = HeaderMap::with_capacity(headers.len() + 1);
-    for (name, value) in headers {
-        header_map.insert(
-            HeaderName::from_bytes(name.as_bytes())
-                .map_err(|_| Error::Header((*name).to_owned()))?,
-            HeaderValue::from_str(value).map_err(|_| Error::Header((*name).to_owned()))?,
-        );
-    }
-    Ok(header_map)
-}
-
-async fn fetched(
-    method: &Method,
-    url: &str,
-    header_map: HeaderMap,
-    json_body: Option<&Value>,
-) -> Result<FetchedBytes, Error> {
-    let target = resolved_target(url).await?;
-    let mut request_builder = target
-        .client()?
-        .request(method.clone(), target.url.clone())
-        .headers(header_map);
-    if let Some(body) = json_body {
-        request_builder = request_builder
-            .header(CONTENT_TYPE, "application/json")
-            .body(serde_json::to_vec(body).map_err(|error| Error::Body(error.to_string()))?);
-    }
-    let answered = async {
-        let response = request_builder
-            .send()
-            .await
-            .map_err(|failure| target.unreachable(&failure))?;
-        let status = response.status().as_u16();
-        let headers = response.headers().clone();
-        let body_bytes = response
-            .bytes()
-            .await
-            .map_err(|error| Error::Body(innermost_cause(&error)))?
-            .to_vec();
-        Ok(FetchedBytes {
-            status,
-            headers,
-            body_bytes,
-        })
-    };
-    timeout(REQUEST_TIMEOUT, answered)
-        .await
-        .map_err(|_| Error::TimedOut {
-            host: target.host.clone(),
-            after: REQUEST_TIMEOUT,
-        })?
 }
 
 async fn request(

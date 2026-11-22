@@ -1,0 +1,242 @@
+use std::path::PathBuf;
+
+use super::*;
+use crate::login_session_presence::{
+    focus_time_ledger::{
+        ScreenEdge,
+        test_steps::{
+            at, config, focused, folded, idle_edge, no_window_focused, screen_power_edge,
+            sleep_edge, step, whole_day,
+        },
+    },
+    logind_manager::SleepEdge,
+    wayland_idle_notify::IdleEdge,
+};
+
+#[test]
+fn a_short_pause_is_not_spent_but_only_a_long_one_is_a_break() {
+    let config = config();
+    let paused = folded([
+        step(focused("kitty", None), 0),
+        step(idle_edge(IdleEdge::Idled), 10),
+        step(idle_edge(IdleEdge::Resumed), 11),
+    ]);
+    let paused = paused.accounted(&config);
+    assert_eq!(
+        paused.screen_spent(whole_day(), at(20)),
+        TimeDelta::minutes(19)
+    );
+    assert_eq!(paused.screen_run(at(20)), Some(ScreenRun { since: at(0) }));
+
+    let rested = folded([
+        step(focused("kitty", None), 0),
+        step(idle_edge(IdleEdge::Idled), 20),
+        step(idle_edge(IdleEdge::Resumed), 30),
+    ]);
+    let rested = rested.accounted(&config);
+    assert_eq!(
+        rested.screen_spent(whole_day(), at(40)),
+        TimeDelta::minutes(30)
+    );
+    assert_eq!(
+        rested.last_break(at(40)),
+        Some(Interval {
+            from: at(20),
+            until: at(30)
+        })
+    );
+    assert_eq!(rested.screen_run(at(40)), Some(ScreenRun { since: at(30) }));
+    assert_eq!(rested.runs(at(40))[0].since, at(30));
+}
+
+#[test]
+fn suspending_is_a_break_and_being_away_has_no_screen_run() {
+    let config = config();
+    let mut ledger = folded([
+        step(focused("kitty", None), 0),
+        step(sleep_edge(SleepEdge::Suspending), 5),
+    ]);
+    assert_eq!(ledger.accounted(&config).screen_run(at(30)), None);
+    ledger.fold(sleep_edge(SleepEdge::Resumed), at(60), &config);
+    assert_eq!(
+        ledger.accounted(&config).screen_run(at(61)),
+        Some(ScreenRun { since: at(60) })
+    );
+}
+
+#[test]
+fn a_dark_screen_is_a_break_until_it_lights_up_again() {
+    let config = config();
+    let mut ledger = folded([
+        step(focused("kitty", None), 0),
+        step(screen_power_edge(ScreenEdge::Off), 10),
+        step(idle_edge(IdleEdge::Resumed), 20),
+    ]);
+    let accounted = ledger.accounted(&config);
+    assert_eq!(accounted.screen_run(at(11)), None);
+    assert_eq!(
+        accounted.last_break(at(11)),
+        Some(Interval {
+            from: at(10),
+            until: at(11)
+        })
+    );
+    assert_eq!(accounted.screen_run(at(30)), None);
+    assert_eq!(
+        accounted.screen_spent(whole_day(), at(30)),
+        TimeDelta::minutes(10)
+    );
+    assert_eq!(ledger.screen_off_since(), Some(at(10)));
+
+    ledger.fold(screen_power_edge(ScreenEdge::On), at(40), &config);
+    assert_eq!(
+        ledger.accounted(&config).screen_run(at(41)),
+        Some(ScreenRun { since: at(40) })
+    );
+    assert_eq!(ledger.screen_off_since(), None);
+}
+
+#[test]
+fn a_lock_screen_taking_focus_during_suspend_does_not_end_the_sleep() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", None), 0),
+        step(screen_power_edge(ScreenEdge::Off), 10),
+        step(sleep_edge(SleepEdge::Suspending), 50),
+        step(no_window_focused(), 50),
+        step(screen_power_edge(ScreenEdge::On), 51),
+        step(sleep_edge(SleepEdge::Resumed), 800),
+    ]);
+    let accounted = ledger.accounted(&config);
+    assert_eq!(accounted.screen_run(at(400)), None);
+    assert_eq!(
+        accounted.screen_run(at(801)),
+        Some(ScreenRun { since: at(800) })
+    );
+}
+
+#[test]
+fn focusing_a_window_while_the_screen_is_off_keeps_it_off() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", None), 0),
+        step(screen_power_edge(ScreenEdge::Off), 10),
+        step(focused("firefox", None), 20),
+    ]);
+    assert_eq!(ledger.screen_off_since(), Some(at(10)));
+    assert_eq!(ledger.accounted(&config).screen_run(at(30)), None);
+}
+
+#[test]
+fn idling_while_the_screen_is_off_stays_screen_off_and_lighting_it_returns_to_idle() {
+    let mut ledger = folded([
+        step(focused("kitty", None), 0),
+        step(screen_power_edge(ScreenEdge::Off), 10),
+        step(idle_edge(IdleEdge::Idled), 11),
+    ]);
+    assert_eq!(ledger.screen_off_since(), Some(at(10)));
+    ledger.fold(screen_power_edge(ScreenEdge::On), at(20), &config());
+    assert_eq!(ledger.screen_off_since(), None);
+    assert_eq!(
+        ledger.presence_spans_ended_by(at(21)).last().unwrap().state,
+        Presence::Idle
+    );
+}
+
+#[test]
+fn switching_apps_inside_a_project_keeps_the_project_run() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", Some("/code/sottomano")), 0),
+        step(focused("code", Some("/code/sottomano")), 15),
+    ]);
+    let accounted = ledger.accounted(&config);
+    let runs = accounted.runs(at(20));
+    let run_of = |unit: FocusUnit| runs.iter().find(|run| run.unit == unit).unwrap().since;
+    assert_eq!(
+        run_of(FocusUnit::Project(PathBuf::from("/code/sottomano"))),
+        at(0)
+    );
+    assert_eq!(run_of(FocusUnit::App("code".to_owned())), at(15));
+    assert_eq!(
+        accounted.dominant_run(at(20)).unwrap().unit,
+        FocusUnit::Project(PathBuf::from("/code/sottomano"))
+    );
+}
+
+#[test]
+fn only_breaks_starting_in_the_window_count() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", None), 0),
+        step(idle_edge(IdleEdge::Idled), 10),
+        step(idle_edge(IdleEdge::Resumed), 30),
+        step(idle_edge(IdleEdge::Idled), 50),
+        step(idle_edge(IdleEdge::Resumed), 70),
+    ]);
+    let window = Interval {
+        from: at(20),
+        until: at(60),
+    };
+    assert_eq!(
+        ledger.accounted(&config).breaks_within(window, at(80)),
+        vec![Interval {
+            from: at(50),
+            until: at(70)
+        }]
+    );
+}
+
+#[test]
+fn each_taken_break_reports_why_it_counts() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", None), 0),
+        step(idle_edge(IdleEdge::Idled), 10),
+        step(idle_edge(IdleEdge::Resumed), 20),
+        step(screen_power_edge(ScreenEdge::Off), 30),
+        step(screen_power_edge(ScreenEdge::On), 31),
+        step(sleep_edge(SleepEdge::Suspending), 40),
+        step(sleep_edge(SleepEdge::Resumed), 41),
+        step(idle_edge(IdleEdge::Idled), 50),
+        step(idle_edge(IdleEdge::Resumed), 51),
+    ]);
+    let taken_break = |from, until, cause| TakenBreak {
+        interval: Interval {
+            from: at(from),
+            until: at(until),
+        },
+        cause,
+    };
+    assert_eq!(
+        ledger
+            .accounted(&config)
+            .taken_breaks_within(whole_day(), at(60)),
+        vec![
+            taken_break(10, 20, BreakCause::LongIdle),
+            taken_break(30, 31, BreakCause::ScreenOff),
+            taken_break(40, 41, BreakCause::Asleep),
+        ]
+    );
+}
+
+#[test]
+fn the_longest_session_spans_short_pauses_and_ends_at_a_break() {
+    let config = config();
+    let ledger = folded([
+        step(focused("kitty", None), 0),
+        step(idle_edge(IdleEdge::Idled), 10),
+        step(idle_edge(IdleEdge::Resumed), 11),
+        step(idle_edge(IdleEdge::Idled), 25),
+        step(idle_edge(IdleEdge::Resumed), 35),
+    ]);
+    assert_eq!(
+        ledger
+            .accounted(&config)
+            .longest_session_within(whole_day(), at(40)),
+        Some(Interval {
+            from: at(0),
+            until: at(25)
+        })
+    );
+}

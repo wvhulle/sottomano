@@ -1,4 +1,6 @@
 mod group_actions;
+mod group_appearance_settings;
+mod group_delivery_routing;
 mod group_hover_cards;
 mod group_routing;
 mod group_subscriptions;
@@ -10,8 +12,7 @@ use sottomano_toml_config::{Config, SecretPaths, secrets::StoredSecret};
 use sottomano_widgets::{
     cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},
     clock::Clock,
-    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    hover_cards::{anchored_popup::PopupAppearances, hover_card_surfaces::HoverCardSurfaceStyle},
+    group_menus::group_menu_state::GroupMenuState,
     indicator_groups::{
         appearance_presets_group::AppearancePresetsGroup,
         apptainer_containers_group::ApptainerContainersGroup,
@@ -26,7 +27,7 @@ use sottomano_widgets::{
         compositor_styling_group::CompositorStylingGroup,
         compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup,
-        dark_mode_group::{DarkModeGroup, DarkModeInteraction},
+        dark_mode_group::DarkModeGroup,
         docker_engines_group::DockerEnginesGroup,
         ethernet_ports_group::EthernetPortsGroup,
         flatpak_sandboxes_group::FlatpakSandboxesGroup,
@@ -34,7 +35,6 @@ use sottomano_widgets::{
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
         incus_instances_group::IncusInstancesGroup,
-        indicator_group_interaction::IndicatorGroupInteraction,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
         login_session_group::LoginSessionGroup,
@@ -48,8 +48,8 @@ use sottomano_widgets::{
         notification_group::NotificationGroup,
         nspawn_containers_group::NspawnContainersGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
-        overlay_settings_group::{OverlaySettingsGroup, OverlaySettingsMessage},
-        panel_settings_group::{GroupCollapsing, PanelSettingsGroup, PanelSettingsMessage},
+        overlay_settings_group::OverlaySettingsGroup,
+        panel_settings_group::{GroupCollapsing, PanelSettingsGroup},
         pending_upgrades_group::PendingUpgradesGroup,
         physical_drive_group::PhysicalDriveGroup,
         podman_engines_group::PodmanEnginesGroup,
@@ -58,7 +58,7 @@ use sottomano_widgets::{
         reachability_group::ReachabilityGroup,
         session_focus_group::SessionFocusGroup,
         session_power_group::SessionPowerGroup,
-        sidebar_settings_group::{SidebarSettingsGroup, SidebarSettingsMessage},
+        sidebar_settings_group::SidebarSettingsGroup,
         steam_client_groups::SteamClientGroups,
         storage_space_group::StorageSpaceGroup,
         systemd_manager_group::SystemdManagerGroup,
@@ -75,14 +75,9 @@ use sottomano_widgets::{
         window_group::WindowGroup,
         wireguard_tunnels_group::WireguardTunnelsGroup,
     },
-    notification_toasts::{NotificationSettings, ToastContext},
-    widgets::{
-        appearance_presets::{AppearancePreset, ShellAppearance},
-        layer_appearance_controls::AppearanceMessage,
-    },
 };
 
-use crate::shell_message::{Message, ShellInteraction};
+use crate::shell_message::Message;
 
 pub struct ShellIndicatorGroups {
     pub weather_group: WeatherGroup,
@@ -267,85 +262,11 @@ impl ShellIndicatorGroups {
             .map(Message::CompositorStyling)
     }
 
-    #[must_use]
-    pub fn shell_appearance(&self) -> ShellAppearance {
-        ShellAppearance {
-            scheme: self.dark_mode_group.scheme(),
-            panels: self.panel_settings_group.layer.appearance(),
-            sidebar: self.sidebar_settings_group.layer.appearance(),
-            overlays: self.overlay_settings_group.layer.appearance(),
-            menus: self.group_menus.layer.appearance(),
-        }
-    }
-
-    pub fn apply_appearance_preset(&self, preset: AppearancePreset) -> Task<Message> {
-        let current = self.shell_appearance();
-        let next = preset.applied_to(current);
-        let scheme_switch = (next.scheme != current.scheme).then(|| {
-            Task::done(Message::from(ShellInteraction::from(
-                IndicatorGroupInteraction::DarkMode(DarkModeInteraction::SwitchScheme(next.scheme)),
-            )))
-        });
-        Task::batch(
-            [
-                Task::done(Message::PanelSettings(PanelSettingsMessage::Appearance(
-                    AppearanceMessage::Adopted(next.panels),
-                ))),
-                Task::done(Message::SidebarSettings(
-                    SidebarSettingsMessage::Appearance(AppearanceMessage::Adopted(next.sidebar)),
-                )),
-                Task::done(Message::OverlaySettings(
-                    OverlaySettingsMessage::Appearance(AppearanceMessage::Adopted(next.overlays)),
-                )),
-                Task::done(Message::GroupMenuState(GroupMenuMessage::Appearance(
-                    AppearanceMessage::Adopted(next.menus),
-                ))),
-            ]
-            .into_iter()
-            .chain(scheme_switch),
-        )
-    }
-
     pub fn adopt_config(&mut self, previous: &Config, config: &Config) {
         let service = &config.launched_programs.color_temperature_service;
         if *service != previous.launched_programs.color_temperature_service {
             self.color_temperature_group = ColorTemperatureGroup::new(service.clone());
         }
-    }
-
-    #[must_use]
-    pub fn notification_settings(&self) -> NotificationSettings {
-        NotificationSettings {
-            alert_sound: self.notification_group.alert_sound,
-            toast_arrangement: self.overlay_settings_group.toast_arrangement,
-        }
-    }
-
-    #[must_use]
-    pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
-        HoverCardSurfaceStyle {
-            popup: PopupAppearances {
-                overlay: self.overlay_settings_group.layer.appearance(),
-                menu: self.group_menus.layer.appearance(),
-            },
-            float_offset_px: self.panel_settings_group.float_offset_px(),
-        }
-    }
-
-    #[must_use]
-    pub fn toast_context<'shell>(
-        &self,
-        compositor: &CompositorWindowState,
-        config: &'shell Config,
-        clock: Clock,
-    ) -> ToastContext<'shell> {
-        ToastContext::new(
-            compositor,
-            config,
-            self.notification_settings(),
-            self.quiet_schedule_group.phase,
-            clock,
-        )
     }
 
     pub fn collapse_when_auto_collapsing(&mut self) {

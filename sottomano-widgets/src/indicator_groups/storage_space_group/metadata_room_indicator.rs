@@ -182,7 +182,8 @@ impl<'view> MetadataRoomIndicator<'view> {
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::disk_storage::{
-        block_filesystem_mounts::Compression, btrfs_filesystem_space::Allocation,
+        block_filesystem_mounts::mount_compression_options::Compression,
+        btrfs_filesystem_space::Allocation,
     };
 
     use super::*;

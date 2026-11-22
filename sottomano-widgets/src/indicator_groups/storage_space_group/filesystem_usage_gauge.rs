@@ -99,7 +99,7 @@ impl SnapshotDeletionIndicator {
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::disk_storage::{
-        block_filesystem_mounts::{Compression, FilesystemMount},
+        block_filesystem_mounts::{FilesystemMount, mount_compression_options::Compression},
         mounted_filesystem_usage::{Filesystem, MountAccess},
         udev_volume_identity::VolumeIdentity,
     };

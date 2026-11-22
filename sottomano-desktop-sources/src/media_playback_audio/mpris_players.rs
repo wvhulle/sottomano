@@ -4,18 +4,12 @@ use std::{
     time::Instant,
 };
 
-use futures::{Stream, StreamExt, future::ready, stream::select};
 use image::{DynamicImage, RgbaImage};
 use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
-    Connection, MatchRule, MessageStream,
-    fdo::{DBusProxy, PropertiesProxy},
-    message::Type,
-    names::{BusName, InterfaceName},
     proxy,
-    proxy::CacheProperties,
-    zvariant::{ObjectPath, OwnedObjectPath, Value},
+    zvariant::{ObjectPath, OwnedObjectPath},
 };
 
 pub use super::{
@@ -23,23 +17,14 @@ pub use super::{
     mpris_track_fields::{CoverArtUrl, TrackAlbum, TrackSource, TrackTitle},
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking,
-    delivery_cadence_drivers::ChangeTriggerStreams,
-    media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
-    system_protocol_clients::{
-        dbus_change_signals::signal_messages,
-        dbus_desktop_buses::{DesktopBuses, OnBus, OwnerProcess, Properties, prop, text_prop},
-        protocol_peer_reconnects::subscribed,
-    },
+    blocking_background_work::blocking, media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
+mod mpris_player_bus_streams;
+mod mpris_property_decoding;
+
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
-const PLAYERCTLD: &str = "org.mpris.MediaPlayer2.playerctld";
-const PATH: &str = "/org/mpris/MediaPlayer2";
-const ROOT_INTERFACE: &str = "org.mpris.MediaPlayer2";
-const PLAYER_INTERFACE: &str = "org.mpris.MediaPlayer2.Player";
-const NO_TRACK: &str = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -139,39 +124,6 @@ pub enum SeekMode {
     Relative,
 }
 
-impl SeekMode {
-    fn declared(metadata: &Properties) -> Self {
-        let Some(track) = declared_track_path(metadata) else {
-            return Self::Relative;
-        };
-        if track.as_str() == NO_TRACK {
-            return Self::Relative;
-        }
-        Self::Absolute(track)
-    }
-}
-
-fn declared_track_path(metadata: &Properties) -> Option<OwnedObjectPath> {
-    match &**metadata.get("mpris:trackid")? {
-        Value::ObjectPath(track_path) => Some(track_path.clone().into()),
-        Value::Str(track_text) => ObjectPath::try_from(track_text.as_str())
-            .map(OwnedObjectPath::from)
-            .inspect_err(|path_failure| {
-                tracing::warn!(
-                    "mpris: mpris:trackid {track_text} is not an object path: {path_failure}"
-                );
-            })
-            .ok(),
-        other_value => {
-            tracing::warn!(
-                "mpris: mpris:trackid has an unexpected type {}",
-                other_value.value_signature()
-            );
-            None
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Command {
     Play,
@@ -199,27 +151,6 @@ pub enum Progress {
 }
 
 impl Progress {
-    fn declared(player: &Properties, metadata: &Properties) -> Self {
-        Self::timed(player, metadata).unwrap_or(Self::Untimed)
-    }
-
-    fn timed(player: &Properties, metadata: &Properties) -> Option<Self> {
-        let length = length(metadata).filter(|length| !length.is_zero())?;
-        let signed_position = prop::<i64>(player, "Position")?;
-        let position = u64::try_from(signed_position)
-            .inspect_err(|_| {
-                tracing::warn!("mpris: player reports negative position {signed_position}");
-            })
-            .ok()?;
-        let rate = prop::<f64>(player, "Rate")?;
-        Some(Self::Timed {
-            position: Duration::from_micros(position),
-            sampled_at: Instant::now(),
-            length,
-            rate,
-        })
-    }
-
     #[must_use]
     pub fn fraction(self, status: Status, now: Instant) -> Option<Ratio> {
         let Self::Timed { length, .. } = self else {
@@ -301,27 +232,6 @@ pub enum PlayerSetting<Setting> {
     Uncontrollable,
 }
 
-fn controllable_setting<Setting>(
-    player: &Properties,
-    declared: Option<Setting>,
-) -> PlayerSetting<Setting> {
-    match declared {
-        Some(setting) if prop(player, "CanControl").unwrap_or(false) => {
-            PlayerSetting::Controllable(setting)
-        }
-        Some(_) | None => PlayerSetting::Uncontrollable,
-    }
-}
-
-fn declared_queue_order(player: &Properties) -> Option<QueueOrder> {
-    let shuffled = prop::<bool>(player, "Shuffle")?;
-    Some(if shuffled {
-        QueueOrder::Shuffled
-    } else {
-        QueueOrder::InOrder
-    })
-}
-
 impl Media {
     #[must_use]
     pub fn joined_artists(&self) -> Option<String> {
@@ -343,45 +253,6 @@ impl Media {
             duration_secs: self.progress.length()?.as_secs(),
         })
     }
-}
-
-fn artists(metadata: &Properties) -> Vec<String> {
-    prop::<Vec<String>>(metadata, "xesam:artist")
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|artist| !artist.trim().is_empty())
-        .collect()
-}
-
-fn parsed<Parsed: FromStr>(metadata: &Properties, key: &str) -> Option<Parsed>
-where
-    Parsed::Err: Display,
-{
-    let raw_text = text_prop(metadata, key)?;
-    raw_text
-        .parse()
-        .inspect_err(|parse_failure| {
-            tracing::warn!("mpris: property {key} has invalid value {raw_text:?}: {parse_failure}");
-        })
-        .ok()
-}
-
-fn length(metadata: &Properties) -> Option<Duration> {
-    let value = metadata.get("mpris:length")?;
-    if let Ok(micros) = u64::try_from(value) {
-        return Some(Duration::from_micros(micros));
-    }
-    let signed_micros = i64::try_from(value)
-        .inspect_err(|type_mismatch| {
-            tracing::warn!("mpris: mpris:length has an unexpected type: {type_mismatch}");
-        })
-        .ok()?;
-    let micros = u64::try_from(signed_micros)
-        .inspect_err(|_| {
-            tracing::warn!("mpris: mpris:length is negative: {signed_micros}");
-        })
-        .ok()?;
-    Some(Duration::from_micros(micros))
 }
 
 #[proxy(
@@ -413,62 +284,6 @@ pub trait MediaPlayer2 {
     fn quit(&self) -> zbus::Result<()>;
 }
 
-async fn properties(
-    connection: &Connection,
-    bus: &str,
-    interface: &'static str,
-) -> zbus::Result<Properties> {
-    let proxy = PropertiesProxy::builder(connection)
-        .destination(bus.to_owned())?
-        .path(PATH)?
-        .cache_properties(CacheProperties::No)
-        .build()
-        .await?;
-    Ok(proxy
-        .get_all(InterfaceName::from_static_str_unchecked(interface))
-        .await?)
-}
-
-async fn owner_process(dbus: &DBusProxy<'_>, bus: &str) -> OwnerProcess {
-    match BusName::try_from(bus) {
-        Ok(name) => OwnerProcess::query_bus_owner(dbus, name).await,
-        Err(_) => OwnerProcess::Unidentified,
-    }
-}
-
-async fn read_media(
-    connection: &Connection,
-    dbus: &DBusProxy<'_>,
-    bus: &str,
-) -> zbus::Result<Media> {
-    let root = properties(connection, bus, ROOT_INTERFACE).await?;
-    let player = properties(connection, bus, PLAYER_INTERFACE).await?;
-    let Some(status) = text_prop(&player, "PlaybackStatus") else {
-        return Err(zbus::Error::Failure(
-            "PlaybackStatus is not declared".to_owned(),
-        ));
-    };
-    let status = status.parse()?;
-    let metadata = prop::<Properties>(&player, "Metadata").unwrap_or_default();
-    Ok(Media {
-        bus: bus.to_owned(),
-        owner: owner_process(dbus, bus).await,
-        identity: text_prop(&root, "Identity").unwrap_or_else(|| bus.to_owned()),
-        title: text_prop(&metadata, "xesam:title").map_or(TrackTitle::Untitled, TrackTitle::Titled),
-        artists: artists(&metadata),
-        album: text_prop(&metadata, "xesam:album").map_or(TrackAlbum::NoAlbum, TrackAlbum::OnAlbum),
-        url: parsed(&metadata, "xesam:url").map_or(TrackSource::Unlocated, TrackSource::Located),
-        status,
-        progress: Progress::declared(&player, &metadata),
-        art_url: text_prop(&metadata, "mpris:artUrl")
-            .map_or(CoverArtUrl::NotAdvertised, CoverArtUrl::Advertised),
-        capabilities: Capabilities::declared(&player, &root),
-        queue_order: controllable_setting(&player, declared_queue_order(&player)),
-        loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
-        seek_mode: SeekMode::declared(&metadata),
-    })
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PlayerBusOwner {
     pub bus: String,
@@ -484,31 +299,6 @@ pub fn mpris_player_name(bus: &str) -> &str {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerBusOwners {
     pub listed_players: Vec<PlayerBusOwner>,
-}
-
-async fn listed_player_owners(dbus: &DBusProxy<'_>) -> zbus::Result<PlayerBusOwners> {
-    let mut player_owners = Vec::new();
-    for name in dbus.list_names().await? {
-        let bus = name.to_string();
-        if !bus.starts_with(PREFIX) || bus == PLAYERCTLD {
-            continue;
-        }
-        match dbus.get_name_owner(name.into()).await {
-            Ok(owner) => player_owners.push(PlayerBusOwner {
-                bus,
-                owner: owner.to_string(),
-            }),
-            Err(owner_lookup_failure) => {
-                tracing::debug!(
-                    "mpris {bus}: left before its owner was looked up: {owner_lookup_failure}"
-                );
-            }
-        }
-    }
-    player_owners.sort();
-    Ok(PlayerBusOwners {
-        listed_players: player_owners,
-    })
 }
 
 pub async fn load_art(url: &str) -> Option<RgbaImage> {
@@ -546,98 +336,6 @@ pub async fn load_art(url: &str) -> Option<RgbaImage> {
     None
 }
 
-impl SnapshotSource for PlayerBusOwners {
-    type Error = zbus::Error;
-    type StreamInputs = DesktopBuses;
-
-    const NAME: &'static str = "Media players";
-
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        subscribed(buses.session, connect_player_owners).map(SnapshotDelivery::live_push)
-    }
-}
-
-async fn connect_player_owners(
-    connection: Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<PlayerBusOwners>>> {
-    let dbus = DBusProxy::new(&connection).await?;
-    let ownership_changes = dbus
-        .receive_name_owner_changed()
-        .await?
-        .filter(|signal| {
-            ready(
-                signal
-                    .args()
-                    .is_ok_and(|args| args.name().as_str().starts_with(PREFIX)),
-            )
-        })
-        .map(|_| Ok::<(), zbus::Error>(()));
-    Ok(ownership_changes.triggered_rereads(move || {
-        let dbus = dbus.clone();
-        async move { listed_player_owners(&dbus).await }
-    }))
-}
-
-impl SnapshotSource for Media {
-    type Error = zbus::Error;
-    type StreamInputs = OnBus<PlayerBusOwner>;
-
-    const NAME: &'static str = "Media player";
-
-    fn delivery_stream(
-        OnBus {
-            buses,
-            inputs: player,
-        }: Self::StreamInputs,
-    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        subscribed(buses.session, move |connection| {
-            connect_player(connection, player.clone())
-        })
-        .map(SnapshotDelivery::live_push)
-    }
-}
-
-async fn connect_player(
-    connection: Connection,
-    player: PlayerBusOwner,
-) -> zbus::Result<impl Stream<Item = zbus::Result<Media>>> {
-    let dbus = DBusProxy::new(&connection).await?;
-    let properties = player_signals(
-        &connection,
-        &player.owner,
-        "org.freedesktop.DBus.Properties",
-        "PropertiesChanged",
-    )
-    .await?
-    .map(|message| message.map(drop));
-    let seeks = player_signals(&connection, &player.owner, PLAYER_INTERFACE, "Seeked")
-        .await?
-        .map(|message| message.map(drop));
-    Ok(select(properties, seeks).triggered_rereads(move || {
-        let connection = connection.clone();
-        let dbus = dbus.clone();
-        let bus = player.bus.clone();
-        async move { read_media(&connection, &dbus, &bus).await }
-    }))
-}
-
-async fn player_signals(
-    connection: &Connection,
-    owner: &str,
-    interface: &'static str,
-    member: &'static str,
-) -> zbus::Result<MessageStream> {
-    let rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(owner)?
-        .path(PATH)?
-        .interface(interface)?
-        .member(member)?
-        .build()
-        .into_owned();
-    signal_messages(connection, rule).await
-}
-
 #[must_use]
 pub fn micros(duration: Duration) -> i64 {
     i64::try_from(duration.as_micros())
@@ -645,128 +343,4 @@ pub fn micros(duration: Duration) -> i64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use zbus::zvariant::{ObjectPath, OwnedValue, Value};
-
-    use super::*;
-
-    fn owned<'value>(value: impl Into<Value<'value>>) -> OwnedValue {
-        OwnedValue::try_from(value.into()).unwrap()
-    }
-
-    fn all_player_capabilities(control: bool) -> Properties {
-        Properties::from([
-            ("CanControl".to_owned(), owned(control)),
-            ("CanPlay".to_owned(), owned(true)),
-            ("CanPause".to_owned(), owned(true)),
-            ("CanSeek".to_owned(), owned(true)),
-            ("CanGoNext".to_owned(), owned(true)),
-            ("CanGoPrevious".to_owned(), owned(true)),
-            ("Shuffle".to_owned(), owned(true)),
-            ("LoopStatus".to_owned(), owned("Track")),
-        ])
-    }
-
-    #[test]
-    fn uncontrollable_player_declares_no_player_capabilities() {
-        let player = all_player_capabilities(false);
-        let root = Properties::from([
-            ("CanRaise".to_owned(), owned(true)),
-            ("CanQuit".to_owned(), owned(true)),
-        ]);
-        assert_eq!(
-            Capabilities::declared(&player, &root),
-            Capabilities {
-                raise: CommandOffer::Offered,
-                quit: CommandOffer::Offered,
-                ..Capabilities::default()
-            }
-        );
-        assert_eq!(
-            controllable_setting(&player, declared_queue_order(&player)),
-            PlayerSetting::Uncontrollable
-        );
-    }
-
-    #[test]
-    fn controllable_player_exposes_declared_settings() {
-        let player = all_player_capabilities(true);
-        assert_eq!(
-            controllable_setting(&player, parsed(&player, "LoopStatus")),
-            PlayerSetting::Controllable(LoopMode::Track)
-        );
-        assert_eq!(
-            controllable_setting(&player, declared_queue_order(&player)),
-            PlayerSetting::Controllable(QueueOrder::Shuffled)
-        );
-    }
-
-    #[test]
-    fn missing_can_pause_is_false() {
-        let player = Properties::from([
-            ("CanControl".to_owned(), owned(true)),
-            ("CanPlay".to_owned(), owned(true)),
-        ]);
-        let capabilities = Capabilities::declared(&player, &Properties::new());
-        assert_eq!(capabilities.play, CommandOffer::Offered);
-        assert_eq!(capabilities.pause, CommandOffer::NotOffered);
-    }
-
-    #[test]
-    fn loop_mode_cycles_through_every_mode() {
-        assert_eq!(LoopMode::Off.cycled(), LoopMode::Playlist);
-        assert_eq!(LoopMode::Playlist.cycled(), LoopMode::Track);
-        assert_eq!(LoopMode::Track.cycled(), LoopMode::Off);
-    }
-
-    #[test]
-    fn loop_mode_round_trips_through_its_spec_name() {
-        [LoopMode::Off, LoopMode::Playlist, LoopMode::Track]
-            .into_iter()
-            .for_each(|mode| assert_eq!(mode.to_string().parse::<LoopMode>().ok(), Some(mode)));
-        assert!("Shuffled".parse::<LoopMode>().is_err());
-    }
-
-    #[test]
-    fn seek_mode_is_relative_without_a_real_track() {
-        assert_eq!(SeekMode::declared(&Properties::new()), SeekMode::Relative);
-        let no_track = Properties::from([(
-            "mpris:trackid".to_owned(),
-            owned(ObjectPath::try_from(NO_TRACK).unwrap()),
-        )]);
-        assert_eq!(SeekMode::declared(&no_track), SeekMode::Relative);
-        let track = ObjectPath::try_from("/org/mpd/Tracks/7").unwrap();
-        let declared = Properties::from([("mpris:trackid".to_owned(), owned(track.clone()))]);
-        assert_eq!(
-            SeekMode::declared(&declared),
-            SeekMode::Absolute(track.into())
-        );
-        let spotify_track = "/com/spotify/track/4Rrhbvf23LWmr4IxwOBGrH";
-        let declared_as_text =
-            Properties::from([("mpris:trackid".to_owned(), owned(spotify_track))]);
-        assert_eq!(
-            SeekMode::declared(&declared_as_text),
-            SeekMode::Absolute(ObjectPath::try_from(spotify_track).unwrap().into())
-        );
-    }
-
-    #[test]
-    fn played_time_advances_at_the_declared_rate() {
-        let sampled_at = Instant::now();
-        let progress = Progress::Timed {
-            position: Duration::from_secs(10),
-            sampled_at,
-            length: Duration::from_secs(100),
-            rate: 2.0,
-        };
-        let later = sampled_at + Duration::from_secs(5);
-        assert_eq!(
-            progress.played(Status::Playing, later),
-            Some(Duration::from_secs(20))
-        );
-        assert_eq!(
-            progress.played(Status::Paused, later),
-            Some(Duration::from_secs(10))
-        );
-    }
-}
+mod mpris_player_tests;

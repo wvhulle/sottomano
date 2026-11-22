@@ -16,7 +16,10 @@ use sottomano_toml_config::{
     indicator_groups::tray::{ClickAction, TrayRule},
 };
 
-use super::{TrayItemWindow, TrayMessage, click_hint, click_message, item_view};
+use super::{
+    TrayMessage,
+    tray_item_view::{TrayItemWindow, click_hint, click_message, item_view},
+};
 use crate::icon_catalog::{
     drawable_icon_catalog::{DrawableIconSources, IconCatalog},
     pixmap_handles::PixmapHandles,

@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     ffi::OsStr,
-    fmt::{Display, Formatter, Result as FmtResult},
     fs,
     iter::successors,
     os::unix::ffi::OsStrExt,
@@ -19,9 +18,12 @@ use crate::{
     system_protocol_clients::sysfs_attribute_reads::{FileReadError, list_dir},
 };
 
+pub mod mount_compression_options;
+
+use mount_compression_options::Compression;
+
 const MOUNTINFO: &str = "/proc/self/mountinfo";
 const SYS_CLASS_BLOCK: &str = "/sys/class/block";
-const DEFAULT_BTRFS_ALGORITHM: &str = "zlib";
 const MULTI_DEVICE_SEPARATOR: char = ':';
 const VIRTUAL_BLOCK_PREFIXES: [&str; 3] = ["loop", "ram", "zram"];
 const ROOT_MOUNT_POINT: &str = "/";
@@ -315,97 +317,6 @@ fn file_name(path: &Path) -> Option<String> {
     Some(path.file_name()?.to_str()?.to_owned())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Compression {
-    Disabled,
-    Enabled {
-        algorithm: String,
-        level: CompressionLevel,
-        enforcement: CompressionEnforcement,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CompressionEnforcement {
-    Forced,
-    Heuristic,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CompressionLevel {
-    Default,
-    Explicit(u8),
-}
-
-impl From<&HashMap<String, Option<String>>> for Compression {
-    fn from(options: &HashMap<String, Option<String>>) -> Self {
-        let setting = |key: &str| {
-            options
-                .get(key)
-                .map(|value| value.as_deref().unwrap_or(DEFAULT_BTRFS_ALGORITHM))
-        };
-        if let Some(forced) = setting("compress-force") {
-            return Self::parsed_mount_setting(forced, CompressionEnforcement::Forced);
-        }
-        setting("compress").map_or(Compression::Disabled, |setting| {
-            Self::parsed_mount_setting(setting, CompressionEnforcement::Heuristic)
-        })
-    }
-}
-
-impl Compression {
-    fn parsed_mount_setting(setting: &str, enforcement: CompressionEnforcement) -> Self {
-        let (algorithm, level) = setting.split_once(':').map_or(
-            (setting, CompressionLevel::Default),
-            |(algorithm, level)| (algorithm, CompressionLevel::parse(level)),
-        );
-        if algorithm == "no" {
-            return Compression::Disabled;
-        }
-        Compression::Enabled {
-            algorithm: algorithm.to_owned(),
-            level,
-            enforcement,
-        }
-    }
-}
-
-impl CompressionLevel {
-    fn parse(level: &str) -> Self {
-        level
-            .parse()
-            .map_or(CompressionLevel::Default, CompressionLevel::Explicit)
-    }
-}
-
-impl Display for Compression {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Compression::Disabled => write!(formatter, "off"),
-            Compression::Enabled {
-                algorithm,
-                level,
-                enforcement,
-            } => {
-                write!(formatter, "{algorithm}{level}")?;
-                if *enforcement == CompressionEnforcement::Forced {
-                    write!(formatter, " (forced)")?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl Display for CompressionLevel {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            CompressionLevel::Default => Ok(()),
-            CompressionLevel::Explicit(level) => write!(formatter, ":{level}"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MountRole {
     Root,
@@ -413,98 +324,4 @@ pub enum MountRole {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rendered_compression(options: &[(&str, Option<&str>)]) -> String {
-        let options = options
-            .iter()
-            .map(|(key, value)| ((*key).to_owned(), value.map(str::to_owned)))
-            .collect();
-        Compression::from(&options).to_string()
-    }
-
-    #[test]
-    fn algorithm_with_level() {
-        assert_eq!(
-            rendered_compression(&[("compress", Some("zstd:3"))]),
-            "zstd:3"
-        );
-    }
-
-    #[test]
-    fn forced_compression_is_marked() {
-        assert_eq!(
-            rendered_compression(&[("compress-force", Some("lzo"))]),
-            "lzo (forced)"
-        );
-    }
-
-    #[test]
-    fn bare_compress_uses_the_btrfs_default() {
-        assert_eq!(rendered_compression(&[("compress", None)]), "zlib");
-    }
-
-    #[test]
-    fn absent_or_no_means_off() {
-        assert_eq!(rendered_compression(&[("ssd", None)]), "off");
-        assert_eq!(rendered_compression(&[("compress", Some("no"))]), "off");
-    }
-
-    fn mount_entry(mount_point: &str, fs_type: &str, source: &str) -> MountEntry {
-        MountEntry {
-            mount_point: PathBuf::from(mount_point),
-            fs_type: fs_type.to_owned(),
-            source: source.to_owned(),
-            options: HashMap::new(),
-        }
-    }
-
-    fn device_named_after_node(source: &str) -> Option<KernelDevice> {
-        Some(KernelDevice {
-            name: source.strip_prefix("/dev/")?.to_owned(),
-        })
-    }
-
-    #[test]
-    fn subvolume_mounts_collapse_into_one_filesystem() {
-        let filesystems = group_block_mounts(
-            [
-                mount_entry("/home", "bcachefs", "/dev/nvme1n1p1:/dev/nvme0n1p3"),
-                mount_entry("/", "bcachefs", "/dev/nvme1n1p1:/dev/nvme0n1p3"),
-                mount_entry("/nix/store", "bcachefs", "/dev/nvme1n1p1:/dev/nvme0n1p3"),
-                mount_entry("/boot", "vfat", "/dev/nvme0n1p1"),
-                mount_entry("/run", "tmpfs", "tmpfs"),
-                mount_entry("/mnt/iso", "iso9660", "/dev/loop0"),
-            ],
-            device_named_after_node,
-        );
-        assert_eq!(filesystems.len(), 2);
-        let root = &filesystems[0];
-        assert_eq!(root.primary_mount_point(), Path::new("/"));
-        assert_eq!(root.mount_points.len(), 3);
-        assert_eq!(root.devices.len(), 2);
-        assert_eq!(root.mount_role(), MountRole::Root);
-        assert_eq!(filesystems[1].primary_mount_point(), Path::new("/boot"));
-    }
-
-    #[test]
-    fn escaped_spaces_in_mount_points_are_restored() {
-        assert_eq!(
-            unescape_mountinfo_octal(Path::new("/run/media/user/4TB\\040Back-up")),
-            PathBuf::from("/run/media/user/4TB Back-up")
-        );
-    }
-
-    #[test]
-    fn device_order_in_the_source_does_not_split_a_filesystem() {
-        let filesystems = group_block_mounts(
-            [
-                mount_entry("/", "bcachefs", "/dev/sda1:/dev/sdb1"),
-                mount_entry("/home", "bcachefs", "/dev/sdb1:/dev/sda1"),
-            ],
-            device_named_after_node,
-        );
-        assert_eq!(filesystems.len(), 1);
-    }
-}
+mod block_mount_tests;

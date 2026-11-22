@@ -1,18 +1,17 @@
-use std::{collections::HashMap, convert::identity};
+mod card_slot_tracking;
 
 use corredo::{
     transitions::MotionState,
     width_layout::{ChildView, ChildViewMut},
 };
 use iced::{
-    Animation, Element, Event, Length, Padding, Point, Rectangle, Size, Vector,
+    Element, Event, Length, Padding, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
-    animation::Easing,
     border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
@@ -20,6 +19,7 @@ use iced::{
 };
 use sottomano_toml_config::Config;
 
+use self::card_slot_tracking::{ChildOrder, Drifts};
 use super::{
     toast_anchor_geometry,
     toast_anchor_geometry::ToastAnchorSpacing,
@@ -95,39 +95,6 @@ pub struct WindowAnchoredToasts<'view> {
     reveal_motion: MotionState,
 }
 
-struct Drift {
-    x: Animation<f32>,
-    y: Animation<f32>,
-    target: Point,
-    at: Point,
-}
-
-impl Drift {
-    fn resting_at(point: Point, duration: Duration) -> Self {
-        Self {
-            x: motion(point.x, duration),
-            y: motion(point.y, duration),
-            target: point,
-            at: point,
-        }
-    }
-
-    fn advance(&mut self, frame: Instant) {
-        self.x.go_mut(self.target.x, frame);
-        self.y.go_mut(self.target.y, frame);
-        self.at = Point::new(
-            self.x.interpolate_with(identity, frame),
-            self.y.interpolate_with(identity, frame),
-        );
-    }
-}
-
-fn motion(value: f32, duration: Duration) -> Animation<f32> {
-    Animation::new(value)
-        .easing(Easing::EaseOutCubic)
-        .duration(duration)
-}
-
 #[derive(Default)]
 struct FieldState {
     order: ChildOrder,
@@ -142,69 +109,6 @@ enum LastRedraw {
     #[default]
     NotYetRedrawn,
     RedrawnAt(Instant),
-}
-
-#[derive(Default)]
-struct ChildOrder {
-    keys: Vec<u32>,
-}
-
-impl ChildOrder {
-    fn rekey(&mut self, ids: &[u32], children: &mut Vec<Tree>) {
-        if self.keys == ids {
-            return;
-        }
-        let mut retired: Vec<Option<Tree>> = children.drain(..).map(Some).collect();
-        *children = ids
-            .iter()
-            .map(|id| {
-                self.keys
-                    .iter()
-                    .position(|key| key == id)
-                    .and_then(|index| retired[index].take())
-                    .unwrap_or_else(Tree::empty)
-            })
-            .collect();
-        self.keys.clear();
-        self.keys.extend_from_slice(ids);
-    }
-}
-
-#[derive(Default)]
-struct Drifts {
-    by_id: HashMap<u32, Drift>,
-}
-
-impl Drifts {
-    fn aim(&mut self, ids: &[u32], targets: &[Point], motion: Duration) -> Vec<Point> {
-        self.by_id.retain(|id, _| ids.contains(id));
-        ids.iter()
-            .zip(targets)
-            .map(|(id, target)| {
-                let drift = self
-                    .by_id
-                    .entry(*id)
-                    .or_insert_with(|| Drift::resting_at(*target, motion));
-                drift.target = *target;
-                drift.at
-            })
-            .collect()
-    }
-
-    fn advance(&mut self, frame: Instant) -> MotionState {
-        self.by_id
-            .values_mut()
-            .for_each(|drift| drift.advance(frame));
-        if self
-            .by_id
-            .values()
-            .any(|drift| drift.x.is_animating(frame) || drift.y.is_animating(frame))
-        {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
-    }
 }
 
 fn snapped(bounds: Rectangle) -> Rectangle {
@@ -475,136 +379,4 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
 }
 
 #[cfg(test)]
-mod tests {
-    use corredo::transitions::MotionState;
-    use iced::{
-        Event, Padding, Settings, Size,
-        time::Duration,
-        widget::{container, text},
-        window,
-    };
-    use iced_test::Simulator;
-    use sottomano_toml_config::{
-        Config,
-        screen_edges::{HEdge, VEdge},
-    };
-
-    use super::WindowAnchoredToasts;
-    use crate::{
-        clock::Clock,
-        notification_toasts::toast_placement::{AnchoredToast, ToastAnchor},
-        toast_messages::NotificationMessage,
-        widgets::{shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade},
-    };
-
-    #[test]
-    fn unchanged_card_bounds_are_published_once() {
-        let config = Config::default();
-        let single_toast = AnchoredToast {
-            id: 1,
-            anchor: ToastAnchor::Edge {
-                vertical: VEdge::Top,
-                horizontal: HEdge::Right,
-            },
-            card: container(text("build finished")).padding(20).into(),
-            motion: MotionState::Settled,
-        };
-        let toasts = WindowAnchoredToasts::new(
-            "DP-1",
-            vec![single_toast],
-            Padding::ZERO,
-            &ShellLayer::Overlays.default_appearance(),
-            CardBackgroundFade::Resting,
-            &config,
-        );
-        let mut simulator =
-            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
-        let first_frame = Clock::real().instant;
-        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
-            Event::Window(window::Event::RedrawRequested(
-                first_frame + Duration::from_millis(16 * frame_index),
-            ))
-        }));
-        let published_card_counts: Vec<usize> = simulator
-            .into_messages()
-            .filter_map(|message| match message {
-                NotificationMessage::CardsLaidOut { toast_cards, .. } => Some(toast_cards.len()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(published_card_counts, [1]);
-    }
-
-    #[test]
-    fn a_settled_card_is_reported_once_across_frames() {
-        let config = Config::default();
-        let single_toast = AnchoredToast {
-            id: 7,
-            anchor: ToastAnchor::Edge {
-                vertical: VEdge::Top,
-                horizontal: HEdge::Right,
-            },
-            card: container(text("device plugged in")).padding(20).into(),
-            motion: MotionState::Settled,
-        };
-        let toasts = WindowAnchoredToasts::new(
-            "DP-1",
-            vec![single_toast],
-            Padding::ZERO,
-            &ShellLayer::Overlays.default_appearance(),
-            CardBackgroundFade::Resting,
-            &config,
-        );
-        let mut simulator =
-            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
-        let first_frame = Clock::real().instant;
-        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
-            Event::Window(window::Event::RedrawRequested(
-                first_frame + Duration::from_millis(16 * frame_index),
-            ))
-        }));
-        let settled_reports: Vec<Vec<u32>> = simulator
-            .into_messages()
-            .filter_map(|message| match message {
-                NotificationMessage::CardsSettled { toast_ids } => Some(toast_ids),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(settled_reports, [vec![7]]);
-    }
-
-    #[test]
-    fn a_card_still_appearing_is_not_reported_settled() {
-        let config = Config::default();
-        let appearing_toast = AnchoredToast {
-            id: 9,
-            anchor: ToastAnchor::Edge {
-                vertical: VEdge::Top,
-                horizontal: HEdge::Right,
-            },
-            card: container(text("download complete")).padding(20).into(),
-            motion: MotionState::Moving,
-        };
-        let toasts = WindowAnchoredToasts::new(
-            "DP-1",
-            vec![appearing_toast],
-            Padding::ZERO,
-            &ShellLayer::Overlays.default_appearance(),
-            CardBackgroundFade::Resting,
-            &config,
-        );
-        let mut simulator =
-            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
-        let first_frame = Clock::real().instant;
-        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
-            Event::Window(window::Event::RedrawRequested(
-                first_frame + Duration::from_millis(16 * frame_index),
-            ))
-        }));
-        let settled_report_count = simulator
-            .into_messages()
-            .filter(|message| matches!(message, NotificationMessage::CardsSettled { .. }))
-            .count();
-        assert_eq!(settled_report_count, 0);
-    }
-}
+mod window_anchored_toasts_tests;

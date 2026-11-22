@@ -1,7 +1,9 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
+pub mod gtk_actions_proxy;
+#[cfg(test)]
+mod gtk_menu_bar_tests;
+mod gtk_menu_item_tree;
+
+use std::{collections::HashMap, sync::Arc};
 
 use futures::{Stream, StreamExt, stream};
 use serde::{Deserialize, Serialize};
@@ -9,27 +11,22 @@ use zbus::{
     names::OwnedBusName,
     proxy,
     proxy::CacheProperties,
-    zvariant::{self, OwnedObjectPath, OwnedValue, Structure, Type, Value},
+    zvariant::{OwnedObjectPath, OwnedValue, Type},
 };
 
-use crate::delivery_cadence_drivers::ChangeTriggerStreams;
-
-pub mod gtk_actions_proxy;
-
-use self::gtk_actions_proxy::{GtkActionDescription, gtk_actions_proxy};
-use crate::desktop_windows_apps::{
-    application_menu_nodes::{
-        MenuItemIcon, MenuItemSensitivity, MenuKind, MenuLabel, MenuNode, ToggleCheck, ToggleMark,
-        label_without_mnemonics,
+use self::{
+    gtk_actions_proxy::gtk_actions_proxy,
+    gtk_menu_item_tree::{GtkActionDescriptions, gtk_menu_bar, loaded_menu_items},
+};
+use crate::{
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    desktop_windows_apps::{
+        application_menu_nodes::MenuNode, dbusmenu_menu_bar_layout::introspected_node,
     },
-    dbusmenu_menu_bar_layout::introspected_node,
 };
 
 const MENU_BAR_SUFFIX: &str = "/menus/menubar";
 const WINDOW_ACTIONS_SUFFIX: &str = "/window";
-const ROOT_MENU_GROUP: u32 = 0;
-const SECTION_LINK: &str = ":section";
-const SUBMENU_LINK: &str = ":submenu";
 
 #[derive(Debug, Deserialize, Serialize, Type)]
 pub struct GtkMenuGroupReply {
@@ -85,34 +82,6 @@ pub enum GtkActionTarget {
     Targeted(Arc<OwnedValue>),
 }
 
-struct ScopedActionName {
-    scope: GtkActionScope,
-    action_name: String,
-}
-
-impl TryFrom<&str> for ScopedActionName {
-    type Error = String;
-
-    fn try_from(detailed_action: &str) -> Result<Self, Self::Error> {
-        let Some((prefix, action_name)) = detailed_action.split_once('.') else {
-            return Err(format!("{detailed_action} has no action group prefix"));
-        };
-        let scope = match prefix {
-            "app" => GtkActionScope::Application,
-            "win" => GtkActionScope::Window,
-            _ => {
-                return Err(format!(
-                    "{detailed_action} belongs to an unexported action group"
-                ));
-            }
-        };
-        Ok(Self {
-            scope,
-            action_name: action_name.to_owned(),
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct GtkMenuActivation {
     pub scope: GtkActionScope,
@@ -127,282 +96,9 @@ pub struct GtkMenuBar {
     pub action_groups: GtkActionGroups,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct GtkMenuKey {
-    group_id: u32,
-    menu_id: u32,
-}
-
-impl TryFrom<&OwnedValue> for GtkMenuKey {
-    type Error = zvariant::Error;
-
-    fn try_from(link_value: &OwnedValue) -> Result<Self, Self::Error> {
-        let link_structure = link_value.downcast_ref::<Structure<'_>>()?;
-        match link_structure.fields() {
-            [Value::U32(group_id), Value::U32(menu_id)] => Ok(Self {
-                group_id: *group_id,
-                menu_id: *menu_id,
-            }),
-            _ => Err(zvariant::Error::IncorrectType),
-        }
-    }
-}
-
-type GtkMenuItems = HashMap<GtkMenuKey, Vec<HashMap<String, OwnedValue>>>;
-type GtkActionDescriptions = HashMap<String, GtkActionDescription>;
-
 #[must_use]
 pub fn application_object_path(app_id: &str) -> String {
     format!("/{}", app_id.replace('.', "/").replace('-', "_"))
-}
-
-async fn loaded_menu_items(menus_proxy: &GtkMenusProxy<'_>) -> zbus::Result<GtkMenuItems> {
-    let mut menu_items = GtkMenuItems::new();
-    let mut requested_groups = BTreeSet::new();
-    let mut pending_groups = vec![ROOT_MENU_GROUP];
-    while !pending_groups.is_empty() {
-        requested_groups.extend(pending_groups.iter().copied());
-        for group_reply in menus_proxy.start(&pending_groups).await? {
-            menu_items.insert(
-                GtkMenuKey {
-                    group_id: group_reply.group_id,
-                    menu_id: group_reply.menu_id,
-                },
-                group_reply.items,
-            );
-        }
-        pending_groups = menu_items
-            .values()
-            .flatten()
-            .filter_map(linked_menu)
-            .map(|linked_key| linked_key.group_id)
-            .filter(|group_id| !requested_groups.contains(group_id))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-    }
-    let started_groups: Vec<u32> = requested_groups.into_iter().collect();
-    if let Err(end_failure) = menus_proxy.end(&started_groups).await {
-        tracing::debug!("gtk menus: end subscription: {end_failure}");
-    }
-    Ok(menu_items)
-}
-
-fn linked_menu(menu_item: &HashMap<String, OwnedValue>) -> Option<GtkMenuKey> {
-    [SECTION_LINK, SUBMENU_LINK]
-        .into_iter()
-        .find_map(|link_key| menu_item.get(link_key))
-        .and_then(linked_menu_key)
-}
-
-fn linked_menu_key(link_value: &OwnedValue) -> Option<GtkMenuKey> {
-    GtkMenuKey::try_from(link_value)
-        .inspect_err(|link_failure| {
-            tracing::warn!("gtk menus: invalid menu link {link_value:?}: {link_failure}");
-        })
-        .ok()
-}
-
-fn text_property(menu_item: &HashMap<String, OwnedValue>, property_name: &str) -> Option<String> {
-    menu_item
-        .get(property_name)
-        .and_then(|property_value| {
-            property_value
-                .downcast_ref::<&str>()
-                .inspect_err(|downcast_failure| {
-                    tracing::warn!(
-                        "gtk menus: {property_name} is not text {property_value:?}: \
-                         {downcast_failure}"
-                    );
-                })
-                .ok()
-        })
-        .map(str::to_owned)
-}
-
-struct GtkMenuTreeBuilder<'menus> {
-    menu_items: &'menus GtkMenuItems,
-    application_actions: &'menus GtkActionDescriptions,
-    window_actions: &'menus GtkActionDescriptions,
-    next_node_id: i32,
-    activations: HashMap<i32, GtkMenuActivation>,
-}
-
-impl GtkMenuTreeBuilder<'_> {
-    fn issue_node_id(&mut self) -> i32 {
-        self.next_node_id += 1;
-        self.next_node_id
-    }
-
-    fn menu_nodes(&mut self, menu_key: GtkMenuKey, depth_left: u8) -> Vec<MenuNode> {
-        let Some(items) = self.menu_items.get(&menu_key) else {
-            return Vec::new();
-        };
-        let mut menu_nodes = Vec::new();
-        for menu_item in items {
-            if let Some(section_key) = menu_item.get(SECTION_LINK).and_then(linked_menu_key) {
-                let Some(section_depth_left) = depth_left.checked_sub(1) else {
-                    continue;
-                };
-                let section_nodes = self.menu_nodes(section_key, section_depth_left);
-                if !menu_nodes.is_empty() && !section_nodes.is_empty() {
-                    menu_nodes.push(self.separator_node());
-                }
-                menu_nodes.extend(section_nodes);
-                continue;
-            }
-            menu_nodes.extend(self.item_node(menu_item, depth_left));
-        }
-        menu_nodes
-    }
-
-    fn separator_node(&mut self) -> MenuNode {
-        MenuNode {
-            id: self.issue_node_id(),
-            label: MenuLabel::Unlabelled,
-            sensitivity: MenuItemSensitivity::Enabled,
-            kind: MenuKind::Separator,
-            icon: MenuItemIcon::NoIcon,
-            children: Vec::new(),
-        }
-    }
-
-    fn item_node(
-        &mut self,
-        menu_item: &HashMap<String, OwnedValue>,
-        depth_left: u8,
-    ) -> Option<MenuNode> {
-        let label = text_property(menu_item, "label").map_or(MenuLabel::Unlabelled, |raw_label| {
-            MenuLabel::Labelled(label_without_mnemonics(&raw_label))
-        });
-        let node_id = self.issue_node_id();
-        if let Some(submenu_key) = menu_item.get(SUBMENU_LINK).and_then(linked_menu_key) {
-            let children = if depth_left == 0 {
-                Vec::new()
-            } else {
-                self.menu_nodes(submenu_key, depth_left - 1)
-            };
-            return Some(MenuNode {
-                id: node_id,
-                label,
-                sensitivity: MenuItemSensitivity::Enabled,
-                kind: MenuKind::Submenu,
-                icon: MenuItemIcon::NoIcon,
-                children,
-            });
-        }
-        let detailed_action = text_property(menu_item, "action")?;
-        let ScopedActionName { scope, action_name } =
-            ScopedActionName::try_from(detailed_action.as_str())
-                .inspect_err(|action_failure| {
-                    tracing::warn!("gtk menus: invalid action {detailed_action}: {action_failure}");
-                })
-                .ok()?;
-        let action_target = menu_item
-            .get("target")
-            .and_then(|target_value| {
-                target_value
-                    .try_clone()
-                    .inspect_err(|clone_failure| {
-                        tracing::warn!(
-                            "gtk menus: cannot copy target of {detailed_action}: {clone_failure}"
-                        );
-                    })
-                    .ok()
-            })
-            .map_or(GtkActionTarget::Untargeted, |target_value| {
-                GtkActionTarget::Targeted(Arc::new(target_value))
-            });
-        let description = match scope {
-            GtkActionScope::Application => self.application_actions.get(&action_name),
-            GtkActionScope::Window => self.window_actions.get(&action_name),
-        };
-        let sensitivity = if description.is_some_and(|description| description.enabled) {
-            MenuItemSensitivity::Enabled
-        } else {
-            MenuItemSensitivity::Disabled
-        };
-        let kind = description
-            .and_then(|description| description.state.first())
-            .map_or(MenuKind::Standard, |action_state| {
-                toggle_kind(action_state, &action_target)
-            });
-        self.activations.insert(
-            node_id,
-            GtkMenuActivation {
-                scope,
-                action_name,
-                action_target,
-            },
-        );
-        Some(MenuNode {
-            id: node_id,
-            label,
-            sensitivity,
-            kind,
-            icon: MenuItemIcon::NoIcon,
-            children: Vec::new(),
-        })
-    }
-}
-
-fn toggle_kind(action_state: &OwnedValue, action_target: &GtkActionTarget) -> MenuKind {
-    let action_state: &Value<'_> = action_state;
-    let action_state = match action_state {
-        Value::Value(boxed_state) => boxed_state.as_ref(),
-        unboxed_state => unboxed_state,
-    };
-    match (action_state, action_target) {
-        (Value::Bool(checked), GtkActionTarget::Untargeted) => MenuKind::Toggle {
-            mark: ToggleMark::Checkbox,
-            check: if *checked {
-                ToggleCheck::Checked
-            } else {
-                ToggleCheck::Unchecked
-            },
-        },
-        (current_state, GtkActionTarget::Targeted(target_value)) => {
-            let target_value: &Value<'_> = target_value;
-            MenuKind::Toggle {
-                mark: ToggleMark::Radio,
-                check: if current_state == target_value {
-                    ToggleCheck::Checked
-                } else {
-                    ToggleCheck::Unchecked
-                },
-            }
-        }
-        (_, GtkActionTarget::Untargeted) => MenuKind::Standard,
-    }
-}
-
-const MAXIMUM_MENU_DEPTH: u8 = 8;
-
-fn gtk_menu_bar(
-    menu_items: &GtkMenuItems,
-    application_actions: &GtkActionDescriptions,
-    window_actions: &GtkActionDescriptions,
-    action_groups: GtkActionGroups,
-) -> GtkMenuBar {
-    let mut tree_builder = GtkMenuTreeBuilder {
-        menu_items,
-        application_actions,
-        window_actions,
-        next_node_id: 0,
-        activations: HashMap::new(),
-    };
-    let top_menus = tree_builder.menu_nodes(
-        GtkMenuKey {
-            group_id: ROOT_MENU_GROUP,
-            menu_id: 0,
-        },
-        MAXIMUM_MENU_DEPTH,
-    );
-    GtkMenuBar {
-        top_menus,
-        activations: tree_builder.activations,
-        action_groups,
-    }
 }
 
 async fn described_actions(
@@ -546,155 +242,4 @@ pub async fn gtk_menu_bar_updates(
             async move { fetched_gtk_menu_bar(&connection, &menus_proxy, &action_groups).await }
         }),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use zbus::zvariant::{Signature, StructureBuilder};
-
-    use super::*;
-
-    fn text_value(text: &str) -> OwnedValue {
-        OwnedValue::try_from(Value::from(text)).expect("text converts")
-    }
-
-    fn link_value(group_id: u32, menu_id: u32) -> OwnedValue {
-        let link = StructureBuilder::new()
-            .add_field(group_id)
-            .add_field(menu_id)
-            .build()
-            .expect("link builds");
-        OwnedValue::try_from(Value::from(link)).expect("link converts")
-    }
-
-    fn labelled_item(
-        label: &str,
-        property_name: &str,
-        property_value: OwnedValue,
-    ) -> HashMap<String, OwnedValue> {
-        HashMap::from([
-            ("label".to_owned(), text_value(label)),
-            (property_name.to_owned(), property_value),
-        ])
-    }
-
-    fn enabled_action() -> GtkActionDescription {
-        GtkActionDescription {
-            enabled: true,
-            parameter_type: Signature::Unit,
-            state: Vec::new(),
-        }
-    }
-
-    fn file_menu_bar() -> GtkMenuItems {
-        GtkMenuItems::from([
-            (
-                GtkMenuKey {
-                    group_id: 0,
-                    menu_id: 0,
-                },
-                vec![labelled_item("_File", SUBMENU_LINK, link_value(1, 0))],
-            ),
-            (
-                GtkMenuKey {
-                    group_id: 1,
-                    menu_id: 0,
-                },
-                vec![
-                    HashMap::from([(SECTION_LINK.to_owned(), link_value(1, 1))]),
-                    HashMap::from([(SECTION_LINK.to_owned(), link_value(1, 2))]),
-                ],
-            ),
-            (
-                GtkMenuKey {
-                    group_id: 1,
-                    menu_id: 1,
-                },
-                vec![labelled_item("_New", "action", text_value("win.new"))],
-            ),
-            (
-                GtkMenuKey {
-                    group_id: 1,
-                    menu_id: 2,
-                },
-                vec![labelled_item("_Quit", "action", text_value("app.quit"))],
-            ),
-        ])
-    }
-
-    fn action_groups() -> GtkActionGroups {
-        GtkActionGroups {
-            bus_name: OwnedBusName::try_from("org.example.Editor").expect("bus name"),
-            application_actions: ApplicationActionPath::Exported(
-                OwnedObjectPath::try_from("/org/example/Editor").expect("object path"),
-            ),
-            window_actions: WindowActionPath::Unresolved,
-        }
-    }
-
-    #[test]
-    fn sections_are_separated_inside_a_submenu() {
-        let application_actions =
-            GtkActionDescriptions::from([("quit".to_owned(), enabled_action())]);
-        let menu_bar = gtk_menu_bar(
-            &file_menu_bar(),
-            &application_actions,
-            &GtkActionDescriptions::new(),
-            action_groups(),
-        );
-        let [file_menu] = menu_bar.top_menus.as_slice() else {
-            panic!("one top menu expected, got {:?}", menu_bar.top_menus);
-        };
-        assert_eq!(file_menu.label, MenuLabel::Labelled("File".to_owned()));
-        let child_kinds: Vec<MenuKind> =
-            file_menu.children.iter().map(|child| child.kind).collect();
-        assert_eq!(
-            child_kinds,
-            [MenuKind::Standard, MenuKind::Separator, MenuKind::Standard]
-        );
-    }
-
-    #[test]
-    fn window_action_without_resolved_window_is_disabled() {
-        let menu_bar = gtk_menu_bar(
-            &file_menu_bar(),
-            &GtkActionDescriptions::from([("quit".to_owned(), enabled_action())]),
-            &GtkActionDescriptions::new(),
-            action_groups(),
-        );
-        let enabled_labels: Vec<String> = menu_bar.top_menus[0]
-            .children
-            .iter()
-            .filter_map(|child| match &child.label {
-                MenuLabel::Labelled(label) => Some(format!("{label} {:?}", child.sensitivity)),
-                MenuLabel::Unlabelled => None,
-            })
-            .collect();
-        assert_eq!(enabled_labels, ["New Disabled", "Quit Enabled"]);
-    }
-
-    #[test]
-    fn activations_name_their_scope() {
-        let menu_bar = gtk_menu_bar(
-            &file_menu_bar(),
-            &GtkActionDescriptions::new(),
-            &GtkActionDescriptions::new(),
-            action_groups(),
-        );
-        let mut scoped_names: Vec<String> = menu_bar
-            .activations
-            .into_values()
-            .map(|activation| format!("{} in {:?}", activation.action_name, activation.scope))
-            .collect();
-        scoped_names.sort_unstable();
-        assert_eq!(scoped_names, ["new in Window", "quit in Application"]);
-    }
-
-    #[test]
-    fn dashed_app_id_becomes_an_underscored_object_path() {
-        assert_eq!(
-            application_object_path("org.gnome.text-editor"),
-            "/org/gnome/text_editor"
-        );
-    }
 }

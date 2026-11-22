@@ -12,7 +12,8 @@ use super::{
     },
     idle_timeline_row::{first_stage_text, idle_timeline},
     pause_blocker_indicators::{
-        PauseBlocker, ScheduledShutdownIndicator, blocker_sections, sleep_state_sections,
+        PauseBlocker, ScheduledShutdownIndicator, blocker_sections,
+        sleep_state_answers::sleep_state_sections,
     },
     stage_schedule_cards::{ScreenOffOverride, schedule_section},
 };

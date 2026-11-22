@@ -1,3 +1,7 @@
+#[cfg(test)]
+mod focused_menu_bar_tests;
+mod menu_bar_candidate_discovery;
+
 use std::collections::HashMap;
 
 use futures::{Stream, StreamExt, TryStreamExt, stream, stream::BoxStream};
@@ -6,28 +10,24 @@ use sottomano_compositor_model::{
     compositor_window_facts::{WindowAppId, WindowPid},
     compositor_window_state::CompositorWindow,
 };
-use tokio::fs;
 
+use self::menu_bar_candidate_discovery::{
+    MenuBarCandidate, WindowProtocol, native_menu_bar_candidate, window_protocol_of_owner,
+    x11_menu_bar_candidate,
+};
 use crate::{
     desktop_windows_apps::{
         application_menu_nodes::MenuNode,
         appmenu_registrar_server::RegisteredMenuBar,
-        dbusmenu_menu_bar_layout::{
-            DbusMenuLocation, exported_menu_bars_of_process, menu_bar_layout_updates,
-        },
+        dbusmenu_menu_bar_layout::{DbusMenuLocation, menu_bar_layout_updates},
         gtk_menus_menu_bar::{
             GtkActionGroups, GtkMenuActivation, GtkMenuBar, GtkMenuBarSource,
             gtk_menu_bar_source_of_app, gtk_menu_bar_updates,
         },
-        x11_window_menu_properties::{
-            ActiveX11Window, X11MenuLookupError, X11WindowMenu, active_x11_window_changes,
-            x11_window_menu,
-        },
+        x11_window_menu_properties::{X11MenuLookupError, active_x11_window_changes},
     },
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-
-const X11_BRIDGE_EXECUTABLES: [&str; 2] = ["xwayland-satellite", "Xwayland"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FocusedWindowOwner {
@@ -128,191 +128,6 @@ fn shown_gtk_menu_bar(gtk_menu_bar: GtkMenuBar, menu_bar_match: MenuBarMatch) ->
             activations: gtk_menu_bar.activations,
         },
         menu_bar_match,
-    }
-}
-
-enum DbusMenuCandidate {
-    Exported {
-        location: DbusMenuLocation,
-        menu_bar_match: MenuBarMatch,
-    },
-    NoneExported,
-}
-
-enum MenuBarCandidate {
-    DbusMenu {
-        location: DbusMenuLocation,
-        menu_bar_match: MenuBarMatch,
-    },
-    GtkMenus {
-        source: GtkMenuBarSource,
-        menu_bar_match: MenuBarMatch,
-    },
-    GtkApplication {
-        app_id: String,
-    },
-    Absent,
-}
-
-impl From<DbusMenuCandidate> for MenuBarCandidate {
-    fn from(dbusmenu_candidate: DbusMenuCandidate) -> Self {
-        match dbusmenu_candidate {
-            DbusMenuCandidate::Exported {
-                location,
-                menu_bar_match,
-            } => Self::DbusMenu {
-                location,
-                menu_bar_match,
-            },
-            DbusMenuCandidate::NoneExported => Self::Absent,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WindowProtocol {
-    X11Bridged,
-    Native,
-}
-
-fn newest_dbusmenu_candidate(
-    registered_locations: Vec<DbusMenuLocation>,
-    exported_locations: Vec<DbusMenuLocation>,
-) -> DbusMenuCandidate {
-    let mut candidate_locations = exported_locations;
-    for registered_location in registered_locations {
-        candidate_locations.retain(|candidate| *candidate != registered_location);
-        candidate_locations.push(registered_location);
-    }
-    let menu_bar_match = if candidate_locations.len() > 1 {
-        MenuBarMatch::MostRecentProcessCandidate
-    } else {
-        MenuBarMatch::OnlyProcessCandidate
-    };
-    match candidate_locations.pop() {
-        Some(location) => DbusMenuCandidate::Exported {
-            location,
-            menu_bar_match,
-        },
-        None => DbusMenuCandidate::NoneExported,
-    }
-}
-
-async fn dbusmenu_candidate_of_process(
-    connection: &zbus::Connection,
-    process_id: u32,
-    registered_menu_bars: &[RegisteredMenuBar],
-) -> DbusMenuCandidate {
-    let registered_locations = registered_menu_bars
-        .iter()
-        .filter(|registered| registered.owner_process == OwnerProcess::Identified(process_id))
-        .map(DbusMenuLocation::from)
-        .collect();
-    let exported_locations = exported_menu_bars_of_process(connection, process_id)
-        .await
-        .unwrap_or_else(|probe_failure| {
-            tracing::debug!("global menu: probing process {process_id}: {probe_failure}");
-            Vec::new()
-        });
-    newest_dbusmenu_candidate(registered_locations, exported_locations)
-}
-
-fn window_protocol_of_executable(executable_name: &str) -> WindowProtocol {
-    let unwrapped_name = executable_name
-        .trim_start_matches('.')
-        .trim_end_matches("-wrapped");
-    if X11_BRIDGE_EXECUTABLES.contains(&unwrapped_name) {
-        WindowProtocol::X11Bridged
-    } else {
-        WindowProtocol::Native
-    }
-}
-
-async fn window_protocol_of_process(process_id: u32) -> WindowProtocol {
-    let Ok(executable_path) = fs::read_link(format!("/proc/{process_id}/exe")).await else {
-        return WindowProtocol::Native;
-    };
-    executable_path
-        .file_name()
-        .and_then(|executable_name| executable_name.to_str())
-        .map_or(WindowProtocol::Native, window_protocol_of_executable)
-}
-
-fn registered_for_x11_window(
-    registered_menu_bars: &[RegisteredMenuBar],
-    x11_window_id: u32,
-) -> Option<DbusMenuLocation> {
-    registered_menu_bars
-        .iter()
-        .rev()
-        .find(|registered| registered.window_id == x11_window_id)
-        .map(DbusMenuLocation::from)
-}
-
-async fn x11_menu_bar_candidate(
-    registered_menu_bars: &[RegisteredMenuBar],
-    active_window: ActiveX11Window,
-) -> MenuBarCandidate {
-    let ActiveX11Window::Window(x11_window_id) = active_window else {
-        return MenuBarCandidate::Absent;
-    };
-    if let Some(location) = registered_for_x11_window(registered_menu_bars, x11_window_id) {
-        return MenuBarCandidate::DbusMenu {
-            location,
-            menu_bar_match: MenuBarMatch::ExactWindow,
-        };
-    }
-    match x11_window_menu(x11_window_id).await {
-        Ok(X11WindowMenu::KdeDbusMenu(location)) => MenuBarCandidate::DbusMenu {
-            location,
-            menu_bar_match: MenuBarMatch::ExactWindow,
-        },
-        Ok(X11WindowMenu::GtkMenus(source)) => MenuBarCandidate::GtkMenus {
-            source,
-            menu_bar_match: MenuBarMatch::ExactWindow,
-        },
-        Ok(X11WindowMenu::Unpublished) => MenuBarCandidate::Absent,
-        Err(lookup_failure) => {
-            tracing::debug!("global menu: x11 window {x11_window_id:#x}: {lookup_failure}");
-            MenuBarCandidate::Absent
-        }
-    }
-}
-
-async fn native_menu_bar_candidate(
-    connection: &zbus::Connection,
-    owner: &FocusedWindowOwner,
-    registered_menu_bars: &[RegisteredMenuBar],
-) -> MenuBarCandidate {
-    match owner {
-        FocusedWindowOwner::ProcessAndApp { process_id, app_id } => {
-            match dbusmenu_candidate_of_process(connection, *process_id, registered_menu_bars).await
-            {
-                DbusMenuCandidate::NoneExported => MenuBarCandidate::GtkApplication {
-                    app_id: app_id.clone(),
-                },
-                exported @ DbusMenuCandidate::Exported { .. } => MenuBarCandidate::from(exported),
-            }
-        }
-        FocusedWindowOwner::ProcessOnly { process_id } => MenuBarCandidate::from(
-            dbusmenu_candidate_of_process(connection, *process_id, registered_menu_bars).await,
-        ),
-        FocusedWindowOwner::AppOnly { app_id } => MenuBarCandidate::GtkApplication {
-            app_id: app_id.clone(),
-        },
-        FocusedWindowOwner::Unidentified => MenuBarCandidate::Absent,
-    }
-}
-
-async fn window_protocol_of_owner(owner: &FocusedWindowOwner) -> WindowProtocol {
-    match owner {
-        FocusedWindowOwner::ProcessAndApp { process_id, .. }
-        | FocusedWindowOwner::ProcessOnly { process_id } => {
-            window_protocol_of_process(*process_id).await
-        }
-        FocusedWindowOwner::AppOnly { .. } | FocusedWindowOwner::Unidentified => {
-            WindowProtocol::Native
-        }
     }
 }
 
@@ -496,129 +311,4 @@ pub fn focused_menu_bar_updates(
         }
     })
     .flatten()
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_compositor_model::{
-        compositor_window_facts::{
-            FocusTimestamp, Urgency, WindowAppId, WindowFocus, WindowPid, WindowTiling,
-            WindowTitle, WindowWorkspace,
-        },
-        compositor_window_state::CompositorWindowLayout,
-    };
-    use zbus::{
-        names::{OwnedBusName, OwnedUniqueName},
-        zvariant::OwnedObjectPath,
-    };
-
-    use super::*;
-
-    fn location(bus_name: &str, menu_path: &str) -> DbusMenuLocation {
-        DbusMenuLocation {
-            bus_name: OwnedBusName::try_from(bus_name).expect("bus name"),
-            menu_path: OwnedObjectPath::try_from(menu_path).expect("object path"),
-        }
-    }
-
-    #[test]
-    fn registered_menu_bar_wins_over_probed_ones() {
-        let candidate = newest_dbusmenu_candidate(
-            vec![location(":1.40", "/MenuBar/1")],
-            vec![
-                location(":1.40", "/MenuBar/1"),
-                location(":1.40", "/MenuBar/2"),
-            ],
-        );
-        let DbusMenuCandidate::Exported {
-            location: chosen_location,
-            menu_bar_match,
-        } = candidate
-        else {
-            panic!("a dbusmenu candidate is expected");
-        };
-        assert_eq!(chosen_location, location(":1.40", "/MenuBar/1"));
-        assert_eq!(menu_bar_match, MenuBarMatch::MostRecentProcessCandidate);
-    }
-
-    #[test]
-    fn single_probed_menu_bar_is_the_only_candidate() {
-        let candidate =
-            newest_dbusmenu_candidate(Vec::new(), vec![location(":1.40", "/MenuBar/1")]);
-        assert!(matches!(
-            candidate,
-            DbusMenuCandidate::Exported {
-                menu_bar_match: MenuBarMatch::OnlyProcessCandidate,
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn process_without_menu_bars_has_no_dbusmenu_candidate() {
-        assert!(matches!(
-            newest_dbusmenu_candidate(Vec::new(), Vec::new()),
-            DbusMenuCandidate::NoneExported
-        ));
-    }
-
-    #[test]
-    fn window_without_pid_is_identified_by_its_app() {
-        let focused_window = CompositorWindow {
-            id: 7,
-            title: WindowTitle::Untitled,
-            app_id: WindowAppId::Reported("org.example.Editor".to_owned()),
-            pid: WindowPid::Unreported,
-            workspace: WindowWorkspace::Unplaced,
-            focus: WindowFocus::Focused,
-            tiling: WindowTiling::Tiled,
-            urgency: Urgency::NotUrgent,
-            layout: CompositorWindowLayout::default(),
-            focused_at_monotonic: FocusTimestamp::NeverFocused,
-        };
-        assert_eq!(
-            FocusedWindowIdentity::from(Some(&focused_window)),
-            FocusedWindowIdentity::Window {
-                window_id: 7,
-                owner: FocusedWindowOwner::AppOnly {
-                    app_id: "org.example.Editor".to_owned()
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn latest_registration_of_an_x11_window_wins() {
-        let registration = |menu_path: &str| RegisteredMenuBar {
-            window_id: 0x0060_0003,
-            owner_bus_name: OwnedUniqueName::try_from(":1.70").expect("unique name"),
-            owner_process: OwnerProcess::Identified(4242),
-            menu_path: OwnedObjectPath::try_from(menu_path).expect("object path"),
-        };
-        let registered = [
-            registration("/com/canonical/menu/600003"),
-            registration("/com/canonical/menu/600003/refreshed"),
-        ];
-        assert_eq!(
-            registered_for_x11_window(&registered, 0x0060_0003),
-            Some(location(":1.70", "/com/canonical/menu/600003/refreshed"))
-        );
-        assert_eq!(registered_for_x11_window(&registered, 0x0070_0001), None);
-    }
-
-    #[test]
-    fn nix_wrapped_satellite_bridges_x11_windows() {
-        assert_eq!(
-            window_protocol_of_executable(".xwayland-satellite-wrapped"),
-            WindowProtocol::X11Bridged
-        );
-        assert_eq!(
-            window_protocol_of_executable("Xwayland"),
-            WindowProtocol::X11Bridged
-        );
-        assert_eq!(
-            window_protocol_of_executable("dolphin"),
-            WindowProtocol::Native
-        );
-    }
 }

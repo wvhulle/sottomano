@@ -14,7 +14,8 @@ use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
     indicator_groups::{
-        sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
+        sidebar_settings_group::WorkspacesPlacement,
+        workspaces_group::empty_workspace_folding::shown_workspaces,
     },
     widgets::{
         pointer_drag,

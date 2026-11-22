@@ -280,7 +280,10 @@ mod tests {
             .collect()
     }
 
-    fn scored_model<'rankings>(rankings: &'rankings OpenRouterModelRankings, model: &str) -> &'rankings ScoredModel {
+    fn scored_model<'rankings>(
+        rankings: &'rankings OpenRouterModelRankings,
+        model: &str,
+    ) -> &'rankings ScoredModel {
         rankings
             .best_first
             .iter()

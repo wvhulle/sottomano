@@ -3,7 +3,7 @@ use pipewire::spa::{param::ParamType, pod::Pod};
 use super::{
     CommandKind, Direction, Target,
     audio_graph_state::{DefaultNode, Levels, NodePlacement, StreamProcess},
-    graph_proxy_listeners::BoundAudioSession,
+    live_audio_session::BoundAudioSession,
     spa_pod_levels::{level_property, pod_bytes, props_object, route_object},
 };
 use crate::media_playback_audio::pipewire_audio::MuteState;

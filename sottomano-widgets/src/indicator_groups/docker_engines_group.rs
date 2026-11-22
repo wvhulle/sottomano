@@ -1,3 +1,7 @@
+mod docker_engine_indicators;
+#[cfg(test)]
+mod docker_engines_group_tests;
+
 use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
 
 use iced::{Subscription, Task};
@@ -8,108 +12,31 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     docker_container_engine::{
-        DockerContainerListing, DockerEngineListing, DockerEngineProbe, DockerEngineReadout,
-        DockerEngineSocket, candidate_docker_sockets,
+        DockerEngineListing, DockerEngineProbe, DockerEngineReadout, DockerEngineSocket,
+        candidate_docker_sockets,
     },
     podman_container_engine::libpod_running_containers::{EngineListing, EngineReadError},
 };
 
+use self::docker_engine_indicators::{ListedContainerIndicator, UnreadableEngineIndicator};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    glyph_icons::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-    },
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        indicator_state::IndicatorState,
-    },
+    glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     indicator_groups::{
         engine_container_indicators::{
             EngineContainerAddress, EngineContainerInteraction, EngineContainers,
             RunningContainerIndicator, StoppedContainerIndicator, container_switch_task,
-            engine_container_name, engine_failure_label, indicators_ending_in_hidden_count,
-            with_container_switch,
+            indicators_ending_in_hidden_count, with_container_switch,
         },
         indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
-
-struct UnreadableEngineIndicator<'view> {
-    engine: &'view DockerEngineSocket,
-    read_failure: &'view EngineReadError,
-}
-
-impl<'view> UnreadableEngineIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            self.engine.owner.to_string(),
-            Phosphor::Package(Weight::Regular).into(),
-            IndicatorState::Failed,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![
-            Section::new(
-                "Error",
-                SectionWidget::paragraph(self.read_failure.to_string()),
-            ),
-            Section::new(
-                "Connection",
-                dictionary_table([LabeledValue::new(
-                    "Socket",
-                    self.engine.socket_path.display().to_string(),
-                )]),
-            ),
-        ]
-    }
-}
-
-struct ListedContainerIndicator<'view> {
-    engine: &'view DockerEngineSocket,
-    listed: &'view DockerContainerListing,
-}
-
-impl<'view> ListedContainerIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            engine_container_name(&self.listed.container_name, &self.engine.owner),
-            Phosphor::Package(Weight::Regular).into(),
-            self.listed.run_state.into(),
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(self.listed.run_state.label().to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("State", self.listed.run_state.label()),
-                LabeledValue::new("Engine", self.engine.owner.to_string()),
-            ]),
-        )]
-    }
-}
 
 pub struct DockerEnginesGroup {
     engines: Vec<DockerEngineSocket>,
@@ -427,101 +354,5 @@ impl DockerEnginesGroup {
         } else {
             IndicatorState::Off
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::{Duration, UNIX_EPOCH};
-
-    use sottomano_desktop_sources::{
-        delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-        podman_container_engine::{
-            libpod_running_containers::{
-                EngineContainers, EngineListing, EngineReadError, StoppedContainer,
-            },
-            systemd_service_engine_discovery::EngineOwner,
-        },
-    };
-
-    use super::*;
-    use crate::{
-        hover_cards::{HoverTarget, IndicatorKey},
-        indicator_groups::indicator_group_identity::IndicatorGroupIdentity,
-    };
-
-    fn delivered(
-        engine_read: Result<EngineListing, EngineReadError>,
-    ) -> SnapshotDelivery<DockerEngineReadout> {
-        SnapshotDelivery::fixture_delivered(
-            engine_read.map(|engine_listing| DockerEngineReadout { engine_listing }),
-            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
-        )
-    }
-
-    const ROOTFUL_SOCKET_PATH: &str = "/run/docker.sock";
-
-    fn rootful_engine_group() -> DockerEnginesGroup {
-        DockerEnginesGroup::watching(vec![DockerEngineSocket {
-            owner: EngineOwner::Root,
-            socket_path: PathBuf::from(ROOTFUL_SOCKET_PATH),
-        }])
-    }
-
-    #[test]
-    fn a_denied_docker_socket_shows_a_failure_indicator() {
-        let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
-        let mut group = rootful_engine_group();
-        let _ = group.update(
-            DockerEnginesMessage::Engine(
-                rootful_socket.clone(),
-                delivered(Err(EngineReadError::SocketDenied)),
-            ),
-            Clock::real(),
-        );
-        assert_eq!(group.container_indicators().len(), 1);
-        let failure_indicator = HoverTarget::Indicator(IndicatorKey {
-            group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::DockerEngines),
-            name: group.container_indicators()[0].indicator_name(),
-        });
-        assert!(
-            group
-                .group_content()
-                .hover_card(&failure_indicator, Clock::real())
-                .is_some_and(|card| !card.sections.is_empty())
-        );
-    }
-
-    #[test]
-    fn a_missing_docker_socket_shows_no_indicator() {
-        let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
-        let mut group = rootful_engine_group();
-        let _ = group.update(
-            DockerEnginesMessage::Engine(
-                rootful_socket.clone(),
-                SnapshotDelivery::SourceUnavailable,
-            ),
-            Clock::real(),
-        );
-        assert!(group.group_content().indicators.is_empty());
-        let _ = group.update(
-            DockerEnginesMessage::Engine(
-                rootful_socket,
-                delivered(Ok(EngineListing {
-                    running: EngineContainers {
-                        containers: Vec::new(),
-                    },
-                    stopped: vec![StoppedContainer {
-                        id: "exited".to_owned(),
-                        container_name: "exited".to_owned(),
-                        shown_name: "exited".to_owned(),
-                        image: "alpine".to_owned(),
-                        stopped_at: UNIX_EPOCH,
-                    }],
-                })),
-            ),
-            Clock::real(),
-        );
-        assert!(!group.group_content().indicators.is_empty());
     }
 }

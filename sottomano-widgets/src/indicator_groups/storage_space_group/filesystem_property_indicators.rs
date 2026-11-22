@@ -147,7 +147,7 @@ mod tests {
             AllowedDeviceData, BcachefsDeviceSpace, BcachefsSpace, CompressedExtents,
             SnapshotDeletion,
         },
-        block_filesystem_mounts::{Compression, FilesystemMount},
+        block_filesystem_mounts::{FilesystemMount, mount_compression_options::Compression},
         btrfs_filesystem_space::{Allocation, BtrfsSpace},
         ext4_sysfs_counters::{Ext4Counters, RecordedErrors},
         mounted_filesystem_usage::{InodeCount, MountAccess},

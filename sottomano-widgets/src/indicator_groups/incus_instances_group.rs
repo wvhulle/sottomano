@@ -1,4 +1,6 @@
-use std::{borrow::Cow, collections::BTreeMap};
+mod incus_instance_indicators;
+
+use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
@@ -8,230 +10,30 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     container_family_snapshots::{FamilyDetails, FamilyListings},
-    container_run_state::{ContainerRunState, RunChange},
-    container_runtime_facts::ContainerMemoryUse,
-    incus_instances::{
-        DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe,
-        InstanceImageDescription, InstanceKind,
-    },
-    podman_container_engine::libpod_running_containers::EngineReadError,
+    container_run_state::RunChange,
+    incus_instances::{DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe},
 };
 
+use self::incus_instance_indicators::{
+    IncusInstanceIndicator, IncusInstanceListingIndicator, UnreadableDaemonIndicator,
+    instance_power_switch,
+};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    glyph_icons::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-    },
-    group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
-    },
+    glyph_icons::phosphor::{Phosphor, Weight},
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        engine_container_indicators::engine_failure_label,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        process_usage_cells::approximate_memory_text,
     },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const WATCHED_DAEMONS: [InstanceDaemon; 2] = [InstanceDaemon::Incus, InstanceDaemon::Lxd];
-const START_HINT: &str = "start the instance";
-const STOP_HINT: &str = "stop the instance";
-
-fn kind_text(kind: InstanceKind) -> &'static str {
-    match kind {
-        InstanceKind::Container => "container",
-        InstanceKind::VirtualMachine => "virtual machine",
-    }
-}
-
-fn instance_icon(kind: InstanceKind) -> IconGlyph {
-    match kind {
-        InstanceKind::Container => Phosphor::Package(Weight::Regular).into(),
-        InstanceKind::VirtualMachine => Phosphor::DesktopTower(Weight::Regular).into(),
-    }
-}
-
-fn instance_power_switch<'view>(
-    row: GroupIndicator<'view>,
-    instance_daemon: InstanceDaemon,
-    listing: &DaemonInstanceListing,
-) -> GroupIndicator<'view> {
-    let (switch_position, hint, run_change) = match listing.run_state {
-        ContainerRunState::Running => (SwitchPosition::On, STOP_HINT, RunChange::Stop),
-        ContainerRunState::Stopped => (SwitchPosition::Off, START_HINT, RunChange::Start),
-    };
-    row.on_switch_press(
-        switch_position,
-        hint,
-        IncusInstancesInteraction::ChangeState {
-            instance_daemon,
-            project_name: listing.project_name.clone(),
-            instance_name: listing.instance_name.clone(),
-            run_change,
-        },
-    )
-}
-
-fn daemon_instance_name(
-    instance_daemon: InstanceDaemon,
-    project_name: &str,
-    instance_name: &str,
-) -> Cow<'static, str> {
-    let in_project = match project_name {
-        "default" => instance_name.to_owned(),
-        _ => format!("{instance_name} in {project_name}"),
-    };
-    match instance_daemon {
-        InstanceDaemon::Incus => in_project.into(),
-        InstanceDaemon::Lxd => format!("{in_project} on LXD").into(),
-    }
-}
-
-struct IncusInstanceIndicator<'view> {
-    instance_daemon: InstanceDaemon,
-    instance: &'view DaemonInstance,
-}
-
-impl<'view> IncusInstanceIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        let label =
-            if self.instance.listing.run_state == ContainerRunState::Stopped {
-                Some(self.instance.listing.status_text.to_lowercase())
-            } else {
-                self.instance.global_addresses.first().cloned().or(
-                    match self.instance.memory_in_use {
-                        ContainerMemoryUse::Measured(memory_in_use) => {
-                            Some(approximate_memory_text(memory_in_use))
-                        }
-                        ContainerMemoryUse::Unaccounted => None,
-                    },
-                )
-            };
-        GroupIndicator::glyph_only(
-            daemon_instance_name(
-                self.instance_daemon,
-                &self.instance.listing.project_name,
-                &self.instance.listing.instance_name,
-            ),
-            instance_icon(self.instance.listing.kind),
-            self.instance.listing.run_state.into(),
-        )
-        .with_readout(IndicatorReadout {
-            label: label.map_or(ReadoutLabel::Unlabeled, ReadoutLabel::Labeled),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        let instance = self.instance;
-        let mut detail_entries = vec![
-            LabeledValue::new("Kind", kind_text(instance.listing.kind)),
-            LabeledValue::new("Status", instance.listing.status_text.clone()),
-            LabeledValue::new("Daemon", self.instance_daemon.product_name()),
-            LabeledValue::new("Project", instance.listing.project_name.clone()),
-        ];
-        if let ContainerMemoryUse::Measured(memory_in_use) = instance.memory_in_use {
-            detail_entries.push(LabeledValue::new(
-                "Memory use",
-                approximate_memory_text(memory_in_use),
-            ));
-        }
-        detail_entries.extend(
-            instance
-                .global_addresses
-                .iter()
-                .map(|global_address| LabeledValue::new("Address", global_address.clone())),
-        );
-        if let InstanceImageDescription::Described(image_description) = &instance.image_description
-        {
-            detail_entries.push(LabeledValue::new("Image", image_description.clone()));
-        }
-        vec![Section::new("Instance", dictionary_table(detail_entries))]
-    }
-}
-
-struct IncusInstanceListingIndicator<'view> {
-    instance_daemon: InstanceDaemon,
-    listing: &'view DaemonInstanceListing,
-}
-
-impl<'view> IncusInstanceListingIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            daemon_instance_name(
-                self.instance_daemon,
-                &self.listing.project_name,
-                &self.listing.instance_name,
-            ),
-            instance_icon(self.listing.kind),
-            self.listing.run_state.into(),
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(self.listing.status_text.to_lowercase()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Instance",
-            dictionary_table([
-                LabeledValue::new("Kind", kind_text(self.listing.kind)),
-                LabeledValue::new("Status", self.listing.status_text.clone()),
-                LabeledValue::new("Daemon", self.instance_daemon.product_name()),
-                LabeledValue::new("Project", self.listing.project_name.clone()),
-            ]),
-        )]
-    }
-}
-
-struct UnreadableDaemonIndicator<'view> {
-    instance_daemon: InstanceDaemon,
-    read_failure: &'view EngineReadError,
-}
-
-impl<'view> UnreadableDaemonIndicator<'view> {
-    fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            self.instance_daemon.product_name(),
-            Phosphor::Package(Weight::Regular).into(),
-            IndicatorState::Failed,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Error",
-            dictionary_table([
-                LabeledValue::new("Problem", self.read_failure.to_string()),
-                LabeledValue::new(
-                    "Socket",
-                    self.instance_daemon.socket_path().display().to_string(),
-                ),
-            ]),
-        )]
-    }
-}
 
 #[derive(Default)]
 pub struct IncusInstancesGroup {

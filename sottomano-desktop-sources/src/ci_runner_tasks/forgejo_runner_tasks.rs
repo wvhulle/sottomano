@@ -23,7 +23,9 @@ use crate::{
     },
     delivery_cadence_drivers::{CarriedRead, SamplingNeed},
     podman_container_engine::{
-        libpod_running_containers::{EngineContainers, EngineSampler, RunningContainer},
+        libpod_running_containers::{
+            EngineContainers, RunningContainer, libpod_engine_sampler::EngineSampler,
+        },
         running_set_changes::deliveries_on_running_set_changes,
     },
     system_protocol_clients::journal_follow::{JournalFollowError, journal_windows},
