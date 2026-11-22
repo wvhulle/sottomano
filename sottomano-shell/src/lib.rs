@@ -105,13 +105,13 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
 
     let config_home = sottomano_toml_config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);
-    let secrets = SecretPaths::discover(&config_home);
     let compositor_rules =
         CompositorRulesFile::in_config_home(&config_home, CompositorKind::detected());
     let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
     let config = loaded
         .as_ref()
         .map_or_else(|_| Config::default(), Config::clone);
+    let secrets = SecretPaths::discover(&config.secrets, &config_home);
     let loaded = loaded.map(Box::new).map_err(Arc::new);
 
     let wayland = match wayland_client::Connection::connect_to_env() {

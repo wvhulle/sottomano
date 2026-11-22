@@ -40,14 +40,17 @@ in
 
       hibernateDelayUnitTest = pkgs.testers.runNixOSTest {
         name = "sottomano-hibernate-delay-unit";
-        nodes.machine = {
+        nodes.machine = machine_args: {
           imports = [ self.nixosModules.default ];
           programs.sottomano = {
             enable = true;
-            hibernateDelayControllers = [ "alice" ];
+            hibernateDelayControl.enable = true;
           };
           users.users = {
-            alice.isNormalUser = true;
+            alice = {
+              isNormalUser = true;
+              extraGroups = [ machine_args.config.programs.sottomano.groups.hibernateDelayControl ];
+            };
             bob.isNormalUser = true;
           };
         };

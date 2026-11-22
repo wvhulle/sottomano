@@ -56,31 +56,51 @@ itself, as [its page](../compositors/hyprland.md#window-styling-rules) shows.
 
 `programs.sottomano.enable` turns on fwupd, UPower and power-profiles-daemon (at
 `mkDefault`, so a host using tlp can turn the last one off) and loads
-`drivetemp` for SATA drive temperatures. The other options:
+`drivetemp` for SATA drive temperatures. Features that give users extra rights
+each create a group; you add users to it yourself, using the name from the
+read-only `programs.sottomano.groups`:
 
 ```nix
+{ config, ... }:
 {
   programs.sottomano = {
     enable = true;
-    journalReaders = [ "alice" ];
-    containerControllers = [ "alice" ];
+    containerControl.enable = true;
+    hibernateDelayControl.enable = true;
+    tailnetPolicyToken = {
+      enable = true;
+      oauthClientEnvironmentFile = config.age.secrets.tailscale-oauth-client.path;
+    };
     autoBrightness.enable = true;
     cpuPowerReading.enable = true;
     cacheCounters.enable = true;
     x3dPreferenceSwitching.enable = true;
   };
+
+  users.users.alice.extraGroups = with config.programs.sottomano.groups; [
+    containerControl
+    hibernateDelayControl
+    tailnetPolicyReaders
+    "systemd-journal"
+  ];
 }
 ```
 
-- `journalReaders` adds users to `systemd-journal` so the systemd and journal
-  groups can read the system journal. Members of `wheel` already can.
-- `containerControllers` adds users to the `sottomano-containers` group,
-  whose members may start, stop and restart systemd-nspawn and NixOS
-  containers, microVMs and the Waydroid container from their switches: a
-  polkit rule allows exactly those verbs on `container@*.service`,
-  `systemd-nspawn@*.service`, `microvm@*.service` and
+- `systemd-journal` lets the systemd and journal groups read the system journal.
+  Members of `wheel` already can.
+- `containerControl` lets members of `groups.containerControl` start, stop and
+  restart systemd-nspawn and NixOS containers, microVMs and the Waydroid
+  container from their switches: a polkit rule allows exactly those verbs on
+  `container@*.service`, `systemd-nspawn@*.service`, `microvm@*.service` and
   `waydroid-container.service`, and nothing else. Any app running as a member
   can use it, and group changes apply at the next login.
+- `hibernateDelayControl` lets members of `groups.hibernateDelayControl` set
+  `HibernateDelaySec` from the Hibernate group, within `hibernateDelayRange`.
+- `tailnetPolicyToken` mints a Tailscale API token from an OAuth client (scope
+  `policy_file:read`) every 30 minutes into `tailnetPolicyToken.path`, readable
+  by `groups.tailnetPolicyReaders`. Point `settings.secrets.tailscale_api_token`
+  at that path. `timerWantedBy` (default `timers.target`) picks which target
+  starts and stops the timer; bind it to one that is up only while online.
 - `autoBrightness` runs clight for webcam-based brightness, which drives the
   monitor group's auto toggle and backlight slider.
 - `cpuPowerReading` (on by default) makes the RAPL energy counters
@@ -101,9 +121,9 @@ itself, as [its page](../compositors/hyprland.md#window-styling-rules) shows.
     enable = true;
     umbra.enable = false;
     windowAgents.kitty.enable = true;
-    secretFiles = {
-      caldav-password = config.age.secrets.caldav-password.path;
-      gh-auth-token = config.age.secrets.gh-auth-token.path;
+    settings.secrets = {
+      caldav_password = config.age.secrets.caldav-password.path;
+      gh_auth_token = config.age.secrets.gh-auth-token.path;
     };
   };
 }
@@ -112,11 +132,11 @@ itself, as [its page](../compositors/hyprland.md#window-styling-rules) shows.
 - `settings` takes the keys of the
   [full default](../configuration.md#full-default) as Nix attributes and is
   written verbatim to `~/.config/sottomano.toml`.
-- `secretFiles.<name>` symlinks each secret into `~/.config/sottomano/` from
-  wherever it lives (agenix, sops-nix), so it never enters the Nix store.
-- `umbra.enable` (default `true`) registers dark and light palettes with
-  [umbra](https://codeberg.org/wvhulle/umbra) and requires its home-manager
-  module. Set it to `false` for a static palette.
+- `settings.secrets` names the path of each secret file wherever it lives
+  (agenix, sops-nix), so only the path enters the Nix store.
+- `umbra.enable` (on when umbra's home-manager module is imported) registers
+  dark and light palettes with [umbra](https://codeberg.org/wvhulle/umbra). Set
+  it to `false` for a static palette.
 - `windowAgents.kitty.enable` turns on kitty's socket-only remote control so the
   window list can tell kitty OS windows apart.
 - `virtualMachines.qmpSocket.enable` (default `true`) sets `QEMU_OPTS` so every

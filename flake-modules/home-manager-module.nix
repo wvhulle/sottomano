@@ -18,6 +18,7 @@ in
         in
         {
           config,
+          options,
           lib,
           pkgs,
           ...
@@ -56,6 +57,24 @@ in
             );
         in
         {
+          imports =
+            lib.mapAttrsToList
+              (
+                removed_option_name: secrets_table_key:
+                lib.mkRemovedOptionModule [ "services" "sottomano" "secretFiles" removed_option_name ] ''
+                  Set services.sottomano.settings.secrets.${secrets_table_key} to the secret's path instead;
+                  sottomano reads secret paths from the [secrets] table of sottomano.toml.
+                ''
+              )
+              {
+                "openrouter-management-key" = "openrouter_management_key";
+                "claude-code-oauth" = "claude_code_oauth";
+                "gh-auth-token" = "gh_auth_token";
+                "unsplash-access-key" = "unsplash_access_key";
+                "tailscale-api-token" = "tailscale_api_token";
+                "caldav-password" = "caldav_password";
+              };
+
           options.services.sottomano = {
             enable = lib.mkEnableOption "sottomano bar";
 
@@ -94,101 +113,20 @@ in
               description = ''
                 Contents of ~/.config/sottomano.toml, written verbatim. The running bar
                 watches the file and applies changes in place. `sottomano
-                default-config` prints every key with its default value.
+                default-config` prints every key with its default value. Secret files
+                go in `settings.secrets` as paths (for example
+                `settings.secrets.caldav_password = config.age.secrets.caldav.path`), so
+                no secret enters the Nix store; `sottomano secrets` lists the keys.
               '';
-            };
-
-            secretFiles = {
-              "openrouter-management-key" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to a file containing an OpenRouter **management** key as plain
-                  text. A regular API key is not enough: the usage widget calls
-                  `/analytics/query`, which only management keys may access. The same key
-                  ranks the OpenRouter models with tool calls and at least 128k context
-                  that cost at most
-                  `settings.indicator_groups.openrouter_credit.max_blended_usd_per_million`
-                  by their Intelligence Index from OpenRouter's benchmarks. Symlinked into
-                  ~/.config/sottomano/, where the bar looks for it. When unset, the
-                  OpenRouter pill is hidden.
-                '';
-              };
-
-              "claude-code-oauth" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to the Claude Code OAuth credentials JSON (the
-                  `~/.claude/.credentials.json` blob with `claudeAiOauth.accessToken`).
-                  Drives the Claude subscription gauge; on API-key machines (no OAuth
-                  token) it instead surfaces `ccusage` daily spend. Symlinked into
-                  ~/.config/sottomano/. When unset, the Claude pills are hidden.
-                '';
-              };
-
-              "gh-auth-token" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to a file holding a bare `gho_` GitHub OAuth token, such as the
-                  output of `gh auth token` after `gh auth login` stored as an agenix
-                  secret. The Copilot usage pills read it and call
-                  `/copilot_internal/user` directly.
-                  Symlinked into ~/.config/sottomano/. When unset, the Copilot quota pills
-                  are hidden (the local-`ccusage` Copilot pill needs no token and still
-                  shows if `ccusage` is installed).
-                '';
-              };
-
-              "unsplash-access-key" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to a file holding an Unsplash **access key** (the Client-ID of a
-                  registered application at https://unsplash.com/developers) as plain
-                  text. Not the Unsplash secret key, which only the OAuth flow uses and
-                  the bar never sends. The wallpaper pill reads it and calls
-                  `/photos/{id}` to turn the Unsplash photo id embedded in the current
-                  wallpaper's filename into a caption, photographer and place, then looks
-                  that place up on the Wikipedia edition matching the session locale.
-                  Symlinked into ~/.config/sottomano/. The pill needs no configuration: it
-                  shows when this key and a wallpaper daemon (`awww` or `swww`, tried in
-                  that order) are both present, and hides otherwise.
-                '';
-              };
-
-              "tailscale-api-token" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to a file holding a Tailscale API access token as plain text. The
-                  Tailscale access hover card reads the tailnet policy file with it.
-                  Symlinked into ~/.config/sottomano/. When unset, the hover card shows
-                  only what the local client knows.
-                '';
-              };
-
-              "caldav-password" = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = ''
-                  Path to a file holding the CalDAV password of the account in
-                  `settings.indicator_groups.caldav` as plain text. Prefer an app password
-                  where the server offers one (Nextcloud: Personal settings → Security →
-                  Devices & sessions). The calendar group discovers the calendars through
-                  `/.well-known/caldav` and shows open tasks and upcoming events.
-                  Symlinked into ~/.config/sottomano/. When unset, or when `server_url`
-                  or `user` is empty, the group is hidden.
-                '';
-              };
             };
 
             umbra.enable = lib.mkOption {
               type = lib.types.bool;
-              default = true;
+              default = options.services ? umbra;
+              defaultText = lib.literalExpression "options.services ? umbra";
               description = ''
                 Runtime dark/light palette switching via the umbra app registry.
+                Defaults to on when the umbra home-manager module is imported.
                 Requires services.umbra (from umbra.homeModules) in the same
                 home-manager config: registers services.umbra.apps.sottomano with
                 dark/light palette variants derived from services.umbra.palettes.*. On
@@ -272,32 +210,6 @@ in
                       CPUWeight=1000
                     '';
                   };
-
-              "sottomano/openrouter-management-key" =
-                lib.mkIf (cfg.secretFiles."openrouter-management-key" != null)
-                  {
-                    source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."openrouter-management-key";
-                  };
-
-              "sottomano/claude-code-oauth" = lib.mkIf (cfg.secretFiles."claude-code-oauth" != null) {
-                source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."claude-code-oauth";
-              };
-
-              "sottomano/gh-auth-token" = lib.mkIf (cfg.secretFiles."gh-auth-token" != null) {
-                source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."gh-auth-token";
-              };
-
-              "sottomano/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
-                source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
-              };
-
-              "sottomano/tailscale-api-token" = lib.mkIf (cfg.secretFiles."tailscale-api-token" != null) {
-                source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."tailscale-api-token";
-              };
-
-              "sottomano/caldav-password" = lib.mkIf (cfg.secretFiles."caldav-password" != null) {
-                source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."caldav-password";
-              };
             };
 
             services.umbra.apps.sottomano = lib.mkIf cfg.umbra.enable {

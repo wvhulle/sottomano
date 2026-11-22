@@ -25,8 +25,8 @@ pub enum SetupCommand {
     #[command(about = "Print every configuration key with its default value as TOML.")]
     DefaultConfig,
     #[command(
-        about = "List the secret files the shell reads, what each is for and whether it is \
-                 present."
+        about = "List the [secrets] keys the shell reads, what each is for and whether its file \
+                 is present."
     )]
     Secrets,
     #[command(about = "Set up the system pieces the widgets read on a distribution.")]

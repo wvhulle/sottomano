@@ -13,8 +13,30 @@
     }:
     let
       cfg = config.programs.sottomano;
-      containerControllerGroup = "sottomano-containers";
-      hibernateDelayControllerGroup = "sottomano-hibernate-delay";
+      controlGroupNames = {
+        containerControl = "sottomano-containers";
+        hibernateDelayControl = "sottomano-hibernate-delay";
+        tailnetPolicyReaders = "sottomano-tailnet-policy";
+      };
+      tailnetPolicyRuntimeDirectory = "sottomano-tailnet-policy";
+      tailnetPolicyTokenPath = "/run/${tailnetPolicyRuntimeDirectory}/access-token";
+      mintTailnetPolicyToken = pkgs.writeShellScript "sottomano-mint-tailnet-policy-token" ''
+        set -euo pipefail
+        staging_file="${tailnetPolicyTokenPath}.staging"
+        access_token="$(
+          printf '%s' "$TAILSCALE_OAUTH_CLIENT_SECRET" \
+            | ${lib.getExe pkgs.curl} --fail --silent --show-error \
+              --data-urlencode "client_id=$TAILSCALE_OAUTH_CLIENT_ID" \
+              --data-urlencode "client_secret@-" \
+              --data-urlencode "grant_type=client_credentials" \
+              https://api.tailscale.com/api/v2/oauth/token \
+            | ${lib.getExe pkgs.jq} --raw-output --exit-status .access_token
+        )"
+        ${pkgs.coreutils}/bin/install -m 0440 -g ${controlGroupNames.tailnetPolicyReaders} /dev/null "$staging_file"
+        printf '%s' "$access_token" > "$staging_file"
+        ${pkgs.coreutils}/bin/mv -f "$staging_file" ${tailnetPolicyTokenPath}
+        echo "refreshed the read-only tailnet policy token in ${tailnetPolicyTokenPath}"
+      '';
       hibernateDelayDropIn = "/etc/systemd/sleep.conf.d/50-sottomano.conf";
       writeHibernateDelay = pkgs.writeShellScript "sottomano-write-hibernate-delay" ''
         set -euo pipefail
@@ -37,20 +59,32 @@
     in
     {
       imports = [
-        (lib.mkRenamedOptionModule
-          [ "programs" "sottomano" "nspawnContainerControllers" ]
-          [ "programs" "sottomano" "containerControllers" ]
-        )
+        (lib.mkRemovedOptionModule [ "programs" "sottomano" "nspawnContainerControllers" ] ''
+          Set programs.sottomano.containerControl.enable and add each user to the group named by
+          programs.sottomano.groups.containerControl.
+        '')
+        (lib.mkRemovedOptionModule [ "programs" "sottomano" "containerControllers" ] ''
+          Set programs.sottomano.containerControl.enable and add each user to the group named by
+          programs.sottomano.groups.containerControl.
+        '')
+        (lib.mkRemovedOptionModule [ "programs" "sottomano" "hibernateDelayControllers" ] ''
+          Set programs.sottomano.hibernateDelayControl.enable and add each user to the group named by
+          programs.sottomano.groups.hibernateDelayControl.
+        '')
+        (lib.mkRemovedOptionModule [ "programs" "sottomano" "journalReaders" ] ''
+          Add each user to the systemd-journal group (users.users.<name>.extraGroups) instead.
+        '')
       ];
 
       options.programs.sottomano = {
         enable = lib.mkEnableOption ''
-          the system-level pieces sottomano widgets depend on: fwupd for the firmware
-          upgrade reading, UPower for the power group, power-profiles-daemon for
-          the power profile and the drivetemp kernel module for SATA drive
-          temperatures. Services are set with mkDefault, so a host running tlp or auto-cpufreq
-          can still disable power-profiles-daemon. The bar itself is installed per
-          user through sottomano's home-manager module
+          the system services sottomano widgets read: fwupd for firmware upgrades,
+          UPower for the power group, power-profiles-daemon for the power profile and
+          the drivetemp kernel module for SATA drive temperatures. Services are set with
+          mkDefault, so a host running tlp or auto-cpufreq can still disable
+          power-profiles-daemon. Features that grant users extra rights each have their
+          own toggle below. The bar itself is installed per user through sottomano's
+          home-manager module
         '';
 
         autoBrightness.enable = lib.mkEnableOption ''
@@ -112,39 +146,28 @@
             default = true;
           };
 
-        containerControllers = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          example = [ "alice" ];
-          description = ''
-            Users added to the `sottomano-containers` group, whose members may
-            start, stop and restart containers and microVMs from the bar's
-            switches. A polkit rule grants the group exactly those verbs on
-            `container@*.service` (NixOS containers), `systemd-nspawn@*.service`,
-            `microvm@*.service` and `waydroid-container.service` units, without a
-            password prompt, and nothing else. Any process running as a member can
-            use it, so a member's compromised app could stop these units. Group
-            changes apply at the next login.
-          '';
-        };
+        containerControl.enable = lib.mkEnableOption ''
+          starting, stopping and restarting containers and microVMs from the bar's
+          switches. Creates the group named by `groups.containerControl`; a polkit rule
+          grants its members exactly those verbs on `container@*.service` (NixOS
+          containers), `systemd-nspawn@*.service`, `microvm@*.service` and
+          `waydroid-container.service`, without a password prompt, and nothing else.
+          Add users with `users.users.<name>.extraGroups`. Any process running as a
+          member can use it, so a member's compromised app could stop these units.
+          Group changes apply at the next login
+        '';
 
-        hibernateDelayControllers = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          example = [ "alice" ];
-          description = ''
-            Users added to the `sottomano-hibernate-delay` group, whose members may
-            set how long a suspended machine waits before hibernating (systemd's
-            `HibernateDelaySec`) from the bar's Hibernate group. A polkit rule lets the
-            group start only `sottomano-hibernate-delay@<seconds>.service`, without a
-            password prompt. The unit accepts whole seconds within
-            `hibernateDelayRange` and writes `${hibernateDelayDropIn}`; delete that file
-            to return to the NixOS value. The drop-in
-            overrides `systemd.sleep.settings.Sleep.HibernateDelaySec` and applies to
-            every suspend-then-hibernate, including lid close. Any process running as
-            a member can change the delay. Group changes apply at the next login.
-          '';
-        };
+        hibernateDelayControl.enable = lib.mkEnableOption ''
+          setting how long a suspended machine waits before hibernating (systemd's
+          `HibernateDelaySec`) from the bar's Hibernate group. Creates the group named by
+          `groups.hibernateDelayControl`; a polkit rule lets its members start only
+          `sottomano-hibernate-delay@<seconds>.service`, without a password prompt. The
+          unit accepts whole seconds within `hibernateDelayRange` and writes
+          `${hibernateDelayDropIn}`; delete that file to return to the NixOS value. The
+          drop-in overrides `systemd.sleep.settings.Sleep.HibernateDelaySec` and applies
+          to every suspend-then-hibernate, including lid close. Add users with
+          `users.users.<name>.extraGroups`; group changes apply at the next login
+        '';
 
         hibernateDelayRange = {
           shortestSeconds = lib.mkOption {
@@ -159,14 +182,55 @@
           };
         };
 
-        journalReaders = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          example = [ "alice" ];
+        tailnetPolicyToken = {
+          enable = lib.mkEnableOption ''
+            minting a short-lived Tailscale API token from an OAuth client every 30
+            minutes, so the Tailscale hover card can read the tailnet policy file
+            without the desktop user holding the OAuth secret. The token lands in
+            `tailnetPolicyToken.path`, readable by the group named by
+            `groups.tailnetPolicyReaders`. Point
+            `services.sottomano.settings.secrets.tailscale_api_token` at that path and
+            add the user to the group. Give the OAuth client only the `policy_file:read`
+            scope
+          '';
+
+          oauthClientEnvironmentFile = lib.mkOption {
+            type = lib.types.str;
+            example = "/run/agenix/tailscale-policy-reader-oauth-client";
+            description = ''
+              Path to a systemd environment file with `TAILSCALE_OAUTH_CLIENT_ID=` and
+              `TAILSCALE_OAUTH_CLIENT_SECRET=`. Pass a runtime path such as an agenix or
+              sops-nix secret, never a Nix path, which would copy the secret into the store.
+            '';
+          };
+
+          timerWantedBy = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ "timers.target" ];
+            example = [ "network-online.target" ];
+            description = ''
+              Units that start the minting timer, which also stops when they stop. The
+              timer mints once each time it starts and then every 30 minutes. Bind it to
+              a target that is active only while the machine is online, so it never mints
+              without a network, for example right after resuming from suspend.
+            '';
+          };
+
+          path = lib.mkOption {
+            type = lib.types.str;
+            readOnly = true;
+            default = tailnetPolicyTokenPath;
+            description = "Where the minted token is written.";
+          };
+        };
+
+        groups = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          readOnly = true;
+          default = controlGroupNames;
           description = ''
-            Users added to the systemd-journal group so the systemd and journal
-            event groups can read the system journal. Members of wheel can already
-            read it.
+            Names of the groups this module creates, for
+            `users.users.<name>.extraGroups`, so hosts don't repeat them as strings.
           '';
         };
       };
@@ -181,18 +245,10 @@
             };
 
             boot.kernelModules = [ "drivetemp" ];
-
-            users.users = lib.genAttrs cfg.journalReaders (_: {
-              extraGroups = [ "systemd-journal" ];
-            });
           }
 
-          {
-            users.groups.${containerControllerGroup} = { };
-
-            users.users = lib.genAttrs cfg.containerControllers (_: {
-              extraGroups = [ containerControllerGroup ];
-            });
+          (lib.mkIf cfg.containerControl.enable {
+            users.groups.${controlGroupNames.containerControl} = { };
 
             security.polkit = {
               enable = true;
@@ -204,20 +260,16 @@
                       && managedUnit
                       && /^((container|systemd-nspawn|microvm)@[^/]+|waydroid-container)\.service$/.test(managedUnit)
                       && ["start", "stop", "restart"].indexOf(requestedVerb) >= 0
-                      && subject.isInGroup("${containerControllerGroup}")) {
+                      && subject.isInGroup("${controlGroupNames.containerControl}")) {
                     return polkit.Result.YES;
                   }
                 });
               '';
             };
-          }
+          })
 
-          (lib.mkIf (cfg.hibernateDelayControllers != [ ]) {
-            users.groups.${hibernateDelayControllerGroup} = { };
-
-            users.users = lib.genAttrs cfg.hibernateDelayControllers (_: {
-              extraGroups = [ hibernateDelayControllerGroup ];
-            });
+          (lib.mkIf cfg.hibernateDelayControl.enable {
+            users.groups.${controlGroupNames.hibernateDelayControl} = { };
 
             systemd.services."sottomano-hibernate-delay@" = {
               description = "Set the suspend-then-hibernate delay to %i";
@@ -243,11 +295,48 @@
                       && managedUnit
                       && /^sottomano-hibernate-delay@[1-9][0-9]{0,5}\.service$/.test(managedUnit)
                       && action.lookup("verb") == "start"
-                      && subject.isInGroup("${hibernateDelayControllerGroup}")) {
+                      && subject.isInGroup("${controlGroupNames.hibernateDelayControl}")) {
                     return polkit.Result.YES;
                   }
                 });
               '';
+            };
+          })
+
+          (lib.mkIf cfg.tailnetPolicyToken.enable {
+            users.groups.${controlGroupNames.tailnetPolicyReaders} = { };
+
+            systemd.services.sottomano-tailnet-policy-token = {
+              description = "Mint a read-only Tailscale policy token for sottomano";
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = mintTailnetPolicyToken;
+                EnvironmentFile = cfg.tailnetPolicyToken.oauthClientEnvironmentFile;
+                Group = controlGroupNames.tailnetPolicyReaders;
+                RuntimeDirectory = tailnetPolicyRuntimeDirectory;
+                RuntimeDirectoryMode = "0750";
+                RuntimeDirectoryPreserve = true;
+                UMask = "0077";
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                PrivateTmp = true;
+                NoNewPrivileges = true;
+                RestrictAddressFamilies = [
+                  "AF_UNIX"
+                  "AF_INET"
+                  "AF_INET6"
+                ];
+              };
+            };
+
+            systemd.timers.sottomano-tailnet-policy-token = {
+              wantedBy = cfg.tailnetPolicyToken.timerWantedBy;
+              partOf = cfg.tailnetPolicyToken.timerWantedBy;
+              timerConfig = {
+                OnActiveSec = "0";
+                OnCalendar = "*:0/30";
+                Persistent = true;
+              };
             };
           })
 

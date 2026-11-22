@@ -60,7 +60,7 @@ Every running VMware machine on this computer, one row each, with its memory use
 
 Every guest running under a lightweight hypervisor on this computer, one row each, with its memory use: Cloud Hypervisor, Firecracker, crosvm and kvmtool, as started by microvm.nix or by hand. Every installed `microvm@` service has a row, running or stopped, named after the service's instance; a running one's memory is that service's. Any other guest is named after its `--id` or `--name`, or its hypervisor and process. The card lists the hypervisor, guest memory and cores, uptime, service, kernel and API socket.
 
-Pressing the switch on a microvm.nix guest starts or stops its service, which needs your user in the system module's `containerControllers`. A guest started by hand has a stop square when it is a Cloud Hypervisor or Firecracker guest with an API socket this user can open, which presses its power button, and a muted switch otherwise.
+Pressing the switch on a microvm.nix guest starts or stops its service, which needs `programs.sottomano.containerControl.enable` and your user in its group (`programs.sottomano.groups.containerControl`). A guest started by hand has a stop square when it is a Cloud Hypervisor or Firecracker guest with an API socket this user can open, which presses its power button, and a muted switch otherwise.
 
 </div>
 
@@ -76,7 +76,7 @@ Every Incus or LXD instance on this computer, containers and virtual machines al
 
 Every systemd-nspawn container on this computer, one row each, including NixOS containers: the running ones machined knows about and the stopped ones that only have a `container@` or `systemd-nspawn@` service. A running container shows its address in its row; the others say whether they are stopped, starting or stopping. The card lists its service, addresses, uptime, memory use, leader process and root directory.
 
-Pressing the switch on a row starts or stops the container's service. Containers are system services, so this needs your user in the system module's `containerControllers` (or another polkit rule that lets it manage these units); otherwise the switch falls back to the state it had.
+Pressing the switch on a row starts or stops the container's service. Containers are system services, so this needs `programs.sottomano.containerControl.enable` and your user in its group (`programs.sottomano.groups.containerControl`) (or another polkit rule that lets it manage these units); otherwise the switch falls back to the state it had.
 
 ## Virtualization: LXC containers
 
@@ -125,7 +125,7 @@ Every running Apptainer or Singularity container on this computer, one row each,
 
 Waydroid as two rows: its container, and the Android session inside it, which is listed while the container runs. The container row shows its memory use while it runs; its card lists its state, its `waydroid-container.service` unit and its memory use. The session row shows the session's state; its card lists the state, the user and the screen density.
 
-Pressing the container's switch starts or stops `waydroid-container.service`, which needs your user in the system module's `containerControllers`. Before Sottomano has read the service's state, the container row shows a muted switch. Pressing the session's switch starts the session with `waydroid session start`, or stops it with `waydroid session stop`.
+Pressing the container's switch starts or stops `waydroid-container.service`, which needs `programs.sottomano.containerControl.enable` and your user in its group (`programs.sottomano.groups.containerControl`). Before Sottomano has read the service's state, the container row shows a muted switch. Pressing the session's switch starts the session with `waydroid session start`, or stops it with `waydroid session stop`.
 
 </div>
 

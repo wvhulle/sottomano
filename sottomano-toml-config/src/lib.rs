@@ -19,5 +19,5 @@ pub mod spacing;
 pub mod theme;
 
 pub use load::{Config, ConfigFile, LoadError, config_home, default_config_toml};
-pub use secrets::SecretPaths;
+pub use secrets::{SecretPaths, SecretsConfig};
 pub use theme::palette::Palette;

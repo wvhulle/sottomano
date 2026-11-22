@@ -49,7 +49,7 @@ secondary = "#bfbdb6"
 text_size = "14px"
 
 [theme.spacing]
-item_gap = "6px"
+item_gap = "4px"
 surface_inset = "10px"
 group_gap = "14px"
 
@@ -261,6 +261,8 @@ end = "17:00:00"
 [launched_programs]
 terminal_command_prefix = ["kitty", "-e"]
 color_temperature_service = "screen-temperature.service"
+
+[secrets]
 ```
 <!-- default-config:end -->
 
@@ -306,9 +308,16 @@ on Wayland export no menu, and apps built on libadwaita have no menu bar.
 ## Secrets
 
 A few widgets need an API key or password. Each one is optional, and the
-widgets that need a missing one stay hidden. `sottomano secrets` lists the
-secret files in `~/.config/sottomano/`, what each one enables and whether it is
-present.
+widgets that need a missing one stay hidden. The `[secrets]` table names the
+file that holds each one; a relative path resolves against `~/.config`:
 
-With home-manager, `services.sottomano.secretFiles.<name>` symlinks each one
-from wherever the secret actually lives, so nothing lands in the Nix store.
+```toml
+[secrets]
+caldav_password = "/run/agenix/caldav-password"
+gh_auth_token = "sottomano/gh-auth-token"
+```
+
+`sottomano secrets` lists every key, what it enables and whether its file is
+present. The bar reads the table at startup, so restart it after changing a
+path. With home-manager, set `services.sottomano.settings.secrets` to the paths
+of your agenix or sops-nix secrets.

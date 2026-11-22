@@ -19,6 +19,7 @@ use super::{
     notification_toasts::NotificationToastsConfig,
     overlay_surfaces::OverlaySurfacesConfig,
     scrolling::ScrollingConfig,
+    secrets::SecretsConfig,
     spacing::Spacing,
     theme::{
         Theme, ThemeChoice,
@@ -40,6 +41,7 @@ pub struct Config {
     pub notification_toasts: NotificationToastsConfig,
     pub calendar: Calendar,
     pub launched_programs: LaunchedPrograms,
+    pub secrets: SecretsConfig,
 }
 
 impl Default for Config {
@@ -65,6 +67,7 @@ struct UserConfig {
     notification_toasts: NotificationToastsConfig,
     calendar: CalendarChoice,
     launched_programs: LaunchedPrograms,
+    secrets: SecretsConfig,
 }
 
 impl UserConfig {
@@ -100,6 +103,7 @@ impl UserConfig {
                 working_hours: self.calendar.working_hours,
             },
             launched_programs: self.launched_programs,
+            secrets: self.secrets,
         })
     }
 }
