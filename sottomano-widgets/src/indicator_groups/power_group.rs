@@ -1,5 +1,6 @@
 mod battery_charge_gauge;
 mod battery_time_indicator;
+mod charger_connection;
 mod cpu_tuning_sections;
 mod estimate_columns;
 mod power_draw_gauge;
@@ -10,6 +11,7 @@ mod sqlite_charge_power_curve;
 
 use battery_charge_gauge::{battery_hover_card, battery_indicator};
 use battery_time_indicator::{BatteryTime, BatteryTimeIndicator};
+use chrono::Locale;
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileInteraction, PowerProfileMessage};
@@ -38,8 +40,7 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         power_group::{
-            cpu_tuning_sections::cpu_tuning_sections,
-            power_draw_gauge::{PowerSource, charger_supply_sections},
+            cpu_tuning_sections::cpu_tuning_sections, power_draw_gauge::charger_supply_sections,
         },
     },
     widgets::{
@@ -228,15 +229,16 @@ impl PowerGroup {
                 .battery
                 .indicator(battery_indicator, BATTERY_CHARGE_GLYPH.into()),
             SubscribedSnapshot::Unavailable { .. } => match &self.power_profile.status {
-                SubscribedSnapshot::Available { .. } => {
-                    self.power_profile.control.indicator(config.calendar.locale)
-                }
+                SubscribedSnapshot::Available { .. } => self
+                    .power_profile
+                    .control
+                    .indicator(config.calendar.locale)
+                    .with_headline_glyph(Phosphor::Plug(Weight::Regular).into()),
                 SubscribedSnapshot::Unavailable { cause } => {
                     cause.indicator(Phosphor::Plug(Weight::Regular).into())
                 }
             },
-        }
-        .with_headline_glyph(Phosphor::Plug(Weight::Regular).into());
+        };
         let mut lead_indicators = Vec::new();
         if self.power_profile.status.get().is_some() {
             lead_indicators.push(self.power_profile_indicator(config));
@@ -252,7 +254,7 @@ impl PowerGroup {
             }
         }
         if let Some(draw) = self.draw() {
-            rows.push(self.power_draw_indicator(draw));
+            rows.push(self.power_draw_indicator(draw, locale));
         }
         if let Some(time) = self.battery_time() {
             rows.push(
@@ -307,15 +309,16 @@ impl PowerGroup {
             .refreshed_by(battery_refresh())
     }
 
-    fn power_draw_indicator(&self, draw: PowerDraw) -> GroupIndicator<'_> {
-        draw.indicator()
+    fn power_draw_indicator(&self, draw: PowerDraw, locale: Locale) -> GroupIndicator<'_> {
+        draw.indicator(locale)
             .with_hover_card(Box::new(move |_| {
                 self.draw().map_or_else(Vec::new, |current_draw| {
-                    let mut sections = self.battery.hover_card_with(current_draw.hover_card());
-                    if current_draw.power_source() != PowerSource::Battery {
-                        sections
-                            .extend(self.charger.sections_described_by(charger_supply_sections));
-                    }
+                    let mut sections = if current_draw.connection().feeds_from_charger() {
+                        self.charger.sections_described_by(charger_supply_sections)
+                    } else {
+                        Vec::new()
+                    };
+                    sections.extend(self.battery.hover_card_with(current_draw.hover_card()));
                     sections
                 })
             }))

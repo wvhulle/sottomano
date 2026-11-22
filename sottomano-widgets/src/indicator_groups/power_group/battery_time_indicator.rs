@@ -12,6 +12,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{Power, Ratio},
     power::watt,
+    ratio::percent,
 };
 
 use crate::{
@@ -42,6 +43,9 @@ use crate::{
 const MIN_SAMPLE_W: f64 = 0.5;
 const EMPTY_CRITICAL: Duration = Duration::from_mins(10);
 const EMPTY_WARNING: Duration = Duration::from_mins(20);
+const FULL_CHARGE_PERCENT: f64 = 100.0;
+
+pub const TIME_LEFT_INDICATOR_NAME: &str = "Time left";
 
 #[derive(Default)]
 pub enum BatteryTimeIndicator {
@@ -152,6 +156,42 @@ impl Countdown {
 }
 
 impl Countdown {
+    fn glyph(self) -> IconGlyph {
+        match self {
+            Countdown::UntilEmpty(_) => Phosphor::HourglassLow(Weight::Regular).into(),
+            Countdown::UntilFull { .. } => Phosphor::HourglassHigh(Weight::Regular).into(),
+        }
+    }
+
+    fn section_heading(self) -> &'static str {
+        match self {
+            Countdown::UntilEmpty(_) => "Until empty",
+            Countdown::UntilFull { .. } => "Until full",
+        }
+    }
+
+    fn label(self, locale: Locale) -> String {
+        let forecast_label = self.forecast().label(locale);
+        match self {
+            Countdown::UntilEmpty(Forecast::Estimated(_)) => format!("{forecast_label} left"),
+            Countdown::UntilFull {
+                charge_limit,
+                forecast: Forecast::Estimated(_),
+            } if charge_limit >= Ratio::new::<percent>(FULL_CHARGE_PERCENT) => {
+                format!("Full in {forecast_label}")
+            }
+            Countdown::UntilFull {
+                charge_limit,
+                forecast: Forecast::Estimated(_),
+            } => format!("{} in {forecast_label}", percent_text(charge_limit)),
+            Countdown::UntilEmpty(Forecast::Unavailable(_))
+            | Countdown::UntilFull {
+                forecast: Forecast::Unavailable(_),
+                ..
+            } => forecast_label,
+        }
+    }
+
     fn key(self) -> String {
         match self {
             Countdown::UntilEmpty(_) => "Until empty".to_owned(),
@@ -204,7 +244,7 @@ impl IdleBattery {
 
     fn hover_card(self) -> Vec<Section> {
         vec![Section::new(
-            "Charge",
+            "Idle on charger",
             dictionary_table([
                 LabeledValue::new("Status", self.explanation()),
                 LabeledValue::new("Charge", Quantity::share(self.capacity)),
@@ -224,14 +264,14 @@ impl BatteryTime {
     fn glyph(self) -> IconGlyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),
-            BatteryTime::Countdown(_) => Phosphor::HourglassMedium(Weight::Regular).into(),
+            BatteryTime::Countdown(countdown) => countdown.glyph(),
         }
     }
 
     fn label_text(self, locale: Locale) -> String {
         match self {
             BatteryTime::Idle(idle) => idle.label().to_string(),
-            BatteryTime::Countdown(countdown) => countdown.forecast().label(locale),
+            BatteryTime::Countdown(countdown) => countdown.label(locale),
         }
     }
 
@@ -253,7 +293,7 @@ impl BatteryTime {
 
     pub fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
         let label = self.label_text(locale);
-        GroupIndicator::glyph_only("Battery time", self.glyph(), self.display_state())
+        GroupIndicator::glyph_only(TIME_LEFT_INDICATOR_NAME, self.glyph(), self.display_state())
             .with_readout(IndicatorReadout {
                 label: ReadoutLabel::Labeled(label.clone()),
                 gauge: ReadoutGauge::Ungauged,
@@ -276,7 +316,7 @@ impl BatteryTime {
             BatteryTime::Idle(idle) => idle.hover_card(),
             BatteryTime::Countdown(countdown) => {
                 vec![Section::new(
-                    "Estimate",
+                    countdown.section_heading(),
                     headed_table(ESTIMATE_HEADINGS, [countdown]),
                 )]
             }
@@ -286,7 +326,7 @@ impl BatteryTime {
 
 #[cfg(test)]
 mod tests {
-    use uom::si::ratio::percent;
+    use sottomano_desktop_sources::battery_power_profiles::battery_time_forecast::LatestBound;
 
     use super::*;
 
@@ -301,6 +341,34 @@ mod tests {
             "Until empty"
         );
         assert_eq!(until_full.key(), "Until 80 %");
+    }
+
+    #[test]
+    fn countdown_label_names_the_direction() {
+        let estimate = Estimate {
+            time: Duration::from_mins(141),
+            earliest: Duration::from_mins(120),
+            latest: LatestBound::Within(Duration::from_mins(160)),
+        };
+        let until_full = |charge_limit_percent| {
+            Countdown::UntilFull {
+                charge_limit: Ratio::new::<percent>(charge_limit_percent),
+                forecast: Forecast::Estimated(estimate),
+            }
+            .label(Locale::en_US)
+        };
+        let estimate_label = Forecast::Estimated(estimate).label(Locale::en_US);
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Estimated(estimate)).label(Locale::en_US),
+            format!("{estimate_label} left")
+        );
+        assert_eq!(until_full(100.0), format!("Full in {estimate_label}"));
+        assert_eq!(until_full(80.0), format!("80 % in {estimate_label}"));
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Unavailable(Unforecastable::NoDrainHistory))
+                .label(Locale::en_US),
+            "learning"
+        );
     }
 
     #[test]

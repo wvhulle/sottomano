@@ -60,6 +60,7 @@ pub enum DisplayUnit {
     DegreeCelsius,
     Kelvin,
     Watt,
+    SignedWatt,
     Volt,
     Ampere,
     WattHour,
@@ -89,7 +90,7 @@ impl DisplayUnit {
             DisplayUnit::Percent | DisplayUnit::SignedPercent => "%",
             DisplayUnit::DegreeCelsius => "°C",
             DisplayUnit::Kelvin => "K",
-            DisplayUnit::Watt => "W",
+            DisplayUnit::Watt | DisplayUnit::SignedWatt => "W",
             DisplayUnit::Volt => "V",
             DisplayUnit::Ampere => "A",
             DisplayUnit::WattHour => "Wh",
@@ -136,7 +137,7 @@ impl Measurement {
                 DisplayUnit::Kilometer.symbol()
             ),
             DisplayUnit::Unitless => localized_decimal(self.magnitude(), self.decimals, locale),
-            DisplayUnit::SignedPercent => format!(
+            DisplayUnit::SignedPercent | DisplayUnit::SignedWatt => format!(
                 "{}{} {}",
                 if self.magnitude() < 0.0 { '−' } else { '+' },
                 localized_decimal(self.magnitude().abs(), self.decimals, locale),
@@ -209,6 +210,11 @@ impl Quantity {
     #[must_use]
     pub fn power(power: Power) -> Self {
         Self::measured(power.get::<watt>(), DisplayUnit::Watt, 1)
+    }
+
+    #[must_use]
+    pub fn signed_power(power: Power) -> Self {
+        Self::measured(power.get::<watt>(), DisplayUnit::SignedWatt, 1)
     }
 
     #[must_use]

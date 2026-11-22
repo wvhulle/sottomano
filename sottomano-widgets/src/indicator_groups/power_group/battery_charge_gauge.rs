@@ -1,32 +1,37 @@
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    battery_power_profiles::upower_battery_state::{Battery, ChargeStatus},
+use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
+    Battery, ChargeStatus,
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
+    indicator_groups::power_group::charger_connection::ChargerConnection,
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
-pub fn battery_indicator(battery: &Battery) -> GroupIndicator<'_> {
-    let state = if battery.capacity <= Ratio::new::<percent>(15.0) {
+pub const CHARGE_INDICATOR_NAME: &str = "Charge";
+
+fn capacity_state(capacity: Ratio) -> IndicatorState {
+    if capacity <= Ratio::new::<percent>(15.0) {
         IndicatorState::Critical
-    } else if battery.capacity <= Ratio::new::<percent>(30.0) {
+    } else if capacity <= Ratio::new::<percent>(30.0) {
         IndicatorState::Warning
     } else {
         IndicatorState::Idle
-    };
+    }
+}
+
+pub fn battery_indicator(battery: &Battery) -> GroupIndicator<'_> {
+    let connection = ChargerConnection::from(battery);
     GroupIndicator::glyph_only(
-        Battery::NAME,
-        Phosphor::BatteryCharging(Weight::Regular).into(),
-        state,
+        CHARGE_INDICATOR_NAME,
+        connection.battery_glyph(battery.capacity),
+        connection.indicator_state(capacity_state(battery.capacity)),
     )
     .with_readout(IndicatorReadout {
         label: ReadoutLabel::Unlabeled,
@@ -41,11 +46,11 @@ pub fn battery_indicator(battery: &Battery) -> GroupIndicator<'_> {
 
 pub fn battery_hover_card(battery: &Battery) -> Vec<Section> {
     vec![Section::new(
-        "Charge",
+        "Battery level",
         dictionary_table(
             [
                 Some(LabeledValue::new(
-                    "Battery",
+                    "Level",
                     Quantity::share(battery.capacity),
                 )),
                 (battery.status != ChargeStatus::Unreported)
