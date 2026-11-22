@@ -208,10 +208,7 @@ mod tests {
 
     #[test]
     fn missing_charger_adds_no_section() {
-        assert_eq!(
-            charger_supply_sections(&ChargerSupply::NoChargerOnline),
-            Vec::new()
-        );
+        assert!(charger_supply_sections(&ChargerSupply::NoChargerOnline).is_empty());
     }
 
     #[test]

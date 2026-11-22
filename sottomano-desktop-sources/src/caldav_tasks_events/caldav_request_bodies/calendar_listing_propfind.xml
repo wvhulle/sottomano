@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
+  <d:prop>
+    <d:resourcetype/>
+    <d:displayname/>
+    <c:supported-calendar-component-set/>
+    <d:sync-token/>
+    <cs:getctag/>
+    <d:getetag/>
+  </d:prop>
+</d:propfind>

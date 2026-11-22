@@ -7,6 +7,7 @@ pub mod caldav_open_tasks;
 pub mod caldav_server_provider;
 pub mod caldav_task_query;
 pub mod caldav_upcoming_events;
+pub mod caldav_webdav_requests;
 pub mod nextcloud_notify_push;
 pub mod nextcloud_web_links;
 pub mod webcal_feed_expansion;

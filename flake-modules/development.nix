@@ -33,7 +33,7 @@
           // desktopRuntime.iconAssetEnv
           // desktopRuntime.linkedSystemLibraryEnv
           // {
-            LD_LIBRARY_PATH = "${lib.makeLibraryPath (lib.remove pkgs.openssl commonArgs.buildInputs)}:${pkgs.addDriverRunpath.driverLink}/lib";
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS = "-C link-arg=-Wl,-rpath,${lib.makeLibraryPath desktopRuntime.runtimeDlopenLibraries}:${pkgs.addDriverRunpath.driverLink}/lib";
             SHOWCASE_APP_ICONS = desktopRuntime.showcaseAppIcons;
           };
         shellHook = ''

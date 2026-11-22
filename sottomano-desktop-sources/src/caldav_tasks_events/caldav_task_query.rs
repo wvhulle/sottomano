@@ -4,17 +4,20 @@ use calcard::icalendar::{
     ICalendarComponent, ICalendarComponentType, ICalendarProperty, ICalendarStatus,
 };
 use chrono::{DateTime, Local};
-use fast_dav_rs::caldav::{CalendarQueryFilter, PropFilter};
+use libdav::Depth;
 
 use crate::caldav_tasks_events::{
     agenda_moment_zones::{AgendaMoment, DeadlinePassage},
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
     caldav_event_query::{displayed_summary, written_moment},
+    caldav_webdav_requests::{DavMethod, MultistatusRequest, parsed_calendar_objects},
     webcal_feed_expansion::text_property,
 };
 
 const LOWEST_PRIORITY: u32 = 9;
+const UNCOMPLETED_TASK_QUERY: &str =
+    include_str!("caldav_request_bodies/uncompleted_task_query.xml");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PriorityBand {
@@ -143,11 +146,14 @@ pub async fn query_open_tasks(
     home: &CalendarHome,
     calendar: &CalendarCollection,
 ) -> Result<Vec<OpenTask>, Error> {
-    let uncompleted = CalendarQueryFilter::new("VTODO")
-        .with_prop_filters(vec![PropFilter::not_defined("COMPLETED")]);
     let objects = home
-        .client
-        .calendar_query(&calendar.href, &uncompleted, true)
+        .multistatus_request(MultistatusRequest {
+            method: DavMethod::Report,
+            path: &calendar.href,
+            depth: Depth::One,
+            xml_body: UNCOMPLETED_TASK_QUERY.to_owned(),
+            parse_multistatus: parsed_calendar_objects,
+        })
         .await?;
     Ok(open_tasks(&parsed_calendar_data(objects), &calendar.name))
 }

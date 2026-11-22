@@ -1,27 +1,21 @@
 use std::{borrow::Cow, collections::HashSet};
 
-use fast_dav_rs::{Depth, Operation};
+use libdav::Depth;
 use roxmltree::{Document, ExpandedName, Node};
 
 use crate::caldav_tasks_events::{
     caldav_agenda::Error,
     caldav_calendar_discovery::{CalendarHome, last_path_segment},
+    caldav_webdav_requests::{
+        DAV_NAMESPACE, DavMethod, MultistatusRequest, dav_responses, response_href,
+    },
 };
 
-const DAV_NAMESPACE: &str = "DAV:";
 const CALENDARSERVER_NAMESPACE: &str = "http://calendarserver.org/ns/";
 const OWNCLOUD_NAMESPACE: &str = "http://owncloud.org/ns";
 const HIDDEN_IN_NEXTCLOUD: &str = "0";
-const LISTING_PROPFIND: &str = r#"
-<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns">
-  <d:prop>
-    <d:displayname/>
-    <d:resourcetype/>
-    <cs:source/>
-    <oc:calendar-enabled/>
-  </d:prop>
-</d:propfind>
-"#;
+const LISTING_PROPFIND: &str =
+    include_str!("caldav_request_bodies/nextcloud_home_listing_propfind.xml");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubscribedCalendar {
@@ -49,27 +43,20 @@ impl CalendarHomeListing {
 
 impl CalendarHome {
     pub async fn home_listing(&self) -> Result<CalendarHomeListing, Error> {
-        let response = self
-            .client
-            .propfind(&self.path, Depth::One, LISTING_PROPFIND)
-            .await?;
-        if !response.status().is_success() {
-            return Err(fast_dav_rs::Error::unexpected_status(
-                Operation::PropfindCollections,
-                response.status(),
-            )
-            .into());
-        }
-        Ok(parsed_home_listing(str::from_utf8(response.body())?)?)
+        self.multistatus_request(MultistatusRequest {
+            method: DavMethod::Propfind,
+            path: &self.path,
+            depth: Depth::One,
+            xml_body: LISTING_PROPFIND.to_owned(),
+            parse_multistatus: parsed_home_listing,
+        })
+        .await
     }
 }
 
 pub fn parsed_home_listing(multistatus: &str) -> Result<CalendarHomeListing, roxmltree::Error> {
     let document = Document::parse(multistatus)?;
-    let responses: Vec<Node> = document
-        .descendants()
-        .filter(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "response")))
-        .collect();
+    let responses: Vec<Node> = dav_responses(&document).collect();
     Ok(CalendarHomeListing {
         hidden_calendar_hrefs: responses
             .iter()
@@ -133,13 +120,6 @@ fn nextcloud_visibility(response: Node) -> CalendarVisibility {
     } else {
         CalendarVisibility::Shown
     }
-}
-
-fn response_href<'document>(response: Node<'document, '_>) -> Option<&'document str> {
-    response
-        .children()
-        .find(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "href")))?
-        .text()
 }
 
 fn fetchable_feed_url(source_url: &str) -> Cow<'_, str> {

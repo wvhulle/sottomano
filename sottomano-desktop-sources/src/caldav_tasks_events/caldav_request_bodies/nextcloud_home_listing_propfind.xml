@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns">
+  <d:prop>
+    <d:displayname/>
+    <d:resourcetype/>
+    <cs:source/>
+    <oc:calendar-enabled/>
+  </d:prop>
+</d:propfind>

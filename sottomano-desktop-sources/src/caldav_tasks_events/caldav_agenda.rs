@@ -2,15 +2,18 @@ use std::{
     collections::HashMap,
     mem,
     path::PathBuf,
-    str::Utf8Error,
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
 use calcard::icalendar::ICalendar;
 use chrono::Local;
-use fast_dav_rs::CalendarObject;
 use futures::{Stream, future::try_join_all};
+use http::uri::InvalidUri;
+use libdav::{
+    ServiceForUrlError,
+    dav::{FindCurrentUserPrincipalError, ResolveContextPathError},
+};
 
 use crate::{
     SnapshotDelivery, SnapshotSource, StateChange,
@@ -21,6 +24,7 @@ use crate::{
         caldav_event_query::EventWindow,
         caldav_home_listing::{CalendarHomeListing, CalendarVisibility},
         caldav_server_provider::CaldavProvider,
+        caldav_webdav_requests::{CaldavClientFailure, CaldavRequestError, CalendarObjectData},
         nextcloud_notify_push::{NotifyPushFailure, PushLogin, activity_pings},
     },
     delivery_cadence_drivers::{
@@ -32,7 +36,7 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("password: {0}")]
     Secret(#[from] SecretUnreadable),
@@ -44,32 +48,29 @@ pub enum Error {
     NoCalendarHomeSet,
     #[error("upcoming_days reaches past the calendar")]
     WindowBeyondCalendar,
-    #[error("calendar home listing unparseable: {0}")]
-    ListingUnparseable(#[from] roxmltree::Error),
-    #[error("calendar home listing is not utf-8: {0}")]
-    ListingNotUtf8(#[from] Utf8Error),
-    #[error("{0}")]
-    Dav(Arc<fast_dav_rs::Error>),
+    #[error("caldav request: {0}")]
+    Dav(CaldavRequestError),
+    #[error("server url unparseable: {0}")]
+    ServerUrlUnparseable(#[from] InvalidUri),
+    #[error("server url scheme: {0}")]
+    ServerUrlScheme(#[from] ServiceForUrlError),
+    #[error("server url names no host")]
+    ServerUrlWithoutHost,
+    #[error("caldav context path: {0}")]
+    ContextPathUnresolved(ResolveContextPathError<CaldavClientFailure>),
+    #[error("current-user-principal lookup: {0}")]
+    PrincipalLookup(FindCurrentUserPrincipalError<CaldavClientFailure>),
+    #[error("caldav request timed out")]
+    TimedOut,
     #[error("nextcloud push: {0}")]
-    NotifyPush(Arc<NotifyPushFailure>),
+    NotifyPush(#[from] NotifyPushFailure),
 }
 
-impl From<NotifyPushFailure> for Error {
-    fn from(push_failure: NotifyPushFailure) -> Self {
-        Error::NotifyPush(Arc::new(push_failure))
-    }
-}
-
-impl From<fast_dav_rs::Error> for Error {
-    fn from(error: fast_dav_rs::Error) -> Self {
-        match error {
-            fast_dav_rs::Error::UnexpectedStatus { status, .. }
-            | fast_dav_rs::Error::UnexpectedStatusWithDav { status, .. }
-                if status.as_u16() == 401 =>
-            {
-                Error::Rejected
-            }
-            other => Error::Dav(Arc::new(other)),
+impl From<CaldavRequestError> for Error {
+    fn from(request_failure: CaldavRequestError) -> Self {
+        match request_failure {
+            CaldavRequestError::BadStatusCode(status) if status.as_u16() == 401 => Error::Rejected,
+            other => Error::Dav(other),
         }
     }
 }
@@ -79,15 +80,11 @@ pub(super) struct CalendarResource {
     pub calendar: ICalendar,
 }
 
-pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<CalendarResource> {
+pub(super) fn parsed_calendar_data(objects: Vec<CalendarObjectData>) -> Vec<CalendarResource> {
     objects
         .into_iter()
         .filter_map(|object| {
-            let Some(calendar_data) = object.calendar_data.as_deref() else {
-                tracing::warn!("calendar object {}: response has no data", object.href);
-                return None;
-            };
-            let Ok(calendar) = ICalendar::parse(calendar_data) else {
+            let Ok(calendar) = ICalendar::parse(&object.calendar_data) else {
                 tracing::warn!("calendar object {}: data is not iCalendar", object.href);
                 return None;
             };

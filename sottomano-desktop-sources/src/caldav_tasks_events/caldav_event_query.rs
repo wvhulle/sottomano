@@ -1,16 +1,19 @@
 use calcard::icalendar::{ICalendarComponent, ICalendarComponentType, ICalendarProperty};
 use chrono::{DateTime, Days, Local, NaiveDate};
-use fast_dav_rs::{CalendarQueryOptions, TimeRange};
+use libdav::Depth;
 
 use crate::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment,
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
+    caldav_webdav_requests::{DavMethod, MultistatusRequest, parsed_calendar_objects},
     webcal_feed_expansion::text_property,
 };
 
 const CALDAV_UTC_FORMAT: &str = "%Y%m%dT%H%M%SZ";
 const UNTITLED_SUMMARY: &str = "(untitled)";
+const EXPANDED_EVENT_QUERY_TEMPLATE: &str =
+    include_str!("caldav_request_bodies/expanded_event_query.xml");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventOrigin {
@@ -87,7 +90,7 @@ impl EventWindow {
             .checked_add_days(Days::new(u64::from(self.days)))
     }
 
-    fn caldav_bounds(self) -> Option<TimeRange> {
+    fn caldav_bounds(self) -> Option<CaldavTimeRange> {
         let last_day_exclusive = self.last_day_exclusive()?;
         let [start, end] = [self.first_day, last_day_exclusive].map(|day| {
             AgendaMoment::AllDay(day)
@@ -96,18 +99,20 @@ impl EventWindow {
                 .format(CALDAV_UTC_FORMAT)
                 .to_string()
         });
-        Some(TimeRange::new(start).with_end(end))
+        Some(CaldavTimeRange { start, end })
     }
+}
 
-    fn query_options(self) -> Option<CalendarQueryOptions> {
-        let bounds = self.caldav_bounds()?;
-        Some(
-            CalendarQueryOptions::new("VEVENT")
-                .with_start(bounds.start.clone())
-                .with_end(bounds.end.clone()?)
-                .with_expand(bounds),
-        )
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CaldavTimeRange {
+    start: String,
+    end: String,
+}
+
+fn expanded_event_query(CaldavTimeRange { start, end }: &CaldavTimeRange) -> String {
+    EXPANDED_EVENT_QUERY_TEMPLATE
+        .replace("{start}", start)
+        .replace("{end}", end)
 }
 
 pub async fn query_upcoming_events(
@@ -115,12 +120,17 @@ pub async fn query_upcoming_events(
     calendar: &CalendarCollection,
     window: EventWindow,
 ) -> Result<Vec<UpcomingEvent>, Error> {
-    let Some(options) = window.query_options() else {
+    let Some(bounds) = window.caldav_bounds() else {
         return Err(Error::WindowBeyondCalendar);
     };
     let objects = home
-        .client
-        .calendar_query_options(&calendar.href, &options)
+        .multistatus_request(MultistatusRequest {
+            method: DavMethod::Report,
+            path: &calendar.href,
+            depth: Depth::One,
+            xml_body: expanded_event_query(&bounds),
+            parse_multistatus: parsed_calendar_objects,
+        })
         .await?;
     let object_count = objects.len();
     let calendar_resources = parsed_calendar_data(objects);
@@ -210,6 +220,17 @@ mod tests {
     }
 
     #[test]
+    fn a_calendar_query_report_becomes_upcoming_events() {
+        let objects =
+            parsed_calendar_objects(include_str!("caldav_fixtures/calendar_query_report.xml"))
+                .unwrap();
+        let events = upcoming_events(&parsed_calendar_data(objects), "Personal");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].summary, "Standup");
+        assert_eq!(events[0].calendar, "Personal");
+    }
+
+    #[test]
     fn an_expanded_recurrence_yields_one_event_per_occurrence() {
         let events = parsed(include_str!("caldav_fixtures/expanded_weekly_standup.ics"));
         assert_eq!(events.len(), 2);
@@ -264,10 +285,18 @@ mod tests {
             first_day: NaiveDate::from_ymd_opt(2026, 10, 24).unwrap(),
             days: 7,
         };
-        let options = window.query_options().unwrap();
-        let expand = options.expand.unwrap();
-        assert_eq!(options.start.as_deref(), Some(expand.start.as_str()));
-        assert_eq!(options.end, expand.end);
-        assert!(expand.start.ends_with('Z'));
+        let bounds = window.caldav_bounds().unwrap();
+        assert_eq!(bounds.start.len(), "20261024T000000Z".len());
+        assert!(bounds.start.ends_with('Z') && bounds.end.ends_with('Z'));
+        assert!(bounds.start < bounds.end);
+        let query = expanded_event_query(&bounds);
+        assert!(query.contains(&format!(
+            r#"<c:expand start="{}" end="{}"/>"#,
+            bounds.start, bounds.end
+        )));
+        assert!(query.contains(&format!(
+            r#"<c:time-range start="{}" end="{}"/>"#,
+            bounds.start, bounds.end
+        )));
     }
 }

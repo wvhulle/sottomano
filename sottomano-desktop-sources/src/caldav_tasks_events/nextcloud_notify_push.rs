@@ -1,5 +1,4 @@
 use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
     future::ready,
     path::PathBuf,
     sync::{
@@ -41,33 +40,20 @@ struct PushSubscription {
     push_live: Arc<AtomicBool>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum NotifyPushFailure {
+    #[error("server offers no notify_push")]
     Unsupported,
+    #[error("password: {0}")]
     PasswordUnreadable(SecretUnreadable),
+    #[error("capabilities request: {0}")]
     Capabilities(http_json_client::Error),
+    #[error("websocket: {0}")]
     WebSocket(WebSocketError),
+    #[error("credentials refused")]
     AuthenticationRefused,
+    #[error("no authentication reply")]
     NoAuthenticationReply,
-}
-
-impl Display for NotifyPushFailure {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            NotifyPushFailure::Unsupported => write!(formatter, "server offers no notify_push"),
-            NotifyPushFailure::PasswordUnreadable(secret_error) => {
-                write!(formatter, "password: {secret_error}")
-            }
-            NotifyPushFailure::Capabilities(error) => {
-                write!(formatter, "capabilities request: {error}")
-            }
-            NotifyPushFailure::WebSocket(error) => write!(formatter, "websocket: {error}"),
-            NotifyPushFailure::AuthenticationRefused => write!(formatter, "credentials refused"),
-            NotifyPushFailure::NoAuthenticationReply => {
-                write!(formatter, "no authentication reply")
-            }
-        }
-    }
 }
 
 impl From<WebSocketError> for NotifyPushFailure {
