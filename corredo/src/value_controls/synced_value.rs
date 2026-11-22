@@ -155,11 +155,25 @@ impl SyncedValue {
         }
     }
 
-    pub fn drag_ended(&mut self) -> Option<ValueWrite> {
+    pub fn drag_ended(&mut self, step: f32) -> Option<ValueWrite> {
         if let UserRequest::DraggingTo { requested_value } = self.user_request {
             self.user_request = UserRequest::AwaitingArrival { requested_value };
         }
-        self.write_requested_value()
+        let release_write = self.write_requested_value();
+        self.follow_source_already_arrived(step);
+        release_write
+    }
+
+    fn follow_source_already_arrived(&mut self, step: f32) {
+        if !matches!(self.outgoing_write, OutgoingWrite::NothingOutstanding) {
+            return;
+        }
+        let Some(requested_value) = self.user_request.requested_value() else {
+            return;
+        };
+        if self.source_feedback.arrival_at(requested_value, step) == SourceArrival::Reached {
+            self.user_request = UserRequest::FollowingSource;
+        }
     }
 
     pub fn scrolled_to(&mut self, requested_value: f32) -> Option<ValueWrite> {
@@ -304,7 +318,7 @@ mod tests {
             synced.absolute_write_finished(40.0, &ACCEPTED),
             Some(ValueWrite::Absolute(45.0))
         );
-        assert_eq!(synced.drag_ended(), None);
+        assert_eq!(synced.drag_ended(STEP), None);
         assert_eq!(synced.absolute_write_finished(45.0, &ACCEPTED), None);
         synced.source_reported(20.0, STEP);
         assert_shown(&synced, 45.0);
@@ -314,11 +328,24 @@ mod tests {
     }
 
     #[test]
+    fn source_arriving_before_release_follows_later_outside_changes() {
+        let mut synced = SyncedValue::default();
+        synced.source_reported(100.0, STEP);
+        assert_eq!(synced.drag_moved_to(50.0), Some(ValueWrite::Absolute(50.0)));
+        assert_eq!(synced.absolute_write_finished(50.0, &ACCEPTED), None);
+        synced.source_reported(50.0, STEP);
+        assert_eq!(synced.drag_ended(STEP), None);
+        assert_eq!(synced.source_tracking(), SourceTracking::FollowingSource);
+        synced.source_reported(0.0, STEP);
+        assert_shown(&synced, 0.0);
+    }
+
+    #[test]
     fn writing_on_release_waits_for_the_drag_to_end() {
         let mut synced = SyncedValue::writing_on_release();
         assert_eq!(synced.drag_moved_to(30.0), None);
         assert_shown(&synced, 30.0);
-        assert_eq!(synced.drag_ended(), Some(ValueWrite::Absolute(30.0)));
+        assert_eq!(synced.drag_ended(STEP), Some(ValueWrite::Absolute(30.0)));
     }
 
     #[test]

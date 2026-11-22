@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use futures::{Stream, StreamExt};
-use zbus::{Connection, proxy};
+use zbus::{Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -115,7 +115,10 @@ pub trait PowerProfiles {
 }
 
 pub async fn system_power_profiles() -> zbus::Result<PowerProfilesProxy<'static>> {
-    PowerProfilesProxy::new(&Connection::system().await?).await
+    PowerProfilesProxy::builder(&Connection::system().await?)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -237,7 +240,10 @@ pub fn active_profile_changes(
 async fn status_changes(
     system: zbus::Connection,
 ) -> Result<impl Stream<Item = Result<ProfileStatus, BusReadError>>, BusReadError> {
-    let daemon = PowerProfilesProxy::new(&system).await?;
+    let daemon = PowerProfilesProxy::builder(&system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let changes = change_triggers(
         &system,
         [properties_changed_rule(DAEMON_SERVICE, DAEMON_SERVICE)?],

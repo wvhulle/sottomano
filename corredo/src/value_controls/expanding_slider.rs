@@ -183,7 +183,7 @@ impl ExpandingSlider {
             },
             SliderGesture::Scroll(delta) => self.scrolled(delta),
             SliderGesture::Drag(value) => written(self.synced_value.drag_moved_to(value)),
-            SliderGesture::Release => written(self.synced_value.drag_ended()),
+            SliderGesture::Release => written(self.synced_value.drag_ended(self.slider_step)),
             SliderGesture::SecondaryPress => match self.secondary_press {
                 SecondaryPress::Reported => SliderEffect::SecondaryPressed,
                 SecondaryPress::Ignored => SliderEffect::Unchanged,

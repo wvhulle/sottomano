@@ -77,7 +77,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
                 None
             }
             SeekMessage::Release => {
-                let release_write = self.synced_position.drag_ended();
+                let release_write = self.synced_position.drag_ended(ARRIVAL_STEP_SECONDS);
                 self.seek_with(release_write, timeline)
             }
             SeekMessage::Scroll(delta) => self.scrolled(delta, timeline),
