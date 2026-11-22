@@ -1,11 +1,10 @@
 use std::time::Duration;
 
-use futures::{Stream, StreamExt, TryStreamExt, stream};
+use futures::{Stream, StreamExt};
 use situo_client::{
-    FixOrigin, GeoCoordinates, LocationFix, ReadLocationFix, UpdateSchedule, location_fix_updates,
+    FixOrigin, GeoCoordinates, LocationFix, LocationUpdate, LocationUpdates, UpdateSchedule,
 };
 use uom::si::time::second;
-use zbus::Connection;
 
 use super::Error;
 use crate::{
@@ -56,11 +55,13 @@ impl From<Location> for SnapshotDelivery<Location> {
     }
 }
 
-async fn read_update_schedule() -> Result<UpdateSchedule, Error> {
-    let system_bus = Connection::system()
-        .await
-        .map_err(situo_client::ClientError::from)?;
-    Ok(system_bus.read_update_schedule().await?)
+impl From<LocationUpdate> for Location {
+    fn from(location_update: LocationUpdate) -> Self {
+        Self {
+            geo: location_update.fix,
+            update_schedule: location_update.update_schedule,
+        }
+    }
 }
 
 impl SnapshotSource for Location {
@@ -70,19 +71,10 @@ impl SnapshotSource for Location {
     const NAME: &'static str = "Location";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(read_update_schedule())
-            .map_ok(|update_schedule| {
-                location_fix_updates()
-                    .map_err(Error::from)
-                    .map_ok(move |geo| Location {
-                        geo,
-                        update_schedule: update_schedule.clone(),
-                    })
-            })
-            .try_flatten()
+        LocationUpdates::default()
             .map(|location_fetch| match location_fetch {
-                Ok(location) => SnapshotDelivery::from(location),
-                Err(fetch_error) => SnapshotDelivery::live_push(Err(fetch_error)),
+                Ok(location_update) => SnapshotDelivery::from(Location::from(location_update)),
+                Err(fetch_error) => SnapshotDelivery::live_push(Err(Error::from(fetch_error))),
             })
             .map(|delivery| {
                 delivery.unavailable_when(|fetch_error| {

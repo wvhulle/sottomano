@@ -6168,9 +6168,9 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 [[package]]
 name = "situo-client"
 version = "0.1.0"
-source = "git+https://codeberg.org/wvhulle/situo?branch=main#bfdc0dc85c53b62437db15752c2eefbf6f87d29f"
+source = "git+https://codeberg.org/wvhulle/situo?branch=main#df07d87fcee4c159b21bda7a9e224c5cb842c5f3"
 dependencies = [
- "futures-util",
+ "futures",
  "jiff",
  "serde",
  "uom",
@@ -8426,7 +8426,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
