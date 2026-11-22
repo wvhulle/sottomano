@@ -1,55 +1,75 @@
-use std::{io, time::Instant};
+use std::time::Instant;
 
 use sottomano_toml_config::indicator_groups::gamepad_bindings::PointerButton;
-use wayrs_client::{Connection, protocol::wl_pointer::ButtonState};
-use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
-    ZwlrVirtualPointerManagerV1, ZwlrVirtualPointerV1,
+use wayland_client::{
+    Connection, Dispatch, QueueHandle, delegate_noop,
+    globals::GlobalListContents,
+    protocol::{
+        wl_pointer::ButtonState,
+        wl_registry::{self, WlRegistry},
+    },
+};
+use wayland_protocols_wlr::virtual_pointer::v1::client::{
+    zwlr_virtual_pointer_manager_v1::ZwlrVirtualPointerManagerV1,
+    zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1,
 };
 
 use super::{evdev_gamepad_devices::ButtonEdge, gamepad_input_machine::PointerEffect};
-use crate::system_protocol_clients::wayland_protocol_errors::WaylandProtocolError;
+use crate::system_protocol_clients::wayland_async_connection::{
+    AsyncWaylandConnection, WaylandProtocolError,
+};
+
+pub struct VirtualPointerEvents;
+
+impl Dispatch<WlRegistry, GlobalListContents> for VirtualPointerEvents {
+    fn event(
+        _: &mut Self,
+        _: &WlRegistry,
+        _: wl_registry::Event,
+        _: &GlobalListContents,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+delegate_noop!(VirtualPointerEvents: ZwlrVirtualPointerManagerV1);
+delegate_noop!(VirtualPointerEvents: ZwlrVirtualPointerV1);
 
 pub struct VirtualPointer {
-    conn: Connection<()>,
+    wayland_connection: AsyncWaylandConnection<VirtualPointerEvents>,
     pointer: ZwlrVirtualPointerV1,
     created: Instant,
 }
 
 impl VirtualPointer {
     pub async fn connect() -> Result<Self, WaylandProtocolError> {
-        let mut conn = Connection::<()>::connect().map_err(WaylandProtocolError::Connect)?;
-        conn.async_roundtrip()
-            .await
-            .map_err(WaylandProtocolError::Io)?;
-        let manager: ZwlrVirtualPointerManagerV1 =
-            conn.bind_singleton(1..=2).map_err(|source| {
-                WaylandProtocolError::ProtocolUnavailable {
-                    protocol: "zwlr_virtual_pointer_manager_v1",
-                    source,
-                }
+        let wayland_connection = AsyncWaylandConnection::<VirtualPointerEvents>::connect().await?;
+        let manager: ZwlrVirtualPointerManagerV1 = wayland_connection
+            .globals
+            .bind(&wayland_connection.queue_handle, 1..=2, ())
+            .map_err(|source| WaylandProtocolError::ProtocolUnavailable {
+                protocol: "zwlr_virtual_pointer_manager_v1",
+                source,
             })?;
-        let pointer = manager.create_virtual_pointer(&mut conn, None);
+        let pointer = manager.create_virtual_pointer(None, &wayland_connection.queue_handle, ());
         Ok(Self {
-            conn,
+            wayland_connection,
             pointer,
             created: Instant::now(),
         })
     }
 
-    pub async fn apply(&mut self, effect: PointerEffect) -> io::Result<()> {
+    pub async fn apply(&mut self, effect: PointerEffect) -> Result<(), WaylandProtocolError> {
         let time = Instant::now()
             .checked_duration_since(self.created)
             .expect("the virtual pointer exists before it moves")
             .as_millis() as u32;
         match effect {
-            PointerEffect::Move(displacement) => self.pointer.motion(
-                &mut self.conn,
-                time,
-                displacement.dx.into(),
-                displacement.dy.into(),
-            ),
+            PointerEffect::Move(displacement) => {
+                self.pointer.motion(time, displacement.dx, displacement.dy);
+            }
             PointerEffect::Button { button, edge } => self.pointer.button(
-                &mut self.conn,
                 time,
                 evdev_button_code(button),
                 match edge {
@@ -58,8 +78,8 @@ impl VirtualPointer {
                 },
             ),
         }
-        self.pointer.frame(&mut self.conn);
-        self.conn.async_flush().await
+        self.pointer.frame();
+        self.wayland_connection.flushed().await
     }
 }
 

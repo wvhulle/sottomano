@@ -2,14 +2,25 @@ use std::{future::ready, marker::PhantomData, mem::take, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
 use sottomano_toml_config::friendly_duration::friendly_duration_text;
-use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
-use wayrs_protocols::ext_idle_notify_v1::{
-    ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
+use wayland_client::{
+    Connection, Dispatch, Proxy, QueueHandle, delegate_noop,
+    globals::GlobalListContents,
+    protocol::{
+        wl_registry::{self, WlRegistry},
+        wl_seat::WlSeat,
+    },
+};
+use wayland_protocols::ext::idle_notify::v1::client::{
+    ext_idle_notification_v1::{self, ExtIdleNotificationV1},
+    ext_idle_notifier_v1::ExtIdleNotifierV1,
 };
 
 use crate::system_protocol_clients::{
-    protocol_peer_reconnects::subscribed, wayland_protocol_errors::WaylandProtocolError,
+    protocol_peer_reconnects::subscribed,
+    wayland_async_connection::{AsyncWaylandConnection, WaylandProtocolError},
 };
+
+const NEWEST_SEAT_VERSION: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdleEdge {
@@ -20,11 +31,12 @@ pub enum IdleEdge {
 pub trait CountedActivity: sealed_activity::Sealed {
     const NOTIFIER_VERSION: u32;
 
-    fn request_notification<Tag: Copy + 'static>(
-        notifier: ExtIdleNotifierV1,
-        conn: &mut Connection<DispatchState<Tag>>,
+    fn request_notification<Tag: Copy + Send + Sync + 'static>(
+        notifier: &ExtIdleNotifierV1,
         after_ms: u32,
-        seat: WlSeat,
+        seat: &WlSeat,
+        queue_handle: &QueueHandle<DispatchState<Tag>>,
+        tag: Tag,
     ) -> ExtIdleNotificationV1;
 }
 
@@ -41,26 +53,28 @@ pub struct InputOrInhibitors;
 impl CountedActivity for InputOnly {
     const NOTIFIER_VERSION: u32 = 2;
 
-    fn request_notification<Tag: Copy + 'static>(
-        notifier: ExtIdleNotifierV1,
-        conn: &mut Connection<DispatchState<Tag>>,
+    fn request_notification<Tag: Copy + Send + Sync + 'static>(
+        notifier: &ExtIdleNotifierV1,
         after_ms: u32,
-        seat: WlSeat,
+        seat: &WlSeat,
+        queue_handle: &QueueHandle<DispatchState<Tag>>,
+        tag: Tag,
     ) -> ExtIdleNotificationV1 {
-        notifier.get_input_idle_notification_with_cb(conn, after_ms, seat, notification_cb)
+        notifier.get_input_idle_notification(after_ms, seat, queue_handle, tag)
     }
 }
 
 impl CountedActivity for InputOrInhibitors {
     const NOTIFIER_VERSION: u32 = 1;
 
-    fn request_notification<Tag: Copy + 'static>(
-        notifier: ExtIdleNotifierV1,
-        conn: &mut Connection<DispatchState<Tag>>,
+    fn request_notification<Tag: Copy + Send + Sync + 'static>(
+        notifier: &ExtIdleNotifierV1,
         after_ms: u32,
-        seat: WlSeat,
+        seat: &WlSeat,
+        queue_handle: &QueueHandle<DispatchState<Tag>>,
+        tag: Tag,
     ) -> ExtIdleNotificationV1 {
-        notifier.get_idle_notification_with_cb(conn, after_ms, seat, notification_cb)
+        notifier.get_idle_notification(after_ms, seat, queue_handle, tag)
     }
 }
 
@@ -79,53 +93,52 @@ pub struct TaggedEdge<Tag> {
 pub struct DispatchState<Tag> {
     notifier: ExtIdleNotifierV1,
     seats: Vec<WlSeat>,
-    notifications: Vec<(ExtIdleNotificationV1, Tag)>,
+    notifications: Vec<ExtIdleNotificationV1>,
     edges: Vec<TaggedEdge<Tag>>,
 }
 
 pub struct IdleNotifier<Tag, Counting: CountedActivity> {
-    conn: Connection<DispatchState<Tag>>,
+    wayland_connection: AsyncWaylandConnection<DispatchState<Tag>>,
     state: DispatchState<Tag>,
     counting: PhantomData<Counting>,
 }
 
-impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Counting> {
+impl<Tag: Copy + Send + Sync + 'static, Counting: CountedActivity> IdleNotifier<Tag, Counting> {
     pub async fn connect() -> Result<Self, WaylandProtocolError> {
-        let mut conn =
-            Connection::<DispatchState<Tag>>::connect().map_err(WaylandProtocolError::Connect)?;
-        conn.async_roundtrip()
-            .await
-            .map_err(WaylandProtocolError::Io)?;
-
-        let seat_globals: Vec<_> = conn
-            .globals()
-            .iter()
-            .filter(|seat_global| seat_global.is::<WlSeat>())
-            .cloned()
-            .collect();
+        let wayland_connection = AsyncWaylandConnection::<DispatchState<Tag>>::connect().await?;
+        let queue_handle = &wayland_connection.queue_handle;
+        let seat_globals: Vec<(u32, u32)> =
+            wayland_connection.globals.contents().with_list(|globals| {
+                globals
+                    .iter()
+                    .filter(|global| global.interface == WlSeat::interface().name)
+                    .map(|seat_global| (seat_global.name, seat_global.version))
+                    .collect()
+            });
         let seats: Vec<WlSeat> = seat_globals
-            .iter()
-            .filter_map(|seat_global| {
-                seat_global
-                    .bind(&mut conn, 1..=8)
-                    .inspect_err(|bind_failure| {
-                        tracing::warn!("wayland idle notify: cannot bind seat: {bind_failure}");
-                    })
-                    .ok()
+            .into_iter()
+            .map(|(seat_name, offered_version)| {
+                wayland_connection.globals.registry().bind(
+                    seat_name,
+                    offered_version.min(NEWEST_SEAT_VERSION),
+                    queue_handle,
+                    (),
+                )
             })
             .collect();
         if seats.is_empty() {
             return Err(WaylandProtocolError::NoSeat);
         }
-        let notifier: ExtIdleNotifierV1 = conn
-            .bind_singleton(Counting::NOTIFIER_VERSION..=2)
+        let notifier: ExtIdleNotifierV1 = wayland_connection
+            .globals
+            .bind(queue_handle, Counting::NOTIFIER_VERSION..=2, ())
             .map_err(|source| WaylandProtocolError::ProtocolUnavailable {
                 protocol: "ext_idle_notifier_v1",
                 source,
             })?;
 
         Ok(Self {
-            conn,
+            wayland_connection,
             state: DispatchState {
                 notifier,
                 seats,
@@ -137,8 +150,8 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
     }
 
     pub fn arm(&mut self, triggers: &[IdleTrigger<Tag>]) {
-        for (notification, _) in self.state.notifications.drain(..) {
-            notification.destroy(&mut self.conn);
+        for notification in self.state.notifications.drain(..) {
+            notification.destroy();
         }
         for trigger in triggers {
             let Ok(after_ms) = u32::try_from(trigger.after.as_millis()) else {
@@ -148,53 +161,58 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
                 );
                 continue;
             };
-            for seat in self.state.seats.clone() {
+            for seat in &self.state.seats {
                 let notification = Counting::request_notification(
-                    self.state.notifier,
-                    &mut self.conn,
+                    &self.state.notifier,
                     after_ms,
                     seat,
+                    &self.wayland_connection.queue_handle,
+                    trigger.tag,
                 );
-                self.state.notifications.push((notification, trigger.tag));
+                self.state.notifications.push(notification);
             }
         }
     }
 
     pub async fn edges(&mut self) -> Result<Vec<TaggedEdge<Tag>>, WaylandProtocolError> {
-        self.conn
-            .async_flush()
-            .await
-            .map_err(WaylandProtocolError::Io)?;
-        self.conn
-            .async_recv_events()
-            .await
-            .map_err(WaylandProtocolError::Io)?;
-        self.conn.dispatch_events(&mut self.state);
+        self.wayland_connection
+            .dispatched_events(&mut self.state)
+            .await?;
         Ok(take(&mut self.state.edges))
     }
 }
 
-fn notification_cb<Tag: Copy>(
-    EventCtx {
-        state,
-        proxy,
-        event,
-        ..
-    }: EventCtx<DispatchState<Tag>, ExtIdleNotificationV1>,
-) {
-    let Some((_, tag)) = state
-        .notifications
-        .iter()
-        .find(|(notification, _)| *notification == proxy)
-    else {
-        return;
-    };
-    let edge = match event {
-        ext_idle_notification_v1::Event::Idled => IdleEdge::Idled,
-        ext_idle_notification_v1::Event::Resumed => IdleEdge::Resumed,
-        _ => return,
-    };
-    state.edges.push(TaggedEdge { tag: *tag, edge });
+impl<Tag> Dispatch<WlRegistry, GlobalListContents> for DispatchState<Tag> {
+    fn event(
+        _: &mut Self,
+        _: &WlRegistry,
+        _: wl_registry::Event,
+        _: &GlobalListContents,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+delegate_noop!(@<Tag> DispatchState<Tag>: ignore WlSeat);
+delegate_noop!(@<Tag> DispatchState<Tag>: ExtIdleNotifierV1);
+
+impl<Tag: Copy> Dispatch<ExtIdleNotificationV1, Tag> for DispatchState<Tag> {
+    fn event(
+        state: &mut Self,
+        _: &ExtIdleNotificationV1,
+        event: ext_idle_notification_v1::Event,
+        tag: &Tag,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let edge = match event {
+            ext_idle_notification_v1::Event::Idled => IdleEdge::Idled,
+            ext_idle_notification_v1::Event::Resumed => IdleEdge::Resumed,
+            _ => return,
+        };
+        state.edges.push(TaggedEdge { tag: *tag, edge });
+    }
 }
 
 pub fn input_idle_edges(after: Duration) -> impl Stream<Item = IdleEdge> + Send {

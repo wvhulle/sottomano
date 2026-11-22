@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
         wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge},
     },
     system_protocol_clients::{
-        protocol_peer_reconnects::subscribed, wayland_protocol_errors::WaylandProtocolError,
+        protocol_peer_reconnects::subscribed, wayland_async_connection::WaylandProtocolError,
     },
 };
 use tokio::task::spawn;
