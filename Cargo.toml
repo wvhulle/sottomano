@@ -118,7 +118,6 @@ uom = { version = "0.38.0", default-features = false, features = [
 ] }
 virt = "0.4.3"
 usvg = "0.48.1"
-wayland-client = "0.31.15"
 zbus = { version = "5.19.0", default-features = false, features = [
   "tokio",
   "blocking-api",
