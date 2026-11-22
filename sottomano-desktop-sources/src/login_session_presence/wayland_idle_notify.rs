@@ -1,6 +1,7 @@
 use std::{future::ready, marker::PhantomData, mem::take, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
+use sottomano_toml_config::friendly_duration::friendly_duration_text;
 use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
 use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
@@ -143,7 +144,7 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
             let Ok(after_ms) = u32::try_from(trigger.after.as_millis()) else {
                 tracing::warn!(
                     "idle notify: {} is longer than the protocol's u32 milliseconds, not arming it",
-                    humantime::format_duration(trigger.after)
+                    friendly_duration_text(trigger.after)
                 );
                 continue;
             };

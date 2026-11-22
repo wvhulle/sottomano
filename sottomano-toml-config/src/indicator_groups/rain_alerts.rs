@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RainAlertsConfig {
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub lead_time: TimeDelta,
     pub minimum_millimeters_per_hour: f64,
     pub heavy_millimeters_per_hour: f64,

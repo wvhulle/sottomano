@@ -24,8 +24,7 @@ fast-dav-rs = "0.19.0"
 freedesktop-desktop-entry = "0.8.3"
 futures.workspace = true
 futures-rx.workspace = true
-humantime.workspace = true
-iana-time-zone = "0.1.65"
+jiff.workspace = true
 icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
 icu_locale_core.workspace = true
 image.workspace = true

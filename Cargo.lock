@@ -2625,22 +2625,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
-name = "humantime"
-version = "2.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15cdd26707701c53297e2fa6afb323d55fbc1d0810c3aec078ae3ef0424c3c15"
-
-[[package]]
-name = "humantime-serde"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
-dependencies = [
- "humantime",
- "serde",
-]
-
-[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3582,6 +3566,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "windows-link",
 ]
 
 [[package]]
@@ -6674,13 +6659,12 @@ dependencies = [
  "freedesktop-desktop-entry",
  "futures",
  "futures-rx",
- "humantime",
- "iana-time-zone",
  "icalendar",
  "icu_locale_core",
  "image",
  "inotify",
  "ipnet",
+ "jiff",
  "nalgebra",
  "notulist-client",
  "nvml-wrapper",
@@ -6813,8 +6797,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "color",
- "humantime",
- "humantime-serde",
+ "jiff",
  "rust_decimal",
  "serde",
  "toml",

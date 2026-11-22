@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GroupIndicatorsConfig {
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub slider_expansion_duration: Duration,
 }
 

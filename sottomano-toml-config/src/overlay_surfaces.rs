@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct OverlaySurfacesConfig {
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub surface_morph_duration: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub typing_idle_delay: Duration,
     pub typing_background_opacity: f32,
 }

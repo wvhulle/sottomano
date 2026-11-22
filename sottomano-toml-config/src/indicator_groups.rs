@@ -107,7 +107,7 @@ pub struct WindowGroupConfig {
     pub nixpkgs_branch: String,
     pub nixos_flake: PathBuf,
     pub maximum_window_title_width: Spacing,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub workspace_slide_duration: Duration,
     pub agents: WindowAgentsConfig,
 }

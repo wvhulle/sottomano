@@ -8,11 +8,11 @@ pub struct CaldavAccountConfig {
     pub server_url: String,
     pub user: String,
     pub upcoming_days: u32,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub change_poll_interval: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub push_safety_recheck_interval: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub subscription_download_interval: Duration,
 }
 

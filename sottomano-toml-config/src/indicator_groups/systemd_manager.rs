@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_field_names)]
 pub struct SystemdManagerConfig {
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub slow_job: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub slow_boot_unit: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub slow_shutdown_stop: Duration,
     pub slower_boot_warning_percent: u32,
     pub slower_boot_critical_percent: u32,

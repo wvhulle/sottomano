@@ -1,5 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use sottomano_toml_config::friendly_duration::friendly_duration_text;
+
 use super::Error;
 use crate::{
     sqlite_state_store::write_rate_limit::{self, Backoff},
@@ -20,7 +22,7 @@ pub async fn still_waiting() -> Option<Error> {
     };
     tracing::debug!(
         "claude usage: backing off for another {}",
-        humantime::format_duration(remaining)
+        friendly_duration_text(remaining)
     );
     Some(Error::Backoff {
         remaining,
@@ -48,7 +50,7 @@ pub async fn schedule_retry(resp: http_json_client::Response) -> Error {
         "claude usage: HTTP 429 ({message:?}); retry-after {:?}, attempt {}, waiting {}",
         server_delay,
         next_attempt,
-        humantime::format_duration(delay)
+        friendly_duration_text(delay)
     );
     write_rate_limit::save(
         SOURCE,

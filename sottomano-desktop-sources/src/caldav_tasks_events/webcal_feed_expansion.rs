@@ -12,6 +12,7 @@ use calcard::{
     },
 };
 use chrono::{DateTime, TimeDelta, Utc};
+use jiff::tz::TimeZone;
 use tokio::task::spawn_blocking;
 
 use crate::{
@@ -241,10 +242,11 @@ fn text_property<'component>(
 }
 
 fn viewer_zone() -> CalendarZone {
-    let Ok(zone_name) = iana_time_zone::get_timezone() else {
+    let system_zone = TimeZone::system();
+    let Some(zone_name) = system_zone.iana_name() else {
         return CalendarZone::from(Utc);
     };
-    let Ok(zone) = chrono_tz::Tz::from_str(&zone_name) else {
+    let Ok(zone) = chrono_tz::Tz::from_str(zone_name) else {
         return CalendarZone::from(Utc);
     };
     CalendarZone::from(zone)

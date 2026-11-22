@@ -1,9 +1,10 @@
 pub mod calendar;
 pub mod desktop_panels;
+pub mod friendly_duration;
+pub mod friendly_time_delta;
 pub mod group_indicators;
 pub mod group_menus;
 pub mod hover_cards;
-pub mod humantime_time_delta;
 pub mod indicator_group_layout;
 pub mod indicator_groups;
 pub mod launched_programs;

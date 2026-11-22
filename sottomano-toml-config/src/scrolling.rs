@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct ScrollingConfig {
     pub wheel_line_px: f32,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub wheel_easing: Duration,
 }
 

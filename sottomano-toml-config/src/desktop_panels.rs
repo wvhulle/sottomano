@@ -19,9 +19,9 @@ pub struct DesktopPanelsConfig<L = f32> {
 #[serde(default, deny_unknown_fields)]
 pub struct PanelSlotDragConfig {
     pub ghost_scale: f32,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub spring_load_delay: Duration,
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub focus_indicator_duration: Duration,
 }
 

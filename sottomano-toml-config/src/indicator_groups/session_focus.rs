@@ -6,21 +6,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SessionFocusConfig {
-    #[serde(with = "humantime_serde")]
+    #[serde(with = "crate::friendly_duration")]
     pub idle_detection_delay: Duration,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub shortest_counted_focus: TimeDelta,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub idle_after: TimeDelta,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub session_warning: TimeDelta,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub session_critical: TimeDelta,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub warning_snooze: TimeDelta,
     pub switches_per_hour_warning: u32,
     pub switches_per_hour_critical: u32,
-    #[serde(with = "crate::humantime_time_delta")]
+    #[serde(with = "crate::friendly_time_delta")]
     pub switch_heat_span: TimeDelta,
     pub switch_heat_warning: u32,
     pub switch_heat_critical: u32,

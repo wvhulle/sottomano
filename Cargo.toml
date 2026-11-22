@@ -53,10 +53,14 @@ clap = { version = "4.6.7", features = ["derive"] }
 fixed_decimal = { version = "0.7.3", features = ["ryu"] }
 futures = "0.3.34"
 futures-rx = "=0.4.0"
-humantime = "2.4.0"
 icu_decimal = { version = "2.4.0", features = ["alloc"] }
 icu_experimental = "0.7.0"
-jiff = { version = "0.2.38", default-features = false, features = ["std"] }
+jiff = { version = "0.2.38", default-features = false, features = [
+  "serde",
+  "std",
+  "tz-system",
+  "tzdb-zoneinfo",
+] }
 icu_locale_core = "2.3.0"
 icu_provider = { version = "2.4.0", features = ["logging"] }
 iced = { version = "0.14.0", default-features = false, features = [
