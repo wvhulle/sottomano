@@ -1,4 +1,8 @@
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    hash::{BuildHasher, Hasher, RandomState},
+    time::Duration,
+};
 
 use futures::{Stream, StreamExt, stream};
 use tokio::time::sleep;
@@ -6,6 +10,11 @@ use tokio::time::sleep;
 const FIRST_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 const LONGEST_RECONNECT_DELAY: Duration = Duration::from_mins(5);
 const LONGEST_DOUBLING_COUNT: u32 = 16;
+
+fn unit_interval_jitter() -> f64 {
+    let random_bits = RandomState::new().build_hasher().finish();
+    (random_bits >> 11) as f64 / (1_u64 << 53) as f64
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct ReconnectBackoff {
@@ -22,7 +31,7 @@ impl ReconnectBackoff {
         let unjittered_delay =
             (FIRST_RECONNECT_DELAY * (1 << doubling_count)).min(LONGEST_RECONNECT_DELAY);
         unjittered_delay
-            .mul_f64(0.75 + fastrand::f64() * 0.5)
+            .mul_f64(0.75 + unit_interval_jitter() * 0.5)
             .min(LONGEST_RECONNECT_DELAY)
     }
 

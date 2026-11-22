@@ -57,22 +57,27 @@ pub struct Calendar {
 }
 
 #[must_use]
-pub fn locale_from_environment() -> Locale {
-    let Some(locale_name) = ["LC_ALL", "LC_TIME", "LANG"]
-        .into_iter()
+pub fn environment_locale_name(variables: &[&str]) -> Option<String> {
+    variables
+        .iter()
         .filter_map(|variable| match env::var(variable) {
             Ok(value) => Some(value),
             Err(env::VarError::NotPresent) => None,
             Err(env::VarError::NotUnicode(raw_value)) => {
-                tracing::warn!("calendar: {variable} is not unicode: {raw_value:?}");
+                tracing::warn!("locale: {variable} is not unicode: {raw_value:?}");
                 None
             }
         })
         .find(|value| !value.is_empty())
-    else {
+        .map(|locale_name| without_codeset(&locale_name))
+}
+
+#[must_use]
+pub fn locale_from_environment() -> Locale {
+    let Some(locale_name) = environment_locale_name(&["LC_ALL", "LC_TIME", "LANG"]) else {
         return Locale::default();
     };
-    match without_codeset(&locale_name).as_str() {
+    match locale_name.as_str() {
         "C" | "POSIX" => Locale::default(),
         language_tag => language_tag.parse().unwrap_or_else(|unknown_locale| {
             tracing::warn!("calendar: locale {locale_name} is not supported: {unknown_locale:?}");

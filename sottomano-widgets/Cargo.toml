@@ -23,7 +23,6 @@ bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
 fixed_decimal.workspace = true
-form_urlencoded.workspace = true
 icu_decimal.workspace = true
 icu_experimental.workspace = true
 icu_locale_core.workspace = true

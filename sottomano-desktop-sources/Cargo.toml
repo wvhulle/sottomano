@@ -21,11 +21,9 @@ chrono-tz.workspace = true
 color = "0.3.3"
 evdev = { version = "0.13.2", features = ["stream-trait"] }
 fast-dav-rs = "0.19.0"
-form_urlencoded.workspace = true
 freedesktop-desktop-entry = "0.8.3"
 futures.workspace = true
 futures-rx.workspace = true
-fastrand = "2.5.0"
 humantime.workspace = true
 iana-time-zone = "0.1.65"
 icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
@@ -33,7 +31,7 @@ icu_locale_core.workspace = true
 image.workspace = true
 inotify = "0.11.5"
 ipnet = { version = "2.12.2", features = ["serde"] }
-libc = "0.2.190"
+
 nalgebra.workspace = true
 nvml-wrapper = "0.13.0"
 perf-event2 = "0.7.4"
@@ -41,7 +39,7 @@ pin-project-lite = "0.2.17"
 pipewire = "0.10.1"
 procfs = { version = "0.18.0", default-features = false }
 qmlib = { version = "2.3.0", default-features = false }
-rustix = { version = "1.1.5", features = ["fs", "process", "time"] }
+rustix = { version = "1.1.5", features = ["fs", "net", "process", "time"] }
 notulist-client.workspace = true
 reqwest = { workspace = true, features = ["stream"] }
 roxmltree = "0.21.2"
@@ -50,10 +48,8 @@ rusty-money.workspace = true
 serde.workspace = true
 serde_json = "1.0.154"
 x11rb = "0.13.2"
-socket2 = "0.6.5"
 situo-client.workspace = true
 sunrise = "3.0.0"
-sys-locale = "0.3.2"
 system-tray.workspace = true
 systemd = "0.10.1"
 thiserror.workspace = true

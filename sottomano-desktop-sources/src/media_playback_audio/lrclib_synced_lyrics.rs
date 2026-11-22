@@ -31,7 +31,7 @@ pub struct LyricsQuery {
 impl LyricsQuery {
     #[must_use]
     pub fn lookup_url(&self) -> String {
-        let mut url_serializer = form_urlencoded::Serializer::new(String::new());
+        let mut url_serializer = url::form_urlencoded::Serializer::new(String::new());
         url_serializer
             .append_pair("artist_name", &self.artist)
             .append_pair("track_name", &self.title);
@@ -44,7 +44,7 @@ impl LyricsQuery {
 
     #[must_use]
     pub fn search_url(&self) -> String {
-        let encoded_query = form_urlencoded::Serializer::new(String::new())
+        let encoded_query = url::form_urlencoded::Serializer::new(String::new())
             .append_pair("artist_name", &self.artist)
             .append_pair("track_name", &self.title)
             .finish();

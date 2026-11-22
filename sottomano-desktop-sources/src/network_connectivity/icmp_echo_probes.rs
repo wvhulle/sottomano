@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use socket2::{Domain, Protocol, Socket, Type};
+use rustix::net::{AddressFamily, SocketFlags, SocketType, ipproto, socket_with};
 use tokio::{net::UdpSocket, time::timeout};
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -147,23 +147,26 @@ pub async fn echo_round_trip(
 ) -> Result<ProbeOutcome, LatencyProbeError> {
     let (domain, protocol, request_kind, reply_kind) = match target {
         SocketAddr::V4(_) => (
-            Domain::IPV4,
-            Protocol::ICMPV4,
+            AddressFamily::INET,
+            ipproto::ICMP,
             ICMPV4_ECHO_REQUEST,
             ICMPV4_ECHO_REPLY,
         ),
         SocketAddr::V6(_) => (
-            Domain::IPV6,
-            Protocol::ICMPV6,
+            AddressFamily::INET6,
+            ipproto::ICMPV6,
             ICMPV6_ECHO_REQUEST,
             ICMPV6_ECHO_REPLY,
         ),
     };
-    let icmp_socket = Socket::new(domain, Type::DGRAM, Some(protocol))
-        .and_then(|icmp_socket| {
-            icmp_socket.set_nonblocking(true)?;
-            UdpSocket::from_std(StdUdpSocket::from(icmp_socket))
-        })
+    let icmp_socket = socket_with(
+        domain,
+        SocketType::DGRAM,
+        SocketFlags::NONBLOCK | SocketFlags::CLOEXEC,
+        Some(protocol),
+    )
+    .map_err(io::Error::from)
+    .and_then(|icmp_socket| UdpSocket::from_std(StdUdpSocket::from(icmp_socket)))
         .map_err(|denied| LatencyProbeError::IcmpSocketDenied(denied.to_string()))?;
     let exchange = async {
         icmp_socket.connect(target).await?;

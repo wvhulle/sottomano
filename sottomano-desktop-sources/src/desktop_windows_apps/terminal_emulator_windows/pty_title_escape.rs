@@ -5,6 +5,8 @@ use std::{
     path::Path,
 };
 
+use rustix::fs::OFlags;
+
 fn title_sequence(title: &str) -> String {
     let printable_title: String = title
         .chars()
@@ -16,7 +18,7 @@ fn title_sequence(title: &str) -> String {
 pub fn write_title(pty_path: &Path, title: &str) -> io::Result<()> {
     let mut pty = OpenOptions::new()
         .write(true)
-        .custom_flags(libc::O_NOCTTY | libc::O_NONBLOCK)
+        .custom_flags((OFlags::NOCTTY | OFlags::NONBLOCK).bits().cast_signed())
         .open(pty_path)?;
     pty.write_all(title_sequence(title).as_bytes())
 }

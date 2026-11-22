@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use icu_locale_core::Locale;
 use serde::Deserialize;
+use sottomano_toml_config::calendar::environment_locale_name;
 use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
@@ -163,22 +164,24 @@ pub async fn resolve(
 }
 
 fn wikipedia_language() -> String {
-    sys_locale::get_locales()
-        .filter_map(|locale| {
-            Locale::try_from_str(&locale)
-                .inspect_err(|parse_failure| {
-                    tracing::debug!(
-                        "wallpaper article: system locale {locale} is unparsable: {parse_failure}"
-                    );
-                })
-                .ok()
-        })
-        .map(|locale| locale.id.language)
-        .find(|language| !language.is_unknown())
-        .map_or_else(
-            || FALLBACK_LANGUAGE.to_owned(),
-            |language| language.as_str().to_owned(),
-        )
+    let Some(locale_name) = environment_locale_name(&["LC_ALL", "LC_MESSAGES", "LANG"]) else {
+        return FALLBACK_LANGUAGE.to_owned();
+    };
+    let language_tag = locale_name
+        .split('@')
+        .next()
+        .unwrap_or_default()
+        .replace('_', "-");
+    match Locale::try_from_str(&language_tag) {
+        Ok(locale) if !locale.id.language.is_unknown() => locale.id.language.as_str().to_owned(),
+        Ok(_) => FALLBACK_LANGUAGE.to_owned(),
+        Err(parse_failure) => {
+            tracing::debug!(
+                "wallpaper article: system locale {locale_name} is unparsable: {parse_failure}"
+            );
+            FALLBACK_LANGUAGE.to_owned()
+        }
+    }
 }
 
 async fn describe_photo(
@@ -252,7 +255,7 @@ async fn nearby_search(
         PhotoPlaceName::Named(place) => format!("{place} {nearcoord}"),
         PhotoPlaceName::Unnamed => nearcoord,
     };
-    let query = form_urlencoded::Serializer::new(String::new())
+    let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("action", "query")
         .append_pair("generator", "search")
         .append_pair("gsrsearch", &search)

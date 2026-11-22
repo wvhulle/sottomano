@@ -51,7 +51,6 @@ chrono = { version = "0.4.45", default-features = false, features = [
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 clap = { version = "4.6.7", features = ["derive"] }
 fixed_decimal = { version = "0.7.3", features = ["ryu"] }
-form_urlencoded = "1.2.2"
 futures = "0.3.34"
 futures-rx = "=0.4.0"
 humantime = "2.4.0"

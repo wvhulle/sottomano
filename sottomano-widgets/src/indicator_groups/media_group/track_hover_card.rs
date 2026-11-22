@@ -58,13 +58,19 @@ impl SearchPlatform {
     }
 
     fn url(self, query: &str, desktop_entries: &DesktopEntries) -> String {
-        let host = self.host();
+        let mut search_url = Url::parse(&format!("https://{}/search", self.host()))
+            .expect("platform hosts form valid https URLs");
         match self {
             Self::YouTubeMusic | Self::Bandcamp => {
-                format!("https://{host}/search?{}", query_string("q", query))
+                search_url.query_pairs_mut().append_pair("q", query);
+                search_url.into()
             }
             Self::Spotify => {
-                self.spotify_link(&format!("/search/{}", path_segment(query)), desktop_entries)
+                search_url
+                    .path_segments_mut()
+                    .expect("https URLs have path segments")
+                    .push(query);
+                self.spotify_link(search_url.path(), desktop_entries)
             }
         }
     }
@@ -76,18 +82,6 @@ impl SearchPlatform {
             format!("https://{}{path}", self.host())
         }
     }
-}
-
-fn query_string(key: &str, value: &str) -> String {
-    form_urlencoded::Serializer::new(String::new())
-        .append_pair(key, value)
-        .finish()
-}
-
-fn path_segment(value: &str) -> String {
-    form_urlencoded::byte_serialize(value.as_bytes())
-        .collect::<String>()
-        .replace('+', "%20")
 }
 
 pub fn track_section(media: &Media, desktop_entries: &DesktopEntries) -> Section {

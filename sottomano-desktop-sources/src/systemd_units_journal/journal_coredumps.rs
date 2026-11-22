@@ -6,7 +6,7 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use libc::{c_int, pid_t};
+use rustix::process::Signal;
 use serde::Deserialize;
 use sottomano_toml_config::severity::Severity;
 use systemd::journal::{Journal, OpenOptions};
@@ -34,7 +34,7 @@ impl SnapshotSource for Vec<CoredumpEntry> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(try_from = "c_int")]
+#[serde(try_from = "i32")]
 pub enum CoreDumpingSignal {
     Quit,
     Illegal,
@@ -73,7 +73,7 @@ impl Display for CoreDumpingSignal {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NotACoreDumpingSignal {
-    signal_number: c_int,
+    signal_number: i32,
 }
 
 impl Display for NotACoreDumpingSignal {
@@ -86,22 +86,22 @@ impl Display for NotACoreDumpingSignal {
     }
 }
 
-impl TryFrom<c_int> for CoreDumpingSignal {
+impl TryFrom<i32> for CoreDumpingSignal {
     type Error = NotACoreDumpingSignal;
 
-    fn try_from(number: c_int) -> Result<Self, Self::Error> {
-        match number {
-            libc::SIGQUIT => Ok(CoreDumpingSignal::Quit),
-            libc::SIGILL => Ok(CoreDumpingSignal::Illegal),
-            libc::SIGTRAP => Ok(CoreDumpingSignal::Trap),
-            libc::SIGABRT => Ok(CoreDumpingSignal::Abort),
-            libc::SIGBUS => Ok(CoreDumpingSignal::Bus),
-            libc::SIGFPE => Ok(CoreDumpingSignal::FloatingPoint),
-            libc::SIGSEGV => Ok(CoreDumpingSignal::Segfault),
-            libc::SIGSYS => Ok(CoreDumpingSignal::BadSyscall),
-            libc::SIGXCPU => Ok(CoreDumpingSignal::CpuLimit),
-            libc::SIGXFSZ => Ok(CoreDumpingSignal::FileSizeLimit),
-            _ => Err(NotACoreDumpingSignal {
+    fn try_from(number: i32) -> Result<Self, Self::Error> {
+        match Signal::from_named_raw(number) {
+            Some(Signal::QUIT) => Ok(CoreDumpingSignal::Quit),
+            Some(Signal::ILL) => Ok(CoreDumpingSignal::Illegal),
+            Some(Signal::TRAP) => Ok(CoreDumpingSignal::Trap),
+            Some(Signal::ABORT) => Ok(CoreDumpingSignal::Abort),
+            Some(Signal::BUS) => Ok(CoreDumpingSignal::Bus),
+            Some(Signal::FPE) => Ok(CoreDumpingSignal::FloatingPoint),
+            Some(Signal::SEGV) => Ok(CoreDumpingSignal::Segfault),
+            Some(Signal::SYS) => Ok(CoreDumpingSignal::BadSyscall),
+            Some(Signal::XCPU) => Ok(CoreDumpingSignal::CpuLimit),
+            Some(Signal::XFSZ) => Ok(CoreDumpingSignal::FileSizeLimit),
+            Some(_) | None => Err(NotACoreDumpingSignal {
                 signal_number: number,
             }),
         }
@@ -117,7 +117,7 @@ pub struct CoredumpRecord {
     #[serde(rename = "COREDUMP_SIGNAL")]
     signal: CoreDumpingSignal,
     #[serde(rename = "COREDUMP_PID")]
-    pid: pid_t,
+    pid: i32,
     #[serde(flatten)]
     unit: CoredumpUnit,
     #[serde(rename = "COREDUMP_FILENAME")]
@@ -132,7 +132,7 @@ pub struct CoredumpEntry {
     pub command: String,
     pub executable: PathBuf,
     pub signal: CoreDumpingSignal,
-    pub pid: pid_t,
+    pub pid: i32,
     pub unit: CoredumpOwner,
     pub core_file: CoreFileStorage,
     pub severity: Severity,

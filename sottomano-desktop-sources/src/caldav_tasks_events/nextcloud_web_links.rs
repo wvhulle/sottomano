@@ -1,6 +1,6 @@
 use base64::{Engine, engine::general_purpose::STANDARD};
 use chrono::NaiveTime;
-use form_urlencoded::byte_serialize;
+use url::form_urlencoded::byte_serialize;
 use reqwest::Url;
 
 use crate::caldav_tasks_events::{
