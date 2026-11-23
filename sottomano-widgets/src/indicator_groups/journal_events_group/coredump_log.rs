@@ -1,6 +1,9 @@
+use std::time::SystemTime;
+
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::{
-    CoredumpEntry, CoredumpOwner,
+use sottomano_desktop_sources::{
+    system_protocol_clients::journal_follow::unexpired_events,
+    systemd_units_journal::journal_coredumps::{CoredumpEntry, CoredumpOwner},
 };
 use sottomano_toml_config::Config;
 
@@ -51,6 +54,7 @@ impl JournalScopeGroup {
         &'view self,
         config: &Config,
         coredump_indicator: GroupIndicator<'view>,
+        now: SystemTime,
     ) -> GroupIndicator<'view> {
         coredump_indicator
             .on_press(
@@ -61,10 +65,15 @@ impl JournalScopeGroup {
                 )),
             )
             .with_hover_card(Box::new(move |_| {
-                self.coredumps
-                    .sections_described_by(|snapshot| coredump_log_hover_card(snapshot))
+                self.coredumps.sections_described_by(|held_entries| {
+                    coredump_log_hover_card(&live_coredumps(held_entries, now))
+                })
             }))
     }
+}
+
+pub(super) fn live_coredumps(entries: &[CoredumpEntry], now: SystemTime) -> Vec<CoredumpEntry> {
+    unexpired_events(entries, now).cloned().collect()
 }
 
 pub(super) fn coredump_log_state(entries: &[CoredumpEntry]) -> IndicatorState {
@@ -80,19 +89,19 @@ pub(super) fn coredump_log_panel_visibility(entries: &[CoredumpEntry]) -> PanelV
     shown_while_alerting(entries.iter().map(|entry| entry.severity))
 }
 
-pub(super) fn coredump_log_indicator(entries: &[CoredumpEntry]) -> GroupIndicator<'_> {
+pub(super) fn coredump_log_indicator<'view>(entries: Vec<CoredumpEntry>) -> GroupIndicator<'view> {
     GroupIndicator::glyph_only(
         "Coredumps",
         COREDUMP_LOG_GLYPH.into(),
-        coredump_log_state(entries),
+        coredump_log_state(&entries),
     )
     .with_readout(IndicatorReadout {
         label: ReadoutLabel::Unlabeled,
         gauge: ReadoutGauge::Ungauged,
         badge: ReadoutBadge::Counted(entries.len()),
     })
-    .with_panel_visibility(coredump_log_panel_visibility(entries))
-    .with_hover_card(Box::new(move |_| coredump_log_hover_card(entries)))
+    .with_panel_visibility(coredump_log_panel_visibility(&entries))
+    .with_hover_card(Box::new(move |_| coredump_log_hover_card(&entries)))
 }
 
 pub(super) fn coredump_log_hover_card(entries: &[CoredumpEntry]) -> Vec<Section> {

@@ -10,9 +10,8 @@ mod service_error_log;
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     systemd_units_journal::{
-        SystemdUnitScope, journal_coredumps::CoredumpEntry,
-        journal_kernel_errors::KernelOccurrence, journal_oom_kills::OomKillEntry,
-        journal_service_errors::ServiceErrors,
+        SystemdUnitScope, journal_coredumps::CoredumpEntry, journal_kernel_errors::KernelEntry,
+        journal_oom_kills::OomKillEntry, journal_service_errors::ServiceErrorEntry,
     },
 };
 use sottomano_toml_config::{Config, severity::Severity};
@@ -75,8 +74,8 @@ impl Default for JournalEventsGroup {
 
 #[derive(Debug)]
 pub enum JournalEventsMessage {
-    Kernel(SnapshotDelivery<Vec<KernelOccurrence>>),
-    ServiceErrors(SnapshotDelivery<ServiceErrors>),
+    Kernel(SnapshotDelivery<Vec<KernelEntry>>),
+    ServiceErrors(SnapshotDelivery<Vec<ServiceErrorEntry>>),
     Coredumps(SnapshotDelivery<Vec<CoredumpEntry>>),
     OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
 }
@@ -123,6 +122,17 @@ fn coredumps_in_scope(
         .collect()
 }
 
+fn service_errors_in_scope(
+    service_errors: &[ServiceErrorEntry],
+    unit_scope: SystemdUnitScope,
+) -> Vec<ServiceErrorEntry> {
+    service_errors
+        .iter()
+        .filter(|service_error| service_error.unit.unit_scope() == unit_scope)
+        .cloned()
+        .collect()
+}
+
 fn oom_kills_in_scope(
     oom_kills: &[OomKillEntry],
     unit_scope: SystemdUnitScope,
@@ -142,8 +152,9 @@ impl JournalEventsGroup {
 
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            snapshot_subscription::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
-            snapshot_subscription::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
+            snapshot_subscription::<Vec<KernelEntry>>(()).map(JournalEventsMessage::Kernel),
+            snapshot_subscription::<Vec<ServiceErrorEntry>>(())
+                .map(JournalEventsMessage::ServiceErrors),
             snapshot_subscription::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
             snapshot_subscription::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
         ])
@@ -165,7 +176,13 @@ impl JournalEventsGroup {
             JournalEventsMessage::ServiceErrors(delivery) => {
                 for scope_group in self.scope_groups_mut() {
                     scope_group.service_errors.receive(
-                        scoped_delivery(&delivery, scope_group.unit_scope, ServiceErrors::owned_by),
+                        scoped_delivery(
+                            &delivery,
+                            scope_group.unit_scope,
+                            |service_errors, unit_scope| {
+                                service_errors_in_scope(service_errors, unit_scope)
+                            },
+                        ),
                         clock,
                     );
                 }
@@ -224,16 +241,18 @@ impl JournalEventsGroup {
     pub fn system_journal_content<'view>(
         &'view self,
         config: &'view Config,
+        clock: Clock,
     ) -> IndicatorGroupContent<'view> {
-        self.system_journal.group_content(config)
+        self.system_journal.group_content(config, clock.wall)
     }
 
     #[must_use]
     pub fn user_journal_content<'view>(
         &'view self,
         config: &'view Config,
+        clock: Clock,
     ) -> IndicatorGroupContent<'view> {
-        self.user_journal.group_content(config)
+        self.user_journal.group_content(config, clock.wall)
     }
 }
 

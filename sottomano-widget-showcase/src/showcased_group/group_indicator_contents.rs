@@ -49,7 +49,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::IdleTimeouts(group) => vec![group.idle_chain_group(config, clock)],
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
-                .group_contents(&gamepad.bindings)
+                .group_contents(&gamepad.bindings, clock)
                 .into_iter()
                 .collect(),
             guest_group => guest_group.guest_group_contents(config, clock),

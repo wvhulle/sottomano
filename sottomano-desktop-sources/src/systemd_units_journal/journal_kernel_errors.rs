@@ -11,16 +11,14 @@ use crate::{
     systemd_units_journal::journal_record_fields::{JournalPriority, JournalTransport},
 };
 
-impl SnapshotSource for Vec<KernelOccurrence> {
+impl SnapshotSource for Vec<KernelEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Kernel errors";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        journal_windows::<KernelEntry>()
-            .map(|entries| entries.map(KernelOccurrence::merged_oldest_first))
-            .map(SnapshotDelivery::live_push)
+        journal_windows::<KernelEntry>().map(SnapshotDelivery::live_push)
     }
 }
 
@@ -79,7 +77,9 @@ impl KernelOccurrence {
     }
 
     #[must_use]
-    pub fn merged_oldest_first(entries: Vec<KernelEntry>) -> Vec<Self> {
+    pub fn merged_oldest_first<'entries>(
+        entries: impl IntoIterator<Item = &'entries KernelEntry>,
+    ) -> Vec<Self> {
         let mut by_message: HashMap<String, Self> = HashMap::new();
         for entry in entries {
             if let Some(occurrence) = by_message.get_mut(&entry.message) {
@@ -91,7 +91,7 @@ impl KernelOccurrence {
                     entry.message.clone(),
                     KernelOccurrence {
                         latest: entry.at,
-                        message: entry.message,
+                        message: entry.message.clone(),
                         count: 1,
                         severity: entry.severity,
                     },
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn repeated_messages_merge_into_one_occurrence_at_their_latest_time() {
-        let oldest_first = KernelOccurrence::merged_oldest_first(vec![
+        let oldest_first = KernelOccurrence::merged_oldest_first(&[
             entry(10, "buffer", Severity::Warning),
             entry(30, "buffer", Severity::Critical),
             entry(20, "resume", Severity::Warning),

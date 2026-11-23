@@ -1,6 +1,9 @@
+use std::time::SystemTime;
+
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
-    OomKillEntry, OomKiller,
+use sottomano_desktop_sources::{
+    system_protocol_clients::journal_follow::unexpired_events,
+    systemd_units_journal::journal_oom_kills::{OomKillEntry, OomKiller},
 };
 use sottomano_toml_config::Config;
 
@@ -47,6 +50,7 @@ impl JournalScopeGroup {
         &'view self,
         config: &Config,
         oom_kill_indicator: GroupIndicator<'view>,
+        now: SystemTime,
     ) -> GroupIndicator<'view> {
         oom_kill_indicator
             .on_press(
@@ -57,10 +61,15 @@ impl JournalScopeGroup {
                 )),
             )
             .with_hover_card(Box::new(move |_| {
-                self.oom_kills
-                    .sections_described_by(|snapshot| oom_kill_log_hover_card(snapshot))
+                self.oom_kills.sections_described_by(|held_entries| {
+                    oom_kill_log_hover_card(&live_oom_kills(held_entries, now))
+                })
             }))
     }
+}
+
+pub(super) fn live_oom_kills(entries: &[OomKillEntry], now: SystemTime) -> Vec<OomKillEntry> {
+    unexpired_events(entries, now).cloned().collect()
 }
 
 pub(super) fn oom_kill_log_state(entries: &[OomKillEntry]) -> IndicatorState {
@@ -76,19 +85,19 @@ pub(super) fn oom_kill_log_panel_visibility(entries: &[OomKillEntry]) -> PanelVi
     shown_while_alerting(entries.iter().map(|entry| entry.severity))
 }
 
-pub(super) fn oom_kill_log_indicator(entries: &[OomKillEntry]) -> GroupIndicator<'_> {
+pub(super) fn oom_kill_log_indicator<'view>(entries: Vec<OomKillEntry>) -> GroupIndicator<'view> {
     GroupIndicator::glyph_only(
         "OOM kills",
         OOM_KILL_LOG_GLYPH.into(),
-        oom_kill_log_state(entries),
+        oom_kill_log_state(&entries),
     )
     .with_readout(IndicatorReadout {
         label: ReadoutLabel::Unlabeled,
         gauge: ReadoutGauge::Ungauged,
         badge: ReadoutBadge::Counted(entries.len()),
     })
-    .with_panel_visibility(oom_kill_log_panel_visibility(entries))
-    .with_hover_card(Box::new(move |_| oom_kill_log_hover_card(entries)))
+    .with_panel_visibility(oom_kill_log_panel_visibility(&entries))
+    .with_hover_card(Box::new(move |_| oom_kill_log_hover_card(&entries)))
 }
 
 pub(super) fn oom_kill_log_hover_card(entries: &[OomKillEntry]) -> Vec<Section> {

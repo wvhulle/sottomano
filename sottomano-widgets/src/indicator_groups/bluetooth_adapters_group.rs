@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, time::SystemTime};
 mod adapter_radio_indicator;
 mod connected_device_indicator;
 mod reconnect_churn_counting;
@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     gamepad_controller_input::accelerometer_report_timing::ReportTiming,
     network_connectivity::bluez_bluetooth::{Bluetooth, BluetoothAdapter, ConnectedDevice},
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, journal_follow::unexpired_events},
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
     },
@@ -164,15 +164,14 @@ impl BluetoothAdaptersGroup {
     fn adapter_indicator<'view>(
         &'view self,
         adapter: &'view BluetoothAdapter,
+        now: SystemTime,
     ) -> AdapterRadioIndicator<'view> {
         let kernel_device =
             AdapterRadioIndicator::controller_kernel_device(&adapter.controller_name);
         AdapterRadioIndicator {
             adapter,
             naming: self.adapter_naming(adapter),
-            kernel_errors: self
-                .kernel_errors
-                .iter()
+            kernel_errors: unexpired_events(&self.kernel_errors, now)
                 .filter(|error| error.kernel_device == kernel_device)
                 .collect(),
         }
@@ -191,9 +190,7 @@ impl BluetoothAdaptersGroup {
             recent_reconnects: self
                 .reconnects
                 .recent_reconnects(&device.address, clock.utc()),
-            kernel_errors: self
-                .kernel_errors
-                .iter()
+            kernel_errors: unexpired_events(&self.kernel_errors, clock.wall)
                 .filter(|error| device.kernel_devices.contains(&error.kernel_device))
                 .collect(),
             input_reports,
@@ -208,11 +205,13 @@ impl BluetoothAdaptersGroup {
     ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&adapter.controller_name)?;
         let build_adapter_radio_indicator = || {
-            self.adapter_indicator(adapter)
+            self.adapter_indicator(adapter, clock.wall)
                 .indicator()
-                .with_hover_card(Box::new(move |_| {
-                    self.bluetooth
-                        .hover_card_with(self.adapter_indicator(adapter).hover_card())
+                .with_hover_card(Box::new(move |card_clock| {
+                    self.bluetooth.hover_card_with(
+                        self.adapter_indicator(adapter, card_clock.wall)
+                            .hover_card(),
+                    )
                 }))
         };
         let headline_indicator = build_adapter_radio_indicator()

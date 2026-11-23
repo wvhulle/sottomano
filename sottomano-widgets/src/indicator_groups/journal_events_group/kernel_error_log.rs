@@ -1,5 +1,10 @@
+use std::time::SystemTime;
+
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
+use sottomano_desktop_sources::{
+    system_protocol_clients::journal_follow::unexpired_events,
+    systemd_units_journal::journal_kernel_errors::{KernelEntry, KernelOccurrence},
+};
 use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
@@ -32,6 +37,7 @@ impl JournalScopeGroup {
         &'view self,
         config: &Config,
         kernel_indicator: GroupIndicator<'view>,
+        now: SystemTime,
     ) -> GroupIndicator<'view> {
         kernel_indicator
             .on_press(
@@ -42,8 +48,9 @@ impl JournalScopeGroup {
                 )),
             )
             .with_hover_card(Box::new(move |_| {
-                self.kernel
-                    .sections_described_by(|snapshot| kernel_log_hover_card(snapshot))
+                self.kernel.sections_described_by(|held_entries| {
+                    kernel_log_hover_card(&live_kernel_occurrences(held_entries, now))
+                })
             }))
     }
 }
@@ -70,6 +77,13 @@ impl From<&KernelOccurrence> for TableRecord<2> {
     }
 }
 
+pub(super) fn live_kernel_occurrences(
+    entries: &[KernelEntry],
+    now: SystemTime,
+) -> Vec<KernelOccurrence> {
+    KernelOccurrence::merged_oldest_first(unexpired_events(entries, now))
+}
+
 pub(super) fn kernel_log_state(occurrences: &[KernelOccurrence]) -> IndicatorState {
     occurrences
         .iter()
@@ -83,7 +97,9 @@ pub(super) fn kernel_log_panel_visibility(occurrences: &[KernelOccurrence]) -> P
     shown_while_alerting(occurrences.iter().map(|occurrence| occurrence.severity))
 }
 
-pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> GroupIndicator<'_> {
+pub(super) fn kernel_log_indicator<'view>(
+    occurrences: Vec<KernelOccurrence>,
+) -> GroupIndicator<'view> {
     let warning_count = occurrences
         .iter()
         .filter(|occurrence| occurrence.severity >= Severity::Warning)
@@ -95,15 +111,15 @@ pub(super) fn kernel_log_indicator(occurrences: &[KernelOccurrence]) -> GroupInd
     GroupIndicator::glyph_only(
         "Kernel log",
         KERNEL_LOG_GLYPH.into(),
-        kernel_log_state(occurrences),
+        kernel_log_state(&occurrences),
     )
     .with_readout(IndicatorReadout {
         label: ReadoutLabel::Unlabeled,
         gauge: ReadoutGauge::Ungauged,
         badge,
     })
-    .with_panel_visibility(kernel_log_panel_visibility(occurrences))
-    .with_hover_card(Box::new(move |_| kernel_log_hover_card(occurrences)))
+    .with_panel_visibility(kernel_log_panel_visibility(&occurrences))
+    .with_hover_card(Box::new(move |_| kernel_log_hover_card(&occurrences)))
 }
 
 pub(super) fn kernel_log_hover_card(occurrences: &[KernelOccurrence]) -> Vec<Section> {
@@ -148,27 +164,21 @@ fn kernel_message_table(occurrences: &[KernelOccurrence]) -> SectionTable {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        iter::once,
-        time::{Duration, SystemTime},
-    };
-
-    use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
+    use std::{iter::once, time::Duration};
 
     use super::*;
 
     fn kernel_occurrences_at(severities: &[Severity]) -> Vec<KernelOccurrence> {
-        KernelOccurrence::merged_oldest_first(
-            severities
-                .iter()
-                .enumerate()
-                .map(|(message_index, severity)| KernelEntry {
-                    at: SystemTime::UNIX_EPOCH,
-                    message: format!("message {message_index}"),
-                    severity: *severity,
-                })
-                .collect::<Vec<_>>(),
-        )
+        let entries: Vec<KernelEntry> = severities
+            .iter()
+            .enumerate()
+            .map(|(message_index, severity)| KernelEntry {
+                at: SystemTime::UNIX_EPOCH,
+                message: format!("message {message_index}"),
+                severity: *severity,
+            })
+            .collect();
+        KernelOccurrence::merged_oldest_first(&entries)
     }
 
     #[test]
@@ -188,16 +198,15 @@ mod tests {
 
     #[test]
     fn hover_card_lists_latest_messages_oldest_first_after_a_hidden_notice() {
-        let errors = KernelOccurrence::merged_oldest_first(
-            (0..17)
-                .rev()
-                .map(|secs| KernelEntry {
-                    at: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
-                    message: format!("message {secs}"),
-                    severity: Severity::Critical,
-                })
-                .collect::<Vec<_>>(),
-        );
+        let entries: Vec<KernelEntry> = (0..17)
+            .rev()
+            .map(|secs| KernelEntry {
+                at: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
+                message: format!("message {secs}"),
+                severity: Severity::Critical,
+            })
+            .collect();
+        let errors = KernelOccurrence::merged_oldest_first(&entries);
         let table = kernel_message_table(&errors);
         let values: Vec<ValueCell> = table
             .records()

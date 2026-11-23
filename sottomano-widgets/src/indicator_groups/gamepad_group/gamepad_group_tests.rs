@@ -7,7 +7,7 @@ use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadStick, St
 use super::{
     button_role_actions::typed_key_command, connected_controller_indicator::ControllerMarking, *,
 };
-use crate::indicator_groups::indicator_group_identity::IndicatorGroupTitle;
+use crate::{clock::Clock, indicator_groups::indicator_group_identity::IndicatorGroupTitle};
 
 const DUALSENSE: usize = 31;
 const SECOND_PAD: usize = 32;
@@ -284,7 +284,7 @@ fn each_physical_pad_gets_its_own_group() {
     let group = group_with_two_pads_and_a_virtual_one();
     assert_eq!(
         group
-            .group_contents(&GamepadBindingsConfig::default())
+            .group_contents(&GamepadBindingsConfig::default(), Clock::real())
             .len(),
         2
     );

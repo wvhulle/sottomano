@@ -1,12 +1,15 @@
-use std::iter;
+use std::{iter, time::SystemTime};
 
-use sottomano_desktop_sources::gamepad_controller_input::{
-    evdev_gamepad_devices::{
-        ConnectedGamepad, ControllerIdentity, GamepadPower, GamepadTransport, InputRoute,
-        PhysicalGamepadLink, UsbCableState,
+use sottomano_desktop_sources::{
+    gamepad_controller_input::{
+        evdev_gamepad_devices::{
+            ConnectedGamepad, ControllerIdentity, GamepadPower, GamepadTransport, InputRoute,
+            PhysicalGamepadLink, UsbCableState,
+        },
+        player_indicator_leds::PlayerIndicator,
+        steam_input_facts::{RadioReading, SteamInputFacts},
     },
-    player_indicator_leds::PlayerIndicator,
-    steam_input_facts::{RadioReading, SteamInputFacts},
+    system_protocol_clients::journal_follow::unexpired_events,
 };
 use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
 
@@ -21,6 +24,7 @@ use super::{
     wifi_band_use::WifiBandUse,
 };
 use crate::{
+    clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
@@ -100,6 +104,7 @@ impl GamepadGroup {
         &'view self,
         slot: usize,
         link: &'view PhysicalGamepadLink,
+        now: SystemTime,
     ) -> ControllerLinkIndicator<'view> {
         ControllerLinkIndicator {
             transport: link.transport,
@@ -107,9 +112,7 @@ impl GamepadGroup {
                 MeasuredReportTiming::Pending,
                 MeasuredReportTiming::Measured,
             ),
-            kernel_errors: self
-                .kernel_errors
-                .iter()
+            kernel_errors: unexpired_events(&self.kernel_errors, now)
                 .filter(|error| error.kernel_device == link.kernel_device)
                 .collect(),
             band_sharing: match &self.wifi_band_use {
@@ -153,6 +156,7 @@ impl GamepadGroup {
         link: &'view PhysicalGamepadLink,
         group_title: IndicatorGroupTitle,
         bindings: &'view GamepadBindingsConfig,
+        now: SystemTime,
     ) -> Option<IndicatorGroupContent<'view>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.expansions.get(&slot)?;
@@ -173,7 +177,7 @@ impl GamepadGroup {
         ];
         if !shown_in_bluetooth_group {
             match link.input_route {
-                InputRoute::Kernel => rows.push(self.link_indicator(slot, link).indicator()),
+                InputRoute::Kernel => rows.push(self.link_indicator(slot, link, now).indicator()),
                 InputRoute::SteamInput(SteamInputFacts {
                     radio: RadioReading::Measured(signal),
                     ..
@@ -216,6 +220,7 @@ impl GamepadGroup {
     pub fn group_contents<'view>(
         &'view self,
         bindings: &'view GamepadBindingsConfig,
+        clock: Clock,
     ) -> Vec<IndicatorGroupContent<'view>> {
         let controllers = self.controllers_in_player_order();
         let titles = IndicatorGroupTitle::numbered_namesakes(
@@ -225,7 +230,7 @@ impl GamepadGroup {
             .iter()
             .zip(titles)
             .filter_map(|((gamepad, link), group_title)| {
-                self.controller_group(gamepad, link, group_title, bindings)
+                self.controller_group(gamepad, link, group_title, bindings, clock.wall)
             })
             .chain(self.controller_discovery_group())
             .collect()

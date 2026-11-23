@@ -8,25 +8,20 @@ use systemd::journal::Journal;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
-    systemd_units_journal::{
-        SystemdUnitScope,
-        journal_record_fields::{
-            JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
-            disjunctive_journal_matches,
-        },
+    systemd_units_journal::journal_record_fields::{
+        JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
+        disjunctive_journal_matches,
     },
 };
 
-impl SnapshotSource for ServiceErrors {
+impl SnapshotSource for Vec<ServiceErrorEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Service errors";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        journal_windows::<ServiceErrorEntry>()
-            .map(|entries| entries.map(ServiceErrors::from))
-            .map(SnapshotDelivery::live_push)
+        journal_windows::<ServiceErrorEntry>().map(SnapshotDelivery::live_push)
     }
 }
 
@@ -102,11 +97,17 @@ pub struct ServiceErrors {
     pub by_unit_oldest_first: Vec<UnitErrors>,
 }
 
-impl From<Vec<ServiceErrorEntry>> for ServiceErrors {
-    fn from(entries: Vec<ServiceErrorEntry>) -> Self {
+impl<'entries> FromIterator<&'entries ServiceErrorEntry> for ServiceErrors {
+    fn from_iter<Entries: IntoIterator<Item = &'entries ServiceErrorEntry>>(
+        entries: Entries,
+    ) -> Self {
+        let by_unit_oldest_first = errors_by_unit(entries);
         Self {
-            entry_count: entries.len(),
-            by_unit_oldest_first: errors_by_unit(entries),
+            entry_count: by_unit_oldest_first
+                .iter()
+                .map(|unit_errors| unit_errors.count)
+                .sum(),
+            by_unit_oldest_first,
         }
     }
 }
@@ -115,23 +116,6 @@ impl ServiceErrors {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entry_count == 0
-    }
-
-    #[must_use]
-    pub fn owned_by(&self, unit_scope: SystemdUnitScope) -> Self {
-        let by_unit_oldest_first: Vec<UnitErrors> = self
-            .by_unit_oldest_first
-            .iter()
-            .filter(|unit_errors| unit_errors.unit.unit_scope() == unit_scope)
-            .cloned()
-            .collect();
-        Self {
-            entry_count: by_unit_oldest_first
-                .iter()
-                .map(|unit_errors| unit_errors.count)
-                .sum(),
-            by_unit_oldest_first,
-        }
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {
@@ -147,7 +131,9 @@ impl ServiceErrors {
     }
 }
 
-fn errors_by_unit(entries: Vec<ServiceErrorEntry>) -> Vec<UnitErrors> {
+fn errors_by_unit<'entries>(
+    entries: impl IntoIterator<Item = &'entries ServiceErrorEntry>,
+) -> Vec<UnitErrors> {
     let mut by_unit: HashMap<OwningUnit, UnitErrors> = HashMap::new();
     for entry in entries {
         if let Some(errors) = by_unit.get_mut(&entry.unit) {
@@ -155,15 +141,15 @@ fn errors_by_unit(entries: Vec<ServiceErrorEntry>) -> Vec<UnitErrors> {
             errors.severity = errors.severity.max(entry.severity);
             if entry.at >= errors.latest {
                 errors.latest = entry.at;
-                errors.latest_message = entry.message;
+                errors.latest_message.clone_from(&entry.message);
             }
         } else {
             by_unit.insert(
                 entry.unit.clone(),
                 UnitErrors {
-                    unit: entry.unit,
+                    unit: entry.unit.clone(),
                     latest: entry.at,
-                    latest_message: entry.message,
+                    latest_message: entry.message.clone(),
                     count: 1,
                     severity: entry.severity,
                 },
@@ -195,37 +181,6 @@ mod tests {
             ("_SYSTEMD_UNIT", "user@1000.service"),
             ("_SYSTEMD_USER_UNIT", user_unit),
         ])
-    }
-
-    #[test]
-    fn owned_by_keeps_one_scope_and_recounts_its_entries() {
-        let service_error = |unit: OwningUnit| ServiceErrorEntry {
-            at: SystemTime::UNIX_EPOCH,
-            unit,
-            message: "failed".to_owned(),
-            severity: Severity::Critical,
-        };
-        let service_errors = ServiceErrors::from(vec![
-            service_error(OwningUnit::System("sshd.service".to_owned())),
-            service_error(OwningUnit::User("syncthing.service".to_owned())),
-            service_error(OwningUnit::User("syncthing.service".to_owned())),
-        ]);
-        let user_errors = service_errors.owned_by(SystemdUnitScope::UserSession);
-        assert_eq!(user_errors.entry_count, 2);
-        assert_eq!(
-            user_errors
-                .by_unit_oldest_first
-                .iter()
-                .map(|unit_errors| unit_errors.unit.name())
-                .collect::<Vec<_>>(),
-            ["syncthing.service"]
-        );
-        assert_eq!(
-            service_errors
-                .owned_by(SystemdUnitScope::SystemWide)
-                .entry_count,
-            1
-        );
     }
 
     #[test]

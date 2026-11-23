@@ -1,7 +1,10 @@
+use std::time::SystemTime;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
-    systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors},
+    system_protocol_clients::journal_follow::unexpired_events,
+    systemd_units_journal::journal_service_errors::{ServiceErrorEntry, ServiceErrors, UnitErrors},
 };
 
 use crate::{
@@ -28,10 +31,12 @@ impl JournalScopeGroup {
     pub(super) fn wired_service_errors_indicator<'view>(
         &'view self,
         service_errors_row: GroupIndicator<'view>,
+        now: SystemTime,
     ) -> GroupIndicator<'view> {
         service_errors_row.with_hover_card(Box::new(move |_| {
-            self.service_errors
-                .sections_described_by(service_errors_hover_card)
+            self.service_errors.sections_described_by(|held_entries| {
+                service_errors_hover_card(&live_service_errors(held_entries, now))
+            })
         }))
     }
 }
@@ -56,6 +61,10 @@ impl From<&UnitErrors> for TableRecord<3> {
         )
         .level(unit_errors.severity)
     }
+}
+
+pub(super) fn live_service_errors(entries: &[ServiceErrorEntry], now: SystemTime) -> ServiceErrors {
+    unexpired_events(entries, now).collect()
 }
 
 pub(super) fn service_errors_state(errors: &ServiceErrors) -> IndicatorState {
@@ -95,17 +104,18 @@ pub(super) fn service_errors_hover_card(errors: &ServiceErrors) -> Vec<Section> 
     )]
 }
 
-pub(super) fn service_errors_indicator(errors: &ServiceErrors) -> GroupIndicator<'_> {
-    let base = GroupIndicator::glyph_only(
-        ServiceErrors::NAME,
-        SERVICE_ERRORS_GLYPH.into(),
-        service_errors_state(errors),
-    )
-    .with_hover_card(Box::new(move |_| service_errors_hover_card(errors)));
+pub(super) fn service_errors_indicator<'view>(errors: ServiceErrors) -> GroupIndicator<'view> {
     let badge = match errors.by_unit_oldest_first.len() {
         0 => ReadoutBadge::Unbadged,
         count => ReadoutBadge::Counted(count),
     };
-    base.with_badge(badge)
-        .with_panel_visibility(service_errors_panel_visibility(errors))
+    let panel_visibility = service_errors_panel_visibility(&errors);
+    GroupIndicator::glyph_only(
+        Vec::<ServiceErrorEntry>::NAME,
+        SERVICE_ERRORS_GLYPH.into(),
+        service_errors_state(&errors),
+    )
+    .with_badge(badge)
+    .with_panel_visibility(panel_visibility)
+    .with_hover_card(Box::new(move |_| service_errors_hover_card(&errors)))
 }

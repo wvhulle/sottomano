@@ -1,12 +1,13 @@
 use std::{
     collections::VecDeque,
     io,
+    os::fd::RawFd,
     str::FromStr,
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use futures::Stream;
+use futures::{Stream, TryStreamExt, future::ready, stream};
 use serde::{
     Deserializer,
     de::{
@@ -16,7 +17,11 @@ use serde::{
     forward_to_deserialize_any,
 };
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
-use tokio::sync::mpsc;
+use tokio::{
+    io::{Interest, unix::AsyncFd},
+    runtime,
+    sync::mpsc::{self, error::SendError},
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::StateChange;
@@ -48,35 +53,70 @@ pub enum JournalFollowError {
     FollowingStopped(io::ErrorKind),
 }
 
-pub fn journal_windows<E: JournalEvent>()
--> impl Stream<Item = Result<Vec<E>, JournalFollowError>> + Send {
-    ReceiverStream::new(journal_events::<E>())
+type WindowDelivery<E> = Result<Vec<E>, JournalFollowError>;
+
+pub fn journal_windows<E: JournalEvent>() -> impl Stream<Item = WindowDelivery<E>> + Send {
+    stream::once(ready(spawn_journal_follower::<E>()))
+        .map_ok(ReceiverStream::new)
+        .try_flatten()
 }
 
-fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Result<Vec<E>, JournalFollowError>> {
-    let (tx, rx) = mpsc::channel(16);
-    thread::spawn(move || {
-        let follower_span = tracing::debug_span!("journal_follower", event = E::NAME);
-        let _entered_follower = follower_span.enter();
-        let mut journal =
-            match tracing::debug_span!("journal_open").in_scope(WindowedJournal::<E>::open) {
-                Ok(journal) => journal,
-                Err(e) => {
-                    let _ = tx.blocking_send(Err(JournalFollowError::OpenFailed(e.kind())));
-                    return;
-                }
-            };
-        while tx.blocking_send(Ok(journal.events())).is_ok() {
-            if let Err(e) = journal.wait_for_window_change() {
-                let _ = tx.blocking_send(Err(JournalFollowError::FollowingStopped(e.kind())));
+fn spawn_journal_follower<E: JournalEvent>()
+-> Result<mpsc::Receiver<WindowDelivery<E>>, JournalFollowError> {
+    let (window_sender, window_receiver) = mpsc::channel(16);
+    thread::Builder::new()
+        .name(format!("journal:{}", E::NAME))
+        .spawn(move || {
+            let follower_span = tracing::debug_span!("journal_follower", event = E::NAME);
+            let _entered_follower = follower_span.enter();
+            let Err(follow_failure) = follow_journal::<E>(&window_sender) else {
                 return;
+            };
+            if let Err(SendError(_undelivered_failure)) =
+                window_sender.blocking_send(Err(follow_failure))
+            {
+                tracing::debug!(
+                    event = E::NAME,
+                    "journal follower failed after its consumer left"
+                );
             }
+        })
+        .map_err(|spawn_failure| JournalFollowError::OpenFailed(spawn_failure.kind()))?;
+    Ok(window_receiver)
+}
+
+fn follow_journal<E: JournalEvent>(
+    window_sender: &mpsc::Sender<WindowDelivery<E>>,
+) -> Result<(), JournalFollowError> {
+    let follower_runtime = runtime::Builder::new_current_thread()
+        .enable_io()
+        .build()
+        .map_err(|runtime_failure| JournalFollowError::OpenFailed(runtime_failure.kind()))?;
+    follower_runtime.block_on(follow_until_consumer_leaves::<E>(window_sender))
+}
+
+async fn follow_until_consumer_leaves<E: JournalEvent>(
+    window_sender: &mpsc::Sender<WindowDelivery<E>>,
+) -> Result<(), JournalFollowError> {
+    let mut journal = tracing::debug_span!("journal_open")
+        .in_scope(WindowedJournal::<E>::open)
+        .map_err(|open_failure| JournalFollowError::OpenFailed(open_failure.kind()))?;
+    loop {
+        if let Err(SendError(_undelivered_window)) = window_sender.send(Ok(journal.events())).await
+        {
+            return Ok(());
         }
-    });
-    rx
+        tokio::select! {
+            biased;
+            () = window_sender.closed() => return Ok(()),
+            window_change = journal.window_change() => window_change
+                .map_err(|wait_failure| JournalFollowError::FollowingStopped(wait_failure.kind()))?,
+        }
+    }
 }
 
 struct WindowedJournal<E> {
+    journal_readiness: AsyncFd<RawFd>,
     journal: Journal,
     window: EventWindow<E>,
 }
@@ -88,7 +128,10 @@ impl<E: JournalEvent> WindowedJournal<E> {
             .current_user(E::OPENS_USER_JOURNALS)
             .open()?;
         E::add_matches(&mut journal)?;
+        let journal_readiness =
+            unsafe { AsyncFd::register_with_interest(journal.fd()?, Interest::READABLE) }?;
         let mut windowed = Self {
+            journal_readiness,
             journal,
             window: EventWindow::default(),
         };
@@ -100,12 +143,11 @@ impl<E: JournalEvent> WindowedJournal<E> {
         self.window.events.iter().cloned().collect()
     }
 
-    fn wait_for_window_change(&mut self) -> io::Result<()> {
+    async fn window_change(&mut self) -> io::Result<()> {
         loop {
-            let timeout = self.window.time_until_next_expiry(SystemTime::now());
-            let wait_result = self.journal.wait(timeout)?;
+            self.journal_readiness.readable().await?.clear_ready();
             let _entered_wakeup = tracing::debug_span!("journal_wakeup").entered();
-            let appended = match wait_result {
+            let journal_change = match self.journal.process()? {
                 JournalWaitResult::Append => self.read_appended(),
                 JournalWaitResult::Invalidate => {
                     self.rebuild_from_horizon()?;
@@ -113,8 +155,8 @@ impl<E: JournalEvent> WindowedJournal<E> {
                 }
                 JournalWaitResult::Nop => StateChange::Unchanged,
             };
-            let expired = self.window.drop_expired(SystemTime::now());
-            if appended == StateChange::Changed || expired == StateChange::Changed {
+            if journal_change == StateChange::Changed {
+                self.window.prune_expired(SystemTime::now());
                 return Ok(());
             }
         }
@@ -169,29 +211,16 @@ impl<E> Default for EventWindow<E> {
 }
 
 impl<E: JournalEvent> EventWindow<E> {
-    fn drop_expired(&mut self, now: SystemTime) -> StateChange {
-        let before = self.events.len();
-        while self
-            .events
-            .front()
-            .is_some_and(|oldest| oldest.expires_at() <= now)
-        {
-            self.events.pop_front();
-        }
-        if self.events.len() == before {
-            StateChange::Unchanged
-        } else {
-            StateChange::Changed
-        }
+    fn prune_expired(&mut self, now: SystemTime) {
+        self.events.retain(|event| event.expires_at() > now);
     }
+}
 
-    fn time_until_next_expiry(&self, now: SystemTime) -> Option<Duration> {
-        let oldest = self.events.front()?;
-        Some(match oldest.expires_at().duration_since(now) {
-            Ok(ahead) => ahead,
-            Err(_already_expired) => Duration::ZERO,
-        })
-    }
+pub fn unexpired_events<E: JournalEvent>(
+    events: &[E],
+    now: SystemTime,
+) -> impl Iterator<Item = &E> {
+    events.iter().filter(move |event| event.expires_at() > now)
 }
 
 fn horizon_cutoff_usec() -> Option<u64> {
@@ -325,33 +354,24 @@ mod tests {
     }
 
     #[test]
-    fn expired_events_leave_the_window_and_the_next_expiry_follows_the_oldest_survivor() {
+    fn appending_prunes_events_past_the_horizon_and_the_display_filter_hides_the_rest() {
         let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
         let minutes = |count: u64| start + Duration::from_secs(count * 60);
-        let mut window = EventWindow {
-            events: [0, 10, 30]
-                .map(|at| Stamped {
-                    stamped_at: minutes(at),
-                })
-                .into(),
+        let stamped_at_minutes = |at: u64| Stamped {
+            stamped_at: minutes(at),
         };
-        let now = minutes(65);
-        assert_eq!(window.drop_expired(now), StateChange::Changed);
+        let mut window = EventWindow {
+            events: [0, 10, 30].map(stamped_at_minutes).into(),
+        };
+        window.prune_expired(minutes(65));
         assert_eq!(
             window.events,
-            [
-                Stamped {
-                    stamped_at: minutes(10)
-                },
-                Stamped {
-                    stamped_at: minutes(30)
-                }
-            ]
+            [stamped_at_minutes(10), stamped_at_minutes(30)]
         );
+        let held_events: Vec<Stamped> = window.events.into();
         assert_eq!(
-            window.time_until_next_expiry(now),
-            Some(Duration::from_mins(5))
+            unexpired_events(&held_events, minutes(75)).collect::<Vec<_>>(),
+            [&stamped_at_minutes(30)]
         );
-        assert_eq!(window.drop_expired(now), StateChange::Unchanged);
     }
 }
