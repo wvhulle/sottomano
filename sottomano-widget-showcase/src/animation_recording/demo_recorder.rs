@@ -47,8 +47,15 @@ fn rest_pointer(canvas: Size) -> Point {
     Point::new(canvas.width - 1.0, canvas.height / 2.0)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FrameCapture {
+    Screenshots,
+    Rehearsal,
+}
+
 pub(super) struct DemoRecorder<'session> {
     demo: &'static Demo,
+    frame_capture: FrameCapture,
     config: &'session Config,
     program: ShowcaseProgram,
     emulator: Emulator<ShowcaseProgram>,
@@ -66,6 +73,7 @@ impl<'session> DemoRecorder<'session> {
         config: &'session Config,
         clock: Clock,
         layout_renderer: &'session mut iced::Renderer,
+        frame_capture: FrameCapture,
     ) -> Self {
         let canvas = demo.backdrop.canvas();
         let program = ShowcaseProgram::scripted(config, clock);
@@ -79,6 +87,7 @@ impl<'session> DemoRecorder<'session> {
         );
         let mut recorder = DemoRecorder {
             demo,
+            frame_capture,
             config,
             program,
             emulator,
@@ -91,7 +100,9 @@ impl<'session> DemoRecorder<'session> {
         };
         recorder.settle();
         recorder.deliver_layout_reports();
-        recorder.background = recorder.top_right_pixel();
+        if frame_capture == FrameCapture::Screenshots {
+            recorder.background = recorder.top_right_pixel();
+        }
         recorder
     }
 
@@ -158,6 +169,11 @@ impl<'session> DemoRecorder<'session> {
         if let Outcome::Some(matches) = finder.finish()
             && let Some(last_laid_out) = matches.last()
         {
+            assert!(
+                last_laid_out.width > 0.0 && last_laid_out.height > 0.0,
+                "demo {} points at {wanted}, which is laid out without area: {last_laid_out:?}",
+                self.demo.name
+            );
             return last_laid_out.center();
         }
         let mut shown = AnyHoveredWidget.find_all();
@@ -289,6 +305,10 @@ impl<'session> DemoRecorder<'session> {
 
     fn capture_during(&mut self, hold: Duration) -> Vec<CapturedFrame> {
         let frame_count = hold.as_millis() / FRAME_INTERVAL.as_millis();
+        if self.frame_capture == FrameCapture::Rehearsal {
+            (0..frame_count).for_each(|_| self.advance_frame());
+            return Vec::new();
+        }
         (0..frame_count).map(|_| self.capture()).fold(
             Vec::new(),
             |mut frames: Vec<CapturedFrame>, frame| {
@@ -314,11 +334,15 @@ impl<'session> DemoRecorder<'session> {
             .to_vec()
     }
 
-    fn capture(&mut self) -> CapturedFrame {
+    fn advance_frame(&mut self) {
         self.clock = self.clock.advanced(FRAME_INTERVAL);
         self.emulator
             .update(&self.program, ShowcaseMessage::Frame(self.clock));
         self.deliver_layout_reports();
+    }
+
+    fn capture(&mut self) -> CapturedFrame {
+        self.advance_frame();
         let rgba = self.screenshot();
         CapturedFrame {
             content: FrameContent::differing_from(

@@ -10,7 +10,7 @@ use sottomano_widgets::clock::Clock;
 use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY,
     animation_recording::{
-        demo_recorder::DemoRecorder,
+        demo_recorder::{DemoRecorder, FrameCapture},
         frame_content_crop::{CapturedFrame, ContentCrop, FrameSize, encode_animation},
     },
     demo_script::Demo,
@@ -58,8 +58,13 @@ impl RecordingSession {
 
     pub fn record(&mut self, demo: &'static Demo, start: Clock, output_root: &Path) {
         let margin_pixels = (self.config.theme.spacing.group_gap * SCALE_FACTOR).round() as u16;
-        let mut recorder =
-            DemoRecorder::start(demo, &self.config, start, &mut self.layout_renderer);
+        let mut recorder = DemoRecorder::start(
+            demo,
+            &self.config,
+            start,
+            &mut self.layout_renderer,
+            FrameCapture::Screenshots,
+        );
         let opening = recorder.rest();
         let scripted: Vec<CapturedFrame> = demo
             .script
@@ -89,5 +94,20 @@ impl RecordingSession {
             u32::from(crop.size.height),
             &still_path(output_root, demo.name),
         );
+    }
+
+    pub fn rehearse(&mut self, demo: &'static Demo, start: Clock) {
+        let mut recorder = DemoRecorder::start(
+            demo,
+            &self.config,
+            start,
+            &mut self.layout_renderer,
+            FrameCapture::Rehearsal,
+        );
+        let _opening = recorder.rest();
+        demo.script.iter().for_each(|step| {
+            let _rehearsed = recorder.perform(step);
+        });
+        let _closing = recorder.press_away();
     }
 }

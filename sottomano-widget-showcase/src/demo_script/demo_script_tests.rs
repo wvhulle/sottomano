@@ -1,10 +1,16 @@
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock, hover_cards::HoverTarget,
     indicator_groups::indicator_group_content::IndicatorGroupContent,
 };
 
-use crate::demo_script::{DEMOS, Step};
+use crate::{
+    animation_recording::RecordingSession,
+    demo_script::{DEMOS, Step},
+    showcase_program::booting_clock,
+};
 
 #[test]
 fn every_demo_group_names_its_pinnable_items_apart_from_each_other_and_the_group() {
@@ -87,4 +93,20 @@ fn every_scripted_row_is_a_row_of_its_demo_group() {
         })
         .collect();
     assert_eq!(missing, Vec::new());
+}
+
+#[test]
+fn every_demo_script_reaches_each_target_on_screen() {
+    let start = booting_clock();
+    let unreachable_demos: Vec<&str> = DEMOS
+        .iter()
+        .filter(|demo| {
+            catch_unwind(AssertUnwindSafe(|| {
+                RecordingSession::open(start).rehearse(demo, start);
+            }))
+            .is_err()
+        })
+        .map(|demo| demo.name)
+        .collect();
+    assert_eq!(unreachable_demos, Vec::<&str>::new());
 }
