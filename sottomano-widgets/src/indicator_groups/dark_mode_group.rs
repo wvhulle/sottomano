@@ -32,7 +32,7 @@ use crate::{
         weather_icons::WeatherIcon,
     },
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
+        group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
@@ -41,7 +41,7 @@ use crate::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, SwitchDecision},
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage, IndicatorListing,
+            IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -308,37 +308,32 @@ impl DarkModeGroup {
             )
             .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
-        let mut rows = Vec::new();
-        let subscribed = &self.mode_toggle.sample;
-        if !subscribed.awaits_first_delivery() {
-            let mode_indicator = self.mode_toggle_indicator(
-                subscribed.indicator(dark_mode_indicator, DARK_MODE_GLYPH.into()),
-            );
-            if mode_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(match subscribed.get() {
-                    Some(held_snapshot) => mode_indicator.on_switch_press(
+        let indicator_listing = self.mode_toggle.sample.indicator_listing(
+            |held_snapshot| {
+                self.mode_toggle_indicator(dark_mode_indicator(held_snapshot))
+                    .on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
                         DarkModeInteraction::ModeTogglePressed,
-                    ),
-                    None => mode_indicator,
-                });
-            }
-        }
-        if self.mode_toggle.sample.get().is_some() {
-            rows.push(
-                self.auto_switch_toggle
-                    .indicator(clock, locale)
-                    .on_switch_press(
-                        self.auto_switch_toggle.saved_schedule.auto_switch_arming,
-                        self.auto_switch_toggle.press_does(),
-                        DarkModeInteraction::ToggleAutoSwitch,
                     )
-                    .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location)),
-            );
-            rows.push(offset_slider(ColorMode::Light));
-            rows.push(offset_slider(ColorMode::Dark));
-        }
+                    .when_shown()
+                    .into_iter()
+                    .chain([
+                        self.auto_switch_toggle
+                            .indicator(clock, locale)
+                            .on_switch_press(
+                                self.auto_switch_toggle.saved_schedule.auto_switch_arming,
+                                self.auto_switch_toggle.press_does(),
+                                DarkModeInteraction::ToggleAutoSwitch,
+                            )
+                            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location)),
+                        offset_slider(ColorMode::Light),
+                        offset_slider(ColorMode::Dark),
+                    ])
+                    .collect()
+            },
+            DARK_MODE_GLYPH.into(),
+        );
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::DarkMode,
             GroupIndicator::glyph_only(
@@ -348,7 +343,7 @@ impl DarkModeGroup {
             ),
             &self.expansion,
             DarkModeInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            indicator_listing,
         )
     }
 

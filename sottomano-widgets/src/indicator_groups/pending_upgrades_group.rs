@@ -1,10 +1,11 @@
-use std::iter;
-
 use iced::{Subscription, Task};
 
 use crate::{
     glyph_icons::phosphor::Weight,
-    group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutBadge},
+    group_indicators::{
+        group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_drawing::ReadoutBadge,
+    },
     hover_cards::hover_card_body::dictionary_table,
     indicator_groups::{
         indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
@@ -14,8 +15,7 @@ use crate::{
 mod firmware_upgrade_list;
 
 use firmware_upgrade_list::{
-    firmware_upgrades_badge, firmware_upgrades_hover_card, firmware_upgrades_panel_visibility,
-    firmware_upgrades_state,
+    firmware_upgrades_badge, firmware_upgrades_panel_visibility, firmware_upgrades_state,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
@@ -97,24 +97,13 @@ impl PendingUpgradesGroup {
         &'view self,
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
-        let mut rows = Vec::new();
-        if let Some(upgrades) = self
-            .firmware
-            .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
-        {
-            rows.push(self.firmware_upgrade_indicator(upgrades, config));
-        }
-        if let Some(placeholder) = self.firmware.failure() {
-            rows.push(
-                placeholder
-                    .indicator(FIRMWARE_UPGRADES_GLYPH.into())
-                    .with_hover_card(Box::new(move |_| {
-                        self.firmware.sections_described_by(|snapshot| {
-                            firmware_upgrades_hover_card(snapshot)
-                        })
-                    })),
-            );
-        }
+        let firmware_listing = self.firmware.indicator_listing(
+            |upgrades| match firmware_upgrades_panel_visibility(upgrades) {
+                PanelVisibility::Shown => vec![self.firmware_upgrade_indicator(upgrades, config)],
+                PanelVisibility::Hidden => Vec::new(),
+            },
+            FIRMWARE_UPGRADES_GLYPH.into(),
+        );
         let build_pending_upgrades_indicator = || {
             self.indicator().with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
@@ -127,11 +116,12 @@ impl PendingUpgradesGroup {
             headline_indicator,
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
-            IndicatorListing::Listed(
-                iter::once(build_pending_upgrades_indicator())
-                    .chain(rows)
-                    .collect(),
-            ),
+            [
+                IndicatorListing::Listed(vec![build_pending_upgrades_indicator()]),
+                firmware_listing,
+            ]
+            .into_iter()
+            .collect(),
         )
     }
 

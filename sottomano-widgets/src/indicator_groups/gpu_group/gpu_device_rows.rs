@@ -58,41 +58,34 @@ impl GpuGroup {
         }
     }
 
-    fn list_device<'view>(
+    fn device_load_listing<'view>(
         &'view self,
         bus: &'view PciBusId,
         device: &'view GpuDevice,
-        indicators: &mut Vec<GroupIndicator<'view>>,
-    ) {
+    ) -> IndicatorListing<'view> {
         match &device.access {
-            GpuDeviceAccess::Readable { snapshot, .. } => {
-                if !snapshot.awaits_first_delivery() {
-                    indicators.insert(
-                        0,
-                        self.wired_gpu_load_indicator(
-                            bus,
-                            device,
-                            snapshot,
-                            snapshot.indicator(
-                                |held_snapshot| gpu_load_indicator(held_snapshot),
-                                GPU_LOAD_GLYPH.into(),
-                            ),
-                        ),
-                    );
-                }
-            }
-            GpuDeviceAccess::Unreadable { handle_failure } => indicators.insert(
-                0,
-                handle_failure
-                    .indicator(GPU_LOAD_GLYPH.into())
-                    .with_hover_card(Box::new(move |_| {
-                        [handle_failure.source_state()]
-                            .into_iter()
-                            .chain(self.model_sections(device))
-                            .collect()
-                    }))
-                    .refreshed_by(GpuInteraction::Refresh(bus.clone())),
-            ),
+            GpuDeviceAccess::Readable { snapshot, .. } => snapshot
+                .indicator_listing(
+                    |held_snapshot| vec![gpu_load_indicator(held_snapshot)],
+                    GPU_LOAD_GLYPH.into(),
+                )
+                .map_indicators(|load_row| {
+                    self.wired_gpu_load_indicator(bus, device, snapshot, load_row)
+                }),
+            GpuDeviceAccess::Unreadable { handle_failure } => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![
+                    handle_failure
+                        .indicator(GPU_LOAD_GLYPH.into())
+                        .with_hover_card(Box::new(move |_| {
+                            [handle_failure.source_state()]
+                                .into_iter()
+                                .chain(self.model_sections(device))
+                                .collect()
+                        }))
+                        .refreshed_by(GpuInteraction::Refresh(bus.clone())),
+                ],
+            },
         }
     }
 
@@ -202,20 +195,18 @@ impl GpuGroup {
             .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
                 let headline_indicator = self.device_headline(bus, device);
-                let mut lead_indicators = Vec::new();
-                self.list_device(bus, device, &mut lead_indicators);
                 IndicatorGroupContent::expandable_instance(
                     gpu_group_identity(bus),
                     group_title,
                     headline_indicator,
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    IndicatorListing::Listed(
-                        lead_indicators
-                            .into_iter()
-                            .chain(self.device_indicators(bus, device))
-                            .collect(),
-                    ),
+                    [
+                        self.device_load_listing(bus, device),
+                        IndicatorListing::Listed(self.device_indicators(bus, device)),
+                    ]
+                    .into_iter()
+                    .collect(),
                 )
             })
     }

@@ -1,7 +1,5 @@
 use chrono::Locale;
 
-use crate::indicator_groups::indicator_group_content::IndicatorListing;
-
 mod local_date;
 mod local_time;
 mod zone_time;
@@ -18,7 +16,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
+    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
         indicator_group_content::{
@@ -141,40 +139,36 @@ impl ClockGroup {
                 LOCAL_TIME_GLYPH.into(),
             ))
             .with_headline_glyph(Phosphor::Watch(Weight::Regular).into());
-        let mut lead_indicators = Vec::new();
-        if !self.time.awaits_first_delivery() {
-            lead_indicators.push(self.local_time_indicator(self.time.indicator(
-                |_| LocalTime::indicator(clock, locale),
-                LOCAL_TIME_GLYPH.into(),
-            )));
-        }
-        let mut rows = Vec::new();
-        if !self.date.awaits_first_delivery() {
-            let date_indicator = self.date.indicator(
-                |_| LocalDate::indicator(clock, locale),
-                LOCAL_DATE_GLYPH.into(),
-            );
-            if date_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.local_date_indicator(date_indicator));
-            }
-        }
-        for (zone, zone_time) in &self.zone_times {
-            if !zone_time.awaits_first_delivery() {
-                let zone_indicator = zone_time.indicator(
-                    |held_snapshot| held_snapshot.indicator(clock, locale),
+        let indicator_listing = [
+            self.time
+                .indicator_listing(
+                    |_| vec![LocalTime::indicator(clock, locale)],
+                    LOCAL_TIME_GLYPH.into(),
+                )
+                .map_indicators(|time_row| self.local_time_indicator(time_row)),
+            self.date
+                .indicator_listing(
+                    |_| LocalDate::indicator(clock, locale).when_shown(),
+                    LOCAL_DATE_GLYPH.into(),
+                )
+                .map_indicators(|date_row| self.local_date_indicator(date_row)),
+        ]
+        .into_iter()
+        .chain(self.zone_times.iter().map(|(zone, zone_time)| {
+            zone_time
+                .indicator_listing(
+                    |held_snapshot| held_snapshot.indicator(clock, locale).when_shown(),
                     ZONE_TIME_GLYPH.into(),
-                );
-                if zone_indicator.panel_visibility == PanelVisibility::Shown {
-                    rows.push(Self::zone_time_indicator(*zone, zone_time, zone_indicator));
-                }
-            }
-        }
+                )
+                .map_indicators(|zone_row| Self::zone_time_indicator(*zone, zone_time, zone_row))
+        }))
+        .collect();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Clock,
             headline_indicator,
             &self.expansion,
             ClockInteraction::Expansion,
-            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
+            indicator_listing,
         )
     }
 

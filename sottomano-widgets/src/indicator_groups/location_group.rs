@@ -20,7 +20,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         location_group::{
@@ -133,22 +132,6 @@ impl LocationGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let rows = match self.location.get() {
-            Some(location) => self.location_indicators(location),
-            None => self
-                .location
-                .failure()
-                .map(|failure_placeholder| {
-                    failure_placeholder
-                        .indicator(LOCATION_GLYPH)
-                        .with_hover_card(Box::new(move |_| {
-                            self.location.sections_described_by(|_| Vec::new())
-                        }))
-                        .refreshed_by(LocationInteraction::LookUpAgain)
-                })
-                .into_iter()
-                .collect(),
-        };
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Location,
             GroupIndicator::glyph_only(
@@ -158,7 +141,14 @@ impl LocationGroup {
             ),
             &self.expansion,
             LocationInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            self.location
+                .indicator_listing(
+                    |location| self.location_indicators(location),
+                    LOCATION_GLYPH,
+                )
+                .map_indicators(|location_row| {
+                    location_row.refreshed_by(LocationInteraction::LookUpAgain)
+                }),
         )
     }
 }

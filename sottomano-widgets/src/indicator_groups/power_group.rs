@@ -31,7 +31,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
+    group_indicators::group_indicator::GroupIndicator,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
         indicator_group_content::{
@@ -243,16 +243,14 @@ impl PowerGroup {
         if self.power_profile.status.get().is_some() {
             lead_indicators.push(self.power_profile_indicator(config));
         }
+        let battery_charge_listing = self.battery.indicator_listing(
+            |held_snapshot| {
+                self.battery_charge_indicator(battery_indicator(held_snapshot))
+                    .when_shown()
+            },
+            BATTERY_CHARGE_GLYPH.into(),
+        );
         let mut rows = Vec::new();
-        if !self.battery.awaits_first_delivery() {
-            let charge_indicator = self.battery.indicator(
-                |held_snapshot| battery_indicator(held_snapshot),
-                BATTERY_CHARGE_GLYPH.into(),
-            );
-            if charge_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.battery_charge_indicator(charge_indicator));
-            }
-        }
         if let Some(draw) = self.draw() {
             rows.push(self.power_draw_indicator(draw, locale));
         }
@@ -271,7 +269,13 @@ impl PowerGroup {
             headline_indicator,
             &self.expansion,
             PowerInteraction::Expansion,
-            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
+            [
+                IndicatorListing::Listed(lead_indicators),
+                battery_charge_listing,
+                IndicatorListing::Listed(rows),
+            ]
+            .into_iter()
+            .collect(),
         )
     }
 

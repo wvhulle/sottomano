@@ -28,7 +28,7 @@ use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
+        group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
@@ -264,7 +264,7 @@ impl MonitorGroup {
         config: &'view Config,
         outputs: &'view HashMap<String, OutputInfo>,
     ) -> IndicatorGroupContent<'view> {
-        let mut rows: Vec<_> = self
+        let rows: Vec<_> = self
             .sliders
             .iter()
             .map(|(backlight_serial, slider)| {
@@ -280,22 +280,18 @@ impl MonitorGroup {
                 ))
             })
             .collect();
-        let subscribed = &self.clight.sample;
-        if !subscribed.awaits_first_delivery() {
-            let brightness_indicator = self.wired_auto_brightness_indicator(
-                subscribed.indicator(auto_brightness_indicator, AUTO_BRIGHTNESS_GLYPH.into()),
-            );
-            if brightness_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(match subscribed.get() {
-                    Some(held_snapshot) => brightness_indicator.on_switch_press(
+        let auto_brightness_listing = self.clight.sample.indicator_listing(
+            |held_snapshot| {
+                self.wired_auto_brightness_indicator(auto_brightness_indicator(held_snapshot))
+                    .on_switch_press(
                         held_snapshot.switch_position(),
                         held_snapshot.press_action_text(),
                         MonitorInteraction::AutoBrightnessPressed,
-                    ),
-                    None => brightness_indicator,
-                });
-            }
-        }
+                    )
+                    .when_shown()
+            },
+            AUTO_BRIGHTNESS_GLYPH.into(),
+        );
         let monitor_content = IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Monitor,
             match self.sliders.values().next() {
@@ -310,7 +306,9 @@ impl MonitorGroup {
             },
             &self.expansion,
             MonitorInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            [IndicatorListing::Listed(rows), auto_brightness_listing]
+                .into_iter()
+                .collect(),
         );
         if self.sliders.is_empty() {
             monitor_content

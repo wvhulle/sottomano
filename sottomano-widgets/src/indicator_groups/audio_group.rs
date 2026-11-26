@@ -28,7 +28,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage, IndicatorListing,
+            IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -230,6 +230,7 @@ impl AudioGroup {
             .hover_card_with(vec![Section::new("Level", dictionary_table(level_entries))])
     }
 
+    #[must_use]
     pub fn group_content<'view>(
         &'view self,
         config: &'view Config,
@@ -242,49 +243,47 @@ impl AudioGroup {
             .state
             .get()
             .and_then(|state| resolved_levels(&state.sink));
-        let source = self
-            .state
-            .get()
-            .and_then(|state| resolved_levels(&state.source));
-        let mut rows = Vec::new();
-        if let Some(sink_levels) = sink {
-            rows.push(
-                GroupIndicator::slider(
-                    &self.sink_control,
-                    config,
-                    AudioMessage::Control.with(ControlKind::Sink),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.channel_level_sections(ControlKind::Sink, sink_levels, &self.sink_control)
-                })),
-            );
-        }
-        if let Some(source_levels) = source {
-            rows.push(
-                GroupIndicator::slider(
-                    &self.source_control,
-                    config,
-                    AudioMessage::Control.with(ControlKind::Source),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.channel_level_sections(
-                        ControlKind::Source,
-                        source_levels,
-                        &self.source_control,
+        let indicator_listing = self.state.indicator_listing(
+            |state| {
+                let sink_rows = resolved_levels(&state.sink).map(|sink_levels| {
+                    GroupIndicator::slider(
+                        &self.sink_control,
+                        config,
+                        AudioMessage::Control.with(ControlKind::Sink),
                     )
-                })),
-            );
-        }
-        if let Some(failure_placeholder) = self.state.failure() {
-            rows.push(failure_placeholder.indicator(AUDIO_STATE_GLYPH.into()));
-        }
+                    .with_hover_card(Box::new(move |_| {
+                        self.channel_level_sections(
+                            ControlKind::Sink,
+                            sink_levels,
+                            &self.sink_control,
+                        )
+                    }))
+                });
+                let source_rows = resolved_levels(&state.source).map(|source_levels| {
+                    GroupIndicator::slider(
+                        &self.source_control,
+                        config,
+                        AudioMessage::Control.with(ControlKind::Source),
+                    )
+                    .with_hover_card(Box::new(move |_| {
+                        self.channel_level_sections(
+                            ControlKind::Source,
+                            source_levels,
+                            &self.source_control,
+                        )
+                    }))
+                });
+                sink_rows.into_iter().chain(source_rows).collect()
+            },
+            AUDIO_STATE_GLYPH.into(),
+        );
         let audio_content = |headline_indicator| {
             IndicatorGroupContent::expandable(
                 IndicatorGroupFamily::Audio,
                 headline_indicator,
                 &self.expansion,
                 AudioMessage::Expansion,
-                IndicatorListing::Listed(rows),
+                indicator_listing,
             )
         };
         match sink {
