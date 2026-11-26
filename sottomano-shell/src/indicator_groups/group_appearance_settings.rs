@@ -30,10 +30,25 @@ impl ShellIndicatorGroups {
     #[must_use]
     pub fn shell_appearance(&self) -> ShellAppearance {
         ShellAppearance {
-            scheme: self.dark_mode_group.scheme(),
-            panels: self.panel_settings_group.layer.appearance(),
-            sidebar: self.sidebar_settings_group.layer.appearance(),
-            overlays: self.overlay_settings_group.layer.appearance(),
+            scheme: self.panel_menus.display.dark_mode_group.scheme(),
+            panels: self
+                .panel_menus
+                .appearance
+                .panel_settings_group
+                .layer
+                .appearance(),
+            sidebar: self
+                .panel_menus
+                .appearance
+                .sidebar_settings_group
+                .layer
+                .appearance(),
+            overlays: self
+                .panel_menus
+                .appearance
+                .overlay_settings_group
+                .layer
+                .appearance(),
             menus: self.group_menus.layer.appearance(),
         }
     }
@@ -69,8 +84,12 @@ impl ShellIndicatorGroups {
     #[must_use]
     pub fn notification_settings(&self) -> NotificationSettings {
         NotificationSettings {
-            alert_sound: self.notification_group.alert_sound,
-            toast_arrangement: self.overlay_settings_group.toast_arrangement,
+            alert_sound: self.panel_menus.agenda.notification_group.alert_sound,
+            toast_arrangement: self
+                .panel_menus
+                .appearance
+                .overlay_settings_group
+                .toast_arrangement,
         }
     }
 
@@ -78,10 +97,19 @@ impl ShellIndicatorGroups {
     pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
             popup: PopupAppearances {
-                overlay: self.overlay_settings_group.layer.appearance(),
+                overlay: self
+                    .panel_menus
+                    .appearance
+                    .overlay_settings_group
+                    .layer
+                    .appearance(),
                 menu: self.group_menus.layer.appearance(),
             },
-            float_offset_px: self.panel_settings_group.float_offset_px(),
+            float_offset_px: self
+                .panel_menus
+                .appearance
+                .panel_settings_group
+                .float_offset_px(),
         }
     }
 
@@ -96,7 +124,7 @@ impl ShellIndicatorGroups {
             compositor,
             config,
             self.notification_settings(),
-            self.quiet_schedule_group.phase,
+            self.panel_menus.agenda.quiet_schedule_group.phase,
             clock,
         )
     }

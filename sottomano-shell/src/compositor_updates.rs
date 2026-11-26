@@ -110,6 +110,8 @@ impl DesktopShell {
         if workspaces_changed {
             tasks.push(
                 self.indicator_groups
+                    .panel_menus
+                    .appearance
                     .sidebar_settings_group
                     .observe_workspace_switch(&self.window_snapshot)
                     .map(Message::SidebarSettings),
@@ -185,7 +187,13 @@ impl DesktopShell {
         let launcher_app_ids = self.indicator_groups.app_launcher_menu.catalog_app_ids();
         let requests = window_icon_requests(&self.window_snapshot)
             .into_iter()
-            .chain(self.indicator_groups.tray_group.icon_requests(&self.config))
+            .chain(
+                self.indicator_groups
+                    .panel_menus
+                    .session
+                    .tray_group
+                    .icon_requests(&self.config),
+            )
             .chain(
                 self.indicator_groups
                     .window_menu_bar
@@ -197,7 +205,13 @@ impl DesktopShell {
                     .map(|app_id| app_icon_request(app_id)),
             )
             .chain(self.notifications.icon_requests())
-            .chain(self.indicator_groups.steam_client_groups.icon_requests());
+            .chain(
+                self.indicator_groups
+                    .panel_menus
+                    .gaming
+                    .steam_client_groups
+                    .icon_requests(),
+            );
         self.icon_catalog
             .request(requests, &self.desktop_entries)
             .map(Message::IconCatalog)

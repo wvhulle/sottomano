@@ -87,7 +87,12 @@ impl DesktopShell {
                     .collect()
             }
             PanelZoneEntry::Menu(GroupMenuTopic::SessionPower)
-                if self.indicator_groups.session_power_group.menu_presence()
+                if self
+                    .indicator_groups
+                    .panel_menus
+                    .session_power
+                    .session_power_group
+                    .menu_presence()
                     == PowerMenuPresence::Hidden =>
             {
                 Vec::new()
@@ -121,6 +126,8 @@ impl DesktopShell {
     ) -> Element<'view, ShellInteraction> {
         let panels = self
             .indicator_groups
+            .panel_menus
+            .appearance
             .panel_settings_group
             .layer
             .appearance();
@@ -131,7 +138,12 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(ShellInteraction::DismissPressed);
-        let group_framing = self.indicator_groups.panel_settings_group.group_framing;
+        let group_framing = self
+            .indicator_groups
+            .panel_menus
+            .appearance
+            .panel_settings_group
+            .group_framing;
         if group_framing == PanelGroupFraming::Disconnected {
             let roles = RegionRoles {
                 pointer_input: PointerInput::Accepted,
@@ -144,7 +156,13 @@ impl DesktopShell {
             right: OutlineTracing::Omitted,
             ..inward_outlined_sides(position)
         }
-        .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
+        .all_when_floating(
+            self.indicator_groups
+                .panel_menus
+                .appearance
+                .panel_settings_group
+                .float_offset_px(),
+        );
         let strip = panel_frame(band, panels.frame)
             .outlined_sides(outlined_sides)
             .backdrop_blur(panels.backdrop_blur);
@@ -163,13 +181,25 @@ impl DesktopShell {
         let config = &self.config;
         let panels = self
             .indicator_groups
+            .panel_menus
+            .appearance
             .panel_settings_group
             .layer
             .appearance();
-        let group_framing = self.indicator_groups.panel_settings_group.group_framing;
+        let group_framing = self
+            .indicator_groups
+            .panel_menus
+            .appearance
+            .panel_settings_group
+            .group_framing;
         let frame_style = panels.frame;
-        let outlined_sides = inward_outlined_sides(position)
-            .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
+        let outlined_sides = inward_outlined_sides(position).all_when_floating(
+            self.indicator_groups
+                .panel_menus
+                .appearance
+                .panel_settings_group
+                .float_offset_px(),
+        );
         let framed = groups.into_iter().map(|group| {
             if group_framing == PanelGroupFraming::Joined {
                 return group;
@@ -206,6 +236,8 @@ impl DesktopShell {
     ) -> Option<Element<'view, ShellInteraction>> {
         match self
             .indicator_groups
+            .panel_menus
+            .appearance
             .sidebar_settings_group
             .workspaces_placement
         {
@@ -216,6 +248,8 @@ impl DesktopShell {
                 self.configured_workspaces.read_order(),
                 &self
                     .indicator_groups
+                    .panel_menus
+                    .appearance
                     .sidebar_settings_group
                     .empty_workspace_folding,
                 self.panel_slot_context(position),
@@ -234,7 +268,11 @@ impl DesktopShell {
             .view(
                 &self.window_snapshot,
                 self.window_assets(),
-                self.indicator_groups.audio_group.window_audio(),
+                self.indicator_groups
+                    .panel_menus
+                    .media
+                    .audio_group
+                    .window_audio(),
                 output,
                 self.panel_slot_context(position),
             )

@@ -97,7 +97,11 @@ impl DesktopShell {
                     &self.compositor,
                     &self.config,
                     self.indicator_groups.notification_settings(),
-                    self.indicator_groups.quiet_schedule_group.phase,
+                    self.indicator_groups
+                        .panel_menus
+                        .agenda
+                        .quiet_schedule_group
+                        .phase,
                     self.clock,
                 ),
                 &|output| toast_surfaces.get(output).copied(),
@@ -106,7 +110,13 @@ impl DesktopShell {
     }
 
     pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match self.indicator_groups.notification_group.update(msg) {
+        match self
+            .indicator_groups
+            .panel_menus
+            .agenda
+            .notification_group
+            .update(msg)
+        {
             notification_group::Action::Run(task) => task.map(Message::NotificationGroup),
             notification_group::Action::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
@@ -117,6 +127,8 @@ impl DesktopShell {
     pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
         let QuietUpdate { task, change } = self
             .indicator_groups
+            .panel_menus
+            .agenda
             .quiet_schedule_group
             .update(msg, self.clock);
         Task::batch([
@@ -130,11 +142,15 @@ impl DesktopShell {
             QuietChange::Unchanged => Task::none(),
             QuietChange::ScreenOffAfter(timeout) => self
                 .indicator_groups
+                .panel_menus
+                .session
                 .idle_pause_groups
                 .override_screen_off(ScreenOffOverride::QuietHours(timeout))
                 .map(Message::IdleTimeouts),
             QuietChange::ScreenOffFollowsIdleTimer => self
                 .indicator_groups
+                .panel_menus
+                .session
                 .idle_pause_groups
                 .override_screen_off(ScreenOffOverride::FollowsSlider)
                 .map(Message::IdleTimeouts),
@@ -152,6 +168,8 @@ impl DesktopShell {
                 Task::batch([
                     released,
                     self.indicator_groups
+                        .panel_menus
+                        .session
                         .idle_pause_groups
                         .override_screen_off(ScreenOffOverride::FollowsSlider)
                         .map(Message::IdleTimeouts),

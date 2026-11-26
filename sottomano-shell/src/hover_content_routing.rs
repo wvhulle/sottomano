@@ -131,9 +131,18 @@ impl DesktopShell {
             }
             HoverTarget::GroupMenu(GroupMenuTopic::SessionPower) => self.cascading_menu(
                 groups
+                    .panel_menus
+                    .session_power
                     .session_power_group
-                    .menu_entries(&self.config, groups.idle_pause_groups.idle_chain()),
-                &groups.session_power_group.menu_state,
+                    .menu_entries(
+                        &self.config,
+                        groups.panel_menus.session.idle_pause_groups.idle_chain(),
+                    ),
+                &groups
+                    .panel_menus
+                    .session_power
+                    .session_power_group
+                    .menu_state,
                 SessionMessage::Menu,
             ),
             HoverTarget::GroupMenu(topic) => self.group_menu_surfaces(*topic),
@@ -142,12 +151,12 @@ impl DesktopShell {
                     == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>
             {
                 self.cascading_menu(
-                    groups.tray_group.menu_entries_named(
+                    groups.panel_menus.session.tray_group.menu_entries_named(
                         &indicator_key.name,
                         &self.config,
                         &self.icon_catalog,
                     ),
-                    &groups.tray_group.menu_state,
+                    &groups.panel_menus.session.tray_group.menu_state,
                     TrayMessage::Menu,
                 )
             }
@@ -182,6 +191,8 @@ impl DesktopShell {
             list_appearance: group_menus.layer.appearance(),
             beside_appearance: self
                 .indicator_groups
+                .panel_menus
+                .appearance
                 .overlay_settings_group
                 .layer
                 .appearance(),

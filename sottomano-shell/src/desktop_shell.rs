@@ -207,6 +207,8 @@ impl DesktopShell {
         let alert_rescan = alert_rescan_need(&message);
         let dispatched = self.dispatch_message(message);
         self.indicator_groups
+            .panel_menus
+            .agenda
             .session_focus_group
             .refresh_daily_totals(&self.config.panel_menus.agenda.session_focus, self.clock);
         let reheated = if heat_effect == SwitchHeatEffect::Reheats {
@@ -220,7 +222,12 @@ impl DesktopShell {
                 .indicator_groups
                 .group_menus
                 .update(GroupMenuMessage::Closed);
-            self.indicator_groups.tray_group.menu_state.close();
+            self.indicator_groups
+                .panel_menus
+                .session
+                .tray_group
+                .menu_state
+                .close();
             self.indicator_groups.window_menu_bar.menu_state.close();
             self.indicator_groups.app_launcher_menu.close_menu();
         }
@@ -312,6 +319,8 @@ impl DesktopShell {
                     ToastSurfaceStyle {
                         overlay_appearance: self
                             .indicator_groups
+                            .panel_menus
+                            .appearance
                             .overlay_settings_group
                             .layer
                             .appearance(),

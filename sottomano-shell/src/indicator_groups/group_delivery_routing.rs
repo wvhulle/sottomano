@@ -6,73 +6,98 @@ use crate::{indicator_groups::ShellIndicatorGroups, shell_message::Message};
 
 impl ShellIndicatorGroups {
     pub fn route(&mut self, message: Message, config: &Config, clock: Clock) -> Task<Message> {
+        let menus = &mut self.panel_menus;
         match message {
-            Message::Weather(delivery) => self
+            Message::Weather(delivery) => menus
+                .agenda
                 .weather_group
                 .update(delivery, clock)
                 .map(Message::Weather),
-            Message::Location(delivery) => self
+            Message::Location(delivery) => menus
+                .agenda
                 .location_group
                 .update(delivery, clock)
                 .map(Message::Location),
-            Message::Wallpaper(delivery) => self
+            Message::Wallpaper(delivery) => menus
+                .display
                 .wallpaper_group
                 .update(delivery, clock)
                 .map(Message::Wallpaper),
-            Message::Caldav(delivery) => self
+            Message::Caldav(delivery) => menus
+                .agenda
                 .caldav_group
                 .update(delivery, clock)
                 .map(Message::Caldav),
-            Message::Power(delivery) => {
-                self.power_group.update(delivery, clock).map(Message::Power)
-            }
-            Message::Compute(delivery) => self
+            Message::Power(delivery) => menus
+                .hardware
+                .power_group
+                .update(delivery, clock)
+                .map(Message::Power),
+            Message::Compute(delivery) => menus
+                .hardware
                 .compute_group
                 .update(delivery, clock)
                 .map(Message::Compute),
-            Message::MemoryBoard(delivery) => self
+            Message::MemoryBoard(delivery) => menus
+                .hardware
                 .memory_board_group
                 .update(delivery, clock)
                 .map(Message::MemoryBoard),
-            Message::Gpu(delivery) => self.gpu_group.update(delivery, clock).map(Message::Gpu),
-            Message::Storage(delivery) => self
+            Message::Gpu(delivery) => menus
+                .hardware
+                .gpu_group
+                .update(delivery, clock)
+                .map(Message::Gpu),
+            Message::Storage(delivery) => menus
+                .hardware
                 .storage_space_group
                 .update(delivery, clock)
                 .map(Message::Storage),
-            Message::Drive(delivery) => self
+            Message::Drive(delivery) => menus
+                .hardware
                 .physical_drive_group
                 .update(delivery, clock)
                 .map(Message::Drive),
-            Message::SidebarSettings(delivery) => self
+            Message::SidebarSettings(delivery) => menus
+                .appearance
                 .sidebar_settings_group
                 .update(delivery)
                 .map(Message::SidebarSettings),
-            Message::CompositorStyling(delivery) => self
+            Message::CompositorStyling(delivery) => menus
+                .appearance
                 .compositor_styling_group
                 .update(delivery)
                 .map(Message::CompositorStyling),
-            Message::Clock(delivery) => {
-                self.clock_group.update(delivery, clock).map(Message::Clock)
-            }
-            Message::Monitor(delivery) => self
+            Message::Clock(delivery) => menus
+                .agenda
+                .clock_group
+                .update(delivery, clock)
+                .map(Message::Clock),
+            Message::Monitor(delivery) => menus
+                .display
                 .monitor_group
                 .update(delivery, clock)
                 .map(Message::Monitor),
-            Message::ColorTemperature(delivery) => self
+            Message::ColorTemperature(delivery) => menus
+                .display
                 .color_temperature_group
                 .update(delivery, clock)
                 .map(Message::ColorTemperature),
-            Message::DarkMode(delivery) => self
+            Message::DarkMode(delivery) => menus
+                .display
                 .dark_mode_group
                 .update(delivery, clock)
                 .map(Message::DarkMode),
-            Message::VoiceDictation(delivery) => self
+            Message::VoiceDictation(delivery) => menus
+                .media
                 .voice_dictation_group
                 .update(delivery, clock)
                 .map(Message::VoiceDictation),
-            Message::Audio(delivery) => {
-                self.audio_group.update(delivery, clock).map(Message::Audio)
-            }
+            Message::Audio(delivery) => menus
+                .media
+                .audio_group
+                .update(delivery, clock)
+                .map(Message::Audio),
             connectivity_delivery => self.route_connectivity(connectivity_delivery, config, clock),
         }
     }
@@ -83,80 +108,100 @@ impl ShellIndicatorGroups {
         config: &Config,
         clock: Clock,
     ) -> Task<Message> {
+        let menus = &mut self.panel_menus;
         match message {
-            Message::WifiAdapters(delivery) => self
+            Message::WifiAdapters(delivery) => menus
+                .network
                 .wifi_adapters_group
                 .update(delivery, clock)
                 .map(Message::WifiAdapters),
-            Message::MobileModems(delivery) => self
+            Message::MobileModems(delivery) => menus
+                .network
                 .mobile_modems_group
                 .update(delivery, clock)
                 .map(Message::MobileModems),
-            Message::SteamClient(delivery) => self
+            Message::SteamClient(delivery) => menus
+                .gaming
                 .steam_client_groups
                 .update(delivery, clock)
                 .map(Message::SteamClient),
-            Message::EthernetPorts(delivery) => self
+            Message::EthernetPorts(delivery) => menus
+                .network
                 .ethernet_ports_group
                 .update(delivery, clock)
                 .map(Message::EthernetPorts),
-            Message::BluetoothAdapters(delivery) => self
+            Message::BluetoothAdapters(delivery) => menus
+                .network
                 .bluetooth_adapters_group
                 .update(delivery, clock)
                 .map(Message::BluetoothAdapters),
-            Message::Reachability(delivery) => self
+            Message::Reachability(delivery) => menus
+                .network
                 .reachability_group
                 .update(delivery, &config.panel_menus.network.reachability, clock)
                 .map(Message::Reachability),
-            Message::Tailnet(delivery) => self
+            Message::Tailnet(delivery) => menus
+                .network
                 .tailnet_group
                 .update(delivery, clock)
                 .map(Message::Tailnet),
-            Message::WireguardTunnels(delivery) => self
+            Message::WireguardTunnels(delivery) => menus
+                .network
                 .wireguard_tunnels_group
                 .update(delivery, clock)
                 .map(Message::WireguardTunnels),
-            Message::NetworkManagerVpns(delivery) => self
+            Message::NetworkManagerVpns(delivery) => menus
+                .network
                 .network_manager_vpn_group
                 .update(delivery, clock)
                 .map(Message::NetworkManagerVpns),
-            Message::SystemdManager(delivery) => self
+            Message::SystemdManager(delivery) => menus
+                .services
                 .systemd_manager_group
                 .update(delivery, clock)
                 .map(Message::SystemdManager),
-            Message::JournalEvents(delivery) => self
+            Message::JournalEvents(delivery) => menus
+                .services
                 .journal_events_group
                 .update(delivery, clock)
                 .map(Message::JournalEvents),
-            Message::PendingUpgrades(delivery) => self
+            Message::PendingUpgrades(delivery) => menus
+                .services
                 .pending_upgrades_group
                 .update(delivery, clock)
                 .map(Message::PendingUpgrades),
-            Message::ClaudeUsage(delivery) => self
+            Message::ClaudeUsage(delivery) => menus
+                .services
                 .claude_usage_group
                 .update(delivery, clock)
                 .map(Message::ClaudeUsage),
-            Message::CopilotUsage(delivery) => self
+            Message::CopilotUsage(delivery) => menus
+                .services
                 .copilot_usage_group
                 .update(delivery, clock)
                 .map(Message::CopilotUsage),
-            Message::OpenRouterCredit(delivery) => self
+            Message::OpenRouterCredit(delivery) => menus
+                .services
                 .openrouter_credit_group
                 .update(delivery, clock)
                 .map(Message::OpenRouterCredit),
-            Message::LlamaServer(delivery) => self
+            Message::LlamaServer(delivery) => menus
+                .services
                 .llama_server_group
                 .update(delivery, config, clock)
                 .map(Message::LlamaServer),
-            Message::CiRuns(delivery) => self
+            Message::CiRuns(delivery) => menus
+                .services
                 .ci_runs_group
                 .update(delivery, clock)
                 .map(Message::CiRuns),
-            Message::SessionFocus(delivery) => self
+            Message::SessionFocus(delivery) => menus
+                .agenda
                 .session_focus_group
                 .update(delivery, &config.panel_menus.agenda.session_focus, clock)
                 .map(Message::SessionFocus),
-            Message::LoginSession(delivery) => self
+            Message::LoginSession(delivery) => menus
+                .session
                 .login_session_group
                 .update(delivery, clock)
                 .map(Message::LoginSession),
@@ -167,50 +212,74 @@ impl ShellIndicatorGroups {
     fn route_guests(&mut self, message: Message, clock: Clock) -> Task<Message> {
         match message {
             Message::PodmanEngines(delivery) => self
+                .panel_menus
+                .virtualization
                 .podman_engines_group
                 .update(delivery, clock)
                 .map(Message::PodmanEngines),
             Message::NspawnContainers(delivery) => self
+                .panel_menus
+                .virtualization
                 .nspawn_containers_group
                 .update(delivery, clock)
                 .map(Message::NspawnContainers),
             Message::CgroupMemoryLimits(delivery) => self
+                .panel_menus
+                .virtualization
                 .cgroup_memory_limits_group
                 .update(delivery, clock)
                 .map(Message::CgroupMemoryLimits),
             Message::DockerEngines(delivery) => self
+                .panel_menus
+                .virtualization
                 .docker_engines_group
                 .update(delivery, clock)
                 .map(Message::DockerEngines),
             Message::ApptainerContainers(delivery) => self
+                .panel_menus
+                .virtualization
                 .apptainer_containers_group
                 .update(delivery, clock)
                 .map(Message::ApptainerContainers),
             Message::VmwareMachines(delivery) => self
+                .panel_menus
+                .virtualization
                 .vmware_machines_group
                 .update(delivery, clock)
                 .map(Message::VmwareMachines),
             Message::VirtualBoxMachines(delivery) => self
+                .panel_menus
+                .virtualization
                 .virtualbox_machines_group
                 .update(delivery, clock)
                 .map(Message::VirtualBoxMachines),
             Message::WaydroidContainer(delivery) => self
+                .panel_menus
+                .virtualization
                 .waydroid_container_group
                 .update(delivery, clock)
                 .map(Message::WaydroidContainer),
             Message::FlatpakSandboxes(delivery) => self
+                .panel_menus
+                .virtualization
                 .flatpak_sandboxes_group
                 .update(delivery, clock)
                 .map(Message::FlatpakSandboxes),
             Message::LxcContainers(delivery) => self
+                .panel_menus
+                .virtualization
                 .lxc_containers_group
                 .update(delivery, clock)
                 .map(Message::LxcContainers),
             Message::IncusInstances(delivery) => self
+                .panel_menus
+                .virtualization
                 .incus_instances_group
                 .update(delivery, clock)
                 .map(Message::IncusInstances),
             Message::MicrovmGuests(delivery) => self
+                .panel_menus
+                .virtualization
                 .microvm_guests_group
                 .update(delivery, clock)
                 .map(Message::MicrovmGuests),

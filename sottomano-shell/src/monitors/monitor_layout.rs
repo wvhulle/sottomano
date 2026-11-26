@@ -49,7 +49,12 @@ impl DesktopShell {
         window: Id,
         output: &'view str,
     ) -> Element<'view, ShellInteraction> {
-        let float = self.indicator_groups.panel_settings_group.float_offset_px();
+        let float = self
+            .indicator_groups
+            .panel_menus
+            .appearance
+            .panel_settings_group
+            .float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
             |position, content| anchor_hover_cards_on_surface(window, position, origin, content);
@@ -98,7 +103,11 @@ impl DesktopShell {
                 .drag_ghost(
                     snapshot,
                     self.window_assets(),
-                    self.indicator_groups.audio_group.window_audio(),
+                    self.indicator_groups
+                        .panel_menus
+                        .media
+                        .audio_group
+                        .window_audio(),
                     window,
                     slot_context,
                 )?

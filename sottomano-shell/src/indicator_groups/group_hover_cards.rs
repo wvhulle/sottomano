@@ -68,6 +68,8 @@ impl DesktopShell {
         self.indicator_groups.output_windows.window_press_actions(
             &self.window_snapshot,
             self.indicator_groups
+                .panel_menus
+                .media
                 .audio_group
                 .window_audio()
                 .unwrap_or(&silent_windows),
@@ -90,6 +92,8 @@ impl DesktopShell {
                     .into_iter()
                     .chain(
                         self.indicator_groups
+                            .panel_menus
+                            .agenda
                             .session_focus_group
                             .window_usage_hover_card(*window, &self.config, self.clock),
                     )
@@ -100,6 +104,8 @@ impl DesktopShell {
                 &self.window_snapshot,
                 &self.icon_catalog,
                 self.indicator_groups
+                    .panel_menus
+                    .appearance
                     .compositor_styling_group
                     .app_window_layout(),
                 *workspace,
@@ -109,6 +115,8 @@ impl DesktopShell {
                 .collect(),
             HoverTarget::WorkspaceFolding => Section::press_actions(
                 self.indicator_groups
+                    .panel_menus
+                    .appearance
                     .sidebar_settings_group
                     .empty_workspace_folding
                     .press_actions(),

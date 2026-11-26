@@ -56,7 +56,13 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
-        match self.indicator_groups.overlay_settings_group.update(msg) {
+        match self
+            .indicator_groups
+            .panel_menus
+            .appearance
+            .overlay_settings_group
+            .update(msg)
+        {
             overlay_settings_group::Action::Run(task) => task.map(Message::OverlaySettings),
             overlay_settings_group::Action::ReflowToasts(task) => {
                 Task::batch([self.reflow_toasts(), task.map(Message::OverlaySettings)])
@@ -121,6 +127,8 @@ impl DesktopShell {
 
     pub(crate) fn refocus_session(&mut self) -> Task<Message> {
         self.indicator_groups
+            .panel_menus
+            .agenda
             .session_focus_group
             .refocus(
                 &self.compositor,
@@ -155,6 +163,8 @@ impl DesktopShell {
         let handled = match action {
             output_windows::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
                 .indicator_groups
+                .panel_menus
+                .media
                 .audio_group
                 .toggle_window_mute(pid)
                 .map(Message::Audio),
@@ -172,6 +182,8 @@ impl DesktopShell {
 
     pub(crate) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
         self.indicator_groups
+            .panel_menus
+            .gaming
             .gamepad_group
             .update(msg, &self.config.panel_menus.gaming.gamepad)
             .into_task()
@@ -179,19 +191,28 @@ impl DesktopShell {
 
     pub(crate) fn interact_gamepad(&mut self, interaction: GamepadInteraction) -> Task<Message> {
         self.indicator_groups
+            .panel_menus
+            .gaming
             .gamepad_group
             .interact(interaction)
             .into_task()
     }
 
     pub(crate) fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
-        let action = self.indicator_groups.media_group.update(msg, self.clock);
+        let action = self
+            .indicator_groups
+            .panel_menus
+            .media
+            .media_group
+            .update(msg, self.clock);
         self.run_media_action(action)
     }
 
     pub(crate) fn interact_media(&mut self, interaction: MediaInteraction) -> Task<Message> {
         let action = self
             .indicator_groups
+            .panel_menus
+            .media
             .media_group
             .interact(interaction, self.clock);
         self.run_media_action(action)
@@ -207,7 +228,13 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
-        match self.indicator_groups.session_power_group.update(msg) {
+        match self
+            .indicator_groups
+            .panel_menus
+            .session_power
+            .session_power_group
+            .update(msg)
+        {
             session_power_group::Action::Run(task) => task.map(Message::Session),
             session_power_group::Action::Performed(task) => {
                 Task::batch([self.dismiss_hover_card(), task.map(Message::Session)])
@@ -216,7 +243,13 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
-        match self.indicator_groups.tray_group.update(msg, self.clock) {
+        match self
+            .indicator_groups
+            .panel_menus
+            .session
+            .tray_group
+            .update(msg, self.clock)
+        {
             tray_group::Action::None => Task::none(),
             tray_group::Action::Run(task) => task.map(Message::Tray),
             tray_group::Action::SendWithActivationToken(command) => {
@@ -302,6 +335,8 @@ impl DesktopShell {
     pub(crate) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {
         let action = self
             .indicator_groups
+            .panel_menus
+            .virtualization
             .virtual_machines_group
             .update(msg, self.clock);
         self.run_virtual_machines_action(action)
@@ -313,6 +348,8 @@ impl DesktopShell {
     ) -> Task<Message> {
         let action = self
             .indicator_groups
+            .panel_menus
+            .virtualization
             .virtual_machines_group
             .interact(interaction);
         self.run_virtual_machines_action(action)
@@ -341,7 +378,13 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
-        match self.indicator_groups.panel_settings_group.update(msg) {
+        match self
+            .indicator_groups
+            .panel_menus
+            .appearance
+            .panel_settings_group
+            .update(msg)
+        {
             panel_settings_group::Action::Run(task) => task.map(Message::PanelSettings),
             panel_settings_group::Action::Reflow(task) => {
                 Task::batch([self.reserve(), task.map(Message::PanelSettings)])

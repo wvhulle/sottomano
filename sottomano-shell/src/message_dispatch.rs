@@ -69,6 +69,8 @@ impl DesktopShell {
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
                 .indicator_groups
+                .panel_menus
+                .agenda
                 .session_focus_group
                 .screen_power_changed(
                     edge,
@@ -78,6 +80,8 @@ impl DesktopShell {
                 .map(Message::SessionFocus),
             Message::IdleTimeouts(msg) => self
                 .indicator_groups
+                .panel_menus
+                .session
                 .idle_pause_groups
                 .update(msg, self.clock)
                 .map(Message::IdleTimeouts),

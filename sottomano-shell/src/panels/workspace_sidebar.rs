@@ -23,14 +23,23 @@ impl DesktopShell {
     ) -> Element<'view, ShellInteraction> {
         let sidebar = self
             .indicator_groups
+            .panel_menus
+            .appearance
             .sidebar_settings_group
             .layer
             .appearance();
         let frame_style = sidebar.frame;
-        let outlined_sides = inward_outlined_sides(Position::Left)
-            .all_when_floating(self.indicator_groups.panel_settings_group.float_offset_px());
+        let outlined_sides = inward_outlined_sides(Position::Left).all_when_floating(
+            self.indicator_groups
+                .panel_menus
+                .appearance
+                .panel_settings_group
+                .float_offset_px(),
+        );
         let framed_workspaces = (self
             .indicator_groups
+            .panel_menus
+            .appearance
             .sidebar_settings_group
             .workspaces_placement
             == WorkspacesPlacement::Sidebar)
@@ -42,6 +51,8 @@ impl DesktopShell {
                     self.configured_workspaces.read_order(),
                     &self
                         .indicator_groups
+                        .panel_menus
+                        .appearance
                         .sidebar_settings_group
                         .empty_workspace_folding,
                     frame_style.drawn_corners(outlined_sides),

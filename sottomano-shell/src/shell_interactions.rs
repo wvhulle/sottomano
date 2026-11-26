@@ -133,6 +133,8 @@ impl DesktopShell {
                 expansion,
             )) => {
                 self.indicator_groups
+                    .panel_menus
+                    .behaviour
                     .appearance_presets_group
                     .update_expansion(expansion);
                 Task::none()

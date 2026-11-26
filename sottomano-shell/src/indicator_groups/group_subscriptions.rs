@@ -46,20 +46,33 @@ impl ShellIndicatorGroups {
         config: &Config,
         buses: Option<&DesktopBuses>,
     ) -> Subscription<Message> {
-        let working_days = self.quiet_schedule_group.working_days;
+        let menus = &self.panel_menus;
+        let working_days = menus.agenda.quiet_schedule_group.working_days;
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
-            self.weather_group
+            menus
+                .agenda
+                .weather_group
                 .subscription(buses, source_demand(IndicatorGroupFamily::Weather))
                 .map(Message::Weather),
-            self.location_group.subscription().map(Message::Location),
-            self.wallpaper_group
+            menus
+                .agenda
+                .location_group
+                .subscription()
+                .map(Message::Location),
+            menus
+                .display
+                .wallpaper_group
                 .subscription(buses)
                 .map(Message::Wallpaper),
-            self.caldav_group
+            menus
+                .agenda
+                .caldav_group
                 .subscription(&config.panel_menus.agenda.caldav, buses)
                 .map(Message::Caldav),
-            self.compute_group
+            menus
+                .hardware
+                .compute_group
                 .subscription(
                     &config.panel_menus.hardware.compute.temperature_sensors,
                     source_demand(IndicatorGroupFamily::Compute),
@@ -67,11 +80,15 @@ impl ShellIndicatorGroups {
                 .map(Message::Compute),
             MemoryBoardGroup::subscription(&config.panel_menus.hardware.memory_board.growth_trend)
                 .map(Message::MemoryBoard),
-            self.gpu_group.subscription().map(Message::Gpu),
-            self.storage_space_group
+            menus.hardware.gpu_group.subscription().map(Message::Gpu),
+            menus
+                .hardware
+                .storage_space_group
                 .subscription()
                 .map(Message::Storage),
-            self.physical_drive_group
+            menus
+                .hardware
+                .physical_drive_group
                 .subscription(
                     &config
                         .panel_menus
@@ -81,48 +98,79 @@ impl ShellIndicatorGroups {
                     source_demand(IndicatorGroupFamily::PhysicalDrive),
                 )
                 .map(Message::Drive),
-            self.clock_group
+            menus
+                .agenda
+                .clock_group
                 .subscription(config, GroupSourceDemand::on_panel())
                 .map(Message::Clock),
             JournalEventsGroup::subscription().map(Message::JournalEvents),
             DarkModeGroup::subscription().map(Message::DarkMode),
             TrayGroup::subscription().map(Message::Tray),
             AudioGroup::subscription().map(Message::Audio),
-            self.gamepad_group
+            menus
+                .gaming
+                .gamepad_group
                 .subscription(&config.panel_menus.gaming.gamepad)
                 .map(Message::Gamepad),
-            self.claude_usage_group
+            menus
+                .services
+                .claude_usage_group
                 .subscription(config, working_days, buses)
                 .map(Message::ClaudeUsage),
             CopilotUsageGroup::subscription(config, working_days).map(Message::CopilotUsage),
-            self.openrouter_credit_group
+            menus
+                .services
+                .openrouter_credit_group
                 .subscription(config, buses)
                 .map(Message::OpenRouterCredit),
             OutputWindows::subscription(&config.output_windows.agents).map(Message::OutputWindows),
             SessionFocusGroup::subscription(&config.panel_menus.agenda.session_focus)
                 .map(Message::SessionFocus),
-            self.incus_instances_group
+            self.virtualization_subscriptions(),
+        ])
+    }
+    fn virtualization_subscriptions(&self) -> Subscription<Message> {
+        let menus = &self.panel_menus;
+        let source_demand = |family| self.group_menus.source_demand(family);
+        Subscription::batch([
+            menus
+                .virtualization
+                .incus_instances_group
                 .subscription(source_demand(IndicatorGroupFamily::IncusInstances))
                 .map(Message::IncusInstances),
-            self.lxc_containers_group
+            menus
+                .virtualization
+                .lxc_containers_group
                 .subscription(source_demand(IndicatorGroupFamily::LxcContainers))
                 .map(Message::LxcContainers),
-            self.flatpak_sandboxes_group
+            menus
+                .virtualization
+                .flatpak_sandboxes_group
                 .subscription(source_demand(IndicatorGroupFamily::FlatpakSandboxes))
                 .map(Message::FlatpakSandboxes),
-            self.virtualbox_machines_group
+            menus
+                .virtualization
+                .virtualbox_machines_group
                 .subscription(source_demand(IndicatorGroupFamily::VirtualBoxMachines))
                 .map(Message::VirtualBoxMachines),
-            self.vmware_machines_group
+            menus
+                .virtualization
+                .vmware_machines_group
                 .subscription(source_demand(IndicatorGroupFamily::VmwareMachines))
                 .map(Message::VmwareMachines),
-            self.apptainer_containers_group
+            menus
+                .virtualization
+                .apptainer_containers_group
                 .subscription(source_demand(IndicatorGroupFamily::ApptainerContainers))
                 .map(Message::ApptainerContainers),
-            self.docker_engines_group
+            menus
+                .virtualization
+                .docker_engines_group
                 .subscription(source_demand(IndicatorGroupFamily::DockerEngines))
                 .map(Message::DockerEngines),
-            self.cgroup_memory_limits_group
+            menus
+                .virtualization
+                .cgroup_memory_limits_group
                 .subscription()
                 .map(Message::CgroupMemoryLimits),
         ])
@@ -134,6 +182,7 @@ impl ShellIndicatorGroups {
         buses: &DesktopBuses,
         window_menu_bar_presence: MenuTopicPresence,
     ) -> Subscription<Message> {
+        let menus = &self.panel_menus;
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
             PowerGroup::subscription(buses).map(Message::Power),
@@ -150,43 +199,16 @@ impl ShellIndicatorGroups {
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
             self.virtualization_bus_subscriptions(buses),
-            self.ci_runs_group.subscription(buses).map(Message::CiRuns),
-            self.reachability_group
-                .subscription(
-                    &config.panel_menus.network.reachability,
-                    buses,
-                    source_demand(IndicatorGroupFamily::Reachability),
-                )
-                .map(Message::Reachability),
-            self.tailnet_group
-                .subscription(&source_demand(IndicatorGroupFamily::Tailnet))
-                .map(Message::Tailnet),
-            self.wireguard_tunnels_group
-                .subscription(
-                    buses,
-                    &source_demand(IndicatorGroupFamily::WireguardTunnels),
-                )
-                .map(Message::WireguardTunnels),
-            self.network_manager_vpn_group
-                .subscription(
-                    buses,
-                    &source_demand(IndicatorGroupFamily::NetworkManagerVpns),
-                )
-                .map(Message::NetworkManagerVpns),
-            self.wifi_adapters_group
-                .subscription(buses, source_demand(IndicatorGroupFamily::WifiAdapters))
-                .map(Message::WifiAdapters),
-            MobileModemsGroup::subscription(buses).map(Message::MobileModems),
+            menus
+                .services
+                .ci_runs_group
+                .subscription(buses)
+                .map(Message::CiRuns),
             SteamClientGroups::subscription().map(Message::SteamClient),
-            self.ethernet_ports_group
-                .subscription(buses, source_demand(IndicatorGroupFamily::EthernetPorts))
-                .map(Message::EthernetPorts),
-            BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
-            self.gamepad_group
-                .network_subscription(buses, source_demand(IndicatorGroupFamily::Gamepad))
-                .map(Message::Gamepad),
             MonitorGroup::subscription(buses).map(Message::Monitor),
-            self.media_group
+            menus
+                .media
+                .media_group
                 .subscription(
                     buses,
                     &config.panel_menus.media.media.lyrics,
@@ -194,7 +216,9 @@ impl ShellIndicatorGroups {
                 )
                 .map(Message::Media),
             DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
-            self.voice_dictation_group
+            menus
+                .media
+                .voice_dictation_group
                 .subscription(buses)
                 .map(Message::VoiceDictation),
             QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
@@ -205,35 +229,107 @@ impl ShellIndicatorGroups {
             snapshot_subscription::<HostHardware>(buses.clone()).map(|delivery| {
                 Message::MemoryBoard(MemoryBoardMessage::Hardware(Box::new(delivery)))
             }),
-            self.copilot_usage_group
+            menus
+                .services
+                .copilot_usage_group
                 .account_subscription(buses)
                 .map(Message::CopilotUsage),
-            self.color_temperature_group
+            menus
+                .display
+                .color_temperature_group
                 .subscription(buses)
                 .map(Message::ColorTemperature),
-            self.llama_server_group
+            menus
+                .services
+                .llama_server_group
                 .subscription(buses)
                 .map(Message::LlamaServer),
+            self.network_bus_subscriptions(config, buses),
+        ])
+    }
+    fn network_bus_subscriptions(
+        &self,
+        config: &Config,
+        buses: &DesktopBuses,
+    ) -> Subscription<Message> {
+        let menus = &self.panel_menus;
+        let source_demand = |family| self.group_menus.source_demand(family);
+        Subscription::batch([
+            menus
+                .network
+                .reachability_group
+                .subscription(
+                    &config.panel_menus.network.reachability,
+                    buses,
+                    source_demand(IndicatorGroupFamily::Reachability),
+                )
+                .map(Message::Reachability),
+            menus
+                .network
+                .tailnet_group
+                .subscription(&source_demand(IndicatorGroupFamily::Tailnet))
+                .map(Message::Tailnet),
+            menus
+                .network
+                .wireguard_tunnels_group
+                .subscription(
+                    buses,
+                    &source_demand(IndicatorGroupFamily::WireguardTunnels),
+                )
+                .map(Message::WireguardTunnels),
+            menus
+                .network
+                .network_manager_vpn_group
+                .subscription(
+                    buses,
+                    &source_demand(IndicatorGroupFamily::NetworkManagerVpns),
+                )
+                .map(Message::NetworkManagerVpns),
+            menus
+                .network
+                .wifi_adapters_group
+                .subscription(buses, source_demand(IndicatorGroupFamily::WifiAdapters))
+                .map(Message::WifiAdapters),
+            MobileModemsGroup::subscription(buses).map(Message::MobileModems),
+            menus
+                .network
+                .ethernet_ports_group
+                .subscription(buses, source_demand(IndicatorGroupFamily::EthernetPorts))
+                .map(Message::EthernetPorts),
+            BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
+            menus
+                .gaming
+                .gamepad_group
+                .network_subscription(buses, source_demand(IndicatorGroupFamily::Gamepad))
+                .map(Message::Gamepad),
         ])
     }
 
     fn virtualization_bus_subscriptions(&self, buses: &DesktopBuses) -> Subscription<Message> {
         let source_demand = |family| self.group_menus.source_demand(family);
         Subscription::batch([
-            self.podman_engines_group
+            self.panel_menus
+                .virtualization
+                .podman_engines_group
                 .subscription(buses)
                 .map(Message::PodmanEngines),
             VirtualMachinesGroup::subscription(buses).map(Message::VirtualMachines),
-            self.waydroid_container_group
+            self.panel_menus
+                .virtualization
+                .waydroid_container_group
                 .subscription(
                     buses,
                     source_demand(IndicatorGroupFamily::WaydroidContainer),
                 )
                 .map(Message::WaydroidContainer),
-            self.nspawn_containers_group
+            self.panel_menus
+                .virtualization
+                .nspawn_containers_group
                 .subscription(buses)
                 .map(Message::NspawnContainers),
-            self.microvm_guests_group
+            self.panel_menus
+                .virtualization
+                .microvm_guests_group
                 .subscription(source_demand(IndicatorGroupFamily::MicrovmGuests), buses)
                 .map(Message::MicrovmGuests),
         ])
