@@ -36,9 +36,9 @@ use crate::{
 };
 
 const REST_HOLD: Duration = Duration::from_millis(250);
-const HOVER_HOLD: Duration = Duration::from_millis(1000);
+const HOVER_HOLD: Duration = Duration::from_millis(1600);
 const PRESS_LEAD: Duration = Duration::from_millis(150);
-const PRESS_HOLD: Duration = Duration::from_millis(450);
+const PRESS_HOLD: Duration = Duration::from_millis(900);
 const END_STATE_HOLD: Duration = Duration::from_millis(2000);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(40);
