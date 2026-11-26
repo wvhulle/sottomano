@@ -15,7 +15,7 @@ use sottomano_desktop_sources::{
     },
     steam_client_files::steam_log_lines::controller_log_lines::RadioSignalSample,
 };
-use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_widgets::panel_menus::gaming_menu::gamepad_group::{GamepadGroup, GamepadMessage};
 use uom::si::{
     f64::{Frequency, Ratio},

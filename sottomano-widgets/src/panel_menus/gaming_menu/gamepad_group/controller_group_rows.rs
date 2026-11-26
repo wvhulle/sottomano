@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::journal_follow::unexpired_events,
 };
-use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadBindingsConfig;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::GamepadBindingsConfig;
 
 use super::{
     ControllerCustody, GamepadGroup, GamepadInteraction,

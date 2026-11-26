@@ -8,7 +8,9 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
-use sottomano_toml_config::indicator_groups::media_lyrics::{LrclibLookup, MediaLyricsConfig};
+use sottomano_toml_config::panel_menus::media_menu::media_lyrics::{
+    LrclibLookup, MediaLyricsConfig,
+};
 
 use super::{MediaGroup, MediaMessage};
 use crate::{

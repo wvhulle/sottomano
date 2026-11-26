@@ -290,7 +290,7 @@ mod tests {
     use sottomano_desktop_sources::cpu_memory_compute::{
         cpu_temperature::TemperatureSample, temperature_thresholds::celsius,
     };
-    use sottomano_toml_config::indicator_groups::temperature_sensors::ThresholdOverrides;
+    use sottomano_toml_config::panel_menus::hardware_menu::temperature_sensors::ThresholdOverrides;
 
     use super::*;
 

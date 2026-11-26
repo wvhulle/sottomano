@@ -217,7 +217,7 @@ impl ShellIndicatorGroups {
             microvm_guests_group: MicrovmGuestsGroup::default(),
             ci_runs_group: CiRunsGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
-                &config.indicator_groups.session_focus,
+                &config.panel_menus.agenda.session_focus,
                 clock.utc(),
             ),
             login_session_group: LoginSessionGroup::default(),

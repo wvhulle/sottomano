@@ -9,7 +9,7 @@ use std::{
 };
 
 use chrono::TimeDelta;
-use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
+use sottomano_toml_config::panel_menus::agenda_menu::session_focus::SessionFocusConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FocusUnit {

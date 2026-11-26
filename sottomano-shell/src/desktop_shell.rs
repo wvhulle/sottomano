@@ -208,7 +208,7 @@ impl DesktopShell {
         let dispatched = self.dispatch_message(message);
         self.indicator_groups
             .session_focus_group
-            .refresh_daily_totals(&self.config.indicator_groups.session_focus, self.clock);
+            .refresh_daily_totals(&self.config.panel_menus.agenda.session_focus, self.clock);
         let reheated = if heat_effect == SwitchHeatEffect::Reheats {
             self.indicator_groups
                 .reheat_switch_heat(&self.config, &self.compositor, self.clock)

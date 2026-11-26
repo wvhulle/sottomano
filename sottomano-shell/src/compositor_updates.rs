@@ -89,7 +89,7 @@ impl DesktopShell {
             .observe_active_workspaces(
                 &self.window_snapshot,
                 self.clock,
-                self.config.indicator_groups.window.workspace_slide_duration,
+                self.config.output_windows.workspace_slide_duration,
             );
         tasks.push(self.refocus_session());
         if focus_changed {

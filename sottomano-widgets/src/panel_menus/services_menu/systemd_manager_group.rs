@@ -30,7 +30,9 @@ use sottomano_desktop_sources::{
         slow_running_jobs::{SlowJobs, SlowJobsWatch},
     },
 };
-use sottomano_toml_config::{Config, indicator_groups::systemd_manager::SystemdManagerConfig};
+use sottomano_toml_config::{
+    Config, panel_menus::services_menu::systemd_manager::SystemdManagerConfig,
+};
 
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},

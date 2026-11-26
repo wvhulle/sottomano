@@ -7,7 +7,7 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     player_indicator_leds::LitPlayer,
 };
 use sottomano_toml_config::{
-    indicator_groups::gamepad_bindings::{
+    panel_menus::gaming_menu::gamepad_bindings::{
         ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
         StickSharing,
     },

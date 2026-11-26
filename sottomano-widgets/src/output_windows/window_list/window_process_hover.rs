@@ -52,8 +52,8 @@ impl WindowList {
             self.package_facts.start_hover_fetch(
                 PackageWatch {
                     watched,
-                    upstream_branch: config.indicator_groups.window.nixpkgs_branch.clone(),
-                    nixos_flake: config.indicator_groups.window.nixos_flake.clone(),
+                    upstream_branch: config.output_windows.nixpkgs_branch.clone(),
+                    nixos_flake: config.output_windows.nixos_flake.clone(),
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,

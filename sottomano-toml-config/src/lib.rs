@@ -1,22 +1,25 @@
 pub mod calendar;
 pub mod desktop_panels;
+pub mod element_visibility;
 pub mod friendly_duration;
 pub mod friendly_time_delta;
 pub mod group_indicators;
 pub mod group_menus;
 pub mod hover_cards;
 pub mod indicator_group_layout;
-pub mod indicator_groups;
 pub mod launched_programs;
 pub mod load;
 pub mod notification_toasts;
+pub mod output_windows;
 pub mod overlay_surfaces;
+pub mod panel_menus;
 pub mod screen_edges;
 pub mod scrolling;
 pub mod secrets;
 pub mod severity;
 pub mod spacing;
 pub mod theme;
+pub mod workspace_switcher;
 
 pub use load::{Config, ConfigFile, LoadError, config_home, default_config_toml};
 pub use secrets::{SecretPaths, SecretsConfig};

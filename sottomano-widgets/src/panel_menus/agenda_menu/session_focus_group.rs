@@ -23,7 +23,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::{Config, indicator_groups::session_focus::SessionFocusConfig};
+use sottomano_toml_config::{Config, panel_menus::agenda_menu::session_focus::SessionFocusConfig};
 
 use crate::{
     background_work::logged_failure_task,
@@ -189,7 +189,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger
-                .accounted(&config.indicator_groups.session_focus),
+                .accounted(&config.panel_menus.agenda.session_focus),
             snooze: self.snooze,
         }
     }
@@ -223,7 +223,7 @@ impl SessionFocusGroup {
             let accounting = self
                 .tracker
                 .ledger
-                .accounted(&config.indicator_groups.session_focus);
+                .accounted(&config.panel_menus.agenda.session_focus);
             vec![
                 Section::new(
                     "Last 24 hours",
@@ -246,7 +246,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger
-                .accounted(&config.indicator_groups.session_focus),
+                .accounted(&config.panel_menus.agenda.session_focus),
         }
     }
 
@@ -260,7 +260,7 @@ impl SessionFocusGroup {
         let accounting = self
             .tracker
             .ledger
-            .accounted(&config.indicator_groups.session_focus);
+            .accounted(&config.panel_menus.agenda.session_focus);
         let now = clock.utc();
         let mut windows: Vec<_> = compositor.windows.values().collect();
         windows.sort_by_key(|window| window.id);
@@ -291,7 +291,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger
-                .accounted(&config.indicator_groups.session_focus),
+                .accounted(&config.panel_menus.agenda.session_focus),
             window,
         };
         usage.body(clock.utc()).into_iter().collect()

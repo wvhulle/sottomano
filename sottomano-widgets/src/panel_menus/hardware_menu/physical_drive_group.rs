@@ -18,7 +18,9 @@ use sottomano_desktop_sources::{
         whole_disk_space_occupancy::{DiskOccupancyInputs, DiskSpaceOccupancy},
     },
 };
-use sottomano_toml_config::{Config, indicator_groups::temperature_sensors::SensorConfig};
+use sottomano_toml_config::{
+    Config, panel_menus::hardware_menu::temperature_sensors::SensorConfig,
+};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -223,7 +225,11 @@ impl PhysicalDriveGroup {
             DriveInteraction::Refresh(source) => {
                 return self.refresh(
                     &source,
-                    &config.indicator_groups.physical_drive.temperature_sensors,
+                    &config
+                        .panel_menus
+                        .hardware
+                        .physical_drive
+                        .temperature_sensors,
                 );
             }
         }

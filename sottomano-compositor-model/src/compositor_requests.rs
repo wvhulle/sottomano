@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use sottomano_toml_config::indicator_groups::gamepad_bindings::CompositorAction;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::CompositorAction;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompositorRequest {

@@ -22,7 +22,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Audio(group) => group.group_content(config),
             ShowcasedGroup::VoiceDictation(group) => group.group_content(),
             ShowcasedGroup::Caldav(group) => {
-                group.group_content(&config.indicator_groups.caldav, clock, locale)
+                group.group_content(&config.panel_menus.agenda.caldav, clock, locale)
             }
             ShowcasedGroup::Tailnet(group) => group.group_content(clock),
             ShowcasedGroup::WireguardTunnels(group) => group.group_content(),

@@ -254,7 +254,7 @@ impl ShellIndicatorGroups {
                 .map(Message::CiRuns),
             IndicatorGroupInteraction::SessionFocus(message) => self
                 .session_focus_group
-                .update(message, &config.indicator_groups.session_focus, clock)
+                .update(message, &config.panel_menus.agenda.session_focus, clock)
                 .map(Message::SessionFocus),
             IndicatorGroupInteraction::LoginSession(interaction) => self
                 .login_session_group

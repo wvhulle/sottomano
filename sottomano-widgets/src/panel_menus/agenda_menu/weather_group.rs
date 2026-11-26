@@ -207,7 +207,7 @@ impl WeatherGroup {
         };
         Some(RainForecast {
             sources,
-            alerts: &config.indicator_groups.weather.rain_alerts,
+            alerts: &config.panel_menus.agenda.weather.rain_alerts,
         })
     }
 

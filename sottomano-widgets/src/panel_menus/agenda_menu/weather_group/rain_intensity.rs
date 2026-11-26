@@ -7,7 +7,7 @@ use sottomano_desktop_sources::weather::{
     open_meteo_temperature::SkyWetness,
 };
 use sottomano_toml_config::{
-    indicator_groups::rain_alerts::{DEFAULT_RAIN_ALERTS, RainAlertsConfig},
+    panel_menus::agenda_menu::rain_alerts::{DEFAULT_RAIN_ALERTS, RainAlertsConfig},
     severity::Severity,
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};

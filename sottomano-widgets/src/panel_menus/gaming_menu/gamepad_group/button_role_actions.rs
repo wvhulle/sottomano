@@ -3,7 +3,7 @@ use std::iter::once;
 use notulist_client::DictationCommand;
 use sottomano_compositor_model::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::ButtonEdge;
-use sottomano_toml_config::indicator_groups::gamepad_bindings::ButtonRole;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::ButtonRole;
 
 use super::Action;
 

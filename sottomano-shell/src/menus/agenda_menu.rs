@@ -15,7 +15,7 @@ impl DesktopShell {
                     .clock_group
                     .group_content(self.clock, config.calendar.locale),
                 self.indicator_groups.caldav_group.group_content(
-                    &config.indicator_groups.caldav,
+                    &config.panel_menus.agenda.caldav,
                     self.clock,
                     config.calendar.locale,
                 ),

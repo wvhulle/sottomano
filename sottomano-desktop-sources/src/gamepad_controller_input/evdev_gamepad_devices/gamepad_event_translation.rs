@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use evdev::{AbsoluteAxisCode, Device, EventSummary, InputEvent, KeyCode};
-use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadButton, GamepadStick};
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::{
+    GamepadButton, GamepadStick,
+};
 
 use super::{ButtonEdge, PlaneAxis, RawGamepadEvent};
 

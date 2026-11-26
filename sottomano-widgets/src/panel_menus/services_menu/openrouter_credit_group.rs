@@ -323,7 +323,7 @@ fn account(
     config: &Config,
     buses: &DesktopBuses,
 ) -> OnBus<OpenRouterAccount> {
-    let budget = &config.indicator_groups.openrouter_credit;
+    let budget = &config.panel_menus.services.openrouter_credit;
     OnBus {
         buses: buses.clone(),
         inputs: OpenRouterAccount {
@@ -347,7 +347,8 @@ fn ranking_inputs(
         inputs: ModelRankingInputs {
             management_key,
             max_blended_per_million: config
-                .indicator_groups
+                .panel_menus
+                .services
                 .openrouter_credit
                 .max_blended_usd_per_million,
         },

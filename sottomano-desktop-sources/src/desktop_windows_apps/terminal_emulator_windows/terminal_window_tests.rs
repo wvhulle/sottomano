@@ -9,7 +9,7 @@ use sottomano_compositor_model::{
     compositor_window_facts::{WindowAppId, WindowPid, WindowTitle},
     compositor_window_state::{CompositorWindow, CompositorWindowState},
 };
-use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
+use sottomano_toml_config::output_windows::{TerminalAgentUse, WindowAgentsConfig};
 
 use super::{
     TerminalAgent, TerminalAgentAccess, TerminalLabelSource, TerminalWindow, TerminalWindowKey,

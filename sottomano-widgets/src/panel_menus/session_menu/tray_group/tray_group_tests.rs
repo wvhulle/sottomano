@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{
     Config,
-    indicator_groups::tray::{ClickAction, TrayRule},
+    panel_menus::session_menu::tray::{ClickAction, TrayRule},
 };
 
 use super::{

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use futures::{Stream, StreamExt, stream, stream::BoxStream};
-use sottomano_toml_config::indicator_groups::gamepad_bindings::VirtualPointerNeed;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::VirtualPointerNeed;
 use tokio::time::timeout_at;
 
 use super::{

@@ -19,7 +19,7 @@ use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
 };
 use sottomano_toml_config::{
-    Config, indicator_groups::memory_growth_trend::MemoryGrowthTrendConfig,
+    Config, panel_menus::hardware_menu::memory_growth_trend::MemoryGrowthTrendConfig,
 };
 
 use crate::{
@@ -155,9 +155,10 @@ impl MemoryBoardGroup {
                 self.swapped_processes.stop();
                 Task::none()
             }
-            MemoryBoardInteraction::Refresh(source) => {
-                Self::refresh(source, &config.indicator_groups.memory_board.growth_trend)
-            }
+            MemoryBoardInteraction::Refresh(source) => Self::refresh(
+                source,
+                &config.panel_menus.hardware.memory_board.growth_trend,
+            ),
         }
     }
 

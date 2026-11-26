@@ -173,7 +173,7 @@ impl DesktopShell {
     pub(crate) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
         self.indicator_groups
             .gamepad_group
-            .update(msg, &self.config.indicator_groups.gamepad)
+            .update(msg, &self.config.panel_menus.gaming.gamepad)
             .into_task()
     }
 

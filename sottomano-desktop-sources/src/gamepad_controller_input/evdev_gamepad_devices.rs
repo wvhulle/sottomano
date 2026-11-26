@@ -1,7 +1,9 @@
 use std::{collections::HashMap, path::Path};
 
 use evdev::{BusType, Device, InputId};
-use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadButton, GamepadStick};
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::{
+    GamepadButton, GamepadStick,
+};
 
 use super::{
     accelerometer_report_timing::ReportTiming,

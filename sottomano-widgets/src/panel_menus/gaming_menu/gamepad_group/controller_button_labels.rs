@@ -1,6 +1,6 @@
 use iced_controller_diagram::ControllerModel;
 use sottomano_desktop_sources::gamepad_controller_input::steam_dongle_hidraw::VALVE_USB_VENDOR;
-use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::GamepadButton;
 
 use crate::glyph_icons::{
     icon_glyph::IconGlyph,

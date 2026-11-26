@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
     },
     theme_icons::icon_requests::{IconRequest, tray_item_icon_request},
 };
-use sottomano_toml_config::{Config, indicator_groups::ElementVisibility};
+use sottomano_toml_config::{Config, element_visibility::ElementVisibility};
 
 use crate::{
     background_work::logged_failure_task,
@@ -279,7 +279,7 @@ impl TrayGroup {
             .into_iter()
             .flatten()
             .filter(|item| {
-                config.indicator_groups.tray.rule(&item.id).icon == ElementVisibility::Shown
+                config.panel_menus.session.tray.rule(&item.id).icon == ElementVisibility::Shown
             })
             .collect()
     }
@@ -295,11 +295,11 @@ impl TrayGroup {
             .into_iter()
             .map(|item| {
                 let item_window = TrayItemWindow::resolve(
-                    &config.indicator_groups.tray.rule(&item.id),
+                    &config.panel_menus.session.tray.rule(&item.id),
                     item,
                     window_matches,
                 );
-                let item_rule = config.indicator_groups.tray.rule(&item.id);
+                let item_rule = config.panel_menus.session.tray.rule(&item.id);
                 let press_actions = item_press_actions(&item_rule, &item_window);
                 GroupIndicator::composed(
                     item.name.clone(),

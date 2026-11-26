@@ -30,7 +30,9 @@ use sottomano_desktop_sources::{
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
 };
-use sottomano_toml_config::{Config, indicator_groups::temperature_sensors::SensorConfig};
+use sottomano_toml_config::{
+    Config, panel_menus::hardware_menu::temperature_sensors::SensorConfig,
+};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -219,7 +221,8 @@ impl ComputeGroup {
             ComputeInteraction::StartCoreTemperaturesFetch => {
                 self.core_temperatures.start_hover_fetch(
                     config
-                        .indicator_groups
+                        .panel_menus
+                        .hardware
                         .compute
                         .temperature_sensors
                         .overrides(),
@@ -232,9 +235,10 @@ impl ComputeGroup {
                 self.stop_hover_fetches();
                 Task::none()
             }
-            ComputeInteraction::Refresh(source) => {
-                Self::refresh(source, &config.indicator_groups.compute.temperature_sensors)
-            }
+            ComputeInteraction::Refresh(source) => Self::refresh(
+                source,
+                &config.panel_menus.hardware.compute.temperature_sensors,
+            ),
         }
     }
 
@@ -275,7 +279,7 @@ impl ComputeGroup {
 #[cfg(test)]
 mod tests {
     use iced::advanced::subscription::into_recipes;
-    use sottomano_toml_config::indicator_groups::temperature_sensors::SensorConfig;
+    use sottomano_toml_config::panel_menus::hardware_menu::temperature_sensors::SensorConfig;
 
     use super::{ComputeGroup, GroupSourceDemand, IndicatorGroupExpansionMessage};
     use crate::{

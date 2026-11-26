@@ -3,7 +3,7 @@ use sottomano_desktop_sources::weather::buienradar_rain::{
     Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour,
 };
 use sottomano_toml_config::{
-    indicator_groups::rain_alerts::{DEFAULT_RAIN_ALERTS, RainAlertsConfig},
+    panel_menus::agenda_menu::rain_alerts::{DEFAULT_RAIN_ALERTS, RainAlertsConfig},
     severity::Severity,
 };
 use uom::si::f64::Velocity;

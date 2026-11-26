@@ -132,7 +132,7 @@ impl ShowcasedGroup {
                 ShowcasedGroup::SessionFocus(group),
                 IndicatorGroupInteraction::SessionFocus(message),
             ) => {
-                let _ = group.update(message, &config.indicator_groups.session_focus, clock);
+                let _ = group.update(message, &config.panel_menus.agenda.session_focus, clock);
             }
             (guest_group, unclaimed) => return guest_group.interact_guest_group(unclaimed),
         }

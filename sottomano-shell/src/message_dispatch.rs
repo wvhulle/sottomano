@@ -72,7 +72,7 @@ impl DesktopShell {
                 .session_focus_group
                 .screen_power_changed(
                     edge,
-                    &self.config.indicator_groups.session_focus,
+                    &self.config.panel_menus.agenda.session_focus,
                     self.clock,
                 )
                 .map(Message::SessionFocus),

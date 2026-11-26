@@ -41,7 +41,7 @@ use sottomano_desktop_sources::{
         DeviceKernelError, device_kernel_error_windows,
     },
 };
-use sottomano_toml_config::indicator_groups::gamepad_bindings::{
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::{
     ButtonRole, GamepadBindingsConfig, GamepadButton,
 };
 

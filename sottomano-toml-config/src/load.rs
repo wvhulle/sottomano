@@ -14,10 +14,11 @@ use super::{
     group_menus::GroupMenusConfig,
     hover_cards::HoverCardsConfig,
     indicator_group_layout::IndicatorGroupLayoutConfig,
-    indicator_groups::IndicatorGroupsConfig,
     launched_programs::LaunchedPrograms,
     notification_toasts::NotificationToastsConfig,
+    output_windows::OutputWindowsConfig,
     overlay_surfaces::OverlaySurfacesConfig,
+    panel_menus::PanelMenusConfig,
     scrolling::ScrollingConfig,
     secrets::SecretsConfig,
     spacing::Spacing,
@@ -25,6 +26,7 @@ use super::{
         Theme, ThemeChoice,
         font::{self, FontError, FontRole},
     },
+    workspace_switcher::WorkspaceSwitcherConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -37,7 +39,9 @@ pub struct Config {
     pub scrolling: ScrollingConfig,
     pub hover_cards: HoverCardsConfig,
     pub overlay_surfaces: OverlaySurfacesConfig,
-    pub indicator_groups: IndicatorGroupsConfig,
+    pub panel_menus: PanelMenusConfig,
+    pub output_windows: OutputWindowsConfig,
+    pub workspace_switcher: WorkspaceSwitcherConfig,
     pub notification_toasts: NotificationToastsConfig,
     pub calendar: Calendar,
     pub launched_programs: LaunchedPrograms,
@@ -63,7 +67,9 @@ struct UserConfig {
     scrolling: ScrollingConfig,
     hover_cards: HoverCardsConfig,
     overlay_surfaces: OverlaySurfacesConfig,
-    indicator_groups: IndicatorGroupsConfig,
+    panel_menus: PanelMenusConfig,
+    output_windows: OutputWindowsConfig,
+    workspace_switcher: WorkspaceSwitcherConfig,
     notification_toasts: NotificationToastsConfig,
     calendar: CalendarChoice,
     launched_programs: LaunchedPrograms,
@@ -95,7 +101,9 @@ impl UserConfig {
             scrolling: self.scrolling,
             hover_cards: self.hover_cards,
             overlay_surfaces: self.overlay_surfaces,
-            indicator_groups: self.indicator_groups,
+            panel_menus: self.panel_menus,
+            output_windows: self.output_windows,
+            workspace_switcher: self.workspace_switcher,
             notification_toasts: self.notification_toasts,
             calendar: Calendar {
                 locale,
@@ -232,6 +240,10 @@ mod tests {
             (
                 "window_list",
                 "[indicator_groups.window_list]\nprogress = true\n",
+            ),
+            (
+                "indicator_groups",
+                "[indicator_groups.compute.temperature_sensors]\n",
             ),
             (
                 "content_inset",

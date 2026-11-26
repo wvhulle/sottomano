@@ -22,7 +22,7 @@ use sottomano_desktop_sources::{
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::{Config, indicator_groups::WindowAgentsConfig};
+use sottomano_toml_config::{Config, output_windows::WindowAgentsConfig};
 use window_list::{WindowList, WindowListInteraction, WindowListMessage};
 
 use crate::{

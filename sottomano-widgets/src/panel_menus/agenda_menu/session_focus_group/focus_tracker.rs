@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
+use sottomano_toml_config::panel_menus::agenda_menu::session_focus::SessionFocusConfig;
 
 use crate::panel_menus::agenda_menu::session_focus_group::sqlite_focus_spans;
 

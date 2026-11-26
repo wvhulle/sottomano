@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{
     Config,
-    indicator_groups::tray::{ClickAction, TrayRule},
+    panel_menus::session_menu::tray::{ClickAction, TrayRule},
 };
 
 use super::TrayMessage;
@@ -170,7 +170,7 @@ pub(super) fn item_view<'view>(
         glyph
     };
 
-    let rule = config.indicator_groups.tray.rule(&item.id);
+    let rule = config.panel_menus.session.tray.rule(&item.id);
     let left = click_message(rule.left_click, item_window, item);
     let middle = click_message(rule.middle_click, item_window, item);
     let right = click_message(rule.right_click, item_window, item);

@@ -1,5 +1,5 @@
 use sottomano_toml_config::{
-    indicator_groups::temperature_sensors::{Threshold, ThresholdOverrides},
+    panel_menus::hardware_menu::temperature_sensors::{Threshold, ThresholdOverrides},
     severity::Severity,
 };
 use uom::{

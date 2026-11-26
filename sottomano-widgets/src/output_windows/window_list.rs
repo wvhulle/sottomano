@@ -27,7 +27,8 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{
     Config,
-    indicator_groups::{ElementVisibility, TerminalAgentUse, WindowAgentsConfig},
+    element_visibility::ElementVisibility,
+    output_windows::{TerminalAgentUse, WindowAgentsConfig},
 };
 use window_process_hover::ProcessHover;
 use workspace_slide_tracking::{
@@ -45,8 +46,7 @@ use crate::{
 
 fn maximum_window_title_width_px(config: &Config) -> f32 {
     config
-        .indicator_groups
-        .window
+        .output_windows
         .maximum_window_title_width
         .resolve(config.theme.font.text_size_px)
 }
@@ -262,7 +262,7 @@ impl WindowList {
         audio: Option<&HashMap<i32, WindowAudio>>,
         config: &Config,
     ) -> Extras {
-        let window_config = &config.indicator_groups.window;
+        let window_config = &config.output_windows;
         let app_id = match &window_entry.app_id {
             WindowAppId::Reported(app_id) => Some(app_id.as_str()),
             WindowAppId::Unreported => None,

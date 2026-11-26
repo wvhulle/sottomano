@@ -21,7 +21,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::indicator_groups::reachability::ReachabilityConfig;
+use sottomano_toml_config::panel_menus::network_menu::reachability::ReachabilityConfig;
 
 use self::{
     connectivity_state_indicator::uplink_connectivity_indicator,

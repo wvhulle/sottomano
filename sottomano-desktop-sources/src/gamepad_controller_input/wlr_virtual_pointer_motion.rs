@@ -1,6 +1,6 @@
 use std::{io, time::Instant};
 
-use sottomano_toml_config::indicator_groups::gamepad_bindings::PointerButton;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::PointerButton;
 use wayrs_client::{Connection, protocol::wl_pointer::ButtonState};
 use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
     ZwlrVirtualPointerManagerV1, ZwlrVirtualPointerV1,

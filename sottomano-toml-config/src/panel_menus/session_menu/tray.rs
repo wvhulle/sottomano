@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::indicator_groups::ElementVisibility;
+use crate::element_visibility::ElementVisibility;
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

@@ -314,6 +314,6 @@ impl CopilotUsageGroup {
 fn cli_budget(config: &Config, working_days: WeekdaySet) -> SpendBudget {
     SpendBudget {
         pacing: SpendPacing::WorkingTime(WorkingTime::new(config, working_days)),
-        monthly_limit_usd: config.indicator_groups.copilot_usage.monthly_budget_usd,
+        monthly_limit_usd: config.panel_menus.services.copilot_usage.monthly_budget_usd,
     }
 }

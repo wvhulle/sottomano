@@ -22,7 +22,7 @@ use sottomano_compositor_model::compositor_window_state::{
     CompositorChange, CompositorWindowState,
 };
 use sottomano_compositors::compositor_connection::compositor_updates;
-use sottomano_toml_config::indicator_groups::{TerminalAgentUse, WindowAgentsConfig};
+use sottomano_toml_config::output_windows::{TerminalAgentUse, WindowAgentsConfig};
 use terminal_shell_label::TerminalShellLabel;
 use title_probe_pairing::Pairing;
 use tokio::task::spawn_blocking;

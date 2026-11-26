@@ -35,7 +35,7 @@ fn minutes_before(clock: Clock, minutes: u64) -> Clock {
 }
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    let focus_config = Config::default().indicator_groups.session_focus;
+    let focus_config = Config::default().panel_menus.agenda.session_focus;
     let mut group = SessionFocusGroup::started_at(&focus_config, minutes_before(clock, 230).utc());
     for (signal, minutes_ago) in [
         (focused(1, "kitty"), 230),

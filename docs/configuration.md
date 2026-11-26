@@ -99,7 +99,7 @@ surface_morph_duration = "160ms"
 typing_idle_delay = "750ms"
 typing_background_opacity = 0.3
 
-[indicator_groups.window]
+[output_windows]
 audio_indicator = "shown"
 progress = "shown"
 count_badge = "shown"
@@ -108,63 +108,63 @@ nixos_flake = "/etc/nixos"
 maximum_window_title_width = "200px"
 workspace_slide_duration = "250ms"
 
-[indicator_groups.window.agents]
+[output_windows.agents]
 kitty = "enabled"
 wezterm = "enabled"
 pty_shells = "enabled"
 
-[indicator_groups.workspaces]
+[workspace_switcher]
 preview_scale = 0.19
 
-[indicator_groups.tray.items.Signal_status_icon_1]
+[panel_menus.session.tray.items.Signal_status_icon_1]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "signal"
 
-[indicator_groups.tray.items.spotify-client]
+[panel_menus.session.tray.items.spotify-client]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "spotify"
 
-[indicator_groups.tray.items.steam]
+[panel_menus.session.tray.items.steam]
 icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "steam"
 
-[indicator_groups.compute.temperature_sensors]
+[panel_menus.hardware.compute.temperature_sensors]
 
-[indicator_groups.memory_board.growth_trend]
+[panel_menus.hardware.memory_board.growth_trend]
 trend_window = "2m"
 warning_when_full_within = "5m"
 critical_when_full_within = "1m"
 
-[indicator_groups.physical_drive.temperature_sensors]
+[panel_menus.hardware.physical_drive.temperature_sensors]
 
-[indicator_groups.systemd_manager]
+[panel_menus.services.systemd_manager]
 slow_job = "10s"
 slow_boot_unit = "5s"
 slow_shutdown_stop = "5s"
 slower_boot_warning_percent = 25
 slower_boot_critical_percent = 60
 
-[indicator_groups.claude_usage]
+[panel_menus.services.claude_usage]
 monthly_budget_usd = 200
 
-[indicator_groups.copilot_usage]
+[panel_menus.services.copilot_usage]
 monthly_budget_usd = 40
 
-[indicator_groups.openrouter_credit]
+[panel_menus.services.openrouter_credit]
 monthly_budget_usd = 20
 daily_warning_usd = 5
 max_blended_usd_per_million = 4.0
 
-[indicator_groups.session_focus]
+[panel_menus.agenda.session_focus]
 idle_detection_delay = "30s"
 shortest_counted_focus = "1s"
 idle_after = "3m"
@@ -177,33 +177,33 @@ switch_heat_span = "30m"
 switch_heat_warning = 20
 switch_heat_critical = 32
 
-[indicator_groups.session_focus.app_daily_budget_minutes]
+[panel_menus.agenda.session_focus.app_daily_budget_minutes]
 
-[indicator_groups.session_focus.project_daily_budget_minutes]
+[panel_menus.agenda.session_focus.project_daily_budget_minutes]
 
-[indicator_groups.weather.rain_alerts]
+[panel_menus.agenda.weather.rain_alerts]
 lead_time = "15m"
 minimum_millimeters_per_hour = 0.5
 heavy_millimeters_per_hour = 4.0
 
-[indicator_groups.reachability]
+[panel_menus.network.reachability]
 latency_target = "1.1.1.1"
 metered_cycle_start_day = 1
 
-[indicator_groups.gamepad.navigation]
+[panel_menus.gaming.gamepad.navigation]
 stick = "left"
 up = "focus_workspace_up"
 down = "focus_workspace_down"
 left = "focus_left"
 right = "focus_right"
 
-[indicator_groups.gamepad.pointer]
+[panel_menus.gaming.gamepad.pointer]
 stick = "right"
 pixels_per_second = 1600
 left_button = "right_trigger"
 right_button = "right_stick"
 
-[indicator_groups.gamepad.typed_keys]
+[panel_menus.gaming.gamepad.typed_keys]
 south = "Return"
 east = "BackSpace"
 north = "shift+Tab"
@@ -214,19 +214,19 @@ dpad_left = "Left"
 dpad_right = "Right"
 back = "Tab"
 
-[indicator_groups.gamepad.compositor_actions]
+[panel_menus.gaming.gamepad.compositor_actions]
 left_shoulder = "move_left"
 right_shoulder = "move_right"
 start = "maximize"
 guide = "toggle_overview"
 left_stick = "focus_previous_window"
 
-[indicator_groups.gamepad.commands]
+[panel_menus.gaming.gamepad.commands]
 
-[indicator_groups.gamepad.push_to_talk]
+[panel_menus.gaming.gamepad.push_to_talk]
 button = "left_trigger"
 
-[indicator_groups.caldav]
+[panel_menus.agenda.caldav]
 server_url = ""
 user = ""
 upcoming_days = 7
@@ -234,7 +234,7 @@ change_poll_interval = "1m"
 push_safety_recheck_interval = "15m"
 subscription_download_interval = "15m"
 
-[indicator_groups.media.lyrics]
+[panel_menus.media.media.lyrics]
 lrclib_lookup = "enabled"
 
 [notification_toasts.placement]

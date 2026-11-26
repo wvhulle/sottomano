@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use sottomano_toml_config::indicator_groups::gamepad_bindings::GamepadButton;
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::GamepadButton;
 
 use super::*;
 use crate::{

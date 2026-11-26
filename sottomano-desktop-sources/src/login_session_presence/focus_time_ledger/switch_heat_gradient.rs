@@ -62,7 +62,7 @@ mod tests {
     use chrono::TimeDelta;
     use color::{AlphaColor, Oklab, Srgb};
     use sottomano_toml_config::{
-        indicator_groups::session_focus::SessionFocusConfig, theme::palette::Palette,
+        panel_menus::agenda_menu::session_focus::SessionFocusConfig, theme::palette::Palette,
     };
 
     use super::super::{

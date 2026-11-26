@@ -7,7 +7,9 @@ use std::{
 
 use futures::{Stream, StreamExt, stream};
 use sottomano_toml_config::{
-    indicator_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
+    panel_menus::hardware_menu::temperature_sensors::{
+        SensorChoice, SensorConfig, ThresholdOverrides,
+    },
     severity::Severity,
 };
 use tokio::task::spawn_blocking;

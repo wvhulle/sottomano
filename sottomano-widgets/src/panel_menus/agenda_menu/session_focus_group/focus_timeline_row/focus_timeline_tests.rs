@@ -6,7 +6,7 @@ use sottomano_desktop_sources::login_session_presence::{
     focus_time_ledger::{FocusLedger, FocusProject, FocusSignal, Focused, Interval, ScreenEdge},
     logind_manager::SleepEdge,
 };
-use sottomano_toml_config::indicator_groups::session_focus::SessionFocusConfig;
+use sottomano_toml_config::panel_menus::agenda_menu::session_focus::SessionFocusConfig;
 
 use super::{DueMoment, FocusTimeline, RunOffset, SessionDue};
 use crate::panel_menus::agenda_menu::session_focus_group::{

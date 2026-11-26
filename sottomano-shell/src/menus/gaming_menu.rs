@@ -10,7 +10,7 @@ impl DesktopShell {
         let controller_groups = self
             .indicator_groups
             .gamepad_group
-            .group_contents(&self.config.indicator_groups.gamepad, self.clock);
+            .group_contents(&self.config.panel_menus.gaming.gamepad, self.clock);
         let steam_groups = steam_client_groups.group_contents(
             self.clock,
             self.config.calendar.locale,

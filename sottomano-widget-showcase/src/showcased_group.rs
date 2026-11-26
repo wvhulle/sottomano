@@ -5,7 +5,8 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::desktop_entries::DesktopEntries,
 };
 use sottomano_toml_config::{
-    Config, indicator_groups::gamepad_bindings::GamepadBindingsConfig, screen_edges::Position,
+    Config, panel_menus::gaming_menu::gamepad_bindings::GamepadBindingsConfig,
+    screen_edges::Position,
 };
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMenu,

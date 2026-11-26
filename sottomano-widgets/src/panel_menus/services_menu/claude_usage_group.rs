@@ -138,7 +138,7 @@ impl ClaudeUsageGroup {
         ClaudeLocalLogs {
             budget: SpendBudget {
                 pacing: SpendPacing::CalendarTime,
-                monthly_limit_usd: config.indicator_groups.claude_usage.monthly_budget_usd,
+                monthly_limit_usd: config.panel_menus.services.claude_usage.monthly_budget_usd,
             },
             credentials: self.oauth_credentials.clone(),
         }

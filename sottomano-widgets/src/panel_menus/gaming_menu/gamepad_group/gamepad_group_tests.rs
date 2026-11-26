@@ -2,7 +2,9 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     evdev_gamepad_devices::{GamepadPower, InputRoute, UsbCableState},
     player_indicator_leds::{LitPlayer, PlayerIndicator},
 };
-use sottomano_toml_config::indicator_groups::gamepad_bindings::{GamepadStick, StickDirection};
+use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::{
+    GamepadStick, StickDirection,
+};
 
 use super::{
     button_role_actions::typed_key_command, connected_controller_indicator::ControllerMarking, *,

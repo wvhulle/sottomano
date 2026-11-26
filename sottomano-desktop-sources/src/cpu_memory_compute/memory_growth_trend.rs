@@ -11,7 +11,7 @@ use procfs::{
     process::{Process, all_processes},
 };
 use sottomano_toml_config::{
-    indicator_groups::memory_growth_trend::MemoryGrowthTrendConfig, severity::Severity,
+    panel_menus::hardware_menu::memory_growth_trend::MemoryGrowthTrendConfig, severity::Severity,
 };
 
 use crate::{

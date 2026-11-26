@@ -27,7 +27,8 @@ use sottomano_desktop_sources::{
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::{
-    SecretPaths, indicator_groups::caldav_account::CaldavAccountConfig, secrets::StoredSecret,
+    SecretPaths, panel_menus::agenda_menu::caldav_account::CaldavAccountConfig,
+    secrets::StoredSecret,
 };
 
 use crate::{

@@ -84,7 +84,7 @@ impl<'view> WorkspaceSchematic<'view> {
     }
 
     fn screen_geometry_view(&self, tiles: &[PlacedPreviewTile]) -> Element<'static, PopupMessage> {
-        let scale = self.config.indicator_groups.workspaces.preview_scale;
+        let scale = self.config.workspace_switcher.preview_scale;
         Stack::with_children(tiles.iter().map(|placed| {
             container(self.tile(&placed.tile))
                 .padding(Padding {
@@ -99,8 +99,7 @@ impl<'view> WorkspaceSchematic<'view> {
     }
 
     fn tile_gap(&self) -> f32 {
-        self.preview.app_window_layout.gaps_px
-            * self.config.indicator_groups.workspaces.preview_scale
+        self.preview.app_window_layout.gaps_px * self.config.workspace_switcher.preview_scale
     }
 
     fn column(&self, tiles: &[PreviewTile]) -> Element<'static, PopupMessage> {
@@ -110,7 +109,7 @@ impl<'view> WorkspaceSchematic<'view> {
     }
 
     fn tile(&self, tile: &PreviewTile) -> Element<'static, PopupMessage> {
-        let scale = self.config.indicator_groups.workspaces.preview_scale;
+        let scale = self.config.workspace_switcher.preview_scale;
         let side = self.config.theme.font.icon_size_px;
         let width = (tile.tile_size.width * scale).max(side);
         let height = (tile.tile_size.height * scale).max(side);

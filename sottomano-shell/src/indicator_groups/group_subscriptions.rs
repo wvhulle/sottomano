@@ -57,15 +57,15 @@ impl ShellIndicatorGroups {
                 .subscription(buses)
                 .map(Message::Wallpaper),
             self.caldav_group
-                .subscription(&config.indicator_groups.caldav, buses)
+                .subscription(&config.panel_menus.agenda.caldav, buses)
                 .map(Message::Caldav),
             self.compute_group
                 .subscription(
-                    &config.indicator_groups.compute.temperature_sensors,
+                    &config.panel_menus.hardware.compute.temperature_sensors,
                     source_demand(IndicatorGroupFamily::Compute),
                 )
                 .map(Message::Compute),
-            MemoryBoardGroup::subscription(&config.indicator_groups.memory_board.growth_trend)
+            MemoryBoardGroup::subscription(&config.panel_menus.hardware.memory_board.growth_trend)
                 .map(Message::MemoryBoard),
             self.gpu_group.subscription().map(Message::Gpu),
             self.storage_space_group
@@ -73,7 +73,11 @@ impl ShellIndicatorGroups {
                 .map(Message::Storage),
             self.physical_drive_group
                 .subscription(
-                    &config.indicator_groups.physical_drive.temperature_sensors,
+                    &config
+                        .panel_menus
+                        .hardware
+                        .physical_drive
+                        .temperature_sensors,
                     source_demand(IndicatorGroupFamily::PhysicalDrive),
                 )
                 .map(Message::Drive),
@@ -85,7 +89,7 @@ impl ShellIndicatorGroups {
             TrayGroup::subscription().map(Message::Tray),
             AudioGroup::subscription().map(Message::Audio),
             self.gamepad_group
-                .subscription(&config.indicator_groups.gamepad)
+                .subscription(&config.panel_menus.gaming.gamepad)
                 .map(Message::Gamepad),
             self.claude_usage_group
                 .subscription(config, working_days, buses)
@@ -94,9 +98,8 @@ impl ShellIndicatorGroups {
             self.openrouter_credit_group
                 .subscription(config, buses)
                 .map(Message::OpenRouterCredit),
-            OutputWindows::subscription(&config.indicator_groups.window.agents)
-                .map(Message::OutputWindows),
-            SessionFocusGroup::subscription(&config.indicator_groups.session_focus)
+            OutputWindows::subscription(&config.output_windows.agents).map(Message::OutputWindows),
+            SessionFocusGroup::subscription(&config.panel_menus.agenda.session_focus)
                 .map(Message::SessionFocus),
             self.incus_instances_group
                 .subscription(source_demand(IndicatorGroupFamily::IncusInstances))
@@ -140,17 +143,17 @@ impl ShellIndicatorGroups {
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
             IdlePauseGroups::subscription(
                 buses,
-                config.indicator_groups.session_focus.idle_detection_delay,
+                config.panel_menus.agenda.session_focus.idle_detection_delay,
             )
             .map(Message::IdleTimeouts),
-            SystemdManagerGroup::subscription(&config.indicator_groups.systemd_manager, buses)
+            SystemdManagerGroup::subscription(&config.panel_menus.services.systemd_manager, buses)
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
             self.virtualization_bus_subscriptions(buses),
             self.ci_runs_group.subscription(buses).map(Message::CiRuns),
             self.reachability_group
                 .subscription(
-                    &config.indicator_groups.reachability,
+                    &config.panel_menus.network.reachability,
                     buses,
                     source_demand(IndicatorGroupFamily::Reachability),
                 )
@@ -186,7 +189,7 @@ impl ShellIndicatorGroups {
             self.media_group
                 .subscription(
                     buses,
-                    &config.indicator_groups.media.lyrics,
+                    &config.panel_menus.media.media.lyrics,
                     &source_demand(IndicatorGroupFamily::Media),
                 )
                 .map(Message::Media),

@@ -106,7 +106,7 @@ impl ShellIndicatorGroups {
                 .map(Message::BluetoothAdapters),
             Message::Reachability(delivery) => self
                 .reachability_group
-                .update(delivery, &config.indicator_groups.reachability, clock)
+                .update(delivery, &config.panel_menus.network.reachability, clock)
                 .map(Message::Reachability),
             Message::Tailnet(delivery) => self
                 .tailnet_group
@@ -154,7 +154,7 @@ impl ShellIndicatorGroups {
                 .map(Message::CiRuns),
             Message::SessionFocus(delivery) => self
                 .session_focus_group
-                .update(delivery, &config.indicator_groups.session_focus, clock)
+                .update(delivery, &config.panel_menus.agenda.session_focus, clock)
                 .map(Message::SessionFocus),
             Message::LoginSession(delivery) => self
                 .login_session_group
