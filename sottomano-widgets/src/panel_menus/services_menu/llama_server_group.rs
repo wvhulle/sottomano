@@ -1,12 +1,12 @@
 use crate::group_indicators::{
     indicator_group_content::IndicatorListing, indicator_state::IndicatorState,
 };
-mod context_fill_gauge;
-mod generation_rate_label;
+mod context_fill_indicator;
+mod generation_rate_indicator;
 mod gguf_model_card_sections;
-mod loaded_model_label;
+mod loaded_model_indicator;
 mod scoped_servers;
-mod slot_occupancy_gauge;
+mod slot_occupancy_indicator;
 
 use std::borrow::Cow;
 
@@ -51,7 +51,7 @@ const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {
 use crate::{
     panel_menus::services_menu::llama_server_group::{
         gguf_model_card_sections::gguf_model_card_sections,
-        loaded_model_label::llama_model_props_sections,
+        loaded_model_indicator::llama_model_props_sections,
     },
     widgets::huggingface_hub_sections::hugging_face_model_card_sections,
 };

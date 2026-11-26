@@ -2,6 +2,7 @@ use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::
     ArticleSummary, PlaceArticle, WikipediaArticle,
 };
 
+use super::WallpaperGroup;
 use crate::{
     glyph_icons::simple_icons::SimpleIcon,
     group_indicators::{
@@ -86,5 +87,19 @@ impl From<&PlaceArticle> for WallpaperArticle {
             PlaceArticle::Found(article) => WallpaperArticle::Found(Article::from(article)),
             PlaceArticle::Unmatched => WallpaperArticle::Unmatched,
         }
+    }
+}
+
+impl WallpaperGroup {
+    pub(super) fn article_rows(&self) -> Vec<GroupIndicator<'_>> {
+        let Some(lookup) = self.lookup.get() else {
+            return Vec::new();
+        };
+        let WallpaperArticle::Found(article) = &lookup.article else {
+            return Vec::new();
+        };
+        vec![article.indicator().with_hover_card(Box::new(move |_| {
+            self.lookup.hover_card_with(article.hover_card())
+        }))]
     }
 }

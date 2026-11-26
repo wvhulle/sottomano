@@ -1,3 +1,4 @@
+mod karaoke_lyric_line;
 use std::time::{Duration, Instant};
 
 use corredo::changing_text::KaraokeColors;
@@ -23,7 +24,7 @@ use crate::{
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
-    panel_menus::media_menu::media_group::karaoke_lyric_line::{
+    panel_menus::media_menu::media_group::lyrics_indicator::karaoke_lyric_line::{
         INSTRUMENTAL_BREAK_MARK, KaraokeLyricLine, PlaybackPosition,
     },
     widgets::{

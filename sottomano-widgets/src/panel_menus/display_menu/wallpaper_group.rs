@@ -1,6 +1,6 @@
-mod article_label;
-mod photo_credit;
-mod place_label;
+mod article_indicator;
+mod photo_credit_indicator;
+mod place_indicator;
 pub mod wallpaper_lookup;
 
 use iced::{Subscription, Task};
@@ -10,9 +10,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{SecretPaths, secrets::StoredSecret};
 
-use self::{
-    article_label::WallpaperArticle, place_label::WallpaperPlace, wallpaper_lookup::Lookup,
-};
+use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
@@ -28,7 +26,7 @@ use crate::{
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
-const WALLPAPER_GLYPH: Phosphor = Phosphor::Image(Weight::Regular);
+pub(super) const WALLPAPER_GLYPH: Phosphor = Phosphor::Image(Weight::Regular);
 
 pub struct WallpaperGroup {
     lookup: SubscribedSnapshot<Lookup>,
@@ -91,35 +89,23 @@ impl WallpaperGroup {
                 WALLPAPER_GLYPH.into(),
             )
             .with_headline_glyph(Phosphor::Mountains(Weight::Regular).into());
-        let mut lead_indicators = Vec::new();
-        if !self.lookup.awaits_first_delivery() {
-            lead_indicators.push(self.lookup.indicator(
-                |held_snapshot| held_snapshot.indicator(),
-                WALLPAPER_GLYPH.into(),
-            ));
-        }
-        let mut rows = Vec::new();
-        if let Some(lookup) = self.lookup.get() {
-            if let WallpaperPlace::Named(place) = &lookup.place {
-                rows.push(place.indicator().with_hover_card(Box::new(move |_| {
-                    self.lookup.hover_card_with(place.hover_card())
-                })));
-            }
-            if let WallpaperArticle::Found(article) = &lookup.article {
-                rows.push(article.indicator().with_hover_card(Box::new(move |_| {
-                    self.lookup.hover_card_with(article.hover_card())
-                })));
-            }
-            rows.push(lookup.photo.indicator().with_hover_card(Box::new(move |_| {
-                self.lookup.hover_card_with(lookup.photo.hover_card())
-            })));
-        }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Wallpaper,
             headline_indicator,
             &self.expansion,
             IndicatorGroupInteraction::Wallpaper,
-            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
+            [
+                self.lookup_listing(),
+                IndicatorListing::Listed(
+                    self.place_rows()
+                        .into_iter()
+                        .chain(self.article_rows())
+                        .chain(self.photo_credit_rows())
+                        .collect(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         )
     }
 }

@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadPower;
+use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::{
+    ConnectedGamepad, GamepadPower, GamepadTransport, PhysicalGamepadLink,
+};
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
@@ -94,4 +96,23 @@ impl ControllerBatteryIndicator {
 pub enum BatteryLevel {
     Low,
     Comfortable,
+}
+
+impl ControllerBatteryIndicator {
+    pub(super) fn battery_rows<'view>(
+        gamepad: &ConnectedGamepad,
+        link: &PhysicalGamepadLink,
+    ) -> Vec<GroupIndicator<'view>> {
+        if matches!(link.transport, GamepadTransport::Bluetooth { .. })
+            || gamepad.power == GamepadPower::NoBattery
+        {
+            return Vec::new();
+        }
+        vec![
+            ControllerBatteryIndicator {
+                power: gamepad.power,
+            }
+            .indicator(),
+        ]
+    }
 }

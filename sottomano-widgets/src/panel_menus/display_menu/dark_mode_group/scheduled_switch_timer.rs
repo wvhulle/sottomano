@@ -4,7 +4,7 @@ use tokio::time::sleep;
 
 use super::{DarkModeGroup, DarkModeMessage, SWITCH_TIMER_MARGIN};
 use crate::{
-    clock::Clock, panel_menus::display_menu::dark_mode_group::auto_switch_toggle::ScheduleStatus,
+    clock::Clock, panel_menus::display_menu::dark_mode_group::auto_switch_indicator::ScheduleStatus,
 };
 
 pub(super) enum SwitchTimer {

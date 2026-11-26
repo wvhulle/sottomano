@@ -1,5 +1,9 @@
+use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::{
+    GamepadTransport, PhysicalGamepadLink, UsbCableState,
+};
 use sottomano_toml_config::severity::Severity;
 
+use super::GamepadInteraction;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -65,5 +69,35 @@ impl UsbCableIndicator {
                 ),
             ],
         }
+    }
+}
+
+impl UsbCableIndicator {
+    pub(super) fn cable_rows(slot: usize, link: &PhysicalGamepadLink) -> Vec<GroupIndicator<'_>> {
+        let Some(cable_role) = usb_cable_role(link.transport) else {
+            return Vec::new();
+        };
+        let cable_indicator = UsbCableIndicator { role: cable_role }.indicator();
+        vec![match cable_role {
+            UsbCableRole::ChargingOnly => cable_indicator.on_press(
+                "disconnect Bluetooth so the cable can take over",
+                GamepadInteraction::DisconnectBluetooth { slot },
+            ),
+            UsbCableRole::InputAndCharging => cable_indicator,
+        }]
+    }
+}
+
+fn usb_cable_role(transport: GamepadTransport) -> Option<UsbCableRole> {
+    match transport {
+        GamepadTransport::Usb => Some(UsbCableRole::InputAndCharging),
+        GamepadTransport::Bluetooth {
+            usb_cable: UsbCableState::IgnoredByKernel,
+        } => Some(UsbCableRole::ChargingOnly),
+        GamepadTransport::Bluetooth {
+            usb_cable: UsbCableState::Absent,
+        }
+        | GamepadTransport::SteamDongle
+        | GamepadTransport::Other => None,
     }
 }

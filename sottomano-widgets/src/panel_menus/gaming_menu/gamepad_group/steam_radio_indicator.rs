@@ -1,5 +1,8 @@
 use sottomano_desktop_sources::{
-    gamepad_controller_input::steam_input_facts::{FirmwareStatus, SteamInputFacts},
+    gamepad_controller_input::{
+        evdev_gamepad_devices::{GamepadTransport, InputRoute, PhysicalGamepadLink},
+        steam_input_facts::{RadioReading, SteamInputFacts},
+    },
     steam_client_files::steam_log_lines::controller_log_lines::RadioSignalSample,
 };
 
@@ -58,50 +61,18 @@ impl SteamRadioIndicator {
     }
 }
 
-pub struct SteamFirmwareIndicator {
-    pub facts: SteamInputFacts,
-}
-
-impl SteamFirmwareIndicator {
-    #[must_use]
-    pub fn has_pending_update(facts: &SteamInputFacts) -> bool {
-        facts.controller_firmware == FirmwareStatus::UpdatePending
-            || facts.dongle_firmware == FirmwareStatus::UpdatePending
-    }
-
-    fn pending_hardware(&self) -> Vec<LabeledValue> {
-        [
-            (self.facts.controller_firmware, "Controller"),
-            (self.facts.dongle_firmware, "Puck dongle"),
-        ]
-        .into_iter()
-        .filter(|(status, _)| *status == FirmwareStatus::UpdatePending)
-        .map(|(_, hardware)| LabeledValue::new(hardware, "update available"))
-        .collect()
-    }
-
-    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
-        GroupIndicator::glyph_only(
-            "Firmware update",
-            Phosphor::ArrowCircleUp(Weight::Regular).into(),
-            IndicatorState::Warning,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled("firmware update".to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| {
-            vec![
-                Section::new("Firmware", dictionary_table(self.pending_hardware())),
-                Section::new(
-                    "Reported by Steam",
-                    SectionWidget::paragraph(
-                        "Steam's hardware updater found newer firmware during its last check."
-                            .to_owned(),
-                    ),
-                ),
-            ]
-        }))
+impl SteamRadioIndicator {
+    pub(super) fn radio_rows<'view>(link: &PhysicalGamepadLink) -> Vec<GroupIndicator<'view>> {
+        if matches!(link.transport, GamepadTransport::Bluetooth { .. }) {
+            return Vec::new();
+        }
+        let InputRoute::SteamInput(SteamInputFacts {
+            radio: RadioReading::Measured(signal),
+            ..
+        }) = link.input_route
+        else {
+            return Vec::new();
+        };
+        vec![SteamRadioIndicator { signal }.indicator()]
     }
 }

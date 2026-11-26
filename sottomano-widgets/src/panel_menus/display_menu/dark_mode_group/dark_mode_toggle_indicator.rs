@@ -6,6 +6,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output::WatchedCommandError,
 };
 
+use super::{DarkModeGroup, DarkModeInteraction, DarkModeSource};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -52,5 +53,29 @@ impl ToggleableSource for DarkMode {
             ColorMode::Dark => "switch apps and the desktop to the light theme",
             ColorMode::Light => "switch apps and the desktop to the dark theme",
         }
+    }
+}
+
+impl DarkModeGroup {
+    pub(super) fn mode_toggle_rows<'view>(
+        &'view self,
+        mode: &'view DarkMode,
+    ) -> Vec<GroupIndicator<'view>> {
+        self.wired_mode_toggle_indicator(dark_mode_indicator(mode))
+            .on_switch_press(
+                mode.switch_position(),
+                mode.press_action_text(),
+                DarkModeInteraction::ModeTogglePressed,
+            )
+            .when_shown()
+    }
+
+    fn wired_mode_toggle_indicator<'view>(
+        &'view self,
+        mode_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        mode_indicator
+            .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
+            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }
 }

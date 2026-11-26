@@ -1,13 +1,16 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use sottomano_desktop_sources::{
     gamepad_controller_input::{
-        accelerometer_report_timing::DeviceClock, evdev_gamepad_devices::GamepadTransport,
+        accelerometer_report_timing::DeviceClock,
+        evdev_gamepad_devices::{GamepadTransport, InputRoute, PhysicalGamepadLink},
     },
+    system_protocol_clients::journal_follow::unexpired_events,
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 
+use super::{GamepadGroup, wifi_band_use::WifiBandUse};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -199,6 +202,51 @@ pub enum WifiBand {
 enum LinkStability {
     Unstable,
     Stable,
+}
+
+impl GamepadGroup {
+    pub(super) fn controller_link_rows<'view>(
+        &'view self,
+        slot: usize,
+        link: &'view PhysicalGamepadLink,
+        now: SystemTime,
+    ) -> Vec<GroupIndicator<'view>> {
+        if matches!(link.transport, GamepadTransport::Bluetooth { .. })
+            || link.input_route != InputRoute::Kernel
+        {
+            return Vec::new();
+        }
+        vec![self.link_indicator(slot, link, now).indicator()]
+    }
+
+    fn link_indicator<'view>(
+        &'view self,
+        slot: usize,
+        link: &'view PhysicalGamepadLink,
+        now: SystemTime,
+    ) -> ControllerLinkIndicator<'view> {
+        ControllerLinkIndicator {
+            transport: link.transport,
+            report_timing: self.report_timings.get(&slot).copied().map_or(
+                MeasuredReportTiming::Pending,
+                MeasuredReportTiming::Measured,
+            ),
+            kernel_errors: unexpired_events(&self.kernel_errors, now)
+                .filter(|error| error.kernel_device == link.kernel_device)
+                .collect(),
+            band_sharing: match &self.wifi_band_use {
+                WifiBandUse::ClearOfBluetooth => BandSharing::NoConflict,
+                WifiBandUse::SharingBluetoothBand {
+                    network_name,
+                    frequency,
+                } => BandSharing::SharedWithWifi {
+                    network_name,
+                    frequency: *frequency,
+                    wired_fallback: self.wired_fallback,
+                },
+            },
+        }
+    }
 }
 
 #[cfg(test)]

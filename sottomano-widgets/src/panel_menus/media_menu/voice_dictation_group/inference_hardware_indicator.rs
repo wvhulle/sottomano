@@ -1,6 +1,6 @@
 use notulist_client::DictationEngine;
 
-use super::speech_model_indicator::non_empty;
+use super::{VoiceDictationGroup, VoiceDictationSource, speech_model_indicator::non_empty};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -85,6 +85,22 @@ enum InferenceDevice {
     IntelGpu,
     OtherGpu,
     Processor,
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn inference_hardware_rows(&self) -> Vec<GroupIndicator<'_>> {
+        self.loaded_engine()
+            .map(|loaded| {
+                inference_hardware_indicator(loaded)
+                    .with_hover_card(Box::new(move |_| {
+                        self.engine
+                            .hover_card_with(inference_hardware_hover_card(loaded))
+                    }))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine))
+            })
+            .into_iter()
+            .collect()
+    }
 }
 
 #[cfg(test)]

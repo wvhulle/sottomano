@@ -34,29 +34,26 @@ use crate::{
     },
 };
 
-pub mod confirm_button;
-pub mod karaoke_lyric_line;
+mod lyrics_indicator;
 #[cfg(test)]
 mod media_group_tests;
 mod media_source_subscriptions;
 mod player_commands;
 mod player_failure_group;
 mod player_group;
-mod seek_bar;
-mod session_controls;
-mod synced_lyrics_view;
+mod seek_indicator;
+mod session_button_indicator;
 #[cfg(test)]
 mod test_players;
-mod track_face;
-mod track_hover_card;
-mod transport_controls;
+mod track_indicator;
+mod transport_indicator;
 
 use self::{
     player_commands::{raise, raise_by_mpris, send},
     player_failure_group::player_failure_group,
     player_group::player_group,
-    seek_bar::{SeekBar, seek_by},
-    track_face::cover_art_load,
+    seek_indicator::{SeekBar, seek_by},
+    track_indicator::cover_art_load,
 };
 
 const RAISE_PLAYER_HINT: &str = "bring the player's window forward";

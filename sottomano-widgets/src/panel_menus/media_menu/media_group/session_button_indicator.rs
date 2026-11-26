@@ -1,3 +1,4 @@
+mod confirm_button;
 use corredo::press_actions::ConfirmStage;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, CommandOffer, Media, Status,
@@ -13,7 +14,7 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::{MouseGesture, PressAction},
-    panel_menus::media_menu::media_group::confirm_button::configured_confirm_button,
+    panel_menus::media_menu::media_group::session_button_indicator::confirm_button::configured_confirm_button,
 };
 
 fn stop_indicator(media: &Media) -> Option<GroupIndicator<'_>> {

@@ -1,4 +1,5 @@
 mod button_role_actions;
+mod compositor_driving_indicator;
 mod connected_controller_indicator;
 mod controller_battery_indicator;
 pub mod controller_button_labels;
@@ -9,8 +10,9 @@ mod diagram_anchor_mapping;
 #[cfg(test)]
 mod gamepad_group_tests;
 mod sqlite_compositor_driving_controllers;
+mod steam_firmware_indicator;
 mod steam_input_route;
-mod steam_radio_firmware_indicators;
+mod steam_radio_indicator;
 mod usb_cable_indicator;
 mod wifi_band_use;
 use std::collections::{BTreeMap, BTreeSet};

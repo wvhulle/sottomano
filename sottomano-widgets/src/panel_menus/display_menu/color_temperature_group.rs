@@ -1,7 +1,9 @@
 use crate::group_indicators::{
     indicator_group_content::IndicatorListing, indicator_state::IndicatorState,
 };
-mod sun_follow_toggle;
+mod dim_indicator;
+mod sun_follow_indicator;
+mod warmth_indicator;
 
 use std::ops::RangeInclusive;
 
@@ -15,7 +17,7 @@ use sottomano_desktop_sources::{
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
 };
 use sottomano_toml_config::Config;
-use sun_follow_toggle::SUN_FOLLOW;
+use sun_follow_indicator::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
 
 use crate::{
@@ -30,10 +32,9 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
+        unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
@@ -234,48 +235,12 @@ impl ColorTemperatureGroup {
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
         let gamma_available = self.gamma.get().is_some();
-        let mut rows = Vec::new();
-        if gamma_available {
-            rows.push(
-                GroupIndicator::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
-                    .with_hover_card(Box::new(move |_| {
-                        self.gamma.hover_card_with(vec![Section::new(
-                            "Setting",
-                            dictionary_table([LabeledValue::new(
-                                "Temperature",
-                                self.warmth.readout_cell(),
-                            )]),
-                        )])
-                    }))
-                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                        ColorTemperatureBusRequest::Refresh,
-                    )),
-            );
-            rows.push(
-                GroupIndicator::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
-                    .with_hover_card(Box::new(move |_| {
-                        self.gamma.hover_card_with(vec![Section::new(
-                            "Setting",
-                            dictionary_table([LabeledValue::new("Dim", self.dim.readout_cell())]),
-                        )])
-                    }))
-                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                        ColorTemperatureBusRequest::Refresh,
-                    )),
-            );
-        }
-        if let Some(switch_indicator) = self.auto.switch_indicator(ServiceReadiness::Serving) {
-            rows.push(
-                switch_indicator
-                    .wired_switch_indicator(ColorTemperatureInteraction::AutoPressed)
-                    .with_hover_card(Box::new(move |_| {
-                        self.auto.hover_card(ServiceReadiness::Serving)
-                    }))
-                    .refreshed_by(ColorTemperatureInteraction::OnBuses(
-                        ColorTemperatureBusRequest::Refresh,
-                    )),
-            );
-        }
+        let rows: Vec<_> = self
+            .warmth_rows(config)
+            .into_iter()
+            .chain(self.dim_rows(config))
+            .chain(self.sun_follow_rows())
+            .collect();
         let warmth_content = |headline_indicator| {
             IndicatorGroupContent::expandable(
                 IndicatorGroupFamily::ColorTemperature,

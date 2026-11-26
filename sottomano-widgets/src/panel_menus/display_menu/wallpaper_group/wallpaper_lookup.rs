@@ -17,10 +17,16 @@ use sottomano_desktop_sources::{
     },
 };
 
-use super::{article_label::WallpaperArticle, photo_credit::Photo, place_label::WallpaperPlace};
+use super::{
+    WALLPAPER_GLYPH, WallpaperGroup, article_indicator::WallpaperArticle,
+    photo_credit_indicator::Photo, place_indicator::WallpaperPlace,
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+        indicator_state::IndicatorState,
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
@@ -131,5 +137,14 @@ impl Lookup {
             "Photo",
             dictionary_table([LabeledValue::new("File", self.photo.file_name.clone())]),
         )]
+    }
+}
+
+impl WallpaperGroup {
+    pub(super) fn lookup_listing(&self) -> IndicatorListing<'_> {
+        self.lookup.indicator_listing(
+            |held_snapshot| vec![held_snapshot.indicator()],
+            WALLPAPER_GLYPH.into(),
+        )
     }
 }

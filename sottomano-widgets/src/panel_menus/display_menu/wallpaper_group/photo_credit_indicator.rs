@@ -2,6 +2,7 @@ use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::
     PhotoCaption, PhotoCredit, Wallpaper,
 };
 
+use super::WallpaperGroup;
 use crate::{
     glyph_icons::simple_icons::SimpleIcon,
     group_indicators::{
@@ -88,5 +89,16 @@ impl From<&Wallpaper> for Photo {
             caption: wallpaper.caption.clone(),
             url: wallpaper.photo_url.clone(),
         }
+    }
+}
+
+impl WallpaperGroup {
+    pub(super) fn photo_credit_rows(&self) -> Vec<GroupIndicator<'_>> {
+        let Some(lookup) = self.lookup.get() else {
+            return Vec::new();
+        };
+        vec![lookup.photo.indicator().with_hover_card(Box::new(move |_| {
+            self.lookup.hover_card_with(lookup.photo.hover_card())
+        }))]
     }
 }

@@ -1,3 +1,4 @@
+pub(super) mod track_hover_card;
 use corredo::theming::LINE_HEIGHT;
 use iced::{
     Task,

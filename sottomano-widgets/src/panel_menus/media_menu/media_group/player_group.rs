@@ -6,13 +6,16 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use super::{
-    PlayerInteraction, PlayerSession, player_interaction,
-    seek_bar::{SeekAvailability, SeekBar, seek_position_indicator},
-    session_controls::session_button_indicators,
-    synced_lyrics_view::lyrics_row,
-    track_face::{player_headline_indicator, player_hover_card, track_indicator},
-    track_hover_card::track_hover_card,
-    transport_controls::transport_button_indicators,
+    PlayerInteraction, PlayerSession,
+    lyrics_indicator::lyrics_row,
+    player_interaction,
+    seek_indicator::{SeekAvailability, SeekBar, seek_position_indicator},
+    session_button_indicator::session_button_indicators,
+    track_indicator::{
+        player_headline_indicator, player_hover_card, track_hover_card::track_hover_card,
+        track_indicator,
+    },
+    transport_indicator::transport_button_indicators,
 };
 use crate::{
     clock::Clock,

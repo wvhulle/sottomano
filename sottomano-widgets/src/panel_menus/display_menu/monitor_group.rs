@@ -1,6 +1,5 @@
-mod backlight_display;
-mod clight_auto_brightness;
-use clight_auto_brightness::auto_brightness_indicator;
+mod auto_brightness_indicator;
+mod backlight_indicator;
 
 use crate::group_indicators::indicator_group_content::IndicatorListing;
 mod output_details;
@@ -11,7 +10,6 @@ use std::{
 };
 
 use iced::{Subscription, Task, mouse::ScrollDelta};
-use output_details::ConnectedOutput;
 use sottomano_compositor_model::compositor_output_facts::OutputInfo;
 use sottomano_desktop_sinks::screen_brightness_color::clightd_backlight_writes;
 use sottomano_desktop_sources::{
@@ -36,9 +34,8 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
+        toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::hover_card_body::Section,
     widgets::subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
 };
 
@@ -178,7 +175,7 @@ impl MonitorGroup {
                     SliderControl::new(
                         format!("Backlight {}", backlight.serial),
                         PERCENT,
-                        backlight_display::face(backlight),
+                        backlight_indicator::face(backlight),
                     )
                     .scroll_step(STEP)
                     .readout(|value, _| format!("{}%", as_percent(value)))
@@ -236,60 +233,11 @@ impl MonitorGroup {
         }
     }
 
-    fn backlight_hover_card(
-        &self,
-        serial: &str,
-        brightness_slider: &SliderControl,
-        outputs: &HashMap<String, OutputInfo>,
-    ) -> Vec<Section> {
-        let Some(backlight) = self.backlights.get().and_then(|backlights| {
-            backlights
-                .iter()
-                .find(|known_backlight| known_backlight.serial == serial)
-        }) else {
-            return Vec::new();
-        };
-        self.backlights
-            .hover_card_with(backlight_display::hover_card(
-                backlight,
-                brightness_slider.readout_cell(),
-                ConnectedOutput::driving(backlight, outputs).as_ref(),
-            ))
-    }
-
     pub fn group_content<'view>(
         &'view self,
         config: &'view Config,
         outputs: &'view HashMap<String, OutputInfo>,
     ) -> IndicatorGroupContent<'view> {
-        let rows: Vec<_> = self
-            .sliders
-            .iter()
-            .map(|(backlight_serial, slider)| {
-                let message_serial = backlight_serial.clone();
-                GroupIndicator::slider(slider, config, move |control_message| {
-                    MonitorInteraction::Backlight(message_serial.clone(), control_message)
-                })
-                .with_hover_card(Box::new(move |_| {
-                    self.backlight_hover_card(backlight_serial, slider, outputs)
-                }))
-                .refreshed_by(MonitorInteraction::OnBuses(
-                    MonitorBusRequest::Refresh(MonitorSource::Backlights),
-                ))
-            })
-            .collect();
-        let auto_brightness_listing = self.clight.sample.indicator_listing(
-            |held_snapshot| {
-                self.wired_auto_brightness_indicator(auto_brightness_indicator(held_snapshot))
-                    .on_switch_press(
-                        held_snapshot.switch_position(),
-                        held_snapshot.press_action_text(),
-                        MonitorInteraction::AutoBrightnessPressed,
-                    )
-                    .when_shown()
-            },
-            AUTO_BRIGHTNESS_GLYPH.into(),
-        );
         let monitor_content = IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Monitor,
             match self.sliders.values().next() {
@@ -304,25 +252,17 @@ impl MonitorGroup {
             },
             &self.expansion,
             MonitorInteraction::Expansion,
-            [IndicatorListing::Listed(rows), auto_brightness_listing]
-                .into_iter()
-                .collect(),
+            [
+                IndicatorListing::Listed(self.backlight_rows(config, outputs)),
+                self.auto_brightness_listing(),
+            ]
+            .into_iter()
+            .collect(),
         );
         if self.sliders.is_empty() {
             monitor_content
         } else {
             monitor_content.forwards_scroll("change every backlight")
         }
-    }
-
-    fn wired_auto_brightness_indicator<'view>(
-        &'view self,
-        brightness_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        brightness_indicator
-            .with_hover_card(Box::new(move |_| self.clight.hover_card()))
-            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
-                MonitorSource::AutoBrightness,
-            )))
     }
 }

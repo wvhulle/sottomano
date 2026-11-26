@@ -1,16 +1,20 @@
 use std::time::Duration;
 
-use notulist_client::{GateVerdict, PipelineActivity, PipelineStage};
+use notulist_client::{DictationPhase, GateVerdict, PipelineActivity, PipelineStage};
 use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline,
 };
 
+use super::{VoiceDictationGroup, VoiceDictationSource};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+        indicator_state::IndicatorState,
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::{LabeledValue, ValueCell},
 };
@@ -108,6 +112,38 @@ fn seconds_cell(seconds: f64) -> Option<ValueCell> {
         })
         .ok()
         .map(ValueCell::duration)
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn pipeline_listing(&self) -> IndicatorListing<'_> {
+        let pipeline_active = self.dictation.get().is_some_and(|held_dictation| {
+            matches!(
+                held_dictation.phase,
+                DictationPhase::Listening | DictationPhase::Finishing
+            )
+        });
+        if !pipeline_active && self.pipeline.failure().is_none() {
+            return IndicatorListing::Listed(Vec::new());
+        }
+        self.pipeline
+            .indicator_listing(
+                |held_snapshot| notulist_pipeline_indicator(held_snapshot).when_shown(),
+                NOTULIST_PIPELINE_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.pipeline_indicator(row))
+    }
+
+    fn pipeline_indicator<'view>(
+        &'view self,
+        pipeline_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        pipeline_row
+            .with_hover_card(Box::new(move |_| {
+                self.pipeline
+                    .sections_described_by(notulist_pipeline_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Pipeline))
+    }
 }
 
 #[cfg(test)]

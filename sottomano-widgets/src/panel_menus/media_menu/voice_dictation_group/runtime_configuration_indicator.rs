@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use notulist_client::DictationEngine;
 
+use super::{VoiceDictationGroup, VoiceDictationSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
@@ -51,6 +52,22 @@ pub fn runtime_configuration_hover_card(engine: &DictationEngine) -> Vec<Section
         "Settings",
         dictionary_table(runtime_configuration_rows(engine)),
     )]
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn runtime_configuration_rows(&self) -> Vec<GroupIndicator<'_>> {
+        self.loaded_engine()
+            .map(|loaded| {
+                runtime_configuration_indicator(loaded)
+                    .with_hover_card(Box::new(move |_| {
+                        self.engine
+                            .hover_card_with(runtime_configuration_hover_card(loaded))
+                    }))
+                    .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine))
+            })
+            .into_iter()
+            .collect()
+    }
 }
 
 #[cfg(test)]

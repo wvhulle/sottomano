@@ -3,11 +3,13 @@ use std::time::Duration;
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
+        TaskUsage, TaskWebLog,
     },
     podman_container_engine::libpod_running_containers::EngineReadError,
 };
 
+use super::{CANCEL_RUN_HINT, CiRunnerReference, CiRunsGroup, CiRunsInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -51,14 +53,14 @@ pub(super) struct WatchedCiRunner<'snapshot> {
 }
 
 impl WatchedCiRunner<'_> {
-    fn status_text(&self) -> String {
+    pub(super) fn status_text(&self) -> String {
         access_failure_text(&self.runner.access).map_or_else(
             || running_count_text(self.runner.tasks.len()),
             str::to_owned,
         )
     }
 
-    fn failure_section(&self) -> Option<Section> {
+    pub(super) fn failure_section(&self) -> Option<Section> {
         match &self.runner.access {
             RunnerAccess::Complete => None,
             RunnerAccess::EngineUnreadable(failure) => Some(Section::new(
@@ -77,7 +79,7 @@ fn running_count_text(running_count: usize) -> String {
     format!("{running_count} running")
 }
 
-fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
+pub(super) fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
     match access {
         RunnerAccess::Complete => None,
         RunnerAccess::EngineUnreadable(EngineReadError::SocketDenied) => {
@@ -88,42 +90,6 @@ fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
         }
         RunnerAccess::EngineUnreadable(_) => Some("engine unreadable"),
         RunnerAccess::AgentUnreachable(_) => Some("agent unreachable"),
-    }
-}
-
-pub(super) struct CiRunnerFailureIndicator<'view> {
-    pub watched: WatchedCiRunner<'view>,
-}
-
-impl<'view> CiRunnerFailureIndicator<'view> {
-    pub(super) fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            self.watched.runner_label.to_owned(),
-            self.watched.kind.runner_icon(),
-            IndicatorState::Failed,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(self.watched.status_text()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub(super) fn hover_card(&self) -> Vec<Section> {
-        self.watched
-            .failure_section()
-            .into_iter()
-            .collect::<Vec<_>>()
-    }
-
-    pub(super) fn failing_runner(watched: WatchedCiRunner<'view>) -> Option<Self> {
-        match watched.runner.access {
-            RunnerAccess::Complete => None,
-            RunnerAccess::EngineUnreadable(_) | RunnerAccess::AgentUnreachable(_) => {
-                Some(Self { watched })
-            }
-        }
     }
 }
 
@@ -233,6 +199,41 @@ impl<'view> CiTaskIndicator<'view> {
     }
 }
 
+impl CiRunsGroup {
+    pub(super) fn ci_task_row<'view>(
+        &'view self,
+        runner_kind: CiRunnerKind,
+        task: &'view CiTask,
+        task_reference: CiRunnerReference,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupIndicator<'view> {
+        let task_indicator = CiTaskIndicator {
+            kind: runner_kind,
+            task,
+        }
+        .indicator(clock, locale)
+        .with_hover_card(Box::new(move |_| {
+            self.runner_hover_card(&task_reference, |watched_runner| {
+                Some(
+                    CiTaskIndicator {
+                        kind: watched_runner.kind,
+                        task,
+                    }
+                    .hover_card(),
+                )
+            })
+        }));
+        match &task.stop_control {
+            TaskStopControl::NoContainerNow => task_indicator,
+            stop_control @ TaskStopControl::StopContainers { .. } => task_indicator.on_right_press(
+                CANCEL_RUN_HINT,
+                CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, UNIX_EPOCH};
@@ -245,6 +246,7 @@ mod tests {
     use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
+    use crate::panel_menus::services_menu::ci_runs_group::runner_failure_indicator::CiRunnerFailureIndicator;
 
     fn task(repository: TaskRepository, run_label: &str) -> CiTask {
         CiTask {

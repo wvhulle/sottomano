@@ -4,6 +4,7 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
 
+use super::{DarkModeGroup, DarkModeInteraction, DarkModeSource};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -183,5 +184,18 @@ impl AutoSwitchToggle {
             | ScheduleStatus::AwaitingLocationFix
             | ScheduleStatus::NoSunEvents => SwitchDecision::Hold,
         }
+    }
+}
+
+impl DarkModeGroup {
+    pub(super) fn auto_switch_row(&self, clock: Clock, locale: Locale) -> GroupIndicator<'_> {
+        self.auto_switch_toggle
+            .indicator(clock, locale)
+            .on_switch_press(
+                self.auto_switch_toggle.saved_schedule.auto_switch_arming,
+                self.auto_switch_toggle.press_does(),
+                DarkModeInteraction::ToggleAutoSwitch,
+            )
+            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
     }
 }

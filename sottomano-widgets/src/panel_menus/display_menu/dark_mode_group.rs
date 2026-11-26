@@ -1,12 +1,12 @@
-mod auto_switch_toggle;
-mod offset_slider;
+mod auto_switch_indicator;
+mod dark_mode_toggle_indicator;
+mod offset_slider_indicator;
 mod scheduled_switch_timer;
 mod sqlite_dark_mode_schedule;
-mod umbra_dark_mode;
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Utc};
-use iced::{Function, Subscription, Task};
+use iced::{Subscription, Task};
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes::set_mode;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -17,10 +17,9 @@ use sottomano_desktop_sources::{
     weather::situo_location_fix::Location,
 };
 use sottomano_toml_config::Config;
-use umbra_dark_mode::dark_mode_indicator;
 
 use self::{
-    offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
+    offset_slider_indicator::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
     scheduled_switch_timer::SwitchTimer,
     sqlite_dark_mode_schedule::DarkModeSchedule,
 };
@@ -40,9 +39,9 @@ use crate::{
         indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
         slider_control::{Action, ControlMessage, SliderControl},
-        toggle_control::{ToggleControl, ToggleMessage, ToggleableSource},
+        toggle_control::{ToggleControl, ToggleMessage},
     },
-    panel_menus::display_menu::dark_mode_group::auto_switch_toggle::{
+    panel_menus::display_menu::dark_mode_group::auto_switch_indicator::{
         AutoSwitchToggle, SwitchDecision,
     },
     widgets::subscribed_snapshot::CommandOutcome,
@@ -300,35 +299,14 @@ impl DarkModeGroup {
         clock: Clock,
     ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
-        let offset_slider = |edge| {
-            GroupIndicator::slider(
-                self.offset_slider_for(edge),
-                config,
-                DarkModeInteraction::OffsetSlider.with(edge),
-            )
-            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
-        };
         let indicator_listing = self.mode_toggle.sample.indicator_listing(
             |held_snapshot| {
-                self.mode_toggle_indicator(dark_mode_indicator(held_snapshot))
-                    .on_switch_press(
-                        held_snapshot.switch_position(),
-                        held_snapshot.press_action_text(),
-                        DarkModeInteraction::ModeTogglePressed,
-                    )
-                    .when_shown()
+                self.mode_toggle_rows(held_snapshot)
                     .into_iter()
                     .chain([
-                        self.auto_switch_toggle
-                            .indicator(clock, locale)
-                            .on_switch_press(
-                                self.auto_switch_toggle.saved_schedule.auto_switch_arming,
-                                self.auto_switch_toggle.press_does(),
-                                DarkModeInteraction::ToggleAutoSwitch,
-                            )
-                            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location)),
-                        offset_slider(ColorMode::Light),
-                        offset_slider(ColorMode::Dark),
+                        self.auto_switch_row(clock, locale),
+                        self.offset_slider_row(config, ColorMode::Light),
+                        self.offset_slider_row(config, ColorMode::Dark),
                     ])
                     .collect()
             },
@@ -345,14 +323,5 @@ impl DarkModeGroup {
             DarkModeInteraction::Expansion,
             indicator_listing,
         )
-    }
-
-    fn mode_toggle_indicator<'view>(
-        &'view self,
-        mode_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        mode_indicator
-            .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
-            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
     }
 }

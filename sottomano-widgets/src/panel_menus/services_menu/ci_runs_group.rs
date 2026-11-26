@@ -3,14 +3,15 @@ use chrono::Locale;
 use crate::group_indicators::{
     indicator_group_content::IndicatorListing, indicator_state::IndicatorState,
 };
-mod ci_run_indicators;
 mod ci_runner_watches;
+mod ci_task_indicator;
+mod runner_failure_indicator;
 
 use std::borrow::Cow;
 
-pub use ci_run_indicators::CiRunnerKind;
-use ci_run_indicators::{CiRunnerFailureIndicator, CiTaskIndicator, WatchedCiRunner};
 pub use ci_runner_watches::{CiRunnerSnapshot, CiRunnerWatches};
+pub use ci_task_indicator::CiRunnerKind;
+use ci_task_indicator::WatchedCiRunner;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
     ci_runner_tasks::libpod_container_stop::stop_task_containers,
@@ -19,12 +20,13 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
-        CiTask, TaskStopControl, forgejo_runner_tasks::ForgejoRunnerTasks,
+        TaskStopControl, forgejo_runner_tasks::ForgejoRunnerTasks,
         woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
+use self::runner_failure_indicator::CiRunnerFailureIndicator;
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -218,10 +220,10 @@ impl CiRunsGroup {
         for watched in watched_runners {
             let reference = CiRunnerReference::from(&watched);
             if let Some(failure_indicator) = CiRunnerFailureIndicator::failing_runner(watched) {
-                rows.push(self.runner_failure_indicator(failure_indicator, reference.clone()));
+                rows.push(self.runner_failure_row(failure_indicator, reference.clone()));
             }
             rows.extend(watched.runner.tasks.iter().map(|task| {
-                self.ci_task_indicator(watched.kind, task, reference.clone(), clock, locale)
+                self.ci_task_row(watched.kind, task, reference.clone(), clock, locale)
             }));
         }
         IndicatorGroupContent::expandable_instance(
@@ -236,54 +238,6 @@ impl CiRunsGroup {
             CiRunsInteraction::Expansion,
             IndicatorListing::Listed(rows),
         )
-    }
-
-    fn runner_failure_indicator<'view>(
-        &'view self,
-        failure_indicator: CiRunnerFailureIndicator<'view>,
-        failure_reference: CiRunnerReference,
-    ) -> GroupIndicator<'view> {
-        failure_indicator
-            .indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.runner_hover_card(&failure_reference, |watched_runner| {
-                    CiRunnerFailureIndicator::failing_runner(watched_runner)
-                        .map(|failing_indicator| failing_indicator.hover_card())
-                })
-            }))
-    }
-
-    fn ci_task_indicator<'view>(
-        &'view self,
-        runner_kind: CiRunnerKind,
-        task: &'view CiTask,
-        task_reference: CiRunnerReference,
-        clock: Clock,
-        locale: Locale,
-    ) -> GroupIndicator<'view> {
-        let task_indicator = CiTaskIndicator {
-            kind: runner_kind,
-            task,
-        }
-        .indicator(clock, locale)
-        .with_hover_card(Box::new(move |_| {
-            self.runner_hover_card(&task_reference, |watched_runner| {
-                Some(
-                    CiTaskIndicator {
-                        kind: watched_runner.kind,
-                        task,
-                    }
-                    .hover_card(),
-                )
-            })
-        }));
-        match &task.stop_control {
-            TaskStopControl::NoContainerNow => task_indicator,
-            stop_control @ TaskStopControl::StopContainers { .. } => task_indicator.on_right_press(
-                CANCEL_RUN_HINT,
-                CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
-            ),
-        }
     }
 }
 

@@ -1,17 +1,16 @@
-mod dictation_indicator_rows;
 mod dictation_phase_indicator;
 mod inference_hardware_indicator;
 mod interface_mismatch_indicator;
 mod output_problems_indicator;
 mod pipeline_stage_indicator;
 mod runtime_configuration_indicator;
+mod runtime_switch_indicator;
 mod speech_model_indicator;
-mod speech_runtime_sections;
 
 use std::borrow::Cow;
 
 use iced::{Subscription, Task};
-use notulist_client::DictationCommand;
+use notulist_client::{DictationCommand, DictationEngine, EngineState};
 use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_dictation_command;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -45,7 +44,7 @@ use crate::{
     },
 };
 
-const DICTATION_GLYPH: Phosphor = Phosphor::UserSound(Weight::Regular);
+pub(super) const DICTATION_GLYPH: Phosphor = Phosphor::UserSound(Weight::Regular);
 const DICTATION_UNIT: &str = "notulist.service";
 
 const SPEECH_RUNTIME: UnitSwitchFace = UnitSwitchFace {
@@ -251,20 +250,32 @@ impl VoiceDictationGroup {
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
         let headline_indicator = self.dictation_headline();
-        let mut rows = Vec::new();
-        self.push_interface_mismatch_indicators(&mut rows);
-        self.push_pipeline_indicators(&mut rows);
-        self.push_runtime_switch_indicators(&mut rows);
-        self.push_engine_indicators(&mut rows);
-        self.push_loaded_engine_indicators(&mut rows);
-        self.push_output_problems_indicators(&mut rows);
-        self.list_dictation(&mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::VoiceDictation,
             headline_indicator,
             &self.expansion,
             VoiceDictationInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            [
+                self.dictation_listing(),
+                self.interface_mismatch_listing(),
+                self.pipeline_listing(),
+                IndicatorListing::Listed(self.runtime_switch_rows()),
+                self.speech_model_listing(),
+                IndicatorListing::Listed(self.runtime_configuration_rows()),
+                IndicatorListing::Listed(self.inference_hardware_rows()),
+                self.output_problems_listing(),
+            ]
+            .into_iter()
+            .collect(),
         )
+    }
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn loaded_engine(&self) -> Option<&DictationEngine> {
+        match &self.engine.get()?.engine {
+            EngineState::SpeechModelReady(engine) => Some(engine),
+            EngineState::LoadingSpeechModel | EngineState::SpeechModelUnavailable(_) => None,
+        }
     }
 }

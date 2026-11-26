@@ -2,6 +2,7 @@ use sottomano_desktop_sources::wallpaper_place_article::unsplash_photo_article::
     PhotoPlaceName, PhotoPosition, Wallpaper,
 };
 
+use super::WallpaperGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -74,5 +75,19 @@ impl From<&Wallpaper> for WallpaperPlace {
             }),
             PhotoPlaceName::Unnamed => WallpaperPlace::Unnamed,
         }
+    }
+}
+
+impl WallpaperGroup {
+    pub(super) fn place_rows(&self) -> Vec<GroupIndicator<'_>> {
+        let Some(lookup) = self.lookup.get() else {
+            return Vec::new();
+        };
+        let WallpaperPlace::Named(place) = &lookup.place else {
+            return Vec::new();
+        };
+        vec![place.indicator().with_hover_card(Box::new(move |_| {
+            self.lookup.hover_card_with(place.hover_card())
+        }))]
     }
 }

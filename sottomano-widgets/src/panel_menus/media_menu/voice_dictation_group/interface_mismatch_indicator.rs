@@ -3,12 +3,16 @@ use sottomano_desktop_sources::{
     voice_dictation_input::notulist_dbus_interface_mismatch::NotulistInterfaceMismatch,
 };
 
+use super::{VoiceDictationGroup, VoiceDictationSource};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+        indicator_state::IndicatorState,
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
@@ -52,6 +56,31 @@ fn interface_mismatch_rows(mismatch: &NotulistInterfaceMismatch) -> [LabeledValu
         LabeledValue::new("Offered", offered_description),
         LabeledValue::new("Fix", MISMATCH_REMEDY),
     ]
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn interface_mismatch_listing(&self) -> IndicatorListing<'_> {
+        self.interface_mismatch
+            .indicator_listing(
+                |held_snapshot| notulist_interface_mismatch_indicator(held_snapshot).when_shown(),
+                NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.interface_mismatch_indicator(row))
+    }
+
+    fn interface_mismatch_indicator<'view>(
+        &'view self,
+        mismatch_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        mismatch_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.interface_mismatch
+                    .sections_described_by(notulist_interface_mismatch_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(
+                VoiceDictationSource::InterfaceMismatch,
+            ))
+    }
 }
 
 #[cfg(test)]

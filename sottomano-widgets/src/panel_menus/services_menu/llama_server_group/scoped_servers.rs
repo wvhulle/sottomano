@@ -12,9 +12,9 @@ use sottomano_desktop_sources::{
 use uom::si::f64::Frequency;
 
 use super::{
-    LlamaServerInteraction, SERVER_SWITCH, ServedModelUnit, context_fill_gauge::ContextFill,
-    generation_rate_label::GenerationRate, loaded_model_label::ServedModel,
-    slot_occupancy_gauge::SlotOccupancy,
+    LlamaServerInteraction, SERVER_SWITCH, ServedModelUnit, context_fill_indicator::ContextFill,
+    generation_rate_indicator::GenerationRate, loaded_model_indicator::ServedModel,
+    slot_occupancy_indicator::SlotOccupancy,
 };
 use crate::{
     background_work::snapshot_subscription,

@@ -3,6 +3,7 @@ use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_output_problems::NotulistOutputProblems,
 };
 
+use super::{VoiceDictationGroup, VoiceDictationSource};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -11,6 +12,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -73,6 +75,29 @@ fn output_problem_section(problem: &OutputProblem) -> Section {
         output_problem_label(problem),
         dictionary_table([LabeledValue::new("Details", problem.to_string())]),
     )
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn output_problems_listing(&self) -> IndicatorListing<'_> {
+        self.output_problems
+            .indicator_listing(
+                |held_snapshot| notulist_output_problems_indicator(held_snapshot).when_shown(),
+                NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.output_problems_indicator(row))
+    }
+
+    fn output_problems_indicator<'view>(
+        &'view self,
+        problems_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        problems_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.output_problems
+                    .sections_described_by(notulist_output_problems_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::OutputProblems))
+    }
 }
 
 #[cfg(test)]

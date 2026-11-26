@@ -1,6 +1,6 @@
 use notulist_client::DictationEngine;
 
-use super::speech_model_indicator::non_empty;
+use super::super::speech_model_indicator::non_empty;
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,

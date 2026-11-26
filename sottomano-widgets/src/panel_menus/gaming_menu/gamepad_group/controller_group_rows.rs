@@ -1,54 +1,27 @@
 use std::{iter, time::SystemTime};
 
-use sottomano_desktop_sources::{
-    gamepad_controller_input::{
-        evdev_gamepad_devices::{
-            ConnectedGamepad, ControllerIdentity, GamepadPower, GamepadTransport, InputRoute,
-            PhysicalGamepadLink, UsbCableState,
-        },
-        player_indicator_leds::PlayerIndicator,
-        steam_input_facts::{RadioReading, SteamInputFacts},
-    },
-    system_protocol_clients::journal_follow::unexpired_events,
+use sottomano_desktop_sources::gamepad_controller_input::{
+    evdev_gamepad_devices::{ConnectedGamepad, ControllerIdentity, PhysicalGamepadLink},
+    player_indicator_leds::PlayerIndicator,
 };
 use sottomano_toml_config::panel_menus::gaming_menu::gamepad_bindings::GamepadBindingsConfig;
 
 use super::{
-    ControllerCustody, GamepadGroup, GamepadInteraction,
-    connected_controller_indicator::{ConnectedControllerIndicator, ControllerMarking},
-    controller_battery_indicator::ControllerBatteryIndicator,
-    controller_custody_key,
-    controller_link_indicator::{BandSharing, ControllerLinkIndicator},
-    steam_radio_firmware_indicators::{SteamFirmwareIndicator, SteamRadioIndicator},
-    usb_cable_indicator::{UsbCableIndicator, UsbCableRole},
-    wifi_band_use::WifiBandUse,
+    GamepadGroup, GamepadInteraction, connected_controller_indicator::ControllerMarking,
+    controller_battery_indicator::ControllerBatteryIndicator, controller_custody_key,
+    steam_firmware_indicator::SteamFirmwareIndicator, steam_radio_indicator::SteamRadioIndicator,
+    usb_cable_indicator::UsbCableIndicator,
 };
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator,
         indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
-        toggle_control::{IconToggle, SwitchPresses},
     },
-    hover_cards::hover_card_body::{Section, SectionWidget},
-    widgets::input_report_sections::MeasuredReportTiming,
 };
-
-fn compositor_driving_toggle(controller_custody: ControllerCustody) -> IconToggle {
-    IconToggle::new(
-        "Compositor control",
-        Phosphor::AppWindow(Weight::Regular),
-        controller_custody,
-        SwitchPresses {
-            turning_on: "let this controller drive the compositor again",
-            turning_off: "hand this controller to the focused window",
-        },
-    )
-}
 
 impl GamepadGroup {
     pub(super) fn controllers_in_player_order(
@@ -84,70 +57,6 @@ impl GamepadGroup {
         }
     }
 
-    fn face_indicator<'view>(
-        &'view self,
-        gamepad: &'view ConnectedGamepad,
-        link: &'view PhysicalGamepadLink,
-        bindings: &'view GamepadBindingsConfig,
-    ) -> ConnectedControllerIndicator<'view> {
-        ConnectedControllerIndicator {
-            gamepad,
-            bindings,
-            custody: self.controller_custody(gamepad.slot),
-            marking: self.controller_marking(gamepad, link),
-        }
-    }
-
-    fn link_indicator<'view>(
-        &'view self,
-        slot: usize,
-        link: &'view PhysicalGamepadLink,
-        now: SystemTime,
-    ) -> ControllerLinkIndicator<'view> {
-        ControllerLinkIndicator {
-            transport: link.transport,
-            report_timing: self.report_timings.get(&slot).copied().map_or(
-                MeasuredReportTiming::Pending,
-                MeasuredReportTiming::Measured,
-            ),
-            kernel_errors: unexpired_events(&self.kernel_errors, now)
-                .filter(|error| error.kernel_device == link.kernel_device)
-                .collect(),
-            band_sharing: match &self.wifi_band_use {
-                WifiBandUse::ClearOfBluetooth => BandSharing::NoConflict,
-                WifiBandUse::SharingBluetoothBand {
-                    network_name,
-                    frequency,
-                } => BandSharing::SharedWithWifi {
-                    network_name,
-                    frequency: *frequency,
-                    wired_fallback: self.wired_fallback,
-                },
-            },
-        }
-    }
-
-    fn compositor_driving_hover_card(&self, slot: usize) -> Vec<Section> {
-        let (note_title, note_body) = match self.controller_custody(slot) {
-            ControllerCustody::Compositor => (
-                "Driving the compositor",
-                "Buttons and sticks focus and move windows, whatever window has focus. Turn this \
-                 off before playing a game: the controller then belongs to the focused window \
-                 again.",
-            ),
-            ControllerCustody::HandedOver => (
-                "Handed to the focused window",
-                "Controllers start out belonging to the focused window, so games keep their \
-                 input. Turn this on to focus and move windows with this controller; the choice \
-                 is remembered for this controller.",
-            ),
-        };
-        vec![Section::new(
-            note_title,
-            SectionWidget::paragraph(note_body),
-        )]
-    }
-
     fn controller_group<'view>(
         &'view self,
         gamepad: &'view ConnectedGamepad,
@@ -158,49 +67,15 @@ impl GamepadGroup {
     ) -> Option<IndicatorGroupContent<'view>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.expansions.get(&slot)?;
-        let battery_indicator = ControllerBatteryIndicator {
-            power: gamepad.power,
-        };
-        let build_controller_indicator =
-            || self.face_indicator(gamepad, link, bindings).indicator();
-        let headline_indicator = build_controller_indicator()
+        let headline_indicator = self
+            .connected_controller_row(gamepad, link, bindings)
             .with_headline_glyph(Phosphor::Joystick(Weight::Regular).into());
-        let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
-        let mut rows = vec![
-            GroupIndicator::toggle(
-                compositor_driving_toggle(self.controller_custody(slot)),
-                GamepadInteraction::ToggleCompositorDriving { slot },
-            )
-            .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot))),
-        ];
-        if !shown_in_bluetooth_group {
-            match link.input_route {
-                InputRoute::Kernel => rows.push(self.link_indicator(slot, link, now).indicator()),
-                InputRoute::SteamInput(SteamInputFacts {
-                    radio: RadioReading::Measured(signal),
-                    ..
-                }) => rows.push(SteamRadioIndicator { signal }.indicator()),
-                InputRoute::SteamInput(_) => {}
-            }
-            if gamepad.power != GamepadPower::NoBattery {
-                rows.push(battery_indicator.indicator());
-            }
-        }
-        if let InputRoute::SteamInput(facts) = link.input_route
-            && SteamFirmwareIndicator::has_pending_update(&facts)
-        {
-            rows.push(SteamFirmwareIndicator { facts }.indicator());
-        }
-        if let Some(cable_role) = usb_cable_role(link.transport) {
-            let cable_indicator = UsbCableIndicator { role: cable_role }.indicator();
-            rows.push(match cable_role {
-                UsbCableRole::ChargingOnly => cable_indicator.on_press(
-                    "disconnect Bluetooth so the cable can take over",
-                    GamepadInteraction::DisconnectBluetooth { slot },
-                ),
-                UsbCableRole::InputAndCharging => cable_indicator,
-            });
-        }
+        let rows = iter::once(self.compositor_driving_row(slot))
+            .chain(self.controller_link_rows(slot, link, now))
+            .chain(SteamRadioIndicator::radio_rows(link))
+            .chain(ControllerBatteryIndicator::battery_rows(gamepad, link))
+            .chain(SteamFirmwareIndicator::firmware_rows(link))
+            .chain(UsbCableIndicator::cable_rows(slot, link));
         Some(IndicatorGroupContent::expandable_instance(
             IndicatorGroupIdentity::durable(
                 IndicatorGroupFamily::Gamepad,
@@ -211,7 +86,7 @@ impl GamepadGroup {
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
             IndicatorListing::Listed(
-                iter::once(build_controller_indicator())
+                iter::once(self.connected_controller_row(gamepad, link, bindings))
                     .chain(rows)
                     .collect(),
             ),
@@ -236,19 +111,5 @@ impl GamepadGroup {
             })
             .chain(self.controller_discovery_group())
             .collect()
-    }
-}
-
-fn usb_cable_role(transport: GamepadTransport) -> Option<UsbCableRole> {
-    match transport {
-        GamepadTransport::Usb => Some(UsbCableRole::InputAndCharging),
-        GamepadTransport::Bluetooth {
-            usb_cable: UsbCableState::IgnoredByKernel,
-        } => Some(UsbCableRole::ChargingOnly),
-        GamepadTransport::Bluetooth {
-            usb_cable: UsbCableState::Absent,
-        }
-        | GamepadTransport::SteamDongle
-        | GamepadTransport::Other => None,
     }
 }

@@ -3,15 +3,18 @@ use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_dictation::NotulistDictation,
 };
 
-use super::speech_model_indicator::model_load_error_rows;
+use super::{
+    DICTATION_GLYPH, VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationSource,
+    speech_model_indicator::model_load_error_rows,
+};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+        indicator_state::IndicatorState, toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
@@ -137,6 +140,62 @@ fn microphone_open_error_rows(open_error: &MicrophoneOpenError) -> Vec<LabeledVa
         | MicrophoneOpenError::CaptureThreadStoppedEarly
         | MicrophoneOpenError::ReplayWavFileUnreadable
         | MicrophoneOpenError::ReplayPlaybackSpeedInvalid => Vec::new(),
+    }
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn dictation_headline(&self) -> GroupIndicator<'_> {
+        self.wired_dictation_row(
+            self.dictation
+                .indicator(notulist_dictation_indicator, DICTATION_GLYPH.into()),
+        )
+        .with_headline_glyph(Phosphor::ChatTeardropText(Weight::Regular).into())
+    }
+
+    pub(super) fn dictation_listing(&self) -> IndicatorListing<'_> {
+        self.dictation
+            .indicator_listing(
+                |held_snapshot| vec![notulist_dictation_indicator(held_snapshot)],
+                DICTATION_GLYPH.into(),
+            )
+            .map_indicators(|dictation_row| self.wired_dictation_row(dictation_row))
+    }
+
+    fn wired_dictation_row<'view>(
+        &'view self,
+        dictation_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        match self.dictation.get() {
+            Some(held_snapshot) => self.dictation_indicator(
+                dictation_row,
+                SwitchPosition::from(held_snapshot),
+                press_does(held_snapshot),
+            ),
+            None => self.dictation_indicator(
+                dictation_row,
+                SwitchPosition::Off,
+                "start dictating at the cursor",
+            ),
+        }
+    }
+
+    fn dictation_indicator<'view>(
+        &'view self,
+        dictation_row: GroupIndicator<'view>,
+        switch_position: SwitchPosition,
+        press_text: &'static str,
+    ) -> GroupIndicator<'view> {
+        dictation_row
+            .on_switch_press(
+                switch_position,
+                press_text,
+                VoiceDictationInteraction::ToggleRecording,
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.dictation
+                    .sections_described_by(notulist_dictation_hover_card)
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Dictation))
     }
 }
 

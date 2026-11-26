@@ -1,9 +1,11 @@
 mod channel_level_control;
+mod input_volume_indicator;
+mod output_volume_indicator;
 mod pipewire_volume_writes;
 
 use std::{collections::HashMap, ops::RangeInclusive};
 
-use iced::{Function, Subscription, Task};
+use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     media_playback_audio::pipewire_audio::{
@@ -233,45 +235,16 @@ impl AudioGroup {
         &'view self,
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
-        let resolved_levels = |channel: &'view DefaultChannel| match channel {
-            DefaultChannel::Resolved(levels) => Some(levels),
-            DefaultChannel::Unresolved => None,
-        };
         let sink = self
             .state
             .get()
             .and_then(|state| resolved_levels(&state.sink));
         let indicator_listing = self.state.indicator_listing(
             |state| {
-                let sink_rows = resolved_levels(&state.sink).map(|sink_levels| {
-                    GroupIndicator::slider(
-                        &self.sink_control,
-                        config,
-                        AudioMessage::Control.with(ControlKind::Sink),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.channel_level_sections(
-                            ControlKind::Sink,
-                            sink_levels,
-                            &self.sink_control,
-                        )
-                    }))
-                });
-                let source_rows = resolved_levels(&state.source).map(|source_levels| {
-                    GroupIndicator::slider(
-                        &self.source_control,
-                        config,
-                        AudioMessage::Control.with(ControlKind::Source),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.channel_level_sections(
-                            ControlKind::Source,
-                            source_levels,
-                            &self.source_control,
-                        )
-                    }))
-                });
-                sink_rows.into_iter().chain(source_rows).collect()
+                self.output_volume_rows(config, state)
+                    .into_iter()
+                    .chain(self.input_volume_rows(config, state))
+                    .collect()
             },
             AUDIO_STATE_GLYPH.into(),
         );
@@ -308,6 +281,13 @@ impl AudioGroup {
     fn close_sliders(&mut self) {
         self.sink_control.close();
         self.source_control.close();
+    }
+}
+
+pub(super) fn resolved_levels(channel: &DefaultChannel) -> Option<&ChannelLevels> {
+    match channel {
+        DefaultChannel::Resolved(levels) => Some(levels),
+        DefaultChannel::Unresolved => None,
     }
 }
 

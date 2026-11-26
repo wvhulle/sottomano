@@ -3,6 +3,7 @@ use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_engine::NotulistEngine,
 };
 
+use super::{VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationSource};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -11,10 +12,14 @@ use crate::{
     },
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::value_cells::{LabeledValue, ValueCell},
+    widgets::{
+        huggingface_hub_sections::hugging_face_model_card_sections,
+        value_cells::{LabeledValue, ValueCell},
+    },
 };
 
 const HUGGING_FACE_SITE: &str = "https://huggingface.co";
@@ -174,6 +179,48 @@ fn spoken_languages(engine: &DictationEngine) -> String {
         (false, _) => engine.languages.join(", "),
         (true, true) => "any".to_owned(),
         (true, false) => "en".to_owned(),
+    }
+}
+
+impl VoiceDictationGroup {
+    pub(super) fn speech_model_listing(&self) -> IndicatorListing<'_> {
+        self.engine
+            .indicator_listing(
+                |held_snapshot| notulist_engine_indicator(held_snapshot).when_shown(),
+                NOTULIST_ENGINE_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.engine_indicator(row))
+    }
+
+    fn engine_indicator<'view>(
+        &'view self,
+        engine_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        let engine_indicator = engine_row
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .engine
+                    .sections_described_by(notulist_engine_hover_card);
+                sections.extend(
+                    self.model_card
+                        .sections_described_by(hugging_face_model_card_sections),
+                );
+                sections
+            }))
+            .refreshed_by(Self::refreshed_from(VoiceDictationSource::Engine));
+        match self.model_repository() {
+            Some(repository) => engine_indicator.fetching_on_hover(
+                VoiceDictationInteraction::StartModelCardFetch(repository),
+                VoiceDictationInteraction::StopHoverFetches,
+            ),
+            None => engine_indicator,
+        }
+    }
+
+    fn model_repository(&self) -> Option<String> {
+        self.loaded_engine()
+            .map(|engine| engine.model_repository.clone())
+            .filter(|repository| !repository.is_empty())
     }
 }
 

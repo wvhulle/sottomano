@@ -177,7 +177,7 @@ pub fn search_section(media: &Media, desktop_entries: &DesktopEntries) -> Sectio
     Section::new("Search", dictionary_table(links))
 }
 
-pub(super) fn track_hover_card(
+pub(in crate::panel_menus::media_menu::media_group) fn track_hover_card(
     player_snapshot: &SubscribedSnapshot<Media>,
     media: &Media,
     desktop_entries: &DesktopEntries,
