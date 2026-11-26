@@ -54,7 +54,6 @@ pub fn vertical_view<'view>(
             )
         });
     let pager = reorderable_list(rows, Position::Left, config)
-        .spacing(config.theme.spacing.item_gap)
         .frame_corners(frame_corners)
         .draggable(PanelSlotList::Workspaces, &drag, dragged)
         .on_wheel_select(focused_by_wheel);
