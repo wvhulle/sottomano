@@ -24,7 +24,7 @@
             export XDG_CACHE_HOME=$TMPDIR/cache
           '';
           LP_NUM_THREADS = "4";
-          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --jobs 1 --output $out";
+          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --output $out";
           installPhaseCommand = "";
         }
       );

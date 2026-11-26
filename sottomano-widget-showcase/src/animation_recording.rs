@@ -71,12 +71,17 @@ impl RecordingSession {
             .iter()
             .flat_map(|step| recorder.perform(step))
             .collect();
+        let end_state = recorder.hold_end_state();
         let closing = recorder.press_away();
-        let final_scripted_position = (opening.len() + scripted.len())
+        let final_scripted_position = (opening.len() + scripted.len() + end_state.len())
             .checked_sub(1)
             .expect("the opening rest captures at least one frame");
-        let frames: Vec<CapturedFrame> =
-            opening.into_iter().chain(scripted).chain(closing).collect();
+        let frames: Vec<CapturedFrame> = opening
+            .into_iter()
+            .chain(scripted)
+            .chain(end_state)
+            .chain(closing)
+            .collect();
         let crop = ContentCrop::around_content(
             &frames,
             FrameSize::from(demo.backdrop.canvas()),
@@ -108,6 +113,7 @@ impl RecordingSession {
         demo.script.iter().for_each(|step| {
             let _rehearsed = recorder.perform(step);
         });
+        let _end_state = recorder.hold_end_state();
         let _closing = recorder.press_away();
     }
 }

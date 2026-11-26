@@ -39,6 +39,7 @@ const REST_HOLD: Duration = Duration::from_millis(250);
 const HOVER_HOLD: Duration = Duration::from_millis(1000);
 const PRESS_LEAD: Duration = Duration::from_millis(150);
 const PRESS_HOLD: Duration = Duration::from_millis(450);
+const END_STATE_HOLD: Duration = Duration::from_millis(2000);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(40);
 const EMULATOR_EVENT_CAPACITY: usize = 256;
@@ -202,6 +203,10 @@ impl<'session> DemoRecorder<'session> {
         self.capture_during(REST_HOLD)
     }
 
+    pub(super) fn hold_end_state(&mut self) -> Vec<CapturedFrame> {
+        self.capture_during(END_STATE_HOLD)
+    }
+
     pub(super) fn press_away(&mut self) -> Vec<CapturedFrame> {
         self.point_at(rest_pointer(self.canvas));
         self.click();
@@ -347,7 +352,7 @@ impl<'session> DemoRecorder<'session> {
         CapturedFrame {
             content: FrameContent::differing_from(
                 self.background,
-                &rgba,
+                rgba,
                 FrameSize::from(self.canvas),
             ),
             captured_at: self.clock.instant,

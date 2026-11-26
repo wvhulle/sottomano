@@ -17,12 +17,12 @@ use sottomano_toml_config::Config;
 use sottomano_widget_showcase::{
     WORKSPACE_ROOT,
     animation_recording::RecordingSession,
-    demo_script::{DEMOS, Demo},
+    demo_script::{DEMOS, Demo, UiPart},
     showcase_program::{ShowcaseProgram, booting_clock},
 };
 
 const LAVAPIPE_THREADS_VARIABLE: &str = "LP_NUM_THREADS";
-const LAVAPIPE_THREADS_PER_DEMO: &str = "4";
+const LAVAPIPE_THREADS_PER_DEMO: usize = 4;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -30,20 +30,27 @@ const LAVAPIPE_THREADS_PER_DEMO: &str = "4";
     about = "Render the tour recordings of sottomano into recordings/."
 )]
 struct CommandLine {
-    #[arg(help = "Render only this demo.")]
-    demo: Option<String>,
+    #[arg(
+        help = "Render only these demos: demo names, or UI parts such as hover-cards or toasts \
+                that select every demo exercising them. --list shows both."
+    )]
+    selectors: Vec<String>,
     #[arg(
         long,
-        conflicts_with = "demo",
+        help = "List the selected demos, or all of them, with the UI parts each exercises."
+    )]
+    list: bool,
+    #[arg(
+        long,
+        conflicts_with = "selectors",
         help = "Open the demo fixtures in a window with the iced tester instead of recording."
     )]
     window: bool,
     #[arg(
         long,
-        conflicts_with = "demo",
-        default_value = "4",
-        help = "How many demos to render at the same time. Each demo buffers its frames, up to \
-                several GB."
+        default_value_t = default_render_jobs(),
+        help = "How many demos to render at the same time, by default one per four cores. Each \
+                demo buffers its frames, up to 2 GB."
     )]
     jobs: NonZeroUsize,
     #[arg(
@@ -54,14 +61,47 @@ struct CommandLine {
     output: PathBuf,
 }
 
-fn render_single_demo(demo_name: &str, output: &Path) -> Result<(), Box<dyn Error>> {
-    let demo = DEMOS
+fn default_render_jobs() -> NonZeroUsize {
+    let available_cores =
+        thread::available_parallelism().expect("the number of available cores is queryable");
+    NonZeroUsize::new(available_cores.get() / LAVAPIPE_THREADS_PER_DEMO)
+        .unwrap_or(NonZeroUsize::MIN)
+}
+
+fn selected_by(demo: &Demo, selector: &str) -> bool {
+    demo.name == selector
+        || UiPart::named(selector).is_some_and(|ui_part| demo.parts.contains(&ui_part))
+}
+
+fn select_demos(selectors: &[String]) -> Result<Vec<&'static Demo>, Box<dyn Error>> {
+    let selected: Vec<&Demo> = DEMOS
         .iter()
-        .find(|demo| demo.name == demo_name)
-        .ok_or_else(|| format!("no demo is named {demo_name}"))?;
+        .filter(|demo| {
+            selectors.is_empty() || selectors.iter().any(|selector| selected_by(demo, selector))
+        })
+        .collect();
+    if selected.is_empty() {
+        let known_parts: Vec<String> = UiPart::ALL.iter().map(UiPart::to_string).collect();
+        return Err(format!(
+            "{} select no demo; the UI parts are {}",
+            selectors.join(" "),
+            known_parts.join(", ")
+        )
+        .into());
+    }
+    Ok(selected)
+}
+
+fn list_demos(demos: &[&Demo]) {
+    demos.iter().for_each(|demo| {
+        let part_names: Vec<String> = demo.parts.iter().map(UiPart::to_string).collect();
+        println!("{}\t{}", demo.name, part_names.join(" "));
+    });
+}
+
+fn render_single_demo(demo: &'static Demo, output: &Path) {
     let start = booting_clock();
     RecordingSession::open(start).record(demo, start, output);
-    Ok(())
 }
 
 fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Result<(), String> {
@@ -69,7 +109,10 @@ fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Res
         .arg(demo.name)
         .arg("--output")
         .arg(output)
-        .env(LAVAPIPE_THREADS_VARIABLE, LAVAPIPE_THREADS_PER_DEMO)
+        .env(
+            LAVAPIPE_THREADS_VARIABLE,
+            LAVAPIPE_THREADS_PER_DEMO.to_string(),
+        )
         .output()
         .map_err(|spawn_error| spawn_error.to_string())?;
     if child_output.status.success() {
@@ -83,13 +126,13 @@ fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Res
     }
 }
 
-fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Error>> {
+fn render_demos(demos: &[&Demo], jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Error>> {
     let executable = env::current_exe()?;
     let next_demo_position = AtomicUsize::new(0);
     let finished_demo_count = AtomicUsize::new(0);
     let run_started = Instant::now();
     let render_queued_demos = || {
-        iter::from_fn(|| DEMOS.get(next_demo_position.fetch_add(1, Ordering::Relaxed)))
+        iter::from_fn(|| demos.get(next_demo_position.fetch_add(1, Ordering::Relaxed)))
             .filter_map(|demo| {
                 let demo_started = Instant::now();
                 let render_outcome = render_in_child_process(&executable, demo, output);
@@ -98,7 +141,7 @@ fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Err
                     Ok(()) => {
                         eprintln!(
                             "[{finished}/{}] {} recorded in {:.1}s",
-                            DEMOS.len(),
+                            demos.len(),
                             demo.name,
                             seconds_since(demo_started)
                         );
@@ -107,7 +150,7 @@ fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Err
                     Err(failure_report) => {
                         eprintln!(
                             "[{finished}/{}] {} failed: {failure_report}",
-                            DEMOS.len(),
+                            demos.len(),
                             demo.name
                         );
                         Some(demo.name)
@@ -130,7 +173,7 @@ fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Err
     }
     eprintln!(
         "recorded {} demos in {:.0}s",
-        DEMOS.len(),
+        demos.len(),
         seconds_since(run_started)
     );
     Ok(())
@@ -149,8 +192,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         let program = ShowcaseProgram::interactive(&Config::default());
         return Ok(iced_winit::run(iced_tester::attach(program))?);
     }
-    match command_line.demo.as_deref() {
-        Some(demo_name) => render_single_demo(demo_name, &command_line.output),
-        None => render_all_demos(command_line.jobs, &command_line.output),
+    let selected_demos = select_demos(&command_line.selectors)?;
+    if command_line.list {
+        list_demos(&selected_demos);
+        return Ok(());
+    }
+    match selected_demos.as_slice() {
+        [single_demo] => {
+            render_single_demo(single_demo, &command_line.output);
+            Ok(())
+        }
+        several_demos => render_demos(several_demos, command_line.jobs, &command_line.output),
     }
 }

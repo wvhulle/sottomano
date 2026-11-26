@@ -184,7 +184,7 @@ labelled `nix` with KVM.
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
 `nix build .#showcase-recordings` renders them the way the documentation site
-build does, one demo at a time with at most four lavapipe threads. Its source is
+build does, one demo per four build cores with four lavapipe threads each. Its source is
 only the crates the showcase links, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
@@ -195,12 +195,23 @@ recordings keep the cached recordings.
 cargo run -p sottomano-widget-showcase
 cargo run -p sottomano-widget-showcase -- --jobs 2
 cargo run -p sottomano-widget-showcase -- <demo-name>
+cargo run -p sottomano-widget-showcase -- hover-cards toasts
+cargo run -p sottomano-widget-showcase -- --list
 cargo run -p sottomano-widget-showcase -- --window
 ```
 
-Rendering every demo runs one child process per demo, `--jobs` at a time (4 by
-default). A demo buffers its frames until it encodes them, so lower `--jobs` when
-memory is short.
+Each demo lists the UI parts it exercises: group menus, hover cards, panel faces,
+panel pins, sliders, the app launcher, workspaces, the window list, toasts or the
+frosted backdrop. Naming a part instead of a demo renders every demo that exercises
+it, so after changing a part only its recordings need rerendering. `--list` prints
+every demo with its parts, or only the demos the given names and parts select. A
+test fails when a demo's script hovers, presses, pins or drags a part the demo does
+not list.
+
+Rendering every demo runs one child process per demo, `--jobs` at a time (one per
+four cores by default). A demo buffers its frames until it encodes them, up to 2 GB,
+so lower `--jobs` when memory is short. Each recording holds its final state for two
+seconds before the pointer clicks away and the loop restarts.
 
 ```mermaid
 flowchart LR

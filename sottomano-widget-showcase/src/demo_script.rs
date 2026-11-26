@@ -22,6 +22,9 @@ mod group_menu_demos;
 mod guest_machine_demos;
 mod guided_tour_demos;
 mod indicator_group_demos;
+mod ui_parts;
+
+pub use ui_parts::UiPart;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupShown {
@@ -39,6 +42,7 @@ pub enum GroupShown {
 
 pub struct Demo {
     pub name: &'static str,
+    pub parts: &'static [UiPart],
     pub group: fn(Clock) -> ShowcasedGroup,
     pub live: fn(Clock) -> Vec<ShowcaseMessage>,
     pub shown: GroupShown,

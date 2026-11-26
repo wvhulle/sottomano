@@ -11,12 +11,13 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    demo_script::{Demo, DemoBackdrop, GroupShown, Step, indicator_row},
+    demo_script::{Demo, DemoBackdrop, GroupShown, Step, UiPart, indicator_row},
     fixtures::{audio, compute, group_menu_members, shell_settings, unchanging},
 };
 
 pub(super) const GROUP_MENU_ACCORDION_SEVERAL: Demo = Demo {
     name: "group_menu_accordion_several",
+    parts: &[UiPart::GroupMenus],
     group: group_menu_members::hardware_group_menu,
     live: group_menu_members::hardware_menu_live,
     backdrop: DemoBackdrop::Transparent,
@@ -38,6 +39,7 @@ pub(super) const GROUP_MENU_ACCORDION_SEVERAL: Demo = Demo {
 
 pub(super) const GROUP_MENU_MEDIA: Demo = Demo {
     name: "group_menu_media",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: group_menu_members::media_group_menu,
     live: audio::live,
     backdrop: DemoBackdrop::Transparent,
@@ -55,6 +57,7 @@ pub(super) const GROUP_MENU_MEDIA: Demo = Demo {
 
 pub(super) const GROUP_MENU_PIN: Demo = Demo {
     name: "group_menu_pin",
+    parts: &[UiPart::GroupMenus, UiPart::PanelPins],
     group: group_menu_members::hardware_group_menu,
     live: group_menu_members::hardware_menu_live,
     backdrop: DemoBackdrop::Transparent,
@@ -70,6 +73,7 @@ pub(super) const GROUP_MENU_PIN: Demo = Demo {
 
 pub(super) const GROUP_MENU_APPEARANCE: Demo = Demo {
     name: "group_menu_appearance",
+    parts: &[UiPart::GroupMenus],
     group: |_| shell_settings::sharing_a_unit(),
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -81,6 +85,7 @@ pub(super) const GROUP_MENU_APPEARANCE: Demo = Demo {
 
 pub(super) const COMPUTE_CPU_PINNED: Demo = Demo {
     name: "compute_cpu_pinned",
+    parts: &[UiPart::HoverCards, UiPart::PanelFaces, UiPart::PanelPins],
     group: compute::group,
     live: compute::live,
     backdrop: DemoBackdrop::Transparent,

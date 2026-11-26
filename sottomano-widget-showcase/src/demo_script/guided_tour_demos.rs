@@ -9,12 +9,13 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    demo_script::{Demo, DemoBackdrop, GroupShown, Step, indicator_row, instance_row},
+    demo_script::{Demo, DemoBackdrop, GroupShown, Step, UiPart, indicator_row, instance_row},
     fixtures::{audio, group_menu_members, session_focus, unchanging, weather},
 };
 
 pub(super) const TOUR_HARDWARE: Demo = Demo {
     name: "tour_hardware",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: group_menu_members::hardware_group_menu,
     live: group_menu_members::hardware_menu_live,
     backdrop: DemoBackdrop::Transparent,
@@ -31,6 +32,7 @@ pub(super) const TOUR_HARDWARE: Demo = Demo {
 
 pub(super) const TOUR_NETWORK: Demo = Demo {
     name: "tour_network",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: group_menu_members::network_group_menu,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -56,6 +58,7 @@ pub(super) const TOUR_NETWORK: Demo = Demo {
 
 pub(super) const TOUR_WEATHER: Demo = Demo {
     name: "tour_weather",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: weather::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -73,6 +76,7 @@ pub(super) const TOUR_WEATHER: Demo = Demo {
 
 pub(super) const FOCUS_TIMELINE: Demo = Demo {
     name: "focus_timeline",
+    parts: &[UiPart::HoverCards, UiPart::PanelFaces],
     group: session_focus::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -90,6 +94,7 @@ pub(super) const FOCUS_TIMELINE: Demo = Demo {
 
 pub(super) const TOUR_MEDIA: Demo = Demo {
     name: "tour_media",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: group_menu_members::media_group_menu,
     live: audio::live,
     backdrop: DemoBackdrop::Transparent,
@@ -122,6 +127,7 @@ pub(super) const TOUR_MEDIA: Demo = Demo {
 
 pub(super) const TOUR_VIRTUALIZATION: Demo = Demo {
     name: "tour_virtualization",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: group_menu_members::virtualization_group_menu,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,

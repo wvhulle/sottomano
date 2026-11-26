@@ -9,7 +9,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    demo_script::{Demo, DemoBackdrop, GroupShown, Step, indicator_row, instance_row},
+    demo_script::{Demo, DemoBackdrop, GroupShown, Step, UiPart, indicator_row, instance_row},
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, gamepad, idle_lock,
         location, login_session, tailnet, unchanging, voice_dictation, wallpaper, weather,
@@ -18,6 +18,7 @@ use crate::{
 
 pub(super) const APP_LAUNCHER_FREQUENT: Demo = Demo {
     name: "app_launcher_frequent",
+    parts: &[UiPart::GroupMenus, UiPart::AppLauncher],
     group: |_| app_launcher::group(),
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -31,6 +32,7 @@ pub(super) const APP_LAUNCHER_FREQUENT: Demo = Demo {
 
 pub(super) const APP_LAUNCHER_OVERFLOW: Demo = Demo {
     name: "app_launcher_overflow",
+    parts: &[UiPart::GroupMenus, UiPart::AppLauncher],
     group: |_| app_launcher::group(),
     live: |_| app_launcher::scrolled_item_list(),
     backdrop: DemoBackdrop::Transparent,
@@ -44,6 +46,7 @@ pub(super) const APP_LAUNCHER_OVERFLOW: Demo = Demo {
 
 pub(super) const TAILNET_EXIT_NODE: Demo = Demo {
     name: "tailnet_exit_node",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: tailnet::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -60,6 +63,7 @@ pub(super) const TAILNET_EXIT_NODE: Demo = Demo {
 
 pub(super) const LOCATION_FIX: Demo = Demo {
     name: "location_fix",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: location::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -73,6 +77,7 @@ pub(super) const LOCATION_FIX: Demo = Demo {
 
 pub(super) const WEATHER_CONDITIONS: Demo = Demo {
     name: "weather_conditions",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: weather::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -89,6 +94,7 @@ pub(super) const WEATHER_CONDITIONS: Demo = Demo {
 
 pub(super) const CALDAV_AGENDA: Demo = Demo {
     name: "caldav_agenda",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: caldav::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -106,6 +112,7 @@ pub(super) const CALDAV_AGENDA: Demo = Demo {
 
 pub(super) const AI_USAGE_WINDOWS: Demo = Demo {
     name: "ai_usage_windows",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: claude_usage::group,
     live: claude_usage::live,
     backdrop: DemoBackdrop::Transparent,
@@ -122,6 +129,7 @@ pub(super) const AI_USAGE_WINDOWS: Demo = Demo {
 
 pub(super) const IDLE_SCREEN_OFF: Demo = Demo {
     name: "idle_screen_off",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: idle_lock::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -141,6 +149,11 @@ pub(super) const IDLE_SCREEN_OFF: Demo = Demo {
 
 pub(super) const APPEARANCE_LOOKS: Demo = Demo {
     name: "appearance_looks",
+    parts: &[
+        UiPart::GroupMenus,
+        UiPart::HoverCards,
+        UiPart::FrostedBackdrop,
+    ],
     group: |_| appearance_presets::group(),
     live: |_| unchanging(),
     backdrop: DemoBackdrop::FrostablePhoto,
@@ -163,6 +176,7 @@ pub(super) const APPEARANCE_LOOKS: Demo = Demo {
 
 pub(super) const GAMEPAD_CONTROLLER: Demo = Demo {
     name: "gamepad_controller",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: |_| gamepad::group(),
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -182,6 +196,7 @@ pub(super) const GAMEPAD_CONTROLLER: Demo = Demo {
 
 pub(super) const AUDIO_VOLUME: Demo = Demo {
     name: "audio_volume",
+    parts: &[UiPart::PanelFaces, UiPart::Sliders],
     group: audio::group,
     live: audio::live,
     backdrop: DemoBackdrop::Transparent,
@@ -198,6 +213,7 @@ pub(super) const AUDIO_VOLUME: Demo = Demo {
 
 pub(super) const VOICE_DICTATION_MODEL: Demo = Demo {
     name: "voice_dictation_model",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: voice_dictation::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -214,6 +230,7 @@ pub(super) const VOICE_DICTATION_MODEL: Demo = Demo {
 
 pub(super) const LOGIN_SESSION_KERNEL: Demo = Demo {
     name: "login_session_kernel",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: login_session::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
@@ -231,6 +248,7 @@ pub(super) const LOGIN_SESSION_KERNEL: Demo = Demo {
 
 pub(super) const WALLPAPER_ARTICLE: Demo = Demo {
     name: "wallpaper_article",
+    parts: &[UiPart::GroupMenus, UiPart::HoverCards],
     group: wallpaper::group,
     live: |_| unchanging(),
     backdrop: DemoBackdrop::Transparent,
