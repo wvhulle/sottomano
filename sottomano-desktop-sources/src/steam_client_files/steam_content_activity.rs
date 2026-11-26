@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, future::ready, path::PathBuf};
 
 use chrono::{NaiveDateTime, TimeDelta};
 use futures::{Stream, StreamExt, stream};
+use uom::si::{f64::InformationRate, information_rate::megabit_per_second};
 
 use super::{
     appended_log_follow::appended_log_lines,
@@ -41,7 +42,7 @@ pub enum SteamContentEntry {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SteamContentActivity {
-    pub download_rate_megabits_per_second: f64,
+    pub download_rate: InformationRate,
     pub entries: Vec<SteamContentEntry>,
 }
 
@@ -160,7 +161,9 @@ impl ContentLogState {
             SteamContentEntry::Delayed { .. } => 2,
         });
         SteamContentActivity {
-            download_rate_megabits_per_second: self.download_rate_megabits_per_second,
+            download_rate: InformationRate::new::<megabit_per_second>(
+                self.download_rate_megabits_per_second,
+            ),
             entries,
         }
     }

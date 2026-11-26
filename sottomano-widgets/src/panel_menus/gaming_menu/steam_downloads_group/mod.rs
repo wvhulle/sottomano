@@ -2,8 +2,6 @@ mod download_rate_indicator;
 mod downloading_indicator;
 mod waiting_indicator;
 
-use std::iter;
-
 use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::steam_client_pages::{SteamClientPage, open_steam_client_page};
@@ -13,7 +11,7 @@ use sottomano_desktop_sources::{
 };
 
 use self::{
-    download_rate_indicator::download_rate_indicator,
+    download_rate_indicator::{download_queue_indicator, download_rate_indicator},
     downloading_indicator::downloading_indicator,
     waiting_indicator::{hidden_entries_indicator, waiting_indicator},
 };
@@ -56,6 +54,20 @@ pub enum SteamDownloadsInteraction {
 pub struct SteamDownloadsGroup {
     content_activity: SubscribedSnapshot<SteamContentActivity>,
     expansion: IndicatorGroupExpansion,
+}
+
+impl From<&SteamContentActivity> for SteamDownloadActivity {
+    fn from(activity: &SteamContentActivity) -> Self {
+        if activity
+            .entries
+            .iter()
+            .any(|entry| matches!(entry, SteamContentEntry::Downloading(_)))
+        {
+            SteamDownloadActivity::Downloading
+        } else {
+            SteamDownloadActivity::Quiet
+        }
+    }
 }
 
 fn opens_downloads(indicator: GroupIndicator<'_>) -> GroupIndicator<'_> {
@@ -103,17 +115,9 @@ impl SteamDownloadsGroup {
 
     #[must_use]
     pub fn download_activity(&self) -> SteamDownloadActivity {
-        let downloading = self.content_activity.get().is_some_and(|activity| {
-            activity
-                .entries
-                .iter()
-                .any(|entry| matches!(entry, SteamContentEntry::Downloading(_)))
-        });
-        if downloading {
-            SteamDownloadActivity::Downloading
-        } else {
-            SteamDownloadActivity::Quiet
-        }
+        self.content_activity
+            .get()
+            .map_or(SteamDownloadActivity::Quiet, SteamDownloadActivity::from)
     }
 
     #[must_use]
@@ -146,18 +150,21 @@ impl SteamDownloadsGroup {
         if !hidden_waiting.is_empty() {
             rows.push(hidden_entries_indicator(hidden_waiting.len()));
         }
-        let headline_indicator = download_rate_indicator(activity)
+        let (headline_indicator, rate_rows) = match SteamDownloadActivity::from(activity) {
+            SteamDownloadActivity::Downloading => (
+                download_rate_indicator(activity, locale),
+                vec![download_rate_indicator(activity, locale)],
+            ),
+            SteamDownloadActivity::Quiet => (download_queue_indicator(), Vec::new()),
+        };
+        let headline_indicator = headline_indicator
             .with_headline_glyph(Phosphor::DownloadSimple(Weight::Regular).into());
         Some(IndicatorGroupContent::expandable(
             IndicatorGroupFamily::SteamDownloads,
             headline_indicator,
             &self.expansion,
             SteamDownloadsInteraction::Expansion,
-            IndicatorListing::Listed(
-                iter::once(download_rate_indicator(activity))
-                    .chain(rows)
-                    .collect(),
-            ),
+            IndicatorListing::Listed(rate_rows.into_iter().chain(rows).collect()),
         ))
     }
 }
