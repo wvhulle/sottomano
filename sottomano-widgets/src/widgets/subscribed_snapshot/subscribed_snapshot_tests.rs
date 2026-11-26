@@ -176,3 +176,97 @@ fn a_vanished_source_drops_its_snapshot_and_awaits_again() {
     assert!(latest.awaits_first_delivery());
     assert_eq!(shown_state(&latest), None);
 }
+
+fn listed_and_unread_counts(latest: &SubscribedSnapshot<CountedSnapshot>) -> [usize; 2] {
+    let listing = latest.indicator_listing(
+        |snapshot| {
+            (0..snapshot.snapshot_count)
+                .map(|_| counted_row(snapshot))
+                .collect()
+        },
+        IconGlyph::default(),
+    );
+    [
+        listing.listed_indicators().len(),
+        listing.unread_sources().len(),
+    ]
+}
+
+#[test]
+fn a_reading_with_entries_is_listed() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest = SubscribedSnapshot::default();
+    latest.receive(
+        polled_delivery(Ok(CountedSnapshot { snapshot_count: 2 })),
+        timeline.at(10),
+    );
+    assert_eq!(listed_and_unread_counts(&latest), [2, 0]);
+}
+
+#[test]
+fn a_reading_without_entries_lists_nothing() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest = SubscribedSnapshot::default();
+    latest.receive(
+        polled_delivery(Ok(CountedSnapshot { snapshot_count: 0 })),
+        timeline.at(10),
+    );
+    let listing = latest.indicator_listing(|_| Vec::new(), IconGlyph::default());
+    assert!(matches!(listing, IndicatorListing::Listed(listed) if listed.is_empty()));
+}
+
+#[test]
+fn a_source_still_loading_is_an_unread_source() {
+    let latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
+    assert_eq!(listed_and_unread_counts(&latest), [0, 1]);
+}
+
+#[test]
+fn a_failed_first_reading_is_an_unread_source() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest = SubscribedSnapshot::default();
+    latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(10));
+    assert_eq!(listed_and_unread_counts(&latest), [0, 1]);
+}
+
+#[test]
+fn an_absent_source_lists_nothing() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
+    latest.receive(SnapshotDelivery::SourceUnavailable, timeline.at(10));
+    let listing = latest.indicator_listing(|_| Vec::new(), IconGlyph::default());
+    assert!(matches!(listing, IndicatorListing::Listed(listed) if listed.is_empty()));
+}
+
+#[test]
+fn a_stale_empty_reading_keeps_its_failure_visible() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest = SubscribedSnapshot::default();
+    latest.receive(
+        polled_delivery(Ok(CountedSnapshot { snapshot_count: 0 })),
+        timeline.at(10),
+    );
+    latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
+    assert_eq!(listed_and_unread_counts(&latest), [0, 1]);
+}
+
+#[test]
+fn stale_entries_stay_listed_in_a_failed_state() {
+    let timeline = TestTimeline::starting_now();
+    let mut latest = SubscribedSnapshot::default();
+    latest.receive(
+        polled_delivery(Ok(CountedSnapshot { snapshot_count: 1 })),
+        timeline.at(10),
+    );
+    latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
+    let listing =
+        latest.indicator_listing(|snapshot| vec![counted_row(snapshot)], IconGlyph::default());
+    assert_eq!(
+        listing
+            .listed_indicators()
+            .iter()
+            .map(GroupIndicator::shown_state)
+            .collect::<Vec<_>>(),
+        [IndicatorState::Failed]
+    );
+}

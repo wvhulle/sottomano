@@ -55,7 +55,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         matches!(
             self,
             SubscribedSnapshot::Unavailable {
-                cause: AbsenceCause::Awaiting
+                cause: AbsenceCause::Awaiting | AbsenceCause::SourceAbsent
             }
         )
     }
@@ -66,7 +66,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 cause: cause @ AbsenceCause::FetchFailed(_),
             } => Some(cause),
             SubscribedSnapshot::Unavailable {
-                cause: AbsenceCause::Awaiting,
+                cause: AbsenceCause::Awaiting | AbsenceCause::SourceAbsent,
             }
             | SubscribedSnapshot::Available { .. } => None,
         }
@@ -78,7 +78,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 cause: AbsenceCause::FetchFailed(fetch_failure),
             } => Some(fetch_failure),
             SubscribedSnapshot::Unavailable {
-                cause: AbsenceCause::Awaiting,
+                cause: AbsenceCause::Awaiting | AbsenceCause::SourceAbsent,
             }
             | SubscribedSnapshot::Available { .. } => None,
         }
@@ -119,10 +119,21 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 snapshot,
                 staleness: Staleness::StaleAfterFailure(fetch_failure),
                 ..
-            } => IndicatorListing::Incomplete {
-                listed_indicators: describe(snapshot),
-                unread_sources: vec![failed_source_indicator::<S>(fetch_failure, absent_glyph)],
+            } => match describe(snapshot) {
+                stale_indicators if stale_indicators.is_empty() => IndicatorListing::Incomplete {
+                    listed_indicators: Vec::new(),
+                    unread_sources: vec![failed_source_indicator::<S>(fetch_failure, absent_glyph)],
+                },
+                stale_indicators => IndicatorListing::Listed(
+                    stale_indicators
+                        .into_iter()
+                        .map(|stale_indicator| stale_indicator.in_state(IndicatorState::Failed))
+                        .collect(),
+                ),
             },
+            SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::SourceAbsent,
+            } => IndicatorListing::Listed(Vec::new()),
             SubscribedSnapshot::Unavailable { cause } => IndicatorListing::Incomplete {
                 listed_indicators: Vec::new(),
                 unread_sources: vec![cause.indicator(absent_glyph)],
@@ -145,7 +156,9 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
 
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
-            SnapshotDelivery::SourceUnavailable => SubscribedSnapshot::default(),
+            SnapshotDelivery::SourceUnavailable => SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::SourceAbsent,
+            },
             SnapshotDelivery::SnapshotUnchanged => self.redelivered(clock),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
@@ -264,7 +277,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 Staleness::StaleAfterFailure(_) => IndicatorState::Failed,
             }),
             SubscribedSnapshot::Unavailable {
-                cause: AbsenceCause::Awaiting,
+                cause: AbsenceCause::Awaiting | AbsenceCause::SourceAbsent,
             } => None,
             SubscribedSnapshot::Unavailable { cause } => Some(cause.shown_state()),
         }

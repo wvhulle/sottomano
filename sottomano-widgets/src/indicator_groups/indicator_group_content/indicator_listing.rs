@@ -33,6 +33,25 @@ impl<'view> IndicatorListing<'view> {
         self.listed_indicators().iter().chain(self.unread_sources())
     }
 
+    #[must_use]
+    pub fn with_listed(
+        self,
+        transform_listed: impl FnOnce(Vec<GroupIndicator<'view>>) -> Vec<GroupIndicator<'view>>,
+    ) -> Self {
+        match self {
+            IndicatorListing::Listed(listed_indicators) => {
+                IndicatorListing::Listed(transform_listed(listed_indicators))
+            }
+            IndicatorListing::Incomplete {
+                listed_indicators,
+                unread_sources,
+            } => IndicatorListing::Incomplete {
+                listed_indicators: transform_listed(listed_indicators),
+                unread_sources,
+            },
+        }
+    }
+
     pub(crate) fn retaining_listed(
         self,
         keeps_alignment: impl Fn(IndicatorAlignment) -> bool,

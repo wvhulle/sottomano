@@ -13,6 +13,7 @@ pub enum Staleness<S: SnapshotSource> {
 
 pub enum AbsenceCause<S: SnapshotSource> {
     Awaiting,
+    SourceAbsent,
     FetchFailed(S::Error),
 }
 
@@ -27,6 +28,7 @@ impl<S: SnapshotSource> AbsenceCause<S> {
     pub fn shown_state(&self) -> IndicatorState {
         match self {
             AbsenceCause::Awaiting => IndicatorState::Pending,
+            AbsenceCause::SourceAbsent => IndicatorState::Off,
             AbsenceCause::FetchFailed(_) => IndicatorState::Failed,
         }
     }
@@ -35,6 +37,9 @@ impl<S: SnapshotSource> AbsenceCause<S> {
     pub fn source_state(&self) -> Section {
         match self {
             AbsenceCause::Awaiting => Section::source_state::<S>(SourceDelivery::Loading, ""),
+            AbsenceCause::SourceAbsent => {
+                Section::source_state::<S>(SourceDelivery::Failed, "not present on this system")
+            }
             AbsenceCause::FetchFailed(fetch_failure) => {
                 Section::source_state::<S>(SourceDelivery::Failed, fetch_failure.to_string())
             }
@@ -53,5 +58,14 @@ pub fn failed_source_indicator<S: SnapshotSource>(
                 fetch_failure.to_string(),
             )]
         }),
+    )
+}
+
+#[must_use]
+pub fn awaiting_source_indicator<'view, S: SnapshotSource>(
+    absent_glyph: IconGlyph,
+) -> GroupIndicator<'view> {
+    GroupIndicator::glyph_only(S::NAME, absent_glyph, IndicatorState::Pending).with_hover_card(
+        Box::new(|_| vec![Section::source_state::<S>(SourceDelivery::Loading, "")]),
     )
 }
