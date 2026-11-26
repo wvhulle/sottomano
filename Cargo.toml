@@ -40,6 +40,7 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 needless_for_each = "allow"
 pedantic = { priority = -1, level = "warn" }
+self_named_module_files = "warn"
 
 [workspace.dependencies]
 bytesize = "2.7.0"
