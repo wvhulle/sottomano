@@ -4,6 +4,7 @@ use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     NodeCapabilities, Tailnet, Tailscale,
 };
 
+use super::TailnetGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -137,6 +138,22 @@ fn capability_rows(capabilities: &NodeCapabilities) -> Vec<LabeledValue> {
         ));
     }
     rows
+}
+
+impl TailnetGroup {
+    pub(super) fn own_node_rows<'view>(
+        &'view self,
+        tailscale: &'view Tailscale,
+    ) -> Option<GroupIndicator<'view>> {
+        OwnNodeIndicator::running_own_node(tailscale).map(|own_node_indicator| {
+            own_node_indicator
+                .indicator()
+                .with_hover_card(Box::new(move |_| {
+                    self.tailscale
+                        .hover_card_with(own_node_indicator.hover_card())
+                }))
+        })
+    }
 }
 
 #[cfg(test)]

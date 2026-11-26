@@ -2,12 +2,18 @@ use std::iter::once;
 
 use sottomano_desktop_sources::{
     battery_power_profiles::upower_battery_state::ChargeStatus,
-    network_connectivity::bluez_bluetooth::{ConnectedDevice, DeviceBattery, DeviceKind},
+    gamepad_controller_input::accelerometer_report_timing::ReportTiming,
+    network_connectivity::bluez_bluetooth::{
+        BluetoothAdapter, ConnectedDevice, DeviceBattery, DeviceKind,
+    },
+    system_protocol_clients::journal_follow::unexpired_events,
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{BluetoothAdaptersGroup, BluetoothInteraction};
 use crate::{
+    clock::Clock,
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -243,6 +249,58 @@ enum ConnectionStability {
 enum BatteryDrain {
     BelowThreshold,
     AboveThreshold,
+}
+
+impl BluetoothAdaptersGroup {
+    pub(super) fn connected_device_rows<'view>(
+        &'view self,
+        adapter: &'view BluetoothAdapter,
+        report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
+        clock: Clock,
+    ) -> Vec<GroupIndicator<'view>> {
+        let siblings = adapter.power.connected_devices();
+        siblings
+            .iter()
+            .map(|device| {
+                let input_reports = report_timing_for(&device.address)
+                    .map_or(InputReports::NotStreamed, |timing| {
+                        InputReports::Streamed(MeasuredReportTiming::Measured(timing))
+                    });
+                self.device_indicator(device, siblings, input_reports, clock)
+                    .indicator()
+                    .on_press(
+                        ConnectedDeviceIndicator::PRESS_DOES,
+                        BluetoothInteraction::Disconnect(device.object_path.clone()),
+                    )
+                    .with_hover_card(Box::new(move |card_clock| {
+                        self.bluetooth.hover_card_with(
+                            self.device_indicator(device, siblings, input_reports, card_clock)
+                                .hover_card(),
+                        )
+                    }))
+            })
+            .collect()
+    }
+
+    fn device_indicator<'view>(
+        &'view self,
+        device: &'view ConnectedDevice,
+        siblings: &[ConnectedDevice],
+        input_reports: InputReports,
+        clock: Clock,
+    ) -> ConnectedDeviceIndicator<'view> {
+        ConnectedDeviceIndicator {
+            device,
+            short_label: short_label(device, siblings),
+            recent_reconnects: self
+                .reconnects
+                .recent_reconnects(&device.address, clock.utc()),
+            kernel_errors: unexpired_events(&self.kernel_errors, clock.wall)
+                .filter(|error| device.kernel_devices.contains(&error.kernel_device))
+                .collect(),
+            input_reports,
+        }
+    }
 }
 
 #[cfg(test)]

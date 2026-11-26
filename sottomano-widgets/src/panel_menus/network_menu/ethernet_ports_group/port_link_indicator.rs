@@ -1,9 +1,9 @@
 use sottomano_desktop_sources::network_connectivity::{
-    ethernet_connection::{ConnectionProfile, Link, Port, PortLink, PortState},
+    ethernet_connection::{Port, PortLink, PortState},
     interface_bus_attachment::{AdapterIdentity, InterfaceAttachment},
-    network_manager_proxies::LinkPhase,
 };
 
+use super::{EthernetPortsBusRequest, EthernetPortsGroup, EthernetPortsInteraction};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -11,7 +11,6 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::network_menu::interface_address_sections::link_stats_section,
     widgets::value_cells::LabeledValue,
 };
 
@@ -24,10 +23,6 @@ pub enum PortMarking {
 pub struct PortLinkIndicator<'view> {
     pub port_state: &'view PortState,
     pub marking: PortMarking,
-}
-
-pub struct PortConnectionSwitch<'view> {
-    pub port_state: &'view PortState,
 }
 
 fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
@@ -73,63 +68,6 @@ impl<'view> PortLinkIndicator<'view> {
     }
 }
 
-impl PortConnectionSwitch<'_> {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        if self.port_state.link_state == LinkPhase::Up {
-            "disconnect this Ethernet port"
-        } else {
-            "connect this Ethernet port"
-        }
-    }
-}
-
-impl<'view> PortConnectionSwitch<'view> {
-    #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'view> {
-        let icon = if self.port_state.link_state == LinkPhase::Up {
-            Phosphor::ToggleRight(Weight::Regular).into()
-        } else {
-            Phosphor::ToggleLeft(Weight::Regular).into()
-        };
-        GroupIndicator::glyph_only(
-            "Connection",
-            icon,
-            IndicatorState::from(self.port_state.link_state),
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    #[must_use]
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Port",
-            dictionary_table([
-                LabeledValue::new("Port", self.port_state.name.as_str()),
-                LabeledValue::new("Connection", self.port_state.link_state.label()),
-            ]),
-        )]
-    }
-}
-
-pub fn link_detail_sections(link: &Link) -> Vec<Section> {
-    let mut sections = Vec::new();
-    if let ConnectionProfile::Named(profile) = &link.connection {
-        sections.push(Section::new(
-            "Profile",
-            dictionary_table([LabeledValue::new("Network Profile", profile.as_str())]),
-        ));
-    }
-    sections.push(link_stats_section(
-        "Link",
-        "Link Speed",
-        link.speed,
-        link.mtu,
-        link.fault_counters,
-    ));
-    sections
-}
-
 pub fn port_identity_sections(port: &Port) -> Vec<Section> {
     let mut sections = Vec::new();
     if let PortLink::Up(link) = &port.link {
@@ -142,4 +80,32 @@ pub fn port_identity_sections(port: &Port) -> Vec<Section> {
         sections.push(Section::from(adapter));
     }
     sections
+}
+
+impl EthernetPortsGroup {
+    pub(super) fn port_link_row<'view>(
+        &'view self,
+        port_state: &'view PortState,
+    ) -> GroupIndicator<'view> {
+        PortLinkIndicator {
+            port_state,
+            marking: self.port_marking(port_state),
+        }
+        .indicator()
+        .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)))
+        .fetching_on_hover(
+            EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
+            EthernetPortsInteraction::StopHoverFetches,
+        )
+    }
+
+    fn port_link_hover_card(&self, port_state: &PortState) -> Vec<Section> {
+        let link_indicator = PortLinkIndicator {
+            port_state,
+            marking: self.port_marking(port_state),
+        };
+        let mut sections = self.ethernet.hover_card_with(link_indicator.hover_card());
+        sections.extend(self.port_detail_sections(&port_state.name, port_identity_sections));
+        sections
+    }
 }

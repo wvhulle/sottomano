@@ -34,34 +34,27 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    panel_menus::network_menu::tailnet_group::{
-        own_node_hover_card::OwnNodeIndicator,
-        tailscale_access_hover_card::{
-            InboundAccessIndicator, PolicyFileIndicator, tailscale_inbound_access_sections,
-        },
-        tailscale_exit_offer_hover_card::ExitOfferIndicator,
-        tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_indicator},
+    panel_menus::network_menu::tailnet_group::tailnet_membership_indicator::{
+        TAILNET_MEMBERSHIP_GLYPH, tailscale_indicator,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
-const TAILNET_MEMBERSHIP_GLYPH: Phosphor = Phosphor::Plugs(Weight::Regular);
 const TAILSCALE_EXIT_NODES_GLYPH: Phosphor = Phosphor::SignOut(Weight::Regular);
 
-mod exit_node_switch_rows;
-mod own_node_hover_card;
+mod exit_node_choice_indicator;
+mod exit_offer_indicator;
+mod inbound_access_indicator;
+mod own_node_indicator;
 mod policy_file_access;
+mod policy_file_indicator;
+mod tailnet_membership_indicator;
 #[cfg(test)]
 mod tailnet_switch_tests;
-mod tailscale_access_hover_card;
-mod tailscale_exit_node_hover_card;
-mod tailscale_exit_offer_hover_card;
-mod tailscale_mesh_hover_card;
 
 use self::policy_file_access::PolicyFileAccess;
 
@@ -255,41 +248,6 @@ impl TailnetGroup {
         )
     }
 
-    fn membership_indicator<'view>(
-        &'view self,
-        membership_row: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        membership_row
-            .on_right_press(
-                "open the Tailscale admin console",
-                TailnetInteraction::OpenAdminConsole,
-            )
-            .with_hover_card(Box::new(move |card_clock| {
-                self.tailscale
-                    .sections_described_by(|snapshot| tailscale_hover_card(snapshot, card_clock))
-            }))
-    }
-
-    fn membership_switch_indicator<'view>(
-        &'view self,
-        membership_row: GroupIndicator<'view>,
-        tailscale: &Tailscale,
-    ) -> GroupIndicator<'view> {
-        let membership_indicator = self.membership_indicator(membership_row);
-        match tailscale.switch() {
-            TailscaleSwitch::Up => membership_indicator.on_switch_press(
-                SwitchPosition::Off,
-                "turn Tailscale on",
-                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Up),
-            ),
-            TailscaleSwitch::Down => membership_indicator.on_switch_press(
-                SwitchPosition::On,
-                "turn Tailscale off",
-                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Down),
-            ),
-        }
-    }
-
     fn running_tailnet_indicators<'view>(
         &'view self,
         tailscale: &'view Tailscale,
@@ -298,40 +256,14 @@ impl TailnetGroup {
             return Vec::new();
         };
         let policy_file_indicators = match self.policy_file_access {
-            PolicyFileAccess::ApiToken { .. } => vec![self.policy_file_indicator()],
+            PolicyFileAccess::ApiToken { .. } => vec![self.policy_file_row()],
             PolicyFileAccess::NoApiToken => Vec::new(),
         };
-        [self.inbound_access_indicator()]
+        [self.inbound_access_row()]
             .into_iter()
             .chain(policy_file_indicators)
-            .chain([
-                Self::exit_offer_indicator(tailnet).with_hover_card(Box::new(move |_| {
-                    self.tailscale
-                        .hover_card_with(ExitOfferIndicator { tailnet }.hover_card())
-                })),
-            ])
+            .chain([self.exit_offer_row(tailnet)])
             .collect()
-    }
-
-    fn policy_file_indicator(&self) -> GroupIndicator<'_> {
-        PolicyFileIndicator::indicator()
-            .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
-            .fetching_on_hover(
-                TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
-                TailnetInteraction::StopHoverFetches,
-            )
-    }
-
-    fn inbound_access_indicator(&self) -> GroupIndicator<'_> {
-        InboundAccessIndicator::indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.inbound_access
-                    .sections_described_by(tailscale_inbound_access_sections)
-            }))
-            .fetching_on_hover(
-                TailnetInteraction::StartInboundAccessFetch,
-                TailnetInteraction::StopHoverFetches,
-            )
     }
 
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
@@ -341,15 +273,7 @@ impl TailnetGroup {
                 let membership_indicators = self
                     .membership_switch_indicator(membership_indicator, held_snapshot)
                     .when_shown();
-                let own_node_indicators =
-                    OwnNodeIndicator::running_own_node(held_snapshot).map(|own_node_indicator| {
-                        own_node_indicator
-                            .indicator()
-                            .with_hover_card(Box::new(move |_| {
-                                self.tailscale
-                                    .hover_card_with(own_node_indicator.hover_card())
-                            }))
-                    });
+                let own_node_indicators = self.own_node_rows(held_snapshot);
                 membership_indicators
                     .into_iter()
                     .chain(own_node_indicators)

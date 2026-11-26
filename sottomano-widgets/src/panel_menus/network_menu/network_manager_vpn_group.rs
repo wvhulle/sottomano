@@ -21,14 +21,12 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
-mod network_manager_vpn_hover_card;
-use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_indicator};
+mod vpn_connection_indicator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkManagerVpnBusRequest {
@@ -114,32 +112,6 @@ impl NetworkManagerVpnGroup {
             .map_or(&[][..], |vpns| &vpns.connections)
     }
 
-    fn wired_vpn_connection_indicator<'view>(
-        &'view self,
-        vpn_connection: &'view VpnConnection,
-    ) -> GroupIndicator<'view> {
-        let vpn_switch = vpn_connection.switch();
-        vpn_connection_indicator(vpn_connection)
-            .on_switch_press(
-                match vpn_switch {
-                    NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
-                    NmConnectionSwitch::Disconnect(_) => SwitchPosition::On,
-                },
-                match vpn_switch {
-                    NmConnectionSwitch::Connect(_) => "connect the VPN",
-                    NmConnectionSwitch::Disconnect(_) => "disconnect the VPN",
-                },
-                NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.network_manager_vpns
-                    .hover_card_with(vpn_connection_hover_card(vpn_connection))
-            }))
-            .refreshed_by(NetworkManagerVpnInteraction::OnBuses(
-                NetworkManagerVpnBusRequest::Refresh,
-            ))
-    }
-
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::NetworkManagerVpns,
@@ -150,12 +122,7 @@ impl NetworkManagerVpnGroup {
             ),
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,
-            IndicatorListing::Listed(
-                self.vpn_connections()
-                    .iter()
-                    .map(move |vpn_connection| self.wired_vpn_connection_indicator(vpn_connection))
-                    .collect(),
-            ),
+            IndicatorListing::Listed(self.vpn_connection_rows()),
         )
     }
 }

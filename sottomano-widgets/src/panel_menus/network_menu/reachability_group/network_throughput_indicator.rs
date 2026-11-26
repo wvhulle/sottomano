@@ -1,7 +1,10 @@
 use sottomano_desktop_sources::{
     SnapshotSource,
-    network_connectivity::interface_throughput::{
-        InterfaceThroughput, LinkUsage, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+    network_connectivity::{
+        interface_throughput::{
+            InterfaceThroughput, LinkUsage, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+        },
+        network_manager_proxies::Metering,
     },
 };
 use sottomano_toml_config::severity::Severity;
@@ -11,16 +14,23 @@ use uom::si::{
     ratio::ratio,
 };
 
+use super::{
+    ReachabilityBusRequest, ReachabilityGroup, ReachabilityInteraction,
+    sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutGauge,
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
+
+const INTERFACE_THROUGHPUT_GLYPH: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
 
 const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
@@ -123,4 +133,82 @@ pub(super) fn interface_throughput_indicator(
     .with_hover_card(Box::new(move |_| {
         interface_throughput_hover_card(throughput)
     }))
+}
+
+impl ReachabilityGroup {
+    pub(super) fn network_throughput_listing(&self) -> IndicatorListing<'_> {
+        self.throughput.indicator_listing(
+            |samples| {
+                self.wired_interface_throughput_indicator(interface_throughput_indicator(samples))
+                    .when_shown()
+                    .into_iter()
+                    .chain([
+                        self.direction_throughput_indicator(&samples.down),
+                        self.direction_throughput_indicator(&samples.up),
+                    ])
+                    .collect()
+            },
+            INTERFACE_THROUGHPUT_GLYPH.into(),
+        )
+    }
+
+    fn wired_interface_throughput_indicator<'view>(
+        &'view self,
+        interface_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        interface_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.throughput
+                    .sections_described_by(interface_throughput_hover_card)
+            }))
+            .refreshed_by(ReachabilityInteraction::OnBuses(
+                ReachabilityBusRequest::Refresh,
+            ))
+    }
+
+    fn direction_throughput_indicator<'view>(
+        &'view self,
+        direction_throughput: &'view Throughput,
+    ) -> GroupIndicator<'view> {
+        throughput_indicator(direction_throughput)
+            .with_hover_card(Box::new(move |_| {
+                self.direction_hover_card(direction_throughput)
+            }))
+            .refreshed_by(ReachabilityInteraction::OnBuses(
+                ReachabilityBusRequest::Refresh,
+            ))
+    }
+
+    fn direction_hover_card(&self, throughput: &Throughput) -> Vec<Section> {
+        let metered_section = self
+            .throughput
+            .get()
+            .filter(|samples| samples.metering == Metering::Metered)
+            .and_then(|_| self.metered_volume.displayed_totals())
+            .map(|totals| metered_section(&totals, throughput.direction));
+        self.throughput.hover_card_with(
+            throughput_hover_card(throughput)
+                .into_iter()
+                .chain(metered_section)
+                .collect(),
+        )
+    }
+}
+
+fn metered_section(totals: &MeteredVolumeTotals, direction: NetworkTrafficDirection) -> Section {
+    let in_direction = |transferred: TransferTotals| match direction {
+        NetworkTrafficDirection::Download => transferred.received,
+        NetworkTrafficDirection::Upload => transferred.sent,
+    };
+    Section::new(
+        "Metered connection",
+        dictionary_table([
+            LabeledValue::new("Today", Quantity::size(in_direction(totals.today))),
+            LabeledValue::new("This cycle", Quantity::size(in_direction(totals.cycle))),
+            LabeledValue::new(
+                "Counted since",
+                totals.counting_since.format("%-d %b %Y").to_string(),
+            ),
+        ]),
+    )
 }

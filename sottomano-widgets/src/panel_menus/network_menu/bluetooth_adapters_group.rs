@@ -1,6 +1,7 @@
-use std::{iter, time::SystemTime};
+use std::iter;
 
 use crate::group_indicators::indicator_group_content::IndicatorListing;
+mod adapter_power_indicator;
 mod adapter_radio_indicator;
 mod connected_device_indicator;
 mod reconnect_churn_counting;
@@ -12,25 +13,20 @@ use sottomano_desktop_sinks::network_connectivity::bluez_bluetooth_commands::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     gamepad_controller_input::accelerometer_report_timing::ReportTiming,
-    network_connectivity::bluez_bluetooth::{Bluetooth, BluetoothAdapter, ConnectedDevice},
-    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, journal_follow::unexpired_events},
+    network_connectivity::bluez_bluetooth::{Bluetooth, BluetoothAdapter},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
     },
 };
 use zbus::zvariant::OwnedObjectPath;
 
-use self::{
-    adapter_radio_indicator::{AdapterNaming, AdapterPowerSwitch, AdapterRadioIndicator},
-    connected_device_indicator::{ConnectedDeviceIndicator, InputReports, short_label},
-    reconnect_churn_counting::ReconnectHistory,
-};
+use self::{adapter_radio_indicator::AdapterNaming, reconnect_churn_counting::ReconnectHistory};
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansionMessage, KeyedExpansions,
         },
@@ -38,9 +34,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    widgets::{
-        input_report_sections::MeasuredReportTiming, subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug)]
@@ -163,42 +157,6 @@ impl BluetoothAdaptersGroup {
         }
     }
 
-    fn adapter_indicator<'view>(
-        &'view self,
-        adapter: &'view BluetoothAdapter,
-        now: SystemTime,
-    ) -> AdapterRadioIndicator<'view> {
-        let kernel_device =
-            AdapterRadioIndicator::controller_kernel_device(&adapter.controller_name);
-        AdapterRadioIndicator {
-            adapter,
-            naming: self.adapter_naming(adapter),
-            kernel_errors: unexpired_events(&self.kernel_errors, now)
-                .filter(|error| error.kernel_device == kernel_device)
-                .collect(),
-        }
-    }
-
-    fn device_indicator<'view>(
-        &'view self,
-        device: &'view ConnectedDevice,
-        siblings: &[ConnectedDevice],
-        input_reports: InputReports,
-        clock: Clock,
-    ) -> ConnectedDeviceIndicator<'view> {
-        ConnectedDeviceIndicator {
-            device,
-            short_label: short_label(device, siblings),
-            recent_reconnects: self
-                .reconnects
-                .recent_reconnects(&device.address, clock.utc()),
-            kernel_errors: unexpired_events(&self.kernel_errors, clock.wall)
-                .filter(|error| device.kernel_devices.contains(&error.kernel_device))
-                .collect(),
-            input_reports,
-        }
-    }
-
     fn adapter_group<'view>(
         &'view self,
         adapter: &'view BluetoothAdapter,
@@ -206,55 +164,9 @@ impl BluetoothAdaptersGroup {
         clock: Clock,
     ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&adapter.controller_name)?;
-        let build_adapter_radio_indicator = || {
-            self.adapter_indicator(adapter, clock.wall)
-                .indicator()
-                .with_hover_card(Box::new(move |card_clock| {
-                    self.bluetooth.hover_card_with(
-                        self.adapter_indicator(adapter, card_clock.wall)
-                            .hover_card(),
-                    )
-                }))
-        };
-        let headline_indicator = build_adapter_radio_indicator()
+        let headline_indicator = self
+            .adapter_radio_row(adapter, clock)
             .with_headline_glyph(Phosphor::BluetoothConnected(Weight::Regular).into());
-        let power_switch = AdapterPowerSwitch { adapter };
-        let power_press_does = power_switch.press_does();
-        let wired_power_indicator = power_switch
-            .indicator()
-            .on_switch_press(
-                &adapter.power,
-                power_press_does,
-                BluetoothInteraction::ToggleAdapterPower(adapter.object_path.clone()),
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.bluetooth
-                    .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
-            }));
-        let siblings = adapter.power.connected_devices();
-        let device_indicators: Vec<GroupIndicator<'view>> = siblings
-            .iter()
-            .map(|device| {
-                let input_reports = report_timing_for(&device.address)
-                    .map_or(InputReports::NotStreamed, |timing| {
-                        InputReports::Streamed(MeasuredReportTiming::Measured(timing))
-                    });
-                let connected_device =
-                    self.device_indicator(device, siblings, input_reports, clock);
-                connected_device
-                    .indicator()
-                    .on_press(
-                        ConnectedDeviceIndicator::PRESS_DOES,
-                        BluetoothInteraction::Disconnect(device.object_path.clone()),
-                    )
-                    .with_hover_card(Box::new(move |card_clock| {
-                        self.bluetooth.hover_card_with(
-                            self.device_indicator(device, siblings, input_reports, card_clock)
-                                .hover_card(),
-                        )
-                    }))
-            })
-            .collect();
         let controller_name = adapter.controller_name.clone();
         Some(IndicatorGroupContent::expandable_instance(
             IndicatorGroupIdentity::durable(
@@ -269,8 +181,9 @@ impl BluetoothAdaptersGroup {
                 expansion,
             },
             IndicatorListing::Listed(
-                iter::once(build_adapter_radio_indicator())
-                    .chain([wired_power_indicator].into_iter().chain(device_indicators))
+                iter::once(self.adapter_radio_row(adapter, clock))
+                    .chain(iter::once(self.adapter_power_row(adapter)))
+                    .chain(self.connected_device_rows(adapter, report_timing_for, clock))
                     .collect(),
             ),
         ))

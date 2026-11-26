@@ -1,17 +1,19 @@
-use std::iter::once;
+use std::{iter::once, time::SystemTime};
 
 use sottomano_desktop_sources::{
     network_connectivity::bluez_bluetooth::{AdapterPower, BluetoothAdapter},
+    system_protocol_clients::journal_follow::unexpired_events,
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 
+use super::BluetoothAdaptersGroup;
 use crate::{
+    clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -32,11 +34,7 @@ pub struct AdapterRadioIndicator<'view> {
     pub kernel_errors: Vec<&'view DeviceKernelError>,
 }
 
-pub struct AdapterPowerSwitch<'view> {
-    pub adapter: &'view BluetoothAdapter,
-}
-
-fn power_description(power: &AdapterPower) -> &'static str {
+pub(super) fn power_description(power: &AdapterPower) -> &'static str {
     match power {
         AdapterPower::Off => "off",
         AdapterPower::SwitchingOn => "turning on",
@@ -125,54 +123,35 @@ impl<'view> AdapterRadioIndicator<'view> {
     }
 }
 
-impl AdapterPowerSwitch<'_> {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        match self.adapter.power {
-            AdapterPower::On(_) | AdapterPower::SwitchingOn => "turn this Bluetooth adapter off",
-            AdapterPower::Off | AdapterPower::SwitchingOff => "turn this Bluetooth adapter on",
+impl BluetoothAdaptersGroup {
+    pub(super) fn adapter_radio_row<'view>(
+        &'view self,
+        adapter: &'view BluetoothAdapter,
+        clock: Clock,
+    ) -> GroupIndicator<'view> {
+        self.adapter_indicator(adapter, clock.wall)
+            .indicator()
+            .with_hover_card(Box::new(move |card_clock| {
+                self.bluetooth.hover_card_with(
+                    self.adapter_indicator(adapter, card_clock.wall)
+                        .hover_card(),
+                )
+            }))
+    }
+
+    fn adapter_indicator<'view>(
+        &'view self,
+        adapter: &'view BluetoothAdapter,
+        now: SystemTime,
+    ) -> AdapterRadioIndicator<'view> {
+        let kernel_device =
+            AdapterRadioIndicator::controller_kernel_device(&adapter.controller_name);
+        AdapterRadioIndicator {
+            adapter,
+            naming: self.adapter_naming(adapter),
+            kernel_errors: unexpired_events(&self.kernel_errors, now)
+                .filter(|error| error.kernel_device == kernel_device)
+                .collect(),
         }
-    }
-}
-
-impl From<&AdapterPower> for SwitchPosition {
-    fn from(adapter_power: &AdapterPower) -> Self {
-        match adapter_power {
-            AdapterPower::On(_) | AdapterPower::SwitchingOn => SwitchPosition::On,
-            AdapterPower::Off | AdapterPower::SwitchingOff => SwitchPosition::Off,
-        }
-    }
-}
-
-impl<'view> AdapterPowerSwitch<'view> {
-    #[must_use]
-    pub fn indicator(self) -> GroupIndicator<'view> {
-        let state = match self.adapter.power {
-            AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => IndicatorState::Pending,
-            AdapterPower::Off => IndicatorState::Off,
-            AdapterPower::On(_) => IndicatorState::On,
-        };
-        GroupIndicator::glyph_only(
-            "Bluetooth power",
-            Phosphor::Power(Weight::Regular).into(),
-            state,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled(power_description(&self.adapter.power).to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    #[must_use]
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("Adapter", self.adapter.controller_name.as_str()),
-                LabeledValue::new("Power", power_description(&self.adapter.power)),
-            ]),
-        )]
     }
 }

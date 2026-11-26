@@ -4,6 +4,7 @@ use sottomano_desktop_sources::network_connectivity::{
     wifi_connection::{AccessPointAssociation, AdapterAddressing, WifiAdapter, WifiAdapterDetails},
 };
 
+use super::{WifiAdaptersBusRequest, WifiAdaptersGroup, WifiAdaptersInteraction};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -11,23 +12,14 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::network_menu::interface_address_sections::{link_stats_section, signal_level},
+    panel_menus::network_menu::interface_address_sections::signal_level,
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 pub struct AdapterSignalIndicator<'view> {
     pub adapter: &'view WifiAdapter,
-    pub radio_power: RadioPower,
-}
-
-pub struct AdapterConnectionSwitch<'view> {
-    pub adapter: &'view WifiAdapter,
-}
-
-pub struct AllWifiRadiosSwitch {
     pub radio_power: RadioPower,
 }
 
@@ -88,74 +80,6 @@ impl<'view> AdapterSignalIndicator<'view> {
     }
 }
 
-impl<'view> AdapterConnectionSwitch<'view> {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        if self.adapter.link_state == LinkPhase::Up {
-            "disconnect this Wi-Fi adapter"
-        } else {
-            "connect this Wi-Fi adapter"
-        }
-    }
-
-    pub fn indicator(self) -> GroupIndicator<'view> {
-        let glyph = if self.adapter.link_state == LinkPhase::Up {
-            Phosphor::ToggleRight(Weight::Regular).into()
-        } else {
-            Phosphor::ToggleLeft(Weight::Regular).into()
-        };
-        GroupIndicator::glyph_only(
-            "Connection",
-            glyph,
-            IndicatorState::from(self.adapter.link_state),
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Adapter",
-            dictionary_table([
-                LabeledValue::new("Interface Name", self.adapter.device.as_str()),
-                LabeledValue::new("Connection", self.adapter.link_state.label()),
-            ]),
-        )]
-    }
-}
-
-impl AllWifiRadiosSwitch {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        match self.radio_power {
-            RadioPower::On => "turn all Wi-Fi radios off",
-            RadioPower::Off => "turn all Wi-Fi radios on",
-        }
-    }
-
-    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
-        let glyph = match self.radio_power {
-            RadioPower::On => Phosphor::WifiHigh(Weight::Regular).into(),
-            RadioPower::Off => Phosphor::WifiSlash(Weight::Regular).into(),
-        };
-        GroupIndicator::glyph_only(
-            "All Wi-Fi radios",
-            glyph,
-            IndicatorState::from(SwitchPosition::from(self.radio_power)),
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Radio power",
-            dictionary_table([LabeledValue::new(
-                "All Wi-Fi radios",
-                self.radio_power.label(),
-            )]),
-        )]
-    }
-}
-
 pub fn adapter_identity_sections(details: &WifiAdapterDetails) -> Vec<Section> {
     let mut sections = Vec::new();
     if let AdapterAddressing::Addressed(addressing) = &details.addressing {
@@ -170,15 +94,37 @@ pub fn adapter_identity_sections(details: &WifiAdapterDetails) -> Vec<Section> {
     sections
 }
 
-pub fn adapter_radio_stats_sections(details: &WifiAdapterDetails) -> Vec<Section> {
-    let AdapterAddressing::Addressed(addressing) = &details.addressing else {
-        return Vec::new();
-    };
-    vec![link_stats_section(
-        "Radio",
-        "Radio Speed",
-        addressing.bitrate,
-        addressing.mtu,
-        addressing.fault_counters,
-    )]
+impl WifiAdaptersGroup {
+    pub(super) fn adapter_signal_row<'view>(
+        &'view self,
+        adapter: &'view WifiAdapter,
+        radio_power: RadioPower,
+    ) -> GroupIndicator<'view> {
+        AdapterSignalIndicator {
+            adapter,
+            radio_power,
+        }
+        .indicator()
+        .with_hover_card(Box::new(move |_| {
+            self.adapter_signal_hover_card(adapter, radio_power)
+        }))
+        .fetching_on_hover(
+            WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
+            WifiAdaptersInteraction::StopHoverFetches,
+        )
+    }
+
+    fn adapter_signal_hover_card(
+        &self,
+        adapter: &WifiAdapter,
+        radio_power: RadioPower,
+    ) -> Vec<Section> {
+        let signal_indicator = AdapterSignalIndicator {
+            adapter,
+            radio_power,
+        };
+        let mut sections = self.wifi.hover_card_with(signal_indicator.hover_card());
+        sections.extend(self.adapter_detail_sections(&adapter.device, adapter_identity_sections));
+        sections
+    }
 }

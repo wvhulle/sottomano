@@ -1,7 +1,11 @@
 use std::iter;
 
 use crate::group_indicators::indicator_group_content::IndicatorListing;
+mod adapter_address_indicator;
+mod adapter_connection_indicator;
+mod adapter_dns_indicator;
 mod adapter_signal_indicator;
+mod all_radios_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
@@ -11,17 +15,13 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,
-        network_manager_proxies::{LinkPhase, RadioPower},
-        wifi_connection::{AdapterAddressing, Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
+        network_manager_proxies::RadioPower,
+        wifi_connection::{Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::Config;
 
-use self::adapter_signal_indicator::{
-    AdapterConnectionSwitch, AdapterSignalIndicator, AllWifiRadiosSwitch,
-    adapter_identity_sections, adapter_radio_stats_sections,
-};
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
@@ -36,13 +36,7 @@ use crate::{
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
-    panel_menus::network_menu::{
-        interface_address_sections::{
-            AddressFamily, InterfaceAddressIndicator, InterfaceDnsIndicator, dns_server_sections,
-            family_address_sections, family_router_sections,
-        },
-        interface_group_titles::AttachmentTitles,
-    },
+    panel_menus::network_menu::interface_group_titles::AttachmentTitles,
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
@@ -194,55 +188,6 @@ impl WifiAdaptersGroup {
         })
     }
 
-    fn adapter_signal_hover_card(
-        &self,
-        adapter: &WifiAdapter,
-        radio_power: RadioPower,
-    ) -> Vec<Section> {
-        let signal_indicator = AdapterSignalIndicator {
-            adapter,
-            radio_power,
-        };
-        let mut sections = self.wifi.hover_card_with(signal_indicator.hover_card());
-        sections.extend(self.adapter_detail_sections(&adapter.device, adapter_identity_sections));
-        sections
-    }
-
-    fn adapter_connection_hover_card(&self, adapter: &WifiAdapter) -> Vec<Section> {
-        let mut sections = self
-            .wifi
-            .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card());
-        sections
-            .extend(self.adapter_detail_sections(&adapter.device, adapter_radio_stats_sections));
-        sections
-    }
-
-    fn adapter_address_hover_card(
-        &self,
-        adapter: &WifiAdapter,
-        family: AddressFamily,
-    ) -> Vec<Section> {
-        let address_details = self.adapter_detail_sections(&adapter.device, |details| {
-            let AdapterAddressing::Addressed(addressing) = &details.addressing else {
-                return Vec::new();
-            };
-            family_address_sections(family, &addressing.ipv4, &addressing.ipv6)
-        });
-        let router_details = self.gateway_latencies.sections_described_by(|latencies| {
-            family_router_sections(latencies, &adapter.device, family)
-        });
-        address_details.into_iter().chain(router_details).collect()
-    }
-
-    fn adapter_dns_hover_card(&self, adapter: &WifiAdapter) -> Vec<Section> {
-        self.adapter_detail_sections(&adapter.device, |details| {
-            let AdapterAddressing::Addressed(addressing) = &details.addressing else {
-                return Vec::new();
-            };
-            dns_server_sections(&addressing.dns)
-        })
-    }
-
     fn adapter_group<'view>(
         &'view self,
         adapter: &'view WifiAdapter,
@@ -250,67 +195,15 @@ impl WifiAdaptersGroup {
         group_title: IndicatorGroupTitle,
     ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&adapter.device)?;
-        let build_adapter_signal_indicator = || {
-            AdapterSignalIndicator {
-                adapter,
-                radio_power,
-            }
-            .indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.adapter_signal_hover_card(adapter, radio_power)
-            }))
-            .fetching_on_hover(
-                WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
-                WifiAdaptersInteraction::StopHoverFetches,
-            )
-        };
-        let headline_indicator = build_adapter_signal_indicator()
+        let headline_indicator = self
+            .adapter_signal_row(adapter, radio_power)
             .with_headline_glyph(Phosphor::Broadcast(Weight::Regular).into());
-        let mut rows = Vec::new();
-        if radio_power == RadioPower::On {
-            let connection_switch = AdapterConnectionSwitch { adapter };
-            let connection_press_does = connection_switch.press_does();
-            rows.push(
-                connection_switch
-                    .indicator()
-                    .on_switch_press(
-                        adapter.link_state,
-                        connection_press_does,
-                        WifiAdaptersInteraction::ToggleAdapter(adapter.device.clone()),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.adapter_connection_hover_card(adapter)
-                    })),
-            );
-        }
-        if adapter.link_state == LinkPhase::Up {
-            rows.extend([AddressFamily::Ipv4, AddressFamily::Ipv6].map(|family| {
-                InterfaceAddressIndicator { family }
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.adapter_address_hover_card(adapter, family)
-                    }))
-            }));
-            rows.push(
-                InterfaceDnsIndicator::indicator()
-                    .with_hover_card(Box::new(move |_| self.adapter_dns_hover_card(adapter))),
-            );
-        }
-        let radios_switch = AllWifiRadiosSwitch { radio_power };
-        let radios_press_does = radios_switch.press_does();
-        rows.push(
-            radios_switch
-                .indicator()
-                .on_switch_press(
-                    radio_power,
-                    radios_press_does,
-                    WifiAdaptersInteraction::ToggleAllRadios,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.wifi
-                        .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card())
-                })),
-        );
+        let rows = self
+            .adapter_connection_rows(adapter, radio_power)
+            .into_iter()
+            .chain(self.adapter_address_rows(adapter))
+            .chain(self.adapter_dns_rows(adapter))
+            .chain(iter::once(self.all_radios_row(radio_power)));
         let adapter_device = adapter.device.clone();
         Some(IndicatorGroupContent::expandable_instance(
             IndicatorGroupIdentity::durable(
@@ -325,8 +218,8 @@ impl WifiAdaptersGroup {
                 expansion,
             },
             IndicatorListing::Listed(
-                iter::once(build_adapter_signal_indicator())
-                    .chain(rows.into_iter().map(|adapter_item| {
+                iter::once(self.adapter_signal_row(adapter, radio_power))
+                    .chain(rows.map(|adapter_item| {
                         adapter_item.fetching_on_hover(
                             WifiAdaptersInteraction::OnBuses(
                                 WifiAdaptersBusRequest::StartDetailsFetch,

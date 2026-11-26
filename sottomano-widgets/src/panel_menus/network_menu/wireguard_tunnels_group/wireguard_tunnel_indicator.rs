@@ -8,6 +8,7 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{WireguardTunnelsBusRequest, WireguardTunnelsGroup, WireguardTunnelsInteraction};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -299,4 +300,34 @@ pub fn tunnel_address_sections(tunnel_address: &TunnelAddress) -> Vec<Section> {
         TunnelAddress::Unassigned => Vec::new(),
     };
     vec![Section::new("Addresses", dictionary_table(address_entries))]
+}
+
+impl WireguardTunnelsGroup {
+    pub(super) fn tunnel_rows(&self) -> Vec<GroupIndicator<'_>> {
+        self.listed_tunnels()
+            .map(move |tunnel| {
+                wireguard_tunnel_indicator(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
+                    .with_hover_card(Box::new(move |_| {
+                        let mut sections =
+                            self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+                        sections.extend(
+                            self.tunnel_address
+                                .sections_described_by(tunnel_address_sections),
+                        );
+                        sections
+                    }))
+                    .fetching_on_hover(
+                        WireguardTunnelsInteraction::OnBuses(
+                            WireguardTunnelsBusRequest::StartTunnelAddressFetch(
+                                tunnel.interface.clone(),
+                            ),
+                        ),
+                        WireguardTunnelsInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(WireguardTunnelsInteraction::OnBuses(
+                        WireguardTunnelsBusRequest::Refresh,
+                    ))
+            })
+            .collect()
+    }
 }

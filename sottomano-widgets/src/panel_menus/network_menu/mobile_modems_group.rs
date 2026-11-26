@@ -1,6 +1,10 @@
 use std::iter;
 
 use crate::group_indicators::indicator_group_content::IndicatorListing;
+mod all_radios_indicator;
+mod modem_address_indicator;
+mod modem_connection_indicator;
+mod modem_data_indicator;
 mod modem_signal_indicator;
 
 use iced::{Subscription, Task};
@@ -9,17 +13,10 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    network_connectivity::{
-        modem_manager_mobile::{BearerAddress, BearerTraffic, Mobile, MobileModems},
-        network_manager_proxies::{LinkPhase, RadioPower},
-    },
+    network_connectivity::modem_manager_mobile::{Mobile, MobileModems},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-use self::modem_signal_indicator::{
-    AllMobileRadiosSwitch, ModemConnectionSwitch, ModemDataIndicator, ModemSignalIndicator,
-    modem_family_address,
-};
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
@@ -32,11 +29,7 @@ use crate::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
     },
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::network_menu::interface_address_sections::{
-        AddressFamily, InterfaceAddressIndicator,
-    },
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug)]
@@ -116,40 +109,6 @@ impl MobileModemsGroup {
         );
     }
 
-    fn any_radio_power(&self) -> RadioPower {
-        let any_radio_on = self.mobile_modems.get().is_some_and(|mobile_modems| {
-            mobile_modems
-                .modems
-                .iter()
-                .any(|modem| modem.radio_power() == RadioPower::On)
-        });
-        if any_radio_on {
-            RadioPower::On
-        } else {
-            RadioPower::Off
-        }
-    }
-
-    fn modem_address_hover_card(&self, modem: &Mobile, family: AddressFamily) -> Vec<Section> {
-        let BearerAddress::Assigned(address) = modem_family_address(modem, family) else {
-            return Vec::new();
-        };
-        self.mobile_modems.hover_card_with(vec![Section::new(
-            "Address",
-            dictionary_table([LabeledValue::new("Address", address.as_str())]),
-        )])
-    }
-
-    fn all_radios_hover_card(&self, radio_power: RadioPower) -> Vec<Section> {
-        self.mobile_modems
-            .hover_card_with(AllMobileRadiosSwitch { radio_power }.hover_card())
-    }
-
-    fn modem_connection_hover_card(&self, modem: &Mobile) -> Vec<Section> {
-        self.mobile_modems
-            .hover_card_with(ModemConnectionSwitch { modem }.hover_card())
-    }
-
     fn modem_group<'view>(
         &'view self,
         modem: &'view Mobile,
@@ -157,76 +116,15 @@ impl MobileModemsGroup {
     ) -> Option<IndicatorGroupContent<'view>> {
         let expansion = self.expansions.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
-        let build_modem_signal_indicator = || {
-            ModemSignalIndicator { modem }
-                .indicator()
-                .with_hover_card(Box::new(move |_| {
-                    self.mobile_modems
-                        .hover_card_with(ModemSignalIndicator { modem }.hover_card())
-                }))
-        };
-        let headline_indicator = build_modem_signal_indicator()
+        let headline_indicator = self
+            .modem_signal_row(modem)
             .with_headline_glyph(Phosphor::SimCard(Weight::Regular).into());
-        let mut rows = Vec::new();
-        if modem.radio_power() == RadioPower::On {
-            let connection_switch = ModemConnectionSwitch { modem };
-            let connection_press_does = connection_switch.press_does();
-            rows.push(
-                connection_switch
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| self.modem_connection_hover_card(modem)))
-                    .on_switch_press(
-                        modem.link_state(),
-                        connection_press_does,
-                        MobileModemsInteraction::ToggleModem(modem_path()),
-                    ),
-            );
-        }
-        rows.extend(
-            [AddressFamily::Ipv4, AddressFamily::Ipv6]
-                .into_iter()
-                .filter(|family| {
-                    modem.link_state() == LinkPhase::Up
-                        && matches!(
-                            modem_family_address(modem, *family),
-                            BearerAddress::Assigned(_)
-                        )
-                })
-                .map(|family| {
-                    InterfaceAddressIndicator { family }
-                        .indicator()
-                        .with_hover_card(Box::new(move |_| {
-                            self.modem_address_hover_card(modem, family)
-                        }))
-                }),
-        );
-        if let BearerTraffic::Counted { .. } = modem.traffic {
-            rows.push(
-                ModemDataIndicator { modem }
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.mobile_modems
-                            .hover_card_with(ModemDataIndicator { modem }.hover_card())
-                    })),
-            );
-        }
-        let any_radio_power = self.any_radio_power();
-        let radios_switch = AllMobileRadiosSwitch {
-            radio_power: any_radio_power,
-        };
-        let radios_press_does = radios_switch.press_does();
-        rows.push(
-            radios_switch
-                .indicator()
-                .on_switch_press(
-                    any_radio_power,
-                    radios_press_does,
-                    MobileModemsInteraction::ToggleAllRadios,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.all_radios_hover_card(any_radio_power)
-                })),
-        );
+        let rows = self
+            .modem_connection_rows(modem)
+            .into_iter()
+            .chain(self.modem_address_rows(modem))
+            .chain(self.modem_data_rows(modem))
+            .chain(iter::once(self.all_radios_row()));
         let expanded_modem_path = modem_path();
         Some(IndicatorGroupContent::expandable_instance(
             IndicatorGroupIdentity::durable(IndicatorGroupFamily::MobileModems, modem_path()),
@@ -238,7 +136,7 @@ impl MobileModemsGroup {
                 expansion,
             },
             IndicatorListing::Listed(
-                iter::once(build_modem_signal_indicator())
+                iter::once(self.modem_signal_row(modem))
                     .chain(rows)
                     .collect(),
             ),

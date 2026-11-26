@@ -4,11 +4,12 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
     network_connectivity::tailscale_status::{
-        ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailscale,
+        ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailscale, TailscaleSwitch,
     },
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{TailnetGroup, TailnetInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -19,6 +20,7 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
@@ -27,6 +29,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+pub(super) const TAILNET_MEMBERSHIP_GLYPH: Phosphor = Phosphor::Plugs(Weight::Regular);
 
 const KEY_EXPIRY_WARNING_WINDOW: TimeDelta = TimeDelta::days(14);
 
@@ -195,4 +199,41 @@ pub(super) fn tailscale_hover_card(tailscale: &Tailscale, clock: Clock) -> Vec<S
         .without_blank_columns(ValueCell::is_blank),
     );
     vec![summary_section, peer_table]
+}
+
+impl TailnetGroup {
+    fn membership_indicator<'view>(
+        &'view self,
+        membership_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        membership_row
+            .on_right_press(
+                "open the Tailscale admin console",
+                TailnetInteraction::OpenAdminConsole,
+            )
+            .with_hover_card(Box::new(move |card_clock| {
+                self.tailscale
+                    .sections_described_by(|snapshot| tailscale_hover_card(snapshot, card_clock))
+            }))
+    }
+
+    pub(super) fn membership_switch_indicator<'view>(
+        &'view self,
+        membership_row: GroupIndicator<'view>,
+        tailscale: &Tailscale,
+    ) -> GroupIndicator<'view> {
+        let membership_indicator = self.membership_indicator(membership_row);
+        match tailscale.switch() {
+            TailscaleSwitch::Up => membership_indicator.on_switch_press(
+                SwitchPosition::Off,
+                "turn Tailscale on",
+                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Up),
+            ),
+            TailscaleSwitch::Down => membership_indicator.on_switch_press(
+                SwitchPosition::On,
+                "turn Tailscale off",
+                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Down),
+            ),
+        }
+    }
 }

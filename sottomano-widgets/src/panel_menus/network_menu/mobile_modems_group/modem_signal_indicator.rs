@@ -1,12 +1,12 @@
 use sottomano_desktop_sources::network_connectivity::{
     modem_manager_mobile::{
-        BearerAddress, BearerTraffic, Mobile, MobileOperator, ModemFailure, ModemState,
-        NetworkRegistration, SignalFreshness, SignalQuality,
+        Mobile, MobileOperator, NetworkRegistration, SignalFreshness, SignalQuality,
     },
-    network_manager_proxies::{LinkPhase, RadioPower},
+    network_manager_proxies::LinkPhase,
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::MobileModemsGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -14,35 +14,13 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
-        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::network_menu::interface_address_sections::{AddressFamily, signal_level},
-    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
+    panel_menus::network_menu::interface_address_sections::signal_level,
+    widgets::value_cells::LabeledValue,
 };
-
 pub struct ModemSignalIndicator<'view> {
     pub modem: &'view Mobile,
-}
-
-pub struct ModemConnectionSwitch<'view> {
-    pub modem: &'view Mobile,
-}
-
-pub struct ModemDataIndicator<'view> {
-    pub modem: &'view Mobile,
-}
-
-pub struct AllMobileRadiosSwitch {
-    pub radio_power: RadioPower,
-}
-
-#[must_use]
-pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> &BearerAddress {
-    match family {
-        AddressFamily::Ipv4 => &modem.ipv4,
-        AddressFamily::Ipv6 => &modem.ipv6,
-    }
 }
 
 impl<'view> ModemSignalIndicator<'view> {
@@ -105,100 +83,16 @@ impl<'view> ModemSignalIndicator<'view> {
     }
 }
 
-impl<'view> ModemConnectionSwitch<'view> {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        if self.modem.link_state() == LinkPhase::Up {
-            "disconnect this modem"
-        } else {
-            "connect this modem"
-        }
-    }
-
-    pub fn indicator(self) -> GroupIndicator<'view> {
-        let glyph = if self.modem.link_state() == LinkPhase::Up {
-            Phosphor::ToggleRight(Weight::Regular).into()
-        } else {
-            Phosphor::ToggleLeft(Weight::Regular).into()
-        };
-        GroupIndicator::glyph_only(
-            "Connection",
-            glyph,
-            IndicatorState::from(self.modem.link_state()),
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        let mut status_entries = Vec::new();
-        if self.modem.state != ModemState::Unreported {
-            status_entries.push(LabeledValue::new(
-                "Connection State",
-                self.modem.state.label(),
-            ));
-        }
-        if let ModemState::Failed { reason } = self.modem.state
-            && reason != ModemFailure::Unspecified
-        {
-            status_entries.push(LabeledValue::new("Failure Reason", reason.label()));
-        }
-        vec![Section::new("Status", dictionary_table(status_entries))]
-    }
-}
-
-impl<'view> ModemDataIndicator<'view> {
-    pub fn indicator(self) -> GroupIndicator<'view> {
-        GroupIndicator::glyph_only(
-            "Mobile data",
-            Phosphor::ArrowsDownUp(Weight::Regular).into(),
-            IndicatorState::Idle,
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        let BearerTraffic::Counted { received, sent } = self.modem.traffic else {
-            return vec![Section::new("Transferred", dictionary_table(Vec::new()))];
-        };
-        vec![Section::new(
-            "Transferred",
-            dictionary_table([
-                LabeledValue::new("Received (RX)", Quantity::size(received)),
-                LabeledValue::new("Sent (TX)", Quantity::size(sent)),
-            ]),
-        )]
-    }
-}
-
-impl AllMobileRadiosSwitch {
-    #[must_use]
-    pub fn press_does(&self) -> &'static str {
-        match self.radio_power {
-            RadioPower::On => "turn all mobile radios off",
-            RadioPower::Off => "turn all mobile radios on",
-        }
-    }
-
-    pub fn indicator<'indicator>(self) -> GroupIndicator<'indicator> {
-        let glyph = match self.radio_power {
-            RadioPower::On => Phosphor::CellSignalFull(Weight::Regular).into(),
-            RadioPower::Off => Phosphor::CellSignalSlash(Weight::Regular).into(),
-        };
-        GroupIndicator::glyph_only(
-            "All mobile radios",
-            glyph,
-            IndicatorState::from(SwitchPosition::from(self.radio_power)),
-        )
-        .with_hover_card(Box::new(move |_| self.hover_card()))
-    }
-
-    pub fn hover_card(&self) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([LabeledValue::new(
-                "All mobile radios",
-                self.radio_power.label(),
-            )]),
-        )]
+impl MobileModemsGroup {
+    pub(super) fn modem_signal_row<'view>(
+        &'view self,
+        modem: &'view Mobile,
+    ) -> GroupIndicator<'view> {
+        ModemSignalIndicator { modem }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.mobile_modems
+                    .hover_card_with(ModemSignalIndicator { modem }.hover_card())
+            }))
     }
 }

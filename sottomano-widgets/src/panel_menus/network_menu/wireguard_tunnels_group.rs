@@ -24,15 +24,12 @@ use crate::{
         indicator_state::IndicatorState,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    panel_menus::network_menu::wireguard_tunnels_group::wireguard_tunnel_hover_card::{
-        tunnel_address_sections, tunnel_hover_card, wireguard_tunnel_indicator,
-    },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
-mod wireguard_tunnel_hover_card;
+mod wireguard_tunnel_indicator;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WireguardTunnelsBusRequest {
@@ -155,38 +152,7 @@ impl WireguardTunnelsGroup {
             ),
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
-            IndicatorListing::Listed(
-                self.listed_tunnels()
-                    .map(move |tunnel| {
-                        wireguard_tunnel_indicator(
-                            tunnel,
-                            WireguardTunnelsInteraction::SwitchTunnel,
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            let mut sections =
-                                self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
-                            sections.extend(
-                                self.tunnel_address
-                                    .sections_described_by(tunnel_address_sections),
-                            );
-                            sections
-                        }))
-                        .fetching_on_hover(
-                            WireguardTunnelsInteraction::OnBuses(
-                                WireguardTunnelsBusRequest::StartTunnelAddressFetch(
-                                    tunnel.interface.clone(),
-                                ),
-                            ),
-                            WireguardTunnelsInteraction::StopHoverFetches,
-                        )
-                        .refreshed_by(
-                            WireguardTunnelsInteraction::OnBuses(
-                                WireguardTunnelsBusRequest::Refresh,
-                            ),
-                        )
-                    })
-                    .collect(),
-            ),
+            IndicatorListing::Listed(self.tunnel_rows()),
         )
     }
 }

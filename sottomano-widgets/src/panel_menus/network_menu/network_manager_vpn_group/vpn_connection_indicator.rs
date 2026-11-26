@@ -1,14 +1,18 @@
 use sottomano_desktop_sources::network_connectivity::{
-    network_manager_proxies::AddressAssignment,
+    network_manager_proxies::{AddressAssignment, NmConnectionSwitch},
     network_manager_vpn_connections::{
         ServerBanner, VpnActivity, VpnConnection, VpnRemoteGateway, VpnState,
     },
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{NetworkManagerVpnBusRequest, NetworkManagerVpnGroup, NetworkManagerVpnInteraction};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
+        toggle_control::SwitchPosition,
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
@@ -74,4 +78,39 @@ pub fn vpn_connection_hover_card(connection: &VpnConnection) -> Vec<Section> {
         Section::new("Connection", dictionary_table(connection_entries)),
         Section::new("Banner", dictionary_table(banner_entries)),
     ]
+}
+
+impl NetworkManagerVpnGroup {
+    pub(super) fn vpn_connection_rows(&self) -> Vec<GroupIndicator<'_>> {
+        self.vpn_connections()
+            .iter()
+            .map(move |vpn_connection| self.wired_vpn_connection_indicator(vpn_connection))
+            .collect()
+    }
+
+    fn wired_vpn_connection_indicator<'view>(
+        &'view self,
+        vpn_connection: &'view VpnConnection,
+    ) -> GroupIndicator<'view> {
+        let vpn_switch = vpn_connection.switch();
+        vpn_connection_indicator(vpn_connection)
+            .on_switch_press(
+                match vpn_switch {
+                    NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
+                    NmConnectionSwitch::Disconnect(_) => SwitchPosition::On,
+                },
+                match vpn_switch {
+                    NmConnectionSwitch::Connect(_) => "connect the VPN",
+                    NmConnectionSwitch::Disconnect(_) => "disconnect the VPN",
+                },
+                NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.network_manager_vpns
+                    .hover_card_with(vpn_connection_hover_card(vpn_connection))
+            }))
+            .refreshed_by(NetworkManagerVpnInteraction::OnBuses(
+                NetworkManagerVpnBusRequest::Refresh,
+            ))
+    }
 }

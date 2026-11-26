@@ -6,12 +6,17 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::ReachabilityGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::group_indicator::GroupIndicator,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
+
+pub(super) const CONNECTIVITY_GLYPH: Phosphor = Phosphor::CloudCheck(Weight::Regular);
 
 fn severity(connectivity: Connectivity) -> Severity {
     match connectivity {
@@ -45,4 +50,13 @@ pub(super) fn uplink_connectivity_indicator(uplink: &UplinkConnectivity) -> Grou
         severity(uplink.connectivity).into(),
     )
     .with_hover_card(Box::new(move |_| uplink_connectivity_hover_card(*uplink)))
+}
+
+impl ReachabilityGroup {
+    pub(super) fn connectivity_listing(&self) -> IndicatorListing<'_> {
+        self.connectivity.indicator_listing(
+            |held_snapshot| vec![uplink_connectivity_indicator(held_snapshot)],
+            CONNECTIVITY_GLYPH.into(),
+        )
+    }
 }

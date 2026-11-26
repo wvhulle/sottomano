@@ -1,14 +1,16 @@
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
-    ExitNodeOffer, ExitOfferControl, Tailnet,
+    ExitNodeOffer, ExitOfferControl, ExitOfferSwitch, Tailnet,
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{TailnetGroup, TailnetInteraction};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
         indicator_state::IndicatorState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
@@ -64,5 +66,38 @@ impl<'view> ExitOfferIndicator<'view> {
                 .chain(blocked_entry),
             ),
         )]
+    }
+}
+
+impl TailnetGroup {
+    pub(super) fn exit_offer_indicator(tailnet: &Tailnet) -> GroupIndicator<'_> {
+        let indicator = ExitOfferIndicator { tailnet }.indicator();
+        match tailnet.offer_control() {
+            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => {
+                indicator.on_switch_press(
+                    SwitchPosition::On,
+                    "stop offering this machine as an exit node",
+                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
+                )
+            }
+            ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StartOffering) => {
+                indicator.on_switch_press(
+                    SwitchPosition::Off,
+                    "offer this machine as an exit node",
+                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
+                )
+            }
+            ExitOfferControl::BlockedByExitNodeInUse => indicator,
+        }
+    }
+
+    pub(super) fn exit_offer_row<'view>(
+        &'view self,
+        tailnet: &'view Tailnet,
+    ) -> GroupIndicator<'view> {
+        Self::exit_offer_indicator(tailnet).with_hover_card(Box::new(move |_| {
+            self.tailscale
+                .hover_card_with(ExitOfferIndicator { tailnet }.hover_card())
+        }))
     }
 }

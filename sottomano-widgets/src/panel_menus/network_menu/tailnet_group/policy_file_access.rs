@@ -4,7 +4,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery, network_connectivity::tailscale_policy_file::TailscalePolicyFile,
 };
 
-use super::tailscale_access_hover_card::tailscale_policy_file_sections;
+use super::policy_file_indicator::tailscale_policy_file_sections;
 use crate::{
     clock::Clock, hover_cards::hover_card_body::Section,
     widgets::hover_fetched_snapshot::HoverFetchedSnapshot,
