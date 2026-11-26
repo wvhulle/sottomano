@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
+    group_indicators::group_indicator::GroupIndicator,
     indicator_groups::{
         indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
@@ -114,7 +114,7 @@ impl PhysicalDriveGroup {
             samples
                 .drive_health
                 .indicator_listing(
-                    |held_snapshot| shown_only(drive_health_indicator(held_snapshot)),
+                    |held_snapshot| drive_health_indicator(held_snapshot).when_shown(),
                     DRIVE_HEALTH_GLYPH.into(),
                 )
                 .map_indicators(|health_row| {
@@ -123,7 +123,7 @@ impl PhysicalDriveGroup {
             samples
                 .activity
                 .indicator_listing(
-                    |held_snapshot| shown_only(disk_activity_indicator(held_snapshot)),
+                    |held_snapshot| disk_activity_indicator(held_snapshot).when_shown(),
                     DISK_ACTIVITY_GLYPH.into(),
                 )
                 .map_indicators(|activity_row| {
@@ -204,12 +204,5 @@ impl PhysicalDriveGroup {
                     .sections_described_by(|snapshot| disk_transfer_hover_card(&snapshot.read))
             }))
             .refreshed_by(refresh_activity(disk))
-    }
-}
-
-fn shown_only(indicator: GroupIndicator<'_>) -> Vec<GroupIndicator<'_>> {
-    match indicator.panel_visibility {
-        PanelVisibility::Shown => vec![indicator],
-        PanelVisibility::Hidden => Vec::new(),
     }
 }

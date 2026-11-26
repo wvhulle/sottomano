@@ -338,6 +338,14 @@ impl<'view> GroupIndicator<'view> {
     }
 
     #[must_use]
+    pub fn when_shown(self) -> Vec<Self> {
+        match self.panel_visibility {
+            PanelVisibility::Shown => vec![self],
+            PanelVisibility::Hidden => Vec::new(),
+        }
+    }
+
+    #[must_use]
     pub fn in_state(self, state: IndicatorState) -> Self {
         let icon = match self.face.icon {
             IndicatorIcon::IconGlyph { glyph, .. } => IndicatorIcon::IconGlyph { glyph, state },

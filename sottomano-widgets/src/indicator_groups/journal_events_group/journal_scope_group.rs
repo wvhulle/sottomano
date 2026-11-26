@@ -11,10 +11,7 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
-    },
+    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
@@ -93,14 +90,12 @@ impl JournalScopeGroup {
     ) -> IndicatorListing<'view> {
         self.kernel.indicator_listing(
             |held_entries| {
-                let kernel_indicator =
-                    kernel_log_indicator(live_kernel_occurrences(held_entries, now));
-                match kernel_indicator.panel_visibility {
-                    PanelVisibility::Shown => {
-                        vec![self.wired_kernel_log_indicator(config, kernel_indicator, now)]
-                    }
-                    PanelVisibility::Hidden => Vec::new(),
-                }
+                self.wired_kernel_log_indicator(
+                    config,
+                    kernel_log_indicator(live_kernel_occurrences(held_entries, now)),
+                    now,
+                )
+                .when_shown()
             },
             KERNEL_LOG_GLYPH.into(),
         )
@@ -115,19 +110,15 @@ impl JournalScopeGroup {
             |held_entries| {
                 let live_errors = live_service_errors(held_entries, now);
                 let service_errors_row = service_errors_indicator(live_errors);
-                match service_errors_row.panel_visibility {
-                    PanelVisibility::Shown => vec![
-                        self.wired_service_errors_indicator(service_errors_row, now)
-                            .on_press(
-                                TerminalCommand::JOURNAL_PRESS_HINT,
-                                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                                    config,
-                                    live_service_errors(held_entries, now).follow_log_args(),
-                                )),
-                            ),
-                    ],
-                    PanelVisibility::Hidden => Vec::new(),
-                }
+                self.wired_service_errors_indicator(service_errors_row, now)
+                    .on_press(
+                        TerminalCommand::JOURNAL_PRESS_HINT,
+                        JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                            config,
+                            live_service_errors(held_entries, now).follow_log_args(),
+                        )),
+                    )
+                    .when_shown()
             },
             SERVICE_ERRORS_GLYPH.into(),
         )
@@ -140,13 +131,12 @@ impl JournalScopeGroup {
     ) -> IndicatorListing<'view> {
         self.coredumps.indicator_listing(
             |held_entries| {
-                let coredump_indicator = coredump_log_indicator(live_coredumps(held_entries, now));
-                match coredump_indicator.panel_visibility {
-                    PanelVisibility::Shown => {
-                        vec![self.wired_coredump_log_indicator(config, coredump_indicator, now)]
-                    }
-                    PanelVisibility::Hidden => Vec::new(),
-                }
+                self.wired_coredump_log_indicator(
+                    config,
+                    coredump_log_indicator(live_coredumps(held_entries, now)),
+                    now,
+                )
+                .when_shown()
             },
             COREDUMP_LOG_GLYPH.into(),
         )
@@ -159,13 +149,12 @@ impl JournalScopeGroup {
     ) -> IndicatorListing<'view> {
         self.oom_kills.indicator_listing(
             |held_entries| {
-                let oom_kill_indicator = oom_kill_log_indicator(live_oom_kills(held_entries, now));
-                match oom_kill_indicator.panel_visibility {
-                    PanelVisibility::Shown => {
-                        vec![self.wired_oom_kill_log_indicator(config, oom_kill_indicator, now)]
-                    }
-                    PanelVisibility::Hidden => Vec::new(),
-                }
+                self.wired_oom_kill_log_indicator(
+                    config,
+                    oom_kill_log_indicator(live_oom_kills(held_entries, now)),
+                    now,
+                )
+                .when_shown()
             },
             OOM_KILL_LOG_GLYPH.into(),
         )

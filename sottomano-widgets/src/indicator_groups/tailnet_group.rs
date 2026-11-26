@@ -27,8 +27,7 @@ use crate::{
         simple_icons::SimpleIcon,
     },
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_state::IndicatorState,
+        group_indicator::GroupIndicator, indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -340,12 +339,9 @@ impl TailnetGroup {
         let tailscale_listing = self.tailscale.indicator_listing(
             |held_snapshot| {
                 let membership_indicator = tailscale_indicator(held_snapshot, clock);
-                let membership_indicators = match membership_indicator.panel_visibility {
-                    PanelVisibility::Shown => {
-                        vec![self.membership_switch_indicator(membership_indicator, held_snapshot)]
-                    }
-                    PanelVisibility::Hidden => Vec::new(),
-                };
+                let membership_indicators = self
+                    .membership_switch_indicator(membership_indicator, held_snapshot)
+                    .when_shown();
                 let own_node_indicators =
                     OwnNodeIndicator::running_own_node(held_snapshot).map(|own_node_indicator| {
                         own_node_indicator

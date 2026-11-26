@@ -35,7 +35,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
+    group_indicators::group_indicator::GroupIndicator,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::hover_card_body::Section,
     indicator_groups::{
@@ -205,32 +205,23 @@ impl ReachabilityGroup {
             ),
             self.throughput.indicator_listing(
                 |samples| {
-                    let interface_indicator = interface_throughput_indicator(samples);
-                    let wired_interface_indicator = match interface_indicator.panel_visibility {
-                        PanelVisibility::Shown => {
-                            vec![self.wired_interface_throughput_indicator(interface_indicator)]
-                        }
-                        PanelVisibility::Hidden => Vec::new(),
-                    };
-                    wired_interface_indicator
-                        .into_iter()
-                        .chain([
-                            self.direction_throughput_indicator(&samples.down),
-                            self.direction_throughput_indicator(&samples.up),
-                        ])
-                        .collect()
+                    self.wired_interface_throughput_indicator(interface_throughput_indicator(
+                        samples,
+                    ))
+                    .when_shown()
+                    .into_iter()
+                    .chain([
+                        self.direction_throughput_indicator(&samples.down),
+                        self.direction_throughput_indicator(&samples.up),
+                    ])
+                    .collect()
                 },
                 INTERFACE_THROUGHPUT_GLYPH.into(),
             ),
             self.latency.indicator_listing(
                 |held_snapshot| {
-                    let latency_indicator = internet_latency_indicator(held_snapshot);
-                    match latency_indicator.panel_visibility {
-                        PanelVisibility::Shown => {
-                            vec![self.wired_internet_latency_indicator(latency_indicator)]
-                        }
-                        PanelVisibility::Hidden => Vec::new(),
-                    }
+                    self.wired_internet_latency_indicator(internet_latency_indicator(held_snapshot))
+                        .when_shown()
                 },
                 INTERNET_LATENCY_GLYPH.into(),
             ),
