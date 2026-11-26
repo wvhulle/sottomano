@@ -2,6 +2,7 @@ use sottomano_desktop_sources::systemd_units_journal::{
     SystemdTimestamp, user_service_manager::UserServiceManager,
 };
 
+use super::{LoginSessionBusRequest, LoginSessionGroup, LoginSessionInteraction, identity_refresh};
 use crate::{
     glyph_icons::{
         phosphor::{Phosphor, Weight},
@@ -15,9 +16,9 @@ use crate::{
     },
 };
 
-pub struct ServiceManagerFace;
+pub struct ServiceManagerIndicator;
 
-impl ServiceManagerFace {
+impl ServiceManagerIndicator {
     pub fn indicator<'indicator>() -> GroupIndicator<'indicator> {
         GroupIndicator::glyph_only(
             "Service manager",
@@ -69,4 +70,25 @@ pub fn user_service_manager_sections(user_service_manager: &UserServiceManager) 
         ),
         dictionary_table(entries),
     )]
+}
+
+impl LoginSessionGroup {
+    pub(super) fn service_manager_row(&self) -> GroupIndicator<'_> {
+        ServiceManagerIndicator::indicator()
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .identity
+                    .hover_card_with(ServiceManagerIndicator::hover_card());
+                sections.extend(
+                    self.service_manager
+                        .sections_described_by(user_service_manager_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                LoginSessionInteraction::OnBuses(LoginSessionBusRequest::StartServiceManagerFetch),
+                LoginSessionInteraction::StopHoverFetches,
+            )
+            .refreshed_by(identity_refresh())
+    }
 }

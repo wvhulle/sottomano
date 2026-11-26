@@ -7,10 +7,10 @@ use sottomano_toml_config::Config;
 
 use super::{
     IdlePauseGroups, IdlePauseInteraction, StageSchedule,
-    chain_stage_rows::{
+    chain_stage_indicator::{
         HibernateDelayApply, hibernate_delay_failure_row, system_hibernate_delay_row,
     },
-    idle_timeline_row::{first_stage_text, idle_timeline},
+    idle_timeline_indicator::{first_stage_text, idle_timeline},
     pause_blocker_indicators::{
         PauseBlocker, ScheduledShutdownIndicator, blocker_sections,
         sleep_state_answers::sleep_state_sections,

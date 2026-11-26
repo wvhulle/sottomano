@@ -8,7 +8,7 @@ use sottomano_desktop_sources::login_session_presence::{
 
 use super::{
     HibernateDelayDemand, IdlePauseGroups, IdlePauseMessage, ResolvedIdleChain, StageSetting,
-    SuspendThenHibernateSupport, chain_stage_rows::HibernateDelayApply,
+    SuspendThenHibernateSupport, chain_stage_indicator::HibernateDelayApply,
     stage_schedule_cards::ScreenOffOverride,
 };
 use crate::widgets::idle::timer::{ActionAvailability, IdleTimer};

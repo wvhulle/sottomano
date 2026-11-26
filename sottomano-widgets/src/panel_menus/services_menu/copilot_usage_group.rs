@@ -1,19 +1,11 @@
 use crate::{
     group_indicators::indicator_group_content::IndicatorListing,
-    panel_menus::services_menu::copilot_usage_group::{
-        copilot_cli_monthly_spend::{
-            COPILOT_CCUSAGE_FALLBACK_GLYPH, copilot_ccusage_hover_card, copilot_ccusage_indicator,
-            copilot_ccusage_panel_visibility,
-        },
-        copilot_free_quota_count::{
-            COPILOT_FREE_FALLBACK_GLYPH, copilot_free_hover_card, copilot_free_indicator,
-        },
-        copilot_quota_gauge::{copilot_metered_hover_card, copilot_metered_indicator},
-    },
+    panel_menus::services_menu::copilot_usage_group::metered_quota_indicator::copilot_metered_indicator,
 };
-mod copilot_cli_monthly_spend;
-mod copilot_free_quota_count;
-mod copilot_quota_gauge;
+mod cli_spend_indicator;
+mod free_quota_indicator;
+mod metered_quota_indicator;
+mod most_used_model_indicator;
 
 use std::path::PathBuf;
 
@@ -37,16 +29,13 @@ use crate::{
         simple_icons::SimpleIcon,
     },
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
+        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    widgets::{
-        most_used_model::{ModelSpendRanking, RankedSpan},
-        subscribed_snapshot::SubscribedSnapshot,
-    },
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,137 +166,30 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 1>> {
-        let cli = self
-            .cli
-            .visible_indicator(copilot_ccusage_panel_visibility)?;
-        ModelSpendRanking::new(
-            "ccusage, local Copilot CLI session data",
-            [RankedSpan {
-                heading: "Month",
-                models: &cli.period.usage.models,
-            }],
-        )
-    }
-
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
         let headline_indicator = self.metered_headline(clock);
-        let mut rows = Vec::new();
-        self.push_free_indicators(&mut rows);
-        self.push_cli_indicators(&mut rows, clock);
-        self.push_model_ranking_indicators(&mut rows);
-        self.list_metered(clock, &mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::CopilotUsage,
             headline_indicator,
             &self.expansion,
             CopilotUsageInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            [
+                self.metered_quota_listing(clock),
+                self.free_quota_listing(),
+                self.cli_spend_listing(clock),
+                IndicatorListing::Listed(self.most_used_model_rows()),
+            ]
+            .into_iter()
+            .collect(),
         )
     }
 
     fn metered_headline(&self, clock: Clock) -> GroupIndicator<'_> {
-        self.metered_indicator(self.metered.indicator(
+        self.wired_metered_indicator(self.metered.indicator(
             |held_snapshot| copilot_metered_indicator(held_snapshot, clock),
             Phosphor::Gauge(Weight::Regular).into(),
         ))
         .with_headline_glyph(SimpleIcon::GitHubCopilot.into())
-    }
-
-    fn list_metered<'view>(&'view self, clock: Clock, indicators: &mut Vec<GroupIndicator<'view>>) {
-        if !self.metered.awaits_first_delivery() {
-            indicators.insert(
-                0,
-                self.metered_indicator(self.metered.indicator(
-                    |held_snapshot| copilot_metered_indicator(held_snapshot, clock),
-                    Phosphor::Gauge(Weight::Regular).into(),
-                )),
-            );
-        }
-    }
-
-    fn push_free_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
-        if !self.free.awaits_first_delivery() {
-            let free_row = self.free.indicator(
-                |held_snapshot| copilot_free_indicator(held_snapshot),
-                COPILOT_FREE_FALLBACK_GLYPH,
-            );
-            if free_row.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.free_indicator(free_row));
-            }
-        }
-    }
-
-    fn push_cli_indicators<'view>(
-        &'view self,
-        rows: &mut Vec<GroupIndicator<'view>>,
-        clock: Clock,
-    ) {
-        if !self.cli.awaits_first_delivery() {
-            let cli_row = self.cli.indicator(
-                |held_snapshot| copilot_ccusage_indicator(held_snapshot, clock),
-                COPILOT_CCUSAGE_FALLBACK_GLYPH,
-            );
-            if cli_row.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.cli_indicator(cli_row));
-            }
-        }
-    }
-
-    fn push_model_ranking_indicators<'view>(&'view self, rows: &mut Vec<GroupIndicator<'view>>) {
-        if let Some(ranking) = self.model_ranking() {
-            rows.push(
-                ranking
-                    .most_used_model_indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.cli.hover_card_with(ranking.hover_card())
-                    }))
-                    .refreshed_by(CopilotUsageInteraction::RefreshCli),
-            );
-            rows.push(
-                ranking
-                    .most_used_spend_indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.cli.hover_card_with(ranking.top_model_share())
-                    }))
-                    .refreshed_by(CopilotUsageInteraction::RefreshCli),
-            );
-        }
-    }
-
-    fn metered_indicator<'view>(
-        &'view self,
-        metered_row: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        metered_row
-            .with_hover_card(Box::new(move |_| {
-                self.metered
-                    .sections_described_by(copilot_metered_hover_card)
-            }))
-            .refreshed_by(CopilotUsageInteraction::OnBuses(
-                CopilotUsageBusRequest::Refresh(CopilotAccountSource::Metered),
-            ))
-    }
-
-    fn free_indicator<'view>(
-        &'view self,
-        free_row: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        free_row
-            .with_hover_card(Box::new(move |_| {
-                self.free.sections_described_by(copilot_free_hover_card)
-            }))
-            .refreshed_by(CopilotUsageInteraction::OnBuses(
-                CopilotUsageBusRequest::Refresh(CopilotAccountSource::Free),
-            ))
-    }
-
-    fn cli_indicator<'view>(&'view self, cli_row: GroupIndicator<'view>) -> GroupIndicator<'view> {
-        cli_row
-            .with_hover_card(Box::new(move |_| {
-                self.cli.sections_described_by(copilot_ccusage_hover_card)
-            }))
-            .refreshed_by(CopilotUsageInteraction::RefreshCli)
     }
 }
 

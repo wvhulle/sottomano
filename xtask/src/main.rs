@@ -1,4 +1,3 @@
-
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
 use clap::{Parser, Subcommand, ValueEnum};

@@ -24,8 +24,7 @@ use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::{GroupIndicator, IndicatorValue},
-        indicator_drawing::IndicatorIcon,
+        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
             IndicatorListing,
@@ -44,11 +43,9 @@ use crate::{
 
 #[cfg(test)]
 mod tray_group_tests;
-mod tray_item_view;
+mod tray_item_indicator;
 
-use self::tray_item_view::{
-    TrayItemWindow, item_press_actions, item_view, unidentified_tray_icon_request,
-};
+use self::tray_item_indicator::unidentified_tray_icon_request;
 
 #[derive(Default)]
 enum TrayHostConnection {
@@ -290,32 +287,6 @@ impl TrayGroup {
         icon_catalog: &'view IconCatalog,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
     ) -> IndicatorGroupContent<'view> {
-        let group_indicators: Vec<_> = self
-            .visible(config)
-            .into_iter()
-            .map(|item| {
-                let item_window = TrayItemWindow::resolve(
-                    &config.panel_menus.session.tray.rule(&item.id),
-                    item,
-                    window_matches,
-                );
-                let item_rule = config.panel_menus.session.tray.rule(&item.id);
-                let press_actions = item_press_actions(&item_rule, &item_window);
-                GroupIndicator::composed(
-                    item.name.clone(),
-                    IndicatorIcon::Absent,
-                    IndicatorValue::drawn(move |reveal| {
-                        let icon_sources = DrawableIconSources {
-                            icon_catalog,
-                            pixmap_handles: &self.pixmap_handles,
-                        };
-                        item_view(config, icon_sources, item, &item_window, reveal)
-                    }),
-                    Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
-                )
-                .with_button_actions(press_actions)
-            })
-            .collect();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Tray,
             GroupIndicator::glyph_only(
@@ -325,7 +296,7 @@ impl TrayGroup {
             ),
             &self.expansion,
             TrayMessage::Expansion,
-            IndicatorListing::Listed(group_indicators),
+            IndicatorListing::Listed(self.tray_item_rows(config, icon_catalog, window_matches)),
         )
     }
 }

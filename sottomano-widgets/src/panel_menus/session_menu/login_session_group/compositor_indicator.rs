@@ -3,6 +3,7 @@ use sottomano_desktop_sources::{
     systemd_units_journal::graphical_session_target::{DesktopName, GraphicalSession, Xwayland},
 };
 
+use super::{LoginSessionGroup, LoginSessionInteraction, identity_refresh};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -18,11 +19,11 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct CompositorFace<'view> {
+pub struct CompositorIndicator<'view> {
     pub identity: &'view SessionIdentity,
 }
 
-impl<'view> CompositorFace<'view> {
+impl<'view> CompositorIndicator<'view> {
     fn glyph(&self) -> IconGlyph {
         let DesktopName::Named(desktop_name) = &self.identity.desktop else {
             return Phosphor::AppWindow(Weight::Regular).into();
@@ -106,4 +107,29 @@ pub fn graphical_session_sections(graphical_session: &GraphicalSession) -> Vec<S
         ),
         dictionary_table(entries),
     )]
+}
+
+impl LoginSessionGroup {
+    pub(super) fn compositor_row<'view>(
+        &'view self,
+        identity: &'view SessionIdentity,
+    ) -> GroupIndicator<'view> {
+        CompositorIndicator { identity }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .identity
+                    .hover_card_with(CompositorIndicator { identity }.hover_card());
+                sections.extend(
+                    self.graphical
+                        .sections_described_by(graphical_session_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                LoginSessionInteraction::StartCompositorFetch,
+                LoginSessionInteraction::StopHoverFetches,
+            )
+            .refreshed_by(identity_refresh())
+    }
 }

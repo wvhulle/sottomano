@@ -18,10 +18,11 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    glyph_icons::phosphor::Weight,
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutBadge,
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
         terminal_command::TerminalCommand,
     },
@@ -36,6 +37,7 @@ use crate::{
             NotificationBody, NotificationProgress, OngoingToast, OngoingToastActionButton,
             definition_list, moment_text,
         },
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::ValueCell,
     },
 };
@@ -262,6 +264,49 @@ impl From<&FailedUnitInfo> for TableRecord<2> {
         TableRecord::with_cells(failed_unit_info.name.clone(), [reason, failed])
             .level(UNIT_FAILURE_PRIORITY.severity())
     }
+}
+
+fn failed_units_entry<'view>(
+    snapshot: &'view SubscribedSnapshot<FailedUnits>,
+    failed: &'view FailedUnits,
+    config: &'view Config,
+    clock: Clock,
+) -> GroupIndicator<'view> {
+    wired_failed_units_indicator(failed, config, clock).with_hover_card(Box::new(move |_| {
+        snapshot.sections_described_by(failed_units_hover_card)
+    }))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FailedUnitsScope {
+    System,
+    User,
+}
+
+pub(super) fn failed_units_listing<'view>(
+    failed_units: &'view SubscribedSnapshot<FailedUnits>,
+    scope: FailedUnitsScope,
+    config: &'view Config,
+    clock: Clock,
+) -> IndicatorListing<'view> {
+    let failed_units_glyph = match scope {
+        FailedUnitsScope::System => Phosphor::HardDrives(Weight::Regular),
+        FailedUnitsScope::User => Phosphor::User(Weight::Regular),
+    };
+    failed_units.indicator_listing(
+        |held_snapshot| match failed_units_panel_visibility(held_snapshot) {
+            PanelVisibility::Shown => {
+                vec![failed_units_entry(
+                    failed_units,
+                    held_snapshot,
+                    config,
+                    clock,
+                )]
+            }
+            PanelVisibility::Hidden => Vec::new(),
+        },
+        failed_units_glyph.into(),
+    )
 }
 
 #[cfg(test)]

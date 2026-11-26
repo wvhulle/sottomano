@@ -16,18 +16,22 @@ use sottomano_toml_config::{
     panel_menus::session_menu::tray::{ClickAction, TrayRule},
 };
 
-use super::TrayMessage;
+use super::{TrayGroup, TrayMessage};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
     group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::IndicatorIcon,
         indicator_group_content::GroupEvent,
         indicator_state::{IndicatorState, IndicatorStateTint},
     },
     hover_cards::{MouseGesture, PressAction},
-    icon_catalog::drawable_icon_catalog::{DrawableIcon, DrawableIconSources, IconFreshness},
+    icon_catalog::drawable_icon_catalog::{
+        DrawableIcon, DrawableIconSources, IconCatalog, IconFreshness,
+    },
     widgets::shared_metrics::ACCENT_STROKE_PX,
 };
 
@@ -185,4 +189,39 @@ pub(super) fn item_view<'view>(
         clickable = clickable.on_right_press(GroupEvent::from(message));
     }
     clickable.into()
+}
+
+impl TrayGroup {
+    pub(super) fn tray_item_rows<'view>(
+        &'view self,
+        config: &'view Config,
+        icon_catalog: &'view IconCatalog,
+        window_matches: &dyn Fn(&WindowOwner) -> bool,
+    ) -> Vec<GroupIndicator<'view>> {
+        self.visible(config)
+            .into_iter()
+            .map(|item| {
+                let item_window = TrayItemWindow::resolve(
+                    &config.panel_menus.session.tray.rule(&item.id),
+                    item,
+                    window_matches,
+                );
+                let item_rule = config.panel_menus.session.tray.rule(&item.id);
+                let press_actions = item_press_actions(&item_rule, &item_window);
+                GroupIndicator::composed(
+                    item.name.clone(),
+                    IndicatorIcon::Absent,
+                    IndicatorValue::drawn(move |reveal| {
+                        let icon_sources = DrawableIconSources {
+                            icon_catalog,
+                            pixmap_handles: &self.pixmap_handles,
+                        };
+                        item_view(config, icon_sources, item, &item_window, reveal)
+                    }),
+                    Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
+                )
+                .with_button_actions(press_actions)
+            })
+            .collect()
+    }
 }

@@ -39,7 +39,6 @@ use crate::{
     widgets::subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
 };
 
-const AUTO_BRIGHTNESS_GLYPH: Phosphor = Phosphor::Eye(Weight::Regular);
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 5.0;
 

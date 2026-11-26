@@ -1,11 +1,11 @@
 use iced::{Subscription, Task};
 pub use journal_scope_group::JournalScopeGroup;
 
-mod coredump_log;
+mod coredump_indicator;
 mod journal_scope_group;
-mod kernel_error_log;
-mod oom_kill_log;
-mod service_error_log;
+mod kernel_error_indicator;
+mod oom_kill_indicator;
+mod service_error_indicator;
 
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,

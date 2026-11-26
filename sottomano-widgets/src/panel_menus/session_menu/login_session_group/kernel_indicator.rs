@@ -2,6 +2,9 @@ use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
     Chassis, OperatingSystemIdentity,
 };
 
+use super::{
+    LoginSessionBusRequest, LoginSessionGroup, LoginSessionInteraction, LoginSessionSource,
+};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -20,11 +23,11 @@ use crate::{
     },
 };
 
-pub struct KernelFace<'view> {
+pub struct KernelIndicator<'view> {
     pub system: &'view OperatingSystemIdentity,
 }
 
-impl<'view> KernelFace<'view> {
+impl<'view> KernelIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = DistributionIds {
             distribution_names: &self.system.distribution_ids,
@@ -83,5 +86,25 @@ impl<'view> KernelFace<'view> {
                 .flatten(),
             ),
         )]
+    }
+}
+
+impl LoginSessionGroup {
+    pub(super) fn kernel_rows(&self) -> Vec<GroupIndicator<'_>> {
+        self.system
+            .get()
+            .map(|system| {
+                KernelIndicator { system }
+                    .indicator()
+                    .with_hover_card(Box::new(move |_| {
+                        self.system
+                            .hover_card_with(KernelIndicator { system }.hover_card())
+                    }))
+                    .refreshed_by(LoginSessionInteraction::OnBuses(
+                        LoginSessionBusRequest::Refresh(LoginSessionSource::OperatingSystem),
+                    ))
+            })
+            .into_iter()
+            .collect()
     }
 }

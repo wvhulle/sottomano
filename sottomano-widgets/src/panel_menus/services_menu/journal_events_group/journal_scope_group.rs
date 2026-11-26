@@ -22,19 +22,19 @@ use crate::{
     },
     panel_menus::services_menu::journal_events_group::{
         JournalEventsInteraction,
-        coredump_log::{
+        coredump_indicator::{
             COREDUMP_LOG_GLYPH, coredump_log_indicator, coredump_log_panel_visibility,
             coredump_log_state, live_coredumps,
         },
-        kernel_error_log::{
+        kernel_error_indicator::{
             KERNEL_LOG_GLYPH, kernel_log_indicator, kernel_log_panel_visibility, kernel_log_state,
             live_kernel_occurrences,
         },
-        oom_kill_log::{
+        oom_kill_indicator::{
             OOM_KILL_LOG_GLYPH, live_oom_kills, oom_kill_log_indicator,
             oom_kill_log_panel_visibility, oom_kill_log_state,
         },
-        service_error_log::{
+        service_error_indicator::{
             SERVICE_ERRORS_GLYPH, live_service_errors, service_errors_indicator,
             service_errors_panel_visibility, service_errors_state,
         },

@@ -14,13 +14,17 @@ use sottomano_desktop_sources::{
 };
 use uom::si::ratio::percent;
 
-use super::claude_enterprise_credit_spend::extra_status_rows;
+use super::{
+    ClaudeUsageBusRequest, ClaudeUsageGroup, ClaudeUsageInteraction,
+    enterprise_spend_indicator::extra_status_rows,
+};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -150,4 +154,30 @@ fn extra_section(extra: &ExtraUsageOffer) -> Section {
         ));
     }
     Section::new("Extra Usage", dictionary_table(extra_rows))
+}
+
+impl ClaudeUsageGroup {
+    pub(super) fn usage_windows_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.usage_windows
+            .indicator_listing(
+                |held_snapshot| vec![claude_usage_windows_indicator(held_snapshot, clock)],
+                Phosphor::Gauge(Weight::Regular).into(),
+            )
+            .map_indicators(|row| self.usage_windows_indicator(row))
+    }
+
+    pub(super) fn usage_windows_indicator<'view>(
+        &'view self,
+        windows_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        windows_row
+            .with_hover_card(Box::new(move |card_clock| {
+                self.usage_windows.sections_described_by(|snapshot| {
+                    claude_usage_windows_hover_card(snapshot, card_clock)
+                })
+            }))
+            .refreshed_by(ClaudeUsageInteraction::OnBuses(
+                ClaudeUsageBusRequest::RefreshUsageWindows,
+            ))
+    }
 }

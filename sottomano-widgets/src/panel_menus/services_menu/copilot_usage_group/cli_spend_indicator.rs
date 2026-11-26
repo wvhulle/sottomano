@@ -7,6 +7,7 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{CopilotUsageGroup, CopilotUsageInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -16,6 +17,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -95,4 +97,23 @@ pub fn copilot_ccusage_hover_card(ccusage: &CopilotCcusage) -> Vec<Section> {
             ]),
         ),
     ]
+}
+
+impl CopilotUsageGroup {
+    pub(super) fn cli_spend_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.cli
+            .indicator_listing(
+                |held_snapshot| copilot_ccusage_indicator(held_snapshot, clock).when_shown(),
+                COPILOT_CCUSAGE_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.cli_indicator(row))
+    }
+
+    fn cli_indicator<'view>(&'view self, cli_row: GroupIndicator<'view>) -> GroupIndicator<'view> {
+        cli_row
+            .with_hover_card(Box::new(move |_| {
+                self.cli.sections_described_by(copilot_ccusage_hover_card)
+            }))
+            .refreshed_by(CopilotUsageInteraction::RefreshCli)
+    }
 }

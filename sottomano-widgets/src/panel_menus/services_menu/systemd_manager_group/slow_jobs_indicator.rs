@@ -14,6 +14,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutBadge,
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
         terminal_command::TerminalCommand,
     },
@@ -27,9 +28,12 @@ use crate::{
         ongoing_toast::{
             NotificationBody, NotificationProgress, OngoingToast, definition_list, moment_text,
         },
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::ValueCell,
     },
 };
+
+const SLOW_JOBS_GLYPH: Phosphor = Phosphor::HourglassMedium(Weight::Regular);
 
 impl From<&SlowJob> for TableRecord<2> {
     fn from(slow_job: &SlowJob) -> Self {
@@ -137,4 +141,31 @@ pub(super) fn slow_jobs_indicator(jobs: &SlowJobs) -> GroupIndicator<'_> {
     };
     base.with_badge(badge)
         .with_panel_visibility(slow_jobs_panel_visibility(jobs))
+}
+
+fn slow_jobs_entry<'view>(
+    snapshot: &'view SubscribedSnapshot<SlowJobs>,
+    jobs: &'view SlowJobs,
+    config: &'view Config,
+    clock: Clock,
+) -> GroupIndicator<'view> {
+    wired_slow_jobs_indicator(jobs, config, clock).with_hover_card(Box::new(move |_| {
+        snapshot.sections_described_by(slow_jobs_hover_card)
+    }))
+}
+
+pub(super) fn slow_jobs_listing<'view>(
+    slow_jobs: &'view SubscribedSnapshot<SlowJobs>,
+    config: &'view Config,
+    clock: Clock,
+) -> IndicatorListing<'view> {
+    slow_jobs.indicator_listing(
+        |held_snapshot| match slow_jobs_panel_visibility(held_snapshot) {
+            PanelVisibility::Shown => {
+                vec![slow_jobs_entry(slow_jobs, held_snapshot, config, clock)]
+            }
+            PanelVisibility::Hidden => Vec::new(),
+        },
+        SLOW_JOBS_GLYPH.into(),
+    )
 }

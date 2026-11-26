@@ -5,6 +5,7 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{ClaudeLocalSource, ClaudeUsageGroup, ClaudeUsageInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -14,6 +15,7 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -124,4 +126,30 @@ pub fn claude_ccusage_periods_hover_card(
             )),
         ),
     ]
+}
+
+impl ClaudeUsageGroup {
+    pub(super) fn ccusage_periods_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.ccusage_periods
+            .indicator_listing(
+                |held_snapshot| claude_ccusage_periods_indicator(held_snapshot, clock).when_shown(),
+                CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.ccusage_periods_indicator(row))
+    }
+
+    fn ccusage_periods_indicator<'view>(
+        &'view self,
+        periods_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        periods_indicator
+            .with_hover_card(Box::new(move |card_clock| {
+                self.ccusage_periods.sections_described_by(|snapshot| {
+                    claude_ccusage_periods_hover_card(snapshot, card_clock)
+                })
+            }))
+            .refreshed_by(ClaudeUsageInteraction::Refresh(
+                ClaudeLocalSource::CcusagePeriods,
+            ))
+    }
 }

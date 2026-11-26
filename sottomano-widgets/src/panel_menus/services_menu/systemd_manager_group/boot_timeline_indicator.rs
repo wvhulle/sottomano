@@ -11,11 +11,13 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::SystemdManagerGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{ReadoutBadge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
@@ -26,6 +28,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const BOOT_TIMELINE_GLYPH: Phosphor = Phosphor::RocketLaunch(Weight::Regular);
 
 fn timeline_record(
     stage: &str,
@@ -235,5 +239,26 @@ impl<'view> StartupUnits<'view> {
         )
         .with_hover_card(Box::new(move |_| self.hover_card()));
         base.with_badge(badge)
+    }
+}
+
+impl SystemdManagerGroup {
+    pub(super) fn boot_timeline_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        self.boot.indicator_listing(
+            |timeline| {
+                vec![
+                    boot_timeline_indicator(timeline, locale).with_hover_card(Box::new(
+                        move |_| self.boot.sections_described_by(boot_timeline_hover_card),
+                    )),
+                    StartupUnits { timeline }
+                        .indicator()
+                        .with_hover_card(Box::new(move |_| {
+                            self.boot
+                                .hover_card_with(StartupUnits { timeline }.hover_card())
+                        })),
+                ]
+            },
+            BOOT_TIMELINE_GLYPH.into(),
+        )
     }
 }

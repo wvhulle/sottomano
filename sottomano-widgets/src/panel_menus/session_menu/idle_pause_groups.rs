@@ -1,6 +1,6 @@
 mod chain_settings;
-mod chain_stage_rows;
-mod idle_timeline_row;
+mod chain_stage_indicator;
+mod idle_timeline_indicator;
 mod pause_blocker_indicators;
 mod pause_group_elements;
 mod relative_idle_chain;
@@ -29,7 +29,7 @@ use sottomano_desktop_sources::{
 };
 
 use self::{
-    chain_stage_rows::HibernateDelayApply,
+    chain_stage_indicator::HibernateDelayApply,
     pause_blocker_indicators::{
         PauseBlocker, TimerArming, pause_title,
         sleep_obstacle_blockers::{

@@ -2,6 +2,7 @@ use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
     GreeterProgram, LeaderName, SessionIdentity, SessionIdleness, SessionInfo,
 };
 
+use super::{LoginSessionBusRequest, LoginSessionGroup, LoginSessionInteraction, identity_refresh};
 use crate::{
     glyph_icons::{
         phosphor::{Phosphor, Weight},
@@ -19,11 +20,11 @@ use crate::{
     },
 };
 
-pub struct LoginFace<'view> {
+pub struct LoginIndicator<'view> {
     pub identity: &'view SessionIdentity,
 }
 
-impl<'view> LoginFace<'view> {
+impl<'view> LoginIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = self.identity.login_manager.clone();
         let label = if label_text.is_empty() {
@@ -123,4 +124,26 @@ pub fn session_info_sections(session_info: &SessionInfo) -> Vec<Section> {
         dictionary_table(process_entries),
     ));
     sections
+}
+
+impl LoginSessionGroup {
+    pub(super) fn login_row<'view>(
+        &'view self,
+        identity: &'view SessionIdentity,
+    ) -> GroupIndicator<'view> {
+        LoginIndicator { identity }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .identity
+                    .hover_card_with(LoginIndicator { identity }.hover_card());
+                sections.extend(self.session.sections_described_by(session_info_sections));
+                sections
+            }))
+            .fetching_on_hover(
+                LoginSessionInteraction::OnBuses(LoginSessionBusRequest::StartSessionFetch),
+                LoginSessionInteraction::StopHoverFetches,
+            )
+            .refreshed_by(identity_refresh())
+    }
 }

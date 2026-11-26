@@ -5,6 +5,7 @@ use sottomano_desktop_sources::{
     ai_usage_spend::openrouter_model_rankings::{OpenRouterModelRankings, ScoredModel},
 };
 
+use super::{OpenRouterCreditGroup, OpenRouterCreditSource, credit_refresh_interaction};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -13,6 +14,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{
@@ -137,5 +139,30 @@ impl From<&ScoredModel> for TableRecord<5> {
                 },
             ],
         )
+    }
+}
+
+impl OpenRouterCreditGroup {
+    pub(super) fn best_models_listing(&self) -> IndicatorListing<'_> {
+        self.model_rankings
+            .indicator_listing(
+                |held_snapshot| best_models_indicator(held_snapshot).when_shown(),
+                OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.model_rankings_indicator(row))
+    }
+
+    fn model_rankings_indicator<'view>(
+        &'view self,
+        rankings_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        rankings_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.model_rankings
+                    .sections_described_by(best_models_hover_card)
+            }))
+            .refreshed_by(credit_refresh_interaction(
+                OpenRouterCreditSource::ModelRankings,
+            ))
     }
 }

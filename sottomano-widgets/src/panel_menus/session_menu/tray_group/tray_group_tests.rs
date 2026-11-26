@@ -18,7 +18,7 @@ use sottomano_toml_config::{
 
 use super::{
     TrayMessage,
-    tray_item_view::{TrayItemWindow, click_hint, click_message, item_view},
+    tray_item_indicator::{TrayItemWindow, click_hint, click_message, item_view},
 };
 use crate::icon_catalog::{
     drawable_icon_catalog::{DrawableIconSources, IconCatalog},

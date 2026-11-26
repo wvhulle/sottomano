@@ -7,12 +7,16 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{
+    CopilotAccountSource, CopilotUsageBusRequest, CopilotUsageGroup, CopilotUsageInteraction,
+};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -98,4 +102,29 @@ pub fn copilot_metered_hover_card(metered: &CopilotMetered) -> Vec<Section> {
             ),
         ),
     ]
+}
+
+impl CopilotUsageGroup {
+    pub(super) fn metered_quota_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.metered
+            .indicator_listing(
+                |held_snapshot| vec![copilot_metered_indicator(held_snapshot, clock)],
+                Phosphor::Gauge(Weight::Regular).into(),
+            )
+            .map_indicators(|row| self.wired_metered_indicator(row))
+    }
+
+    pub(super) fn wired_metered_indicator<'view>(
+        &'view self,
+        metered_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        metered_row
+            .with_hover_card(Box::new(move |_| {
+                self.metered
+                    .sections_described_by(copilot_metered_hover_card)
+            }))
+            .refreshed_by(CopilotUsageInteraction::OnBuses(
+                CopilotUsageBusRequest::Refresh(CopilotAccountSource::Metered),
+            ))
+    }
 }

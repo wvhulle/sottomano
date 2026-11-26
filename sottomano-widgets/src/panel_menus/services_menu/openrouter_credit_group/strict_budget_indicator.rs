@@ -7,6 +7,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{OpenRouterCreditGroup, OpenRouterCreditSource, credit_refresh_interaction};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -15,6 +16,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
@@ -89,5 +91,30 @@ fn remaining_entry(remaining: Money) -> LabeledValue {
         entry
     } else {
         entry.level(Severity::Critical)
+    }
+}
+
+impl OpenRouterCreditGroup {
+    pub(super) fn strict_budget_listing(&self) -> IndicatorListing<'_> {
+        self.strict_budget
+            .indicator_listing(
+                |held_snapshot| strict_budget_indicator(held_snapshot).when_shown(),
+                OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.wired_strict_budget_indicator(row))
+    }
+
+    fn wired_strict_budget_indicator<'view>(
+        &'view self,
+        budget_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        budget_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.strict_budget
+                    .sections_described_by(strict_budget_hover_card)
+            }))
+            .refreshed_by(credit_refresh_interaction(
+                OpenRouterCreditSource::StrictBudget,
+            ))
     }
 }

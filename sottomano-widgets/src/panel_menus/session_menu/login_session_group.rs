@@ -1,13 +1,13 @@
 use crate::group_indicators::{
     indicator_group_content::IndicatorListing, indicator_state::IndicatorState,
 };
-mod account_face;
-mod compositor_face;
-mod desktop_services_face;
-mod kernel_face;
-mod login_face;
-mod seat_face;
-mod service_manager_face;
+mod account_indicator;
+mod compositor_indicator;
+mod desktop_services_indicator;
+mod kernel_indicator;
+mod login_indicator;
+mod seat_indicator;
+mod service_manager_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -32,15 +32,6 @@ use crate::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
-    },
-    panel_menus::session_menu::login_session_group::{
-        account_face::AccountFace,
-        compositor_face::{CompositorFace, graphical_session_sections},
-        desktop_services_face::{DesktopServicesFace, graphical_session_target_sections},
-        kernel_face::KernelFace,
-        login_face::{LoginFace, session_info_sections},
-        seat_face::SeatFace,
-        service_manager_face::{ServiceManagerFace, user_service_manager_sections},
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
@@ -201,120 +192,7 @@ impl LoginSessionGroup {
         }
     }
 
-    fn identity_indicators<'view>(
-        &'view self,
-        identity: &'view SessionIdentity,
-    ) -> [GroupIndicator<'view>; 6] {
-        [
-            SeatFace {
-                seat: &identity.seat,
-                virtual_terminal: identity.virtual_terminal,
-            }
-            .indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.identity.hover_card_with(
-                    SeatFace {
-                        seat: &identity.seat,
-                        virtual_terminal: identity.virtual_terminal,
-                    }
-                    .hover_card(),
-                )
-            }))
-            .refreshed_by(identity_refresh()),
-            LoginFace { identity }
-                .indicator()
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self
-                        .identity
-                        .hover_card_with(LoginFace { identity }.hover_card());
-                    sections.extend(self.session.sections_described_by(session_info_sections));
-                    sections
-                }))
-                .fetching_on_hover(
-                    LoginSessionInteraction::OnBuses(LoginSessionBusRequest::StartSessionFetch),
-                    LoginSessionInteraction::StopHoverFetches,
-                )
-                .refreshed_by(identity_refresh()),
-            AccountFace { identity }
-                .indicator()
-                .with_hover_card(Box::new(move |_| {
-                    self.identity
-                        .hover_card_with(AccountFace { identity }.hover_card())
-                }))
-                .refreshed_by(identity_refresh()),
-            ServiceManagerFace::indicator()
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self
-                        .identity
-                        .hover_card_with(ServiceManagerFace::hover_card());
-                    sections.extend(
-                        self.service_manager
-                            .sections_described_by(user_service_manager_sections),
-                    );
-                    sections
-                }))
-                .fetching_on_hover(
-                    LoginSessionInteraction::OnBuses(
-                        LoginSessionBusRequest::StartServiceManagerFetch,
-                    ),
-                    LoginSessionInteraction::StopHoverFetches,
-                )
-                .refreshed_by(identity_refresh()),
-            CompositorFace { identity }
-                .indicator()
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self
-                        .identity
-                        .hover_card_with(CompositorFace { identity }.hover_card());
-                    sections.extend(
-                        self.graphical
-                            .sections_described_by(graphical_session_sections),
-                    );
-                    sections
-                }))
-                .fetching_on_hover(
-                    LoginSessionInteraction::StartCompositorFetch,
-                    LoginSessionInteraction::StopHoverFetches,
-                )
-                .refreshed_by(identity_refresh()),
-            DesktopServicesFace::indicator()
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self
-                        .identity
-                        .hover_card_with(DesktopServicesFace::hover_card());
-                    sections.extend(self.graphical_target.sections_described_by(|snapshot| {
-                        graphical_session_target_sections(snapshot)
-                    }));
-                    sections
-                }))
-                .fetching_on_hover(
-                    LoginSessionInteraction::OnBuses(
-                        LoginSessionBusRequest::StartDesktopServicesFetch,
-                    ),
-                    LoginSessionInteraction::StopHoverFetches,
-                )
-                .refreshed_by(identity_refresh()),
-        ]
-    }
-
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let mut rows = Vec::new();
-        if let Some(system) = self.system.get() {
-            rows.push(
-                KernelFace { system }
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.system
-                            .hover_card_with(KernelFace { system }.hover_card())
-                    }))
-                    .refreshed_by(LoginSessionInteraction::OnBuses(
-                        LoginSessionBusRequest::Refresh(LoginSessionSource::OperatingSystem),
-                    )),
-            );
-        }
-        if let Some(identity) = self.identity.get() {
-            rows.extend(self.identity_indicators(identity));
-        }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::LoginSession,
             GroupIndicator::glyph_only(
@@ -324,12 +202,26 @@ impl LoginSessionGroup {
             ),
             &self.expansion,
             LoginSessionInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            IndicatorListing::Listed(
+                self.kernel_rows()
+                    .into_iter()
+                    .chain(self.identity.get().into_iter().flat_map(|identity| {
+                        [
+                            self.seat_row(identity),
+                            self.login_row(identity),
+                            self.account_row(identity),
+                            self.service_manager_row(),
+                            self.compositor_row(identity),
+                            self.desktop_services_row(),
+                        ]
+                    }))
+                    .collect(),
+            ),
         )
     }
 }
 
-fn identity_refresh() -> LoginSessionInteraction {
+pub(super) fn identity_refresh() -> LoginSessionInteraction {
     LoginSessionInteraction::OnBuses(LoginSessionBusRequest::Refresh(
         LoginSessionSource::SessionIdentity,
     ))

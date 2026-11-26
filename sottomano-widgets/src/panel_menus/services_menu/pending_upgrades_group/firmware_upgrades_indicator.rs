@@ -13,6 +13,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutBadge,
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
         terminal_command::TerminalCommand,
     },
@@ -29,6 +30,8 @@ use crate::{
         value_cells::ValueCell,
     },
 };
+
+const FIRMWARE_UPGRADES_GLYPH: Phosphor = Phosphor::Circuitry(Weight::Regular);
 
 pub const LABEL: &str = "Firmware upgrades";
 
@@ -144,5 +147,20 @@ impl From<&FirmwareUpgrade> for TableRecord<6> {
             ],
         )
         .level(firmware_upgrade.severity())
+    }
+}
+
+impl PendingUpgradesGroup {
+    pub(super) fn firmware_upgrades_listing<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorListing<'view> {
+        self.firmware.indicator_listing(
+            |upgrades| match firmware_upgrades_panel_visibility(upgrades) {
+                PanelVisibility::Shown => vec![self.firmware_upgrade_indicator(upgrades, config)],
+                PanelVisibility::Hidden => Vec::new(),
+            },
+            FIRMWARE_UPGRADES_GLYPH.into(),
+        )
     }
 }

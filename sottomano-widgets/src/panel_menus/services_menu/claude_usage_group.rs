@@ -1,8 +1,8 @@
-mod claude_code_billing_block;
-mod claude_code_period_spend;
-mod claude_enterprise_credit_spend;
-mod claude_usage_indicator_rows;
-mod claude_usage_window_gauge;
+mod ccusage_block_indicator;
+mod ccusage_periods_indicator;
+mod enterprise_spend_indicator;
+mod most_used_model_indicator;
+mod usage_windows_indicator;
 
 use std::path::PathBuf;
 
@@ -21,11 +21,21 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, secrets::StoredSecret};
 
+use self::usage_windows_indicator::claude_usage_windows_indicator;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_indicators::indicator_group_content::{
-        IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+    glyph_icons::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
+        },
+        indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
@@ -257,5 +267,34 @@ fn enterprise_account(
             credentials,
             working_time: WorkingTime::new(config, working_days),
         },
+    }
+}
+
+impl ClaudeUsageGroup {
+    pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
+        let headline_indicator = self.usage_windows_headline(clock);
+        IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::ClaudeUsage,
+            headline_indicator,
+            &self.expansion,
+            ClaudeUsageInteraction::Expansion,
+            [
+                self.usage_windows_listing(clock),
+                self.enterprise_spend_listing(clock),
+                self.ccusage_periods_listing(clock),
+                self.ccusage_block_listing(),
+                IndicatorListing::Listed(self.most_used_model_rows()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+
+    fn usage_windows_headline(&self, clock: Clock) -> GroupIndicator<'_> {
+        self.usage_windows_indicator(self.usage_windows.indicator(
+            |held_snapshot| claude_usage_windows_indicator(held_snapshot, clock),
+            Phosphor::Gauge(Weight::Regular).into(),
+        ))
+        .with_headline_glyph(SimpleIcon::Claude.into())
     }
 }

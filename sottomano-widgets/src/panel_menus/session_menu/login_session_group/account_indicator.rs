@@ -1,5 +1,6 @@
 use sottomano_desktop_sources::login_session_presence::logind_session_facts::SessionIdentity;
 
+use super::{LoginSessionGroup, identity_refresh};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -11,11 +12,11 @@ use crate::{
     widgets::value_cells::LabeledValue,
 };
 
-pub struct AccountFace<'view> {
+pub struct AccountIndicator<'view> {
     pub identity: &'view SessionIdentity,
 }
 
-impl<'view> AccountFace<'view> {
+impl<'view> AccountIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = self.identity.user.clone();
         let label = if label_text.is_empty() {
@@ -47,5 +48,20 @@ impl<'view> AccountFace<'view> {
                 LabeledValue::new("User id", self.identity.uid.to_string()),
             ]),
         )]
+    }
+}
+
+impl LoginSessionGroup {
+    pub(super) fn account_row<'view>(
+        &'view self,
+        identity: &'view SessionIdentity,
+    ) -> GroupIndicator<'view> {
+        AccountIndicator { identity }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.identity
+                    .hover_card_with(AccountIndicator { identity }.hover_card())
+            }))
+            .refreshed_by(identity_refresh())
     }
 }

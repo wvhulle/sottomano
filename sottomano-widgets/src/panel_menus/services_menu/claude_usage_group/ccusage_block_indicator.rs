@@ -3,6 +3,7 @@ use sottomano_desktop_sources::{
     ai_usage_spend::{ccusage_cli_reports::BlockProjection, claude_usage::ClaudeCcusageBlock},
 };
 
+use super::{ClaudeLocalSource, ClaudeUsageGroup, ClaudeUsageInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -12,6 +13,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -86,4 +88,30 @@ pub fn claude_ccusage_block_hover_card(block: &ClaudeCcusageBlock, clock: Clock)
         source,
         Section::new("Active 5-Hour Block", dictionary_table(block_rows)),
     ]
+}
+
+impl ClaudeUsageGroup {
+    pub(super) fn ccusage_block_listing(&self) -> IndicatorListing<'_> {
+        self.ccusage_block
+            .indicator_listing(
+                |held_snapshot| claude_ccusage_block_indicator(held_snapshot).when_shown(),
+                CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.ccusage_block_indicator(row))
+    }
+
+    fn ccusage_block_indicator<'view>(
+        &'view self,
+        block_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        block_indicator
+            .with_hover_card(Box::new(move |card_clock| {
+                self.ccusage_block.sections_described_by(|snapshot| {
+                    claude_ccusage_block_hover_card(snapshot, card_clock)
+                })
+            }))
+            .refreshed_by(ClaudeUsageInteraction::Refresh(
+                ClaudeLocalSource::CcusageBlock,
+            ))
+    }
 }

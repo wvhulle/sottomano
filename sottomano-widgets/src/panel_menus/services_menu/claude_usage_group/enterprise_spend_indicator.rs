@@ -6,6 +6,7 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{ClaudeUsageBusRequest, ClaudeUsageGroup, ClaudeUsageInteraction};
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -15,6 +16,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -103,4 +105,39 @@ pub fn claude_organization_sections(claude_organization: &ClaudeOrganization) ->
             ),
         ]),
     )]
+}
+
+impl ClaudeUsageGroup {
+    pub(super) fn enterprise_spend_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.enterprise_spend
+            .indicator_listing(
+                |held_snapshot| claude_enterprise_indicator(held_snapshot, clock).when_shown(),
+                CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.enterprise_spend_indicator(row))
+    }
+
+    fn enterprise_spend_indicator<'view>(
+        &'view self,
+        spend_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        spend_row
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .enterprise_spend
+                    .sections_described_by(claude_enterprise_hover_card);
+                sections.extend(
+                    self.organization
+                        .sections_described_by(claude_organization_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                ClaudeUsageInteraction::OnBuses(ClaudeUsageBusRequest::StartOrganizationFetch),
+                ClaudeUsageInteraction::StopHoverFetches,
+            )
+            .refreshed_by(ClaudeUsageInteraction::OnBuses(
+                ClaudeUsageBusRequest::RefreshEnterpriseSpend,
+            ))
+    }
 }

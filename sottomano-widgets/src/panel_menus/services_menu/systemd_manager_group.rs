@@ -2,22 +2,19 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
+use self::{
+    failed_units_indicator::{FailedUnitsScope, failed_units_listing},
+    slow_jobs_indicator::slow_jobs_listing,
+};
 use crate::{clock::Clock, group_indicators::indicator_group_identity::IndicatorGroupFamily};
 
 mod boot_timeline_indicator;
-mod failed_unit_log;
+mod failed_units_indicator;
 mod last_shutdown_indicator;
-mod running_job_indicator;
+mod slow_jobs_indicator;
 
-use boot_timeline_indicator::{StartupUnits, boot_timeline_hover_card, boot_timeline_indicator};
-use failed_unit_log::{
-    failed_units_hover_card, failed_units_panel_visibility, failed_units_state,
-    wired_failed_units_indicator,
-};
-use last_shutdown_indicator::{last_shutdown_hover_card, last_shutdown_indicator};
-use running_job_indicator::{
-    slow_jobs_hover_card, slow_jobs_panel_visibility, wired_slow_jobs_indicator,
-};
+use failed_units_indicator::{failed_units_panel_visibility, failed_units_state};
+use slow_jobs_indicator::slow_jobs_panel_visibility;
 use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -38,7 +35,7 @@ use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
+        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
@@ -49,12 +46,6 @@ use crate::{
     hover_cards::IndicatorKey,
     widgets::{ongoing_toast::OngoingKey, subscribed_snapshot::SubscribedSnapshot},
 };
-
-const BOOT_TIMELINE_GLYPH: Phosphor = Phosphor::RocketLaunch(Weight::Regular);
-const SLOW_JOBS_GLYPH: Phosphor = Phosphor::HourglassMedium(Weight::Regular);
-const FAILED_SYSTEM_UNITS_GLYPH: Phosphor = Phosphor::HardDrives(Weight::Regular);
-const FAILED_USER_UNITS_GLYPH: Phosphor = Phosphor::User(Weight::Regular);
-const LAST_SHUTDOWN_GLYPH: Phosphor = Phosphor::Power(Weight::Regular);
 
 fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
     match scope {
@@ -71,28 +62,6 @@ fn unit_toast_key(row_name: Cow<'static, str>, unit_name: String) -> OngoingKey 
         },
         detail: Cow::Owned(unit_name),
     }
-}
-
-fn slow_jobs_entry<'view>(
-    snapshot: &'view SubscribedSnapshot<SlowJobs>,
-    jobs: &'view SlowJobs,
-    config: &'view Config,
-    clock: Clock,
-) -> GroupIndicator<'view> {
-    wired_slow_jobs_indicator(jobs, config, clock).with_hover_card(Box::new(move |_| {
-        snapshot.sections_described_by(slow_jobs_hover_card)
-    }))
-}
-
-fn failed_units_entry<'view>(
-    snapshot: &'view SubscribedSnapshot<FailedUnits>,
-    failed: &'view FailedUnits,
-    config: &'view Config,
-    clock: Clock,
-) -> GroupIndicator<'view> {
-    wired_failed_units_indicator(failed, config, clock).with_hover_card(Box::new(move |_| {
-        snapshot.sections_described_by(failed_units_hover_card)
-    }))
 }
 
 #[derive(Default)]
@@ -219,60 +188,13 @@ impl SystemdManagerGroup {
         config: &'view Config,
         clock: Clock,
     ) -> IndicatorGroupContent<'view> {
-        let locale = config.calendar.locale;
-        let slow_jobs_listing = |slow_jobs: &'view SubscribedSnapshot<SlowJobs>| {
-            slow_jobs.indicator_listing(
-                |held_snapshot| match slow_jobs_panel_visibility(held_snapshot) {
-                    PanelVisibility::Shown => {
-                        vec![slow_jobs_entry(slow_jobs, held_snapshot, config, clock)]
-                    }
-                    PanelVisibility::Hidden => Vec::new(),
-                },
-                SLOW_JOBS_GLYPH.into(),
-            )
-        };
-        let failed_units_listing =
-            |failed_units: &'view SubscribedSnapshot<FailedUnits>, failed_units_glyph: Phosphor| {
-                failed_units.indicator_listing(
-                    |held_snapshot| match failed_units_panel_visibility(held_snapshot) {
-                        PanelVisibility::Shown => {
-                            vec![failed_units_entry(
-                                failed_units,
-                                held_snapshot,
-                                config,
-                                clock,
-                            )]
-                        }
-                        PanelVisibility::Hidden => Vec::new(),
-                    },
-                    failed_units_glyph.into(),
-                )
-            };
         let indicator_listing = [
-            self.boot.indicator_listing(
-                |timeline| {
-                    vec![
-                        boot_timeline_indicator(timeline, locale).with_hover_card(Box::new(
-                            move |_| self.boot.sections_described_by(boot_timeline_hover_card),
-                        )),
-                        StartupUnits { timeline }
-                            .indicator()
-                            .with_hover_card(Box::new(move |_| {
-                                self.boot
-                                    .hover_card_with(StartupUnits { timeline }.hover_card())
-                            })),
-                    ]
-                },
-                BOOT_TIMELINE_GLYPH.into(),
-            ),
-            slow_jobs_listing(&self.slow_system_jobs),
-            slow_jobs_listing(&self.slow_user_jobs),
-            failed_units_listing(&self.failed_system, FAILED_SYSTEM_UNITS_GLYPH),
-            failed_units_listing(&self.failed_user, FAILED_USER_UNITS_GLYPH),
-            self.last_shutdown.indicator_listing(
-                |held_snapshot| vec![self.wired_last_shutdown_indicator(held_snapshot, config)],
-                LAST_SHUTDOWN_GLYPH.into(),
-            ),
+            self.boot_timeline_listing(config.calendar.locale),
+            slow_jobs_listing(&self.slow_system_jobs, config, clock),
+            slow_jobs_listing(&self.slow_user_jobs, config, clock),
+            failed_units_listing(&self.failed_system, FailedUnitsScope::System, config, clock),
+            failed_units_listing(&self.failed_user, FailedUnitsScope::User, config, clock),
+            self.last_shutdown_listing(config),
         ]
         .into_iter()
         .collect();
@@ -287,25 +209,6 @@ impl SystemdManagerGroup {
             SystemdManagerInteraction::Expansion,
             indicator_listing,
         )
-    }
-
-    fn wired_last_shutdown_indicator<'view>(
-        &'view self,
-        last_shutdown: &'view LastShutdown,
-        config: &'view Config,
-    ) -> GroupIndicator<'view> {
-        last_shutdown_indicator(last_shutdown, config.calendar.locale)
-            .on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                    config,
-                    last_shutdown.follow_log_args(),
-                )),
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.last_shutdown
-                    .sections_described_by(last_shutdown_hover_card)
-            }))
     }
 
     fn current_health_states(&self) -> [Option<IndicatorState>; 4] {

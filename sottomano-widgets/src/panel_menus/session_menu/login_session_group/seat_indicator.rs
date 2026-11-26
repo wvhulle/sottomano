@@ -1,5 +1,8 @@
-use sottomano_desktop_sources::login_session_presence::logind_session_facts::VirtualTerminal;
+use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
+    SessionIdentity, VirtualTerminal,
+};
 
+use super::{LoginSessionGroup, identity_refresh};
 use crate::{
     glyph_icons::{
         phosphor::{Phosphor, Weight},
@@ -14,12 +17,12 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct SeatFace<'view> {
+pub struct SeatIndicator<'view> {
     pub seat: &'view str,
     pub virtual_terminal: VirtualTerminal,
 }
 
-impl<'view> SeatFace<'view> {
+impl<'view> SeatIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let label_text = match self.virtual_terminal {
             VirtualTerminal::Console(console) => format!("tty{console}"),
@@ -85,5 +88,28 @@ impl<'view> SeatFace<'view> {
                 ]),
             ),
         ]
+    }
+}
+
+impl LoginSessionGroup {
+    pub(super) fn seat_row<'view>(
+        &'view self,
+        identity: &'view SessionIdentity,
+    ) -> GroupIndicator<'view> {
+        SeatIndicator {
+            seat: &identity.seat,
+            virtual_terminal: identity.virtual_terminal,
+        }
+        .indicator()
+        .with_hover_card(Box::new(move |_| {
+            self.identity.hover_card_with(
+                SeatIndicator {
+                    seat: &identity.seat,
+                    virtual_terminal: identity.virtual_terminal,
+                }
+                .hover_card(),
+            )
+        }))
+        .refreshed_by(identity_refresh())
     }
 }

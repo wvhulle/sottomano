@@ -6,12 +6,14 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{OpenRouterCreditGroup, OpenRouterCreditSource, credit_refresh_interaction};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -120,4 +122,27 @@ pub(crate) fn spend_hover_card(spend: &OpenRouterSpend, clock: Clock) -> Vec<Sec
             Some(monthly_budget),
         ),
     ]
+}
+
+impl OpenRouterCreditGroup {
+    pub(super) fn spend_listing(&self, clock: Clock) -> IndicatorListing<'_> {
+        self.spend
+            .indicator_listing(
+                |held_snapshot| vec![spend_indicator(held_snapshot, clock)],
+                Phosphor::Coins(Weight::Regular).into(),
+            )
+            .map_indicators(|row| self.wired_spend_indicator(row))
+    }
+
+    pub(super) fn wired_spend_indicator<'view>(
+        &'view self,
+        spend_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        spend_row
+            .with_hover_card(Box::new(move |card_clock| {
+                self.spend
+                    .sections_described_by(|snapshot| spend_hover_card(snapshot, card_clock))
+            }))
+            .refreshed_by(credit_refresh_interaction(OpenRouterCreditSource::Spend))
+    }
 }

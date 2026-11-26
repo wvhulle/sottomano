@@ -230,6 +230,7 @@ impl ColorTemperatureGroup {
         }
     }
 
+    #[must_use]
     pub fn group_content<'view>(
         &'view self,
         config: &'view Config,

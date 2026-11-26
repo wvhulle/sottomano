@@ -3,17 +3,15 @@ use iced::{Subscription, Task};
 use crate::{
     glyph_icons::phosphor::Weight,
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_drawing::ReadoutBadge,
-        indicator_group_content::IndicatorListing,
-        indicator_group_identity::IndicatorGroupFamily,
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutBadge,
+        indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
     },
     hover_cards::hover_card_body::dictionary_table,
 };
 
-mod firmware_upgrade_list;
+mod firmware_upgrades_indicator;
 
-use firmware_upgrade_list::{
+use firmware_upgrades_indicator::{
     firmware_upgrades_badge, firmware_upgrades_panel_visibility, firmware_upgrades_state,
 };
 use sottomano_desktop_sources::{
@@ -39,8 +37,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-const FIRMWARE_UPGRADES_GLYPH: Phosphor = Phosphor::Circuitry(Weight::Regular);
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
@@ -96,13 +92,6 @@ impl PendingUpgradesGroup {
         &'view self,
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
-        let firmware_listing = self.firmware.indicator_listing(
-            |upgrades| match firmware_upgrades_panel_visibility(upgrades) {
-                PanelVisibility::Shown => vec![self.firmware_upgrade_indicator(upgrades, config)],
-                PanelVisibility::Hidden => Vec::new(),
-            },
-            FIRMWARE_UPGRADES_GLYPH.into(),
-        );
         let build_pending_upgrades_indicator = || {
             self.indicator().with_hover_card(Box::new(move |_| {
                 self.firmware.hover_card_with(self.hover_card())
@@ -117,7 +106,7 @@ impl PendingUpgradesGroup {
             PendingUpgradesInteraction::Expansion,
             [
                 IndicatorListing::Listed(vec![build_pending_upgrades_indicator()]),
-                firmware_listing,
+                self.firmware_upgrades_listing(config),
             ]
             .into_iter()
             .collect(),
@@ -158,7 +147,7 @@ impl PendingUpgradesGroup {
                     .visible_indicator(|upgrades| firmware_upgrades_panel_visibility(upgrades))
                     .map(|upgrades| {
                         LabeledValue::new(
-                            firmware_upgrade_list::LABEL,
+                            firmware_upgrades_indicator::LABEL,
                             Quantity::count(upgrades.len()),
                         )
                     }),

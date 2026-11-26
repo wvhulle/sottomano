@@ -1,3 +1,5 @@
+mod connected_controller_row;
+
 use std::{iter::once, path::Path};
 
 use sottomano_desktop_sources::gamepad_controller_input::{
@@ -15,7 +17,7 @@ use sottomano_toml_config::{
 };
 
 use super::{
-    ControllerCustody, GamepadGroup,
+    ControllerCustody,
     controller_button_labels::ControllerFamily,
     diagram_anchor_mapping::{button_anchor, stick_anchor},
     steam_input_route::{connection_rows, steam_input_note},
@@ -329,31 +331,6 @@ impl<'view> ConnectedControllerIndicator<'view> {
                 ),
             ])
             .collect()
-    }
-}
-
-impl GamepadGroup {
-    pub(super) fn connected_controller_row<'view>(
-        &'view self,
-        gamepad: &'view ConnectedGamepad,
-        link: &'view PhysicalGamepadLink,
-        bindings: &'view GamepadBindingsConfig,
-    ) -> GroupIndicator<'view> {
-        self.face_indicator(gamepad, link, bindings).indicator()
-    }
-
-    fn face_indicator<'view>(
-        &'view self,
-        gamepad: &'view ConnectedGamepad,
-        link: &'view PhysicalGamepadLink,
-        bindings: &'view GamepadBindingsConfig,
-    ) -> ConnectedControllerIndicator<'view> {
-        ConnectedControllerIndicator {
-            gamepad,
-            bindings,
-            custody: self.controller_custody(gamepad.slot),
-            marking: self.controller_marking(gamepad, link),
-        }
     }
 }
 

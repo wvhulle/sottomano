@@ -6,6 +6,9 @@ use sottomano_desktop_sources::{
     },
 };
 
+use super::{
+    CopilotAccountSource, CopilotUsageBusRequest, CopilotUsageGroup, CopilotUsageInteraction,
+};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -14,6 +17,7 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -78,4 +82,28 @@ pub fn copilot_free_hover_card(free: &CopilotFree) -> Vec<Section> {
             ),
         ),
     ]
+}
+
+impl CopilotUsageGroup {
+    pub(super) fn free_quota_listing(&self) -> IndicatorListing<'_> {
+        self.free
+            .indicator_listing(
+                |held_snapshot| copilot_free_indicator(held_snapshot).when_shown(),
+                COPILOT_FREE_FALLBACK_GLYPH,
+            )
+            .map_indicators(|row| self.free_indicator(row))
+    }
+
+    fn free_indicator<'view>(
+        &'view self,
+        free_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        free_row
+            .with_hover_card(Box::new(move |_| {
+                self.free.sections_described_by(copilot_free_hover_card)
+            }))
+            .refreshed_by(CopilotUsageInteraction::OnBuses(
+                CopilotUsageBusRequest::Refresh(CopilotAccountSource::Free),
+            ))
+    }
 }

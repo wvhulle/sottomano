@@ -6,10 +6,15 @@ use sottomano_desktop_sources::{
         JobResult, LastShutdown, StopOutcome, UnitStop,
     },
 };
+use sottomano_toml_config::Config;
 
+use super::{SystemdManagerGroup, SystemdManagerInteraction};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        indicator_group_content::IndicatorListing, terminal_command::TerminalCommand,
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, TableRecord},
@@ -17,6 +22,8 @@ use crate::{
         value_cells::ValueCell,
     },
 };
+
+const LAST_SHUTDOWN_GLYPH: Phosphor = Phosphor::Power(Weight::Regular);
 
 impl From<&UnitStop> for TableRecord<2> {
     fn from(unit_stop: &UnitStop) -> Self {
@@ -76,4 +83,35 @@ pub(super) fn last_shutdown_indicator(
         shutdown.duration,
         locale,
     )))
+}
+
+impl SystemdManagerGroup {
+    pub(super) fn last_shutdown_listing<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> IndicatorListing<'view> {
+        self.last_shutdown.indicator_listing(
+            |held_snapshot| vec![self.wired_last_shutdown_indicator(held_snapshot, config)],
+            LAST_SHUTDOWN_GLYPH.into(),
+        )
+    }
+
+    fn wired_last_shutdown_indicator<'view>(
+        &'view self,
+        last_shutdown: &'view LastShutdown,
+        config: &'view Config,
+    ) -> GroupIndicator<'view> {
+        last_shutdown_indicator(last_shutdown, config.calendar.locale)
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    last_shutdown.follow_log_args(),
+                )),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.last_shutdown
+                    .sections_described_by(last_shutdown_hover_card)
+            }))
+    }
 }
