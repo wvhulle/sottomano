@@ -24,7 +24,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -297,12 +296,7 @@ impl NspawnContainersGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let containers = self
-            .listing
-            .get()
-            .map(|readout| readout.containers.as_slice())
-            .unwrap_or_default();
-        let rows = containers.iter().map(|container| {
+        let container_indicator = |container| {
             let row = self
                 .container_indicator(container)
                 .indicator()
@@ -317,17 +311,21 @@ impl NspawnContainersGroup {
                 ),
                 None => row,
             }
-        });
+        };
+        let nspawn_glyph = Phosphor::Hexagon(Weight::Regular);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::NspawnContainers,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::NspawnContainers.title(),
-                Phosphor::Hexagon(Weight::Regular).into(),
+                nspawn_glyph.into(),
                 IndicatorState::Idle,
             ),
             &self.expansion,
             NspawnContainersInteraction::Expansion,
-            IndicatorListing::Listed(rows.collect()),
+            self.listing.indicator_listing(
+                |readout| readout.containers.iter().map(container_indicator).collect(),
+                nspawn_glyph.into(),
+            ),
         )
     }
 }

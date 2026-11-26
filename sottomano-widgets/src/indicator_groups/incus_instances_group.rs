@@ -21,8 +21,15 @@ use self::incus_instance_indicators::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
+        snapshot_absence::{AbsenceCause, awaiting_source_indicator},
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
         indicator_group_content::{
@@ -167,14 +174,11 @@ impl IncusInstancesGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let rows = WATCHED_DAEMONS
-            .into_iter()
-            .flat_map(|instance_daemon| self.daemon_indicators(instance_daemon));
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::IncusInstances,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::IncusInstances.title(),
-                Phosphor::CubeFocus(Weight::Regular).into(),
+                incus_glyph(),
                 if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
                     self.probe_availability(instance_daemon) == Some(Availability::Available)
                 }) {
@@ -185,72 +189,94 @@ impl IncusInstancesGroup {
             ),
             &self.expansion,
             IncusInstancesInteraction::Expansion,
-            IndicatorListing::Listed(rows.collect()),
+            WATCHED_DAEMONS
+                .into_iter()
+                .map(|instance_daemon| self.daemon_indicator_listing(instance_daemon))
+                .collect(),
         )
     }
 
-    fn daemon_indicators(&self, instance_daemon: InstanceDaemon) -> Vec<GroupIndicator<'_>> {
+    fn daemon_indicator_listing(&self, instance_daemon: InstanceDaemon) -> IndicatorListing<'_> {
         if let Some(detail_indicator) = self.details.get(&instance_daemon)
             && let Some(instances) = detail_indicator.get()
         {
-            return instances
-                .details
-                .iter()
-                .map(|instance| {
-                    let row = IncusInstanceIndicator {
+            return IndicatorListing::Listed(
+                instances
+                    .details
+                    .iter()
+                    .map(|instance| {
+                        let row = IncusInstanceIndicator {
+                            instance_daemon,
+                            instance,
+                        }
+                        .indicator();
+                        instance_power_switch(row, instance_daemon, &instance.listing)
+                            .with_hover_card(Box::new(move |_| {
+                                detail_indicator.hover_card_with(
+                                    IncusInstanceIndicator {
+                                        instance_daemon,
+                                        instance,
+                                    }
+                                    .hover_card(),
+                                )
+                            }))
+                    })
+                    .collect(),
+            );
+        }
+        if self.probe_availability(instance_daemon) == Some(Availability::Unavailable) {
+            return IndicatorListing::Listed(Vec::new());
+        }
+        match self.listings.get(&instance_daemon) {
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(read_failure),
+            }) => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![
+                    UnreadableDaemonIndicator {
                         instance_daemon,
-                        instance,
+                        read_failure,
                     }
-                    .indicator();
-                    instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
-                        Box::new(move |_| {
-                            detail_indicator.hover_card_with(
-                                IncusInstanceIndicator {
-                                    instance_daemon,
-                                    instance,
-                                }
-                                .hover_card(),
-                            )
-                        }),
-                    )
-                })
-                .collect();
-        }
-        let Some(listing_indicator) = self.listings.get(&instance_daemon) else {
-            return Vec::new();
-        };
-        if let Some(read_failure) = listing_indicator.fetch_failure() {
-            return vec![
-                UnreadableDaemonIndicator {
-                    instance_daemon,
-                    read_failure,
-                }
-                .indicator(),
-            ];
-        }
-        listing_indicator
-            .get()
-            .map(|listings| listings.listings.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .map(|listing| {
-                let row = IncusInstanceListingIndicator {
-                    instance_daemon,
-                    listing,
-                }
-                .indicator();
-                instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
-                    move |_| {
-                        listing_indicator.hover_card_with(
-                            IncusInstanceListingIndicator {
+                    .indicator(),
+                ],
+            },
+            Some(listing_indicator) => listing_indicator.indicator_listing(
+                |listings| {
+                    listings
+                        .listings
+                        .iter()
+                        .map(|listing| {
+                            let row = IncusInstanceListingIndicator {
                                 instance_daemon,
                                 listing,
                             }
-                            .hover_card(),
-                        )
-                    },
-                ))
-            })
-            .collect()
+                            .indicator();
+                            instance_power_switch(row, instance_daemon, listing).with_hover_card(
+                                Box::new(move |_| {
+                                    listing_indicator.hover_card_with(
+                                        IncusInstanceListingIndicator {
+                                            instance_daemon,
+                                            listing,
+                                        }
+                                        .hover_card(),
+                                    )
+                                }),
+                            )
+                        })
+                        .collect()
+                },
+                incus_glyph(),
+            ),
+            None => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![awaiting_source_indicator::<
+                    FamilyListings<DaemonInstanceListing>,
+                >(incus_glyph())],
+            },
+        }
     }
+}
+
+fn incus_glyph() -> IconGlyph {
+    Phosphor::CubeFocus(Weight::Regular).into()
 }

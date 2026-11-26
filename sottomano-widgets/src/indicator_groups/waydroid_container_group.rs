@@ -184,13 +184,6 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn shown_waydroid(&self) -> Option<ShownWaydroid<'_>> {
-        if let Some(readout) = self.detail.get() {
-            return Some(ShownWaydroid::Detailed(readout));
-        }
-        self.listing.get().map(ShownWaydroid::Listed)
-    }
-
     fn stamped_card(&self, shown: ShownWaydroid<'_>, body: Vec<Section>) -> Vec<Section> {
         match shown {
             ShownWaydroid::Detailed(_) => self.detail.hover_card_with(body),
@@ -199,7 +192,6 @@ impl WaydroidContainerGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let rows = self.waydroid_indicators();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::WaydroidContainer,
             GroupIndicator::glyph_only(
@@ -209,7 +201,7 @@ impl WaydroidContainerGroup {
             ),
             &self.expansion,
             WaydroidContainerInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            self.indicator_listing(),
         )
     }
 
@@ -233,10 +225,22 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_indicators(&self) -> Vec<GroupIndicator<'_>> {
-        let Some(shown) = self.shown_waydroid() else {
-            return Vec::new();
-        };
+    fn indicator_listing(&self) -> IndicatorListing<'_> {
+        if let Some(readout) = self.detail.get() {
+            return IndicatorListing::Listed(
+                self.waydroid_indicators(ShownWaydroid::Detailed(readout)),
+            );
+        }
+        self.listing.indicator_listing(
+            |listing| self.waydroid_indicators(ShownWaydroid::Listed(listing)),
+            IconGlyph::SimpleIcon(SimpleIcon::Android),
+        )
+    }
+
+    fn waydroid_indicators<'view>(
+        &'view self,
+        shown: ShownWaydroid<'view>,
+    ) -> Vec<GroupIndicator<'view>> {
         let container_indicator = self.container_indicator(shown);
         if shown.container() == ContainerRunState::Stopped {
             return vec![container_indicator];

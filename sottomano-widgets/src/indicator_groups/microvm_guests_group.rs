@@ -23,7 +23,10 @@ use self::microvm_guest_indicators::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::IndicatorState,
@@ -237,26 +240,29 @@ impl MicrovmGuestsGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let rows = self.machine_indicators();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::MicrovmGuests,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::MicrovmGuests.title(),
-                Phosphor::Feather(Weight::Regular).into(),
+                microvm_glyph(),
                 self.shown_state(),
             ),
             &self.expansion,
             MicrovmGuestsInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            self.indicator_listing(),
         )
     }
 
-    fn machine_indicators(&self) -> Vec<GroupIndicator<'_>> {
-        let units = self.unit_listing();
-        let mut rows: Vec<GroupIndicator<'_>> =
-            units.iter().map(|unit| self.unit_row(unit)).collect();
-        rows.extend(self.unmanaged_guest_indicators(units));
-        rows
+    fn indicator_listing(&self) -> IndicatorListing<'_> {
+        [
+            self.units.indicator_listing(
+                |units| units.units.iter().map(|unit| self.unit_row(unit)).collect(),
+                microvm_glyph(),
+            ),
+            self.unmanaged_guest_listing(self.unit_listing()),
+        ]
+        .into_iter()
+        .collect()
     }
 
     fn unit_row<'view>(&'view self, unit: &'view MicrovmUnit) -> GroupIndicator<'view> {
@@ -287,41 +293,42 @@ impl MicrovmGuestsGroup {
         }
     }
 
-    fn unmanaged_guest_indicators<'view>(
+    fn unmanaged_guest_listing<'view>(
         &'view self,
         units: &'view [MicrovmUnit],
-    ) -> Vec<GroupIndicator<'view>> {
+    ) -> IndicatorListing<'view> {
         let managed_by_unit =
             |machine: &MicrovmGuest| units.iter().any(|unit| managed_by(machine, unit));
         if let Some(detail) = self.detail.get() {
-            return detail
-                .details
-                .iter()
-                .filter(|machine| !managed_by_unit(machine))
-                .map(|machine| {
-                    let row = MicrovmGuestIndicator { machine }
-                        .indicator()
-                        .with_hover_card(Box::new(move |clock| {
-                            self.detail.hover_card_with(
-                                MicrovmGuestIndicator { machine }.hover_card(clock),
-                            )
-                        }));
-                    match power_button_socket(machine) {
-                        Some(api_socket) => row.on_stop_press(
-                            POWER_BUTTON_HINT,
-                            MicrovmGuestsInteraction::PressPowerButton(
-                                machine.hypervisor,
-                                api_socket.clone(),
+            return IndicatorListing::Listed(
+                detail
+                    .details
+                    .iter()
+                    .filter(|machine| !managed_by_unit(machine))
+                    .map(|machine| {
+                        let row = MicrovmGuestIndicator { machine }
+                            .indicator()
+                            .with_hover_card(Box::new(move |clock| {
+                                self.detail.hover_card_with(
+                                    MicrovmGuestIndicator { machine }.hover_card(clock),
+                                )
+                            }));
+                        match power_button_socket(machine) {
+                            Some(api_socket) => row.on_stop_press(
+                                POWER_BUTTON_HINT,
+                                MicrovmGuestsInteraction::PressPowerButton(
+                                    machine.hypervisor,
+                                    api_socket.clone(),
+                                ),
                             ),
-                        ),
-                        None => row.inert_switch(SwitchPosition::On),
-                    }
-                })
-                .collect();
+                            None => row.inert_switch(SwitchPosition::On),
+                        }
+                    })
+                    .collect(),
+            );
         }
-        self.listings
-            .get()
-            .map(|listings| {
+        self.listings.indicator_listing(
+            |listings| {
                 listings
                     .listings
                     .iter()
@@ -339,8 +346,9 @@ impl MicrovmGuestsGroup {
                             }))
                     })
                     .collect()
-            })
-            .unwrap_or_default()
+            },
+            microvm_glyph(),
+        )
     }
 }
 
@@ -356,4 +364,8 @@ impl MicrovmGuestsGroup {
             IndicatorState::Off
         }
     }
+}
+
+fn microvm_glyph() -> IconGlyph {
+    Phosphor::Feather(Weight::Regular).into()
 }

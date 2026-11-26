@@ -45,10 +45,10 @@ fn a_denied_docker_socket_shows_a_failure_indicator() {
         ),
         Clock::real(),
     );
-    assert_eq!(group.container_indicators().len(), 1);
+    assert_eq!(group.indicator_listing().unread_sources().len(), 1);
     let failure_indicator = HoverTarget::Indicator(IndicatorKey {
         group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::DockerEngines),
-        name: group.container_indicators()[0].indicator_name(),
+        name: group.indicator_listing().unread_sources()[0].indicator_name(),
     });
     assert!(
         group
@@ -59,14 +59,17 @@ fn a_denied_docker_socket_shows_a_failure_indicator() {
 }
 
 #[test]
-fn a_missing_docker_socket_shows_no_indicator() {
+fn a_missing_docker_socket_lists_nothing() {
     let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
     let mut group = rootful_engine_group();
     let _ = group.update(
         DockerEnginesMessage::Engine(rootful_socket.clone(), SnapshotDelivery::SourceUnavailable),
         Clock::real(),
     );
-    assert!(group.group_content().listing.iter().next().is_none());
+    assert!(matches!(
+        group.indicator_listing(),
+        IndicatorListing::Listed(listed_indicators) if listed_indicators.is_empty()
+    ));
     let _ = group.update(
         DockerEnginesMessage::Engine(
             rootful_socket,

@@ -10,7 +10,9 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::window_edge_placement::WindowOwner,
     qemu_virtual_machines::{
         qemu_command_line_arguments::GuestDisplay,
-        running_virtual_machines::{GuestPowerControl, VirtualMachinesReadout},
+        running_virtual_machines::{
+            GuestPowerControl, RunningVirtualMachine, VirtualMachinesReadout,
+        },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -26,7 +28,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -164,67 +165,81 @@ impl VirtualMachinesGroup {
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
-        let machines = self
-            .readout
-            .get()
-            .map(|readout| readout.machines.as_slice())
-            .unwrap_or_default();
-        let rows = machines.iter().map(|machine| {
-            let row = VirtualMachineIndicator { machine }
-                .indicator()
-                .with_hover_card(Box::new(move |clock| {
-                    self.readout
-                        .hover_card_with(VirtualMachineIndicator { machine }.hover_card(clock))
-                }));
-            let row = match machine.launch.display {
-                GuestDisplay::Windowed => row.on_right_press(
-                    FOCUS_WINDOW_HINT,
-                    VirtualMachinesInteraction::FocusWindow(machine.pid),
-                ),
-                GuestDisplay::Headless => row,
-            };
-            match &machine.power_control {
-                GuestPowerControl::Unavailable => row.inert_switch(SwitchPosition::On),
-                power_control @ GuestPowerControl::LibvirtDomain(_) => row.on_switch_press(
-                    SwitchPosition::On,
-                    POWER_OFF_HINT,
-                    VirtualMachinesInteraction::PowerOff(power_control.clone()),
-                ),
-                power_control @ GuestPowerControl::QmpSocket(_) => row.on_stop_press(
-                    POWER_OFF_HINT,
-                    VirtualMachinesInteraction::PowerOff(power_control.clone()),
-                ),
-            }
-        });
-        let inactive_domains = self
-            .readout
-            .get()
-            .map(|readout| readout.inactive_domains.as_slice())
-            .unwrap_or_default();
-        let inactive_indicators = inactive_domains.iter().map(|domain_name| {
-            InactiveDomainIndicator { domain_name }
-                .indicator()
-                .with_hover_card(Box::new(|_| {
-                    self.readout
-                        .hover_card_with(InactiveDomainIndicator::hover_card())
-                }))
-                .on_switch_press(
-                    SwitchPosition::Off,
-                    POWER_ON_HINT,
-                    VirtualMachinesInteraction::PowerOn(domain_name.clone()),
-                )
-        });
+        let group_glyph = Phosphor::Browsers(Weight::Regular);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::VirtualMachines,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::VirtualMachines.title(),
-                Phosphor::Browsers(Weight::Regular).into(),
+                group_glyph.into(),
                 IndicatorState::Idle,
             ),
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
-            IndicatorListing::Listed(rows.chain(inactive_indicators).collect()),
+            self.readout.indicator_listing(
+                |readout| {
+                    readout
+                        .machines
+                        .iter()
+                        .map(|machine| self.running_machine_indicator(machine))
+                        .chain(
+                            readout
+                                .inactive_domains
+                                .iter()
+                                .map(|domain_name| self.inactive_domain_indicator(domain_name)),
+                        )
+                        .collect()
+                },
+                group_glyph.into(),
+            ),
         )
+    }
+
+    fn running_machine_indicator<'view>(
+        &'view self,
+        machine: &'view RunningVirtualMachine,
+    ) -> GroupIndicator<'view> {
+        let indicator = VirtualMachineIndicator { machine }
+            .indicator()
+            .with_hover_card(Box::new(move |clock| {
+                self.readout
+                    .hover_card_with(VirtualMachineIndicator { machine }.hover_card(clock))
+            }));
+        let indicator = match machine.launch.display {
+            GuestDisplay::Windowed => indicator.on_right_press(
+                FOCUS_WINDOW_HINT,
+                VirtualMachinesInteraction::FocusWindow(machine.pid),
+            ),
+            GuestDisplay::Headless => indicator,
+        };
+        match &machine.power_control {
+            GuestPowerControl::Unavailable => indicator.inert_switch(SwitchPosition::On),
+            power_control @ GuestPowerControl::LibvirtDomain(_) => indicator.on_switch_press(
+                SwitchPosition::On,
+                POWER_OFF_HINT,
+                VirtualMachinesInteraction::PowerOff(power_control.clone()),
+            ),
+            power_control @ GuestPowerControl::QmpSocket(_) => indicator.on_stop_press(
+                POWER_OFF_HINT,
+                VirtualMachinesInteraction::PowerOff(power_control.clone()),
+            ),
+        }
+    }
+
+    fn inactive_domain_indicator<'view>(
+        &'view self,
+        domain_name: &'view str,
+    ) -> GroupIndicator<'view> {
+        InactiveDomainIndicator { domain_name }
+            .indicator()
+            .with_hover_card(Box::new(|_| {
+                self.readout
+                    .hover_card_with(InactiveDomainIndicator::hover_card())
+            }))
+            .on_switch_press(
+                SwitchPosition::Off,
+                POWER_ON_HINT,
+                VirtualMachinesInteraction::PowerOn(domain_name.to_owned()),
+            )
     }
 }
 

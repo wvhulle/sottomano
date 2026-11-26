@@ -22,8 +22,10 @@ use crate::{
         simple_icons::SimpleIcon,
     },
     group_indicators::{
-        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        group_indicator::GroupIndicator,
+        indicator_drawing::ReadoutLabel,
         indicator_state::IndicatorState,
+        snapshot_absence::{AbsenceCause, awaiting_source_indicator},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     indicator_groups::{
@@ -233,32 +235,50 @@ impl PodmanEnginesGroup {
             .collect()
     }
 
-    fn container_indicators(&self) -> Vec<GroupIndicator<'_>> {
-        let mut failure_indicators = Vec::new();
-        let mut running_indicators = Vec::new();
-        let mut stopped_indicators = Vec::new();
-        for engine in &self.engines {
-            let Some(sample) = self.readouts.get(&engine.socket_path) else {
-                continue;
-            };
-            if let Some(listing) = sample.get() {
-                running_indicators
-                    .extend(Self::running_container_indicators(engine, listing, sample));
-                stopped_indicators
-                    .extend(Self::stopped_container_indicators(engine, listing, sample));
-            } else if let Some(read_failure) = sample.fetch_failure() {
-                failure_indicators.push(
+    fn indicator_listing(&self) -> IndicatorListing<'_> {
+        self.engines
+            .iter()
+            .map(|engine| self.engine_indicator_listing(engine))
+            .collect::<IndicatorListing<'_>>()
+            .with_listed(indicators_ending_in_hidden_count)
+    }
+
+    fn engine_indicator_listing<'view>(
+        &'view self,
+        engine: &'view DiscoveredPodmanEngine,
+    ) -> IndicatorListing<'view> {
+        match self.readouts.get(&engine.socket_path) {
+            Some(sample @ SubscribedSnapshot::Available { snapshot, .. }) => {
+                IndicatorListing::Listed(
+                    Self::running_container_indicators(engine, snapshot, sample)
+                        .into_iter()
+                        .chain(Self::stopped_container_indicators(engine, snapshot, sample))
+                        .collect(),
+                )
+            }
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(read_failure),
+            }) => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![
                     UnreadableEngineIndicator {
                         engine,
                         read_failure,
                     }
                     .indicator(),
-                );
-            }
+                ],
+            },
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::SourceAbsent,
+            }) => IndicatorListing::Listed(Vec::new()),
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting,
+            })
+            | None => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![awaiting_source_indicator::<EngineListing>(podman_glyph())],
+            },
         }
-        running_indicators.extend(stopped_indicators);
-        failure_indicators.extend(indicators_ending_in_hidden_count(running_indicators));
-        failure_indicators
     }
 
     #[must_use]
@@ -267,7 +287,7 @@ impl PodmanEnginesGroup {
             IndicatorGroupFamily::PodmanEngines,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::PodmanEngines.title(),
-                IconGlyph::SimpleIcon(SimpleIcon::Podman),
+                podman_glyph(),
                 IndicatorState::Idle,
             ),
             &self.expansion,
@@ -276,9 +296,13 @@ impl PodmanEnginesGroup {
                     expansion,
                 ))
             },
-            IndicatorListing::Listed(self.container_indicators()),
+            self.indicator_listing(),
         )
     }
+}
+
+fn podman_glyph() -> IconGlyph {
+    IconGlyph::SimpleIcon(SimpleIcon::Podman)
 }
 
 #[cfg(test)]
@@ -340,10 +364,11 @@ mod tests {
             ),
             Clock::real(),
         );
-        let rows = group.container_indicators();
-        assert_eq!(rows.len(), 12);
+        let listing = group.indicator_listing();
+        let listed_indicators = listing.listed_indicators();
+        assert_eq!(listed_indicators.len(), 12);
         assert_eq!(
-            rows.last().map(GroupIndicator::press_actions),
+            listed_indicators.last().map(GroupIndicator::press_actions),
             Some(Vec::new())
         );
     }

@@ -173,39 +173,33 @@ where
             .unwrap_or_default()
     }
 
-    fn listing_indicators(&self) -> Vec<FamilyIndicator<'_, Family>> {
-        self.listings
-            .get()
-            .map(|listings| Family::listing_indicators(listings))
-            .unwrap_or_default()
-    }
-
-    fn stopped_indicators(&self) -> Vec<FamilyIndicator<'_, Family>> {
-        self.listings
+    fn indicator_listing(&self) -> IndicatorListing<'_> {
+        let listed_indicator = |row| switchable_indicator(stamped_by_source(&self.listings, row));
+        let detail_indicators = self.detail_indicators();
+        if detail_indicators.is_empty() {
+            return self.listings.indicator_listing(
+                |listings| {
+                    Family::listing_indicators(listings)
+                        .into_iter()
+                        .chain(Family::stopped_indicators(listings))
+                        .map(listed_indicator)
+                        .collect()
+                },
+                Family::group_glyph(),
+            );
+        }
+        let stopped_indicators = self
+            .listings
             .get()
             .map(|listings| Family::stopped_indicators(listings))
-            .unwrap_or_default()
-    }
-
-    fn group_rows(&self) -> Vec<GroupIndicator<'_>> {
-        let detail_indicators = self.detail_indicators();
-        let mut group_rows: Vec<GroupIndicator<'_>> = if detail_indicators.is_empty() {
-            self.listing_indicators()
-                .into_iter()
-                .map(|row| switchable_indicator(stamped_by_source(&self.listings, row)))
-                .collect()
-        } else {
+            .unwrap_or_default();
+        IndicatorListing::Listed(
             detail_indicators
                 .into_iter()
                 .map(|row| switchable_indicator(stamped_by_source(&self.detail, row)))
-                .collect()
-        };
-        group_rows.extend(
-            self.stopped_indicators()
-                .into_iter()
-                .map(|row| switchable_indicator(stamped_by_source(&self.listings, row))),
-        );
-        group_rows
+                .chain(stopped_indicators.into_iter().map(listed_indicator))
+                .collect(),
+        )
     }
 
     pub fn group_content(&self) -> IndicatorGroupContent<'_> {
@@ -221,7 +215,7 @@ where
             ),
             &self.expansion,
             ContainerFamilyInteraction::Expansion,
-            IndicatorListing::Listed(self.group_rows()),
+            self.indicator_listing(),
         )
     }
 }

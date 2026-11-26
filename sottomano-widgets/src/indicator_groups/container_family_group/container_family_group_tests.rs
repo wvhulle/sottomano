@@ -93,7 +93,7 @@ fn detailed_machines(clock: Clock) -> FamilyDetails<VmwareMachine> {
 fn listings_answer_until_detail_arrives() {
     let clock = Clock::real();
     let group = group_with_listing(clock);
-    assert_eq!(group.group_rows().len(), 1);
+    assert_eq!(group.indicator_listing().listed_indicators().len(), 1);
     assert!(!shown_card_sections(&group, "listed", clock).is_empty());
 }
 
@@ -105,7 +105,7 @@ fn detail_replaces_listings_once_it_has_indicators() {
         VmwareMachinesMessage::Detail(polled(detailed_machines(clock))),
         clock,
     );
-    assert_eq!(group.group_rows().len(), 1);
+    assert_eq!(group.indicator_listing().listed_indicators().len(), 1);
     assert!(!shown_card_sections(&group, "detailed", clock).is_empty());
     assert!(shown_card_sections(&group, "listed", clock).is_empty());
 }
@@ -168,6 +168,6 @@ fn stopped_machines_follow_the_detailed_running_ones() {
         })),
         clock,
     );
-    assert_eq!(group.group_rows().len(), 2);
+    assert_eq!(group.indicator_listing().listed_indicators().len(), 2);
     assert!(!shown_card_sections(&group, "ubuntu 0b1c2d3e", clock).is_empty());
 }

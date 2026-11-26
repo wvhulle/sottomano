@@ -15,7 +15,7 @@ use sottomano_desktop_sources::{
         DockerEngineListing, DockerEngineProbe, DockerEngineReadout, DockerEngineSocket,
         candidate_docker_sockets,
     },
-    podman_container_engine::libpod_running_containers::{EngineListing, EngineReadError},
+    podman_container_engine::libpod_running_containers::EngineListing,
 };
 
 use self::docker_engine_indicators::{ListedContainerIndicator, UnreadableEngineIndicator};
@@ -23,7 +23,11 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     glyph_icons::{icon_glyph::IconGlyph, simple_icons::SimpleIcon},
-    group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_state::IndicatorState,
+        snapshot_absence::{AbsenceCause, awaiting_source_indicator},
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     indicator_groups::{
         engine_container_indicators::{
@@ -158,39 +162,21 @@ impl DockerEnginesGroup {
         }
     }
 
+    fn probe_availability(&self, engine: &DockerEngineSocket) -> Option<Availability> {
+        self.probes
+            .get(&engine.socket_path)?
+            .get()
+            .map(|probe| probe.engine_availability)
+    }
+
     fn probe_presence_count(&self) -> Option<usize> {
-        let mut presence_count = 0;
-        for engine in &self.engines {
-            let present = self
-                .probes
-                .get(&engine.socket_path)
-                .and_then(|probe| probe.get())
-                .is_some_and(|probe| probe.engine_availability == Availability::Available);
-            if !present {
-                return None;
-            }
-            presence_count += 1;
-        }
-        Some(presence_count)
-    }
-
-    fn engine_readout_listing(&self, engine: &DockerEngineSocket) -> Option<&EngineListing> {
-        self.readouts.get(&engine.socket_path)?.get().map(
-            |DockerEngineReadout {
-                 engine_listing: listing,
-             }| listing,
-        )
-    }
-
-    fn readout_failure(&self, engine: &DockerEngineSocket) -> Option<&EngineReadError> {
-        self.readouts.get(&engine.socket_path)?.fetch_failure()
-    }
-
-    fn engine_container_listing(
-        &self,
-        engine: &DockerEngineSocket,
-    ) -> Option<&DockerEngineListing> {
-        self.listings.get(&engine.socket_path)?.get()
+        self.engines
+            .iter()
+            .map(|engine| match self.probe_availability(engine) {
+                Some(Availability::Available) => Some(1),
+                Some(Availability::Unavailable) | None => None,
+            })
+            .sum()
     }
 
     fn running_container_indicators<'view>(
@@ -263,7 +249,7 @@ impl DockerEnginesGroup {
             IndicatorGroupFamily::DockerEngines,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::DockerEngines.title(),
-                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                docker_glyph(),
                 self.shown_state(),
             ),
             &self.expansion,
@@ -272,20 +258,17 @@ impl DockerEnginesGroup {
                     expansion,
                 ))
             },
-            IndicatorListing::Listed(self.container_indicators()),
+            self.indicator_listing(),
         )
     }
 
     fn listed_indicators<'view>(
-        &'view self,
         engine: &'view DockerEngineSocket,
+        engine_listings: &'view SubscribedSnapshot<DockerEngineListing>,
+        listing: &'view DockerEngineListing,
     ) -> Vec<GroupIndicator<'view>> {
-        let Some(engine_listings) = self.listings.get(&engine.socket_path) else {
-            return Vec::new();
-        };
-        self.engine_container_listing(engine)
-            .map(|listing| listing.listings.as_slice())
-            .unwrap_or_default()
+        listing
+            .listings
             .iter()
             .map(|listed| {
                 let target = EngineContainerAddress {
@@ -310,39 +293,68 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn container_indicators(&self) -> Vec<GroupIndicator<'_>> {
-        let mut failure_indicators = Vec::new();
-        let mut running_indicators = Vec::new();
-        let mut stopped_indicators = Vec::new();
-        for engine in &self.engines {
-            if let Some(engine_readout) = self.readouts.get(&engine.socket_path)
-                && let Some(listing) = self.engine_readout_listing(engine)
-            {
-                running_indicators.extend(Self::running_container_indicators(
-                    engine,
-                    listing,
-                    engine_readout,
-                ));
-                stopped_indicators.extend(Self::stopped_container_indicators(
-                    engine,
-                    listing,
-                    engine_readout,
-                ));
-            } else if let Some(read_failure) = self.readout_failure(engine) {
-                failure_indicators.push(
+    fn indicator_listing(&self) -> IndicatorListing<'_> {
+        self.engines
+            .iter()
+            .map(|engine| self.engine_indicator_listing(engine))
+            .collect::<IndicatorListing<'_>>()
+            .with_listed(indicators_ending_in_hidden_count)
+    }
+
+    fn engine_indicator_listing<'view>(
+        &'view self,
+        engine: &'view DockerEngineSocket,
+    ) -> IndicatorListing<'view> {
+        match self.readouts.get(&engine.socket_path) {
+            Some(
+                engine_readout @ SubscribedSnapshot::Available {
+                    snapshot: DockerEngineReadout { engine_listing },
+                    ..
+                },
+            ) => IndicatorListing::Listed(
+                Self::running_container_indicators(engine, engine_listing, engine_readout)
+                    .into_iter()
+                    .chain(Self::stopped_container_indicators(
+                        engine,
+                        engine_listing,
+                        engine_readout,
+                    ))
+                    .collect(),
+            ),
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::FetchFailed(read_failure),
+            }) => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![
                     UnreadableEngineIndicator {
                         engine,
                         read_failure,
                     }
                     .indicator(),
-                );
-            } else {
-                running_indicators.extend(self.listed_indicators(engine));
-            }
+                ],
+            },
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::SourceAbsent,
+            }) => IndicatorListing::Listed(Vec::new()),
+            Some(SubscribedSnapshot::Unavailable {
+                cause: AbsenceCause::Awaiting,
+            })
+            | None => match self.listings.get(&engine.socket_path) {
+                _ if self.probe_availability(engine) == Some(Availability::Unavailable) => {
+                    IndicatorListing::Listed(Vec::new())
+                }
+                Some(engine_listings) => engine_listings.indicator_listing(
+                    |listing| Self::listed_indicators(engine, engine_listings, listing),
+                    docker_glyph(),
+                ),
+                None => IndicatorListing::Incomplete {
+                    listed_indicators: Vec::new(),
+                    unread_sources: vec![awaiting_source_indicator::<DockerEngineListing>(
+                        docker_glyph(),
+                    )],
+                },
+            },
         }
-        running_indicators.extend(stopped_indicators);
-        failure_indicators.extend(indicators_ending_in_hidden_count(running_indicators));
-        failure_indicators
     }
 }
 
@@ -357,4 +369,8 @@ impl DockerEnginesGroup {
             IndicatorState::Off
         }
     }
+}
+
+fn docker_glyph() -> IconGlyph {
+    IconGlyph::SimpleIcon(SimpleIcon::Docker)
 }
