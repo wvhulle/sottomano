@@ -26,7 +26,7 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 14] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 15] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
@@ -41,6 +41,7 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 14] = [
     schema_migration!(12, "0012_split_sole_and_instance_pins.sql"),
     schema_migration!(13, "0013_default_panel_pins.sql"),
     schema_migration!(14, "0014_clock_pin_moves_to_config.sql"),
+    schema_migration!(15, "0015_steam_games_become_groups.sql"),
 ];
 
 pub async fn apply_pending_migrations(

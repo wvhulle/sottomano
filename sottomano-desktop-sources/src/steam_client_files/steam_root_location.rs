@@ -45,6 +45,11 @@ impl SteamRoot {
     }
 
     #[must_use]
+    pub fn app_info_file(&self) -> PathBuf {
+        self.root_directory.join("appcache").join("appinfo.vdf")
+    }
+
+    #[must_use]
     pub fn library_folders_file(&self) -> PathBuf {
         self.root_directory
             .join("steamapps")

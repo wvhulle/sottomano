@@ -120,16 +120,6 @@ impl ShellIndicatorGroups {
                 .mobile_modems_group
                 .update(delivery, clock)
                 .map(Message::MobileModems),
-            Message::SteamDownloads(delivery) => menus
-                .gaming
-                .steam_downloads_group
-                .update(delivery, clock)
-                .map(Message::SteamDownloads),
-            Message::SteamGames(delivery) => menus
-                .gaming
-                .steam_games_group
-                .update(delivery, clock)
-                .map(Message::SteamGames),
             Message::EthernetPorts(delivery) => menus
                 .network
                 .ethernet_ports_group
@@ -210,6 +200,23 @@ impl ShellIndicatorGroups {
                 .login_session_group
                 .update(delivery, clock)
                 .map(Message::LoginSession),
+            gaming_delivery => self.route_gaming(gaming_delivery, clock),
+        }
+    }
+
+    fn route_gaming(&mut self, message: Message, clock: Clock) -> Task<Message> {
+        let menus = &mut self.panel_menus;
+        match message {
+            Message::SteamDownloads(delivery) => menus
+                .gaming
+                .steam_downloads_group
+                .update(delivery, clock)
+                .map(Message::SteamDownloads),
+            Message::SteamGames(delivery) => menus
+                .gaming
+                .steam_games_group
+                .update(delivery, clock)
+                .map(Message::SteamGames),
             guest_delivery => self.route_guests(guest_delivery, clock),
         }
     }

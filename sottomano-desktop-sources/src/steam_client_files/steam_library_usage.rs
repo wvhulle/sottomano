@@ -1,9 +1,10 @@
-use std::{future::ready, io};
+use std::{collections::HashSet, future::ready, io};
 
 use futures::{Stream, StreamExt, stream};
 use rustix::fs::statvfs;
 
 use super::{
+    steam_app_kinds::{AppInfoReadFailure, SteamAppKinds, read_app_kinds},
     steam_app_manifests::{
         SteamLibraryFolder, SteamManifestFailure, library_folder_contents, library_folder_paths,
     },
@@ -35,6 +36,7 @@ impl SteamLibraryFolderUsage {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SteamLibraryUsage {
     pub folders: Vec<SteamLibraryFolderUsage>,
+    pub app_kinds: SteamAppKinds,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -43,6 +45,8 @@ pub enum SteamLibraryReadFailure {
     Watch(#[from] ChangeWatchFailure),
     #[error(transparent)]
     Manifest(#[from] SteamManifestFailure),
+    #[error(transparent)]
+    AppInfo(#[from] AppInfoReadFailure),
     #[error("free space of Steam library unreadable: {0}")]
     FreeSpace(#[from] io::Error),
     #[error("free space of Steam library exceeds 64 bits")]
@@ -65,7 +69,13 @@ fn read_library_usage(
             })
         })
         .collect::<Result<Vec<_>, SteamLibraryReadFailure>>()?;
-    Ok(SteamLibraryUsage { folders })
+    let installed_apps: HashSet<_> = folders
+        .iter()
+        .flat_map(|folder_usage| folder_usage.library_folder.installed_apps.iter())
+        .map(|installed_app| installed_app.app_id)
+        .collect();
+    let app_kinds = read_app_kinds(&steam_root.app_info_file(), &installed_apps)?;
+    Ok(SteamLibraryUsage { folders, app_kinds })
 }
 
 impl SnapshotSource for SteamLibraryUsage {
@@ -85,7 +95,10 @@ impl SnapshotSource for SteamLibraryUsage {
                 })
                 .into_iter()
                 .map(|library_folder| WatchTarget::EntriesOf(library_folder.join("steamapps")))
-                .chain([WatchTarget::File(steam_root.library_folders_file())])
+                .chain([
+                    WatchTarget::File(steam_root.library_folders_file()),
+                    WatchTarget::WrittenFile(steam_root.app_info_file()),
+                ])
                 .collect();
             inotify_directory_changes::changes(library_watches)
                 .triggered_rereads(move || ready(read_library_usage(&steam_root)))

@@ -1,7 +1,9 @@
 pub mod appended_log_follow;
 pub mod hardware_update_state;
 pub mod keyvalues_text_parser;
+pub mod protondb_compatibility_summary;
 pub mod running_steam_games;
+pub mod steam_app_kinds;
 pub mod steam_app_manifests;
 pub mod steam_content_activity;
 pub mod steam_controller_facts;

@@ -153,7 +153,7 @@ impl ShellIndicatorGroups {
             IndicatorGroupInteraction::SteamGames(interaction) => menus
                 .gaming
                 .steam_games_group
-                .interact(interaction)
+                .interact(interaction, config, clock)
                 .map(Message::SteamGames),
             IndicatorGroupInteraction::EthernetPorts(interaction) => menus
                 .network
