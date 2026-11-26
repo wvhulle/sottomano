@@ -278,16 +278,83 @@ impl WeatherGroup {
         .with_headline_glyph(Phosphor::Umbrella(Weight::Regular).into())
     }
 
-    fn list_temperature<'view>(&'view self, indicators: &mut Vec<GroupIndicator<'view>>) {
-        if !self.temperature.awaits_first_delivery() {
-            indicators.insert(
-                0,
-                self.wired_temperature_indicator(self.temperature.indicator(
-                    |held_snapshot| temperature_indicator(held_snapshot),
-                    WEATHER_GLYPH.into(),
-                )),
-            );
+    fn rain_listing<'view>(
+        &'view self,
+        config: &'view Config,
+        clock: Clock,
+    ) -> IndicatorListing<'view> {
+        if let Some(forecast) = self.rain_forecast(config) {
+            return IndicatorListing::Listed(vec![
+                self.rain_indicator(config, forecast.indicator(clock, config.calendar.locale)),
+            ]);
         }
+        let unread_rain = if let Some(rain_failure) = self.rain.failure() {
+            rain_failure.indicator(RAIN_FALLBACK_GLYPH)
+        } else if let Some(model_failure) = self.precipitation_model.failure() {
+            model_failure.indicator(PRECIPITATION_MODEL_FALLBACK_GLYPH)
+        } else {
+            return IndicatorListing::Listed(Vec::new());
+        };
+        IndicatorListing::Incomplete {
+            listed_indicators: Vec::new(),
+            unread_sources: vec![self.rain_indicator(config, unread_rain)],
+        }
+    }
+
+    fn weather_listing<'view>(
+        &'view self,
+        config: &'view Config,
+        clock: Clock,
+    ) -> IndicatorListing<'view> {
+        if self.location.get().is_none() {
+            return self
+                .location
+                .indicator_listing(|_| Vec::new(), WEATHER_GLYPH.into());
+        }
+        [
+            self.temperature
+                .indicator_listing(
+                    |held_snapshot| vec![temperature_indicator(held_snapshot)],
+                    WEATHER_GLYPH.into(),
+                )
+                .map_indicators(|temperature_row| {
+                    self.wired_temperature_indicator(temperature_row)
+                }),
+            self.rain_listing(config, clock),
+            self.wind
+                .indicator_listing(
+                    |held_snapshot| match wind_indicator(held_snapshot) {
+                        wind_row if wind_row.panel_visibility == PanelVisibility::Hidden => {
+                            Vec::new()
+                        }
+                        wind_row => vec![wind_row],
+                    },
+                    WIND_FALLBACK_GLYPH,
+                )
+                .map_indicators(|wind_row| self.wired_wind_indicator(wind_row)),
+            self.pollen
+                .indicator_listing(
+                    |pollen| {
+                        pollen
+                            .airborne()
+                            .map(|concentration| {
+                                allergen_indicator(concentration).with_hover_card(Box::new(
+                                    move |_| {
+                                        self.pollen
+                                            .hover_card_with(allergen_hover_card(concentration))
+                                    },
+                                ))
+                            })
+                            .collect()
+                    },
+                    POLLEN_FALLBACK_GLYPH,
+                )
+                .map_indicators(|pollen_row| {
+                    pollen_row.refreshed_by(refresh_online(WeatherSource::Pollen))
+                }),
+        ]
+        .into_iter()
+        .collect()
     }
 
     pub fn group_content<'view>(
@@ -295,55 +362,13 @@ impl WeatherGroup {
         config: &'view Config,
         clock: Clock,
     ) -> IndicatorGroupContent<'view> {
-        let locale = config.calendar.locale;
         let headline_indicator = self.temperature_headline();
-        let mut rows = Vec::new();
-        if let Some(forecast) = self.rain_forecast(config) {
-            rows.push(self.rain_indicator(config, forecast.indicator(clock, locale)));
-        } else if let Some(rain_placeholder) = self.rain.failure() {
-            rows.push(self.rain_indicator(config, rain_placeholder.indicator(RAIN_FALLBACK_GLYPH)));
-        } else if let Some(model_placeholder) = self.precipitation_model.failure() {
-            rows.push(self.rain_indicator(
-                config,
-                model_placeholder.indicator(PRECIPITATION_MODEL_FALLBACK_GLYPH),
-            ));
-        }
-        if !self.wind.awaits_first_delivery() {
-            let wind_row = self.wind.indicator(
-                |held_snapshot| wind_indicator(held_snapshot),
-                WIND_FALLBACK_GLYPH,
-            );
-            if wind_row.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_wind_indicator(wind_row));
-            }
-        }
-        if let Some(pollen) = self.pollen.get() {
-            rows.extend(pollen.airborne().map(|concentration| {
-                allergen_indicator(concentration)
-                    .with_hover_card(Box::new(move |_| {
-                        self.pollen
-                            .hover_card_with(allergen_hover_card(concentration))
-                    }))
-                    .refreshed_by(refresh_online(WeatherSource::Pollen))
-            }));
-        }
-        if let Some(pollen_placeholder) = self.pollen.failure() {
-            rows.push(
-                pollen_placeholder
-                    .indicator(POLLEN_FALLBACK_GLYPH)
-                    .with_hover_card(Box::new(move |_| {
-                        self.pollen.sections_described_by(|_pollen| Vec::new())
-                    }))
-                    .refreshed_by(refresh_online(WeatherSource::Pollen)),
-            );
-        }
-        self.list_temperature(&mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Weather,
             headline_indicator,
             &self.expansion,
             WeatherInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            self.weather_listing(config, clock),
         )
     }
 }

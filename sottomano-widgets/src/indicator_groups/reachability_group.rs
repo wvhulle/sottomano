@@ -3,9 +3,7 @@ use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Me
 
 use crate::{
     hover_cards::hover_card_body::dictionary_table,
-    indicator_groups::{
-        indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
-    },
+    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
 };
 
 mod connectivity_state_indicator;
@@ -200,42 +198,51 @@ impl ReachabilityGroup {
                 )
                 .with_headline_glyph(Phosphor::GlobeSimple(Weight::Regular).into())
         };
-        let mut lead_indicators = Vec::new();
-        if !self.connectivity.awaits_first_delivery() {
-            lead_indicators.push(self.connectivity.indicator(
-                |held_snapshot| uplink_connectivity_indicator(held_snapshot),
+        let indicator_listing = [
+            self.connectivity.indicator_listing(
+                |held_snapshot| vec![uplink_connectivity_indicator(held_snapshot)],
                 CONNECTIVITY_GLYPH.into(),
-            ));
-        }
-        let mut rows = Vec::new();
-        if !self.throughput.awaits_first_delivery() {
-            let interface_indicator = self.throughput.indicator(
-                |held_snapshot| interface_throughput_indicator(held_snapshot),
+            ),
+            self.throughput.indicator_listing(
+                |samples| {
+                    let interface_indicator = interface_throughput_indicator(samples);
+                    let wired_interface_indicator = match interface_indicator.panel_visibility {
+                        PanelVisibility::Shown => {
+                            vec![self.wired_interface_throughput_indicator(interface_indicator)]
+                        }
+                        PanelVisibility::Hidden => Vec::new(),
+                    };
+                    wired_interface_indicator
+                        .into_iter()
+                        .chain([
+                            self.direction_throughput_indicator(&samples.down),
+                            self.direction_throughput_indicator(&samples.up),
+                        ])
+                        .collect()
+                },
                 INTERFACE_THROUGHPUT_GLYPH.into(),
-            );
-            if interface_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_interface_throughput_indicator(interface_indicator));
-            }
-        }
-        if let Some(samples) = self.throughput.get() {
-            rows.push(self.direction_throughput_indicator(&samples.down));
-            rows.push(self.direction_throughput_indicator(&samples.up));
-        }
-        if !self.latency.awaits_first_delivery() {
-            let latency_indicator = self.latency.indicator(
-                |held_snapshot| internet_latency_indicator(held_snapshot),
+            ),
+            self.latency.indicator_listing(
+                |held_snapshot| {
+                    let latency_indicator = internet_latency_indicator(held_snapshot);
+                    match latency_indicator.panel_visibility {
+                        PanelVisibility::Shown => {
+                            vec![self.wired_internet_latency_indicator(latency_indicator)]
+                        }
+                        PanelVisibility::Hidden => Vec::new(),
+                    }
+                },
                 INTERNET_LATENCY_GLYPH.into(),
-            );
-            if latency_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_internet_latency_indicator(latency_indicator));
-            }
-        }
+            ),
+        ]
+        .into_iter()
+        .collect();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Reachability,
             headline_indicator,
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
+            indicator_listing,
         )
     }
 

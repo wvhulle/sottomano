@@ -2,7 +2,9 @@ use sottomano_desktop_sources::network_connectivity::{
     tailscale_exit_nodes::{
         ExitNodeChoices, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
     },
-    tailscale_status::{ExitNodeOffer, ExitNodeUse, KeyExpiry, NodeCapabilities, Peer, PeerPath},
+    tailscale_status::{
+        ExitNodeOffer, ExitNodeUse, KeyExpiry, NodeCapabilities, Peer, PeerPath, Tailnet,
+    },
 };
 
 use super::*;

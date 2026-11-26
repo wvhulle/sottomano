@@ -20,23 +20,27 @@ use crate::showcased_group::ShowcasedGroup;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut location_group = LocationGroup::default();
     let _ = location_group.update(
-        LocationMessage::Location(SnapshotDelivery::from(Location {
-            geo: porto_location_fix(clock),
-            update_schedule: UpdateSchedule::from_wire(
-                900,
-                30,
-                [
-                    UpdateTrigger::ServingCellChange,
-                    UpdateTrigger::WifiNeighbourhoodChange,
-                    UpdateTrigger::NetworkReconnect,
-                    UpdateTrigger::ModemHotplug,
-                ],
-            ),
-            update_status: UpdateStatus::Idle,
-        })),
+        LocationMessage::Location(SnapshotDelivery::from(porto_location(clock))),
         clock,
     );
     ShowcasedGroup::Location(Box::new(location_group))
+}
+
+pub(crate) fn porto_location(clock: Clock) -> Location {
+    Location {
+        geo: porto_location_fix(clock),
+        update_schedule: UpdateSchedule::from_wire(
+            900,
+            30,
+            [
+                UpdateTrigger::ServingCellChange,
+                UpdateTrigger::WifiNeighbourhoodChange,
+                UpdateTrigger::NetworkReconnect,
+                UpdateTrigger::ModemHotplug,
+            ],
+        ),
+        update_status: UpdateStatus::Idle,
+    }
 }
 
 fn porto_location_fix(clock: Clock) -> LocationFix {

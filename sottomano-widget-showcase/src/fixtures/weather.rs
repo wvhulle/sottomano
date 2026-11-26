@@ -45,7 +45,7 @@ const POLLEN_GRAINS_PER_CUBIC_METRE: [(Allergen, f64); 6] = [
     (Allergen::Ragweed, 0.0),
 ];
 
-use crate::showcased_group::ShowcasedGroup;
+use crate::{fixtures::location::porto_location, showcased_group::ShowcasedGroup};
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::Weather(Box::new(fixture_messages(clock).into_iter().fold(
@@ -120,8 +120,9 @@ fn pollen_counts() -> Pollen {
     }
 }
 
-fn fixture_messages(clock: Clock) -> [WeatherMessage; 4] {
+fn fixture_messages(clock: Clock) -> [WeatherMessage; 5] {
     [
+        WeatherMessage::Location(SnapshotDelivery::from(porto_location(clock))),
         WeatherMessage::Wind(SnapshotDelivery::fixture_delivered(
             Ok(Wind {
                 speed: Velocity::new::<kilometer_per_hour>(18.0),

@@ -10,7 +10,7 @@ use sottomano_desktop_sources::{
         tailscale_exit_nodes::{ExitRoutingSwitch, TailscaleExitNodes},
         tailscale_inbound_access::TailscaleInboundAccess,
         tailscale_policy_file::TailscalePolicyFile,
-        tailscale_status::{ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch},
+        tailscale_status::{ExitOfferSwitch, Tailscale, TailscaleSwitch},
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, OnBus},
@@ -292,11 +292,27 @@ impl TailnetGroup {
         }
     }
 
-    fn running_tailnet(&self) -> Option<&Tailnet> {
-        match self.tailscale.get()? {
-            Tailscale::Running(tailnet) => Some(tailnet),
-            Tailscale::Stopped | Tailscale::Starting => None,
-        }
+    fn running_tailnet_indicators<'view>(
+        &'view self,
+        tailscale: &'view Tailscale,
+    ) -> Vec<GroupIndicator<'view>> {
+        let Tailscale::Running(tailnet) = tailscale else {
+            return Vec::new();
+        };
+        let policy_file_indicators = match self.policy_file_access {
+            PolicyFileAccess::ApiToken { .. } => vec![self.policy_file_indicator()],
+            PolicyFileAccess::NoApiToken => Vec::new(),
+        };
+        [self.inbound_access_indicator()]
+            .into_iter()
+            .chain(policy_file_indicators)
+            .chain([
+                Self::exit_offer_indicator(tailnet).with_hover_card(Box::new(move |_| {
+                    self.tailscale
+                        .hover_card_with(ExitOfferIndicator { tailnet }.hover_card())
+                })),
+            ])
+            .collect()
     }
 
     fn policy_file_indicator(&self) -> GroupIndicator<'_> {
@@ -321,58 +337,47 @@ impl TailnetGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> IndicatorGroupContent<'_> {
-        let mut rows = Vec::new();
-        if !self.tailscale.awaits_first_delivery() {
-            let membership_indicator = self.tailscale.indicator(
-                |held_snapshot| tailscale_indicator(held_snapshot, clock),
-                TAILNET_MEMBERSHIP_GLYPH.into(),
-            );
-            if membership_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(match self.tailscale.get() {
-                    Some(held_snapshot) => {
-                        self.membership_switch_indicator(membership_indicator, held_snapshot)
+        let tailscale_listing = self.tailscale.indicator_listing(
+            |held_snapshot| {
+                let membership_indicator = tailscale_indicator(held_snapshot, clock);
+                let membership_indicators = match membership_indicator.panel_visibility {
+                    PanelVisibility::Shown => {
+                        vec![self.membership_switch_indicator(membership_indicator, held_snapshot)]
                     }
-                    None => self.membership_indicator(membership_indicator),
-                });
-            }
-        }
-        if let Some(own_node_indicator) = self
-            .tailscale
-            .get()
-            .and_then(OwnNodeIndicator::running_own_node)
-        {
-            rows.push(
-                own_node_indicator
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale
-                            .hover_card_with(own_node_indicator.hover_card())
-                    })),
-            );
-        }
-        if let Some(tailnet) = self.running_tailnet() {
-            rows.push(self.inbound_access_indicator());
-            if matches!(self.policy_file_access, PolicyFileAccess::ApiToken { .. }) {
-                rows.push(self.policy_file_indicator());
-            }
-            rows.push(
-                Self::exit_offer_indicator(tailnet).with_hover_card(Box::new(move |_| {
-                    self.tailscale
-                        .hover_card_with(ExitOfferIndicator { tailnet }.hover_card())
-                })),
-            );
-        }
-        rows.extend(self.exit_node_choice_indicators());
-        if let Some(failure_indicator) = self.tailscale_exit_nodes.failure() {
-            rows.push(
-                failure_indicator
-                    .indicator(TAILSCALE_EXIT_NODES_GLYPH.into())
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale_exit_nodes
-                            .sections_described_by(|_| Vec::new())
-                    })),
-            );
-        }
+                    PanelVisibility::Hidden => Vec::new(),
+                };
+                let own_node_indicators =
+                    OwnNodeIndicator::running_own_node(held_snapshot).map(|own_node_indicator| {
+                        own_node_indicator
+                            .indicator()
+                            .with_hover_card(Box::new(move |_| {
+                                self.tailscale
+                                    .hover_card_with(own_node_indicator.hover_card())
+                            }))
+                    });
+                membership_indicators
+                    .into_iter()
+                    .chain(own_node_indicators)
+                    .chain(self.running_tailnet_indicators(held_snapshot))
+                    .collect()
+            },
+            TAILNET_MEMBERSHIP_GLYPH.into(),
+        );
+        let exit_node_indicators = self.exit_node_choice_indicators();
+        let exit_node_listing = match self.tailscale_exit_nodes.failure() {
+            Some(failure_indicator) => IndicatorListing::Incomplete {
+                listed_indicators: exit_node_indicators,
+                unread_sources: vec![
+                    failure_indicator
+                        .indicator(TAILSCALE_EXIT_NODES_GLYPH.into())
+                        .with_hover_card(Box::new(move |_| {
+                            self.tailscale_exit_nodes
+                                .sections_described_by(|_| Vec::new())
+                        })),
+                ],
+            },
+            None => IndicatorListing::Listed(exit_node_indicators),
+        };
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Tailnet,
             GroupIndicator::glyph_only(
@@ -382,13 +387,12 @@ impl TailnetGroup {
             ),
             &self.expansion,
             TailnetInteraction::Expansion,
-            IndicatorListing::Listed(
-                rows.into_iter()
-                    .map(|tailnet_indicator| {
-                        tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
-                    })
-                    .collect(),
-            ),
+            [tailscale_listing, exit_node_listing]
+                .into_iter()
+                .collect::<IndicatorListing<'_>>()
+                .map_indicators(|tailnet_indicator| {
+                    tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
+                }),
         )
     }
 }

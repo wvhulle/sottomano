@@ -52,6 +52,34 @@ impl<'view> IndicatorListing<'view> {
         }
     }
 
+    #[must_use]
+    pub fn map_indicators(
+        self,
+        transform_indicator: impl Fn(GroupIndicator<'view>) -> GroupIndicator<'view>,
+    ) -> Self {
+        match self {
+            IndicatorListing::Listed(listed_indicators) => IndicatorListing::Listed(
+                listed_indicators
+                    .into_iter()
+                    .map(&transform_indicator)
+                    .collect(),
+            ),
+            IndicatorListing::Incomplete {
+                listed_indicators,
+                unread_sources,
+            } => IndicatorListing::Incomplete {
+                listed_indicators: listed_indicators
+                    .into_iter()
+                    .map(&transform_indicator)
+                    .collect(),
+                unread_sources: unread_sources
+                    .into_iter()
+                    .map(&transform_indicator)
+                    .collect(),
+            },
+        }
+    }
+
     pub(crate) fn retaining_listed(
         self,
         keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
