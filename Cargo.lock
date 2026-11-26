@@ -3211,6 +3211,7 @@ checksum = "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514"
 dependencies = [
  "displaydoc",
  "icu_locale_core",
+ "log",
  "serde",
  "stable_deref_trait",
  "writeable",
@@ -6647,6 +6648,7 @@ dependencies = [
  "icu_decimal",
  "icu_experimental",
  "icu_locale_core",
+ "icu_provider",
  "image",
  "jiff",
  "notulist-client",

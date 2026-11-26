@@ -25,6 +25,7 @@ chrono-tz.workspace = true
 fixed_decimal = { version = "0.7.3", features = ["ryu"] }
 icu_decimal = { version = "2.4.0", features = ["alloc"] }
 icu_experimental = "0.7.0"
+icu_provider = { version = "2.4.0", features = ["logging"] }
 icu_locale_core.workspace = true
 jiff.workspace = true
 iced.workspace = true
@@ -47,3 +48,6 @@ zbus.workspace = true
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 sottomano-compositors = { path = "../sottomano-compositors", features = ["niri"] }
 iced_test.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["icu_provider"]
