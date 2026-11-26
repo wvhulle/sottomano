@@ -65,9 +65,9 @@ struct AppCategoryGroup {
 pub struct AppLauncherMenu {
     catalog: Vec<LaunchableApp>,
     usage: AppLaunchUsage,
-    open_app_listing: OpenAppListing,
-    category_app_order: CategoryAppOrder,
-    settings_expansion: IndicatorGroupExpansion,
+    pub(crate) open_app_listing: OpenAppListing,
+    pub(crate) category_app_order: CategoryAppOrder,
+    pub(crate) settings_expansion: IndicatorGroupExpansion,
     category_groups: Vec<AppCategoryGroup>,
     pub menu_state: NestedMenuState<AppLauncherSubmenu>,
     inspected_app: InspectedApp,

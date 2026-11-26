@@ -1,5 +1,6 @@
 pub mod appearance_presets_group;
 pub mod compositor_styling_group;
+pub mod launcher_settings_group;
 pub mod overlay_settings_group;
 pub mod panel_settings_group;
 pub mod sidebar_settings_group;
@@ -9,7 +10,8 @@ use sottomano_toml_config::Config;
 
 use self::{
     appearance_presets_group::AppearancePresetsGroup,
-    compositor_styling_group::CompositorStylingGroup, overlay_settings_group::OverlaySettingsGroup,
+    compositor_styling_group::CompositorStylingGroup,
+    launcher_settings_group::launcher_settings_group, overlay_settings_group::OverlaySettingsGroup,
     panel_settings_group::PanelSettingsGroup, sidebar_settings_group::SidebarSettingsGroup,
 };
 use crate::{
@@ -65,7 +67,7 @@ impl SettingsMenu {
             self.compositor_styling_group.group_content(config),
             group_menus.settings_content(config),
             window_menu_bar.switch_content(),
-            app_launcher_menu.settings_content(),
+            launcher_settings_group(app_launcher_menu),
         ]
     }
 }
