@@ -10,7 +10,7 @@ use sottomano_desktop_sources::steam_client_files::{
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::SteamClientInteraction;
+use super::SteamGamesInteraction;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -107,7 +107,7 @@ fn installed_game_indicator<'library>(
         }))
         .on_press(
             "launch this game through Steam",
-            SteamClientInteraction::OpenPage(SteamClientPage::GameLaunch(installed_app.app_id)),
+            SteamGamesInteraction::OpenPage(SteamClientPage::GameLaunch(installed_app.app_id)),
         )
 }
 
@@ -183,7 +183,7 @@ pub(super) fn library_group<'library>(
         IndicatorGroupFamily::SteamLibrary,
         headline_indicator,
         expansion,
-        SteamClientInteraction::LibraryExpansion,
+        SteamGamesInteraction::LibraryExpansion,
         IndicatorListing::Listed(
             installed_games
                 .into_iter()

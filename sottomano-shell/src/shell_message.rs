@@ -47,7 +47,10 @@ use sottomano_widgets::{
             color_temperature_group::ColorTemperatureMessage, dark_mode_group::DarkModeMessage,
             monitor_group::MonitorMessage, wallpaper_group::WallpaperMessage,
         },
-        gaming_menu::{gamepad_group::GamepadMessage, steam_client_groups::SteamClientMessage},
+        gaming_menu::{
+            gamepad_group::GamepadMessage, steam_downloads_group::SteamDownloadsMessage,
+            steam_games_group::SteamGamesMessage,
+        },
         hardware_menu::{
             compute_group::ComputeMessage, gpu_group::GpuMessage,
             memory_board_group::MemoryBoardMessage, physical_drive_group::DriveMessage,
@@ -137,7 +140,8 @@ pub enum Message {
     NetworkManagerVpns(NetworkManagerVpnMessage),
     WifiAdapters(WifiAdaptersMessage),
     MobileModems(MobileModemsMessage),
-    SteamClient(SteamClientMessage),
+    SteamDownloads(SteamDownloadsMessage),
+    SteamGames(SteamGamesMessage),
     EthernetPorts(EthernetPortsMessage),
     BluetoothAdapters(BluetoothMessage),
     Monitor(MonitorMessage),

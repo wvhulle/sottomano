@@ -59,7 +59,7 @@ impl DesktopShell {
             Message::Session(msg) => self.update_session(msg),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
-            steam_message @ Message::SteamClient(_) => {
+            steam_message @ Message::SteamGames(_) => {
                 let routed = self
                     .indicator_groups
                     .route(steam_message, &self.config, self.clock);
@@ -183,6 +183,7 @@ impl DesktopShell {
             | Message::PendingUpgrades(_)
             | Message::WifiAdapters(_)
             | Message::MobileModems(_)
+            | Message::SteamDownloads(_)
             | Message::EthernetPorts(_)
             | Message::BluetoothAdapters(_)
             | Message::Reachability(_)

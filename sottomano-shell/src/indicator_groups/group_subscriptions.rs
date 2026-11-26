@@ -14,7 +14,9 @@ use sottomano_widgets::{
             quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
         },
         display_menu::{dark_mode_group::DarkModeGroup, monitor_group::MonitorGroup},
-        gaming_menu::steam_client_groups::SteamClientGroups,
+        gaming_menu::{
+            steam_downloads_group::SteamDownloadsGroup, steam_games_group::SteamGamesGroup,
+        },
         hardware_menu::{
             compute_group::ComputeMessage,
             memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
@@ -204,7 +206,8 @@ impl ShellIndicatorGroups {
                 .ci_runs_group
                 .subscription(buses)
                 .map(Message::CiRuns),
-            SteamClientGroups::subscription().map(Message::SteamClient),
+            SteamDownloadsGroup::subscription().map(Message::SteamDownloads),
+            SteamGamesGroup::subscription().map(Message::SteamGames),
             MonitorGroup::subscription(buses).map(Message::Monitor),
             menus
                 .media

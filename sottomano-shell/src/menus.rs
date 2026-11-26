@@ -38,12 +38,7 @@ impl DesktopShell {
                         .gaming
                         .group_contents(config, &self.icon_catalog, self.clock),
                 )
-                .with_handle_badge(
-                    menus
-                        .gaming
-                        .steam_client_groups
-                        .handle_badge(&self.icon_catalog),
-                );
+                .with_handle_badge(menus.gaming.handle_badge(&self.icon_catalog));
             }
             GroupMenuTopic::Display => {
                 menus

@@ -1,6 +1,5 @@
-mod steam_downloads_group;
-mod steam_library_group;
-mod steam_running_game_group;
+mod library_group;
+mod running_game_group;
 
 use chrono::Locale;
 use iced::{Subscription, Task};
@@ -8,8 +7,8 @@ use sottomano_desktop_sinks::steam_client_pages::{SteamClientPage, open_steam_cl
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     steam_client_files::{
-        running_steam_games::RunningSteamGames, steam_content_activity::SteamContentActivity,
-        steam_library_usage::SteamLibraryUsage, steam_log_lines::SteamAppId,
+        running_steam_games::RunningSteamGames, steam_library_usage::SteamLibraryUsage,
+        steam_log_lines::SteamAppId,
     },
     theme_icons::icon_requests::{IconRequest, window_theme_icon_request},
 };
@@ -17,7 +16,6 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         indicator_drawing::IndicatorIcon,
         indicator_group_content::{
@@ -25,7 +23,6 @@ use crate::{
             KeyedExpansions,
         },
     },
-    group_menus::group_menu_view::MenuHandleBadge,
     icon_catalog::drawable_icon_catalog::IconCatalog,
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
@@ -43,56 +40,45 @@ fn steam_game_icon(icon_catalog: &IconCatalog, app_id: SteamAppId) -> IndicatorI
 }
 
 #[derive(Debug)]
-pub enum SteamClientMessage {
+pub enum SteamGamesMessage {
     RunningGames(SnapshotDelivery<RunningSteamGames>),
-    ContentActivity(SnapshotDelivery<SteamContentActivity>),
     LibraryUsage(SnapshotDelivery<SteamLibraryUsage>),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum SteamClientInteraction {
+pub enum SteamGamesInteraction {
     OpenPage(SteamClientPage),
     RunningGameExpansion {
         app_number: u32,
         expansion: IndicatorGroupExpansionMessage,
     },
-    DownloadsExpansion(IndicatorGroupExpansionMessage),
     LibraryExpansion(IndicatorGroupExpansionMessage),
 }
 
 #[derive(Default)]
-pub struct SteamClientGroups {
+pub struct SteamGamesGroup {
     running_games: SubscribedSnapshot<RunningSteamGames>,
-    content_activity: SubscribedSnapshot<SteamContentActivity>,
     library_usage: SubscribedSnapshot<SteamLibraryUsage>,
     running_game_expansions: KeyedExpansions<u32>,
-    downloads_expansion: IndicatorGroupExpansion,
     library_expansion: IndicatorGroupExpansion,
 }
 
-impl SteamClientGroups {
+impl SteamGamesGroup {
     pub fn collapse(&mut self) {
         self.running_game_expansions.collapse();
-        self.downloads_expansion.collapse();
         self.library_expansion.collapse();
     }
 
-    pub fn subscription() -> Subscription<SteamClientMessage> {
+    pub fn subscription() -> Subscription<SteamGamesMessage> {
         Subscription::batch([
-            snapshot_subscription::<RunningSteamGames>(()).map(SteamClientMessage::RunningGames),
-            snapshot_subscription::<SteamContentActivity>(())
-                .map(SteamClientMessage::ContentActivity),
-            snapshot_subscription::<SteamLibraryUsage>(()).map(SteamClientMessage::LibraryUsage),
+            snapshot_subscription::<RunningSteamGames>(()).map(SteamGamesMessage::RunningGames),
+            snapshot_subscription::<SteamLibraryUsage>(()).map(SteamGamesMessage::LibraryUsage),
         ])
     }
 
-    pub fn update(
-        &mut self,
-        message: SteamClientMessage,
-        clock: Clock,
-    ) -> Task<SteamClientMessage> {
+    pub fn update(&mut self, message: SteamGamesMessage, clock: Clock) -> Task<SteamGamesMessage> {
         match message {
-            SteamClientMessage::RunningGames(delivery) => {
+            SteamGamesMessage::RunningGames(delivery) => {
                 self.running_games.receive(delivery, clock);
                 self.running_game_expansions.track(
                     self.running_games
@@ -102,34 +88,27 @@ impl SteamClientGroups {
                         .map(|game| game.app_id.number),
                 );
             }
-            SteamClientMessage::ContentActivity(delivery) => {
-                self.content_activity.receive(delivery, clock);
-            }
-            SteamClientMessage::LibraryUsage(delivery) => {
+            SteamGamesMessage::LibraryUsage(delivery) => {
                 self.library_usage.receive(delivery, clock);
             }
         }
         Task::none()
     }
 
-    pub fn interact(&mut self, interaction: SteamClientInteraction) -> Task<SteamClientMessage> {
+    pub fn interact(&mut self, interaction: SteamGamesInteraction) -> Task<SteamGamesMessage> {
         match interaction {
-            SteamClientInteraction::OpenPage(page) => logged_failure_task(
+            SteamGamesInteraction::OpenPage(page) => logged_failure_task(
                 format!("open Steam page {page:?}"),
                 open_steam_client_page(page),
             ),
-            SteamClientInteraction::RunningGameExpansion {
+            SteamGamesInteraction::RunningGameExpansion {
                 app_number,
                 expansion,
             } => {
                 self.running_game_expansions.update(&app_number, expansion);
                 Task::none()
             }
-            SteamClientInteraction::DownloadsExpansion(expansion) => {
-                self.downloads_expansion.update(expansion);
-                Task::none()
-            }
-            SteamClientInteraction::LibraryExpansion(expansion) => {
+            SteamGamesInteraction::LibraryExpansion(expansion) => {
                 self.library_expansion.update(expansion);
                 Task::none()
             }
@@ -158,34 +137,14 @@ impl SteamClientGroups {
     }
 
     #[must_use]
-    pub fn handle_badge(&self, icon_catalog: &IconCatalog) -> MenuHandleBadge {
-        let running_game = self
-            .running_games
-            .get()
-            .and_then(|running| running.games.first());
-        let downloading = self.content_activity.get().is_some_and(|activity| {
-            activity
-                .entries
-                .iter()
-                .any(steam_downloads_group::is_downloading)
-        });
-        if let Some(running_game) = running_game {
-            icon_catalog
-                .drawable_icon(&steam_game_icon_request(running_game.app_id))
-                .map_or(MenuHandleBadge::Unbadged, |drawable_icon| {
-                    MenuHandleBadge::ImageBadged(drawable_icon.handle.clone())
-                })
-        } else if downloading {
-            MenuHandleBadge::Badged(Phosphor::ArrowDown(Weight::Bold))
-        } else {
-            MenuHandleBadge::Unbadged
-        }
+    pub fn running_game_icon_request(&self) -> Option<IconRequest> {
+        let running_game = self.running_games.get()?.games.first()?;
+        Some(steam_game_icon_request(running_game.app_id))
     }
 
     #[must_use]
     pub fn group_contents<'groups>(
         &'groups self,
-        clock: Clock,
         locale: Locale,
         icon_catalog: &'groups IconCatalog,
     ) -> Vec<IndicatorGroupContent<'groups>> {
@@ -199,32 +158,18 @@ impl SteamClientGroups {
                     .running_game_expansions
                     .expansions
                     .get(&game.app_id.number)?;
-                Some(steam_running_game_group::running_game_group(
+                Some(running_game_group::running_game_group(
                     game,
                     expansion,
                     locale,
                     steam_game_icon(icon_catalog, game.app_id),
                 ))
             });
-        let downloads_group = self.content_activity.get().and_then(|activity| {
-            steam_downloads_group::downloads_group(
-                activity,
-                &self.downloads_expansion,
-                clock,
-                locale,
-            )
-        });
         let library_group = self.library_usage.get().and_then(|library_usage| {
-            steam_library_group::library_group(
-                library_usage,
-                &self.library_expansion,
-                locale,
-                |app_id| steam_game_icon(icon_catalog, app_id),
-            )
+            library_group::library_group(library_usage, &self.library_expansion, locale, |app_id| {
+                steam_game_icon(icon_catalog, app_id)
+            })
         });
-        running_game_groups
-            .chain(downloads_group)
-            .chain(library_group)
-            .collect()
+        running_game_groups.chain(library_group).collect()
     }
 }

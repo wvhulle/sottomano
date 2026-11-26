@@ -5,7 +5,7 @@ use chrono::Locale;
 use sottomano_desktop_sinks::steam_client_pages::SteamClientPage;
 use sottomano_desktop_sources::steam_client_files::running_steam_games::RunningSteamGame;
 
-use super::SteamClientInteraction;
+use super::SteamGamesInteraction;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -90,7 +90,7 @@ fn steam_page_indicator<'game>(
     press_does: &'static str,
 ) -> GroupIndicator<'game> {
     GroupIndicator::glyph_only(name, glyph.into(), IndicatorState::Idle)
-        .on_press(press_does, SteamClientInteraction::OpenPage(page))
+        .on_press(press_does, SteamGamesInteraction::OpenPage(page))
 }
 
 pub(super) fn running_game_group<'game>(
@@ -109,7 +109,7 @@ pub(super) fn running_game_group<'game>(
         IndicatorGroupTitle::Named(game.installed_app.name.clone().into()),
         headline_indicator,
         expansion,
-        move |expansion| SteamClientInteraction::RunningGameExpansion {
+        move |expansion| SteamGamesInteraction::RunningGameExpansion {
             app_number: app_id.number,
             expansion,
         },

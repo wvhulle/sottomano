@@ -209,7 +209,7 @@ impl DesktopShell {
                 self.indicator_groups
                     .panel_menus
                     .gaming
-                    .steam_client_groups
+                    .steam_games_group
                     .icon_requests(),
             );
         self.icon_catalog

@@ -35,7 +35,8 @@ use crate::{
             monitor_group::{MonitorBusRequest, MonitorInteraction},
         },
         gaming_menu::{
-            gamepad_group::GamepadInteraction, steam_client_groups::SteamClientInteraction,
+            gamepad_group::GamepadInteraction, steam_downloads_group::SteamDownloadsInteraction,
+            steam_games_group::SteamGamesInteraction,
         },
         hardware_menu::{
             compute_group::ComputeInteraction,
@@ -127,7 +128,8 @@ pub enum IndicatorGroupInteraction {
     NetworkManagerVpns(NetworkManagerVpnInteraction),
     WifiAdapters(WifiAdaptersInteraction),
     MobileModems(MobileModemsInteraction),
-    SteamClient(SteamClientInteraction),
+    SteamDownloads(SteamDownloadsInteraction),
+    SteamGames(SteamGamesInteraction),
     EthernetPorts(EthernetPortsInteraction),
     BluetoothAdapters(BluetoothInteraction),
     Monitor(MonitorInteraction),

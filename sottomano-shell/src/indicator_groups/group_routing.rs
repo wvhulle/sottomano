@@ -145,11 +145,16 @@ impl ShellIndicatorGroups {
                 .mobile_modems_group
                 .interact(interaction)
                 .map(Message::MobileModems),
-            IndicatorGroupInteraction::SteamClient(interaction) => menus
+            IndicatorGroupInteraction::SteamDownloads(interaction) => menus
                 .gaming
-                .steam_client_groups
+                .steam_downloads_group
                 .interact(interaction)
-                .map(Message::SteamClient),
+                .map(Message::SteamDownloads),
+            IndicatorGroupInteraction::SteamGames(interaction) => menus
+                .gaming
+                .steam_games_group
+                .interact(interaction)
+                .map(Message::SteamGames),
             IndicatorGroupInteraction::EthernetPorts(interaction) => menus
                 .network
                 .ethernet_ports_group

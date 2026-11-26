@@ -1,6 +1,8 @@
 use super::IndicatorGroupInteraction;
 use crate::panel_menus::{
-    gaming_menu::steam_client_groups::SteamClientInteraction,
+    gaming_menu::{
+        steam_downloads_group::SteamDownloadsInteraction, steam_games_group::SteamGamesInteraction,
+    },
     network_menu::{
         bluetooth_adapters_group::BluetoothInteraction,
         ethernet_ports_group::EthernetPortsInteraction,
@@ -42,9 +44,15 @@ impl From<WifiAdaptersInteraction> for IndicatorGroupInteraction {
     }
 }
 
-impl From<SteamClientInteraction> for IndicatorGroupInteraction {
-    fn from(interaction: SteamClientInteraction) -> Self {
-        IndicatorGroupInteraction::SteamClient(interaction)
+impl From<SteamDownloadsInteraction> for IndicatorGroupInteraction {
+    fn from(interaction: SteamDownloadsInteraction) -> Self {
+        IndicatorGroupInteraction::SteamDownloads(interaction)
+    }
+}
+
+impl From<SteamGamesInteraction> for IndicatorGroupInteraction {
+    fn from(interaction: SteamGamesInteraction) -> Self {
+        IndicatorGroupInteraction::SteamGames(interaction)
     }
 }
 

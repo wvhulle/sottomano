@@ -120,11 +120,16 @@ impl ShellIndicatorGroups {
                 .mobile_modems_group
                 .update(delivery, clock)
                 .map(Message::MobileModems),
-            Message::SteamClient(delivery) => menus
+            Message::SteamDownloads(delivery) => menus
                 .gaming
-                .steam_client_groups
+                .steam_downloads_group
                 .update(delivery, clock)
-                .map(Message::SteamClient),
+                .map(Message::SteamDownloads),
+            Message::SteamGames(delivery) => menus
+                .gaming
+                .steam_games_group
+                .update(delivery, clock)
+                .map(Message::SteamGames),
             Message::EthernetPorts(delivery) => menus
                 .network
                 .ethernet_ports_group
