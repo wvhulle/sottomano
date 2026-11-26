@@ -4,9 +4,12 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    network_connectivity::wireguard_tunnels::{
-        self, PeerEndpoint, PeerStatistics, PeerTraffic, StatisticsAccess, Tunnel, TunnelActivity,
-        TunnelAddress, TunnelOrigin, TunnelRole, Wireguard,
+    network_connectivity::{
+        network_manager_proxies::NmConnectionSwitch,
+        wireguard_tunnels::{
+            self, PeerEndpoint, PeerStatistics, PeerTraffic, StatisticsAccess, Tunnel,
+            TunnelActivity, TunnelAddress, TunnelOrigin, TunnelRole, Wireguard,
+        },
     },
 };
 use sottomano_widgets::{
@@ -25,16 +28,36 @@ const LAB_TUNNEL_NAME: &str = "wg-lab";
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut tunnels_group = WireguardTunnelsGroup::default();
-    let _ = tunnels_group.update(
-        WireguardTunnelsMessage::Wireguard(SnapshotDelivery::fixture_delivered(
-            Ok(Wireguard {
-                tunnels: vec![home_wireguard_server(), lab_wireguard_tunnel()],
-            }),
-            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
-        )),
-        clock,
-    );
+    let _ = tunnels_group.update(tunnels_delivered(LabTunnelLink::Disconnected), clock);
     ShowcasedGroup::WireguardTunnels(Box::new(tunnels_group))
+}
+
+#[derive(Clone, Copy)]
+enum LabTunnelLink {
+    Disconnected,
+    Connected,
+}
+
+fn tunnels_delivered(lab_link: LabTunnelLink) -> WireguardTunnelsMessage {
+    WireguardTunnelsMessage::Wireguard(SnapshotDelivery::fixture_delivered(
+        Ok(Wireguard {
+            tunnels: vec![home_wireguard_server(), lab_wireguard_tunnel(lab_link)],
+        }),
+        DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
+    ))
+}
+
+pub fn on_press(pressed_switch: &WireguardTunnelsInteraction) -> Vec<WireguardTunnelsMessage> {
+    let lab_link = match pressed_switch {
+        WireguardTunnelsInteraction::SwitchTunnel(NmConnectionSwitch::Connect(_)) => {
+            LabTunnelLink::Connected
+        }
+        WireguardTunnelsInteraction::SwitchTunnel(NmConnectionSwitch::Disconnect(_)) => {
+            LabTunnelLink::Disconnected
+        }
+        _ => return Vec::new(),
+    };
+    vec![tunnels_delivered(lab_link)]
 }
 
 fn object_path(path: &str) -> OwnedObjectPath {
@@ -49,25 +72,32 @@ fn exchanged_traffic(handshake_seconds: u64, received: ByteSize, sent: ByteSize)
     })
 }
 
-fn lab_wireguard_tunnel() -> Tunnel {
+fn lab_wireguard_tunnel(lab_link: LabTunnelLink) -> Tunnel {
+    let (activity, traffic) = match lab_link {
+        LabTunnelLink::Disconnected => (TunnelActivity::Inactive, PeerTraffic::NeverHandshaken),
+        LabTunnelLink::Connected => (
+            TunnelActivity::Active {
+                active_connection: object_path(
+                    "/org/freedesktop/NetworkManager/ActiveConnection/9",
+                ),
+            },
+            exchanged_traffic(3, ByteSize::kib(148), ByteSize::kib(36)),
+        ),
+    };
     Tunnel {
         name: LAB_TUNNEL_NAME.to_owned(),
         interface: LAB_TUNNEL_NAME.to_owned(),
         role: TunnelRole::Client,
         origin: TunnelOrigin::NetworkManager {
             settings_connection: object_path("/org/freedesktop/NetworkManager/Settings/14"),
-            activity: TunnelActivity::Active {
-                active_connection: object_path(
-                    "/org/freedesktop/NetworkManager/ActiveConnection/9",
-                ),
-            },
+            activity,
         },
         statistics_access: StatisticsAccess::Read,
         peers: vec![wireguard_tunnels::Peer {
             public_key: "lab-gateway-key".to_owned(),
             endpoint: PeerEndpoint::At("203.0.113.24:51820".to_owned()),
             allowed_ips: vec!["10.42.0.0/24".to_owned()],
-            traffic: exchanged_traffic(37, ByteSize::mib(84), ByteSize::mib(12)),
+            traffic,
         }],
     }
 }

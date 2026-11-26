@@ -19,6 +19,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Location(group) => group.group_content(),
             ShowcasedGroup::ClaudeUsage(group) => group.group_content(clock),
             ShowcasedGroup::Wallpaper(group) => group.group_content(),
+            ShowcasedGroup::DarkMode(group) => group.group_content(config, clock),
             ShowcasedGroup::Audio(group) => group.group_content(config),
             ShowcasedGroup::VoiceDictation(group) => group.group_content(),
             ShowcasedGroup::Caldav(group) => {
@@ -47,6 +48,11 @@ impl ShowcasedGroup {
                 .group_contents(config, &media.desktop_entries, clock)
                 .collect(),
             ShowcasedGroup::IdleTimeouts(group) => vec![group.idle_chain_group(config, clock)],
+            ShowcasedGroup::Gaming(gaming) => {
+                gaming
+                    .menu
+                    .group_contents(config, &gaming.icon_catalog, clock)
+            }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
                 .group_contents(&gamepad.bindings, clock)

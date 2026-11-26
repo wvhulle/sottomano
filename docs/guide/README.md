@@ -29,9 +29,7 @@ Each panel holds menus; a menu holds groups; a group holds indicators; hovering 
 
 Pins are remembered across restarts. An indicator whose severity reaches `group_menus.alert_promotion_severity` also shows on the panel until it clears or is dismissed from its popup. The Menus group in the [Settings](settings.md) menu switches to accordion menus and to opening menus on hover.
 
-<img src="https://sottomano.work/recordings/group_menu_media.webp" srcset="https://sottomano.work/recordings/group_menu_media.webp 2x" alt="Opening the Media menu, pressing its rows and hovering the microphone">
-
-<img src="https://sottomano.work/recordings/group_menu_pin.webp" srcset="https://sottomano.work/recordings/group_menu_pin.webp 2x" alt="Pinning the memory group from the Hardware menu, which moves it onto the panel">
+<img src="https://sottomano.work/recordings/group_menu_pin.webp" srcset="https://sottomano.work/recordings/group_menu_pin.webp 2x" alt="Pinning the CPU temperature from the Hardware menu and hovering it on the panel">
 
 <img src="https://sottomano.work/recordings/group_menu_accordion_several.webp" srcset="https://sottomano.work/recordings/group_menu_accordion_several.webp 2x" alt="Opening two groups of the Hardware menu as an accordion">
 

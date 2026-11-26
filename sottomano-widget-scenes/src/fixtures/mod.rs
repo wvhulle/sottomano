@@ -41,6 +41,7 @@ pub mod cgroup_memory_limits;
 pub mod ci_runner_tasks;
 pub mod claude_usage;
 pub mod compute;
+pub mod dark_mode;
 pub mod desktop_session;
 pub mod docker_engines;
 pub mod flatpak_sandboxes;
@@ -60,6 +61,7 @@ pub mod nspawn_containers;
 pub mod podman_engines;
 pub mod session_focus;
 pub mod shell_settings;
+pub mod steam_client;
 pub mod systemd_service_units;
 pub mod tailnet;
 pub mod virtual_machines;
@@ -69,7 +71,34 @@ pub mod voice_dictation;
 pub mod wallpaper;
 pub mod waydroid_container;
 pub mod weather;
+pub mod window_menu_bar;
 pub mod wireguard_tunnels;
+
+#[must_use]
+pub fn press_replies(
+    pressed_control: &IndicatorGroupInteraction,
+    clock: Clock,
+) -> Vec<ShowcaseMessage> {
+    match pressed_control {
+        IndicatorGroupInteraction::Tailnet(interaction) => tailnet::on_press(interaction, clock)
+            .into_iter()
+            .map(ShowcaseMessage::Tailnet)
+            .collect(),
+        IndicatorGroupInteraction::WireguardTunnels(interaction) => {
+            wireguard_tunnels::on_press(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::WireguardTunnels)
+                .collect()
+        }
+        IndicatorGroupInteraction::PodmanEngines(interaction) => {
+            podman_engines::on_press(interaction, clock)
+                .into_iter()
+                .map(ShowcaseMessage::PodmanEngines)
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
 
 #[must_use]
 pub fn hover_fetch_replies(started_fetch: &IndicatorGroupInteraction) -> Vec<ShowcaseMessage> {
@@ -98,6 +127,10 @@ pub fn hover_fetch_replies(started_fetch: &IndicatorGroupInteraction) -> Vec<Sho
                 .map(ShowcaseMessage::WireguardTunnels)
                 .collect()
         }
+        IndicatorGroupInteraction::SteamGames(interaction) => steam_client::on_hover(interaction)
+            .into_iter()
+            .map(ShowcaseMessage::SteamGames)
+            .collect(),
         IndicatorGroupInteraction::LoginSession(interaction) => {
             login_session::on_hover(interaction)
                 .into_iter()

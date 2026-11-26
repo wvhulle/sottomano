@@ -2,7 +2,7 @@ use std::{borrow::Cow, time::Duration};
 
 use sottomano_widgets::{
     group_indicators::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-    group_menus::group_menu_state::GroupMenuPin,
+    group_menus::group_menu_state::{GroupMenuPin, PanelPin},
     hover_cards::{HoverTarget, IndicatorKey},
 };
 
@@ -12,6 +12,9 @@ pub enum Step {
     HoverFace(IndicatorGroupIdentity),
     PressFace(IndicatorGroupIdentity),
     PressPin(GroupMenuPin),
+    HoverPinned(PanelPin),
+    ReleasePinned(PanelPin),
+    PressAway,
     DragFace {
         group: IndicatorGroupIdentity,
         by: f32,
@@ -27,6 +30,17 @@ pub const fn instance_row(group: IndicatorGroupIdentity, row_name: &'static str)
         group,
         name: Cow::Borrowed(row_name),
     })
+}
+
+#[must_use]
+pub const fn sole_indicator_key(
+    family: IndicatorGroupFamily,
+    row_name: &'static str,
+) -> IndicatorKey {
+    IndicatorKey {
+        group: IndicatorGroupIdentity::sole(family),
+        name: Cow::Borrowed(row_name),
+    }
 }
 
 #[must_use]

@@ -5,11 +5,11 @@ Top panel, left.
 <div class="beside">
 <div class="beside-text">
 
-Opening the Hardware menu and hovering the CPU load, the CPU model and the memory.
+Opening the Hardware menu and hovering the CPU load, the CPU temperature and the memory.
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_hardware.webp" srcset="https://sottomano.work/recordings/tour_hardware.webp 2x" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
+<img src="https://sottomano.work/recordings/tour_hardware.webp" srcset="https://sottomano.work/recordings/tour_hardware.webp 2x" alt="Opening the Hardware menu, hovering the CPU load and temperature, then the memory">
 
 </div>
 
@@ -55,6 +55,17 @@ The same group pinned on the panel, then expanded.
 | Swap | | swap use |
 | Memory bank | | board, modules and slots |
 | Module | | |
+
+<div class="beside">
+<div class="beside-text">
+
+When RAM growth turns critical it appears next to the Hardware icon; its popup dismisses it until it alerts again.
+
+</div>
+
+<img src="https://sottomano.work/recordings/memory_growth_alert.webp" srcset="https://sottomano.work/recordings/memory_growth_alert.webp 2x" alt="RAM growth turning critical, appearing on the panel and being dismissed from its popup">
+
+</div>
 
 ## GPU
 

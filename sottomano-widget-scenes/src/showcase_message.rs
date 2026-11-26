@@ -16,7 +16,10 @@ use sottomano_widgets::{
             weather_group::WeatherMessage,
         },
         display_menu::wallpaper_group::WallpaperMessage,
-        gaming_menu::gamepad_group::GamepadMessage,
+        gaming_menu::{
+            gamepad_group::GamepadMessage, steam_downloads_group::SteamDownloadsMessage,
+            steam_games_group::SteamGamesMessage,
+        },
         hardware_menu::{compute_group::ComputeMessage, memory_board_group::MemoryBoardMessage},
         media_menu::{
             audio_group::AudioMessage, media_group::MediaMessage,
@@ -60,6 +63,8 @@ pub enum ShowcaseMessage {
     Wallpaper(WallpaperMessage),
     Audio(AudioMessage),
     Gamepad(GamepadMessage),
+    SteamDownloads(SteamDownloadsMessage),
+    SteamGames(SteamGamesMessage),
     VoiceDictation(VoiceDictationMessage),
     Caldav(CaldavMessage),
     PodmanEngines(PodmanEnginesMessage),

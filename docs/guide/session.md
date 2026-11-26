@@ -2,6 +2,17 @@
 
 Bottom panel, right.
 
+<div class="beside">
+<div class="beside-text">
+
+Hovering the idle timeline, then the kernel of the login session.
+
+</div>
+
+<img src="https://sottomano.work/recordings/tour_session.webp" srcset="https://sottomano.work/recordings/tour_session.webp 2x" alt="Opening the Session menu, hovering the idle timeline and the kernel">
+
+</div>
+
 ## Idle
 
 Each step counts from the previous enabled one: lock, screen off, standby, hibernate, power-down.
@@ -19,7 +30,7 @@ Hovering the screen-off timer.
 
 </div>
 
-<img src="https://sottomano.work/recordings/idle_screen_off.webp" srcset="https://sottomano.work/recordings/idle_screen_off.webp 2x" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
+<img src="https://sottomano.work/recordings/idle_timeline.webp" srcset="https://sottomano.work/recordings/idle_timeline.webp 2x" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
 
 </div>
 

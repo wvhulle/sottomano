@@ -3,17 +3,19 @@ use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::desktop_entries::DesktopEntries,
+    screen_brightness_color::solar_switch_schedule::ColorMode,
 };
 use sottomano_toml_config::{
     Config, panel_menus::gaming_menu::gamepad_bindings::GamepadBindingsConfig,
     screen_edges::Position,
 };
 use sottomano_widgets::{
-    cascading_menus::app_launcher_menu::AppLauncherMenu,
+    cascading_menus::{app_launcher_menu::AppLauncherMenu, window_menu_bar::WindowMenuBar},
     clock::Clock,
     group_indicators::{
         group_indicator::HoverFetch, indicator_group_content::IndicatorGroupContent,
     },
+    group_menus::group_menu_view::MenuHandleBadge,
     hover_cards::{
         CardHeader, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
     },
@@ -24,8 +26,8 @@ use sottomano_widgets::{
             caldav_group::CaldavGroup, location_group::LocationGroup,
             session_focus_group::SessionFocusGroup, weather_group::WeatherGroup,
         },
-        display_menu::wallpaper_group::WallpaperGroup,
-        gaming_menu::gamepad_group::GamepadGroup,
+        display_menu::{dark_mode_group::DarkModeGroup, wallpaper_group::WallpaperGroup},
+        gaming_menu::{GamingMenu, gamepad_group::GamepadGroup},
         hardware_menu::{compute_group::ComputeGroup, memory_board_group::MemoryBoardGroup},
         media_menu::{
             audio_group::AudioGroup, media_group::MediaGroup,
@@ -88,10 +90,13 @@ pub enum ShowcasedGroup {
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdlePauseGroups>),
     AppLauncher(Box<ShowcasedAppLauncher>),
+    WindowMenuBar(Box<ShowcasedWindowMenuBar>),
     AppearancePresets(Box<ShowcasedAppearancePresets>),
     Wallpaper(Box<WallpaperGroup>),
+    DarkMode(Box<DarkModeGroup>),
     Audio(Box<AudioGroup>),
     Gamepad(Box<ShowcasedGamepad>),
+    Gaming(Box<ShowcasedGamingMenu>),
     VoiceDictation(Box<VoiceDictationGroup>),
     Caldav(Box<CaldavGroup>),
     PodmanEngines(Box<PodmanEnginesGroup>),
@@ -129,6 +134,16 @@ pub struct ShowcasedAppLauncher {
     pub icon_catalog: IconCatalog,
 }
 
+pub struct ShowcasedWindowMenuBar {
+    pub group: WindowMenuBar,
+    pub icon_catalog: IconCatalog,
+}
+
+pub struct ShowcasedGamingMenu {
+    pub menu: GamingMenu,
+    pub icon_catalog: IconCatalog,
+}
+
 pub struct ShowcasedGamepad {
     pub group: GamepadGroup,
     pub bindings: GamepadBindingsConfig,
@@ -155,9 +170,12 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Weather(_)
             | ShowcasedGroup::Location(_)
             | ShowcasedGroup::Wallpaper(_)
+            | ShowcasedGroup::DarkMode(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
+            | ShowcasedGroup::Gaming(_)
+            | ShowcasedGroup::WindowMenuBar(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::SessionFocus(_)
@@ -190,7 +208,7 @@ impl ShowcasedGroup {
         clock: Clock,
     ) -> Vec<IndicatorGroupContent<'view>> {
         match self {
-            ShowcasedGroup::AppLauncher(_) => Vec::new(),
+            ShowcasedGroup::AppLauncher(_) | ShowcasedGroup::WindowMenuBar(_) => Vec::new(),
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
                 .flat_map(|member| member.group_contents(config, clock))
@@ -295,8 +313,11 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
+            | ShowcasedGroup::DarkMode(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
+            | ShowcasedGroup::Gaming(_)
+            | ShowcasedGroup::WindowMenuBar(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::SessionFocus(_)
@@ -320,6 +341,23 @@ impl ShowcasedGroup {
             | ShowcasedGroup::MenuMembers(_)
             | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::AppearancePresets(_) => None,
+        }
+    }
+
+    pub fn menu_handle_badge(&self) -> MenuHandleBadge {
+        match self {
+            ShowcasedGroup::Gaming(gaming) => gaming.menu.handle_badge(&gaming.icon_catalog),
+            _ => MenuHandleBadge::Unbadged,
+        }
+    }
+
+    pub fn color_scheme(&self) -> Option<ColorMode> {
+        match self {
+            ShowcasedGroup::DarkMode(group) => Some(group.scheme()),
+            ShowcasedGroup::MenuMembers(groups) => {
+                groups.iter().find_map(ShowcasedGroup::color_scheme)
+            }
+            _ => None,
         }
     }
 

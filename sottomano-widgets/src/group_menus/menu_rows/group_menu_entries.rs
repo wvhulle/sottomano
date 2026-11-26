@@ -111,14 +111,18 @@ pub(crate) fn indicator_entry<'view>(
         indicator,
         layout.config.group_menus.alert_promotion_severity,
     );
-    let pin_button = |entry, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
-        glyph_button(
-            Phosphor::PushPin(pin_weight),
-            layout.config.theme.font.icon_size_px,
-            pin_color,
-            layout.menu.toggle_pin(entry),
-        )
-    };
+    let pin_button =
+        |entry: GroupMenuPin, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
+            anchor_marker(
+                glyph_button(
+                    Phosphor::PushPin(pin_weight),
+                    layout.config.theme.font.icon_size_px,
+                    pin_color,
+                    layout.menu.toggle_pin(entry.clone()),
+                ),
+                entry,
+            )
+        };
     let indicator_pins = match indicator_pin {
         IndicatorPin::Unpinnable => Vec::new(),
         IndicatorPin::Pinned(PanelPin {

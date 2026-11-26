@@ -24,17 +24,13 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
-    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState},
-    hover_cards::{HoverCardHost, HoverTarget, PopupMessage},
+    hover_cards::HoverCardHost,
     icon_catalog::{drawable_icon_catalog::IconCatalog, favicons::Favicons},
     notification_toasts::{
         NotificationLayer, NotificationSettings, toast_messages::NotificationMessage,
     },
-    panel_menus::{
-        agenda_menu::notification_group::alert_sound_indicator::AlertSound,
-        settings_menu::appearance_presets_group::AppearancePresetsMessage,
-    },
+    panel_menus::agenda_menu::notification_group::alert_sound_indicator::AlertSound,
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
@@ -54,10 +50,13 @@ use crate::{
 };
 
 mod showcase_hover_cards;
+mod showcase_interactions;
 mod showcase_surfaces;
+mod showcase_window_menu_bar;
 
 pub(crate) const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
 pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(700);
+pub(crate) const PRESS_REPLY_LATENCY: Duration = Duration::from_millis(500);
 
 #[must_use]
 pub fn booting_clock() -> Clock {
@@ -138,12 +137,13 @@ pub struct ShowcaseState {
     clock: Clock,
     booted_at: Clock,
     delivered_sample: u32,
-    pending_hover_replies: Vec<PendingHoverReply>,
+    pending_hover_replies: Vec<PendingFixtureReply>,
+    pending_press_replies: Vec<PendingFixtureReply>,
     backdrop_photos: BackdropPhotos,
     frosted_rows: Vec<Rectangle>,
 }
 
-struct PendingHoverReply {
+struct PendingFixtureReply {
     due: Instant,
     reply: ShowcaseMessage,
 }
@@ -197,6 +197,7 @@ impl ShowcaseState {
             booted_at: clock,
             delivered_sample: sample(clock),
             pending_hover_replies: Vec::new(),
+            pending_press_replies: Vec::new(),
             backdrop_photos: backdrop_photos.clone(),
             frosted_rows: Vec::new(),
         };
@@ -220,58 +221,6 @@ impl ShowcaseState {
                 Task::none()
             }
         }
-    }
-
-    fn interact(&mut self, interaction: ShowcaseInteraction) -> Task<ShowcaseMessage> {
-        match interaction {
-            ShowcaseInteraction::Group(IndicatorGroupInteraction::GroupMenus(message)) => {
-                self.update_group_menus(message)
-            }
-            ShowcaseInteraction::Group(group_interaction) => {
-                if let IndicatorGroupInteraction::AppearancePresets(
-                    AppearancePresetsMessage::Apply(preset),
-                ) = &group_interaction
-                {
-                    self.appearance = preset.applied_to(self.appearance);
-                    self.theme =
-                        configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                }
-                let _interaction_for_another_group =
-                    self.group
-                        .interact(group_interaction, &self.config, self.clock);
-                Task::none()
-            }
-            ShowcaseInteraction::Popup(popup_message) => self.update_popup(popup_message),
-            ShowcaseInteraction::Notification(message) => self.update_notification(message),
-            ShowcaseInteraction::OutsideShowcase => Task::none(),
-        }
-    }
-
-    fn update_popup(&mut self, popup_message: PopupMessage) -> Task<ShowcaseMessage> {
-        match popup_message {
-            PopupMessage::HoverCard(hover_card) => self.update_hover_card(hover_card),
-            PopupMessage::OutputWindows(window_interaction) => {
-                let _interaction_for_another_group = self.group.interact(
-                    IndicatorGroupInteraction::OutputWindows(window_interaction),
-                    &self.config,
-                    self.clock,
-                );
-                Task::none()
-            }
-            PopupMessage::CopyText(_)
-            | PopupMessage::OpenUrl(_)
-            | PopupMessage::FocusWindow(_)
-            | PopupMessage::RefreshHoveredIndicator
-            | PopupMessage::ReleaseFromPanel(_) => Task::none(),
-        }
-    }
-
-    fn update_group_menus(&mut self, message: GroupMenuMessage) -> Task<ShowcaseMessage> {
-        if let GroupMenuMessage::InspectRow { indicator, .. } = &message {
-            self.schedule_hover_replies(&HoverTarget::Indicator(indicator.clone()));
-        }
-        let _menu_task = self.group_menus.update(message);
-        Task::none()
     }
 }
 

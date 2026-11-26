@@ -45,6 +45,7 @@ impl ShowcaseState {
             &self.group_menus,
             self.group.group_contents(&self.config, self.clock),
         )
+        .with_handle_badge(self.group.menu_handle_badge())
     }
 
     pub(super) fn strip_groups(&self) -> Vec<Element<'_, ShowcaseInteraction>> {
@@ -62,7 +63,9 @@ impl ShowcaseState {
                 )
                 .map(|element| element.map(ShowcaseInteraction::from))
                 .collect(),
-            GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
+            GroupShown::OnPanel => self
+                .window_top_menu_handles()
+                .unwrap_or_else(|| self.group.panel_groups(&self.config, self.clock)),
         }
     }
 
@@ -164,6 +167,14 @@ impl ShowcaseState {
         for pending in due_replies {
             tasks.push(self.route_message(pending.reply));
         }
+        let (due_press_replies, waiting_press_replies) = self
+            .pending_press_replies
+            .drain(..)
+            .partition(|pending| pending.due <= clock.instant);
+        self.pending_press_replies = waiting_press_replies;
+        for pending in due_press_replies {
+            tasks.push(self.route_message(pending.reply));
+        }
         if self.hover_card.hide_schedule.elapsed_by(clock.instant) {
             tasks.push(self.route_message(ShowcaseMessage::HoverCardHideElapsed));
         }
@@ -216,8 +227,12 @@ impl ShowcaseState {
         &self,
         target: &HoverTarget,
     ) -> Option<HoverContent<'_, ShowcaseInteraction>> {
-        if let HoverTarget::GroupMenu(kind) = target {
-            return self.menu_cascade(*kind);
+        match target {
+            HoverTarget::GroupMenu(kind) => return self.menu_cascade(*kind),
+            HoverTarget::WindowTopMenu(top_menu_id) => {
+                return self.window_top_menu_cascade(*top_menu_id);
+            }
+            _ => {}
         }
         self.group
             .described_hover_card(target, &self.config, self.clock)

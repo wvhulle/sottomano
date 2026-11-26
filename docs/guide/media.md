@@ -41,7 +41,7 @@ Pressing the speaker opens a slider in place.
 
 </div>
 
-<img src="https://sottomano.work/recordings/audio_volume.webp" srcset="https://sottomano.work/recordings/audio_volume.webp 2x" alt="Opening the volume slider and dragging it">
+<img src="https://sottomano.work/recordings/audio_speaker_volume.webp" srcset="https://sottomano.work/recordings/audio_speaker_volume.webp 2x" alt="Opening the volume slider and dragging it">
 
 </div>
 

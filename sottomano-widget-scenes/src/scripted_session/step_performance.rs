@@ -9,7 +9,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    hovered_widget::{HoveredWidget, MenuPinWidget},
+    hovered_widget::{HoveredWidget, MenuPinWidget, PanelReleaseWidget},
     scenes::GroupShown,
     script_steps::Step,
     scripted_session::{FRAME_INTERVAL, FrameWatcher, ScriptedSession},
@@ -79,6 +79,18 @@ impl<Watcher: FrameWatcher> ScriptedSession<Watcher> {
                 });
                 self.press_at(pointer);
             }
+            Step::HoverPinned(panel_pin) => {
+                self.perform(&Step::Hover(HoverTarget::PinnedOnPanel(Box::new(
+                    panel_pin.clone(),
+                ))));
+            }
+            Step::ReleasePinned(panel_pin) => {
+                let pointer = self.locate(PanelReleaseWidget {
+                    panel_pin: panel_pin.clone(),
+                });
+                self.press_at(pointer);
+            }
+            Step::PressAway => self.press_away(),
             Step::HoverText(shown) => {
                 self.interact(Mouse::Move(Target::Text((*shown).to_owned())));
                 self.hold(HOVER_HOLD);

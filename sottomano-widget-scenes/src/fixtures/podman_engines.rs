@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_run_state::RunChange,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     podman_container_engine::libpod_running_containers::{
         ContainerCiIdentity, EngineContainers, EngineListing, EngineReadError, RunningContainer,
@@ -13,8 +14,11 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    panel_menus::virtualization_menu::podman_engines_group::{
-        PodmanEnginesGroup, PodmanEnginesMessage,
+    panel_menus::virtualization_menu::{
+        engine_container_indicators::{ContainerSwitchRequest, EngineContainerInteraction},
+        podman_engines_group::{
+            PodmanEnginesGroup, PodmanEnginesInteraction, PodmanEnginesMessage,
+        },
     },
 };
 use uom::si::{f64::Ratio, ratio::percent};
@@ -118,21 +122,7 @@ fn delivered(
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = PodmanEnginesGroup::default();
     let readouts = [
-        delivered(
-            ROOTLESS_SOCKET,
-            Ok(EngineListing {
-                running: EngineContainers {
-                    containers: Vec::new(),
-                },
-                stopped: vec![StoppedContainer {
-                    id: "toolbox".to_owned(),
-                    container_name: "fedora-toolbox-42".to_owned(),
-                    shown_name: "fedora-toolbox-42".to_owned(),
-                    image: "registry.fedoraproject.org/fedora-toolbox:42".to_owned(),
-                    stopped_at: clock.wall - Duration::from_hours(5),
-                }],
-            }),
-        ),
+        rootless_engine(ToolboxRun::Stopped, clock),
         delivered(
             WOODPECKER_SOCKET,
             Ok(EngineListing {
@@ -154,4 +144,64 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             let _ = group.update(message, clock);
         });
     ShowcasedGroup::PodmanEngines(Box::new(group))
+}
+
+#[derive(Clone, Copy)]
+enum ToolboxRun {
+    Stopped,
+    Started,
+}
+
+const TOOLBOX_NAME: &str = "fedora-toolbox-42";
+const TOOLBOX_IMAGE: &str = "registry.fedoraproject.org/fedora-toolbox:42";
+
+fn rootless_engine(toolbox_run: ToolboxRun, clock: Clock) -> PodmanEnginesMessage {
+    let listing = match toolbox_run {
+        ToolboxRun::Stopped => EngineListing {
+            running: EngineContainers {
+                containers: Vec::new(),
+            },
+            stopped: vec![StoppedContainer {
+                id: "toolbox".to_owned(),
+                container_name: TOOLBOX_NAME.to_owned(),
+                shown_name: TOOLBOX_NAME.to_owned(),
+                image: TOOLBOX_IMAGE.to_owned(),
+                stopped_at: clock.wall - Duration::from_hours(5),
+            }],
+        },
+        ToolboxRun::Started => EngineListing {
+            running: EngineContainers {
+                containers: vec![RunningContainer {
+                    id: "toolbox".to_owned(),
+                    container_name: TOOLBOX_NAME.to_owned(),
+                    shown_name: TOOLBOX_NAME.to_owned(),
+                    image: TOOLBOX_IMAGE.to_owned(),
+                    started_at: clock.wall,
+                    ci_identity: ContainerCiIdentity::NotWoodpecker,
+                    cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(6.0)),
+                    resident_memory: ByteSize::mib(310),
+                }],
+            },
+            stopped: Vec::new(),
+        },
+    };
+    delivered(ROOTLESS_SOCKET, Ok(listing))
+}
+
+pub fn on_press(
+    pressed_switch: &PodmanEnginesInteraction,
+    clock: Clock,
+) -> Vec<PodmanEnginesMessage> {
+    let toolbox_run = match pressed_switch {
+        EngineContainerInteraction::SwitchContainer(ContainerSwitchRequest {
+            change: RunChange::Start,
+            ..
+        }) => ToolboxRun::Started,
+        EngineContainerInteraction::SwitchContainer(ContainerSwitchRequest {
+            change: RunChange::Stop,
+            ..
+        }) => ToolboxRun::Stopped,
+        EngineContainerInteraction::Expansion(_) => return Vec::new(),
+    };
+    vec![rootless_engine(toolbox_run, clock)]
 }

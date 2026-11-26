@@ -2,6 +2,17 @@
 
 Top panel, middle.
 
+<div class="beside">
+<div class="beside-text">
+
+Opening the Agenda menu and hovering the upcoming events, the rain and the location estimate.
+
+</div>
+
+<img src="https://sottomano.work/recordings/tour_agenda.webp" srcset="https://sottomano.work/recordings/tour_agenda.webp 2x" alt="Opening the Agenda menu, hovering the calendar events, the rain and the location estimate">
+
+</div>
+
 ## Clock
 
 The local time is pinned on the panel by default (`panel_menus.agenda.clock.local_time.pin`).
@@ -28,7 +39,7 @@ Hovering the upcoming events and open tasks.
 
 </div>
 
-<img src="https://sottomano.work/recordings/caldav_agenda.webp" srcset="https://sottomano.work/recordings/caldav_agenda.webp 2x" alt="Opening the Agenda menu and hovering its events and tasks">
+<img src="https://sottomano.work/recordings/calendar_events.webp" srcset="https://sottomano.work/recordings/calendar_events.webp 2x" alt="Opening the Agenda menu and hovering its events and tasks">
 
 </div>
 
@@ -42,17 +53,6 @@ At the position the Location group reports.
 | Rain | | rain timeline for the coming hours |
 | Wind | | speed, gusts and direction |
 | Pollen, one row per allergen | | level and thresholds |
-
-<div class="beside">
-<div class="beside-text">
-
-Opening the weather group and hovering the temperature forecast, then the rain.
-
-</div>
-
-<img src="https://sottomano.work/recordings/tour_weather.webp" srcset="https://sottomano.work/recordings/tour_weather.webp 2x" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
-
-</div>
 
 ## Location
 
@@ -72,7 +72,7 @@ Hovering the estimate.
 
 </div>
 
-<img src="https://sottomano.work/recordings/location_fix.webp" srcset="https://sottomano.work/recordings/location_fix.webp 2x" alt="Opening the location group from the Agenda menu and hovering the estimate">
+<img src="https://sottomano.work/recordings/location_estimate.webp" srcset="https://sottomano.work/recordings/location_estimate.webp 2x" alt="Opening the location group from the Agenda menu and hovering the estimate">
 
 </div>
 
@@ -111,6 +111,6 @@ Hovering the timeline of the last 24 hours.
 
 </div>
 
-<img src="https://sottomano.work/recordings/focus_timeline.webp" srcset="https://sottomano.work/recordings/focus_timeline.webp 2x" alt="Pressing the focus session in the panel and hovering its timeline">
+<img src="https://sottomano.work/recordings/session_focus_timeline.webp" srcset="https://sottomano.work/recordings/session_focus_timeline.webp 2x" alt="Pressing the focus session in the panel and hovering its timeline">
 
 </div>

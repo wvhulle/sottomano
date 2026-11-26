@@ -58,11 +58,18 @@ impl SceneBackdrop {
 
 pub const SCENES: &[&Scene] = &[
     &menu_tour_scenes::HARDWARE_MENU,
+    &menu_tour_scenes::HARDWARE_MENU_RUNAWAY_MEMORY,
     &menu_tour_scenes::TOUR_NETWORK,
     &menu_tour_scenes::WEATHER_IN_AGENDA,
     &menu_tour_scenes::FOCUS_TIMELINE,
     &menu_tour_scenes::MEDIA_MENU,
     &menu_tour_scenes::TOUR_VIRTUALIZATION,
+    &menu_tour_scenes::TOUR_AGENDA,
+    &menu_tour_scenes::TOUR_DISPLAY,
+    &menu_tour_scenes::TOUR_SERVICES,
+    &menu_tour_scenes::TOUR_SESSION,
+    &menu_tour_scenes::TOUR_GAMING,
+    &menu_tour_scenes::OFFICE_MENU_BAR,
     &indicator_group_scenes::APP_LAUNCHER_FREQUENT,
     &indicator_group_scenes::APP_LAUNCHER_OVERFLOW,
     &indicator_group_scenes::TAILNET_EXIT_NODE,

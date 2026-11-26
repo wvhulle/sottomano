@@ -8,7 +8,7 @@ use sottomano_widgets::{
     },
 };
 
-use super::{HOVER_FETCH_LATENCY, PendingHoverReply, ShowcaseState};
+use super::{HOVER_FETCH_LATENCY, PendingFixtureReply, ShowcaseState};
 use crate::{
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::SHOWCASE_OUTPUT,
@@ -116,7 +116,7 @@ impl ShowcaseState {
             .group
             .start_hovered_fetch(target, &self.config, self.clock)
             .into_iter()
-            .map(|reply| PendingHoverReply { due, reply })
+            .map(|reply| PendingFixtureReply { due, reply })
             .collect();
     }
 }

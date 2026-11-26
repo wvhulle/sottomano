@@ -1,4 +1,7 @@
-use corredo::theming::{OUTLINE_WIDTH_PX, primary_weak_color, text_color};
+use corredo::{
+    popovers::anchor_marker,
+    theming::{OUTLINE_WIDTH_PX, primary_weak_color, text_color},
+};
 use iced::{
     Background, Element, Length,
     alignment::Vertical,
@@ -75,7 +78,7 @@ impl HoverCardContent<'_> {
         ])
         .spacing(self.config.theme.spacing.item_gap)
         .align_y(Vertical::Center);
-        button(container(label).padding(self.title_padding()))
+        let release_button = button(container(label).padding(self.title_padding()))
             .width(Length::Fill)
             .padding(
                 self.edge_row_padding()
@@ -87,8 +90,8 @@ impl HoverCardContent<'_> {
                 text_color: text_color(theme),
                 ..button::Style::default()
             })
-            .on_press(PopupMessage::ReleaseFromPanel(panel_pin))
-            .into()
+            .on_press(PopupMessage::ReleaseFromPanel(panel_pin.clone()));
+        anchor_marker(release_button.into(), panel_pin)
     }
 
     fn forced_pin_row(&self, setting_path: &'static str) -> Element<'static, PopupMessage> {

@@ -41,6 +41,12 @@ impl ShowcasedGroup {
             (ShowcasedGroup::Gamepad(gamepad), ShowcaseMessage::Gamepad(delivery)) => {
                 let _ = gamepad.group.update(delivery, &gamepad.bindings);
             }
+            (ShowcasedGroup::Gaming(gaming), ShowcaseMessage::SteamDownloads(delivery)) => {
+                let _ = gaming.menu.steam_downloads_group.update(delivery, clock);
+            }
+            (ShowcasedGroup::Gaming(gaming), ShowcaseMessage::SteamGames(delivery)) => {
+                let _ = gaming.menu.steam_games_group.update(delivery, clock);
+            }
             (ShowcasedGroup::VoiceDictation(group), ShowcaseMessage::VoiceDictation(delivery)) => {
                 let _ = group.update(delivery, clock);
             }

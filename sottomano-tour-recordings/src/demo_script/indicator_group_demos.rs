@@ -47,8 +47,8 @@ pub(super) const TAILNET_EXIT_NODE: Demo = Demo {
     ],
 };
 
-pub(super) const LOCATION_FIX: Demo = Demo {
-    name: "location_fix",
+pub(super) const LOCATION_ESTIMATE: Demo = Demo {
+    name: "location_estimate",
     scene: &indicator_group_scenes::LOCATION_FIX,
     script: &[
         Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
@@ -70,8 +70,8 @@ pub(super) const WEATHER_CONDITIONS: Demo = Demo {
     ],
 };
 
-pub(super) const CALDAV_AGENDA: Demo = Demo {
-    name: "caldav_agenda",
+pub(super) const CALENDAR_EVENTS: Demo = Demo {
+    name: "calendar_events",
     scene: &indicator_group_scenes::CALDAV_AGENDA,
     script: &[
         Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
@@ -84,8 +84,8 @@ pub(super) const CALDAV_AGENDA: Demo = Demo {
     ],
 };
 
-pub(super) const AI_USAGE_WINDOWS: Demo = Demo {
-    name: "ai_usage_windows",
+pub(super) const CLAUDE_USAGE_WINDOWS: Demo = Demo {
+    name: "claude_usage_windows",
     scene: &indicator_group_scenes::AI_USAGE_WINDOWS,
     script: &[
         Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
@@ -97,8 +97,8 @@ pub(super) const AI_USAGE_WINDOWS: Demo = Demo {
     ],
 };
 
-pub(super) const IDLE_SCREEN_OFF: Demo = Demo {
-    name: "idle_screen_off",
+pub(super) const IDLE_TIMELINE: Demo = Demo {
+    name: "idle_timeline",
     scene: &indicator_group_scenes::IDLE_SCREEN_OFF,
     script: &[
         Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
@@ -132,8 +132,8 @@ pub(super) const APPEARANCE_LOOKS: Demo = Demo {
     ],
 };
 
-pub(super) const GAMEPAD_CONTROLLER: Demo = Demo {
-    name: "gamepad_controller",
+pub(super) const GAMEPAD_BINDINGS: Demo = Demo {
+    name: "gamepad_bindings",
     scene: &indicator_group_scenes::GAMEPAD_CONTROLLER,
     script: &[
         Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Gaming)),
@@ -148,8 +148,8 @@ pub(super) const GAMEPAD_CONTROLLER: Demo = Demo {
     ],
 };
 
-pub(super) const AUDIO_VOLUME: Demo = Demo {
-    name: "audio_volume",
+pub(super) const AUDIO_SPEAKER_VOLUME: Demo = Demo {
+    name: "audio_speaker_volume",
     scene: &indicator_group_scenes::AUDIO_VOLUME,
     script: &[
         Step::PressFace(IndicatorGroupIdentity::sole(IndicatorGroupFamily::Audio)),

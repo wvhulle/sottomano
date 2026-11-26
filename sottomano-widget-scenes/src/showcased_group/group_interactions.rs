@@ -134,6 +134,30 @@ impl ShowcasedGroup {
             ) => {
                 let _ = group.update(message, &config.panel_menus.agenda.session_focus, clock);
             }
+            (
+                ShowcasedGroup::WindowMenuBar(menu_bar),
+                IndicatorGroupInteraction::WindowMenuBar(interaction),
+            ) => {
+                let _ = menu_bar.group.interact(interaction);
+            }
+            (ShowcasedGroup::DarkMode(group), IndicatorGroupInteraction::DarkMode(interaction)) => {
+                let _ = group.interact(interaction, clock);
+            }
+            (
+                ShowcasedGroup::Gaming(gaming),
+                IndicatorGroupInteraction::SteamDownloads(interaction),
+            ) => {
+                let _ = gaming.menu.steam_downloads_group.interact(interaction);
+            }
+            (
+                ShowcasedGroup::Gaming(gaming),
+                IndicatorGroupInteraction::SteamGames(interaction),
+            ) => {
+                let _ = gaming
+                    .menu
+                    .steam_games_group
+                    .interact(interaction, config, clock);
+            }
             (guest_group, unclaimed) => return guest_group.interact_guest_group(unclaimed),
         }
         Ok(())

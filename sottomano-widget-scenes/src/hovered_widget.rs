@@ -1,7 +1,7 @@
 use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
 use sottomano_widgets::{
-    group_menus::group_menu_state::GroupMenuPin,
+    group_menus::group_menu_state::{GroupMenuPin, PanelPin},
     hover_cards::{HoverTarget, IndicatorKey},
 };
 
@@ -47,6 +47,25 @@ impl Selector for MenuPinWidget {
 
     fn description(&self) -> String {
         format!("the menu pin of {:?}", self.menu_pin)
+    }
+}
+
+pub struct PanelReleaseWidget {
+    pub panel_pin: PanelPin,
+}
+
+impl Selector for PanelReleaseWidget {
+    type Output = Rectangle;
+
+    fn select(&mut self, candidate: Candidate<'_>) -> Option<Rectangle> {
+        let Candidate::Custom { bounds, state, .. } = candidate else {
+            return None;
+        };
+        (state.downcast_ref::<PanelPin>() == Some(&self.panel_pin)).then_some(bounds)
+    }
+
+    fn description(&self) -> String {
+        format!("the release row of {:?}", self.panel_pin)
     }
 }
 

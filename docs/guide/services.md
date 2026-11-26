@@ -2,6 +2,17 @@
 
 Bottom panel, right.
 
+<div class="beside">
+<div class="beside-text">
+
+Hovering a CI run, then the Claude subscription windows.
+
+</div>
+
+<img src="https://sottomano.work/recordings/tour_services.webp" srcset="https://sottomano.work/recordings/tour_services.webp 2x" alt="Opening the Services menu, hovering a CI run and the Claude usage windows">
+
+</div>
+
 ## Llama server
 
 | Indicator | Press | Popup |
@@ -25,7 +36,7 @@ Hovering a Woodpecker run.
 
 </div>
 
-<img src="https://sottomano.work/recordings/ci_runner_tasks.webp" srcset="https://sottomano.work/recordings/ci_runner_tasks.webp 2x" alt="Opening the CI runs group from the Services menu and hovering a Woodpecker run">
+<img src="https://sottomano.work/recordings/ci_runs_task.webp" srcset="https://sottomano.work/recordings/ci_runs_task.webp 2x" alt="Opening the CI runs group from the Services menu and hovering a Woodpecker run">
 
 </div>
 
@@ -47,7 +58,7 @@ Hovering the Claude subscription windows.
 
 </div>
 
-<img src="https://sottomano.work/recordings/ai_usage_windows.webp" srcset="https://sottomano.work/recordings/ai_usage_windows.webp 2x" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
+<img src="https://sottomano.work/recordings/claude_usage_windows.webp" srcset="https://sottomano.work/recordings/claude_usage_windows.webp 2x" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
 
 </div>
 

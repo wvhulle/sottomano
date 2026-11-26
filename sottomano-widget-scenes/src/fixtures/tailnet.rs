@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
     network_connectivity::{
         tailscale_exit_nodes::{
             ExitNodeChoices, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
-            TailscaleExitNodes,
+            ExitRoutingSwitch, TailscaleExitNodes,
         },
         tailscale_inbound_access::{
             InboundAccessRule, InboundDestination, InboundPorts, TailscaleInboundAccess,
@@ -32,21 +32,44 @@ pub const HOME_EXIT_NODE_IP: &str = "100.88.40.2";
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut tailnet_group = TailnetGroup::without_policy_file();
-    let _ = tailnet_group.update(
-        TailnetMessage::Tailscale(SnapshotDelivery::fixture_delivered(
-            Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
-            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
-        )),
-        clock,
-    );
-    let _ = tailnet_group.update(
-        TailnetMessage::ExitNodesDelivered(SnapshotDelivery::fixture_delivered(
-            Ok(TailscaleExitNodes::Running(home_exit_nodes(clock))),
-            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
-        )),
-        clock,
-    );
+    for routed_message in routed_through_home_server(ExitNodeUse::InUse, clock) {
+        let _ = tailnet_group.update(routed_message, clock);
+    }
     ShowcasedGroup::Tailnet(Box::new(tailnet_group))
+}
+
+fn routed_through_home_server(home_server_use: ExitNodeUse, clock: Clock) -> [TailnetMessage; 2] {
+    [
+        TailnetMessage::Tailscale(SnapshotDelivery::fixture_delivered(
+            Ok(Tailscale::Running(Box::new(home_tailnet(
+                home_server_use,
+                clock,
+            )))),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
+        )),
+        TailnetMessage::ExitNodesDelivered(SnapshotDelivery::fixture_delivered(
+            Ok(TailscaleExitNodes::Running(home_exit_nodes(
+                home_server_use,
+                clock,
+            ))),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
+        )),
+    ]
+}
+
+pub fn on_press(pressed_switch: &TailnetInteraction, clock: Clock) -> Vec<TailnetMessage> {
+    let home_server_use = match pressed_switch {
+        TailnetInteraction::SwitchExitRouting(ExitRoutingSwitch::StopUsingExitNode) => {
+            ExitNodeUse::Unused
+        }
+        TailnetInteraction::SwitchExitRouting(ExitRoutingSwitch::UseExitNode { ip })
+            if ip == HOME_EXIT_NODE_IP =>
+        {
+            ExitNodeUse::InUse
+        }
+        _ => return Vec::new(),
+    };
+    routed_through_home_server(home_server_use, clock).into()
 }
 
 fn tailnet_peer(
@@ -68,7 +91,7 @@ fn tailnet_peer(
     }
 }
 
-fn home_tailnet(clock: Clock) -> Tailnet {
+fn home_tailnet(home_server_use: ExitNodeUse, clock: Clock) -> Tailnet {
     Tailnet {
         tailnet_name: "example.ts.net".to_owned(),
         own_node: tailnet_peer(
@@ -126,20 +149,20 @@ fn home_tailnet(clock: Clock) -> Tailnet {
             )]),
         },
         exit_offer: ExitNodeOffer::NotOffered,
-        exit_node_use: ExitNodeUse::InUse,
+        exit_node_use: home_server_use,
         key_expiry: KeyExpiry::At(clock.utc() + TimeDelta::days(KEY_EXPIRY_DAYS)),
         health_warnings: Vec::new(),
     }
 }
 
-fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
+fn home_exit_nodes(home_server_use: ExitNodeUse, clock: Clock) -> ExitNodeChoices {
     ExitNodeChoices {
         options: vec![
             ExitNodeOption {
                 name: "home-server".to_owned(),
                 ip: HOME_EXIT_NODE_IP.to_owned(),
                 reachability: ExitNodeReachability::Online,
-                node_use: ExitNodeUse::InUse,
+                node_use: home_server_use,
             },
             ExitNodeOption {
                 name: "office-laptop".to_owned(),

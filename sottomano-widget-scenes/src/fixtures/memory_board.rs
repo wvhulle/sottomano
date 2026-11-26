@@ -37,10 +37,11 @@ const MEMORY_USED_MEBIBYTES: &[u64] = &[21_500, 21_900, 22_300, 21_800];
 const STALLED_LAST_MINUTE_PERCENT: &[f64] = &[0.4, 1.2, 6.5, 2.1];
 const PAGED_IN_KIBIBYTES_PER_SECOND: &[u64] = &[0, 0, 18_400, 2_300];
 const GROWING_TICK: u32 = 2;
+const RUNAWAY_FROM_TICK: u32 = 2;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
-    for message in memory_indicators(0) {
+    for message in memory_indicators(0, memory_growth(0)) {
         let _ = group.update(message, clock);
     }
     let _ = group.update(
@@ -52,7 +53,16 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    memory_indicators(tick)
+    live_with_growth(tick, memory_growth(tick))
+}
+
+pub fn runaway_growth_live(clock: Clock) -> Vec<ShowcaseMessage> {
+    let tick = sample(clock);
+    live_with_growth(tick, runaway_memory_growth(tick))
+}
+
+fn live_with_growth(tick: u32, growth: MemoryGrowth) -> Vec<ShowcaseMessage> {
+    memory_indicators(tick, growth)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
             &MemoryBoardInteraction::StartMemoryProcessesFetch,
@@ -70,7 +80,7 @@ fn polled_every(seconds: u64) -> DeliveryCadence {
     DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(seconds)))
 }
 
-fn memory_indicators(tick: u32) -> Vec<MemoryBoardMessage> {
+fn memory_indicators(tick: u32, growth: MemoryGrowth) -> Vec<MemoryBoardMessage> {
     vec![
         MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
             Ok(Memory {
@@ -80,7 +90,7 @@ fn memory_indicators(tick: u32) -> Vec<MemoryBoardMessage> {
             polled_every(5),
         )),
         MemoryBoardMessage::MemoryGrowth(SnapshotDelivery::fixture_delivered(
-            Ok(memory_growth(tick)),
+            Ok(growth),
             polled_every(2),
         )),
         MemoryBoardMessage::StallPressure(SnapshotDelivery::fixture_delivered(
@@ -105,20 +115,39 @@ fn memory_indicators(tick: u32) -> Vec<MemoryBoardMessage> {
     ]
 }
 
+fn steady_memory_growth() -> MemoryGrowth {
+    MemoryGrowth {
+        trend: MemoryUsageTrend::Steady,
+        filling_severity: Severity::Normal,
+        growing_processes: Vec::new(),
+    }
+}
+
 fn memory_growth(tick: u32) -> MemoryGrowth {
     if tick % 4 != GROWING_TICK {
-        return MemoryGrowth {
-            trend: MemoryUsageTrend::Steady,
-            filling_severity: Severity::Normal,
-            growing_processes: Vec::new(),
-        };
+        return steady_memory_growth();
     }
+    rising_memory_growth(1_700, Duration::from_secs(150), Severity::Warning)
+}
+
+fn runaway_memory_growth(tick: u32) -> MemoryGrowth {
+    if tick < RUNAWAY_FROM_TICK {
+        return steady_memory_growth();
+    }
+    rising_memory_growth(9_800, Duration::from_secs(45), Severity::Critical)
+}
+
+fn rising_memory_growth(
+    mebibytes_per_minute: u64,
+    full_within: Duration,
+    filling_severity: Severity,
+) -> MemoryGrowth {
     MemoryGrowth {
         trend: MemoryUsageTrend::Rising {
-            used_per_minute: ByteSize::mib(1_700),
-            exhaustion: ExhaustionProjection::FullWithin(Duration::from_secs(150)),
+            used_per_minute: ByteSize::mib(mebibytes_per_minute),
+            exhaustion: ExhaustionProjection::FullWithin(full_within),
         },
-        filling_severity: Severity::Warning,
+        filling_severity,
         growing_processes: [("cargo", 1_100), ("firefox", 420), ("rust-analyzer", 180)]
             .into_iter()
             .zip(2000..)

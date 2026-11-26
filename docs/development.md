@@ -271,7 +271,8 @@ to the list of demos. A target that is not on screen fails the run and lists the
 targets that are. Each scene's name selects the iced preset that boots it for the
 recorder, the regression tests, the `.ice` scenarios and the windowed tester alike.
 
-A scene can put several fixtures in one menu. The settings groups are shown with
+A fixture can answer a press with new readings, delivered shortly after it, so a
+switch in a demo shows its new state. A scene can put several fixtures in one menu. The settings groups are shown with
 their messages dropped, because those groups save to SQLite on update. Pressing
 the pin of a menu row only changes the scene's in-memory state.
 

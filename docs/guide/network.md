@@ -5,11 +5,11 @@ Top panel, left.
 <div class="beside">
 <div class="beside-text">
 
-Opening the Network menu and hovering who can reach this machine, an exit node and a WireGuard tunnel.
+Turning the home-server exit node off and on again, then connecting the wg-lab tunnel and hovering its handshake.
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_network.webp" srcset="https://sottomano.work/recordings/tour_network.webp 2x" alt="Opening the Network menu, hovering who can reach this machine and an exit node, then a WireGuard tunnel">
+<img src="https://sottomano.work/recordings/tour_network.webp" srcset="https://sottomano.work/recordings/tour_network.webp 2x" alt="Opening the Network menu, switching the exit node off and on, then connecting a WireGuard tunnel">
 
 </div>
 

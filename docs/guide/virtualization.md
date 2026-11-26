@@ -11,11 +11,11 @@ Bottom panel, right. One row per machine or container; groups for kinds this com
 <div class="beside">
 <div class="beside-text">
 
-Opening the Virtualization menu and hovering a QEMU machine, an Incus instance and a Docker container.
+Starting a stopped Podman container, then hovering an Incus instance and a Docker container.
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_virtualization.webp" srcset="https://sottomano.work/recordings/tour_virtualization.webp 2x" alt="Opening the Virtualization menu, hovering a QEMU machine and an Incus instance, then a Docker container">
+<img src="https://sottomano.work/recordings/tour_virtualization.webp" srcset="https://sottomano.work/recordings/tour_virtualization.webp 2x" alt="Opening the Virtualization menu, starting a Podman container, then hovering an Incus instance and a Docker container">
 
 </div>
 
@@ -51,61 +51,6 @@ A press the guest's manager refuses is written to the shell's log, and the row k
 <div class="beside">
 <div class="beside-text">
 
-A microvm.nix guest running Cloud Hypervisor.
-
-</div>
-
-<img src="https://sottomano.work/recordings/microvm_guests_cloud_hypervisor.webp" srcset="https://sottomano.work/recordings/microvm_guests_cloud_hypervisor.webp 2x" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
-A headless VirtualBox machine.
-
-</div>
-
-<img src="https://sottomano.work/recordings/virtualbox_machines_headless.webp" srcset="https://sottomano.work/recordings/virtualbox_machines_headless.webp 2x" alt="Opening the VirtualBox machines group from the Virtualization menu and hovering a headless machine">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
-A VMware machine.
-
-</div>
-
-<img src="https://sottomano.work/recordings/vmware_machines_workstation.webp" srcset="https://sottomano.work/recordings/vmware_machines_workstation.webp 2x" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
-A running LXC container.
-
-</div>
-
-<img src="https://sottomano.work/recordings/lxc_containers_running.webp" srcset="https://sottomano.work/recordings/lxc_containers_running.webp 2x" alt="Opening the LXC containers group from the Virtualization menu and hovering a running container">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
-An Apptainer container started from an image.
-
-</div>
-
-<img src="https://sottomano.work/recordings/apptainer_containers_image.webp" srcset="https://sottomano.work/recordings/apptainer_containers_image.webp 2x" alt="Opening the Apptainer containers group from the Virtualization menu and hovering a container started from an image">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
 The Waydroid session.
 
 </div>
@@ -117,21 +62,10 @@ The Waydroid session.
 <div class="beside">
 <div class="beside-text">
 
-A running Flatpak app.
-
-</div>
-
-<img src="https://sottomano.work/recordings/flatpak_sandboxes_app.webp" srcset="https://sottomano.work/recordings/flatpak_sandboxes_app.webp 2x" alt="Opening the Flatpak apps group from the Virtualization menu and hovering a running app">
-
-</div>
-
-<div class="beside">
-<div class="beside-text">
-
 The CI runners slice against its memory cap.
 
 </div>
 
-<img src="https://sottomano.work/recordings/cgroup_memory_limits_ci_runners.webp" srcset="https://sottomano.work/recordings/cgroup_memory_limits_ci_runners.webp 2x" alt="Opening the memory limits group from the Virtualization menu and hovering the CI runners slice">
+<img src="https://sottomano.work/recordings/memory_limits_slice.webp" srcset="https://sottomano.work/recordings/memory_limits_slice.webp 2x" alt="Opening the memory limits group from the Virtualization menu and hovering the CI runners slice">
 
 </div>
