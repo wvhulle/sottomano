@@ -6,8 +6,9 @@ use iced::{
 use iced_test::Simulator;
 
 use crate::popovers::{
-    MenuEntry, MenuItem, MenuRow, MenuRowContent, MenuRowMetrics, MenuSubmenu, NestedMenuAction,
-    NestedMenuLayout, NestedMenuPresentation, NestedMenuState, nested_menu,
+    CascadeDirection, CascadeOrientation, MenuEntry, MenuItem, MenuRow, MenuRowContent,
+    MenuRowMetrics, MenuSubmenu, NestedMenuAction, NestedMenuLayout, NestedMenuPresentation,
+    NestedMenuState, PopupGrowth, nested_menu,
 };
 
 const PLANETS: &str = "planets";
@@ -177,5 +178,35 @@ fn one_icon_aligns_every_label_after_the_icon_column() {
     assert!(
         label_x >= metrics.side_inset_px + metrics.icon_slot_px,
         "label starts at {label_x}"
+    );
+}
+
+#[test]
+fn leftward_submenu_headers_keep_labels_aligned_with_items() {
+    let state = NestedMenuState::default();
+    let leftward_menu: Element<'static, PlanetAction> = nested_menu(
+        planet_entries(),
+        &state,
+        NestedMenuPresentation::default(),
+        |action| action,
+    )
+    .orientation(CascadeOrientation {
+        direction: CascadeDirection::Leftward,
+        growth: PopupGrowth::Downward,
+    })
+    .into();
+    let mut simulator = simulated(leftward_menu);
+    let label_left_edge = |simulator: &mut Simulator<'_, PlanetAction>, label: &str| {
+        simulator
+            .find(label)
+            .unwrap_or_else(|_| panic!("{label} is laid out"))
+            .bounds()
+            .x
+    };
+    let item_label_edge = label_left_edge(&mut simulator, "Sun");
+    let header_label_edge = label_left_edge(&mut simulator, "Planets");
+    assert!(
+        (item_label_edge - header_label_edge).abs() < 0.5,
+        "item label at {item_label_edge}, header label at {header_label_edge}"
     );
 }

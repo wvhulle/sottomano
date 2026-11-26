@@ -8,8 +8,8 @@ use super::{
 use crate::{
     drag_reorder::ListEndCorners,
     popovers::{
-        NotchRowAnchor, NotchedPanel, SatelliteRole,
-        menu_row::{SatelliteReach, gestured_menu_row},
+        CascadeDirection, NotchRowAnchor, NotchedPanel, SatelliteRole,
+        menu_row::{IconColumn, SatelliteReach, gestured_menu_row},
     },
     transitions::ExpansionState,
 };
@@ -66,6 +66,16 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
         let entries = without_redundant_dividers(entries);
         let corners = ListEndCorners::new(entries.len(), self.chrome.style.frame_corners());
         let satellite_reach = self.satellite_reach(&entries);
+        let caret_column = match self.chrome.orientation.direction {
+            CascadeDirection::Leftward
+                if entries
+                    .iter()
+                    .any(|entry| matches!(entry, MenuEntry::Submenu(_))) =>
+            {
+                IconColumn::Reserved
+            }
+            CascadeDirection::Leftward | CascadeDirection::Rightward => IconColumn::Omitted,
+        };
         let icon_column = shared_icon_column(entries.iter().filter_map(|entry| match entry {
             MenuEntry::Item(item) => Some(&item.row.content),
             MenuEntry::Submenu(submenu) => Some(&submenu.header),
@@ -100,7 +110,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                                 card,
                             };
                         }
-                        row.content = row.content.within(icon_column);
+                        row.content = row.content.within(icon_column, caret_column);
                         wrapping.applied(gestured_menu_row(row, self.chrome.metrics, row_corners))
                     }
                     MenuEntry::Submenu(MenuSubmenu {
@@ -117,7 +127,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         };
                         let row = gestured_menu_row(
                             self.header_row(
-                                header.within(icon_column),
+                                header.within(icon_column, caret_column),
                                 &path,
                                 expansion_state,
                                 satellite_reach,

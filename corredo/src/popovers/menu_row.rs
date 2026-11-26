@@ -128,6 +128,26 @@ pub(crate) enum RowIcon<'view, Message> {
     Shown(Element<'view, Message>),
 }
 
+impl<'view, Message> RowIcon<'view, Message> {
+    fn within(self, column: IconColumn) -> Self {
+        match (column, self) {
+            (IconColumn::Reserved, RowIcon::Absent) => RowIcon::Blank,
+            (IconColumn::Reserved | IconColumn::Omitted, slot) => slot,
+        }
+    }
+
+    fn slot_view(self, slot_width_px: f32) -> Option<Element<'view, Message>>
+    where
+        Message: 'view,
+    {
+        match self {
+            RowIcon::Absent => None,
+            RowIcon::Blank => Some(Space::new().width(slot_width_px).into()),
+            RowIcon::Shown(glyph) => Some(container(glyph).center_x(slot_width_px).into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IconColumn {
     Reserved,
@@ -136,7 +156,7 @@ pub(crate) enum IconColumn {
 
 pub struct MenuRowContent<'view, Message> {
     pub(crate) indent_levels: usize,
-    pub(crate) leading: Vec<Element<'view, Message>>,
+    pub(crate) leading_caret: RowIcon<'view, Message>,
     pub(crate) icon: RowIcon<'view, Message>,
     label: Cow<'view, str>,
     value: Element<'view, Message>,
@@ -148,7 +168,7 @@ impl<'view, Message: 'view> MenuRowContent<'view, Message> {
     pub fn new(label: impl Into<Cow<'view, str>>) -> Self {
         Self {
             indent_levels: 0,
-            leading: Vec::new(),
+            leading_caret: RowIcon::Absent,
             icon: RowIcon::Absent,
             label: label.into(),
             value: Space::new().into(),
@@ -164,13 +184,11 @@ impl<'view, Message: 'view> MenuRowContent<'view, Message> {
         }
     }
 
-    pub(crate) fn within(self, icon_column: IconColumn) -> Self {
-        match (icon_column, self.icon) {
-            (IconColumn::Reserved, RowIcon::Absent) => Self {
-                icon: RowIcon::Blank,
-                ..self
-            },
-            (IconColumn::Reserved | IconColumn::Omitted, icon) => Self { icon, ..self },
+    pub(crate) fn within(self, icon_column: IconColumn, caret_column: IconColumn) -> Self {
+        Self {
+            icon: self.icon.within(icon_column),
+            leading_caret: self.leading_caret.within(caret_column),
+            ..self
         }
     }
 
@@ -178,14 +196,6 @@ impl<'view, Message: 'view> MenuRowContent<'view, Message> {
     pub fn value(self, value: impl Into<Element<'view, Message>>) -> Self {
         Self {
             value: value.into(),
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub fn leading(self, leading: impl IntoIterator<Item = Element<'view, Message>>) -> Self {
-        Self {
-            leading: leading.into_iter().collect(),
             ..self
         }
     }
@@ -208,7 +218,7 @@ fn drawn_menu_row<'view, Message: Clone + 'view>(
 ) -> Element<'view, Message> {
     let MenuRowContent {
         indent_levels,
-        leading,
+        leading_caret,
         icon,
         label,
         value,
@@ -226,12 +236,8 @@ fn drawn_menu_row<'view, Message: Clone + 'view>(
         .extend(
             repeat_n((), indent_levels).map(|()| Space::new().width(metrics.indent_step_px).into()),
         )
-        .extend(leading)
-        .extend(match icon {
-            RowIcon::Absent => None,
-            RowIcon::Blank => Some(Space::new().width(metrics.icon_slot_px).into()),
-            RowIcon::Shown(icon) => Some(container(icon).center_x(metrics.icon_slot_px).into()),
-        })
+        .extend(leading_caret.slot_view(metrics.icon_slot_px))
+        .extend(icon.slot_view(metrics.icon_slot_px))
         .push(container(label_text).width(Length::Fill).clip(true))
         .push(value)
         .extend(trailing)

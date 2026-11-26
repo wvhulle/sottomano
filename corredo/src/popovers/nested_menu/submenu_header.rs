@@ -8,7 +8,7 @@ use crate::{
     popovers::{
         CascadeDirection, MenuEntry, MenuRow, MenuRowContent, MenuRowEmphasis, NestedMenuAction,
         NestedMenuLayout,
-        menu_row::{RowHoverReaction, SatelliteReach},
+        menu_row::{RowHoverReaction, RowIcon, SatelliteReach},
     },
     transitions::ExpansionState,
 };
@@ -90,10 +90,12 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
         };
         let mut header = header;
         match (layout, self.chrome.orientation.direction, expansion_state) {
-            (NestedMenuLayout::Cascading, CascadeDirection::Leftward, _) => header.leading.insert(
-                0,
-                (self.caret)(caret_pointing(CaretPointing::Leftward), caret_color),
-            ),
+            (NestedMenuLayout::Cascading, CascadeDirection::Leftward, _) => {
+                header.leading_caret = RowIcon::Shown((self.caret)(
+                    caret_pointing(CaretPointing::Leftward),
+                    caret_color,
+                ));
+            }
             (NestedMenuLayout::Cascading, CascadeDirection::Rightward, _)
             | (NestedMenuLayout::Accordion, _, ExpansionState::Collapsed) => header.trailing.push(
                 (self.caret)(caret_pointing(CaretPointing::Rightward), caret_color),
