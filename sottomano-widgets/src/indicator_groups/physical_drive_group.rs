@@ -29,7 +29,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-            IndicatorListing,
         },
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
         storage_space_group::{
@@ -262,19 +261,17 @@ impl PhysicalDriveGroup {
                 HARD_DRIVES_GLYPH.into(),
             ))
             .with_headline_glyph(Phosphor::Cylinder(Weight::Regular).into());
-        let mut lead_indicators = Vec::new();
-        if !self.discovery.awaits_first_delivery() {
-            lead_indicators.push(self.mount_discovery_indicator(self.discovery.indicator(
-                |held_snapshot| block_filesystem_discovery_indicator(held_snapshot),
-                HARD_DRIVES_GLYPH.into(),
-            )));
-        }
         let discovery_group = IndicatorGroupContent::expandable(
             IndicatorGroupFamily::PhysicalDrive,
             headline_indicator,
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            IndicatorListing::Listed(lead_indicators.into_iter().chain([]).collect()),
+            self.discovery
+                .indicator_listing(
+                    |held_snapshot| vec![block_filesystem_discovery_indicator(held_snapshot)],
+                    HARD_DRIVES_GLYPH.into(),
+                )
+                .map_indicators(|discovery_row| self.mount_discovery_indicator(discovery_row)),
         );
         [discovery_group]
             .into_iter()

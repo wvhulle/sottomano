@@ -100,31 +100,35 @@ impl StorageSpaceGroup {
             )
             .with_headline_glyph(Phosphor::Archive(Weight::Regular).into())
         };
-        let mut lead_indicators = Vec::new();
-        if !filesystem.usage.awaits_first_delivery() {
-            lead_indicators.push(Self::wired_filesystem_usage_indicator(
-                filesystem,
-                filesystem.usage.indicator(
-                    |held_snapshot| filesystem_usage_indicator(held_snapshot),
-                    FILESYSTEM_USAGE_GLYPH.into(),
-                ),
-            ));
-        }
-        let mut rows = Vec::new();
-        rows.extend(Self::property_indicators(filesystem, locale));
-        rows.extend(Self::subvolume_indicators(filesystem, locale));
-        if let Some(failure) = filesystem.subvolume_usage.failure() {
-            rows.push(Self::subvolume_failure_indicator(
-                filesystem,
-                failure.indicator(SUBVOLUME_USAGE_GLYPH.into()),
-            ));
-        }
-        if let Some(usage) = filesystem.usage.get()
+        let usage_listing = filesystem
+            .usage
+            .indicator_listing(
+                |held_snapshot| vec![filesystem_usage_indicator(held_snapshot)],
+                FILESYSTEM_USAGE_GLYPH.into(),
+            )
+            .map_indicators(|usage_row| {
+                Self::wired_filesystem_usage_indicator(filesystem, usage_row)
+            });
+        let subvolume_indicators: Vec<GroupIndicator<'_>> =
+            Self::subvolume_indicators(filesystem, locale).collect();
+        let subvolume_listing = match filesystem.subvolume_usage.failure() {
+            Some(failure) => IndicatorListing::Incomplete {
+                listed_indicators: subvolume_indicators,
+                unread_sources: vec![Self::subvolume_failure_indicator(
+                    filesystem,
+                    failure.indicator(SUBVOLUME_USAGE_GLYPH.into()),
+                )],
+            },
+            None => IndicatorListing::Listed(subvolume_indicators),
+        };
+        let snapshot_deletion_indicators = if let Some(usage) = filesystem.usage.get()
             && let Filesystem::Bcachefs(space) = &usage.filesystem
             && space.snapshot_deletion == SnapshotDeletion::Running
         {
-            rows.push(Self::snapshot_deletion_indicator(filesystem));
-        }
+            vec![Self::snapshot_deletion_indicator(filesystem)]
+        } else {
+            Vec::new()
+        };
         let owned_mount_point = primary_mount_point.to_path_buf();
         IndicatorGroupContent::expandable_instance(
             IndicatorGroupIdentity::durable(
@@ -138,7 +142,14 @@ impl StorageSpaceGroup {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
-            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
+            [
+                usage_listing,
+                IndicatorListing::Listed(Self::property_indicators(filesystem, locale).collect()),
+                subvolume_listing,
+                IndicatorListing::Listed(snapshot_deletion_indicators),
+            ]
+            .into_iter()
+            .collect(),
         )
     }
 

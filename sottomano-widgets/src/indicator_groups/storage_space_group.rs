@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod compression_setting_indicator;
 mod ext4_error_count_indicator;
 mod ext4_lifetime_writes_indicator;
@@ -272,19 +271,17 @@ impl StorageSpaceGroup {
                 FILESYSTEM_USAGE_GLYPH.into(),
             ))
             .with_headline_glyph(Phosphor::Archive(Weight::Regular).into());
-        let mut lead_indicators = Vec::new();
-        if !self.discovery.awaits_first_delivery() {
-            lead_indicators.push(self.discovery_indicator(self.discovery.indicator(
-                |held_snapshot| block_filesystem_discovery_indicator(held_snapshot),
-                FILESYSTEM_USAGE_GLYPH.into(),
-            )));
-        }
         vec![IndicatorGroupContent::expandable(
             IndicatorGroupFamily::StorageSpace,
             headline_indicator,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            IndicatorListing::Listed(lead_indicators),
+            self.discovery
+                .indicator_listing(
+                    |held_snapshot| vec![block_filesystem_discovery_indicator(held_snapshot)],
+                    FILESYSTEM_USAGE_GLYPH.into(),
+                )
+                .map_indicators(|discovery_row| self.discovery_indicator(discovery_row)),
         )]
     }
 }

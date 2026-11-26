@@ -2,10 +2,7 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
-use crate::{
-    clock::Clock,
-    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
-};
+use crate::{clock::Clock, indicator_groups::indicator_group_identity::IndicatorGroupFamily};
 
 mod boot_timeline_indicator;
 mod failed_unit_log;
