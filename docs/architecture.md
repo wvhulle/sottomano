@@ -31,9 +31,11 @@ The repository is a cargo workspace:
   Each indicator group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`).
   The widgets crate defines the interactions its groups emit; the shell and the
-  showcase each wrap them in their own message type.
-- `sottomano-widget-showcase/` plays widget fixtures for the tour recordings,
-  the `.ice` scenarios and the windowed tester.
+  scenes crate each wrap them in their own message type.
+- `sottomano-widget-scenes/` holds the widget fixtures and scenes, and the
+  scripted session that plays steps on them, for the windowed tester, the UI
+  regression tests and the `.ice` scenarios in `sottomano-widgets/tests/`.
+- `sottomano-tour-recordings/` renders the demos of the guide and the README.
 
 ## Startup
 

@@ -1,4 +1,3 @@
-mod recording_embed_widths;
 
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
@@ -26,19 +25,6 @@ enum MaintenanceTask {
             default_value = "write",
             default_missing_value = "check",
             help = "Fail when the section is stale instead of rewriting the file."
-        )]
-        docs_mode: DocsMode,
-    },
-    #[command(about = "Set the width of every recording embedded in README.md and \
-                       docs/guide/*.md to its logical width.")]
-    UpdateRecordingEmbeds {
-        #[arg(
-            long = "check",
-            value_enum,
-            num_args = 0,
-            default_value = "write",
-            default_missing_value = "check",
-            help = "Fail when an embed width is stale instead of rewriting the documents."
         )]
         docs_mode: DocsMode,
     },
@@ -151,8 +137,5 @@ fn update_config_docs(docs_mode: DocsMode) -> Result<ExitCode, Box<dyn Error>> {
 fn main() -> Result<ExitCode, Box<dyn Error>> {
     match XtaskCommandLine::parse().task {
         MaintenanceTask::UpdateConfigDocs { docs_mode } => update_config_docs(docs_mode),
-        MaintenanceTask::UpdateRecordingEmbeds { docs_mode } => {
-            recording_embed_widths::update_recording_embeds(Path::new(WORKSPACE_ROOT), docs_mode)
-        }
     }
 }

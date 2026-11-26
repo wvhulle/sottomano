@@ -4,6 +4,17 @@ Where [situo](https://codeberg.org/wvhulle/situo) places you, and how. The weath
 
 The group sits in the Agenda menu. Nothing from it shows on the panel unless you pin an item, or the update status turns red because situo's lookups are failing. The refresh button in any of its cards asks situo for a new lookup.
 
+<div class="beside">
+<div class="beside-text">
+
+Hovering the estimate shows which source decided the fix, and what Wi-Fi and the serving cell each look up to on their own, with how far apart they are.
+
+</div>
+
+<img src="https://sottomano.work/recordings/location_fix.webp" srcset="https://sottomano.work/recordings/location_fix.webp 2x" alt="Opening the location group from the Agenda menu and hovering the estimate">
+
+</div>
+
 | Item | Panel label | Card |
 | --- | --- | --- |
 | Place | the nearest place | the place, the position and whether it was configured, pinned or looked up, with links to a map |

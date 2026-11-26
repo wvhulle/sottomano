@@ -77,7 +77,11 @@ name = "sottomano-widgets"
 release = false
 
 [[package]]
-name = "sottomano-widget-showcase"
+name = "sottomano-widget-scenes"
+release = false
+
+[[package]]
+name = "sottomano-tour-recordings"
 release = false
 
 [[package]]

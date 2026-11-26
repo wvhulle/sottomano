@@ -1,0 +1,35 @@
+[package]
+name = "sottomano-widget-scenes"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-toml-config = { path = "../sottomano-toml-config" }
+sottomano-compositor-model = { path = "../sottomano-compositor-model" }
+sottomano-compositors = { path = "../sottomano-compositors", features = ["niri"] }
+sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
+sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
+corredo = { path = "../corredo" }
+sottomano-widgets = { path = "../sottomano-widgets" }
+bytesize.workspace = true
+chrono.workspace = true
+jiff.workspace = true
+iced.workspace = true
+iced_exwlshell.workspace = true
+image.workspace = true
+iced_controller_diagram.workspace = true
+iced_test.workspace = true
+iced_tester = "0.14.0"
+iced_winit = "0.14.0"
+notulist-client.workspace = true
+reqwest.workspace = true
+rust_decimal.workspace = true
+rusty-money.workspace = true
+situo-client.workspace = true
+uom.workspace = true
+zbus.workspace = true

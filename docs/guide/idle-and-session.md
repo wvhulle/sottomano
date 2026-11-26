@@ -1,6 +1,6 @@
 # Idle and session
 
-When the screen turns off and locks, and what the session runs on.
+When the screen turns off and locks, what the session runs on, and how long you have been focused.
 
 ## Idle timeouts: Screen off
 
@@ -11,7 +11,7 @@ Each timer adds to the previous enabled one in the order lock, screen off, stand
 
 </div>
 
-<img src="https://sottomano.work/recordings/idle_screen_off.webp" width="852" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
+<img src="https://sottomano.work/recordings/idle_screen_off.webp" srcset="https://sottomano.work/recordings/idle_screen_off.webp 2x" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
 
 </div>
 
@@ -35,6 +35,19 @@ The kernel and the compositor, each with a logo and a wiki link.
 
 </div>
 
-<img src="https://sottomano.work/recordings/login_session_kernel.webp" width="1122" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
+<img src="https://sottomano.work/recordings/login_session_kernel.webp" srcset="https://sottomano.work/recordings/login_session_kernel.webp 2x" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
+
+</div>
+
+## Focus session: Timeline
+
+<div class="beside">
+<div class="beside-text">
+
+The last 24 hours on one timeline: active stretches, breaks, idle and screen-off moments, and the warning and critical alerts still ahead, followed by the settings that decide when a pause counts as a break and when the alerts fire.
+
+</div>
+
+<img src="https://sottomano.work/recordings/focus_timeline.webp" srcset="https://sottomano.work/recordings/focus_timeline.webp 2x" alt="Pressing the focus session in the panel and hovering its timeline">
 
 </div>

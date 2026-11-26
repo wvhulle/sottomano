@@ -11,4 +11,3 @@ workspace = true
 [dependencies]
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 clap.workspace = true
-image.workspace = true

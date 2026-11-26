@@ -11,7 +11,7 @@ The Wikipedia summary for that place.
 
 </div>
 
-<img src="https://sottomano.work/recordings/wallpaper_article.webp" width="1236" alt="Hovering the Wikipedia article in the wallpaper group">
+<img src="https://sottomano.work/recordings/wallpaper_article.webp" srcset="https://sottomano.work/recordings/wallpaper_article.webp 2x" alt="Hovering the Wikipedia article in the wallpaper group">
 
 </div>
 

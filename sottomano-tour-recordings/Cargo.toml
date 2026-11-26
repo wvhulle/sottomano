@@ -1,0 +1,20 @@
+[package]
+name = "sottomano-tour-recordings"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-widget-scenes = { path = "../sottomano-widget-scenes" }
+sottomano-widgets = { path = "../sottomano-widgets" }
+clap.workspace = true
+iced.workspace = true
+image.workspace = true
+webp-animation = { version = "0.10.0", features = ["static"] }
+
+[dev-dependencies]
+sottomano-toml-config = { path = "../sottomano-toml-config" }

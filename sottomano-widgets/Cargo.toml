@@ -48,6 +48,8 @@ zbus.workspace = true
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 sottomano-compositors = { path = "../sottomano-compositors", features = ["niri"] }
 iced_test.workspace = true
+sottomano-widget-scenes = { path = "../sottomano-widget-scenes" }
+sha2 = "0.10.9"
 
 [package.metadata.cargo-machete]
 ignored = ["icu_provider"]

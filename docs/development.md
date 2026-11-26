@@ -179,76 +179,85 @@ The Woodpecker pipelines skip the VM tests. A Forgejo Actions workflow
 (`.forgejo/workflows/vm-tests.yaml`) runs them on pushes to `main` on a runner
 labelled `nix` with KVM.
 
+## Scenes, recordings and UI regression tests
+
+Three places share the widget fixtures:
+
+- `sottomano-widget-scenes` holds the fixtures and the scenes. A scene is a group
+  with its fixture readings, shown on the panel, in a menu or pinned. The crate also
+  holds the script steps (hover, press, drag, rest, …) and `ScriptedSession`, which
+  boots a scene in `iced_test`'s emulator on a scripted clock and plays steps.
+- `sottomano-tour-recordings` holds the demos, each a scene plus a script, and
+  renders them into the recordings of the guide and the README.
+- `sottomano-widgets/tests/` holds the UI regression tests, which play their own
+  steps on the same scenes.
+
 ## Tour recordings
 
 The recordings in the [guide](guide/) and the README are rendered
-offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
+offscreen by `sottomano-tour-recordings` into the untracked root `recordings/`.
 `nix build .#showcase-recordings` renders them the way the documentation site
 build does, one demo per four build cores with four lavapipe threads each. Its source is
-only the crates the showcase links, the workspace manifests and `.cargo/`;
+only the crates the recordings link, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
-the docs, the showcase's `.ice` tests or nix code that does not define the
+the docs, the widget crate's tests or nix code that does not define the
 recordings keep the cached recordings.
 
 ```bash
-cargo run -p sottomano-widget-showcase
-cargo run -p sottomano-widget-showcase -- --jobs 2
-cargo run -p sottomano-widget-showcase -- <demo-name>
-cargo run -p sottomano-widget-showcase -- hover-cards toasts
-cargo run -p sottomano-widget-showcase -- --list
-cargo run -p sottomano-widget-showcase -- --window
+cargo run -p sottomano-tour-recordings
+cargo run -p sottomano-tour-recordings -- --jobs 2
+cargo run -p sottomano-tour-recordings -- <demo-name> <demo-name>
 ```
 
-Each demo lists the UI parts it exercises: group menus, hover cards, panel faces,
-panel pins, sliders, the app launcher, workspaces, the window list, toasts or the
-frosted backdrop. Naming a part instead of a demo renders every demo that exercises
-it, so after changing a part only its recordings need rerendering. `--list` prints
-every demo with its parts, or only the demos the given names and parts select. A
-test fails when a demo's script hovers, presses, pins or drags a part the demo does
-not list.
-
-Rendering every demo runs one child process per demo, `--jobs` at a time (one per
+Every demo renders in a child process of its own, `--jobs` at a time (one per
 four cores by default). A demo buffers its frames until it encodes them, up to 2 GB,
 so lower `--jobs` when memory is short. Each recording holds its final state for two
 seconds before the pointer clicks away and the loop restarts.
 
 ```mermaid
 flowchart LR
-  subgraph widget_showcase [sottomano-widget-showcase]
-    group_fixtures["group fixtures<br>on a fixed scripted clock"]
-    demo_scripts["demo scripts<br>hover, press, drag, rest, …"]
-    scripted_program["scripted program"]
-    animation_recorder["recorder<br>iced_test emulator, frame clock,<br>content crop, lavapipe"]
-    interactive_tester["interactive tester<br>--window"]
-    ice_scenarios[".ice scenarios"]
-    group_fixtures --> demo_scripts --> scripted_program --> animation_recorder
-    group_fixtures --> interactive_tester
-    group_fixtures --> ice_scenarios
+  subgraph widget_scenes [sottomano-widget-scenes]
+    group_fixtures["group fixtures"]
+    scenes["scenes<br>panel, menu or pinned"]
+    scripted_session["scripted session<br>iced_test emulator, scripted clock"]
+    interactive_tester["interactive tester"]
+    group_fixtures --> scenes --> scripted_session
+    scenes --> interactive_tester
   end
 
-  embedding_update["cargo xtask update-recording-embeds"]
+  subgraph tour_recordings [sottomano-tour-recordings]
+    demo_scripts["demo scripts"]
+    animation_recorder["recorder<br>content crop, wgpu on lavapipe"]
+    demo_scripts --> animation_recorder
+  end
+
+  subgraph widget_tests [sottomano-widgets/tests]
+    ui_regressions["UI regression tests<br>screenshot hashes, tiny-skia"]
+    ice_scenarios[".ice scenarios"]
+  end
+
+  scripted_session --> animation_recorder
+  scripted_session --> ui_regressions
+  scenes --> ice_scenarios
 
   recorded_webp[/"recordings/&lt;name&gt;.webp"/]
-  showcase_document["docs/guide/*.md<br>embeds the rest, widths rewritten"]
-  readme_document["README.md<br>widths rewritten for the recordings it embeds"]
+  showcase_document["docs/guide/*.md<br>embeds the rest"]
+  readme_document["README.md<br>embeds a few highlights"]
 
-  animation_recorder -->|lossless animated webp| recorded_webp
-  recorded_webp -->|pixel width / 2| embedding_update
-  embedding_update -->|"&lt;img src width&gt;"| showcase_document
-  embedding_update -->|"&lt;img src width&gt;"| readme_document
+  animation_recorder -->|"lossless animated webp at 2x"| recorded_webp
+  recorded_webp -->|"&lt;img srcset 2x&gt;"| showcase_document
+  recorded_webp -->|"&lt;img srcset 2x&gt;"| readme_document
 ```
 
 ### Scripting a demo
 
 Each demo shows one widget, is named `<group>_<widget>` and sits under its
-heading on a page of `docs/guide/`, unless the README shows it. The name also
-selects the iced preset that boots its fixture for the recorder, the `.ice`
-scenarios and the windowed tester alike.
+heading on a page of `docs/guide/`, unless the README shows it.
 
-A demo names a fixture and a script of steps: hovering, pressing or dragging
+A demo names a scene and a script of steps: hovering, pressing or dragging
 named targets for panel widgets, and hovering or pressing visible text for
-toasts, which a toast fixture serves when the demo starts. The recorder finds
+toasts, which a toast fixture serves when the scene boots. The recorder finds
 each target on screen, plays the steps through `iced_test`'s emulator and writes
 `recordings/<name>.webp`, a lossless animated WebP cropped in both directions to
 what the demo shows, plus the panel gap as a margin. A group whose handle
@@ -256,24 +265,26 @@ previews one of its items is opened by pressing that item's target. A handle
 without a preview is opened through the target for the group's face.
 
 To add a demo, write a fixture for the group (fed its readings through its own
-messages), add the group to the showcase's groups if it is not there yet, and
-add the demo to the list of demos. A target that is not on screen fails the run
-and lists the targets that are.
+messages), add a scene that shows it unless one already does, and add the demo
+to the list of demos. A target that is not on screen fails the run and lists the
+targets that are. Each scene's name selects the iced preset that boots it for the
+recorder, the regression tests, the `.ice` scenarios and the windowed tester alike.
 
-A demo can put several fixtures in one menu. The settings groups are shown with
+A scene can put several fixtures in one menu. The settings groups are shown with
 their messages dropped, because those groups save to SQLite on update. Pressing
-the pin of a menu row only changes the showcase's in-memory state.
+the pin of a menu row only changes the scene's in-memory state.
 
 ### Reproducibility
 
 Rendering twice gives identical files, which
 `nix build .#showcase-recordings --rebuild` verifies after a first build. Time is
 data: every preset boots with a clock whose wall time is the fixed showcase
-epoch, and the recorder advances that clock one frame interval per captured frame
-and sends it as a message. The frame also rewrites the redraw instant iced hands
-to widgets, so animations run from the same scripted time. Live readings, toast
-expiry and the hover card hide timer fire when their deadline passes on that
-clock, and the scripted program has no subscriptions.
+epoch. The scripted session advances that clock's instant one frame interval per
+frame, keeps its wall time fixed, and sends it as a message. The frame also
+rewrites the redraw instant iced hands to widgets, so animations run from the
+same scripted time. Live readings, toast expiry and the hover card hide timer
+fire when their deadline passes on that clock, and the scripted program has no
+subscriptions.
 
 Keep that property when writing fixtures and widgets: take the clock as an
 argument, never read the system time (the widgets crate's clippy config forbids
@@ -281,12 +292,34 @@ it, also inside macros such as `vec!`), derive a fixture's sample index from the
 clock, and return deadlines instead of starting timers. iced's own text input
 blinks its cursor from the real clock, so no demo types into one.
 
+### UI regression tests
+
+`sottomano-widgets/tests/ui_regressions/` has one module per UI part: toasts,
+group menus, hover cards, panel faces and the bottom panel. Each test boots a
+scene, plays a few steps and compares the SHA-256 of the screenshot with
+`snapshots/<renderer>/<part>/<name>.sha256` next to the tests. A missing hash
+file is written and the test passes, so after an intended change, delete the
+hash files the failure names and run the tests again. A failure names the file
+and the scene, so render the demo of that scene to see what changed.
+
+```bash
+cargo test -p sottomano-widgets --test ui_regressions
+cargo test -p sottomano-widgets --test ui_regressions toasts
+```
+
+`.cargo/config.toml` sets `ICED_TEST_BACKEND=tiny-skia`, which `iced_test`'s
+emulator reads (through the iced fork), so the tests render on the CPU and run in
+parallel. The recordings binary sets `ICED_TEST_BACKEND=wgpu` for the child
+processes it renders in, because only wgpu draws the backdrop blur.
+
 ### Windowed tester
 
-`--window` opens the presets in a real window with the iced tester attached,
-which switches between presets and records interactions as `.ice` scenarios.
-Scenarios saved in the showcase crate's tests run with `cargo test` (and so in
-CI); `expect` sees plain text widgets, not rich text such as toast bodies.
+`cargo run -p sottomano-widget-scenes` opens the scenes in a real window with
+the iced tester attached, which switches between presets and records
+interactions as `.ice` scenarios. Scenarios saved in
+`sottomano-widgets/tests/ice/<part>/` run with `cargo test` (and so in CI), one
+test per directory; `expect` sees plain text widgets, not rich text such as
+toast bodies.
 
 ### Embedding recordings
 
@@ -296,26 +329,20 @@ is deployed, and sottomano.work serves them, also to the markdown read on
 Codeberg.
 Each recording appears either in the root `README.md` (a few highlights) or on
 a page of `docs/guide/` (the rest), as
-`<img src="https://sottomano.work/recordings/<name>.webp" width="<w>">`.
-`<w>` is the recording's cropped width in logical pixels, so all demos show at
-the same scale. After rendering, `cargo xtask update-recording-embeds` rewrites
-`<w>` from the files in `recordings/`; it fails with the expected tag only when a
-recording is embedded nowhere. Run it by hand after a render and commit the new
-widths:
+`<img src="https://sottomano.work/recordings/<name>.webp" srcset="https://sottomano.work/recordings/<name>.webp 2x" alt="…">`.
+The recordings are rendered at twice their logical size, and the `2x` descriptor
+makes the browser show them at their logical size, so all demos show at the same
+scale without a width in the markdown. Rendering into the root `recordings/`
+lets you preview them with `mdbook serve`:
 
 ```bash
 nix build .#showcase-recordings
 nix develop .#ci --command ci/nix-built-paths.nu copy-build-output result .
-cargo xtask update-recording-embeds
 ```
 
-Rendering every widget takes long, so each visually distinct kind of widget has
-one demo, and widgets that look alike are listed in a table on the guide page
-below it. The compute page opens with a two-column table: the group's menu demo
-next to its pinned demo, which boots with that group pinned. Both images carry
-`alt` before `width="100%"`, so the width rewrite leaves them alone and each fills
-half the page. The canvas is transparent, so clear and translucent panels show
-the page behind them.
+Each visually distinct kind of widget has one demo, and widgets that look alike
+are listed in a table on the guide page below it. The canvas is transparent, so
+clear and translucent panels show the page behind them.
 
 ## Documentation site
 

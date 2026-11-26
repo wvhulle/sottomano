@@ -11,7 +11,7 @@ How much of each subscription window is used, and where it is heading by reset.
 
 </div>
 
-<img src="https://sottomano.work/recordings/ai_usage_windows.webp" width="818" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
+<img src="https://sottomano.work/recordings/ai_usage_windows.webp" srcset="https://sottomano.work/recordings/ai_usage_windows.webp 2x" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
 
 </div>
 

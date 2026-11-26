@@ -8,7 +8,8 @@ ignores:
 files:
   - sottomano-widgets/src/**/*.rs
   - sottomano-shell/src/**/*.rs
-  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-widget-scenes/src/**/*.rs
+  - sottomano-tour-recordings/src/**/*.rs
 rule:
   any:
     - pattern: HoverCard::new($$$)

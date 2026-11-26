@@ -17,7 +17,7 @@ Pressing a look applies it at once; its icon lights up while it is in use.
 
 </div>
 
-<img src="https://sottomano.work/recordings/appearance_looks.webp" width="1000" alt="Opening the Behaviour menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
+<img src="https://sottomano.work/recordings/appearance_looks.webp" srcset="https://sottomano.work/recordings/appearance_looks.webp 2x" alt="Opening the Behaviour menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
 
 </div>
 

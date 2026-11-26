@@ -6,3 +6,6 @@ feature-unification = true
 
 [resolver]
 feature-unification = "workspace"
+
+[env]
+ICED_TEST_BACKEND = "tiny-skia"

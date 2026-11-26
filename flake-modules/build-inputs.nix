@@ -138,7 +138,7 @@
                 lib.fileset.unions [
                   ../sottomano-shell
                   ../xtask
-                  ../sottomano-widget-showcase/tests
+                  ../sottomano-widgets/tests
                 ]
               ))
               ../sottomano-shell/Cargo.toml
@@ -158,8 +158,8 @@
       showcaseArgs = commonArgs // {
         src = sourcesAffectingRecordings;
         SHOWCASE_APP_ICONS = showcaseAppIcons;
-        pname = "sottomano-widget-showcase";
-        cargoExtraArgs = "--locked -p sottomano-widget-showcase";
+        pname = "sottomano-tour-recordings";
+        cargoExtraArgs = "--locked -p sottomano-tour-recordings";
       };
 
       workspaceArgs = commonArgs // {

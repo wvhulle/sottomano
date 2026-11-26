@@ -7,7 +7,7 @@ Conditions where you are: temperature, rain, wind and pollen, at the position th
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_weather.webp" width="884" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
+<img src="https://sottomano.work/recordings/tour_weather.webp" srcset="https://sottomano.work/recordings/tour_weather.webp 2x" alt="Opening the weather group from the Agenda menu, hovering the temperature forecast, then the rain">
 
 </div>
 

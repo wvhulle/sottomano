@@ -15,7 +15,7 @@ A press that the guest's manager refuses is written to Sottomano's log, and the 
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_virtualization.webp" width="1280" alt="Opening the Virtualization menu, hovering a QEMU machine and an Incus instance, then a Docker container">
+<img src="https://sottomano.work/recordings/tour_virtualization.webp" srcset="https://sottomano.work/recordings/tour_virtualization.webp 2x" alt="Opening the Virtualization menu, hovering a QEMU machine and an Incus instance, then a Docker container">
 
 </div>
 
@@ -36,7 +36,7 @@ Pressing the switch on a running machine presses its power button through `VBoxM
 
 </div>
 
-<img src="https://sottomano.work/recordings/virtualbox_machines_headless.webp" width="1159" alt="Opening the VirtualBox machines group from the Virtualization menu and hovering a headless machine">
+<img src="https://sottomano.work/recordings/virtualbox_machines_headless.webp" srcset="https://sottomano.work/recordings/virtualbox_machines_headless.webp 2x" alt="Opening the VirtualBox machines group from the Virtualization menu and hovering a headless machine">
 
 </div>
 
@@ -49,7 +49,7 @@ Every running VMware machine on this computer, one row each, with its memory use
 
 </div>
 
-<img src="https://sottomano.work/recordings/vmware_machines_workstation.webp" width="977" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
+<img src="https://sottomano.work/recordings/vmware_machines_workstation.webp" srcset="https://sottomano.work/recordings/vmware_machines_workstation.webp 2x" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
 
 </div>
 
@@ -64,7 +64,7 @@ Pressing the switch on a microvm.nix guest starts or stops its service, which ne
 
 </div>
 
-<img src="https://sottomano.work/recordings/microvm_guests_cloud_hypervisor.webp" width="982" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
+<img src="https://sottomano.work/recordings/microvm_guests_cloud_hypervisor.webp" srcset="https://sottomano.work/recordings/microvm_guests_cloud_hypervisor.webp 2x" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
 
 </div>
 
@@ -89,7 +89,7 @@ Pressing the switch on a running container stops it with `lxc-stop`, and on a st
 
 </div>
 
-<img src="https://sottomano.work/recordings/lxc_containers_running.webp" width="818" alt="Opening the LXC containers group from the Virtualization menu and hovering a running container">
+<img src="https://sottomano.work/recordings/lxc_containers_running.webp" srcset="https://sottomano.work/recordings/lxc_containers_running.webp 2x" alt="Opening the LXC containers group from the Virtualization menu and hovering a running container">
 
 </div>
 
@@ -114,7 +114,7 @@ Every running Apptainer or Singularity container on this computer, one row each,
 
 </div>
 
-<img src="https://sottomano.work/recordings/apptainer_containers_image.webp" width="1033" alt="Opening the Apptainer containers group from the Virtualization menu and hovering a container started from an image">
+<img src="https://sottomano.work/recordings/apptainer_containers_image.webp" srcset="https://sottomano.work/recordings/apptainer_containers_image.webp 2x" alt="Opening the Apptainer containers group from the Virtualization menu and hovering a container started from an image">
 
 </div>
 
@@ -129,7 +129,7 @@ Pressing the container's switch starts or stops `waydroid-container.service`, wh
 
 </div>
 
-<img src="https://sottomano.work/recordings/waydroid_container_session.webp" width="710" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
+<img src="https://sottomano.work/recordings/waydroid_container_session.webp" srcset="https://sottomano.work/recordings/waydroid_container_session.webp 2x" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
 
 </div>
 
@@ -142,7 +142,7 @@ Every Flatpak app you are running, one row per sandbox, with its memory use. The
 
 </div>
 
-<img src="https://sottomano.work/recordings/flatpak_sandboxes_app.webp" width="1124" alt="Opening the Flatpak apps group from the Virtualization menu and hovering a running app">
+<img src="https://sottomano.work/recordings/flatpak_sandboxes_app.webp" srcset="https://sottomano.work/recordings/flatpak_sandboxes_app.webp 2x" alt="Opening the Flatpak apps group from the Virtualization menu and hovering a running app">
 
 </div>
 
@@ -157,7 +157,7 @@ The card lists the throttle mark, the hard cap, swap in use against its own cap,
 
 </div>
 
-<img src="https://sottomano.work/recordings/cgroup_memory_limits_ci_runners.webp" width="977" alt="Opening the memory limits group from the Virtualization menu and hovering the CI runners slice">
+<img src="https://sottomano.work/recordings/cgroup_memory_limits_ci_runners.webp" srcset="https://sottomano.work/recordings/cgroup_memory_limits_ci_runners.webp 2x" alt="Opening the memory limits group from the Virtualization menu and hovering the CI runners slice">
 
 </div>
 
@@ -170,6 +170,6 @@ The runs that the Woodpecker and Forgejo runners on this computer are executing,
 
 </div>
 
-<img src="https://sottomano.work/recordings/ci_runner_tasks.webp" width="751" alt="Opening the CI runs group from the Services menu and hovering a Woodpecker run">
+<img src="https://sottomano.work/recordings/ci_runner_tasks.webp" srcset="https://sottomano.work/recordings/ci_runner_tasks.webp 2x" alt="Opening the CI runs group from the Services menu and hovering a Woodpecker run">
 
 </div>

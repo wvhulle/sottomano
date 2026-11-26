@@ -1,0 +1,11 @@
+mod backdrop_photo;
+mod fixtures;
+mod frosted_backdrop;
+mod hovered_widget;
+pub mod scenes;
+pub mod script_steps;
+mod scripted_frames;
+pub mod scripted_session;
+pub mod showcase_message;
+pub mod showcase_program;
+mod showcased_group;

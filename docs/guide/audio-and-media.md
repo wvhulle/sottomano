@@ -7,7 +7,7 @@ What is playing, and the speaker and microphone it plays through.
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_media.webp" width="1272" alt="Opening the Media menu, hovering the playing track, the microphone volume and the speech model">
+<img src="https://sottomano.work/recordings/tour_media.webp" srcset="https://sottomano.work/recordings/tour_media.webp 2x" alt="Opening the Media menu, hovering the playing track, the microphone volume and the speech model">
 
 </div>
 
@@ -24,7 +24,7 @@ Clicking the speaker opens a slider in place; dragging sets the level.
 
 </div>
 
-<img src="https://sottomano.work/recordings/audio_volume.webp" width="218" alt="Opening the volume slider and dragging it">
+<img src="https://sottomano.work/recordings/audio_volume.webp" srcset="https://sottomano.work/recordings/audio_volume.webp 2x" alt="Opening the volume slider and dragging it">
 
 </div>
 

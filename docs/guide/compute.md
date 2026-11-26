@@ -7,7 +7,7 @@ The machine's processor: load, clock, temperature, power and the cache layout of
 
 </div>
 
-<img src="https://sottomano.work/recordings/tour_hardware.webp" width="1256" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
+<img src="https://sottomano.work/recordings/tour_hardware.webp" srcset="https://sottomano.work/recordings/tour_hardware.webp 2x" alt="Opening the Hardware menu, hovering the CPU load and model, then the memory">
 
 </div>
 
@@ -28,7 +28,7 @@ The same group pinned in the panel, then expanded.
 
 </div>
 
-<img src="https://sottomano.work/recordings/compute_cpu_pinned.webp" width="676" alt="The compute group pinned in the panel, then expanded">
+<img src="https://sottomano.work/recordings/compute_cpu_pinned.webp" srcset="https://sottomano.work/recordings/compute_cpu_pinned.webp 2x" alt="The compute group pinned in the panel, then expanded">
 
 </div>
 

@@ -11,7 +11,7 @@ Hovering a workspace shows its windows.
 
 </div>
 
-<img src="https://sottomano.work/recordings/bottom_workspaces.webp" width="533" alt="Hovering a workspace in the bottom panel">
+<img src="https://sottomano.work/recordings/bottom_workspaces.webp" srcset="https://sottomano.work/recordings/bottom_workspaces.webp 2x" alt="Hovering a workspace in the bottom panel">
 
 </div>
 
@@ -24,7 +24,7 @@ The rocket before the window list opens the installed applications. The first gr
 
 </div>
 
-<img src="https://sottomano.work/recordings/app_launcher_frequent.webp" width="858" alt="Frequently launched apps with a hover card and open window buttons">
+<img src="https://sottomano.work/recordings/app_launcher_frequent.webp" srcset="https://sottomano.work/recordings/app_launcher_frequent.webp 2x" alt="Frequently launched apps with a hover card and open window buttons">
 
 </div>
 
@@ -37,7 +37,7 @@ Every other app is listed under its freedesktop category. A list grows up to the
 
 </div>
 
-<img src="https://sottomano.work/recordings/app_launcher_overflow.webp" width="679" alt="A scrolled application list fading at both edges">
+<img src="https://sottomano.work/recordings/app_launcher_overflow.webp" srcset="https://sottomano.work/recordings/app_launcher_overflow.webp 2x" alt="A scrolled application list fading at both edges">
 
 </div>
 
@@ -50,7 +50,7 @@ Neighbouring terminals in one directory share a heading, with the selected windo
 
 </div>
 
-<img src="https://sottomano.work/recordings/bottom_window_directory_groups.webp" width="851" alt="Terminals grouped under their working directory in the bottom panel">
+<img src="https://sottomano.work/recordings/bottom_window_directory_groups.webp" srcset="https://sottomano.work/recordings/bottom_window_directory_groups.webp 2x" alt="Terminals grouped under their working directory in the bottom panel">
 
 </div>
 
@@ -63,7 +63,7 @@ The process tree behind a window.
 
 </div>
 
-<img src="https://sottomano.work/recordings/bottom_process_inspector.webp" width="853" alt="Hovering the process inspector of a window">
+<img src="https://sottomano.work/recordings/bottom_process_inspector.webp" srcset="https://sottomano.work/recordings/bottom_process_inspector.webp 2x" alt="Hovering the process inspector of a window">
 
 </div>
 

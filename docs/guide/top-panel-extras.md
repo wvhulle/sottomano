@@ -11,7 +11,7 @@ Upcoming events and open tasks over CalDAV, overdue tasks in red.
 
 </div>
 
-<img src="https://sottomano.work/recordings/caldav_agenda.webp" width="1177" alt="Opening the Agenda menu and hovering its events and tasks">
+<img src="https://sottomano.work/recordings/caldav_agenda.webp" srcset="https://sottomano.work/recordings/caldav_agenda.webp 2x" alt="Opening the Agenda menu and hovering its events and tasks">
 
 </div>
 
@@ -24,7 +24,7 @@ The controller drawn with every bound button labelled in place.
 
 </div>
 
-<img src="https://sottomano.work/recordings/gamepad_controller.webp" width="1279" alt="Hovering the game controller to see its bindings drawn on the controller">
+<img src="https://sottomano.work/recordings/gamepad_controller.webp" srcset="https://sottomano.work/recordings/gamepad_controller.webp 2x" alt="Hovering the game controller to see its bindings drawn on the controller">
 
 </div>
 

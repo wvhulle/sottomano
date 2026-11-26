@@ -17,7 +17,8 @@ members = [
   "sottomano-desktop-sinks",
   "sottomano-widgets",
   "sottomano-shell",
-  "sottomano-widget-showcase",
+  "sottomano-widget-scenes",
+  "sottomano-tour-recordings",
   "xtask",
 ]
 resolver = "3"
@@ -124,22 +125,22 @@ zbus = { version = "5.19.0", default-features = false, features = [
 ] }
 
 [patch.crates-io]
-iced = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_core = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_debug = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_devtools = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_futures = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_graphics = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_program = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_renderer = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_runtime = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_selector = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_test = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_tester = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_tiny_skia = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
-iced_winit = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }
+iced = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_core = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_debug = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_devtools = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_futures = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_graphics = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_program = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_renderer = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_runtime = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_selector = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_test = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_tester = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_tiny_skia = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
+iced_winit = { git = "https://github.com/wvhulle/iced.git", branch = "master" }
 system-tray = { git = "https://github.com/wvhulle/system-tray.git", branch = "master" }
 
 [profile.dev]
