@@ -39,12 +39,6 @@ impl DesktopShell {
             PanelZoneEntry::Menu(topic) => {
                 self.topic_group_menu(topic).hover_card(target, self.clock)
             }
-            PanelZoneEntry::Standalone(group) => {
-                self.standalone_group(group).hover_card(target, self.clock)
-            }
-            PanelZoneEntry::Fixed(fixed_entry) => self
-                .fixed_panel_group(fixed_entry)
-                .hover_card(target, self.clock),
             PanelZoneEntry::InlineWorkspaces | PanelZoneEntry::OutputWindows => None,
         })
     }
@@ -59,13 +53,7 @@ impl DesktopShell {
                 .topic_group_menu(topic)
                 .hovered_indicator(target)
                 .map(HoveredRowRequests::from),
-            PanelZoneEntry::Standalone(group) => self
-                .standalone_group(group)
-                .hovered_indicator(target)
-                .map(HoveredRowRequests::from),
-            PanelZoneEntry::Fixed(_)
-            | PanelZoneEntry::InlineWorkspaces
-            | PanelZoneEntry::OutputWindows => None,
+            PanelZoneEntry::InlineWorkspaces | PanelZoneEntry::OutputWindows => None,
         })
     }
 
@@ -133,8 +121,7 @@ impl DesktopShell {
             | HoverTarget::PinnedOnPanel(_)
             | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
-            | HoverTarget::WindowTopMenu(_)
-            | HoverTarget::SessionMenu => Vec::new(),
+            | HoverTarget::WindowTopMenu(_) => Vec::new(),
         }
     }
 }

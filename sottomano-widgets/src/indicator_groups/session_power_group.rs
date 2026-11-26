@@ -22,20 +22,17 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
-    group_indicators::{
-        group_indicator::{GroupIndicator, IndicatorValue},
-        indicator_drawing::IndicatorIcon,
-        indicator_state::IndicatorState,
-    },
-    hover_cards::HoverTarget,
-    indicator_groups::{
-        fixed_panel_group::FixedPanelGroup,
-        idle_pause_groups::{ResolvedIdleChain, ScheduledAfterIdle},
-    },
+    indicator_groups::idle_pause_groups::{ResolvedIdleChain, ScheduledAfterIdle},
     widgets::{localized_durations::duration_text, text::resolved_text_face},
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerMenuPresence {
+    Shown,
+    Hidden,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SessionMenuEntry {
@@ -184,21 +181,10 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn group_content<'view>(&self) -> FixedPanelGroup<'view> {
+    pub fn menu_presence(&self) -> PowerMenuPresence {
         if self.permissions.allowed.is_empty() {
-            return FixedPanelGroup::Empty;
+            return PowerMenuPresence::Hidden;
         }
-        FixedPanelGroup::Shown {
-            indicator: Box::new(GroupIndicator::composed(
-                "Session",
-                IndicatorIcon::IconGlyph {
-                    glyph: Phosphor::Power(Weight::Regular).into(),
-                    state: IndicatorState::Idle,
-                },
-                IndicatorValue::Nothing,
-                Box::new(|_| Vec::new()),
-            )),
-            hover_target: HoverTarget::SessionMenu,
-        }
+        PowerMenuPresence::Shown
     }
 }

@@ -22,9 +22,9 @@ use crate::desktop_shell::DesktopShell;
 impl DesktopShell {
     pub(crate) fn topic_group_menu(&self, topic: GroupMenuTopic) -> GroupMenuView<'_> {
         match topic {
-            GroupMenuTopic::Applications | GroupMenuTopic::WindowMenuBar => {
-                self.group_menu(topic, empty())
-            }
+            GroupMenuTopic::Applications
+            | GroupMenuTopic::WindowMenuBar
+            | GroupMenuTopic::SessionPower => self.group_menu(topic, empty()),
             GroupMenuTopic::Hardware => self.hardware_group_menu(),
             GroupMenuTopic::Network => self.network_group_menu(),
             GroupMenuTopic::Agenda => self.agenda_group_menu(),

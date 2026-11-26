@@ -6,6 +6,8 @@ use std::{
 
 use strum::IntoStaticStr;
 
+use crate::group_menus::sqlite_group_menu_pins::StoredGroupInstance;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum IndicatorGroupFamily {
@@ -158,13 +160,14 @@ pub enum IndicatorGroupInstance {
     },
 }
 
-impl IndicatorGroupInstance {
-    #[must_use]
-    pub fn stored_name(&self) -> &str {
-        match self {
-            IndicatorGroupInstance::Sole => "",
+impl From<&IndicatorGroupInstance> for StoredGroupInstance {
+    fn from(instance: &IndicatorGroupInstance) -> Self {
+        match instance {
+            IndicatorGroupInstance::Sole => StoredGroupInstance::Sole,
             IndicatorGroupInstance::Durable(durable)
-            | IndicatorGroupInstance::Session { durable, .. } => durable,
+            | IndicatorGroupInstance::Session { durable, .. } => {
+                StoredGroupInstance::Named(durable.clone().into_owned())
+            }
         }
     }
 }
@@ -251,7 +254,9 @@ impl Display for IndicatorGroupTitle {
 
 #[cfg(test)]
 mod tests {
-    use super::{IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance};
+    use super::{
+        IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance, StoredGroupInstance,
+    };
 
     #[test]
     fn a_family_stores_a_name_independent_of_its_title() {
@@ -273,8 +278,8 @@ mod tests {
         };
         assert_ne!(player_on_bus(":1.40"), player_on_bus(":1.41"));
         assert_eq!(
-            player_on_bus(":1.40").instance.stored_name(),
-            player_on_bus(":1.41").instance.stored_name()
+            StoredGroupInstance::from(&player_on_bus(":1.40").instance),
+            StoredGroupInstance::from(&player_on_bus(":1.41").instance)
         );
     }
 }

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
 use corredo::{
-    popovers::MenuRowEmphasis,
+    popovers::{MenuRowEmphasis, NestedMenuOpenTrigger},
     press_actions::flat_button,
     theming::{secondary_text_color, text_color},
     value_controls::SwitchResponse,
@@ -48,7 +48,7 @@ impl<'view> GroupIndicator<'view> {
         let content = self.placed_view(config, reveal, clock, IndicatorPlacement::Panel);
         PanelSlot::new(content, edge_line).hovered(
             panel_position,
-            self.card_opening_trigger,
+            NestedMenuOpenTrigger::Hover,
             hover_target,
             GroupEvent::from,
         )

@@ -127,14 +127,14 @@ impl DesktopShell {
                     |menu_action| GroupEvent::from(AppLauncherMessage::Menu(menu_action)),
                 )
             }
-            HoverTarget::GroupMenu(topic) => self.group_menu_surfaces(*topic),
-            HoverTarget::SessionMenu => self.cascading_menu(
+            HoverTarget::GroupMenu(GroupMenuTopic::SessionPower) => self.cascading_menu(
                 groups
                     .session_power_group
                     .menu_entries(&self.config, groups.idle_pause_groups.idle_chain()),
                 &groups.session_power_group.menu_state,
                 SessionMessage::Menu,
             ),
+            HoverTarget::GroupMenu(topic) => self.group_menu_surfaces(*topic),
             HoverTarget::Indicator(indicator_key)
                 if indicator_key.group
                     == IndicatorGroupIdentity::sole(IndicatorGroupFamily::Tray) =>

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, rc::Rc};
 
-use corredo::{orientation::Axis, popovers::NestedMenuOpenTrigger, transitions::reveal};
+use corredo::{orientation::Axis, transitions::reveal};
 use iced::{
     Alignment, Element, Padding,
     mouse::ScrollDelta,
@@ -154,7 +154,6 @@ pub struct GroupIndicator<'view> {
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<IndicatorGroupInteraction>>,
     ongoing_toasts: Vec<OngoingToast<IndicatorGroupInteraction>>,
     pub(crate) alignment: IndicatorAlignment,
-    card_opening_trigger: NestedMenuOpenTrigger,
     pub panel_visibility: PanelVisibility,
 }
 
@@ -181,16 +180,7 @@ impl<'view> GroupIndicator<'view> {
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: IndicatorAlignment::Unaligned,
-            card_opening_trigger: NestedMenuOpenTrigger::Hover,
             panel_visibility: PanelVisibility::Shown,
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn opening_card_on(self, card_opening_trigger: NestedMenuOpenTrigger) -> Self {
-        Self {
-            card_opening_trigger,
-            ..self
         }
     }
 

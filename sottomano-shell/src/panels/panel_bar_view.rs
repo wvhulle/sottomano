@@ -13,8 +13,8 @@ use sottomano_widgets::{
     group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
     indicator_groups::{
-        panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
-        workspaces_group::inline_strip,
+        panel_settings_group::PanelGroupFraming, session_power_group::PowerMenuPresence,
+        sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip,
     },
 };
 
@@ -83,6 +83,12 @@ impl DesktopShell {
                     .map(|element| element.map(ShellInteraction::from))
                     .collect()
             }
+            PanelZoneEntry::Menu(GroupMenuTopic::SessionPower)
+                if self.indicator_groups.session_power_group.menu_presence()
+                    == PowerMenuPresence::Hidden =>
+            {
+                Vec::new()
+            }
             PanelZoneEntry::Menu(topic) => self
                 .topic_group_menu(topic)
                 .panel_views(
@@ -94,29 +100,6 @@ impl DesktopShell {
                 )
                 .map(|element| element.map(ShellInteraction::from))
                 .collect(),
-            PanelZoneEntry::Standalone(group) => vec![
-                self.standalone_group(group)
-                    .view_events(config, position, self.clock)
-                    .map(ShellInteraction::from),
-            ],
-            PanelZoneEntry::Fixed(entry) => {
-                let fixed_group = self.fixed_panel_group(entry);
-                let handle_indicator = fixed_group
-                    .handle_target()
-                    .map(|target| self.hover_card.handle_indicator(target, output))
-                    .unwrap_or_default();
-                fixed_group
-                    .view(
-                        config,
-                        position,
-                        self.indicator_groups.group_menus.presentation.open_trigger,
-                        handle_indicator,
-                        self.clock,
-                    )
-                    .into_iter()
-                    .map(|element| element.map(ShellInteraction::from))
-                    .collect()
-            }
             PanelZoneEntry::InlineWorkspaces => self
                 .inline_workspaces(position, output)
                 .into_iter()

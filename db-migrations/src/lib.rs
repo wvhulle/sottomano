@@ -24,7 +24,7 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 11] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 13] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
@@ -36,6 +36,8 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 11] = [
     schema_migration!(9, "0009_idle_timeouts_relative.sql"),
     schema_migration!(10, "0010_idle_chain_group.sql"),
     schema_migration!(11, "0011_power_indicator_renames.sql"),
+    schema_migration!(12, "0012_split_sole_and_instance_pins.sql"),
+    schema_migration!(13, "0013_default_panel_pins.sql"),
 ];
 
 pub async fn apply_pending_migrations(
@@ -182,7 +184,10 @@ mod tests {
             i64::try_from(SCHEMA_MIGRATIONS.len()).unwrap()
         );
         let mut rows = connection
-            .query("SELECT menu_topic FROM pinned_widget_groups", ())
+            .query(
+                "SELECT menu_topic FROM pinned_sole_groups WHERE group_family = 'virtual_machines'",
+                (),
+            )
             .await
             .unwrap();
         let row = rows.next().await.unwrap().unwrap();
@@ -345,7 +350,7 @@ mod tests {
         apply_pending_migrations(&connection).await.unwrap();
         let mut rows = connection
             .query(
-                "SELECT group_family, group_instance FROM pinned_widget_groups ORDER BY \
+                "SELECT group_family, group_instance FROM pinned_instance_groups ORDER BY \
                  group_family",
                 (),
             )
@@ -369,7 +374,11 @@ mod tests {
             ]
         );
         let mut item_rows = connection
-            .query("SELECT COUNT(*) FROM pinned_group_items", ())
+            .query(
+                "SELECT (SELECT COUNT(*) FROM pinned_sole_group_items) + (SELECT COUNT(*) FROM \
+                 pinned_instance_group_items)",
+                (),
+            )
             .await
             .unwrap();
         let item_count = item_rows
@@ -380,5 +389,96 @@ mod tests {
             .get_value(0)
             .unwrap();
         assert_eq!(item_count, turso::Value::Integer(0));
+    }
+
+    #[tokio::test]
+    async fn sole_and_named_instance_pins_move_to_their_own_tables() {
+        let connection = empty_connection().await;
+        for migration in SCHEMA_MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 12)
+        {
+            apply_migration_once(&connection, migration).await.unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO pinned_widget_groups (menu_topic, group_family, group_instance) \
+                 VALUES ('hardware', 'gpu', ''), ('media', 'media', 'Firefox')",
+                (),
+            )
+            .await
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
+                 item_key) VALUES ('hardware', 'gpu', '', 'Load'), ('media', 'media', 'Firefox', \
+                 'Track')",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        let mut rows = connection
+            .query(
+                "SELECT 'sole group ' || group_family FROM pinned_sole_groups WHERE menu_topic = \
+                 'hardware' UNION ALL SELECT 'instance group ' || group_instance FROM \
+                 pinned_instance_groups UNION ALL SELECT 'sole item ' || item_key FROM \
+                 pinned_sole_group_items UNION ALL SELECT 'instance item ' || group_instance || ' \
+                 ' || item_key FROM pinned_instance_group_items",
+                (),
+            )
+            .await
+            .unwrap();
+        let mut moved_pins = Vec::new();
+        while let Some(row) = rows.next().await.unwrap() {
+            moved_pins.push(row.get::<String>(0).unwrap());
+        }
+        assert_eq!(
+            moved_pins,
+            [
+                "sole group gpu",
+                "instance group Firefox",
+                "sole item Load",
+                "instance item Firefox Track"
+            ]
+        );
+    }
+
+    async fn pinned_group_keys(connection: &turso::Connection) -> Vec<String> {
+        let mut rows = connection
+            .query(
+                "SELECT menu_topic || '/' || group_family FROM pinned_sole_groups ORDER BY \
+                 menu_topic, group_family",
+                (),
+            )
+            .await
+            .unwrap();
+        let mut pinned_keys = Vec::new();
+        while let Some(row) = rows.next().await.unwrap() {
+            pinned_keys.push(row.get::<String>(0).unwrap());
+        }
+        pinned_keys
+    }
+
+    #[tokio::test]
+    async fn clock_notifications_and_tray_start_pinned_and_stay_unpinned_once_removed() {
+        let connection = empty_connection().await;
+        apply_pending_migrations(&connection).await.unwrap();
+        assert_eq!(
+            pinned_group_keys(&connection).await,
+            ["agenda/clock", "agenda/notification", "session/tray"]
+        );
+        connection
+            .execute(
+                "DELETE FROM pinned_sole_groups WHERE group_family = 'tray'",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        assert_eq!(
+            pinned_group_keys(&connection).await,
+            ["agenda/clock", "agenda/notification"]
+        );
     }
 }

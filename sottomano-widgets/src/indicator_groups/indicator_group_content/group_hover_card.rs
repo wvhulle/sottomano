@@ -69,7 +69,6 @@ impl<'view> IndicatorGroupContent<'view> {
             | HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::WindowTopMenu(_)
-            | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
             | HoverTarget::WorkspaceOrder

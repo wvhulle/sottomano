@@ -16,7 +16,7 @@ use crate::{
         group_menu_inspection::GroupMenuInspection,
         group_source_demand::{GroupSourceDemand, GroupSurface},
         sqlite_group_menu_pins,
-        sqlite_group_menu_pins::{PinChange, StoredGroupMenuPin},
+        sqlite_group_menu_pins::{PinChange, StoredGroupInstance, StoredGroupMenuPin},
         sqlite_group_menu_presentation,
     },
     hover_cards::{IndicatorKey, PanelPinOrigin},
@@ -53,12 +53,12 @@ impl GroupMenuPin {
             GroupMenuPin::Group(group) => StoredGroupMenuPin::Group {
                 menu_topic,
                 group_family: <&'static str>::from(group.family).to_owned(),
-                group_instance: group.instance.stored_name().to_owned(),
+                group_instance: StoredGroupInstance::from(&group.instance),
             },
             GroupMenuPin::Item(IndicatorKey { group, name }) => StoredGroupMenuPin::Item {
                 menu_topic,
                 group_family: <&'static str>::from(group.family).to_owned(),
-                group_instance: group.instance.stored_name().to_owned(),
+                group_instance: StoredGroupInstance::from(&group.instance),
                 indicator_name: name.into_owned(),
             },
         }

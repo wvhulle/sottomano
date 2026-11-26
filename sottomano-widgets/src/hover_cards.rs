@@ -39,7 +39,6 @@ pub enum HoverTarget {
     GroupHeadline(Box<IndicatorGroupIdentity>),
     GroupMenu(GroupMenuTopic),
     WindowTopMenu(i32),
-    SessionMenu,
     Window(WindowTarget),
     Workspace(u64),
     WorkspaceOrder,
@@ -64,7 +63,6 @@ impl HoverTarget {
             HoverTarget::GroupHeadline(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::WindowTopMenu(_)
-            | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
             | HoverTarget::WorkspaceOrder
@@ -83,7 +81,6 @@ impl HoverTarget {
             HoverTarget::Indicator(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::WindowTopMenu(_)
-            | HoverTarget::SessionMenu
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
             | HoverTarget::WorkspaceOrder

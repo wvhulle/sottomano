@@ -20,7 +20,7 @@ use sottomano_widgets::{
 
 use crate::{
     desktop_shell::DesktopShell,
-    panels::{composed_menu_topics, composed_standalone_groups},
+    panels::composed_menu_topics,
     shell_message::{Message, ShellInteraction},
 };
 
@@ -67,16 +67,9 @@ impl DesktopShell {
         let group_menus: Vec<_> = composed_menu_topics()
             .map(|topic| self.topic_group_menu(topic))
             .collect();
-        let toast_requests = composed_standalone_groups()
-            .map(|group| {
-                self.standalone_group(group)
-                    .toast_requests(locale, self.clock)
-            })
-            .chain(
-                group_menus
-                    .iter()
-                    .map(|group_menu| group_menu.toast_requests(locale, self.clock)),
-            )
+        let toast_requests = group_menus
+            .iter()
+            .map(|group_menu| group_menu.toast_requests(locale, self.clock))
             .collect();
         let promotion_severity = self.config.group_menus.alert_promotion_severity;
         let panel_raises = group_menus

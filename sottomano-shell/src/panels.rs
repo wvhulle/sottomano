@@ -1,6 +1,5 @@
 pub(crate) mod bottom_panel;
 pub(crate) mod panel_bar_view;
-pub(crate) mod standalone_groups;
 pub(crate) mod top_panel;
 pub(crate) mod workspace_sidebar;
 
@@ -8,7 +7,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
 use self::{
-    PanelZoneEntry::{Fixed, InlineWorkspaces, Menu, OutputWindows, Standalone},
+    PanelZoneEntry::{InlineWorkspaces, Menu, OutputWindows},
     bottom_panel::BOTTOM_PANEL,
     top_panel::TOP_PANEL,
 };
@@ -21,22 +20,8 @@ pub(crate) enum PanelZone {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StandaloneIndicatorGroup {
-    Clock,
-    Notifications,
-    Tray,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FixedPanelEntry {
-    SessionPower,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PanelZoneEntry {
     Menu(GroupMenuTopic),
-    Standalone(StandaloneIndicatorGroup),
-    Fixed(FixedPanelEntry),
     InlineWorkspaces,
     OutputWindows,
 }
@@ -72,14 +57,7 @@ pub(crate) fn all_panel_entries() -> impl Iterator<Item = PanelZoneEntry> {
 pub(crate) fn composed_menu_topics() -> impl Iterator<Item = GroupMenuTopic> {
     all_panel_entries().filter_map(|entry| match entry {
         Menu(topic) => Some(topic),
-        Standalone(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
-    })
-}
-
-pub(crate) fn composed_standalone_groups() -> impl Iterator<Item = StandaloneIndicatorGroup> {
-    all_panel_entries().filter_map(|entry| match entry {
-        Standalone(group) => Some(group),
-        Menu(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
+        InlineWorkspaces | OutputWindows => None,
     })
 }
 
@@ -87,12 +65,7 @@ pub(crate) fn composed_standalone_groups() -> impl Iterator<Item = StandaloneInd
 mod tests {
     use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
-    use super::{
-        BOTTOM_PANEL, PanelZone,
-        PanelZoneEntry::{Menu, Standalone},
-        StandaloneIndicatorGroup::{self, Clock, Notifications, Tray},
-        TOP_PANEL, composed_menu_topics, composed_standalone_groups,
-    };
+    use super::{BOTTOM_PANEL, PanelZone, PanelZoneEntry::Menu, TOP_PANEL, composed_menu_topics};
 
     #[test]
     fn every_menu_topic_sits_on_exactly_one_panel() {
@@ -104,29 +77,14 @@ mod tests {
     }
 
     #[test]
-    fn standalone_groups_appear_once() {
-        let composed: Vec<StandaloneIndicatorGroup> = composed_standalone_groups().collect();
-        for group in [Clock, Notifications, Tray] {
-            assert_eq!(
-                composed.iter().filter(|placed| **placed == group).count(),
-                1
-            );
-        }
-    }
-
-    #[test]
     fn zones_keep_their_declared_order() {
         assert_eq!(
             TOP_PANEL.entries_in(PanelZone::Center),
-            [
-                Standalone(Clock),
-                Menu(GroupMenuTopic::Agenda),
-                Standalone(Notifications),
-            ]
+            [Menu(GroupMenuTopic::Agenda)]
         );
         assert_eq!(
-            BOTTOM_PANEL.entries_in(PanelZone::End).last(),
-            Some(&Standalone(Tray))
+            TOP_PANEL.entries_in(PanelZone::End).last(),
+            Some(&Menu(GroupMenuTopic::SessionPower))
         );
         assert_eq!(
             BOTTOM_PANEL.entries_in(PanelZone::Start).first(),
