@@ -64,6 +64,7 @@ pub(crate) fn phosphor_caret<'view, Message: 'view>(
             CaretPointing::Rightward => Phosphor::CaretRight(Weight::Regular),
             CaretPointing::Leftward => Phosphor::CaretLeft(Weight::Regular),
             CaretPointing::Downward => Phosphor::CaretDown(Weight::Regular),
+            CaretPointing::Nowhere => Phosphor::Empty(Weight::Regular),
         };
         IconGlyph::from(caret).view(icon_size_px, color)
     }

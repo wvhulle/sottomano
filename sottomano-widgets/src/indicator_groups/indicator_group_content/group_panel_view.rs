@@ -14,10 +14,15 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use super::{
     GroupEvent, HandleScrollForwarding, IndicatorGroupContent, IndicatorGroupExpansionMessage,
+    IndicatorListing,
 };
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_state::{IndicatorState, IndicatorStateTint},
@@ -34,8 +39,12 @@ impl<'view> IndicatorGroupContent<'view> {
         config: &'view Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Option<Element<'view, GroupEvent>> {
-        self.indicators.first()?;
+    ) -> Element<'view, GroupEvent> {
+        if let IndicatorListing::Listed(listed_indicators) = &self.listing
+            && listed_indicators.is_empty()
+        {
+            return self.nothing_listed_handle(config, panel_position);
+        }
         let highest_alert_severity = self.highest_alert_severity();
         let IndicatorGroupContent {
             group_identity,
@@ -44,16 +53,11 @@ impl<'view> IndicatorGroupContent<'view> {
             on_expansion,
             headline_indicator,
             scroll_forwarding,
-            indicators,
+            listing,
             panel_pin,
             ..
         } = self;
-        let handle_target = match panel_pin {
-            PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
-            PanelPinOrigin::Unpinned => {
-                HoverTarget::GroupHeadline(Box::new(group_identity.clone()))
-            }
-        };
+        let handle_target = handle_hover_target(panel_pin, &group_identity);
         let expansion_event = move |message| GroupEvent::Interaction(on_expansion(message));
         let toggle = expansion_event(IndicatorGroupExpansionMessage::Toggle);
         let on_enter = expansion_event(IndicatorGroupExpansionMessage::CursorEntered);
@@ -97,7 +101,7 @@ impl<'view> IndicatorGroupContent<'view> {
                         indicators_row(
                             config,
                             &group_identity,
-                            &indicators,
+                            listing.iter(),
                             reveal,
                             clock,
                             panel_position,
@@ -106,9 +110,53 @@ impl<'view> IndicatorGroupContent<'view> {
                 }))
                 .into()
         });
-        Some(Element::from(
-            mouse_area(animated).on_enter(on_enter).on_exit(on_exit),
-        ))
+        mouse_area(animated)
+            .on_enter(on_enter)
+            .on_exit(on_exit)
+            .into()
+    }
+    fn nothing_listed_handle(
+        self,
+        config: &'view Config,
+        panel_position: Position,
+    ) -> Element<'view, GroupEvent> {
+        let IndicatorGroupContent {
+            group_identity,
+            headline_indicator,
+            panel_pin,
+            ..
+        } = self;
+        let nothing_listed_marker = IconGlyph::from(Phosphor::Empty(Weight::Regular))
+            .view(config.theme.font.icon_size_px, secondary_text_color);
+        let dimmed_handle = Row::with_children([
+            headline_indicator
+                .in_state(IndicatorState::Off)
+                .handle_view(config, 0.0),
+            nothing_listed_marker,
+        ])
+        .spacing(config.theme.spacing.item_gap)
+        .align_y(Alignment::Center)
+        .into();
+        PanelSlot::new(
+            dimmed_handle,
+            edge_indicator(Severity::Normal, MenuHandleIndicator::default(), 0.0),
+        )
+        .hovered(
+            panel_position,
+            NestedMenuOpenTrigger::Hover,
+            handle_hover_target(panel_pin, &group_identity),
+            GroupEvent::from,
+        )
+    }
+}
+
+fn handle_hover_target(
+    panel_pin: PanelPinOrigin,
+    group_identity: &IndicatorGroupIdentity,
+) -> HoverTarget {
+    match panel_pin {
+        PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
+        PanelPinOrigin::Unpinned => HoverTarget::GroupHeadline(Box::new(group_identity.clone())),
     }
 }
 

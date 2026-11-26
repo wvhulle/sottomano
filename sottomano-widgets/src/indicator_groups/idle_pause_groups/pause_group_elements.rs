@@ -26,7 +26,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
@@ -251,7 +251,7 @@ impl IdlePauseGroups {
             ),
             &self.expansion,
             IdlePauseInteraction::Expansion,
-            rows.collect::<Vec<_>>(),
+            IndicatorListing::Listed(rows.collect()),
         )
     }
 }

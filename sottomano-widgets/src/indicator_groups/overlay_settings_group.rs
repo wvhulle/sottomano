@@ -12,7 +12,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
+            IndicatorGroupExpansionMessage, IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag,
@@ -157,14 +157,17 @@ impl OverlaySettingsGroup {
             ),
             &self.expansion,
             OverlaySettingsMessage::Expansion,
-            [GroupIndicator::toggle(
-                toast_spatial_layout_toggle(self.toast_arrangement),
-                OverlaySettingsMessage::ToggleToastSpatialLayout,
-            )]
-            .into_iter()
-            .chain(
-                self.layer
-                    .indicators(config, OverlaySettingsMessage::Appearance),
+            IndicatorListing::Listed(
+                [GroupIndicator::toggle(
+                    toast_spatial_layout_toggle(self.toast_arrangement),
+                    OverlaySettingsMessage::ToggleToastSpatialLayout,
+                )]
+                .into_iter()
+                .chain(
+                    self.layer
+                        .indicators(config, OverlaySettingsMessage::Appearance),
+                )
+                .collect(),
             ),
         )
     }

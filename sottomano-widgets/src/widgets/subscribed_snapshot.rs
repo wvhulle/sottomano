@@ -8,12 +8,13 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
-        snapshot_absence::{AbsenceCause, Staleness},
+        snapshot_absence::{AbsenceCause, Staleness, failed_source_indicator},
     },
     hover_cards::hover_card_body::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
+    indicator_groups::indicator_group_content::IndicatorListing,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {
@@ -100,6 +101,32 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 ..
             } => describe(snapshot).in_state(IndicatorState::Failed),
             SubscribedSnapshot::Unavailable { cause } => cause.indicator(absent_glyph),
+        }
+    }
+
+    pub fn indicator_listing<'view>(
+        &'view self,
+        describe: impl FnOnce(&'view S) -> Vec<GroupIndicator<'view>>,
+        absent_glyph: IconGlyph,
+    ) -> IndicatorListing<'view> {
+        match self {
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness: Staleness::Current,
+                ..
+            } => IndicatorListing::Listed(describe(snapshot)),
+            SubscribedSnapshot::Available {
+                snapshot,
+                staleness: Staleness::StaleAfterFailure(fetch_failure),
+                ..
+            } => IndicatorListing::Incomplete {
+                listed_indicators: describe(snapshot),
+                unread_sources: vec![failed_source_indicator::<S>(fetch_failure, absent_glyph)],
+            },
+            SubscribedSnapshot::Unavailable { cause } => IndicatorListing::Incomplete {
+                listed_indicators: Vec::new(),
+                unread_sources: vec![cause.indicator(absent_glyph)],
+            },
         }
     }
 

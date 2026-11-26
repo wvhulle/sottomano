@@ -4,14 +4,18 @@ mod group_menu_sections;
 pub(crate) mod group_panel_view;
 #[cfg(test)]
 mod indicator_group_content_tests;
+mod indicator_listing;
 
 use std::{collections::BTreeSet, rc::Rc};
 
 use chrono::Locale;
 use sottomano_toml_config::severity::Severity;
 
-pub use self::group_expansion_state::{
-    ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage, KeyedExpansions,
+pub use self::{
+    group_expansion_state::{
+        ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage, KeyedExpansions,
+    },
+    indicator_listing::IndicatorListing,
 };
 use crate::{
     clock::Clock,
@@ -97,7 +101,7 @@ pub struct IndicatorGroupContent<'view> {
     on_expansion: Rc<dyn Fn(IndicatorGroupExpansionMessage) -> IndicatorGroupInteraction + 'view>,
     headline_indicator: GroupIndicator<'view>,
     scroll_forwarding: HandleScrollForwarding,
-    pub(crate) indicators: Vec<GroupIndicator<'view>>,
+    pub(crate) listing: IndicatorListing<'view>,
     panel_pin: PanelPinOrigin,
 }
 
@@ -107,7 +111,7 @@ impl<'view> IndicatorGroupContent<'view> {
         headline_indicator: GroupIndicator<'view>,
         expansion: &'view IndicatorGroupExpansion,
         on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'view,
-        indicators: impl IntoIterator<Item = GroupIndicator<'view>>,
+        listing: IndicatorListing<'view>,
     ) -> Self {
         Self::expandable_instance(
             IndicatorGroupIdentity::sole(family),
@@ -115,7 +119,7 @@ impl<'view> IndicatorGroupContent<'view> {
             headline_indicator,
             expansion,
             on_expansion,
-            indicators,
+            listing,
         )
     }
 
@@ -125,7 +129,7 @@ impl<'view> IndicatorGroupContent<'view> {
         headline_indicator: GroupIndicator<'view>,
         expansion: &'view IndicatorGroupExpansion,
         on_expansion: impl Fn(IndicatorGroupExpansionMessage) -> Interaction + 'view,
-        indicators: impl IntoIterator<Item = GroupIndicator<'view>>,
+        listing: IndicatorListing<'view>,
     ) -> Self {
         Self {
             group_identity,
@@ -134,7 +138,7 @@ impl<'view> IndicatorGroupContent<'view> {
             on_expansion: Rc::new(move |message| on_expansion(message).into()),
             headline_indicator,
             scroll_forwarding: HandleScrollForwarding::NotForwarded,
-            indicators: indicators.into_iter().collect(),
+            listing,
             panel_pin: PanelPinOrigin::Unpinned,
         }
     }
@@ -142,7 +146,7 @@ impl<'view> IndicatorGroupContent<'view> {
     #[must_use]
     pub fn card_title_clashes(&self, clock: Clock) -> Vec<CardTitleClash> {
         let group_title = self.group_title.to_string();
-        self.indicators
+        self.listing
             .iter()
             .flat_map(|indicator| {
                 let indicator_name = indicator.indicator_name().into_owned();
@@ -175,7 +179,7 @@ impl<'view> IndicatorGroupContent<'view> {
     pub fn clashing_indicator_names(&self) -> Vec<String> {
         let group_title = self.group_title.to_string();
         let mut seen_names = BTreeSet::new();
-        self.indicators
+        self.listing
             .iter()
             .filter(|indicator| indicator.menu_pin(&self.group_identity).is_some())
             .map(|indicator| indicator.indicator_name().into_owned())
@@ -190,7 +194,7 @@ impl<'view> IndicatorGroupContent<'view> {
         menu: GroupMenuTopic,
         promotion_severity: Severity,
     ) -> Vec<PanelRaise> {
-        self.indicators
+        self.listing
             .iter()
             .filter(|indicator| {
                 indicator.alert_promotion(promotion_severity) == AlertPromotion::Promoted
@@ -221,28 +225,32 @@ impl<'view> IndicatorGroupContent<'view> {
     }
 
     #[must_use]
-    pub fn only_aligned_indicators(self) -> Self {
+    pub fn only_aligned_indicators(self) -> Option<Self> {
         self.retaining_indicators(|alignment| alignment != IndicatorAlignment::Unaligned)
     }
 
     #[must_use]
-    pub fn only_unaligned_indicators(self) -> Self {
+    pub fn only_unaligned_indicators(self) -> Option<Self> {
         self.retaining_indicators(|alignment| alignment == IndicatorAlignment::Unaligned)
     }
 
     fn retaining_indicators(
-        mut self,
+        self,
         keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
-    ) -> Self {
-        self.indicators
-            .retain(|indicator| keeps_alignment(indicator.alignment));
-        self
+    ) -> Option<Self> {
+        let listing = self.listing.retaining_listed(keeps_alignment);
+        if let IndicatorListing::Listed(listed_indicators) = &listing
+            && listed_indicators.is_empty()
+        {
+            return None;
+        }
+        Some(Self { listing, ..self })
     }
 
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests {
         let expand = (self.on_expansion)(IndicatorGroupExpansionMessage::Expand);
-        self.indicators
+        self.listing
             .iter()
             .map(|indicator| {
                 indicator.toast_requests(&self.group_identity, expand.clone(), locale, clock)
@@ -251,7 +259,7 @@ impl<'view> IndicatorGroupContent<'view> {
     }
 
     pub(crate) fn highest_alert_severity(&self) -> Severity {
-        self.indicators
+        self.listing
             .iter()
             .filter_map(GroupIndicator::shown_alert_severity)
             .max()
@@ -263,14 +271,14 @@ impl<'view> IndicatorGroupContent<'view> {
         if indicator_key.group != self.group_identity {
             return None;
         }
-        self.indicators
+        self.listing
             .iter()
             .find(|indicator| indicator.indicator_name() == indicator_key.name)
     }
 
     #[must_use]
     pub fn indicator_keys(&self) -> Vec<IndicatorKey> {
-        self.indicators
+        self.listing
             .iter()
             .map(|indicator| indicator.indicator_key(&self.group_identity))
             .collect()

@@ -6,7 +6,9 @@ use crate::{
     glyph_icons::phosphor::Weight,
     group_indicators::{group_indicator::GroupIndicator, indicator_drawing::ReadoutBadge},
     hover_cards::hover_card_body::dictionary_table,
-    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
+    indicator_groups::{
+        indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
+    },
 };
 
 mod firmware_upgrade_list;
@@ -125,7 +127,11 @@ impl PendingUpgradesGroup {
             headline_indicator,
             &self.expansion,
             PendingUpgradesInteraction::Expansion,
-            iter::once(build_pending_upgrades_indicator()).chain(rows),
+            IndicatorListing::Listed(
+                iter::once(build_pending_upgrades_indicator())
+                    .chain(rows)
+                    .collect(),
+            ),
         )
     }
 

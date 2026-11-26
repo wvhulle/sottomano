@@ -1,4 +1,6 @@
 use std::{iter, time::SystemTime};
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod adapter_radio_indicator;
 mod connected_device_indicator;
 mod reconnect_churn_counting;
@@ -266,8 +268,11 @@ impl BluetoothAdaptersGroup {
                 controller_name: controller_name.clone(),
                 expansion,
             },
-            iter::once(build_adapter_radio_indicator())
-                .chain([wired_power_indicator].into_iter().chain(device_indicators)),
+            IndicatorListing::Listed(
+                iter::once(build_adapter_radio_indicator())
+                    .chain([wired_power_indicator].into_iter().chain(device_indicators))
+                    .collect(),
+            ),
         ))
     }
 

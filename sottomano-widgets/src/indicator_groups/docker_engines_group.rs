@@ -31,7 +31,9 @@ use crate::{
             RunningContainerIndicator, StoppedContainerIndicator, container_switch_task,
             indicators_ending_in_hidden_count, with_container_switch,
         },
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
@@ -270,7 +272,7 @@ impl DockerEnginesGroup {
                     expansion,
                 ))
             },
-            self.container_indicators(),
+            IndicatorListing::Listed(self.container_indicators()),
         )
     }
 

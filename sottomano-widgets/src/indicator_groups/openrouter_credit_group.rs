@@ -1,10 +1,15 @@
-use crate::indicator_groups::openrouter_credit_group::{
-    best_models_within_cap::{
-        OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card, best_models_indicator,
-    },
-    openrouter_soft_budget::{spend_hover_card, spend_indicator, spend_panel_visibility},
-    strict_budget_remaining::{
-        OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card, strict_budget_indicator,
+use crate::indicator_groups::{
+    indicator_group_content::IndicatorListing,
+    openrouter_credit_group::{
+        best_models_within_cap::{
+            OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card,
+            best_models_indicator,
+        },
+        openrouter_soft_budget::{spend_hover_card, spend_indicator, spend_panel_visibility},
+        strict_budget_remaining::{
+            OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card,
+            strict_budget_indicator,
+        },
     },
 };
 mod best_models_within_cap;
@@ -264,7 +269,7 @@ impl OpenRouterCreditGroup {
             headline_indicator,
             &self.expansion,
             OpenRouterCreditInteraction::Expansion,
-            lead_indicators.into_iter().chain(rows),
+            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
         )
     }
 

@@ -12,8 +12,8 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Behaviour,
             self.settings_groups()
-                .map(IndicatorGroupContent::only_unaligned_indicators)
                 .into_iter()
+                .filter_map(IndicatorGroupContent::only_unaligned_indicators)
                 .chain(once(
                     self.indicator_groups
                         .appearance_presets_group

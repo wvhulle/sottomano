@@ -19,6 +19,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
@@ -220,7 +221,7 @@ where
             ),
             &self.expansion,
             ContainerFamilyInteraction::Expansion,
-            self.group_rows(),
+            IndicatorListing::Listed(self.group_rows()),
         )
     }
 }

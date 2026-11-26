@@ -36,6 +36,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -326,7 +327,7 @@ impl TrayGroup {
             ),
             &self.expansion,
             TrayMessage::Expansion,
-            group_indicators,
+            IndicatorListing::Listed(group_indicators),
         )
     }
 }

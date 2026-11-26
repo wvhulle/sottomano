@@ -10,7 +10,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
@@ -89,7 +89,7 @@ impl GamepadGroup {
             headline_indicator,
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
-            [listed_failure],
+            IndicatorListing::Listed(Vec::from([listed_failure])),
         ))
     }
 }

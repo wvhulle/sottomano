@@ -10,7 +10,8 @@ impl DesktopShell {
         self.group_menu(
             GroupMenuTopic::Appearance,
             self.settings_groups()
-                .map(IndicatorGroupContent::only_aligned_indicators),
+                .into_iter()
+                .filter_map(IndicatorGroupContent::only_aligned_indicators),
         )
     }
 }

@@ -6,7 +6,7 @@ use iced::{
 use super::MenuBuilder;
 use crate::{
     popovers::{
-        CascadeDirection, MenuRow, MenuRowContent, MenuRowEmphasis, NestedMenuAction,
+        CascadeDirection, MenuEntry, MenuRow, MenuRowContent, MenuRowEmphasis, NestedMenuAction,
         NestedMenuLayout,
         menu_row::{RowHoverReaction, SatelliteReach},
     },
@@ -18,6 +18,23 @@ pub enum CaretPointing {
     Rightward,
     Leftward,
     Downward,
+    Nowhere,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SubmenuContents {
+    Entries,
+    Nothing,
+}
+
+impl<SubmenuKey, Message> From<&[MenuEntry<'_, SubmenuKey, Message>]> for SubmenuContents {
+    fn from(entries: &[MenuEntry<'_, SubmenuKey, Message>]) -> Self {
+        if entries.is_empty() {
+            SubmenuContents::Nothing
+        } else {
+            SubmenuContents::Entries
+        }
+    }
 }
 
 #[must_use]
@@ -40,6 +57,7 @@ pub(super) fn text_caret<'view, Message: 'view>(
         CaretPointing::Rightward => "\u{25b8}",
         CaretPointing::Leftward => "\u{25c2}",
         CaretPointing::Downward => "\u{25be}",
+        CaretPointing::Nowhere => "\u{2205}",
     };
     text(glyph)
         .shaping(Shaping::Advanced)
@@ -58,26 +76,36 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
         path: &[SubmenuKey],
         expansion_state: ExpansionState,
         satellite_reach: SatelliteReach,
+        submenu_contents: SubmenuContents,
     ) -> MenuRow<'view, Message> {
         let layout = self.presentation.layout;
-        let emphasis = submenu_header_emphasis(layout, expansion_state);
+        let emphasis = match submenu_contents {
+            SubmenuContents::Entries => submenu_header_emphasis(layout, expansion_state),
+            SubmenuContents::Nothing => MenuRowEmphasis::Unavailable,
+        };
         let caret_color = emphasis.secondary_glyph_color();
+        let caret_pointing = |pointing| match submenu_contents {
+            SubmenuContents::Entries => pointing,
+            SubmenuContents::Nothing => CaretPointing::Nowhere,
+        };
         let mut header = header;
         match (layout, self.chrome.orientation.direction, expansion_state) {
-            (NestedMenuLayout::Cascading, CascadeDirection::Leftward, _) => header
-                .leading
-                .insert(0, (self.caret)(CaretPointing::Leftward, caret_color)),
+            (NestedMenuLayout::Cascading, CascadeDirection::Leftward, _) => header.leading.insert(
+                0,
+                (self.caret)(caret_pointing(CaretPointing::Leftward), caret_color),
+            ),
             (NestedMenuLayout::Cascading, CascadeDirection::Rightward, _)
-            | (NestedMenuLayout::Accordion, _, ExpansionState::Collapsed) => header
-                .trailing
-                .push((self.caret)(CaretPointing::Rightward, caret_color)),
-            (NestedMenuLayout::Accordion, _, ExpansionState::Expanded) => header
-                .trailing
-                .push((self.caret)(CaretPointing::Downward, caret_color)),
+            | (NestedMenuLayout::Accordion, _, ExpansionState::Collapsed) => header.trailing.push(
+                (self.caret)(caret_pointing(CaretPointing::Rightward), caret_color),
+            ),
+            (NestedMenuLayout::Accordion, _, ExpansionState::Expanded) => header.trailing.push(
+                (self.caret)(caret_pointing(CaretPointing::Downward), caret_color),
+            ),
         }
         let row = MenuRow::new(header).emphasis(emphasis);
-        match layout {
-            NestedMenuLayout::Cascading => {
+        match (submenu_contents, layout) {
+            (SubmenuContents::Nothing, _) => row,
+            (SubmenuContents::Entries, NestedMenuLayout::Cascading) => {
                 let reveal = (self.on_action)(NestedMenuAction::Opened(path.to_vec()));
                 row.on_press(reveal.clone())
                     .hover_reaction(RowHoverReaction::Reveals {
@@ -86,7 +114,8 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         reveal_delay: self.chrome.style.reveal_delay,
                     })
             }
-            NestedMenuLayout::Accordion => row.on_press((self.on_action)(
+            (SubmenuContents::Entries, NestedMenuLayout::Accordion) => row.on_press((self
+                .on_action)(
                 self.state
                     .toggling(path, self.presentation.open_group_limit()),
             )),

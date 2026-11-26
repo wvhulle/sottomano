@@ -18,7 +18,7 @@ use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
             IndicatorGroupTitle,
@@ -82,7 +82,7 @@ pub(super) fn player_group<'view>(
         headline_indicator,
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
-        rows,
+        IndicatorListing::Listed(rows),
     );
     Some(match seek_availability {
         SeekAvailability::Seekable => player_content.forwards_scroll("seek in the track"),

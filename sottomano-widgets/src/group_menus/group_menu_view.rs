@@ -18,9 +18,7 @@ use crate::{
             AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
             OpenGroupMenu, PanelRaise,
         },
-        menu_rows::{
-            group_menu_group_rows::GroupMenuGroupRow, quantity_table::QuantityTableColumn,
-        },
+        menu_rows::{group_menu_entries::GroupMenuEntry, quantity_table::QuantityTableColumn},
     },
     hover_cards::{
         CardHeader, HoverTarget, IndicatorKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
@@ -138,14 +136,14 @@ impl GroupMenuMessenger {
 
 pub(crate) struct MenuSections<'view> {
     pub table_columns: Vec<QuantityTableColumn<'view>>,
-    pub group_rows: Vec<GroupMenuGroupRow<'view>>,
+    pub group_entries: Vec<GroupMenuEntry<'view>>,
 }
 
 impl MenuSections<'_> {
     fn empty() -> Self {
         Self {
             table_columns: Vec::new(),
-            group_rows: Vec::new(),
+            group_entries: Vec::new(),
         }
     }
 }
@@ -284,11 +282,11 @@ impl<'view> GroupMenuView<'view> {
             if let PanelPinOrigin::Pinned(_) =
                 group_menus.panel_pin(topic, group_entry, AlertPromotion::Unpromoted)
             {
-                return member
-                    .pinned_from(topic)
-                    .view_events(config, panel_position, clock)
-                    .into_iter()
-                    .collect();
+                return vec![
+                    member
+                        .pinned_from(topic)
+                        .view_events(config, panel_position, clock),
+                ];
             }
             member.panel_indicator_views(group_menus, topic, config, panel_position, clock)
         }))

@@ -1,4 +1,7 @@
-use crate::group_indicators::indicator_state::IndicatorState;
+use crate::{
+    group_indicators::indicator_state::IndicatorState,
+    indicator_groups::indicator_group_content::IndicatorListing,
+};
 mod context_fill_gauge;
 mod generation_rate_label;
 mod gguf_model_card_sections;
@@ -256,14 +259,17 @@ impl LlamaServerGroup {
             ),
             &self.expansion,
             LlamaServerInteraction::Expansion,
-            self.user
-                .indicators(LlamaServerInteraction::User, move || self.model_sections())
-                .chain(
-                    self.system
-                        .indicators(LlamaServerInteraction::System, move || {
-                            self.model_sections()
-                        }),
-                ),
+            IndicatorListing::Listed(
+                self.user
+                    .indicators(LlamaServerInteraction::User, move || self.model_sections())
+                    .chain(
+                        self.system
+                            .indicators(LlamaServerInteraction::System, move || {
+                                self.model_sections()
+                            }),
+                    )
+                    .collect(),
+            ),
         )
     }
 }

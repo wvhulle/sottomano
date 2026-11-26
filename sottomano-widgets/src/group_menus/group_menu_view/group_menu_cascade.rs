@@ -15,9 +15,9 @@ use crate::{
     group_menus::{
         group_menu_state::{AlertPromotion, GroupMenuPin},
         menu_rows::{
-            group_menu_group_rows::{
-                GroupMenuGroupRow, GroupMenuRowContext, group_header, indicator_entry,
-                one_row_per_identity,
+            group_menu_entries::{
+                GroupMenuEntry, GroupMenuRowContext, group_header, indicator_entry,
+                one_entry_per_identity,
             },
             menu_row::{MenuAppearance, configured_nested_menu, menu_metrics},
             quantity_table::quantity_table,
@@ -25,7 +25,8 @@ use crate::{
     },
     hover_cards::PanelPinOrigin,
     indicator_groups::{
-        indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupIdentity,
+        indicator_group_content::{GroupEvent, IndicatorListing},
+        indicator_group_identity::IndicatorGroupIdentity,
     },
     widgets::{configured_scroll::configured_scroll, shell_layer_appearance::LayerAppearance},
 };
@@ -47,7 +48,7 @@ impl<'view> GroupMenuView<'view> {
         } = self;
         let MenuSections {
             table_columns,
-            group_rows,
+            group_entries,
         } = groups
             .into_iter()
             .filter(|member| {
@@ -72,7 +73,7 @@ impl<'view> GroupMenuView<'view> {
             group_menus,
             clock: card.clock,
         };
-        let menu_entries = group_menu_entries(&row_context, group_rows, card);
+        let menu_entries = group_menu_entries(&row_context, group_entries, card);
         let list_frame = appearance.frame;
         let fade_extent_px =
             config.group_menus.scroll_fade_rows * menu_metrics(config).row_height_px;
@@ -116,7 +117,7 @@ impl<'view> GroupMenuView<'view> {
 
 fn group_menu_entries<'view>(
     row_context: &GroupMenuRowContext<'_>,
-    group_rows: Vec<GroupMenuGroupRow<'view>>,
+    group_entries: Vec<GroupMenuEntry<'view>>,
     card: &InspectionCard<'_, 'view>,
 ) -> Vec<MenuEntry<'view, IndicatorGroupIdentity, GroupEvent>> {
     let topic = row_context.menu.topic;
@@ -126,7 +127,7 @@ fn group_menu_entries<'view>(
         .inspection
         .inspected_indicator(topic);
     let layout = row_context.group_menus.presentation.layout;
-    one_row_per_identity(group_rows)
+    one_entry_per_identity(group_entries)
         .into_iter()
         .map(|entry| {
             let expansion_state = if open_groups.contains(&entry.group_identity) {
@@ -134,14 +135,16 @@ fn group_menu_entries<'view>(
             } else {
                 ExpansionState::Collapsed
             };
-            let header = group_header(
-                row_context,
-                &entry.group_identity,
-                &entry.group_title,
-                &entry.headline_indicator,
-                submenu_header_emphasis(layout, expansion_state),
-            );
-            let indicators = entry.indicators.iter().map(|indicator| {
+            let header_emphasis = match &entry.listing {
+                IndicatorListing::Listed(listed_indicators) if listed_indicators.is_empty() => {
+                    MenuRowEmphasis::Unavailable
+                }
+                IndicatorListing::Listed(_) | IndicatorListing::Incomplete { .. } => {
+                    submenu_header_emphasis(layout, expansion_state)
+                }
+            };
+            let header = group_header(row_context, &entry, header_emphasis);
+            let indicators = entry.listing.iter().map(|indicator| {
                 let item = indicator_entry(row_context, &entry.group_identity, indicator);
                 let inspected_card =
                     match indicator.row_emphasis(&entry.group_identity, inspected_indicator) {

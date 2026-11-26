@@ -1,4 +1,6 @@
 use std::iter;
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod modem_signal_indicator;
 
 use iced::{Subscription, Task};
@@ -233,7 +235,11 @@ impl MobileModemsGroup {
                 modem_path: expanded_modem_path.clone(),
                 expansion,
             },
-            iter::once(build_modem_signal_indicator()).chain(rows),
+            IndicatorListing::Listed(
+                iter::once(build_modem_signal_indicator())
+                    .chain(rows)
+                    .collect(),
+            ),
         ))
     }
 

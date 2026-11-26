@@ -28,7 +28,9 @@ use crate::{
     indicator_groups::{
         clock_group::ClockInteraction,
         compositor_styling_group::CompositorStylingMessage,
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         indicator_group_interaction::IndicatorGroupInteraction,
     },
@@ -105,11 +107,11 @@ fn messages_after_pointing_at_row(
         ),
         &expansion,
         ClockInteraction::Expansion,
-        [match row_press {
+        IndicatorListing::Listed(Vec::from([match row_press {
             PointedRowPress::PerformsAction => named_test_indicator("Smoke item")
                 .on_press("act", CompositorStylingMessage::ToggleXray),
             PointedRowPress::ReadOnly => named_test_indicator("Smoke item"),
-        }],
+        }])),
     );
     let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [group])
         .bench_surfaces(
@@ -171,7 +173,7 @@ fn compute_reveal_messages(
             GroupIndicator::glyph_only(family.title(), IconGlyph::default(), IndicatorState::Idle),
             &expansion,
             ClockInteraction::Expansion,
-            [named_test_indicator("Smoke item")],
+            IndicatorListing::Listed(Vec::from([named_test_indicator("Smoke item")])),
         )
     });
     let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, groups)
@@ -331,12 +333,12 @@ fn a_pinned_composed_indicator_draws_its_value_on_the_panel() {
         ),
         &expansion,
         ClockInteraction::Expansion,
-        [GroupIndicator::composed_pinnable(
+        IndicatorListing::Listed(Vec::from([GroupIndicator::composed_pinnable(
             "Lyrics",
             IndicatorIcon::Absent,
             IndicatorValue::drawn(|_| text("the sung line").into()),
             Box::new(|_| Vec::new()),
-        )],
+        )])),
     );
     let panel_views: Vec<_> = GroupMenuView::new(GroupMenuTopic::Media, &group_menus, [group])
         .panel_views(

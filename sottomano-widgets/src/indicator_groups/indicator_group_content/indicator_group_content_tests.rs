@@ -1,6 +1,9 @@
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
-use super::{IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage};
+use super::{
+    IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+    IndicatorListing,
+};
 use crate::{
     clock::Clock,
     glyph_icons::icon_glyph::IconGlyph,
@@ -31,7 +34,7 @@ fn group_showing(
         ),
         expansion,
         ClockInteraction::Expansion,
-        [shown_state_indicator(shown_state)],
+        IndicatorListing::Listed(Vec::from([shown_state_indicator(shown_state)])),
     )
 }
 
@@ -75,10 +78,11 @@ fn an_indicator_card_lists_the_current_press() {
             ),
             &expansion,
             ClockInteraction::Expansion,
-            [shown_state_indicator(IndicatorState::Idle).on_press(
-                description,
-                ClockInteraction::Expansion(IndicatorGroupExpansionMessage::Toggle),
-            )],
+            IndicatorListing::Listed(Vec::from([shown_state_indicator(IndicatorState::Idle)
+                .on_press(
+                    description,
+                    ClockInteraction::Expansion(IndicatorGroupExpansionMessage::Toggle),
+                )])),
         )
     };
     let indicator_key = IndicatorKey {
@@ -116,7 +120,7 @@ fn an_indicator_card_lists_the_current_press() {
 }
 
 #[test]
-fn a_group_without_indicators_has_no_panel_view() {
+fn an_empty_group_keeps_its_panel_handle() {
     let expansion = IndicatorGroupExpansion::default();
     let config = Config::default();
     let empty_group = IndicatorGroupContent::expandable(
@@ -128,11 +132,18 @@ fn a_group_without_indicators_has_no_panel_view() {
         ),
         &expansion,
         ClockInteraction::Expansion,
-        Vec::new(),
+        IndicatorListing::Listed(Vec::new()),
     );
-    assert!(
+    assert_eq!(
         empty_group
-            .view_events(&config, Position::Top, Clock::real())
-            .is_none()
+            .hover_card(
+                &HoverTarget::GroupHeadline(Box::new(IndicatorGroupIdentity::sole(
+                    IndicatorGroupFamily::Weather
+                ))),
+                Clock::real(),
+            )
+            .map(|hover_card| hover_card.sections.len()),
+        Some(0)
     );
+    let _panel_handle = empty_group.view_events(&config, Position::Top, Clock::real());
 }

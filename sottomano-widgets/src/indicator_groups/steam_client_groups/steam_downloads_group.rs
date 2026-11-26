@@ -20,7 +20,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{
@@ -195,6 +197,6 @@ pub(super) fn downloads_group<'activity>(
         headline_indicator,
         expansion,
         SteamClientInteraction::DownloadsExpansion,
-        iter::once(rate_indicator(activity)).chain(rows),
+        IndicatorListing::Listed(iter::once(rate_indicator(activity)).chain(rows).collect()),
     ))
 }

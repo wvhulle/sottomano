@@ -3,7 +3,9 @@ use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Me
 
 use crate::{
     hover_cards::hover_card_body::dictionary_table,
-    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
+    indicator_groups::{
+        indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
+    },
 };
 
 mod connectivity_state_indicator;
@@ -233,7 +235,7 @@ impl ReachabilityGroup {
             headline_indicator,
             &self.expansion,
             ReachabilityInteraction::Expansion,
-            lead_indicators.into_iter().chain(rows),
+            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
         )
     }
 

@@ -2,6 +2,7 @@ use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
 use crate::indicator_groups::{
+    indicator_group_content::IndicatorListing,
     indicator_group_identity::IndicatorGroupFamily,
     weather_group::{
         pollen_count_gauge::{POLLEN_FALLBACK_GLYPH, allergen_hover_card, allergen_indicator},
@@ -342,7 +343,7 @@ impl WeatherGroup {
             headline_indicator,
             &self.expansion,
             WeatherInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 }

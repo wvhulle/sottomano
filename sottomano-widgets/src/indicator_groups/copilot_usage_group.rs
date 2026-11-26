@@ -1,12 +1,15 @@
-use crate::indicator_groups::copilot_usage_group::{
-    copilot_cli_monthly_spend::{
-        COPILOT_CCUSAGE_FALLBACK_GLYPH, copilot_ccusage_hover_card, copilot_ccusage_indicator,
-        copilot_ccusage_panel_visibility,
+use crate::indicator_groups::{
+    copilot_usage_group::{
+        copilot_cli_monthly_spend::{
+            COPILOT_CCUSAGE_FALLBACK_GLYPH, copilot_ccusage_hover_card, copilot_ccusage_indicator,
+            copilot_ccusage_panel_visibility,
+        },
+        copilot_free_quota_count::{
+            COPILOT_FREE_FALLBACK_GLYPH, copilot_free_hover_card, copilot_free_indicator,
+        },
+        copilot_quota_gauge::{copilot_metered_hover_card, copilot_metered_indicator},
     },
-    copilot_free_quota_count::{
-        COPILOT_FREE_FALLBACK_GLYPH, copilot_free_hover_card, copilot_free_indicator,
-    },
-    copilot_quota_gauge::{copilot_metered_hover_card, copilot_metered_indicator},
+    indicator_group_content::IndicatorListing,
 };
 mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
@@ -199,7 +202,7 @@ impl CopilotUsageGroup {
             headline_indicator,
             &self.expansion,
             CopilotUsageInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

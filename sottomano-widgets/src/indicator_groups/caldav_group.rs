@@ -5,12 +5,15 @@ use crate::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_state::IndicatorState,
     },
-    indicator_groups::caldav_group::{
-        open_tasks_indicator::{open_tasks_hover_card, open_tasks_indicator},
-        upcoming_events_indicator::{
-            UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_hover_card,
-            upcoming_events_indicator,
+    indicator_groups::{
+        caldav_group::{
+            open_tasks_indicator::{open_tasks_hover_card, open_tasks_indicator},
+            upcoming_events_indicator::{
+                UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_hover_card,
+                upcoming_events_indicator,
+            },
         },
+        indicator_group_content::IndicatorListing,
     },
 };
 mod open_tasks_indicator;
@@ -183,7 +186,7 @@ impl CaldavGroup {
             ),
             &self.expansion,
             IndicatorGroupInteraction::Caldav,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod compression_setting_indicator;
 mod ext4_error_count_indicator;
 mod ext4_lifetime_writes_indicator;
@@ -282,7 +284,7 @@ impl StorageSpaceGroup {
             headline_indicator,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            lead_indicators.into_iter().chain([]),
+            IndicatorListing::Listed(lead_indicators),
         )]
     }
 }

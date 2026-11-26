@@ -11,7 +11,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
     },
@@ -158,7 +158,7 @@ impl WindowMenuBar {
             ),
             &self.switch_expansion,
             WindowMenuBarInteraction::SwitchExpansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 }

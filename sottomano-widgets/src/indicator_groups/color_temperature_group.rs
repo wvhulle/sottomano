@@ -1,4 +1,7 @@
-use crate::group_indicators::indicator_state::IndicatorState;
+use crate::{
+    group_indicators::indicator_state::IndicatorState,
+    indicator_groups::indicator_group_content::IndicatorListing,
+};
 mod sun_follow_toggle;
 
 use std::ops::RangeInclusive;
@@ -282,7 +285,7 @@ impl ColorTemperatureGroup {
                 headline_indicator,
                 &self.expansion,
                 ColorTemperatureInteraction::Expansion,
-                rows,
+                IndicatorListing::Listed(rows),
             )
         };
         if gamma_available {

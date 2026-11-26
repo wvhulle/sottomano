@@ -20,7 +20,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::value_cells::{LabeledValue, ValueCell},
@@ -124,14 +124,17 @@ impl CompositorStylingGroup {
             ),
             &self.expansion,
             CompositorStylingMessage::Expansion,
-            styling_indicators
-                .into_iter()
-                .filter(|(control, _)| {
-                    self.control_support(*control) == CompositorFeatureSupport::Available
-                })
-                .map(|(_, styling_indicator)| {
-                    self.with_unwritable_rules_warning(styling_indicator)
-                }),
+            IndicatorListing::Listed(
+                styling_indicators
+                    .into_iter()
+                    .filter(|(control, _)| {
+                        self.control_support(*control) == CompositorFeatureSupport::Available
+                    })
+                    .map(|(_, styling_indicator)| {
+                        self.with_unwritable_rules_warning(styling_indicator)
+                    })
+                    .collect(),
+            ),
         )
     }
 }

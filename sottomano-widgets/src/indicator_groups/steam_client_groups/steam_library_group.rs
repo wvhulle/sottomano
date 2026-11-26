@@ -22,7 +22,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
@@ -184,16 +186,19 @@ pub(super) fn library_group<'library>(
         headline_indicator,
         expansion,
         SteamClientInteraction::LibraryExpansion,
-        installed_games
-            .into_iter()
-            .map(|(folder_usage, installed_app)| {
-                installed_game_indicator(
-                    installed_app,
-                    folder_usage,
-                    library_bytes,
-                    locale,
-                    game_icon(installed_app.app_id),
-                )
-            }),
+        IndicatorListing::Listed(
+            installed_games
+                .into_iter()
+                .map(|(folder_usage, installed_app)| {
+                    installed_game_indicator(
+                        installed_app,
+                        folder_usage,
+                        library_bytes,
+                        locale,
+                        game_icon(installed_app.app_id),
+                    )
+                })
+                .collect(),
+        ),
     ))
 }

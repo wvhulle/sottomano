@@ -1,6 +1,8 @@
 mod backlight_display;
 mod clight_auto_brightness;
 use clight_auto_brightness::auto_brightness_indicator;
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod output_details;
 
 use std::{
@@ -308,7 +310,7 @@ impl MonitorGroup {
             },
             &self.expansion,
             MonitorInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         );
         if self.sliders.is_empty() {
             monitor_content

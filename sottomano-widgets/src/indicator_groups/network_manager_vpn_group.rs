@@ -21,6 +21,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -150,9 +151,12 @@ impl NetworkManagerVpnGroup {
             ),
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,
-            self.vpn_connections()
-                .iter()
-                .map(move |vpn_connection| self.wired_vpn_connection_indicator(vpn_connection)),
+            IndicatorListing::Listed(
+                self.vpn_connections()
+                    .iter()
+                    .map(move |vpn_connection| self.wired_vpn_connection_indicator(vpn_connection))
+                    .collect(),
+            ),
         )
     }
 }

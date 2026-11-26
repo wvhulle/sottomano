@@ -27,6 +27,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -184,7 +185,7 @@ impl IncusInstancesGroup {
             ),
             &self.expansion,
             IncusInstancesInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows.collect()),
         )
     }
 

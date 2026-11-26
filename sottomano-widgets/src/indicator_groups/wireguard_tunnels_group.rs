@@ -19,6 +19,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         wireguard_tunnels_group::wireguard_tunnel_hover_card::{
@@ -153,29 +154,38 @@ impl WireguardTunnelsGroup {
             ),
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
-            self.listed_tunnels().map(move |tunnel| {
-                wireguard_tunnel_indicator(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
-                    .with_hover_card(Box::new(move |_| {
-                        let mut sections =
-                            self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
-                        sections.extend(
-                            self.tunnel_address
-                                .sections_described_by(tunnel_address_sections),
-                        );
-                        sections
-                    }))
-                    .fetching_on_hover(
-                        WireguardTunnelsInteraction::OnBuses(
-                            WireguardTunnelsBusRequest::StartTunnelAddressFetch(
-                                tunnel.interface.clone(),
+            IndicatorListing::Listed(
+                self.listed_tunnels()
+                    .map(move |tunnel| {
+                        wireguard_tunnel_indicator(
+                            tunnel,
+                            WireguardTunnelsInteraction::SwitchTunnel,
+                        )
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections =
+                                self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+                            sections.extend(
+                                self.tunnel_address
+                                    .sections_described_by(tunnel_address_sections),
+                            );
+                            sections
+                        }))
+                        .fetching_on_hover(
+                            WireguardTunnelsInteraction::OnBuses(
+                                WireguardTunnelsBusRequest::StartTunnelAddressFetch(
+                                    tunnel.interface.clone(),
+                                ),
                             ),
-                        ),
-                        WireguardTunnelsInteraction::StopHoverFetches,
-                    )
-                    .refreshed_by(WireguardTunnelsInteraction::OnBuses(
-                        WireguardTunnelsBusRequest::Refresh,
-                    ))
-            }),
+                            WireguardTunnelsInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(
+                            WireguardTunnelsInteraction::OnBuses(
+                                WireguardTunnelsBusRequest::Refresh,
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
         )
     }
 }

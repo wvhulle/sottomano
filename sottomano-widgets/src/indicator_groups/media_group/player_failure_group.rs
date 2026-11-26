@@ -8,7 +8,7 @@ use crate::{
     },
     group_indicators::snapshot_absence::AbsenceCause,
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
             IndicatorGroupTitle,
@@ -38,6 +38,8 @@ pub(super) fn player_failure_group<'view>(
         read_failure.indicator(unreadable_player_glyph()),
         &session.expansion,
         move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
-        [read_failure.indicator(unreadable_player_glyph())],
+        IndicatorListing::Listed(Vec::from([
+            read_failure.indicator(unreadable_player_glyph())
+        ])),
     )
 }

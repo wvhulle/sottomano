@@ -19,7 +19,7 @@ use crate::{
             gpu_clock_label::gpu_clocks_sections,
             gpu_memory_gauge::{gpu_memory_sections, gpu_processes_sections},
         },
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupTitle,
     },
     widgets::subscribed_snapshot::SubscribedSnapshot,
@@ -210,9 +210,12 @@ impl GpuGroup {
                     headline_indicator,
                     &device.expansion,
                     move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
-                    lead_indicators
-                        .into_iter()
-                        .chain(self.device_indicators(bus, device)),
+                    IndicatorListing::Listed(
+                        lead_indicators
+                            .into_iter()
+                            .chain(self.device_indicators(bus, device))
+                            .collect(),
+                    ),
                 )
             })
     }

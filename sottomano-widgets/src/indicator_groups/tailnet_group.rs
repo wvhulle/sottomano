@@ -35,6 +35,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         tailnet_group::{
@@ -381,9 +382,13 @@ impl TailnetGroup {
             ),
             &self.expansion,
             TailnetInteraction::Expansion,
-            rows.into_iter().map(|tailnet_indicator| {
-                tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
-            }),
+            IndicatorListing::Listed(
+                rows.into_iter()
+                    .map(|tailnet_indicator| {
+                        tailnet_indicator.refreshed_by(TailnetInteraction::Refresh)
+                    })
+                    .collect(),
+            ),
         )
     }
 }

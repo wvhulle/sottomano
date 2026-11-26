@@ -16,7 +16,9 @@ use crate::{
         indicator_state::IndicatorState,
     },
     indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::IndicatorGroupFamily,
         journal_events_group::{
             JournalEventsInteraction,
@@ -77,7 +79,7 @@ impl JournalScopeGroup {
             move |expansion_message| {
                 JournalEventsInteraction::Expansion(unit_scope, expansion_message)
             },
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

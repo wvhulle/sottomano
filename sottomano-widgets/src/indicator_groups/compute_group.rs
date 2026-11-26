@@ -1,5 +1,7 @@
 use chrono::Locale;
 
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
+
 mod chiplet_clock_table;
 mod chiplet_live_state;
 mod compute_hover_cards;
@@ -250,7 +252,7 @@ impl ComputeGroup {
             headline_indicator,
             &self.expansion,
             ComputeInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

@@ -1,5 +1,7 @@
 use chrono::Locale;
 
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
+
 mod local_date;
 mod local_time;
 mod zone_time;
@@ -172,7 +174,7 @@ impl ClockGroup {
             headline_indicator,
             &self.expansion,
             ClockInteraction::Expansion,
-            lead_indicators.into_iter().chain(rows),
+            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
         )
     }
 

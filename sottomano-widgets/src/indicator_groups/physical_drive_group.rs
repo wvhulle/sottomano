@@ -29,6 +29,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
         storage_space_group::{
@@ -273,7 +274,7 @@ impl PhysicalDriveGroup {
             headline_indicator,
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            lead_indicators.into_iter().chain([]),
+            IndicatorListing::Listed(lead_indicators.into_iter().chain([]).collect()),
         );
         [discovery_group]
             .into_iter()

@@ -1,4 +1,6 @@
 use std::iter;
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 mod adapter_signal_indicator;
 
 use iced::{Subscription, Task};
@@ -320,14 +322,18 @@ impl WifiAdaptersGroup {
                 adapter_device: adapter_device.clone(),
                 expansion,
             },
-            iter::once(build_adapter_signal_indicator()).chain(rows.into_iter().map(
-                |adapter_item| {
-                    adapter_item.fetching_on_hover(
-                        WifiAdaptersInteraction::OnBuses(WifiAdaptersBusRequest::StartDetailsFetch),
-                        WifiAdaptersInteraction::StopHoverFetches,
-                    )
-                },
-            )),
+            IndicatorListing::Listed(
+                iter::once(build_adapter_signal_indicator())
+                    .chain(rows.into_iter().map(|adapter_item| {
+                        adapter_item.fetching_on_hover(
+                            WifiAdaptersInteraction::OnBuses(
+                                WifiAdaptersBusRequest::StartDetailsFetch,
+                            ),
+                            WifiAdaptersInteraction::StopHoverFetches,
+                        )
+                    }))
+                    .collect(),
+            ),
         ))
     }
 

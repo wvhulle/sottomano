@@ -3,6 +3,7 @@ use iced::Element;
 use super::{
     MenuBuilder, MenuEntry, MenuItem, MenuSubmenu, NestedMenuSurfaces,
     menu_entries::{BesideRow, shared_icon_column, without_redundant_dividers},
+    submenu_header::SubmenuContents,
 };
 use crate::{
     drag_reorder::ListEndCorners,
@@ -109,13 +110,18 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                     }) => {
                         let path: Vec<SubmenuKey> =
                             ancestors.iter().cloned().chain([key.clone()]).collect();
-                        let expansion_state = self.submenu_expansion(&key);
+                        let submenu_contents = SubmenuContents::from(entries.as_slice());
+                        let expansion_state = match submenu_contents {
+                            SubmenuContents::Entries => self.submenu_expansion(&key),
+                            SubmenuContents::Nothing => ExpansionState::Collapsed,
+                        };
                         let row = gestured_menu_row(
                             self.header_row(
                                 header.within(icon_column),
                                 &path,
                                 expansion_state,
                                 satellite_reach,
+                                submenu_contents,
                             ),
                             self.chrome.metrics,
                             row_corners,

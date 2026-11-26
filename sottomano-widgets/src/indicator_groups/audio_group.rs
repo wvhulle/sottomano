@@ -28,7 +28,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
+            IndicatorGroupExpansionMessage, IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -284,7 +284,7 @@ impl AudioGroup {
                 headline_indicator,
                 &self.expansion,
                 AudioMessage::Expansion,
-                rows,
+                IndicatorListing::Listed(rows),
             )
         };
         match sink {

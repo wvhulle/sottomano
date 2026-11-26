@@ -1,6 +1,9 @@
 use chrono::Locale;
 
-use crate::group_indicators::indicator_state::IndicatorState;
+use crate::{
+    group_indicators::indicator_state::IndicatorState,
+    indicator_groups::indicator_group_content::IndicatorListing,
+};
 mod ci_run_indicators;
 mod ci_runner_watches;
 
@@ -232,7 +235,7 @@ impl CiRunsGroup {
             ),
             &self.expansion,
             CiRunsInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

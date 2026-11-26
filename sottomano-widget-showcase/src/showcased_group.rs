@@ -197,7 +197,7 @@ impl ShowcasedGroup {
             _ => self
                 .group_contents(config, clock)
                 .into_iter()
-                .filter_map(|group| group.view_events(config, position, clock))
+                .map(|group| group.view_events(config, position, clock))
                 .map(|element| element.map(ShowcaseInteraction::from))
                 .collect(),
         }

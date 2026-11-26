@@ -16,7 +16,7 @@ use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
 };
@@ -112,7 +112,7 @@ impl PhysicalDriveGroup {
                 disk: disk.clone(),
                 expansion,
             },
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

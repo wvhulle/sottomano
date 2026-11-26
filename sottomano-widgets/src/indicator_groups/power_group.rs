@@ -36,7 +36,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
+            IndicatorGroupExpansionMessage, IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         power_group::{
@@ -271,7 +271,7 @@ impl PowerGroup {
             headline_indicator,
             &self.expansion,
             PowerInteraction::Expansion,
-            lead_indicators.into_iter().chain(rows),
+            IndicatorListing::Listed(lead_indicators.into_iter().chain(rows).collect()),
         )
     }
 

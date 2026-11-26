@@ -19,7 +19,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::{GroupEvent, IndicatorGroupContent},
+        indicator_group_content::{GroupEvent, IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::{
@@ -109,7 +109,7 @@ impl QuietScheduleGroup {
             ),
             &self.expansion,
             QuietScheduleMessage::Expansion,
-            [
+            IndicatorListing::Listed(Vec::from([
                 GroupIndicator::toggle(
                     self.follow_schedule_toggle(),
                     QuietScheduleMessage::ToggleFollowsSchedule,
@@ -140,7 +140,7 @@ impl QuietScheduleGroup {
                     WORKING_DAY_PRESSES,
                     config.calendar.locale,
                 )),
-            ],
+            ])),
         )
     }
 

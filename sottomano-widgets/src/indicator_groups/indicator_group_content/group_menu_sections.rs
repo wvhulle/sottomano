@@ -3,16 +3,14 @@ use std::collections::BTreeMap;
 use iced::Element;
 use sottomano_toml_config::{Config, screen_edges::Position};
 
-use super::{GroupEvent, IndicatorGroupContent, group_panel_view::fixed_view};
+use super::{GroupEvent, IndicatorGroupContent, IndicatorListing, group_panel_view::fixed_view};
 use crate::{
     clock::Clock,
     group_indicators::aligned_quantity::IndicatorAlignment,
     group_menus::{
         group_menu_state::{GroupMenuState, GroupMenuTopic, IndicatorPin},
         group_menu_view::MenuSections,
-        menu_rows::{
-            group_menu_group_rows::GroupMenuGroupRow, quantity_table::QuantityTableColumn,
-        },
+        menu_rows::{group_menu_entries::GroupMenuEntry, quantity_table::QuantityTableColumn},
     },
     hover_cards::{HoverTarget, MenuHandleIndicator},
 };
@@ -27,7 +25,7 @@ impl<'view> IndicatorGroupContent<'view> {
         clock: Clock,
     ) -> Vec<Element<'view, GroupEvent>> {
         let promotion_severity = config.group_menus.alert_promotion_severity;
-        self.indicators
+        self.listing
             .iter()
             .filter_map(|indicator| {
                 let IndicatorPin::Pinned(panel_pin) = group_menus.indicator_pin(
@@ -63,32 +61,33 @@ impl<'view> IndicatorGroupContent<'view> {
             group_identity,
             group_title,
             headline_indicator,
-            indicators,
+            listing,
             ..
         } = self;
-        let (item_rows, aligned_indicators): (Vec<_>, Vec<_>) = indicators
-            .into_iter()
-            .partition(|indicator| indicator.alignment == IndicatorAlignment::Unaligned);
-        let aligned = aligned_indicators
-            .iter()
-            .fold(BTreeMap::new(), |mut aligned, indicator| {
-                if let IndicatorAlignment::Aligned(quantity) = indicator.alignment {
-                    aligned.insert(quantity, indicator.table_cell_view(config, clock));
-                }
-                aligned
-            });
+        let aligned =
+            listing
+                .listed_indicators()
+                .iter()
+                .fold(BTreeMap::new(), |mut aligned, indicator| {
+                    if let IndicatorAlignment::Aligned(quantity) = indicator.alignment {
+                        aligned.insert(quantity, indicator.table_cell_view(config, clock));
+                    }
+                    aligned
+                });
+        match listing.retaining_listed(|alignment| alignment == IndicatorAlignment::Unaligned) {
+            IndicatorListing::Listed(listed_indicators)
+                if listed_indicators.is_empty() && !aligned.is_empty() => {}
+            unaligned_listing => sections.group_entries.push(GroupMenuEntry {
+                group_identity,
+                group_title: group_title.clone(),
+                headline_indicator,
+                listing: unaligned_listing,
+            }),
+        }
         if !aligned.is_empty() {
             sections.table_columns.push(QuantityTableColumn {
-                group_title: group_title.clone(),
-                aligned,
-            });
-        }
-        if !item_rows.is_empty() {
-            sections.group_rows.push(GroupMenuGroupRow {
-                group_identity,
                 group_title,
-                headline_indicator,
-                indicators: item_rows,
+                aligned,
             });
         }
         sections

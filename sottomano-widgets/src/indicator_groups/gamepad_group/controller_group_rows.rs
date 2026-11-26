@@ -32,7 +32,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
@@ -212,7 +212,11 @@ impl GamepadGroup {
             headline_indicator,
             expansion,
             move |expansion| GamepadInteraction::Expansion { slot, expansion },
-            iter::once(build_controller_indicator()).chain(rows),
+            IndicatorListing::Listed(
+                iter::once(build_controller_indicator())
+                    .chain(rows)
+                    .collect(),
+            ),
         ))
     }
 

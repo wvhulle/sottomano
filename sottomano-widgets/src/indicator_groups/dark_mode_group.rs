@@ -41,7 +41,7 @@ use crate::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, SwitchDecision},
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
+            IndicatorGroupExpansionMessage, IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -348,7 +348,7 @@ impl DarkModeGroup {
             ),
             &self.expansion,
             DarkModeInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

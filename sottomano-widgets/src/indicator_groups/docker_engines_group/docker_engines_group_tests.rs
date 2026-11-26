@@ -66,7 +66,7 @@ fn a_missing_docker_socket_shows_no_indicator() {
         DockerEnginesMessage::Engine(rootful_socket.clone(), SnapshotDelivery::SourceUnavailable),
         Clock::real(),
     );
-    assert!(group.group_content().indicators.is_empty());
+    assert!(group.group_content().listing.iter().next().is_none());
     let _ = group.update(
         DockerEnginesMessage::Engine(
             rootful_socket,
@@ -85,5 +85,5 @@ fn a_missing_docker_socket_shows_no_indicator() {
         ),
         Clock::real(),
     );
-    assert!(!group.group_content().indicators.is_empty());
+    assert!(group.group_content().listing.iter().next().is_some());
 }

@@ -38,11 +38,13 @@ impl ShowcasedShellSettings {
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
-                .map(IndicatorGroupContent::only_aligned_indicators)
-                .into(),
+                .into_iter()
+                .filter_map(IndicatorGroupContent::only_aligned_indicators)
+                .collect(),
             ShownSettingItems::Remaining => inert_settings
-                .map(IndicatorGroupContent::only_unaligned_indicators)
-                .into(),
+                .into_iter()
+                .filter_map(IndicatorGroupContent::only_unaligned_indicators)
+                .collect(),
         }
     }
 }

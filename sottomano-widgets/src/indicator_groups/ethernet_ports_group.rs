@@ -1,4 +1,6 @@
 use std::iter;
+
+use crate::indicator_groups::indicator_group_content::IndicatorListing;
 #[cfg(test)]
 mod ethernet_ports_group_tests;
 mod port_link_indicator;
@@ -326,12 +328,18 @@ impl EthernetPortsGroup {
                 port_name: port_name.clone(),
                 expansion,
             },
-            iter::once(build_port_link_indicator()).chain(rows.into_iter().map(|port_item| {
-                port_item.fetching_on_hover(
-                    EthernetPortsInteraction::OnBuses(EthernetPortsBusRequest::StartDetailsFetch),
-                    EthernetPortsInteraction::StopHoverFetches,
-                )
-            })),
+            IndicatorListing::Listed(
+                iter::once(build_port_link_indicator())
+                    .chain(rows.into_iter().map(|port_item| {
+                        port_item.fetching_on_hover(
+                            EthernetPortsInteraction::OnBuses(
+                                EthernetPortsBusRequest::StartDetailsFetch,
+                            ),
+                            EthernetPortsInteraction::StopHoverFetches,
+                        )
+                    }))
+                    .collect(),
+            ),
         ))
     }
 

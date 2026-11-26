@@ -13,6 +13,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         quiet_schedule_group::{QuietScheduleGroup, quiet_window::QuietPhase},
@@ -142,7 +143,7 @@ impl NotificationGroup {
             headline_indicator,
             &self.expansion,
             NotificationGroupMessage::Expansion,
-            [
+            IndicatorListing::Listed(Vec::from([
                 build_pending_notifications_indicator(),
                 do_not_disturb_indicator(DoNotDisturbStatus { quiet_phase })
                     .on_switch_press(
@@ -160,7 +161,7 @@ impl NotificationGroup {
                     sound_toggle(self.alert_sound),
                     NotificationGroupMessage::ToggleSound,
                 ),
-            ],
+            ])),
         )
     }
 }

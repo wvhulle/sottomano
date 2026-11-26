@@ -34,6 +34,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -246,7 +247,7 @@ impl MicrovmGuestsGroup {
             ),
             &self.expansion,
             MicrovmGuestsInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

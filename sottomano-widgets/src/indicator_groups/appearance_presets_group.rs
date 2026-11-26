@@ -9,6 +9,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -77,9 +78,12 @@ impl AppearancePresetsGroup {
             ),
             &self.expansion,
             AppearancePresetsMessage::Expansion,
-            AppearancePreset::ALL
-                .into_iter()
-                .map(|preset| preset_group_indicator(preset, current)),
+            IndicatorListing::Listed(
+                AppearancePreset::ALL
+                    .into_iter()
+                    .map(|preset| preset_group_indicator(preset, current))
+                    .collect(),
+            ),
         )
     }
 }

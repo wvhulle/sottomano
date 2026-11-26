@@ -16,7 +16,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage,
+            IndicatorGroupExpansionMessage, IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         sqlite_singleton_flag,
@@ -266,7 +266,7 @@ impl SidebarSettingsGroup {
             ),
             &self.expansion,
             SidebarSettingsMessage::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 }

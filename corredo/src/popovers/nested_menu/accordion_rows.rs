@@ -8,6 +8,7 @@ use super::{
     MenuBuilder, MenuEntry, MenuItem, MenuSubmenu, NestedMenuSurfaces,
     cascading_panels::BesideCard,
     menu_entries::{BesideRow, shared_icon_column, without_redundant_dividers},
+    submenu_header::SubmenuContents,
 };
 use crate::{
     drag_reorder::ListEndCorners,
@@ -38,6 +39,7 @@ pub(super) enum AccordionLine<'view, SubmenuKey, Message> {
         path: Vec<SubmenuKey>,
         expansion_state: ExpansionState,
         section_divider: SectionDivider,
+        submenu_contents: SubmenuContents,
     },
 }
 
@@ -72,6 +74,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                     let path: Vec<SubmenuKey> =
                         ancestors.iter().cloned().chain([key.clone()]).collect();
                     let expansion_state = self.submenu_expansion(&key);
+                    let submenu_contents = SubmenuContents::from(entries.as_slice());
                     let shown_lines = match expansion_state {
                         ExpansionState::Expanded => self.accordion_lines(entries, &path),
                         ExpansionState::Collapsed => Vec::new(),
@@ -81,6 +84,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         path,
                         expansion_state,
                         section_divider,
+                        submenu_contents,
                     }]
                     .into_iter()
                     .chain(shown_lines)
@@ -168,6 +172,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         path,
                         expansion_state,
                         section_divider,
+                        submenu_contents,
                     } => {
                         let depth = path.len() - 1;
                         header = header.within(icon_column);
@@ -183,6 +188,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                                     &path,
                                     expansion_state,
                                     SatelliteReach::Closed,
+                                    submenu_contents,
                                 ),
                                 self.chrome.metrics,
                                 row_corners,

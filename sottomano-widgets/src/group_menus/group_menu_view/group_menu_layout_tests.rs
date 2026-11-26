@@ -28,7 +28,9 @@ use crate::{
     },
     indicator_groups::{
         clock_group::ClockInteraction,
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     },
     widgets::shell_layer_appearance::ShellLayer,
@@ -155,7 +157,7 @@ pub(super) fn row_tops(
         ),
         &expansion,
         ClockInteraction::Expansion,
-        [named_test_indicator("Smoke item")],
+        IndicatorListing::Listed(Vec::from([named_test_indicator("Smoke item")])),
     );
     let surfaces = GroupMenuView::new(GroupMenuTopic::Hardware, group_menus, [group])
         .bench_surfaces(&bench, orientation);
@@ -190,7 +192,7 @@ fn a_group_without_indicators_leaves_the_menu() {
         ),
         &expansion,
         ClockInteraction::Expansion,
-        Vec::<GroupIndicator<'_>>::new(),
+        IndicatorListing::Listed(Vec::new()),
     );
     let menu = GroupMenuView::new(GroupMenuTopic::Hardware, &group_menus, [empty_group]);
     assert_eq!(menu.open_group_menu().families.len(), 1);
@@ -205,7 +207,7 @@ fn a_headline_indicator_is_not_listed_among_the_group_indicators() {
         named_test_indicator("Headline").with_headline_glyph(IconGlyph::default()),
         &expansion,
         ClockInteraction::Expansion,
-        [named_test_indicator("Listed")],
+        IndicatorListing::Listed(Vec::from([named_test_indicator("Listed")])),
     );
     let indicator_key = |name: &str| IndicatorKey {
         group: IndicatorGroupIdentity::sole(IndicatorGroupFamily::Gpu),
@@ -259,7 +261,7 @@ pub(super) fn long_indicator_list_row_top(
         ),
         &expansion,
         ClockInteraction::Expansion,
-        long_list,
+        IndicatorListing::Listed(long_list.collect()),
     );
     let mut group_menus = GroupMenuState::default();
     let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(

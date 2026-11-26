@@ -26,6 +26,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -222,7 +223,7 @@ impl VirtualMachinesGroup {
             ),
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
-            rows.chain(inactive_indicators),
+            IndicatorListing::Listed(rows.chain(inactive_indicators).collect()),
         )
     }
 }

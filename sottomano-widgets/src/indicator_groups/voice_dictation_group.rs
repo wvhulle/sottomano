@@ -38,6 +38,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
@@ -265,7 +266,7 @@ impl VoiceDictationGroup {
             headline_indicator,
             &self.expansion,
             VoiceDictationInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 }

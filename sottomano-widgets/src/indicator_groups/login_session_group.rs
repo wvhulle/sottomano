@@ -1,4 +1,7 @@
-use crate::group_indicators::indicator_state::IndicatorState;
+use crate::{
+    group_indicators::indicator_state::IndicatorState,
+    indicator_groups::indicator_group_content::IndicatorListing,
+};
 mod account_face;
 mod compositor_face;
 mod desktop_services_face;
@@ -322,7 +325,7 @@ impl LoginSessionGroup {
             ),
             &self.expansion,
             LoginSessionInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 }

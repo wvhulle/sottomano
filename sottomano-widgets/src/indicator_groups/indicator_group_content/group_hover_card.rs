@@ -1,4 +1,4 @@
-use super::{HandleScrollForwarding, IndicatorGroupContent};
+use super::{HandleScrollForwarding, IndicatorGroupContent, IndicatorListing};
 use crate::{
     clock::Clock,
     group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
@@ -21,7 +21,13 @@ impl<'view> IndicatorGroupContent<'view> {
 
     fn handle_actions(&self) -> Vec<PressAction> {
         let face_actions = self.headline_indicator.press_actions();
-        let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
+        let expansion_action = match &self.listing {
+            IndicatorListing::Listed(listed_indicators) if listed_indicators.is_empty() => None,
+            IndicatorListing::Listed(_) | IndicatorListing::Incomplete { .. } => {
+                Some(PressAction::group_handle(self.expansion.state))
+            }
+        };
+        let handle_actions: Vec<PressAction> = expansion_action
             .into_iter()
             .chain(match self.scroll_forwarding {
                 HandleScrollForwarding::Forwarded(scroll_does) => {

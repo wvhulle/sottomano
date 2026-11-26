@@ -10,7 +10,7 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
     },
 };
@@ -86,25 +86,30 @@ impl GroupMenuState {
             ),
             &self.settings_expansion,
             GroupMenuMessage::SettingsExpansion,
-            [
-                GroupIndicator::toggle(
-                    accordion_layout_toggle(presentation),
-                    GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
-                ),
-                GroupIndicator::toggle(
-                    click_to_open_menus_toggle(presentation),
-                    GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
-                ),
-                GroupIndicator::toggle(
-                    submenu_connector_toggle(presentation),
-                    GroupMenuMessage::SwitchPresentation(
-                        presentation.with_submenu_connector_toggled(),
+            IndicatorListing::Listed(
+                [
+                    GroupIndicator::toggle(
+                        accordion_layout_toggle(presentation),
+                        GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
                     ),
-                ),
-            ]
-            .into_iter()
-            .chain(accordion_only_indicator)
-            .chain(self.layer.indicators(config, GroupMenuMessage::Appearance)),
+                    GroupIndicator::toggle(
+                        click_to_open_menus_toggle(presentation),
+                        GroupMenuMessage::SwitchPresentation(
+                            presentation.with_open_trigger_toggled(),
+                        ),
+                    ),
+                    GroupIndicator::toggle(
+                        submenu_connector_toggle(presentation),
+                        GroupMenuMessage::SwitchPresentation(
+                            presentation.with_submenu_connector_toggled(),
+                        ),
+                    ),
+                ]
+                .into_iter()
+                .chain(accordion_only_indicator)
+                .chain(self.layer.indicators(config, GroupMenuMessage::Appearance))
+                .collect(),
+            ),
         )
     }
 }

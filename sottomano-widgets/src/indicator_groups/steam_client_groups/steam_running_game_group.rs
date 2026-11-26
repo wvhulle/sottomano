@@ -15,7 +15,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
         },
@@ -113,21 +115,25 @@ pub(super) fn running_game_group<'game>(
             app_number: app_id.number,
             expansion,
         },
-        iter::once(launch_indicator(game)).chain([
-            processes_indicator(game),
-            install_indicator(game, locale),
-            steam_page_indicator(
-                "Controller config",
-                Phosphor::GameController(Weight::Regular),
-                SteamClientPage::ControllerConfiguration(app_id),
-                "open Steam's controller configuration for this game",
-            ),
-            steam_page_indicator(
-                "Steam page",
-                Phosphor::ArrowSquareOut(Weight::Regular),
-                SteamClientPage::GameDetails(app_id),
-                "open this game's page in Steam",
-            ),
-        ]),
+        IndicatorListing::Listed(
+            iter::once(launch_indicator(game))
+                .chain([
+                    processes_indicator(game),
+                    install_indicator(game, locale),
+                    steam_page_indicator(
+                        "Controller config",
+                        Phosphor::GameController(Weight::Regular),
+                        SteamClientPage::ControllerConfiguration(app_id),
+                        "open Steam's controller configuration for this game",
+                    ),
+                    steam_page_indicator(
+                        "Steam page",
+                        Phosphor::ArrowSquareOut(Weight::Regular),
+                        SteamClientPage::GameDetails(app_id),
+                        "open this game's page in Steam",
+                    ),
+                ])
+                .collect(),
+        ),
     )
 }

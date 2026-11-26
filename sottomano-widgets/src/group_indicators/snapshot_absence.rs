@@ -41,3 +41,17 @@ impl<S: SnapshotSource> AbsenceCause<S> {
         }
     }
 }
+
+pub fn failed_source_indicator<S: SnapshotSource>(
+    fetch_failure: &S::Error,
+    absent_glyph: IconGlyph,
+) -> GroupIndicator<'_> {
+    GroupIndicator::glyph_only(S::NAME, absent_glyph, IndicatorState::Failed).with_hover_card(
+        Box::new(move |_| {
+            vec![Section::source_state::<S>(
+                SourceDelivery::Failed,
+                fetch_failure.to_string(),
+            )]
+        }),
+    )
+}

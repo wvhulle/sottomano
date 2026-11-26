@@ -37,6 +37,7 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         session_focus_group::{
@@ -315,11 +316,11 @@ impl SessionFocusGroup {
             headline_indicator,
             &self.expansion,
             SessionFocusMessage::Expansion,
-            [
+            IndicatorListing::Listed(Vec::from([
                 self.focus_timeline_indicator(config, clock),
                 totals,
                 switches,
-            ],
+            ])),
         )
     }
 }

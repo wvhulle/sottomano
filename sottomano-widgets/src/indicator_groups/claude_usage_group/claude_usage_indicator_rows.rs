@@ -26,7 +26,7 @@ use crate::{
                 claude_usage_windows_hover_card, claude_usage_windows_indicator,
             },
         },
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
     },
     widgets::most_used_model::{ModelSpendRanking, RankedSpan},
@@ -144,7 +144,7 @@ impl ClaudeUsageGroup {
             headline_indicator,
             &self.expansion,
             ClaudeUsageInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 

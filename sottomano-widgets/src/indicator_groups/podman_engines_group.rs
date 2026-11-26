@@ -32,7 +32,9 @@ use crate::{
             StoppedContainerIndicator, container_switch_task, engine_failure_label,
             indicators_ending_in_hidden_count,
         },
-        indicator_group_content::{IndicatorGroupContent, IndicatorGroupExpansion},
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
@@ -274,7 +276,7 @@ impl PodmanEnginesGroup {
                     expansion,
                 ))
             },
-            self.container_indicators(),
+            IndicatorListing::Listed(self.container_indicators()),
         )
     }
 }

@@ -94,12 +94,11 @@ impl DesktopShell {
                 )
                 .map(|element| element.map(ShellInteraction::from))
                 .collect(),
-            PanelZoneEntry::Standalone(group) => self
-                .standalone_group(group)
-                .view_events(config, position, self.clock)
-                .into_iter()
-                .map(|element| element.map(ShellInteraction::from))
-                .collect(),
+            PanelZoneEntry::Standalone(group) => vec![
+                self.standalone_group(group)
+                    .view_events(config, position, self.clock)
+                    .map(ShellInteraction::from),
+            ],
             PanelZoneEntry::Fixed(entry) => {
                 let fixed_group = self.fixed_panel_group(entry);
                 let handle_indicator = fixed_group

@@ -16,7 +16,7 @@ use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::group_indicator::{GroupIndicator, PanelVisibility},
     indicator_groups::{
-        indicator_group_content::IndicatorGroupContent,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
     },
 };
@@ -89,7 +89,7 @@ impl MemoryBoardGroup {
             headline_indicator,
             &self.expansion,
             MemoryBoardInteraction::Expansion,
-            rows,
+            IndicatorListing::Listed(rows),
         )
     }
 
