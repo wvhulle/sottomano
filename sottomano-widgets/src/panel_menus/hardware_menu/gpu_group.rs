@@ -1,10 +1,10 @@
-mod gpu_clock_label;
+mod gpu_clock_indicator;
 mod gpu_device_access;
 mod gpu_device_rows;
-mod gpu_load_gauge;
-mod gpu_memory_gauge;
-mod gpu_power_label;
-mod gpu_temperature_label;
+mod gpu_load_indicator;
+mod gpu_memory_indicator;
+mod gpu_power_indicator;
+mod gpu_temperature_indicator;
 
 use std::collections::BTreeMap;
 

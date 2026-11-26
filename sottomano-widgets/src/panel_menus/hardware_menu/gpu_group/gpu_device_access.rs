@@ -3,7 +3,7 @@ use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
     GpuSnapshot, GpuTemperatureReading,
 };
 
-use super::{gpu_clock_label::GpuClockLabel, gpu_temperature_label::GpuTemperatureLabel};
+use super::{gpu_clock_indicator::GpuClockLabel, gpu_temperature_indicator::GpuTemperatureLabel};
 use crate::{
     group_indicators::{
         indicator_group_content::IndicatorGroupExpansion, snapshot_absence::AbsenceCause,

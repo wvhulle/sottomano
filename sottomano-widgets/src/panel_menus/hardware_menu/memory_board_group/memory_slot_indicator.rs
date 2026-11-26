@@ -6,11 +6,13 @@ use sottomano_desktop_sources::host_machine_identity::{
     udev_hardware_identity::{HardwareText, MemoryModule, MemorySlotModule, MemoryTransferRate},
 };
 
+use super::MemoryBoardGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -182,6 +184,36 @@ impl MemorySlotIndicator {
         .into_iter()
         .chain(self.board_section())
         .collect::<Vec<_>>()
+    }
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn memory_slot_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(self.slot_indicators(locale).collect())
+    }
+    fn slot_indicators(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
+        self.hardware.get().into_iter().flat_map(move |hardware| {
+            let machine = &hardware.machine;
+            matching_module_banks(&hardware.memory)
+                .into_iter()
+                .enumerate()
+                .map(move |(bank_index, matching_module_bank)| {
+                    let slot_indicator = MemorySlotIndicator {
+                        matching_module_bank,
+                        machine: if bank_index == 0 {
+                            machine.clone()
+                        } else {
+                            MachineInfo::default()
+                        },
+                    };
+                    slot_indicator
+                        .clone()
+                        .indicator(locale)
+                        .with_hover_card(Box::new(move |_| {
+                            self.hardware.hover_card_with(slot_indicator.hover_card())
+                        }))
+                })
+        })
     }
 }
 

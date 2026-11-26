@@ -1,21 +1,23 @@
 use chrono::Locale;
 
-use crate::group_indicators::indicator_group_content::IndicatorListing;
+use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
+    group_indicators::group_indicator::GroupIndicator,
+};
 
 mod chiplet_clock_table;
 mod chiplet_live_state;
-mod compute_hover_cards;
-mod compute_indicator_rows;
 mod core_grid_sections;
-mod cpu_clock_label;
-mod cpu_clock_limit_causes;
-mod cpu_load_gauge;
-mod cpu_model_identity;
-mod cpu_power_draw_label;
-mod cpu_temperature_label;
-pub(crate) mod x3d_cache_preference_toggle;
+mod cpu_clock_indicator;
+mod cpu_clock_limits_indicator;
+mod cpu_load_indicator;
+mod cpu_model_indicator;
+mod cpu_power_draw_indicator;
+mod cpu_temperature_indicator;
+pub(crate) mod x3d_cache_preference_indicator;
 
 use chiplet_live_state::ChipletLiveState;
+use cpu_load_indicator::{CPU_LOAD_GLYPH, cpu_usage_indicator};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -243,21 +245,31 @@ impl ComputeGroup {
     }
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> IndicatorGroupContent<'_> {
-        let headline_indicator = self.cpu_load_headline();
-        let mut rows = Vec::new();
-        self.push_cpu_clock_indicators(&mut rows);
-        self.push_cpu_temperature_indicators(&mut rows, clock, locale);
-        self.push_cpu_power_draw_indicators(&mut rows);
-        self.push_cpu_model_indicators(&mut rows);
-        self.push_x3d_cache_preference_indicators(&mut rows);
-        self.list_cpu_load(&mut rows);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Compute,
-            headline_indicator,
+            self.cpu_load_headline(),
             &self.expansion,
             ComputeInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            [
+                self.cpu_load_listing(),
+                self.cpu_clock_listing(),
+                self.cpu_clock_limits_listing(),
+                self.cpu_temperature_listing(clock, locale),
+                self.cpu_power_draw_listing(),
+                self.cpu_model_listing(),
+                self.x3d_cache_preference_listing(),
+            ]
+            .into_iter()
+            .collect(),
         )
+    }
+
+    fn cpu_load_headline(&self) -> GroupIndicator<'_> {
+        self.wired_cpu_load_indicator(self.cpu_load.indicator(
+            |held_snapshot| cpu_usage_indicator(held_snapshot),
+            CPU_LOAD_GLYPH.into(),
+        ))
+        .with_headline_glyph(Phosphor::Circuitry(Weight::Regular).into())
     }
 
     fn refresh(source: ComputeSource, sensor: &SensorConfig) -> Task<ComputeMessage> {

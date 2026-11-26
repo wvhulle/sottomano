@@ -1,12 +1,18 @@
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
-    GpuMemory, GpuProcessMemory, GpuProcessName, GpuProcesses, SharedGpuMemory, SystemMemoryReading,
+    GpuMemory, GpuProcessMemory, GpuProcessName, GpuProcesses, PciBusId, SharedGpuMemory,
+    SystemMemoryReading,
 };
 
+use super::{
+    GpuGroup, GpuInteraction,
+    gpu_device_access::{GpuDevice, GpuDeviceAccess},
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -97,4 +103,41 @@ pub fn gpu_processes_sections(gpu_processes: &GpuProcesses) -> Vec<Section> {
             Some(LabeledValue::new(process_label, Quantity::size(resident)))
         })),
     )]
+}
+
+impl GpuGroup {
+    pub(super) fn gpu_memory_listing<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+    ) -> IndicatorListing<'view> {
+        let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
+            return IndicatorListing::Listed(Vec::new());
+        };
+        IndicatorListing::Listed(
+            device
+                .memory()
+                .map(|memory| {
+                    let card_memory = memory.clone();
+                    gpu_memory_indicator(memory)
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections =
+                                snapshot.hover_card_with(gpu_memory_sections(&card_memory));
+                            sections.extend(self.hovered_sections(bus, |group| {
+                                group
+                                    .processes
+                                    .sections_described_by(gpu_processes_sections)
+                            }));
+                            sections
+                        }))
+                        .fetching_on_hover(
+                            GpuInteraction::StartProcessesFetch(bus.clone()),
+                            GpuInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(GpuInteraction::Refresh(bus.clone()))
+                })
+                .into_iter()
+                .collect(),
+        )
+    }
 }

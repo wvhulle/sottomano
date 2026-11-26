@@ -8,18 +8,21 @@ use sottomano_desktop_sources::{
     system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
-use super::core_grid_sections::topology_facts;
+use super::{ComputeGroup, ComputeInteraction, ComputeSource, core_grid_sections::topology_facts};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
+
+const X3D_CACHE_PREFERENCE_GLYPH: Phosphor = Phosphor::Warehouse(Weight::Regular);
 
 pub(crate) fn x3d_cache_preference_indicator(
     preference: &X3dCachePreference,
@@ -125,5 +128,47 @@ impl ToggleableSource for X3dCachePreference {
             X3dCachePreference::Cache => "favour the high-clock cores instead",
             X3dCachePreference::Frequency => "favour the stacked-cache cores instead",
         }
+    }
+}
+
+impl ComputeGroup {
+    pub(super) fn x3d_cache_preference_listing(&self) -> IndicatorListing<'_> {
+        self.x3d_cache_preference
+            .sample
+            .indicator_listing(
+                |held_snapshot| {
+                    x3d_cache_preference_indicator(held_snapshot)
+                        .on_switch_press(
+                            held_snapshot.switch_position(),
+                            held_snapshot.press_action_text(),
+                            ComputeInteraction::X3dCachePreferencePressed,
+                        )
+                        .when_shown()
+                },
+                X3D_CACHE_PREFERENCE_GLYPH.into(),
+            )
+            .map_indicators(|preference_row| {
+                self.wired_x3d_cache_preference_indicator(preference_row)
+            })
+    }
+    fn wired_x3d_cache_preference_indicator<'view>(
+        &'view self,
+        preference_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        preference_indicator
+            .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
+            .refreshed_by(ComputeInteraction::Refresh(
+                ComputeSource::X3dCachePreference,
+            ))
+    }
+    fn x3d_cache_preference_card(&self) -> Vec<Section> {
+        let mut sections = self.x3d_cache_preference.hover_card();
+        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+            ChipletRoles {
+                topology: &cpu_clock.topology,
+            }
+            .sections()
+        }));
+        sections
     }
 }

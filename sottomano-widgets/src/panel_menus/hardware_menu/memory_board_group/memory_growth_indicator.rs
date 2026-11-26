@@ -10,11 +10,13 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -26,6 +28,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const MEMORY_GROWTH_GLYPH: Phosphor = Phosphor::TrendUp(Weight::Regular);
 
 fn growth_rate_text(growth_per_minute: bytesize::ByteSize, locale: Locale) -> String {
     format!(
@@ -130,6 +134,28 @@ pub fn memory_growth_hover_card(growth: &MemoryGrowth) -> Vec<Section> {
             )
         }))
         .collect()
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn memory_growth_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        self.memory_growth
+            .indicator_listing(
+                |held_snapshot| memory_growth_indicator(held_snapshot, locale).when_shown(),
+                MEMORY_GROWTH_GLYPH.into(),
+            )
+            .map_indicators(|row| self.wired_memory_growth_indicator(row))
+    }
+    fn wired_memory_growth_indicator<'view>(
+        &'view self,
+        growth_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        growth_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.memory_growth
+                    .sections_described_by(memory_growth_hover_card)
+            }))
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Growth))
+    }
 }
 
 #[cfg(test)]

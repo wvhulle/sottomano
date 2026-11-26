@@ -6,12 +6,13 @@ use sottomano_desktop_sources::cpu_memory_compute::{
 };
 use sottomano_toml_config::severity::Severity;
 
-use super::core_grid_sections::cpu_ranges;
+use super::{ComputeGroup, ComputeInteraction, ComputeSource, core_grid_sections::cpu_ranges};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
@@ -130,6 +131,43 @@ impl<'view> ClockLimitCauses<'view> {
         })
         .with_panel_visibility(self.panel_visibility())
         .with_hover_card(Box::new(move |_| self.hover_card()))
+    }
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_clock_limits_listing(&self) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(
+            self.cpu_clock
+                .get()
+                .map(|held_snapshot| {
+                    ClockLimitCauses {
+                        clock: held_snapshot,
+                    }
+                    .indicator()
+                })
+                .into_iter()
+                .flat_map(GroupIndicator::when_shown)
+                .map(|limits_row| self.wired_cpu_clock_limits_indicator(limits_row))
+                .collect(),
+        )
+    }
+    fn wired_cpu_clock_limits_indicator<'view>(
+        &'view self,
+        limits_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        limits_indicator
+            .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
+    }
+    fn cpu_clock_limits_card(&self) -> Vec<Section> {
+        let Some(cpu_clock) = self.cpu_clock.get() else {
+            return Vec::new();
+        };
+        let limits = ClockLimitCauses { clock: cpu_clock };
+        if limits.panel_visibility() != PanelVisibility::Shown {
+            return Vec::new();
+        }
+        self.cpu_clock.hover_card_with(limits.hover_card())
     }
 }
 

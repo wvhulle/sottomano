@@ -1,10 +1,10 @@
-mod growth_trend_label;
 mod memory_board_rows;
+mod memory_growth_indicator;
 mod memory_slot_indicator;
-mod memory_usage_gauge;
+mod memory_usage_indicator;
 mod module_temperature_indicator;
-mod stall_pressure_label;
-mod swap_activity_gauge;
+mod stall_pressure_indicator;
+mod swap_activity_indicator;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{

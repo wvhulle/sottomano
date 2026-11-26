@@ -8,12 +8,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -24,6 +26,8 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
+
+pub(super) const MEMORY_USAGE_GLYPH: Phosphor = Phosphor::Memory(Weight::Regular);
 
 const FULL_WARNING_PERCENT: i64 = 75;
 const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
@@ -90,6 +94,36 @@ pub fn memory_hover_card(memory: &Memory) -> Vec<Section> {
             LabeledValue::new("Total", Quantity::size(memory.total)),
         ]),
     )]
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn memory_usage_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        self.memory
+            .indicator_listing(
+                |held_snapshot| vec![memory_indicator(held_snapshot, locale)],
+                MEMORY_USAGE_GLYPH.into(),
+            )
+            .map_indicators(|row| self.memory_usage_indicator(row))
+    }
+    pub(super) fn memory_usage_indicator<'view>(
+        &'view self,
+        usage_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        usage_indicator
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self.memory.sections_described_by(memory_hover_card);
+                sections.extend(
+                    self.memory_processes
+                        .sections_described_by(memory_processes_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                MemoryBoardInteraction::StartMemoryProcessesFetch,
+                MemoryBoardInteraction::StopHoverFetches,
+            )
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Memory))
+    }
 }
 
 #[cfg(test)]

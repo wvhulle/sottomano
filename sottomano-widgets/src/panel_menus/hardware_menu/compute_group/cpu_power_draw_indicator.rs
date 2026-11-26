@@ -4,11 +4,13 @@ use uom::{
     si::{f64::Power, power::watt},
 };
 
+use super::{ComputeGroup, ComputeInteraction, ComputeSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
@@ -70,4 +72,29 @@ pub(super) fn cpu_power_hover_card(power: &CpuPower) -> Vec<Section> {
                 .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
         ),
     )]
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_power_draw_listing(&self) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(
+            self.cpu_power_draw
+                .get()
+                .map(cpu_power_indicator)
+                .into_iter()
+                .flat_map(GroupIndicator::when_shown)
+                .map(|power_row| self.wired_cpu_power_draw_indicator(power_row))
+                .collect(),
+        )
+    }
+    fn wired_cpu_power_draw_indicator<'view>(
+        &'view self,
+        power_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        power_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.cpu_power_draw
+                    .sections_described_by(cpu_power_hover_card)
+            }))
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
+    }
 }

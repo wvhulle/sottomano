@@ -7,7 +7,7 @@ use sottomano_desktop_sources::cpu_memory_compute::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::{Frequency, Ratio};
 
-use super::cpu_clock_limit_causes::{cause_level, causes_text};
+use super::cpu_clock_limits_indicator::{cause_level, causes_text};
 use crate::{
     hover_cards::hover_card_body::{SectionTable, headed_table},
     widgets::{

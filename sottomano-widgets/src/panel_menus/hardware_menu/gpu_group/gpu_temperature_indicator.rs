@@ -1,15 +1,20 @@
 use sottomano_desktop_sources::cpu_memory_compute::{
-    pci_gpu_samples::{GpuTemperatureLimits, GpuTemperatureThreshold},
+    pci_gpu_samples::{GpuTemperatureLimits, GpuTemperatureThreshold, PciBusId},
     temperature_thresholds::celsius_text,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::ThermodynamicTemperature;
 
+use super::{
+    GpuGroup, GpuInteraction,
+    gpu_device_access::{GpuDevice, GpuDeviceAccess},
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -87,5 +92,30 @@ impl GpuTemperatureLabel {
             ),
             Section::new("Thresholds", dictionary_table(threshold_rows)),
         ]
+    }
+}
+
+impl GpuGroup {
+    pub(super) fn gpu_temperature_listing<'view>(
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+    ) -> IndicatorListing<'view> {
+        let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
+            return IndicatorListing::Listed(Vec::new());
+        };
+        IndicatorListing::Listed(
+            device
+                .temperature_label()
+                .map(|temperature_label| {
+                    temperature_label
+                        .indicator()
+                        .with_hover_card(Box::new(move |_| {
+                            snapshot.hover_card_with(temperature_label.hover_card())
+                        }))
+                        .refreshed_by(GpuInteraction::Refresh(bus.clone()))
+                })
+                .into_iter()
+                .collect(),
+        )
     }
 }

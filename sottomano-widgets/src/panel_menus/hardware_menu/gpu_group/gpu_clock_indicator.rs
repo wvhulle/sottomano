@@ -1,16 +1,21 @@
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_samples::{
-    GpuClockSpeed, GpuClocks, GpuFanDuty, GpuPerformanceState, GpuThrottleReason,
+    GpuClockSpeed, GpuClocks, GpuFanDuty, GpuPerformanceState, GpuThrottleReason, PciBusId,
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Frequency, frequency::megahertz},
 };
 
+use super::{
+    GpuGroup, GpuInteraction,
+    gpu_device_access::{GpuDevice, GpuDeviceAccess},
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -102,5 +107,39 @@ fn throttle_reason_text(reason: GpuThrottleReason) -> &'static str {
         GpuThrottleReason::Thermal => "Thermal limit",
         GpuThrottleReason::VoltageRegulatorCurrent => "Voltage regulator current",
         GpuThrottleReason::VoltageRegulatorThermal => "Voltage regulator thermal alert",
+    }
+}
+
+impl GpuGroup {
+    pub(super) fn gpu_clock_listing<'view>(
+        &'view self,
+        bus: &'view PciBusId,
+        device: &'view GpuDevice,
+    ) -> IndicatorListing<'view> {
+        let GpuDeviceAccess::Readable { snapshot, .. } = &device.access else {
+            return IndicatorListing::Listed(Vec::new());
+        };
+        IndicatorListing::Listed(
+            device
+                .clock_label()
+                .map(|clock_label| {
+                    clock_label
+                        .indicator()
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections = snapshot.hover_card_with(clock_label.hover_card());
+                            sections.extend(self.hovered_sections(bus, |group| {
+                                group.clocks.sections_described_by(gpu_clocks_sections)
+                            }));
+                            sections
+                        }))
+                        .fetching_on_hover(
+                            GpuInteraction::StartClocksFetch(bus.clone()),
+                            GpuInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(GpuInteraction::Refresh(bus.clone()))
+                })
+                .into_iter()
+                .collect(),
+        )
     }
 }

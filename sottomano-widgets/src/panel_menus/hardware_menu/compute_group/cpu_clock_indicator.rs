@@ -8,14 +8,15 @@ use uom::{
 };
 
 use super::{
-    chiplet_clock_table::ChipletClockTable, chiplet_live_state::ChipletLiveState,
-    cpu_clock_limit_causes::causes_text,
+    ComputeGroup, ComputeInteraction, ComputeSource, chiplet_clock_table::ChipletClockTable,
+    chiplet_live_state::ChipletLiveState, cpu_clock_limits_indicator::causes_text,
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
@@ -24,6 +25,8 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
+
+const CPU_CLOCK_GLYPH: Phosphor = Phosphor::WaveSine(Weight::Regular);
 
 fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
@@ -120,5 +123,38 @@ impl ChipletLiveState<'_> {
             })
             .chain(temperature_section)
             .collect()
+    }
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_clock_listing(&self) -> IndicatorListing<'_> {
+        self.cpu_clock
+            .indicator_listing(
+                |held_snapshot| cpu_clock_indicator(held_snapshot).when_shown(),
+                CPU_CLOCK_GLYPH.into(),
+            )
+            .map_indicators(|clock_row| self.wired_cpu_clock_indicator(clock_row))
+    }
+    fn wired_cpu_clock_indicator<'view>(
+        &'view self,
+        clock_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        clock_indicator
+            .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCpuClockFetch,
+                ComputeInteraction::StopHoverFetches,
+            )
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
+    }
+    fn cpu_clock_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self.cpu_clock.sections_described_by(cpu_clock_hover_card);
+        sections.extend(
+            self.cpu_clock.sections_described_by(|cpu_clock| {
+                live.clock_sections(cpu_clock, &self.core_loads)
+            }),
+        );
+        sections
     }
 }

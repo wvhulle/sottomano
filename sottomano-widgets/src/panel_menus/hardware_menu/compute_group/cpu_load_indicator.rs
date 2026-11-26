@@ -11,6 +11,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
+    ComputeGroup, ComputeInteraction, ComputeSource,
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreSample},
 };
@@ -19,12 +20,15 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
+
+pub(super) const CPU_LOAD_GLYPH: Phosphor = Phosphor::Cpu(Weight::Regular);
 
 const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
@@ -160,4 +164,40 @@ pub fn cpu_busy_processes_sections(cpu_busy_processes: &CpuBusyProcesses) -> Vec
         }))
         .truncated_to(LISTED_PROCESSES),
     )]
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_load_listing(&self) -> IndicatorListing<'_> {
+        self.cpu_load
+            .indicator_listing(
+                |held_snapshot| vec![cpu_usage_indicator(held_snapshot)],
+                CPU_LOAD_GLYPH.into(),
+            )
+            .map_indicators(|load_row| self.wired_cpu_load_indicator(load_row))
+    }
+    pub(super) fn wired_cpu_load_indicator<'view>(
+        &'view self,
+        load_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        load_indicator
+            .with_hover_card(Box::new(move |_| self.cpu_load_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCpuLoadFetches,
+                ComputeInteraction::StopHoverFetches,
+            )
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
+    }
+    fn cpu_load_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self.cpu_load.sections_described_by(cpu_usage_hover_card);
+        sections.extend(
+            self.cpu_busy_processes
+                .sections_described_by(cpu_busy_processes_sections),
+        );
+        sections.extend(
+            self.core_loads
+                .sections_described_by(|loads| live.core_load_sections(loads)),
+        );
+        sections
+    }
 }

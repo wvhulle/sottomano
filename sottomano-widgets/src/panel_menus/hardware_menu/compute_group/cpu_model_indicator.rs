@@ -2,6 +2,7 @@ use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::{
     CpuModel, HardwareText,
 };
 
+use super::ComputeGroup;
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -10,6 +11,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::Section,
@@ -46,4 +48,31 @@ pub(super) fn cpu_model_indicator(model: &CpuModel) -> GroupIndicator<'_> {
 
 pub(super) fn cpu_model_hover_card(model: &CpuModel) -> Vec<Section> {
     vec![Section::from(model)]
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_model_listing(&self) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(
+            self.host_hardware
+                .get()
+                .map(|hardware| cpu_model_indicator(&hardware.cpu))
+                .into_iter()
+                .flat_map(GroupIndicator::when_shown)
+                .map(|model_row| {
+                    model_row.with_hover_card(Box::new(move |_| self.cpu_model_card()))
+                })
+                .collect(),
+        )
+    }
+    fn cpu_model_card(&self) -> Vec<Section> {
+        let Some(host_hardware) = self.host_hardware.get() else {
+            return Vec::new();
+        };
+        let model = &host_hardware.cpu;
+        if cpu_model_panel_visibility(model) != PanelVisibility::Shown {
+            return Vec::new();
+        }
+        self.host_hardware
+            .hover_card_with(cpu_model_hover_card(model))
+    }
 }

@@ -13,15 +13,19 @@ use uom::si::{
     ratio::ratio,
 };
 
+use super::{MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
+
+const SWAP_ACTIVITY_GLYPH: Phosphor = Phosphor::ArrowsClockwise(Weight::Regular);
 
 const SWAP_WARNING_SHARE: f64 = 0.9;
 const NOTICEABLE_PAGING: ByteSize = ByteSize::mib(1);
@@ -119,6 +123,38 @@ pub fn swap_activity_hover_card(activity: &SwapActivity) -> Vec<Section> {
             LabeledValue::new("Swapped out", paging_rate(activity.paged_out_per_second)),
         ])),
     )]
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn swap_activity_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        self.swap_activity
+            .indicator_listing(
+                |held_snapshot| swap_activity_indicator(held_snapshot, locale).when_shown(),
+                SWAP_ACTIVITY_GLYPH.into(),
+            )
+            .map_indicators(|row| self.wired_swap_activity_indicator(row))
+    }
+    fn wired_swap_activity_indicator<'view>(
+        &'view self,
+        swap_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        swap_indicator
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self
+                    .swap_activity
+                    .sections_described_by(swap_activity_hover_card);
+                sections.extend(
+                    self.swapped_processes
+                        .sections_described_by(swapped_processes_sections),
+                );
+                sections
+            }))
+            .fetching_on_hover(
+                MemoryBoardInteraction::StartSwappedProcessesFetch,
+                MemoryBoardInteraction::StopHoverFetches,
+            )
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Swap))
+    }
 }
 
 #[cfg(test)]

@@ -1,11 +1,13 @@
 use sottomano_desktop_sources::cpu_memory_compute::temperature_thresholds::celsius_text;
 use uom::si::f64::ThermodynamicTemperature;
 
+use super::{MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::Section,
@@ -38,5 +40,34 @@ impl MemoryModuleTemperatureIndicator {
             self.bus_address.clone(),
             Quantity::temperature(self.temperature),
         )])]
+    }
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn module_temperature_listing(&self) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(self.temperature_indicators().collect())
+    }
+    fn temperature_indicators(&self) -> impl Iterator<Item = GroupIndicator<'_>> {
+        self.module_temperatures
+            .get()
+            .into_iter()
+            .flat_map(move |temperatures| {
+                temperatures.modules.iter().map(move |module| {
+                    let temperature_indicator = MemoryModuleTemperatureIndicator {
+                        bus_address: module.bus_address.clone(),
+                        temperature: module.temperature,
+                    };
+                    temperature_indicator
+                        .clone()
+                        .indicator()
+                        .with_hover_card(Box::new(move |_| {
+                            self.module_temperatures
+                                .hover_card_with(temperature_indicator.hover_card())
+                        }))
+                        .refreshed_by(MemoryBoardInteraction::Refresh(
+                            MemoryBoardSource::ModuleTemperatures,
+                        ))
+                })
+            })
     }
 }

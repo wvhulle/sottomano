@@ -6,11 +6,13 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
+use super::{MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardSource};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
@@ -18,6 +20,8 @@ use crate::{
         localized_quantities::Quantity,
     },
 };
+
+const STALL_PRESSURE_GLYPH: Phosphor = Phosphor::Gauge(Weight::Regular);
 
 const STALL_WARNING_PERCENT: f64 = 20.0;
 const STALL_CRITICAL_PERCENT: f64 = 40.0;
@@ -88,6 +92,28 @@ pub fn memory_stall_hover_card(pressure: &MemoryStallPressure) -> Vec<Section> {
             ],
         ),
     )]
+}
+
+impl MemoryBoardGroup {
+    pub(super) fn stall_pressure_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        self.stall_pressure
+            .indicator_listing(
+                |held_snapshot| memory_stall_indicator(held_snapshot, locale).when_shown(),
+                STALL_PRESSURE_GLYPH.into(),
+            )
+            .map_indicators(|row| self.wired_stall_pressure_indicator(row))
+    }
+    fn wired_stall_pressure_indicator<'view>(
+        &'view self,
+        pressure_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        pressure_indicator
+            .with_hover_card(Box::new(move |_| {
+                self.stall_pressure
+                    .sections_described_by(memory_stall_hover_card)
+            }))
+            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Pressure))
+    }
 }
 
 #[cfg(test)]

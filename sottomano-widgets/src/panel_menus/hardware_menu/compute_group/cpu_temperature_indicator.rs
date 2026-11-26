@@ -21,6 +21,7 @@ use uom::si::{
 };
 
 use super::{
+    ComputeGroup, ComputeInteraction, ComputeSource,
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreSample, cpu_ranges},
 };
@@ -30,6 +31,7 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{
@@ -46,6 +48,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const CPU_TEMPERATURE_GLYPH: Phosphor = Phosphor::ThermometerSimple(Weight::Regular);
 
 const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
 
@@ -281,6 +285,47 @@ impl ChipletLiveState<'_> {
                 },
             ),
         ]
+    }
+}
+
+impl ComputeGroup {
+    pub(super) fn cpu_temperature_listing(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> IndicatorListing<'_> {
+        self.cpu_temperature
+            .indicator_listing(
+                |held_snapshot| temperature_indicator(held_snapshot, clock, locale).when_shown(),
+                CPU_TEMPERATURE_GLYPH.into(),
+            )
+            .map_indicators(|temperature_row| self.wired_cpu_temperature_indicator(temperature_row))
+    }
+    fn wired_cpu_temperature_indicator<'view>(
+        &'view self,
+        temperature_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        temperature_row
+            .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
+            .fetching_on_hover(
+                ComputeInteraction::StartCoreTemperaturesFetch,
+                ComputeInteraction::StopHoverFetches,
+            )
+            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
+    }
+    fn cpu_temperature_card(&self) -> Vec<Section> {
+        let live = self.live();
+        let mut sections = self
+            .cpu_temperature
+            .sections_described_by(temperature_hover_card);
+        sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {
+            hardware_throttling_sections(&cpu_clock.thermal_throttle_activity)
+        }));
+        sections.extend(
+            self.core_temperatures
+                .sections_described_by(|temperatures| live.core_temperature_sections(temperatures)),
+        );
+        sections
     }
 }
 
