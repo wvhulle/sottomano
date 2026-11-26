@@ -1,16 +1,10 @@
 use chrono::Locale;
 
-mod compression_setting_indicator;
-mod ext4_error_count_indicator;
-mod ext4_lifetime_writes_indicator;
 mod filesystem_property_indicators;
-mod filesystem_usage_gauge;
-mod inode_usage_indicator;
-mod metadata_room_indicator;
-mod mount_access_indicator;
+mod filesystem_usage_indicator;
 mod mounted_filesystem_group;
+mod snapshot_deletion_indicator;
 mod subvolume_usage_indicator;
-mod volume_identity_indicator;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -18,7 +12,7 @@ use std::{
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery,
     disk_storage::{
         bcachefs_subvolume_usage::BcachefsSubvolumeUsage,
         block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount},
@@ -27,20 +21,21 @@ use sottomano_desktop_sources::{
 };
 
 pub use self::filesystem_property_indicators::FilesystemProperty;
+use super::block_filesystem_discovery_indicator::{
+    block_filesystem_discovery_hover_card, block_filesystem_discovery_indicator,
+};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
+        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
-        indicator_state::IndicatorState,
     },
-    hover_cards::hover_card_body::{Section, dictionary_table},
-    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const BCACHEFS_FS_TYPE: &str = "bcachefs";
@@ -52,34 +47,6 @@ pub enum StorageSource {
     MountDiscovery,
     Usage(PathBuf),
     SubvolumeUsage(PathBuf),
-}
-
-pub(crate) fn block_filesystem_discovery_indicator(
-    discovery: &BlockFilesystemDiscovery,
-) -> GroupIndicator<'_> {
-    GroupIndicator::glyph_only(
-        BlockFilesystemDiscovery::NAME,
-        Phosphor::Folders(Weight::Regular).into(),
-        IndicatorState::Idle,
-    )
-    .with_panel_visibility(PanelVisibility::Hidden)
-    .with_hover_card(Box::new(move |_| {
-        block_filesystem_discovery_hover_card(discovery)
-    }))
-}
-
-pub(crate) fn block_filesystem_discovery_hover_card(
-    discovery: &BlockFilesystemDiscovery,
-) -> Vec<Section> {
-    vec![Section::new(
-        "Mount points",
-        dictionary_table(discovery.filesystems.iter().map(|filesystem| {
-            LabeledValue::new(
-                filesystem.primary_mount_point().display().to_string(),
-                filesystem.fs_type.clone(),
-            )
-        })),
-    )]
 }
 
 fn mount_group_title(primary_mount_point: &Path) -> IndicatorGroupTitle {

@@ -3,10 +3,13 @@ use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
+use super::{PowerGroup, battery_refresh};
 use crate::{
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -15,6 +18,8 @@ use crate::{
 };
 
 pub const CHARGE_INDICATOR_NAME: &str = "Charge";
+
+pub(super) const BATTERY_CHARGE_GLYPH: Phosphor = Phosphor::BatteryFull(Weight::Regular);
 
 fn capacity_state(capacity: Ratio) -> IndicatorState {
     if capacity <= Ratio::new::<percent>(15.0) {
@@ -64,4 +69,32 @@ pub fn battery_hover_card(battery: &Battery) -> Vec<Section> {
             .flatten(),
         ),
     )]
+}
+
+impl PowerGroup {
+    pub(super) fn battery_charge_listing(&self) -> IndicatorListing<'_> {
+        self.battery.indicator_listing(
+            |held_snapshot| {
+                self.battery_charge_indicator(battery_indicator(held_snapshot))
+                    .when_shown()
+            },
+            BATTERY_CHARGE_GLYPH.into(),
+        )
+    }
+
+    fn battery_charge_indicator<'view>(
+        &'view self,
+        charge_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        charge_indicator
+            .with_hover_card(Box::new(move |_| {
+                let mut sections = self.battery.sections_described_by(battery_hover_card);
+                sections.extend(
+                    self.battery
+                        .sections_described_by(|battery| vec![Section::from(battery)]),
+                );
+                sections
+            }))
+            .refreshed_by(battery_refresh())
+    }
 }

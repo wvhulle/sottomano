@@ -1,3 +1,4 @@
+mod block_filesystem_discovery_indicator;
 pub mod compute_group;
 pub mod gpu_group;
 pub mod memory_board_group;

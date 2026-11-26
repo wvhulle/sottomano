@@ -1,7 +1,7 @@
 mod bcachefs_member_indicator;
 mod disk_group_rows;
-mod disk_space_gauge;
-mod disk_transfer_gauge;
+mod disk_space_indicator;
+mod disk_transfer_indicator;
 mod drive_health_indicator;
 
 use std::collections::BTreeMap;
@@ -34,7 +34,7 @@ use crate::{
         indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    panel_menus::hardware_menu::storage_space_group::{
+    panel_menus::hardware_menu::block_filesystem_discovery_indicator::{
         block_filesystem_discovery_hover_card, block_filesystem_discovery_indicator,
     },
     widgets::subscribed_snapshot::SubscribedSnapshot,

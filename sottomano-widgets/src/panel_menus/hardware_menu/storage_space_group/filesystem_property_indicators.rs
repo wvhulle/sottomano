@@ -1,9 +1,17 @@
+mod compression_setting_indicator;
+mod ext4_error_count_indicator;
+mod ext4_lifetime_writes_indicator;
+mod inode_usage_indicator;
+mod metadata_room_indicator;
+mod mount_access_indicator;
+mod volume_identity_indicator;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
     Filesystem, FilesystemUsage,
 };
 
-use super::{
+use self::{
     compression_setting_indicator::CompressionSettingIndicator,
     ext4_error_count_indicator::Ext4ErrorCountIndicator,
     ext4_lifetime_writes_indicator::Ext4LifetimeWritesIndicator,
@@ -11,8 +19,12 @@ use super::{
     mount_access_indicator::MountAccessIndicator,
     volume_identity_indicator::VolumeIdentityIndicator,
 };
+use super::{MountedFilesystem, StorageInteraction, StorageSource, StorageSpaceGroup};
 use crate::{
-    group_indicators::group_indicator::GroupIndicator, hover_cards::hover_card_body::Section,
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_content::IndicatorListing,
+    },
+    hover_cards::hover_card_body::Section,
 };
 
 const LISTED_PROPERTIES: [FilesystemProperty; 7] = [
@@ -37,14 +49,14 @@ pub enum FilesystemProperty {
 }
 
 impl FilesystemProperty {
-    pub(super) fn listed_for(usage: &FilesystemUsage) -> Vec<FilesystemProperty> {
+    fn listed_for(usage: &FilesystemUsage) -> Vec<FilesystemProperty> {
         LISTED_PROPERTIES
             .into_iter()
             .filter(|property| property.row(usage).is_some())
             .collect()
     }
 
-    pub(super) fn row<'view>(
+    fn row<'view>(
         &self,
         usage: &'view FilesystemUsage,
     ) -> Option<FilesystemPropertyIndicator<'view>> {
@@ -102,7 +114,7 @@ fn enabled_compression(
         ))
 }
 
-pub(super) enum FilesystemPropertyIndicator<'view> {
+enum FilesystemPropertyIndicator<'view> {
     Mount(MountAccessIndicator<'view>),
     Volume(VolumeIdentityIndicator<'view>),
     Inodes(InodeUsageIndicator),
@@ -113,7 +125,7 @@ pub(super) enum FilesystemPropertyIndicator<'view> {
 }
 
 impl<'view> FilesystemPropertyIndicator<'view> {
-    pub(super) fn group_indicator(self, locale: Locale) -> GroupIndicator<'view> {
+    fn group_indicator(self, locale: Locale) -> GroupIndicator<'view> {
         match self {
             FilesystemPropertyIndicator::Mount(row) => row.indicator(),
             FilesystemPropertyIndicator::Volume(row) => row.indicator(),
@@ -125,7 +137,7 @@ impl<'view> FilesystemPropertyIndicator<'view> {
         }
     }
 
-    pub(super) fn hover_card(&self) -> Vec<Section> {
+    fn hover_card(&self) -> Vec<Section> {
         match self {
             FilesystemPropertyIndicator::Mount(row) => row.hover_card(),
             FilesystemPropertyIndicator::Volume(row) => row.hover_card(),
@@ -135,6 +147,45 @@ impl<'view> FilesystemPropertyIndicator<'view> {
             FilesystemPropertyIndicator::Ext4Errors(row) => row.hover_card(),
             FilesystemPropertyIndicator::Ext4Writes(row) => row.hover_card(),
         }
+    }
+}
+
+impl StorageSpaceGroup {
+    pub(super) fn filesystem_property_listing(
+        filesystem: &MountedFilesystem,
+        locale: Locale,
+    ) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(Self::property_indicators(filesystem, locale).collect())
+    }
+
+    fn property_indicators(
+        filesystem: &MountedFilesystem,
+        locale: Locale,
+    ) -> impl Iterator<Item = GroupIndicator<'_>> {
+        let primary_mount_point = filesystem.mount.primary_mount_point();
+        filesystem.usage.get().into_iter().flat_map(move |usage| {
+            FilesystemProperty::listed_for(usage)
+                .into_iter()
+                .filter_map(move |property| {
+                    let row = property.row(usage)?;
+                    let card_property = property.clone();
+                    Some(
+                        row.group_indicator(locale)
+                            .with_hover_card(Box::new(move |_| {
+                                card_property
+                                    .row(usage)
+                                    .map_or_else(Vec::new, |card_indicator| {
+                                        filesystem
+                                            .usage
+                                            .hover_card_with(card_indicator.hover_card())
+                                    })
+                            }))
+                            .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                                primary_mount_point.to_path_buf(),
+                            ))),
+                    )
+                })
+        })
     }
 }
 

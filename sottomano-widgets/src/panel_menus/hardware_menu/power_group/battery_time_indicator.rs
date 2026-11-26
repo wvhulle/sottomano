@@ -1,3 +1,6 @@
+mod battery_time_row;
+mod sqlite_charge_power_curve;
+
 use std::time::{Duration, Instant};
 
 use chrono::Locale;
@@ -30,7 +33,6 @@ use crate::{
     panel_menus::hardware_menu::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         sample_spacing::SampleSpacing,
-        sqlite_charge_power_curve,
     },
     widgets::{
         keyed_record_table::TableRecord,

@@ -24,8 +24,8 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     panel_menus::hardware_menu::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
-        power_draw_gauge::LaptopDrawEstimate,
-        profile_status_sections::profile_status_sections,
+        power_draw_indicator::LaptopDrawEstimate,
+        power_profile_indicator::profile_status_sections::profile_status_sections,
         sample_spacing::SampleSpacing,
     },
     widgets::{

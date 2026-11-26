@@ -4,11 +4,13 @@ use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
 };
 use uom::si::{f64::Power, power::watt};
 
+use super::{PowerGroup, PowerInteraction, battery_refresh};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTable, dictionary_table},
@@ -137,6 +139,43 @@ impl PowerDraw {
         } else {
             self.breakdown_on_battery()
         }
+    }
+}
+
+impl PowerGroup {
+    pub(super) fn power_draw_listing(&self, locale: Locale) -> IndicatorListing<'_> {
+        IndicatorListing::Listed(
+            self.draw()
+                .map(|draw| self.power_draw_indicator(draw, locale))
+                .into_iter()
+                .collect(),
+        )
+    }
+
+    pub(super) fn draw(&self) -> Option<PowerDraw> {
+        self.battery
+            .get()
+            .map(|battery| PowerDraw::battery_draw(battery, self.power_profile.expected_draw()))
+    }
+
+    fn power_draw_indicator(&self, draw: PowerDraw, locale: Locale) -> GroupIndicator<'_> {
+        draw.indicator(locale)
+            .with_hover_card(Box::new(move |_| {
+                self.draw().map_or_else(Vec::new, |current_draw| {
+                    let mut sections = if current_draw.connection().feeds_from_charger() {
+                        self.charger.sections_described_by(charger_supply_sections)
+                    } else {
+                        Vec::new()
+                    };
+                    sections.extend(self.battery.hover_card_with(current_draw.hover_card()));
+                    sections
+                })
+            }))
+            .fetching_on_hover(
+                PowerInteraction::StartChargerFetch,
+                PowerInteraction::StopHoverFetches,
+            )
+            .refreshed_by(battery_refresh())
     }
 }
 

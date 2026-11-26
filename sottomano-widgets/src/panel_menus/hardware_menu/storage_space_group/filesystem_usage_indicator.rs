@@ -4,13 +4,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{
+    FILESYSTEM_USAGE_GLYPH, MountedFilesystem, StorageInteraction, StorageSource, StorageSpaceGroup,
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        gauge::percent_fill,
-        group_indicator::GroupIndicator,
-        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
-        indicator_state::IndicatorState,
+        gauge::percent_fill, group_indicator::GroupIndicator, indicator_drawing::ReadoutGauge,
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -68,31 +69,32 @@ pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage) -> Vec<Sectio
     )]
 }
 
-pub(super) struct SnapshotDeletionIndicator;
-
-impl SnapshotDeletionIndicator {
-    pub(super) fn indicator<'indicator>() -> GroupIndicator<'indicator> {
-        GroupIndicator::glyph_only(
-            "Snapshot deletion",
-            Phosphor::Trash(Weight::Regular).into(),
-            IndicatorState::Idle,
-        )
-        .with_readout(IndicatorReadout {
-            label: ReadoutLabel::Labeled("in progress".to_owned()),
-            gauge: ReadoutGauge::Ungauged,
-            badge: ReadoutBadge::Unbadged,
-        })
-        .with_hover_card(Box::new(|_| Self::hover_card()))
+impl StorageSpaceGroup {
+    pub(super) fn filesystem_usage_listing(filesystem: &MountedFilesystem) -> IndicatorListing<'_> {
+        filesystem
+            .usage
+            .indicator_listing(
+                |held_snapshot| vec![filesystem_usage_indicator(held_snapshot)],
+                FILESYSTEM_USAGE_GLYPH.into(),
+            )
+            .map_indicators(|usage_row| {
+                Self::wired_filesystem_usage_indicator(filesystem, usage_row)
+            })
     }
 
-    pub(super) fn hover_card() -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("Snapshot deletion", "in progress"),
-                LabeledValue::new("Free space", "grows as it finishes"),
-            ]),
-        )]
+    pub(super) fn wired_filesystem_usage_indicator<'view>(
+        filesystem: &'view MountedFilesystem,
+        usage_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        usage_indicator
+            .with_hover_card(Box::new(move |_| {
+                filesystem
+                    .usage
+                    .sections_described_by(filesystem_usage_hover_card)
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                filesystem.mount.primary_mount_point().to_path_buf(),
+            )))
     }
 }
 

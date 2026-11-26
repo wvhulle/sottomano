@@ -6,12 +6,16 @@ use sottomano_desktop_sources::disk_storage::{
 };
 use uom::si::f64::Ratio;
 
+use super::{
+    MountedFilesystem, SUBVOLUME_USAGE_GLYPH, StorageInteraction, StorageSource, StorageSpaceGroup,
+};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -104,6 +108,73 @@ pub(crate) fn subvolume_usage_hover_card(usage: &BcachefsSubvolumeUsage) -> Vec<
             )
         })),
     )]
+}
+
+impl StorageSpaceGroup {
+    pub(super) fn subvolume_usage_listing(
+        filesystem: &MountedFilesystem,
+        locale: Locale,
+    ) -> IndicatorListing<'_> {
+        let subvolume_indicators = Self::subvolume_indicators(filesystem, locale).collect();
+        match filesystem.subvolume_usage.failure() {
+            Some(failure) => IndicatorListing::Incomplete {
+                listed_indicators: subvolume_indicators,
+                unread_sources: vec![Self::subvolume_failure_indicator(
+                    filesystem,
+                    failure.indicator(SUBVOLUME_USAGE_GLYPH.into()),
+                )],
+            },
+            None => IndicatorListing::Listed(subvolume_indicators),
+        }
+    }
+
+    fn subvolume_indicators(
+        filesystem: &MountedFilesystem,
+        locale: Locale,
+    ) -> impl Iterator<Item = GroupIndicator<'_>> {
+        let primary_mount_point = filesystem.mount.primary_mount_point();
+        filesystem
+            .usage
+            .get()
+            .zip(filesystem.subvolume_usage.get())
+            .into_iter()
+            .flat_map(move |(usage, subvolume_usage)| {
+                subvolume_usage.subvolumes.iter().map(move |subvolume| {
+                    SubvolumeUsageIndicator {
+                        subvolume,
+                        pool_total: usage.total,
+                    }
+                    .indicator(locale)
+                    .with_hover_card(Box::new(move |_| {
+                        filesystem.subvolume_usage.hover_card_with(
+                            SubvolumeUsageIndicator {
+                                subvolume,
+                                pool_total: usage.total,
+                            }
+                            .hover_card(),
+                        )
+                    }))
+                    .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
+                        primary_mount_point.to_path_buf(),
+                    )))
+                })
+            })
+    }
+
+    fn subvolume_failure_indicator<'view>(
+        filesystem: &'view MountedFilesystem,
+        failure_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        failure_indicator
+            .with_hover_card(Box::new(move |_| {
+                filesystem
+                    .subvolume_usage
+                    .sections_described_by(subvolume_usage_hover_card)
+            }))
+            .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
+                filesystem.mount.primary_mount_point().to_path_buf(),
+            )))
+    }
 }
 
 #[cfg(test)]

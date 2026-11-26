@@ -2,17 +2,20 @@ use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::temperature_thresholds::celsius_text,
     disk_storage::{
+        block_filesystem_mounts::KernelDevice,
         drive_temperature_health::{DriveHealth, DriveTemperature, MissingSensor},
         filesystem_device_errors::DeviceErrors,
     },
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{DriveInteraction, DriveSource, PhysicalDiskSamples, PhysicalDriveGroup};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -111,4 +114,39 @@ fn error_entries(errors: &DeviceErrors) -> Vec<LabeledValue> {
             errors.reset_command.clone(),
         )])
         .collect()
+}
+
+const DRIVE_HEALTH_GLYPH: Phosphor = Phosphor::Thermometer(Weight::Regular);
+
+impl PhysicalDriveGroup {
+    pub(super) fn drive_health_listing<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> IndicatorListing<'view> {
+        samples
+            .drive_health
+            .indicator_listing(
+                |held_snapshot| drive_health_indicator(held_snapshot).when_shown(),
+                DRIVE_HEALTH_GLYPH.into(),
+            )
+            .map_indicators(|health_row| {
+                Self::wired_drive_health_indicator(disk, samples, health_row)
+            })
+    }
+
+    fn wired_drive_health_indicator<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        health_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        health_indicator
+            .with_hover_card(Box::new(move |_| {
+                samples
+                    .drive_health
+                    .sections_described_by(drive_health_hover_card)
+            }))
+            .refreshed_by(DriveInteraction::Refresh(DriveSource::Health(
+                disk.name.clone(),
+            )))
+    }
 }

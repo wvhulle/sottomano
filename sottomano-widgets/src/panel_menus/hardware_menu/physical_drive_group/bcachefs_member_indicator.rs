@@ -1,15 +1,18 @@
 use chrono::Locale;
-use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::{
-    AllowedDeviceData, BcachefsDeviceSpace,
+use sottomano_desktop_sources::disk_storage::{
+    bcachefs_filesystem_space::{AllowedDeviceData, BcachefsDeviceSpace},
+    block_filesystem_mounts::KernelDevice,
 };
 use sottomano_toml_config::severity::Severity;
 
+use super::{DriveInteraction, DriveSource, PhysicalDiskSamples, PhysicalDriveGroup};
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         gauge::percent_fill,
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
@@ -78,5 +81,40 @@ impl<'view> BcachefsMemberIndicator<'view> {
                 LabeledValue::new("Holds", metadata_text),
             ]),
         )]
+    }
+}
+
+impl PhysicalDriveGroup {
+    pub(super) fn bcachefs_member_listing<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        locale: Locale,
+    ) -> IndicatorListing<'view> {
+        IndicatorListing::Listed(Self::member_indicators(disk, samples, locale).collect())
+    }
+
+    fn member_indicators<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        locale: Locale,
+    ) -> impl Iterator<Item = GroupIndicator<'view>> {
+        samples
+            .space
+            .get()
+            .into_iter()
+            .flat_map(|occupancy| &occupancy.filesystem_shares)
+            .flat_map(|share| &share.bcachefs_members)
+            .map(move |device| {
+                BcachefsMemberIndicator { device }
+                    .indicator(locale)
+                    .with_hover_card(Box::new(move |_| {
+                        samples
+                            .space
+                            .hover_card_with(BcachefsMemberIndicator { device }.hover_card())
+                    }))
+                    .refreshed_by(DriveInteraction::Refresh(DriveSource::Space(
+                        disk.name.clone(),
+                    )))
+            })
     }
 }

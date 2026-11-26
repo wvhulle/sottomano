@@ -1,6 +1,9 @@
 use sottomano_desktop_sources::{
     SnapshotSource,
-    disk_storage::disk_io_activity::{DiskActivity, DiskTransfer, DiskTransferDirection},
+    disk_storage::{
+        block_filesystem_mounts::KernelDevice,
+        disk_io_activity::{DiskActivity, DiskTransfer, DiskTransferDirection},
+    },
 };
 use uom::si::{
     f64::{InformationRate, Ratio},
@@ -8,6 +11,7 @@ use uom::si::{
     ratio::ratio,
 };
 
+use super::{PhysicalDiskSamples, PhysicalDriveGroup, refresh_activity};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -16,6 +20,7 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::ReadoutGauge,
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -87,4 +92,72 @@ pub(crate) fn disk_transfer_hover_card(transfer: &DiskTransfer) -> Vec<Section> 
             LabeledValue::new("Disk busy", Quantity::share(transfer.disk_busy)),
         ]),
     )]
+}
+
+const DISK_ACTIVITY_GLYPH: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
+
+impl PhysicalDriveGroup {
+    pub(super) fn disk_activity_listing<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> IndicatorListing<'view> {
+        samples
+            .activity
+            .indicator_listing(
+                |held_snapshot| disk_activity_indicator(held_snapshot).when_shown(),
+                DISK_ACTIVITY_GLYPH.into(),
+            )
+            .map_indicators(|activity_row| {
+                Self::wired_disk_activity_indicator(disk, samples, activity_row)
+            })
+    }
+
+    pub(super) fn disk_transfer_listing<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> IndicatorListing<'view> {
+        IndicatorListing::Listed(Self::transfer_indicators(disk, samples).collect())
+    }
+
+    fn transfer_indicators<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+    ) -> impl Iterator<Item = GroupIndicator<'view>> {
+        samples
+            .activity
+            .get()
+            .into_iter()
+            .flat_map(move |activity| {
+                [
+                    disk_transfer_indicator(&activity.read)
+                        .with_hover_card(Box::new(move |_| {
+                            samples
+                                .activity
+                                .hover_card_with(disk_transfer_hover_card(&activity.read))
+                        }))
+                        .refreshed_by(refresh_activity(disk)),
+                    disk_transfer_indicator(&activity.write)
+                        .with_hover_card(Box::new(move |_| {
+                            samples
+                                .activity
+                                .hover_card_with(disk_transfer_hover_card(&activity.write))
+                        }))
+                        .refreshed_by(refresh_activity(disk)),
+                ]
+            })
+    }
+
+    fn wired_disk_activity_indicator<'view>(
+        disk: &'view KernelDevice,
+        samples: &'view PhysicalDiskSamples,
+        activity_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        activity_indicator
+            .with_hover_card(Box::new(move |_| {
+                samples
+                    .activity
+                    .sections_described_by(|snapshot| disk_transfer_hover_card(&snapshot.read))
+            }))
+            .refreshed_by(refresh_activity(disk))
+    }
 }

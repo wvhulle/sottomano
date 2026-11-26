@@ -1,20 +1,17 @@
-mod battery_charge_gauge;
+mod battery_charge_indicator;
 mod battery_time_indicator;
 mod charger_connection;
-mod cpu_tuning_sections;
 mod estimate_columns;
-mod power_draw_gauge;
-mod power_profile_control;
-mod profile_status_sections;
+mod power_draw_indicator;
+mod power_profile_indicator;
 mod sample_spacing;
-mod sqlite_charge_power_curve;
 
-use battery_charge_gauge::{battery_hover_card, battery_indicator};
-use battery_time_indicator::{BatteryTime, BatteryTimeIndicator};
-use chrono::Locale;
+use battery_charge_indicator::{BATTERY_CHARGE_GLYPH, battery_indicator};
+use battery_time_indicator::BatteryTimeIndicator;
 use iced::{Subscription, Task};
-use power_draw_gauge::PowerDraw;
-use power_profile_control::{PowerProfileControl, PowerProfileInteraction, PowerProfileMessage};
+use power_profile_indicator::power_profile_control::{
+    PowerProfileControl, PowerProfileInteraction, PowerProfileMessage,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
@@ -22,7 +19,6 @@ use sottomano_desktop_sources::{
         cpu_tuning_platform_profile::CpuTuning,
         upower_battery_state::{Battery, ChargerSupply},
     },
-    desktop_notifications::notification_data::ActionTint,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::Config;
@@ -35,21 +31,14 @@ use crate::{
         group_indicator::GroupIndicator,
         indicator_group_content::{
             ExpansionChange, IndicatorGroupContent, IndicatorGroupExpansion,
-            IndicatorGroupExpansionMessage, IndicatorListing,
+            IndicatorGroupExpansionMessage,
         },
         indicator_group_identity::IndicatorGroupFamily,
     },
-    hover_cards::hover_card_body::Section,
-    panel_menus::hardware_menu::power_group::{
-        cpu_tuning_sections::cpu_tuning_sections, power_draw_gauge::charger_supply_sections,
-    },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, ongoing_toast::OngoingToastActionButton,
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
-
-const BATTERY_CHARGE_GLYPH: Phosphor = Phosphor::BatteryFull(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerRefreshedSource {
@@ -183,17 +172,6 @@ impl PowerGroup {
         }
     }
 
-    fn battery_time(&self) -> Option<BatteryTime> {
-        self.time_indicator
-            .time_for(self.battery.get()?, self.power_profile.active_estimate())
-    }
-
-    fn draw(&self) -> Option<PowerDraw> {
-        self.battery
-            .get()
-            .map(|battery| PowerDraw::battery_draw(battery, self.power_profile.expected_draw()))
-    }
-
     fn observe_battery(&mut self, clock: Clock) -> Task<PowerMessage> {
         let now = clock.instant;
         let Some(battery) = self.battery.get() else {
@@ -214,17 +192,24 @@ impl PowerGroup {
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
-        let switch_to_saving_profiles =
-            self.power_profile
-                .profiles_saving_more_power()
-                .map(|profile| OngoingToastActionButton {
-                    button_label: profile.title().to_owned(),
-                    tint: ActionTint::Proceed,
-                    on_button_pressed: PowerInteraction::PowerProfile(
-                        PowerProfileInteraction::SwitchToProfile(profile),
-                    ),
-                });
-        let headline_indicator = match &self.battery {
+        IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::Power,
+            self.headline_indicator(config),
+            &self.expansion,
+            PowerInteraction::Expansion,
+            [
+                self.power_profile_listing(config),
+                self.battery_charge_listing(),
+                self.power_draw_listing(locale),
+                self.battery_time_listing(locale),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+
+    fn headline_indicator<'view>(&'view self, config: &'view Config) -> GroupIndicator<'view> {
+        match &self.battery {
             SubscribedSnapshot::Available { .. } => self
                 .battery
                 .indicator(battery_indicator, BATTERY_CHARGE_GLYPH.into()),
@@ -238,99 +223,7 @@ impl PowerGroup {
                     cause.indicator(Phosphor::Plug(Weight::Regular).into())
                 }
             },
-        };
-        let mut lead_indicators = Vec::new();
-        if self.power_profile.status.get().is_some() {
-            lead_indicators.push(self.power_profile_indicator(config));
         }
-        let battery_charge_listing = self.battery.indicator_listing(
-            |held_snapshot| {
-                self.battery_charge_indicator(battery_indicator(held_snapshot))
-                    .when_shown()
-            },
-            BATTERY_CHARGE_GLYPH.into(),
-        );
-        let mut rows = Vec::new();
-        if let Some(draw) = self.draw() {
-            rows.push(self.power_draw_indicator(draw, locale));
-        }
-        if let Some(time) = self.battery_time() {
-            rows.push(
-                time.indicator(locale)
-                    .ongoing_toast_action_buttons(switch_to_saving_profiles)
-                    .with_hover_card(Box::new(move |_| {
-                        self.battery.hover_card_with(time.hover_card())
-                    }))
-                    .refreshed_by(battery_refresh()),
-            );
-        }
-        IndicatorGroupContent::expandable(
-            IndicatorGroupFamily::Power,
-            headline_indicator,
-            &self.expansion,
-            PowerInteraction::Expansion,
-            [
-                IndicatorListing::Listed(lead_indicators),
-                battery_charge_listing,
-                IndicatorListing::Listed(rows),
-            ]
-            .into_iter()
-            .collect(),
-        )
-    }
-
-    fn power_profile_indicator<'view>(&'view self, config: &'view Config) -> GroupIndicator<'view> {
-        GroupIndicator::slider(&self.power_profile.control, config, |control_message| {
-            PowerInteraction::PowerProfile(PowerProfileInteraction::Control(control_message))
-        })
-        .with_hover_card(Box::new(move |_| {
-            let mut sections = self.power_profile.hover_card();
-            sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
-            sections
-        }))
-        .fetching_on_hover(
-            PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
-            PowerInteraction::StopHoverFetches,
-        )
-        .refreshed_by(PowerInteraction::OnBuses(PowerBusRequest::Refresh(
-            PowerRefreshedSource::Profile,
-        )))
-    }
-
-    fn battery_charge_indicator<'view>(
-        &'view self,
-        charge_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        charge_indicator
-            .with_hover_card(Box::new(move |_| {
-                let mut sections = self.battery.sections_described_by(battery_hover_card);
-                sections.extend(
-                    self.battery
-                        .sections_described_by(|battery| vec![Section::from(battery)]),
-                );
-                sections
-            }))
-            .refreshed_by(battery_refresh())
-    }
-
-    fn power_draw_indicator(&self, draw: PowerDraw, locale: Locale) -> GroupIndicator<'_> {
-        draw.indicator(locale)
-            .with_hover_card(Box::new(move |_| {
-                self.draw().map_or_else(Vec::new, |current_draw| {
-                    let mut sections = if current_draw.connection().feeds_from_charger() {
-                        self.charger.sections_described_by(charger_supply_sections)
-                    } else {
-                        Vec::new()
-                    };
-                    sections.extend(self.battery.hover_card_with(current_draw.hover_card()));
-                    sections
-                })
-            }))
-            .fetching_on_hover(
-                PowerInteraction::StartChargerFetch,
-                PowerInteraction::StopHoverFetches,
-            )
-            .refreshed_by(battery_refresh())
     }
 }
 
