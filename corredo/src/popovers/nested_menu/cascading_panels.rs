@@ -9,7 +9,7 @@ use crate::{
     drag_reorder::ListEndCorners,
     popovers::{
         CascadeDirection, NotchRowAnchor, NotchedPanel, SatelliteRole,
-        menu_row::{IconColumn, SatelliteReach, gestured_menu_row},
+        menu_row::{IconColumn, IconSide, SatelliteReach, gestured_menu_row},
     },
     transitions::ExpansionState,
 };
@@ -76,6 +76,10 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
             }
             CascadeDirection::Leftward | CascadeDirection::Rightward => IconColumn::Omitted,
         };
+        let icon_side = match caret_column {
+            IconColumn::Reserved => IconSide::Trailing,
+            IconColumn::Omitted => IconSide::Leading,
+        };
         let icon_column = shared_icon_column(entries.iter().filter_map(|entry| match entry {
             MenuEntry::Item(item) => Some(&item.row.content),
             MenuEntry::Submenu(submenu) => Some(&submenu.header),
@@ -110,7 +114,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                                 card,
                             };
                         }
-                        row.content = row.content.within(icon_column, caret_column);
+                        row.content = row.content.within(icon_column, caret_column, icon_side);
                         wrapping.applied(gestured_menu_row(row, self.chrome.metrics, row_corners))
                     }
                     MenuEntry::Submenu(MenuSubmenu {
@@ -127,7 +131,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         };
                         let row = gestured_menu_row(
                             self.header_row(
-                                header.within(icon_column, caret_column),
+                                header.within(icon_column, caret_column, icon_side),
                                 &path,
                                 expansion_state,
                                 satellite_reach,

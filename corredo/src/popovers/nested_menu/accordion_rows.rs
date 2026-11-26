@@ -14,7 +14,7 @@ use crate::{
     drag_reorder::ListEndCorners,
     popovers::{
         MenuRowContent,
-        menu_row::{IconColumn, SatelliteReach, gestured_menu_row},
+        menu_row::{IconColumn, IconSide, SatelliteReach, gestured_menu_row},
     },
     theming::{background_strong_color, background_weak_color, style_metrics::OUTLINE_WIDTH_PX},
     transitions::ExpansionState,
@@ -154,7 +154,9 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                                 card,
                             };
                         }
-                        row.content = row.content.within(icon_column, IconColumn::Omitted);
+                        row.content =
+                            row.content
+                                .within(icon_column, IconColumn::Omitted, IconSide::Leading);
                         row.content.indent_levels = depth;
                         section_row(
                             wrapping.applied(gestured_menu_row(
@@ -175,7 +177,7 @@ impl<'view, SubmenuKey: Clone + PartialEq + 'view, Message: Clone + 'view>
                         submenu_contents,
                     } => {
                         let depth = path.len() - 1;
-                        header = header.within(icon_column, IconColumn::Omitted);
+                        header = header.within(icon_column, IconColumn::Omitted, IconSide::Leading);
                         header.indent_levels = depth;
                         let backing = match expansion_state {
                             ExpansionState::Expanded => ExpansionState::Expanded,

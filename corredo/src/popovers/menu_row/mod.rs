@@ -154,10 +154,17 @@ pub(crate) enum IconColumn {
     Omitted,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IconSide {
+    Leading,
+    Trailing,
+}
+
 pub struct MenuRowContent<'view, Message> {
     pub(crate) indent_levels: usize,
     pub(crate) leading_caret: RowIcon<'view, Message>,
     pub(crate) icon: RowIcon<'view, Message>,
+    icon_side: IconSide,
     label: Cow<'view, str>,
     value: Element<'view, Message>,
     pub(crate) trailing: Vec<Element<'view, Message>>,
@@ -170,6 +177,7 @@ impl<'view, Message: 'view> MenuRowContent<'view, Message> {
             indent_levels: 0,
             leading_caret: RowIcon::Absent,
             icon: RowIcon::Absent,
+            icon_side: IconSide::Leading,
             label: label.into(),
             value: Space::new().into(),
             trailing: Vec::new(),
@@ -184,9 +192,15 @@ impl<'view, Message: 'view> MenuRowContent<'view, Message> {
         }
     }
 
-    pub(crate) fn within(self, icon_column: IconColumn, caret_column: IconColumn) -> Self {
+    pub(crate) fn within(
+        self,
+        icon_column: IconColumn,
+        caret_column: IconColumn,
+        icon_side: IconSide,
+    ) -> Self {
         Self {
             icon: self.icon.within(icon_column),
+            icon_side,
             leading_caret: self.leading_caret.within(caret_column),
             ..self
         }
@@ -220,6 +234,7 @@ fn drawn_menu_row<'view, Message: Clone + 'view>(
         indent_levels,
         leading_caret,
         icon,
+        icon_side,
         label,
         value,
         trailing,
@@ -232,15 +247,21 @@ fn drawn_menu_row<'view, Message: Clone + 'view>(
         .style(move |theme| text::Style {
             color: Some(label_color(theme)),
         });
+    let icon_slot = icon.slot_view(metrics.icon_slot_px);
+    let (leading_icon, trailing_icon) = match icon_side {
+        IconSide::Leading => (icon_slot, None),
+        IconSide::Trailing => (None, icon_slot),
+    };
     let line = Row::new()
         .extend(
             repeat_n((), indent_levels).map(|()| Space::new().width(metrics.indent_step_px).into()),
         )
         .extend(leading_caret.slot_view(metrics.icon_slot_px))
-        .extend(icon.slot_view(metrics.icon_slot_px))
+        .extend(leading_icon)
         .push(container(label_text).width(Length::Fill).clip(true))
         .push(value)
         .extend(trailing)
+        .extend(trailing_icon)
         .spacing(metrics.item_spacing_px)
         .height(Length::Fill)
         .align_y(Alignment::Center);
