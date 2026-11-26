@@ -132,7 +132,9 @@ impl<'view> GroupIndicator<'view> {
 
     pub(crate) fn menu_pin(&self, group: &IndicatorGroupIdentity) -> Option<GroupMenuPin> {
         match self.pinning {
-            IndicatorPinning::Pinnable => Some(GroupMenuPin::Item(self.indicator_key(group))),
+            IndicatorPinning::Pinnable | IndicatorPinning::ForcedByConfig { .. } => {
+                Some(GroupMenuPin::Item(self.indicator_key(group)))
+            }
             IndicatorPinning::Unpinnable => None,
         }
     }

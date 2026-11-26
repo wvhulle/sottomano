@@ -70,6 +70,7 @@ impl DesktopShell {
         let release = match duration {
             PanelPinDuration::Permanent => GroupMenuMessage::TogglePin { menu, entry },
             PanelPinDuration::UntilAlertEnds => GroupMenuMessage::DismissAlertPin { menu, entry },
+            PanelPinDuration::ForcedByConfig { .. } => return Task::none(),
         };
         Task::batch([self.dismiss_hover_card(), self.update_group_menus(release)])
     }

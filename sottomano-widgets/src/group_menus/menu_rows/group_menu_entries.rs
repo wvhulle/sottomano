@@ -4,7 +4,10 @@ use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
-    glyph_icons::phosphor::{Phosphor, Weight},
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
     group_indicators::{
         group_indicator::{GroupIndicator, RowScroll},
         indicator_gestures::IndicatorGesture,
@@ -123,6 +126,13 @@ pub(crate) fn indicator_entry<'view>(
             duration: PanelPinDuration::Permanent,
             ..
         }) => vec![pin_button(entry, Weight::Fill, emphasis.text_color())],
+        IndicatorPin::Pinned(PanelPin {
+            duration: PanelPinDuration::ForcedByConfig { .. },
+            ..
+        }) => vec![
+            IconGlyph::from(Phosphor::LockSimple(Weight::Fill))
+                .view(layout.config.theme.font.icon_size_px, emphasis.text_color()),
+        ],
         IndicatorPin::Unpinned(entry)
         | IndicatorPin::Pinned(PanelPin {
             entry,

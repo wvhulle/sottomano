@@ -26,7 +26,7 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 13] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 14] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
@@ -40,6 +40,7 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 13] = [
     schema_migration!(11, "0011_power_indicator_renames.sql"),
     schema_migration!(12, "0012_split_sole_and_instance_pins.sql"),
     schema_migration!(13, "0013_default_panel_pins.sql"),
+    schema_migration!(14, "0014_clock_pin_moves_to_config.sql"),
 ];
 
 pub async fn apply_pending_migrations(
@@ -486,12 +487,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clock_notifications_and_tray_start_pinned_and_stay_unpinned_once_removed() {
+    async fn notifications_and_tray_start_pinned_and_stay_unpinned_once_removed() {
         let connection = empty_connection().await;
         apply_pending_migrations(&connection).await.unwrap();
         assert_eq!(
             pinned_group_keys(&connection).await,
-            ["agenda/clock", "agenda/notification", "session/tray"]
+            ["agenda/notification", "session/tray"]
         );
         connection
             .execute(
@@ -503,7 +504,7 @@ mod tests {
         apply_pending_migrations(&connection).await.unwrap();
         assert_eq!(
             pinned_group_keys(&connection).await,
-            ["agenda/clock", "agenda/notification"]
+            ["agenda/notification"]
         );
     }
 }

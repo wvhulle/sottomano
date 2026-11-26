@@ -13,6 +13,7 @@ pub mod notification_toasts;
 pub mod output_windows;
 pub mod overlay_surfaces;
 pub mod panel_menus;
+pub mod panel_pin_setting;
 pub mod screen_edges;
 pub mod scrolling;
 pub mod secrets;

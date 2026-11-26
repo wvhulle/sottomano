@@ -65,6 +65,9 @@ impl HoverCardContent<'_> {
                 Phosphor::PushPinSlash(Weight::Regular),
                 "temporarily pinned while alerting: dismiss until it alerts again",
             ),
+            PanelPinDuration::ForcedByConfig { setting_path } => {
+                return self.forced_pin_row(setting_path);
+            }
         };
         let label = row([
             IconGlyph::from(release_glyph).view(font.icon_size_px, text_color),
@@ -86,5 +89,24 @@ impl HoverCardContent<'_> {
             })
             .on_press(PopupMessage::ReleaseFromPanel(panel_pin))
             .into()
+    }
+
+    fn forced_pin_row(&self, setting_path: &'static str) -> Element<'static, PopupMessage> {
+        let font = &self.config.theme.font;
+        container(
+            row([
+                IconGlyph::from(Phosphor::LockSimple(Weight::Fill))
+                    .view(font.icon_size_px, text_color),
+                panel_text(font, format!("pinned by config: {setting_path}")).into(),
+            ])
+            .spacing(self.config.theme.spacing.item_gap)
+            .align_y(Vertical::Center),
+        )
+        .padding(
+            self.edge_row_padding()
+                .vertical(self.config.theme.spacing.item_gap),
+        )
+        .width(Length::Fill)
+        .into()
     }
 }

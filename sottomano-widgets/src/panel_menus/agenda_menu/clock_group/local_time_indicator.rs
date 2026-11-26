@@ -5,6 +5,7 @@ use iced::futures::Stream;
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
+use sottomano_toml_config::panel_menus::agenda_menu::LocalTimeConfig;
 
 use super::{ClockGroup, ClockInteraction, ClockSource};
 use crate::{
@@ -20,6 +21,8 @@ use crate::{
     panel_menus::agenda_menu::clock_group::TICK,
     widgets::{localized_time::LocalizedTimeFormat, value_cells::LabeledValue},
 };
+
+const LOCAL_TIME_PIN_SETTING: &str = "panel_menus.agenda.clock.local_time.pin";
 
 pub(super) const LOCAL_TIME_GLYPH: Phosphor = Phosphor::Clock(Weight::Regular);
 
@@ -70,13 +73,21 @@ impl LocalTime {
 }
 
 impl ClockGroup {
-    pub(super) fn local_time_listing(&self, clock: Clock, locale: Locale) -> IndicatorListing<'_> {
+    pub(super) fn local_time_listing(
+        &self,
+        config: &LocalTimeConfig,
+        clock: Clock,
+        locale: Locale,
+    ) -> IndicatorListing<'_> {
         self.time
             .indicator_listing(
                 |_| vec![LocalTime::indicator(clock, locale)],
                 LOCAL_TIME_GLYPH.into(),
             )
-            .map_indicators(|time_row| self.wired_local_time_indicator(time_row))
+            .map_indicators(|time_row| {
+                self.wired_local_time_indicator(time_row)
+                    .pin_forced_by(config.pin, LOCAL_TIME_PIN_SETTING)
+            })
     }
 
     pub(super) fn wired_local_time_indicator<'view>(

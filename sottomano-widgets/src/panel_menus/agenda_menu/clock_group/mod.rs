@@ -9,7 +9,7 @@ use std::time::Duration;
 use chrono_tz::Tz;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::SnapshotDelivery;
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, panel_menus::agenda_menu::ClockGroupConfig};
 
 use self::{
     local_date_indicator::LocalDate,
@@ -131,7 +131,12 @@ impl ClockGroup {
         &mut self.zone_times[position].1
     }
 
-    pub fn group_content(&self, clock: Clock, locale: Locale) -> IndicatorGroupContent<'_> {
+    pub fn group_content(
+        &self,
+        config: &ClockGroupConfig,
+        clock: Clock,
+        locale: Locale,
+    ) -> IndicatorGroupContent<'_> {
         let headline_indicator = self
             .wired_local_time_indicator(self.time.indicator(
                 |_| LocalTime::indicator(clock, locale),
@@ -139,7 +144,7 @@ impl ClockGroup {
             ))
             .with_headline_glyph(Phosphor::Watch(Weight::Regular).into());
         let indicator_listing = [
-            self.local_time_listing(clock, locale),
+            self.local_time_listing(&config.local_time, clock, locale),
             self.local_date_listing(clock, locale),
         ]
         .into_iter()

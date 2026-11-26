@@ -164,6 +164,9 @@ monthly_budget_usd = 20
 daily_warning_usd = 5
 max_blended_usd_per_million = 4.0
 
+[panel_menus.agenda.clock.local_time]
+pin = "forced"
+
 [panel_menus.agenda.session_focus]
 idle_detection_delay = "30s"
 shortest_counted_focus = "1s"

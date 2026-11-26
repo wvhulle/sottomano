@@ -1,15 +1,20 @@
 use std::time::Duration;
 
 use corredo::transitions::ExpansionState;
+use sottomano_toml_config::{panel_pin_setting::PanelPinSetting, severity::Severity};
 
 use super::{
     AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-    GroupSourceDemand, IndicatorGroupFamily, IndicatorGroupIdentity, MENU_SOURCE_LINGER,
-    NestedMenuAction, OpenGroupMenu, PanelPin, PanelPinDuration, PanelRaise,
+    GroupSourceDemand, IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorPin,
+    MENU_SOURCE_LINGER, NestedMenuAction, OpenGroupMenu, PanelPin, PanelPinDuration, PanelRaise,
 };
 use crate::{
     clock::Clock,
-    group_indicators::indicator_group_identity::IndicatorGroupInstance,
+    glyph_icons::phosphor::{Phosphor, Weight},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_group_identity::IndicatorGroupInstance,
+        indicator_state::IndicatorState,
+    },
     hover_cards::{IndicatorKey, PanelPinOrigin},
 };
 
@@ -372,4 +377,52 @@ fn an_open_group_survives_pinning_an_earlier_group() {
         group_menus.inspection.open_groups(GroupMenuTopic::Hardware),
         [GPU_GROUP]
     );
+}
+
+#[test]
+fn a_config_forced_indicator_reads_as_pinned_without_a_stored_pin() {
+    let forced_row = GroupIndicator::glyph_only(
+        "GPU load",
+        Phosphor::Cpu(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .pin_forced_by(
+        PanelPinSetting::Forced,
+        "panel_menus.hardware.gpu.gpu_load.pin",
+    );
+    let indicator_pin = GroupMenuState::default().indicator_pin(
+        GroupMenuTopic::Hardware,
+        &GPU_GROUP,
+        &forced_row,
+        Severity::default(),
+    );
+    assert!(matches!(
+        indicator_pin,
+        IndicatorPin::Pinned(PanelPin {
+            duration: PanelPinDuration::ForcedByConfig {
+                setting_path: "panel_menus.hardware.gpu.gpu_load.pin"
+            },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_free_pin_setting_leaves_the_indicator_unpinned() {
+    let free_row = GroupIndicator::glyph_only(
+        "GPU load",
+        Phosphor::Cpu(Weight::Regular).into(),
+        IndicatorState::Idle,
+    )
+    .pin_forced_by(
+        PanelPinSetting::Free,
+        "panel_menus.hardware.gpu.gpu_load.pin",
+    );
+    let indicator_pin = GroupMenuState::default().indicator_pin(
+        GroupMenuTopic::Hardware,
+        &GPU_GROUP,
+        &free_row,
+        Severity::default(),
+    );
+    assert!(matches!(indicator_pin, IndicatorPin::Unpinned(_)));
 }

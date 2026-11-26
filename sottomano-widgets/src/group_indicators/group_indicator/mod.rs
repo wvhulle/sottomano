@@ -6,7 +6,7 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, container},
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, panel_pin_setting::PanelPinSetting};
 
 use crate::{
     clock::Clock,
@@ -123,6 +123,7 @@ enum RowValueControl<'view> {
 pub(crate) enum IndicatorPinning {
     Pinnable,
     Unpinnable,
+    ForcedByConfig { setting_path: &'static str },
 }
 
 #[cfg(test)]
@@ -323,6 +324,17 @@ impl<'view> GroupIndicator<'view> {
         Self {
             panel_visibility,
             ..self
+        }
+    }
+
+    #[must_use]
+    pub fn pin_forced_by(self, pin_setting: PanelPinSetting, setting_path: &'static str) -> Self {
+        match pin_setting {
+            PanelPinSetting::Forced => Self {
+                pinning: IndicatorPinning::ForcedByConfig { setting_path },
+                ..self
+            },
+            PanelPinSetting::Free => self,
         }
     }
 

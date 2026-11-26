@@ -12,7 +12,7 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     background_work::logged_failure_task,
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, IndicatorPinning},
         indicator_group_content::{
             ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
@@ -69,6 +69,7 @@ impl GroupMenuPin {
 pub enum PanelPinDuration {
     Permanent,
     UntilAlertEnds,
+    ForcedByConfig { setting_path: &'static str },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +220,13 @@ impl GroupMenuState {
         let Some(entry) = indicator.menu_pin(group) else {
             return IndicatorPin::Unpinnable;
         };
+        if let IndicatorPinning::ForcedByConfig { setting_path } = indicator.pinning {
+            return IndicatorPin::Pinned(PanelPin {
+                menu,
+                entry,
+                duration: PanelPinDuration::ForcedByConfig { setting_path },
+            });
+        }
         match self.panel_pin(
             menu,
             entry.clone(),

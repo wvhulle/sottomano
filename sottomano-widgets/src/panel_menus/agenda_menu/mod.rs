@@ -65,7 +65,8 @@ impl AgendaMenu {
     ) -> Vec<IndicatorGroupContent<'view>> {
         let locale = config.calendar.locale;
         vec![
-            self.clock_group.group_content(clock, locale),
+            self.clock_group
+                .group_content(&config.panel_menus.agenda.clock, clock, locale),
             self.caldav_group
                 .group_content(&config.panel_menus.agenda.caldav, clock, locale),
             self.weather_group.group_content(config, clock),
