@@ -67,11 +67,14 @@ impl JournalScopeGroup {
         now: SystemTime,
     ) -> IndicatorGroupContent<'view> {
         let unit_scope = self.unit_scope;
-        let mut rows = Vec::new();
-        self.push_kernel_log_indicators(&mut rows, config, now);
-        self.push_service_errors_indicators(&mut rows, config, now);
-        self.push_coredump_log_indicators(&mut rows, config, now);
-        self.push_oom_kill_log_indicators(&mut rows, config, now);
+        let indicator_listing = [
+            self.kernel_log_listing(config, now),
+            self.service_errors_listing(config, now),
+            self.coredump_log_listing(config, now),
+            self.oom_kill_log_listing(config, now),
+        ]
+        .into_iter()
+        .collect();
         IndicatorGroupContent::expandable(
             self.family(),
             GroupIndicator::glyph_only(self.family().title(), self.icon(), self.state(now)),
@@ -79,88 +82,93 @@ impl JournalScopeGroup {
             move |expansion_message| {
                 JournalEventsInteraction::Expansion(unit_scope, expansion_message)
             },
-            IndicatorListing::Listed(rows),
+            indicator_listing,
         )
     }
 
-    fn push_kernel_log_indicators<'view>(
+    fn kernel_log_listing<'view>(
         &'view self,
-        rows: &mut Vec<GroupIndicator<'view>>,
         config: &'view Config,
         now: SystemTime,
-    ) {
-        if !self.kernel.awaits_first_delivery() {
-            let kernel_indicator = self.kernel.indicator(
-                |held_entries| kernel_log_indicator(live_kernel_occurrences(held_entries, now)),
-                KERNEL_LOG_GLYPH.into(),
-            );
-            if kernel_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_kernel_log_indicator(config, kernel_indicator, now));
-            }
-        }
+    ) -> IndicatorListing<'view> {
+        self.kernel.indicator_listing(
+            |held_entries| {
+                let kernel_indicator =
+                    kernel_log_indicator(live_kernel_occurrences(held_entries, now));
+                match kernel_indicator.panel_visibility {
+                    PanelVisibility::Shown => {
+                        vec![self.wired_kernel_log_indicator(config, kernel_indicator, now)]
+                    }
+                    PanelVisibility::Hidden => Vec::new(),
+                }
+            },
+            KERNEL_LOG_GLYPH.into(),
+        )
     }
 
-    fn push_service_errors_indicators<'view>(
+    fn service_errors_listing<'view>(
         &'view self,
-        rows: &mut Vec<GroupIndicator<'view>>,
         config: &'view Config,
         now: SystemTime,
-    ) {
-        if !self.service_errors.awaits_first_delivery() {
-            let service_errors_row = self.wired_service_errors_indicator(
-                self.service_errors.indicator(
-                    |held_entries| service_errors_indicator(live_service_errors(held_entries, now)),
-                    SERVICE_ERRORS_GLYPH.into(),
-                ),
-                now,
-            );
-            if service_errors_row.panel_visibility == PanelVisibility::Shown {
-                rows.push(match self.service_errors.get() {
-                    Some(held_entries) => service_errors_row.on_press(
-                        TerminalCommand::JOURNAL_PRESS_HINT,
-                        JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                            config,
-                            live_service_errors(held_entries, now).follow_log_args(),
-                        )),
-                    ),
-                    None => service_errors_row,
-                });
-            }
-        }
+    ) -> IndicatorListing<'view> {
+        self.service_errors.indicator_listing(
+            |held_entries| {
+                let live_errors = live_service_errors(held_entries, now);
+                let service_errors_row = service_errors_indicator(live_errors);
+                match service_errors_row.panel_visibility {
+                    PanelVisibility::Shown => vec![
+                        self.wired_service_errors_indicator(service_errors_row, now)
+                            .on_press(
+                                TerminalCommand::JOURNAL_PRESS_HINT,
+                                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                                    config,
+                                    live_service_errors(held_entries, now).follow_log_args(),
+                                )),
+                            ),
+                    ],
+                    PanelVisibility::Hidden => Vec::new(),
+                }
+            },
+            SERVICE_ERRORS_GLYPH.into(),
+        )
     }
 
-    fn push_coredump_log_indicators<'view>(
+    fn coredump_log_listing<'view>(
         &'view self,
-        rows: &mut Vec<GroupIndicator<'view>>,
         config: &'view Config,
         now: SystemTime,
-    ) {
-        if !self.coredumps.awaits_first_delivery() {
-            let coredump_indicator = self.coredumps.indicator(
-                |held_entries| coredump_log_indicator(live_coredumps(held_entries, now)),
-                COREDUMP_LOG_GLYPH.into(),
-            );
-            if coredump_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_coredump_log_indicator(config, coredump_indicator, now));
-            }
-        }
+    ) -> IndicatorListing<'view> {
+        self.coredumps.indicator_listing(
+            |held_entries| {
+                let coredump_indicator = coredump_log_indicator(live_coredumps(held_entries, now));
+                match coredump_indicator.panel_visibility {
+                    PanelVisibility::Shown => {
+                        vec![self.wired_coredump_log_indicator(config, coredump_indicator, now)]
+                    }
+                    PanelVisibility::Hidden => Vec::new(),
+                }
+            },
+            COREDUMP_LOG_GLYPH.into(),
+        )
     }
 
-    fn push_oom_kill_log_indicators<'view>(
+    fn oom_kill_log_listing<'view>(
         &'view self,
-        rows: &mut Vec<GroupIndicator<'view>>,
         config: &'view Config,
         now: SystemTime,
-    ) {
-        if !self.oom_kills.awaits_first_delivery() {
-            let oom_kill_indicator = self.oom_kills.indicator(
-                |held_entries| oom_kill_log_indicator(live_oom_kills(held_entries, now)),
-                OOM_KILL_LOG_GLYPH.into(),
-            );
-            if oom_kill_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_oom_kill_log_indicator(config, oom_kill_indicator, now));
-            }
-        }
+    ) -> IndicatorListing<'view> {
+        self.oom_kills.indicator_listing(
+            |held_entries| {
+                let oom_kill_indicator = oom_kill_log_indicator(live_oom_kills(held_entries, now));
+                match oom_kill_indicator.panel_visibility {
+                    PanelVisibility::Shown => {
+                        vec![self.wired_oom_kill_log_indicator(config, oom_kill_indicator, now)]
+                    }
+                    PanelVisibility::Hidden => Vec::new(),
+                }
+            },
+            OOM_KILL_LOG_GLYPH.into(),
+        )
     }
 
     fn journal_kind_states(&self, now: SystemTime) -> [Option<IndicatorState>; 4] {

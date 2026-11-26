@@ -4,9 +4,7 @@ use iced::{Subscription, Task};
 
 use crate::{
     clock::Clock,
-    indicator_groups::{
-        indicator_group_content::IndicatorListing, indicator_group_identity::IndicatorGroupFamily,
-    },
+    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
 };
 
 mod boot_timeline_indicator;
@@ -55,6 +53,7 @@ use crate::{
     widgets::{ongoing_toast::OngoingKey, subscribed_snapshot::SubscribedSnapshot},
 };
 
+const BOOT_TIMELINE_GLYPH: Phosphor = Phosphor::RocketLaunch(Weight::Regular);
 const SLOW_JOBS_GLYPH: Phosphor = Phosphor::HourglassMedium(Weight::Regular);
 const FAILED_SYSTEM_UNITS_GLYPH: Phosphor = Phosphor::HardDrives(Weight::Regular);
 const FAILED_USER_UNITS_GLYPH: Phosphor = Phosphor::User(Weight::Regular);
@@ -224,53 +223,62 @@ impl SystemdManagerGroup {
         clock: Clock,
     ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
-        let mut rows = Vec::new();
-        if let Some(timeline) = self.boot.get() {
-            rows.push(
-                boot_timeline_indicator(timeline, locale).with_hover_card(Box::new(move |_| {
-                    self.boot.sections_described_by(boot_timeline_hover_card)
-                })),
-            );
-            rows.push(
-                StartupUnits { timeline }
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.boot
-                            .hover_card_with(StartupUnits { timeline }.hover_card())
-                    })),
-            );
-        }
-        for slow_jobs in [&self.slow_system_jobs, &self.slow_user_jobs] {
-            if let Some(held_snapshot) = slow_jobs.get() {
-                if slow_jobs_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                    rows.push(slow_jobs_entry(slow_jobs, held_snapshot, config, clock));
-                }
-            } else if let Some(failure) = slow_jobs.failure() {
-                rows.push(failure.indicator(SLOW_JOBS_GLYPH.into()));
-            }
-        }
-        for (failed_units, failed_units_glyph) in [
-            (&self.failed_system, FAILED_SYSTEM_UNITS_GLYPH),
-            (&self.failed_user, FAILED_USER_UNITS_GLYPH),
-        ] {
-            if let Some(held_snapshot) = failed_units.get() {
-                if failed_units_panel_visibility(held_snapshot) == PanelVisibility::Shown {
-                    rows.push(failed_units_entry(
-                        failed_units,
-                        held_snapshot,
-                        config,
-                        clock,
-                    ));
-                }
-            } else if let Some(failure) = failed_units.failure() {
-                rows.push(failure.indicator(failed_units_glyph.into()));
-            }
-        }
-        if let Some(held_snapshot) = self.last_shutdown.get() {
-            rows.push(self.wired_last_shutdown_indicator(held_snapshot, config));
-        } else if let Some(failure) = self.last_shutdown.failure() {
-            rows.push(failure.indicator(LAST_SHUTDOWN_GLYPH.into()));
-        }
+        let slow_jobs_listing = |slow_jobs: &'view SubscribedSnapshot<SlowJobs>| {
+            slow_jobs.indicator_listing(
+                |held_snapshot| match slow_jobs_panel_visibility(held_snapshot) {
+                    PanelVisibility::Shown => {
+                        vec![slow_jobs_entry(slow_jobs, held_snapshot, config, clock)]
+                    }
+                    PanelVisibility::Hidden => Vec::new(),
+                },
+                SLOW_JOBS_GLYPH.into(),
+            )
+        };
+        let failed_units_listing =
+            |failed_units: &'view SubscribedSnapshot<FailedUnits>, failed_units_glyph: Phosphor| {
+                failed_units.indicator_listing(
+                    |held_snapshot| match failed_units_panel_visibility(held_snapshot) {
+                        PanelVisibility::Shown => {
+                            vec![failed_units_entry(
+                                failed_units,
+                                held_snapshot,
+                                config,
+                                clock,
+                            )]
+                        }
+                        PanelVisibility::Hidden => Vec::new(),
+                    },
+                    failed_units_glyph.into(),
+                )
+            };
+        let indicator_listing = [
+            self.boot.indicator_listing(
+                |timeline| {
+                    vec![
+                        boot_timeline_indicator(timeline, locale).with_hover_card(Box::new(
+                            move |_| self.boot.sections_described_by(boot_timeline_hover_card),
+                        )),
+                        StartupUnits { timeline }
+                            .indicator()
+                            .with_hover_card(Box::new(move |_| {
+                                self.boot
+                                    .hover_card_with(StartupUnits { timeline }.hover_card())
+                            })),
+                    ]
+                },
+                BOOT_TIMELINE_GLYPH.into(),
+            ),
+            slow_jobs_listing(&self.slow_system_jobs),
+            slow_jobs_listing(&self.slow_user_jobs),
+            failed_units_listing(&self.failed_system, FAILED_SYSTEM_UNITS_GLYPH),
+            failed_units_listing(&self.failed_user, FAILED_USER_UNITS_GLYPH),
+            self.last_shutdown.indicator_listing(
+                |held_snapshot| vec![self.wired_last_shutdown_indicator(held_snapshot, config)],
+                LAST_SHUTDOWN_GLYPH.into(),
+            ),
+        ]
+        .into_iter()
+        .collect();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::SystemdManager,
             GroupIndicator::glyph_only(
@@ -280,7 +288,7 @@ impl SystemdManagerGroup {
             ),
             &self.expansion,
             SystemdManagerInteraction::Expansion,
-            IndicatorListing::Listed(rows),
+            indicator_listing,
         )
     }
 

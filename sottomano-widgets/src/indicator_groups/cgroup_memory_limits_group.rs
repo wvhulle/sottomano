@@ -21,7 +21,6 @@ use crate::{
     indicator_groups::{
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-            IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
         terminal_command::TerminalCommand,
@@ -234,7 +233,8 @@ impl CgroupMemoryLimitsGroup {
         &'view self,
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
-        let rows = self.listed_cgroups().iter().map(|cgroup| {
+        let cgroup_glyph = Phosphor::ChartPieSlice(Weight::Regular);
+        let cgroup_row = |cgroup: &'view LimitedCgroup| {
             self.cgroup_indicator(cgroup)
                 .indicator()
                 .with_hover_card(Box::new(move |_| {
@@ -252,17 +252,20 @@ impl CgroupMemoryLimitsGroup {
                         ],
                     )),
                 )
-        });
+        };
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::CgroupMemoryLimits,
             GroupIndicator::glyph_only(
                 IndicatorGroupFamily::CgroupMemoryLimits.title(),
-                Phosphor::ChartPieSlice(Weight::Regular).into(),
+                cgroup_glyph.into(),
                 self.state(),
             ),
             &self.expansion,
             CgroupMemoryLimitsInteraction::Expansion,
-            IndicatorListing::Listed(rows.collect()),
+            self.listing.indicator_listing(
+                |listing| listing.cgroups.iter().map(cgroup_row).collect(),
+                cgroup_glyph.into(),
+            ),
         )
     }
 }
