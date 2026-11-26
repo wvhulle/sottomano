@@ -15,8 +15,9 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionWidget},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WindowMenuBarUse {
+    #[default]
     Enabled,
     Disabled,
 }
@@ -46,9 +47,10 @@ impl From<WindowMenuBarUse> for SwitchPosition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WindowMenuBarLayout {
     BehindHandle,
+    #[default]
     InlineTopMenus,
 }
 
@@ -79,8 +81,8 @@ impl From<WindowMenuBarLayout> for SwitchPosition {
 
 fn window_menu_bar_layout_toggle(window_menu_bar_layout: WindowMenuBarLayout) -> IconToggle {
     IconToggle::new(
-        "Inline top menus",
-        Phosphor::Columns(Weight::Regular),
+        "One panel button per menu",
+        Phosphor::Tabs(Weight::Regular),
         window_menu_bar_layout,
         SwitchPresses {
             turning_on: "show each top-level menu of the focused window in the panel",
@@ -91,8 +93,8 @@ fn window_menu_bar_layout_toggle(window_menu_bar_layout: WindowMenuBarLayout) ->
 
 fn window_menu_bar_use_toggle(window_menu_bar_use: WindowMenuBarUse) -> IconToggle {
     IconToggle::new(
-        "Window menu bar",
-        Phosphor::AppWindow(Weight::Regular),
+        "App menus in panel",
+        Phosphor::Browser(Weight::Regular),
         window_menu_bar_use,
         SwitchPresses {
             turning_on: "show the focused window's menus in a panel menu; Qt apps started \

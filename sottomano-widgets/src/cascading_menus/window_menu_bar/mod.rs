@@ -66,8 +66,8 @@ pub struct WindowMenuBar {
 impl Default for WindowMenuBar {
     fn default() -> Self {
         Self {
-            window_menu_bar_use: WindowMenuBarUse::Disabled,
-            window_menu_bar_layout: WindowMenuBarLayout::BehindHandle,
+            window_menu_bar_use: WindowMenuBarUse::default(),
+            window_menu_bar_layout: WindowMenuBarLayout::default(),
             registered_menu_bars: Vec::new(),
             focused_window: FocusedWindowIdentity::NoFocusedWindow,
             focused_menu_bar: FocusedMenuBar::NoFocusedWindow,
@@ -157,11 +157,11 @@ impl WindowMenuBar {
     pub fn load() -> Task<WindowMenuBarMessage> {
         Task::batch([
             Task::perform(
-                sqlite_singleton_flag::load(WindowMenuBarUse::Disabled),
+                sqlite_singleton_flag::load(WindowMenuBarUse::default()),
                 WindowMenuBarMessage::UseLoaded,
             ),
             Task::perform(
-                sqlite_singleton_flag::load(WindowMenuBarLayout::BehindHandle),
+                sqlite_singleton_flag::load(WindowMenuBarLayout::default()),
                 WindowMenuBarMessage::LayoutLoaded,
             ),
         ])

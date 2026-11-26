@@ -157,12 +157,14 @@ fn unknown_top_menu_id_has_no_entries() {
 #[test]
 fn inline_layout_shows_top_menus_in_the_panel() {
     let mut group = enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-    assert!(!group.shows_inline_top_menus());
+    assert!(group.shows_inline_top_menus());
     let _ = group.interact(WindowMenuBarInteraction::ToggleLayout);
     assert_eq!(
         group.window_menu_bar_layout,
-        WindowMenuBarLayout::InlineTopMenus
+        WindowMenuBarLayout::BehindHandle
     );
+    assert!(!group.shows_inline_top_menus());
+    let _ = group.interact(WindowMenuBarInteraction::ToggleLayout);
     assert!(group.shows_inline_top_menus());
     let _ = group.interact(WindowMenuBarInteraction::ToggleUse);
     assert!(!group.shows_inline_top_menus());
@@ -192,10 +194,12 @@ fn pressing_an_entry_closes_the_open_submenus() {
 }
 
 #[test]
-fn group_starts_switched_off() {
+fn group_starts_switched_on_with_inline_top_menus() {
+    let group = WindowMenuBar::default();
+    assert_eq!(group.window_menu_bar_use, WindowMenuBarUse::Enabled);
     assert_eq!(
-        WindowMenuBar::default().window_menu_bar_use,
-        WindowMenuBarUse::Disabled
+        group.window_menu_bar_layout,
+        WindowMenuBarLayout::InlineTopMenus
     );
 }
 
