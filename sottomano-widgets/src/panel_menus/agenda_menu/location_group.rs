@@ -1,12 +1,12 @@
-mod estimate_face;
-mod place_face;
-mod radio_face;
-mod updates_face;
+mod estimate_indicator;
+mod place_indicator;
+mod radio_indicator;
+mod updates_indicator;
 
 use std::iter::once;
 
 use iced::{Subscription, Task, futures::SinkExt};
-use situo_client::{FixOrigin, LocationRequest, LocationRequests};
+use situo_client::{LocationRequest, LocationRequests};
 use sottomano_desktop_sources::{SnapshotDelivery, weather::situo_location_fix::Location};
 
 use crate::{
@@ -23,10 +23,6 @@ use crate::{
         },
         indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
-    },
-    panel_menus::agenda_menu::location_group::{
-        estimate_face::EstimateFace, place_face::PlaceFace, radio_face::RadioFace,
-        updates_face::UpdatesFace,
     },
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
@@ -85,49 +81,10 @@ impl LocationGroup {
         &'view self,
         location: &'view Location,
     ) -> Vec<GroupIndicator<'view>> {
-        let place_row = PlaceFace { location }
-            .indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.location
-                    .hover_card_with(PlaceFace { location }.hover_card())
-            }));
-        let updates_row = UpdatesFace { location }
-            .indicator()
-            .with_hover_card(Box::new(move |_| {
-                self.location
-                    .hover_card_with(UpdatesFace { location }.hover_card())
-            }));
-        let estimate_rows = match &location.geo.origin {
-            FixOrigin::Manual | FixOrigin::Pinned => Vec::new(),
-            FixOrigin::Estimated(estimate) => {
-                let published = location.geo.position;
-                vec![
-                    EstimateFace {
-                        estimate,
-                        published,
-                    }
-                    .indicator()
-                    .with_hover_card(Box::new(move |_| {
-                        self.location.hover_card_with(
-                            EstimateFace {
-                                estimate,
-                                published,
-                            }
-                            .hover_card(),
-                        )
-                    })),
-                    RadioFace { estimate }
-                        .indicator()
-                        .with_hover_card(Box::new(move |_| {
-                            self.location
-                                .hover_card_with(RadioFace { estimate }.hover_card())
-                        })),
-                ]
-            }
-        };
-        once(place_row)
-            .chain(estimate_rows)
-            .chain(once(updates_row))
+        once(self.place_row(location))
+            .chain(self.estimate_rows(location))
+            .chain(self.radio_rows(location))
+            .chain(once(self.updates_row(location)))
             .map(|row| row.refreshed_by(LocationInteraction::LookUpAgain))
             .collect()
     }

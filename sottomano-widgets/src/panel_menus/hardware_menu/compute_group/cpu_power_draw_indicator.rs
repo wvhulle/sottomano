@@ -86,6 +86,7 @@ impl ComputeGroup {
                 .collect(),
         )
     }
+
     fn wired_cpu_power_draw_indicator<'view>(
         &'view self,
         power_indicator: GroupIndicator<'view>,

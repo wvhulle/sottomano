@@ -103,6 +103,7 @@ impl MemoryBoardGroup {
             )
             .map_indicators(|row| self.wired_stall_pressure_indicator(row))
     }
+
     fn wired_stall_pressure_indicator<'view>(
         &'view self,
         pressure_indicator: GroupIndicator<'view>,

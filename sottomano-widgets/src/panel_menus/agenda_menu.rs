@@ -12,7 +12,7 @@ use self::{
     caldav_group::CaldavGroup,
     clock_group::ClockGroup,
     location_group::LocationGroup,
-    notification_group::{NotificationGroup, NotificationStatus},
+    notification_group::{NotificationGroup, pending_notifications_indicator::NotificationStatus},
     quiet_schedule_group::QuietScheduleGroup,
     session_focus_group::SessionFocusGroup,
     weather_group::WeatherGroup,

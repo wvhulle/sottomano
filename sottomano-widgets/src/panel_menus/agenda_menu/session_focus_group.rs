@@ -1,9 +1,8 @@
-mod break_log;
-mod context_switch_rate;
-mod daily_totals_gauge;
-mod focus_timeline_row;
+mod context_switch_indicator;
+mod daily_totals_indicator;
+mod focus_session_indicator;
+mod focus_timeline_indicator;
 mod focus_tracker;
-mod session_face;
 mod sqlite_focus_spans;
 mod window_usage;
 
@@ -30,26 +29,19 @@ use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator,
-        indicator_drawing::ReadoutLabel,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
             IndicatorListing,
         },
         indicator_group_identity::IndicatorGroupFamily,
-        indicator_state::IndicatorState,
     },
-    hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
+    hover_cards::hover_card_body::Section,
     panel_menus::agenda_menu::session_focus_group::{
-        break_log::BreakLog,
-        context_switch_rate::ContextSwitchRate,
-        daily_totals_gauge::DailyTotalsGauge,
-        focus_timeline_row::FocusTimeline,
+        daily_totals_indicator::DailyTotalsGauge,
         focus_tracker::{FocusTracker, TrackerMessage},
-        session_face::SessionFace,
         window_usage::WindowUsage,
     },
-    widgets::{ongoing_toast::OngoingToastActionButton, text::resolved_text_face},
+    widgets::ongoing_toast::OngoingToastActionButton,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,72 +176,6 @@ impl SessionFocusGroup {
         }
     }
 
-    fn session_face<'view>(&'view self, config: &'view Config) -> SessionFace<'view> {
-        SessionFace {
-            accounting: self
-                .tracker
-                .ledger
-                .accounted(&config.panel_menus.agenda.session_focus),
-            snooze: self.snooze,
-        }
-    }
-
-    fn focus_timeline<'view>(&'view self, config: &'view Config) -> FocusTimeline<'view> {
-        FocusTimeline {
-            session_face: self.session_face(config),
-        }
-    }
-
-    fn focus_timeline_indicator<'view>(
-        &'view self,
-        config: &'view Config,
-        clock: Clock,
-    ) -> GroupIndicator<'view> {
-        let locale = config.calendar.locale;
-        let label_face = resolved_text_face(&config.theme.font);
-        let session_face = self.session_face(config);
-        let severity = session_face.severity(clock.utc());
-        let alerts = session_face.long_session_alerts(clock.utc(), locale);
-        GroupIndicator::glyph_only(
-            "Timeline",
-            Phosphor::ChartBar(Weight::Regular).into(),
-            IndicatorState::Idle,
-        )
-        .with_label(ReadoutLabel::Labeled(
-            self.focus_timeline(config)
-                .break_due_text(clock.utc(), locale),
-        ))
-        .with_hover_card(Box::new(move |card_clock: Clock| {
-            let accounting = self
-                .tracker
-                .ledger
-                .accounted(&config.panel_menus.agenda.session_focus);
-            vec![
-                Section::new(
-                    "Last 24 hours",
-                    timeline_widget(self.focus_timeline(config).timeline(
-                        card_clock.utc(),
-                        locale,
-                        label_face,
-                    )),
-                ),
-                BreakLog { accounting }.focus_settings(),
-            ]
-        }))
-        .in_state(severity.into())
-        .with_alerts(alerts)
-        .ongoing_toast_action_buttons(break_action_buttons())
-    }
-
-    fn context_switch_rate<'view>(&'view self, config: &'view Config) -> ContextSwitchRate<'view> {
-        ContextSwitchRate {
-            accounting: self
-                .tracker
-                .ledger
-                .accounted(&config.panel_menus.agenda.session_focus),
-        }
-    }
-
     #[must_use]
     pub fn heated_windows(
         &self,
@@ -304,27 +230,25 @@ impl SessionFocusGroup {
     ) -> IndicatorGroupContent<'view> {
         let locale = config.calendar.locale;
         let headline_indicator = self
-            .session_face(config)
+            .focus_session(config)
             .indicator(clock, locale)
             .ongoing_toast_action_buttons(break_action_buttons())
             .with_headline_glyph(Phosphor::Crosshair(Weight::Regular).into());
-        let totals = self.daily_totals.indicator(locale);
-        let switches = self.context_switch_rate(config).indicator(clock);
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::SessionFocus,
             headline_indicator,
             &self.expansion,
             SessionFocusMessage::Expansion,
             IndicatorListing::Listed(Vec::from([
-                self.focus_timeline_indicator(config, clock),
-                totals,
-                switches,
+                self.focus_timeline_row(config, clock),
+                self.daily_totals.indicator(locale),
+                self.context_switch_rate(config).indicator(clock),
             ])),
         )
     }
 }
 
-fn break_action_buttons() -> [OngoingToastActionButton<SessionFocusMessage>; 3] {
+pub(super) fn break_action_buttons() -> [OngoingToastActionButton<SessionFocusMessage>; 3] {
     [
         OngoingToastActionButton {
             button_label: "Lock screen".to_owned(),

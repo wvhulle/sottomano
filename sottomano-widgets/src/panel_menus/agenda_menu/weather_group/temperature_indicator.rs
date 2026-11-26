@@ -8,11 +8,13 @@ use uom::{
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
 };
 
+use super::{WEATHER_GLYPH, WeatherGroup, WeatherSource, refresh_online};
 use crate::{
     glyph_icons::{icon_glyph::IconGlyph, weather_icons::WeatherIcon},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
@@ -113,4 +115,27 @@ fn celsius_text(temperature: ThermodynamicTemperature) -> String {
 
 fn weather_temperature(temperature: ThermodynamicTemperature) -> Quantity {
     Quantity::temperature(temperature).decimals(1)
+}
+
+impl WeatherGroup {
+    pub(super) fn temperature_listing(&self) -> IndicatorListing<'_> {
+        self.temperature
+            .indicator_listing(
+                |held_snapshot| vec![temperature_indicator(held_snapshot)],
+                WEATHER_GLYPH.into(),
+            )
+            .map_indicators(|temperature_row| self.wired_temperature_indicator(temperature_row))
+    }
+
+    pub(super) fn wired_temperature_indicator<'view>(
+        &'view self,
+        temperature_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        temperature_row
+            .with_hover_card(Box::new(move |_| {
+                self.temperature
+                    .sections_described_by(temperature_hover_card)
+            }))
+            .refreshed_by(refresh_online(WeatherSource::Temperature))
+    }
 }

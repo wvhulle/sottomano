@@ -151,6 +151,7 @@ impl ComputeGroup {
                 .collect(),
         )
     }
+
     fn wired_cpu_clock_limits_indicator<'view>(
         &'view self,
         limits_indicator: GroupIndicator<'view>,
@@ -159,6 +160,7 @@ impl ComputeGroup {
             .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
+
     fn cpu_clock_limits_card(&self) -> Vec<Section> {
         let Some(cpu_clock) = self.cpu_clock.get() else {
             return Vec::new();

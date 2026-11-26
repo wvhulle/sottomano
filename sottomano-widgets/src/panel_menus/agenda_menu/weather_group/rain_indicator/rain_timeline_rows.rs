@@ -9,7 +9,7 @@ use super::rain_strength_scale::{RadarRainStrength, RainIntensityScale};
 use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     hover_cards::hover_card_body::{Section, headed_grouped_table},
-    panel_menus::agenda_menu::weather_group::{
+    panel_menus::agenda_menu::weather_group::rain_indicator::{
         precipitation_type_forecast::{
             MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text,
         },

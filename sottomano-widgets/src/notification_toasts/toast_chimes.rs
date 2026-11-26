@@ -8,7 +8,7 @@ use sottomano_desktop_sinks::desktop_notifications::{
 use sottomano_desktop_sources::desktop_notifications::notification_data::NotificationData;
 
 use super::{NotificationLayer, ToastLayerHost};
-use crate::panel_menus::agenda_menu::notification_group::AlertSound;
+use crate::panel_menus::agenda_menu::notification_group::alert_sound_indicator::AlertSound;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chime {

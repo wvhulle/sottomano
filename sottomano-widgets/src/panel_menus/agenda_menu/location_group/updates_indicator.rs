@@ -1,6 +1,7 @@
 use situo_client::{UpdateStatus, UpdateTrigger};
 use sottomano_desktop_sources::weather::situo_location_fix::Location;
 
+use super::LocationGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -11,11 +12,11 @@ use crate::{
     widgets::value_cells::{LabeledValue, ValueCell},
 };
 
-pub struct UpdatesFace<'view> {
+pub struct UpdatesIndicator<'view> {
     pub location: &'view Location,
 }
 
-impl<'view> UpdatesFace<'view> {
+impl<'view> UpdatesIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let update_status = self.location.update_status;
         let state = match update_status {
@@ -104,3 +105,17 @@ const ALL_UPDATE_TRIGGERS: [UpdateTrigger; 4] = [
     UpdateTrigger::NetworkReconnect,
     UpdateTrigger::ModemHotplug,
 ];
+
+impl LocationGroup {
+    pub(super) fn updates_row<'view>(
+        &'view self,
+        location: &'view Location,
+    ) -> GroupIndicator<'view> {
+        UpdatesIndicator { location }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.location
+                    .hover_card_with(UpdatesIndicator { location }.hover_card())
+            }))
+    }
+}

@@ -1,10 +1,12 @@
 use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
+use super::{WeatherGroup, WeatherSource, refresh_online};
 use crate::{
     glyph_icons::{icon_glyph::IconGlyph, weather_icons::WeatherIcon},
     group_indicators::{
-        group_indicator::GroupIndicator,
+        group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -43,6 +45,31 @@ pub fn wind_hover_card(wind: &Wind) -> Vec<Section> {
             LabeledValue::new("Bearing", Quantity::angle(wind.direction)),
         ]),
     )]
+}
+
+impl WeatherGroup {
+    pub(super) fn wind_listing(&self) -> IndicatorListing<'_> {
+        self.wind
+            .indicator_listing(
+                |held_snapshot| match wind_indicator(held_snapshot) {
+                    wind_row if wind_row.panel_visibility == PanelVisibility::Hidden => Vec::new(),
+                    wind_row => vec![wind_row],
+                },
+                WIND_FALLBACK_GLYPH,
+            )
+            .map_indicators(|wind_row| self.wired_wind_indicator(wind_row))
+    }
+
+    fn wired_wind_indicator<'view>(
+        &'view self,
+        wind_row: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        wind_row
+            .with_hover_card(Box::new(move |_| {
+                self.wind.sections_described_by(wind_hover_card)
+            }))
+            .refreshed_by(refresh_online(WeatherSource::Wind))
+    }
 }
 
 #[cfg(test)]

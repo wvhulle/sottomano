@@ -3,8 +3,9 @@ use corredo::changing_text::escape_markup;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, Interval, ScreenRun, UnitTotal,
 };
-use sottomano_toml_config::severity::Severity;
+use sottomano_toml_config::{Config, severity::Severity};
 
+use super::SessionFocusGroup;
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -25,12 +26,12 @@ use crate::{
     },
 };
 
-pub struct SessionFace<'view> {
+pub struct FocusSession<'view> {
     pub accounting: Accounting<'view>,
     pub snooze: WarningSnooze,
 }
 
-impl SessionFace<'_> {
+impl FocusSession<'_> {
     pub(super) fn snoozed_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         match self.snooze {
             WarningSnooze::SnoozedUntil(until) if now < until => Some(until),
@@ -196,7 +197,7 @@ impl SessionFace<'_> {
     }
 }
 
-impl<'view> SessionFace<'view> {
+impl<'view> FocusSession<'view> {
     pub fn indicator(self, clock: Clock, locale: Locale) -> GroupIndicator<'view> {
         let label = self
             .run_length(clock.utc())
@@ -223,6 +224,18 @@ impl<'view> SessionFace<'view> {
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
+    }
+}
+
+impl SessionFocusGroup {
+    pub(super) fn focus_session<'view>(&'view self, config: &'view Config) -> FocusSession<'view> {
+        FocusSession {
+            accounting: self
+                .tracker
+                .ledger
+                .accounted(&config.panel_menus.agenda.session_focus),
+            snooze: self.snooze,
+        }
     }
 }
 
@@ -269,7 +282,7 @@ mod tests {
             ..config()
         };
         let ledger = ledger_after([(focused(1, "kitty"), 0)]);
-        let face = SessionFace {
+        let face = FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::SnoozedUntil(at(60)),
         };
@@ -281,7 +294,7 @@ mod tests {
     fn the_headline_names_the_most_used_app_not_the_latest_focus() {
         let config = config();
         let ledger = ledger_after([(focused(1, "firefox"), 0), (focused(2, "kitty"), 40)]);
-        let face = SessionFace {
+        let face = FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         };

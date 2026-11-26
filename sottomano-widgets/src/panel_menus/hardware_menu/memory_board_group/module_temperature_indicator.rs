@@ -47,6 +47,7 @@ impl MemoryBoardGroup {
     pub(super) fn module_temperature_listing(&self) -> IndicatorListing<'_> {
         IndicatorListing::Listed(self.temperature_indicators().collect())
     }
+
     fn temperature_indicators(&self) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.module_temperatures
             .get()

@@ -7,21 +7,26 @@ use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
 
+use super::{ClockGroup, ClockInteraction, ClockSource};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     panel_menus::agenda_menu::clock_group::TICK,
     widgets::{
         localized_time::LocalizedTimeFormat,
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const ZONE_TIME_GLYPH: Phosphor = Phosphor::GlobeHemisphereWest(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ZoneTime {
@@ -106,6 +111,37 @@ fn city_name(zone: Tz) -> String {
         .next()
         .unwrap_or_default()
         .replace('_', " ")
+}
+
+impl ClockGroup {
+    pub(super) fn zone_time_listings(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> impl Iterator<Item = IndicatorListing<'_>> {
+        self.zone_times.iter().map(move |(zone, zone_time)| {
+            zone_time
+                .indicator_listing(
+                    |held_snapshot| held_snapshot.indicator(clock, locale).when_shown(),
+                    ZONE_TIME_GLYPH.into(),
+                )
+                .map_indicators(|zone_row| {
+                    Self::wired_zone_time_indicator(*zone, zone_time, zone_row)
+                })
+        })
+    }
+
+    fn wired_zone_time_indicator<'view>(
+        zone: Tz,
+        zone_time: &'view SubscribedSnapshot<ZoneTime>,
+        zone_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        zone_indicator
+            .with_hover_card(Box::new(|card_clock| {
+                zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))
+            }))
+            .refreshed_by(ClockInteraction::Refresh(ClockSource::ZoneTime(zone)))
+    }
 }
 
 #[cfg(test)]

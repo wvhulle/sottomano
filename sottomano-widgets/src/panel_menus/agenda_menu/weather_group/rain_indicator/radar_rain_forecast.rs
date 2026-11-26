@@ -17,7 +17,7 @@ use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     group_indicators::indicator_state::IndicatorState,
     hover_cards::hover_card_body::Section,
-    panel_menus::agenda_menu::weather_group::rain_forecast_ranking::frames_not_yet_over,
+    panel_menus::agenda_menu::weather_group::rain_indicator::rain_forecast_ranking::frames_not_yet_over,
     widgets::{
         localized_durations::{duration_text, relative_moment_text},
         ongoing_toast::{definition_list, moment_text},

@@ -2,6 +2,7 @@ use situo_client::{FixOrigin, GeoCoordinates, NearestPlace};
 use sottomano_desktop_sources::weather::situo_location_fix::Location;
 use uom::si::length::kilometer;
 
+use super::LocationGroup;
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -13,7 +14,7 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::agenda_menu::location_group::estimate_face::deciding_source_glyph,
+    panel_menus::agenda_menu::location_group::estimate_indicator::deciding_source_glyph,
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
         value_cells::{LabeledValue, ValueCell},
@@ -22,11 +23,11 @@ use crate::{
 
 const OPENSTREETMAP_ZOOM: u8 = 15;
 
-pub struct PlaceFace<'view> {
+pub struct PlaceIndicator<'view> {
     pub location: &'view Location,
 }
 
-impl<'view> PlaceFace<'view> {
+impl<'view> PlaceIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let glyph = match &self.location.geo.origin {
             FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular),
@@ -140,4 +141,18 @@ fn map_section(position: GeoCoordinates) -> Section {
             )
         })),
     )
+}
+
+impl LocationGroup {
+    pub(super) fn place_row<'view>(
+        &'view self,
+        location: &'view Location,
+    ) -> GroupIndicator<'view> {
+        PlaceIndicator { location }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.location
+                    .hover_card_with(PlaceIndicator { location }.hover_card())
+            }))
+    }
 }

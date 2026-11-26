@@ -16,7 +16,7 @@ use crate::{
     },
     panel_menus::agenda_menu::weather_group::{
         WeatherBusRequest, WeatherInteraction, WeatherSource,
-        rain_forecast_ranking::{RADAR_FRAME_LENGTH, frames_not_yet_over},
+        rain_indicator::rain_forecast_ranking::{RADAR_FRAME_LENGTH, frames_not_yet_over},
     },
 };
 

@@ -1,7 +1,7 @@
 use sottomano_desktop_sources::desktop_windows_apps::window_edge_placement::Placement;
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    panel_menus::agenda_menu::notification_group::NotificationStatus,
+    panel_menus::agenda_menu::notification_group::pending_notifications_indicator::NotificationStatus,
 };
 
 use crate::desktop_shell::DesktopShell;

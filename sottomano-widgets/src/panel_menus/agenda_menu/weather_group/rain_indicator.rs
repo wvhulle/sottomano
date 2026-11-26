@@ -1,3 +1,6 @@
+mod precipitation_type_forecast;
+mod rain_forecast_ranking;
+mod rain_row;
 use std::iter;
 
 use chrono::{DateTime, Local, Locale};
@@ -34,7 +37,7 @@ use crate::{
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    panel_menus::agenda_menu::weather_group::{
+    panel_menus::agenda_menu::weather_group::rain_indicator::{
         precipitation_type_forecast::{
             model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
         },

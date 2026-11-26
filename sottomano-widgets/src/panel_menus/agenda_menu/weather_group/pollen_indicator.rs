@@ -1,6 +1,7 @@
 use sottomano_desktop_sources::weather::open_meteo_pollen::{Allergen, AllergenConcentration};
 use uom::si::{f64::Ratio, ratio::ratio};
 
+use super::{WeatherGroup, WeatherSource, refresh_online};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -9,6 +10,7 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -127,6 +129,29 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
 
 pub(crate) const POLLEN_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Flower(Weight::Regular));
+
+impl WeatherGroup {
+    pub(super) fn pollen_listing(&self) -> IndicatorListing<'_> {
+        self.pollen
+            .indicator_listing(
+                |pollen| {
+                    pollen
+                        .airborne()
+                        .map(|concentration| {
+                            allergen_indicator(concentration).with_hover_card(Box::new(move |_| {
+                                self.pollen
+                                    .hover_card_with(allergen_hover_card(concentration))
+                            }))
+                        })
+                        .collect()
+                },
+                POLLEN_FALLBACK_GLYPH,
+            )
+            .map_indicators(|pollen_row| {
+                pollen_row.refreshed_by(refresh_online(WeatherSource::Pollen))
+            })
+    }
+}
 
 #[cfg(test)]
 mod tests {

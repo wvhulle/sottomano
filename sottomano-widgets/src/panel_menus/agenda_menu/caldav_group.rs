@@ -1,19 +1,6 @@
 use chrono::Locale;
 
-use crate::{
-    group_indicators::{
-        group_indicator::{GroupIndicator, PanelVisibility},
-        indicator_group_content::IndicatorListing,
-        indicator_state::IndicatorState,
-    },
-    panel_menus::agenda_menu::caldav_group::{
-        open_tasks_indicator::{open_tasks_hover_card, open_tasks_indicator},
-        upcoming_events_indicator::{
-            UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_hover_card,
-            upcoming_events_indicator,
-        },
-    },
-};
+use crate::group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState};
 mod open_tasks_indicator;
 mod upcoming_events_indicator;
 
@@ -48,8 +35,6 @@ use crate::{
     },
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
-
-const OPEN_TASKS_GLYPH: Phosphor = Phosphor::ListChecks(Weight::Regular);
 
 pub struct CaldavGroup {
     upcoming_events: SubscribedSnapshot<UpcomingEventList>,
@@ -157,25 +142,6 @@ impl CaldavGroup {
         clock: Clock,
         locale: Locale,
     ) -> IndicatorGroupContent<'_> {
-        let mut rows = Vec::new();
-        if !self.upcoming_events.awaits_first_delivery() || self.account(config).is_some() {
-            let events_indicator = self.upcoming_events.indicator(
-                |held_snapshot| upcoming_events_indicator(held_snapshot, clock, locale),
-                UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-            );
-            if events_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_upcoming_events_indicator(events_indicator));
-            }
-        }
-        if !self.open_tasks.awaits_first_delivery() {
-            let tasks_indicator = self.open_tasks.indicator(
-                |held_snapshot| open_tasks_indicator(held_snapshot, clock),
-                OPEN_TASKS_GLYPH.into(),
-            );
-            if tasks_indicator.panel_visibility == PanelVisibility::Shown {
-                rows.push(self.wired_open_tasks_indicator(tasks_indicator));
-            }
-        }
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Caldav,
             GroupIndicator::glyph_only(
@@ -185,27 +151,12 @@ impl CaldavGroup {
             ),
             &self.expansion,
             IndicatorGroupInteraction::Caldav,
-            IndicatorListing::Listed(rows),
+            [
+                self.upcoming_events_listing(config, clock, locale),
+                self.open_tasks_listing(config, clock),
+            ]
+            .into_iter()
+            .collect(),
         )
-    }
-
-    fn wired_upcoming_events_indicator<'view>(
-        &'view self,
-        events_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        events_indicator.with_hover_card(Box::new(move |card_clock| {
-            self.upcoming_events
-                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
-        }))
-    }
-
-    fn wired_open_tasks_indicator<'view>(
-        &'view self,
-        tasks_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        tasks_indicator.with_hover_card(Box::new(move |card_clock| {
-            self.open_tasks
-                .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))
-        }))
     }
 }

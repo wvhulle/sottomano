@@ -1,8 +1,8 @@
 use chrono::Locale;
 
-mod local_date;
-mod local_time;
-mod zone_time;
+mod local_date_indicator;
+mod local_time_indicator;
+mod zone_time_indicator;
 
 use std::time::Duration;
 
@@ -11,13 +11,16 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::SnapshotDelivery;
 use sottomano_toml_config::Config;
 
-use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
+use self::{
+    local_date_indicator::LocalDate,
+    local_time_indicator::{LOCAL_TIME_GLYPH, LocalTime},
+    zone_time_indicator::ZoneTime,
+};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        group_indicator::GroupIndicator,
         indicator_group_content::{
             IndicatorGroupContent, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
         },
@@ -28,10 +31,6 @@ use crate::{
 };
 
 pub const TICK: Duration = Duration::from_secs(1);
-
-const LOCAL_TIME_GLYPH: Phosphor = Phosphor::Clock(Weight::Regular);
-const LOCAL_DATE_GLYPH: Phosphor = Phosphor::CalendarBlank(Weight::Regular);
-const ZONE_TIME_GLYPH: Phosphor = Phosphor::GlobeHemisphereWest(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ClockSource {
@@ -134,34 +133,17 @@ impl ClockGroup {
 
     pub fn group_content(&self, clock: Clock, locale: Locale) -> IndicatorGroupContent<'_> {
         let headline_indicator = self
-            .local_time_indicator(self.time.indicator(
+            .wired_local_time_indicator(self.time.indicator(
                 |_| LocalTime::indicator(clock, locale),
                 LOCAL_TIME_GLYPH.into(),
             ))
             .with_headline_glyph(Phosphor::Watch(Weight::Regular).into());
         let indicator_listing = [
-            self.time
-                .indicator_listing(
-                    |_| vec![LocalTime::indicator(clock, locale)],
-                    LOCAL_TIME_GLYPH.into(),
-                )
-                .map_indicators(|time_row| self.local_time_indicator(time_row)),
-            self.date
-                .indicator_listing(
-                    |_| LocalDate::indicator(clock, locale).when_shown(),
-                    LOCAL_DATE_GLYPH.into(),
-                )
-                .map_indicators(|date_row| self.local_date_indicator(date_row)),
+            self.local_time_listing(clock, locale),
+            self.local_date_listing(clock, locale),
         ]
         .into_iter()
-        .chain(self.zone_times.iter().map(|(zone, zone_time)| {
-            zone_time
-                .indicator_listing(
-                    |held_snapshot| held_snapshot.indicator(clock, locale).when_shown(),
-                    ZONE_TIME_GLYPH.into(),
-                )
-                .map_indicators(|zone_row| Self::zone_time_indicator(*zone, zone_time, zone_row))
-        }))
+        .chain(self.zone_time_listings(clock, locale))
         .collect();
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::Clock,
@@ -170,41 +152,5 @@ impl ClockGroup {
             ClockInteraction::Expansion,
             indicator_listing,
         )
-    }
-
-    fn local_time_indicator<'view>(
-        &'view self,
-        time_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        time_indicator
-            .with_hover_card(Box::new(|card_clock| {
-                self.time
-                    .sections_described_by(|_| LocalTime::hover_card(card_clock))
-            }))
-            .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
-    }
-
-    fn local_date_indicator<'view>(
-        &'view self,
-        date_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        date_indicator
-            .with_hover_card(Box::new(|card_clock| {
-                self.date
-                    .sections_described_by(|_| LocalDate::hover_card(card_clock))
-            }))
-            .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
-    }
-
-    fn zone_time_indicator<'view>(
-        zone: Tz,
-        zone_time: &'view SubscribedSnapshot<ZoneTime>,
-        zone_indicator: GroupIndicator<'view>,
-    ) -> GroupIndicator<'view> {
-        zone_indicator
-            .with_hover_card(Box::new(|card_clock| {
-                zone_time.sections_described_by(|snapshot| snapshot.hover_card(card_clock))
-            }))
-            .refreshed_by(ClockInteraction::Refresh(ClockSource::ZoneTime(zone)))
     }
 }

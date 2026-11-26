@@ -10,7 +10,7 @@ use sottomano_toml_config::panel_menus::agenda_menu::session_focus::SessionFocus
 
 use super::{DueMoment, FocusTimeline, RunOffset, SessionDue};
 use crate::panel_menus::agenda_menu::session_focus_group::{
-    WarningSnooze, session_face::SessionFace,
+    WarningSnooze, focus_session_indicator::FocusSession,
 };
 
 fn at(minutes: i64) -> DateTime<Utc> {
@@ -60,7 +60,7 @@ fn breaks_are_drawn_by_cause_and_the_current_run_stands_out() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },
@@ -95,7 +95,7 @@ fn warning_and_critical_follow_the_end_of_the_last_break() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },
@@ -123,7 +123,7 @@ fn during_a_break_there_is_no_run_and_no_due_moment() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },
@@ -143,7 +143,7 @@ fn the_row_says_when_a_break_is_due_or_how_long_the_break_lasts() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },
@@ -167,7 +167,7 @@ fn the_longest_past_session_gets_its_own_span() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },
@@ -186,7 +186,7 @@ fn the_now_mark_names_the_unit_of_the_current_run() {
     let config = config();
     let ledger = ledger_with_two_breaks();
     let timeline = FocusTimeline {
-        session_face: SessionFace {
+        focus_session: FocusSession {
             accounting: ledger.accounted(&config),
             snooze: WarningSnooze::NotSnoozed,
         },

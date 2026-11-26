@@ -134,6 +134,7 @@ impl MemoryBoardGroup {
             )
             .map_indicators(|row| self.wired_swap_activity_indicator(row))
     }
+
     fn wired_swap_activity_indicator<'view>(
         &'view self,
         swap_indicator: GroupIndicator<'view>,

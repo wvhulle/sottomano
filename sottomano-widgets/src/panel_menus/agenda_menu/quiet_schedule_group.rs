@@ -1,12 +1,14 @@
 mod clock_slider;
+mod follow_schedule_indicator;
 mod quiet_phase_timing;
 mod quiet_schedule_rows;
 #[cfg(test)]
 mod quiet_schedule_tests;
+mod quiet_slider_indicator;
 pub mod quiet_window;
 mod sqlite_quiet_hours;
 mod sqlite_working_days;
-pub mod weekday_picker;
+mod working_days_indicator;
 
 use std::{ops::RangeInclusive, time::Duration};
 

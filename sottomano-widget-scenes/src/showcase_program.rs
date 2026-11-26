@@ -32,7 +32,7 @@ use sottomano_widgets::{
         NotificationLayer, NotificationSettings, toast_messages::NotificationMessage,
     },
     panel_menus::{
-        agenda_menu::notification_group::AlertSound,
+        agenda_menu::notification_group::alert_sound_indicator::AlertSound,
         behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
     },
     widgets::{

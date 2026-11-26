@@ -64,6 +64,7 @@ impl ComputeGroup {
                 .collect(),
         )
     }
+
     fn cpu_model_card(&self) -> Vec<Section> {
         let Some(host_hardware) = self.host_hardware.get() else {
             return Vec::new();

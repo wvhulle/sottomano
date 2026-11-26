@@ -12,7 +12,9 @@ use sottomano_desktop_sources::{
         nextcloud_web_links::NextcloudWebRoot,
     },
 };
+use sottomano_toml_config::panel_menus::agenda_menu::caldav_account::CaldavAccountConfig;
 
+use super::CaldavGroup;
 use crate::{
     clock::Clock,
     glyph_icons::{
@@ -23,6 +25,7 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{
@@ -233,6 +236,37 @@ pub(crate) fn upcoming_events_hover_card(
             ),
         ])
         .collect()
+}
+
+impl CaldavGroup {
+    pub(super) fn upcoming_events_listing(
+        &self,
+        config: &CaldavAccountConfig,
+        clock: Clock,
+        locale: Locale,
+    ) -> IndicatorListing<'_> {
+        if self.upcoming_events.awaits_first_delivery() && self.account(config).is_none() {
+            return IndicatorListing::Listed(Vec::new());
+        }
+        self.upcoming_events
+            .indicator_listing(
+                |held_snapshot| {
+                    upcoming_events_indicator(held_snapshot, clock, locale).when_shown()
+                },
+                UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+            )
+            .map_indicators(|events_row| self.wired_upcoming_events_indicator(events_row))
+    }
+
+    fn wired_upcoming_events_indicator<'view>(
+        &'view self,
+        events_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        events_indicator.with_hover_card(Box::new(move |card_clock| {
+            self.upcoming_events
+                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, card_clock))
+        }))
+    }
 }
 
 #[cfg(test)]

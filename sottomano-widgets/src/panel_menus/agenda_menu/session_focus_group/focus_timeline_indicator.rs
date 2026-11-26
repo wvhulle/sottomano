@@ -1,3 +1,53 @@
+mod break_log;
+impl SessionFocusGroup {
+    pub(super) fn focus_timeline_row<'view>(
+        &'view self,
+        config: &'view Config,
+        clock: Clock,
+    ) -> GroupIndicator<'view> {
+        let locale = config.calendar.locale;
+        let label_face = resolved_text_face(&config.theme.font);
+        let focus_session = self.focus_session(config);
+        let severity = focus_session.severity(clock.utc());
+        let alerts = focus_session.long_session_alerts(clock.utc(), locale);
+        GroupIndicator::glyph_only(
+            "Timeline",
+            Phosphor::ChartBar(Weight::Regular).into(),
+            IndicatorState::Idle,
+        )
+        .with_label(ReadoutLabel::Labeled(
+            self.focus_timeline(config)
+                .break_due_text(clock.utc(), locale),
+        ))
+        .with_hover_card(Box::new(move |card_clock: Clock| {
+            let accounting = self
+                .tracker
+                .ledger
+                .accounted(&config.panel_menus.agenda.session_focus);
+            vec![
+                Section::new(
+                    "Last 24 hours",
+                    timeline_widget(self.focus_timeline(config).timeline(
+                        card_clock.utc(),
+                        locale,
+                        label_face,
+                    )),
+                ),
+                BreakLog { accounting }.focus_settings(),
+            ]
+        }))
+        .in_state(severity.into())
+        .with_alerts(alerts)
+        .ongoing_toast_action_buttons(break_action_buttons())
+    }
+
+    fn focus_timeline<'view>(&'view self, config: &'view Config) -> FocusTimeline<'view> {
+        FocusTimeline {
+            focus_session: self.focus_session(config),
+        }
+    }
+}
+
 #[cfg(test)]
 mod focus_timeline_tests;
 use std::borrow::Cow;
@@ -14,11 +64,22 @@ use corredo::{
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, BreakCause, FocusRun, FocusUnit, Interval, LAST_DAY, ScreenRun, TakenBreak,
 };
+use sottomano_toml_config::Config;
 
-use super::session_face::SessionFace;
+use self::break_log::BreakLog;
+use super::{SessionFocusGroup, break_action_buttons, focus_session_indicator::FocusSession};
 use crate::{
+    clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
-    widgets::{localized_durations::duration_text, localized_timeline_text::LocalizedTimelineText},
+    group_indicators::{
+        group_indicator::GroupIndicator, indicator_drawing::ReadoutLabel,
+        indicator_state::IndicatorState,
+    },
+    hover_cards::hover_card_body::{Section, hover_card_figure_payloads::timeline_widget},
+    widgets::{
+        localized_durations::duration_text, localized_timeline_text::LocalizedTimelineText,
+        text::resolved_text_face,
+    },
 };
 
 const FOCUS_TIMELINE_LOOKBACK: TimeDelta = TimeDelta::hours(24);
@@ -121,12 +182,12 @@ fn break_span(taken: &TakenBreak) -> ClockSpan {
 }
 
 pub(super) struct FocusTimeline<'view> {
-    pub session_face: SessionFace<'view>,
+    pub focus_session: FocusSession<'view>,
 }
 
 impl<'view> FocusTimeline<'view> {
     fn accounting(&self) -> Accounting<'view> {
-        self.session_face.accounting
+        self.focus_session.accounting
     }
 
     pub(super) fn due_moments(&self, now: DateTime<Utc>) -> Vec<DueMoment> {
@@ -148,11 +209,14 @@ impl<'view> FocusTimeline<'view> {
                     },
                 ]
             });
-        let snooze_end = self.session_face.snoozed_until(now).map(|until| DueMoment {
-            due: SessionDue::SnoozeEnds,
-            at: until,
-            after_run_start: RunOffset::Uncounted,
-        });
+        let snooze_end = self
+            .focus_session
+            .snoozed_until(now)
+            .map(|until| DueMoment {
+                due: SessionDue::SnoozeEnds,
+                at: until,
+                after_run_start: RunOffset::Uncounted,
+            });
         thresholds.into_iter().flatten().chain(snooze_end).collect()
     }
 
@@ -198,7 +262,7 @@ impl<'view> FocusTimeline<'view> {
             };
         };
         let break_due_at = since + self.accounting().config.session_warning;
-        match self.session_face.snoozed_until(now) {
+        match self.focus_session.snoozed_until(now) {
             Some(until) => format!("Break reminder in {}", minutes_text(until - now)),
             None if break_due_at > now => {
                 format!("Break due in {}", minutes_text(break_due_at - now))

@@ -1,8 +1,9 @@
 use iced::alignment::Horizontal;
 use situo_client::{
-    BeaconDbEstimate, DecidingSource, GeoCoordinates, RadioSource, SourceLookup,
+    BeaconDbEstimate, DecidingSource, FixOrigin, GeoCoordinates, RadioSource, SourceLookup,
     SourceLookupOutcome,
 };
+use sottomano_desktop_sources::weather::situo_location_fix::Location;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{
@@ -12,6 +13,7 @@ use uom::{
     },
 };
 
+use super::LocationGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -28,12 +30,12 @@ use crate::{
 
 const MEAN_EARTH_RADIUS_KILOMETRES: f64 = 6371.0;
 
-pub struct EstimateFace<'view> {
+pub struct EstimateIndicator<'view> {
     pub estimate: &'view BeaconDbEstimate,
     pub published: GeoCoordinates,
 }
 
-impl<'view> EstimateFace<'view> {
+impl<'view> EstimateIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let accuracy_label = format!(
             "{:.0}",
@@ -156,6 +158,34 @@ fn estimate_section(estimate: &BeaconDbEstimate) -> Section {
             LabeledValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
         ]),
     )
+}
+
+impl LocationGroup {
+    pub(super) fn estimate_rows<'view>(
+        &'view self,
+        location: &'view Location,
+    ) -> Vec<GroupIndicator<'view>> {
+        let FixOrigin::Estimated(estimate) = &location.geo.origin else {
+            return Vec::new();
+        };
+        let published = location.geo.position;
+        vec![
+            EstimateIndicator {
+                estimate,
+                published,
+            }
+            .indicator()
+            .with_hover_card(Box::new(move |_| {
+                self.location.hover_card_with(
+                    EstimateIndicator {
+                        estimate,
+                        published,
+                    }
+                    .hover_card(),
+                )
+            })),
+        ]
+    }
 }
 
 #[cfg(test)]

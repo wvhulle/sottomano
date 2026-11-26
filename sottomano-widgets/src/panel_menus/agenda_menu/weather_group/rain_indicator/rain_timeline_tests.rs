@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
-    panel_menus::agenda_menu::weather_group::{
+    panel_menus::agenda_menu::weather_group::rain_indicator::{
         precipitation_type_forecast::MODEL_QUARTER_HOUR, rain_forecast_ranking::RainRateIndicator,
     },
     widgets::keyed_record_table::{RecordCells, TableRecord},

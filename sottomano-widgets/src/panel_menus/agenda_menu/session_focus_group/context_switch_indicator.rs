@@ -2,8 +2,9 @@ use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, LAST_HOUR,
 };
-use sottomano_toml_config::severity::Severity;
+use sottomano_toml_config::{Config, severity::Severity};
 
+use super::SessionFocusGroup;
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
@@ -126,5 +127,19 @@ impl<'view> ContextSwitchRate<'view> {
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
+    }
+}
+
+impl SessionFocusGroup {
+    pub(super) fn context_switch_rate<'view>(
+        &'view self,
+        config: &'view Config,
+    ) -> ContextSwitchRate<'view> {
+        ContextSwitchRate {
+            accounting: self
+                .tracker
+                .ledger
+                .accounted(&config.panel_menus.agenda.session_focus),
+        }
     }
 }

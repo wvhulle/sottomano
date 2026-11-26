@@ -1,5 +1,7 @@
-use situo_client::{BeaconDbEstimate, CellRadio, ServingCell};
+use situo_client::{BeaconDbEstimate, CellRadio, FixOrigin, ServingCell};
+use sottomano_desktop_sources::weather::situo_location_fix::Location;
 
+use super::LocationGroup;
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
@@ -14,11 +16,11 @@ use crate::{
     },
 };
 
-pub struct RadioFace<'view> {
+pub struct RadioIndicator<'view> {
     pub estimate: &'view BeaconDbEstimate,
 }
 
-impl<'view> RadioFace<'view> {
+impl<'view> RadioIndicator<'view> {
     pub fn indicator(self) -> GroupIndicator<'view> {
         let observations = self.estimate.observations;
         GroupIndicator::glyph_only(
@@ -125,4 +127,23 @@ fn serving_cells_section(estimate: &BeaconDbEstimate) -> Section {
             records,
         ),
     )
+}
+
+impl LocationGroup {
+    pub(super) fn radio_rows<'view>(
+        &'view self,
+        location: &'view Location,
+    ) -> Vec<GroupIndicator<'view>> {
+        let FixOrigin::Estimated(estimate) = &location.geo.origin else {
+            return Vec::new();
+        };
+        vec![
+            RadioIndicator { estimate }
+                .indicator()
+                .with_hover_card(Box::new(move |_| {
+                    self.location
+                        .hover_card_with(RadioIndicator { estimate }.hover_card())
+                })),
+        ]
+    }
 }

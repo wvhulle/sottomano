@@ -10,14 +10,18 @@ use sottomano_desktop_sources::{
         nextcloud_web_links::NextcloudWebRoot,
     },
 };
-use sottomano_toml_config::severity::Severity;
+use sottomano_toml_config::{
+    panel_menus::agenda_menu::caldav_account::CaldavAccountConfig, severity::Severity,
+};
 
+use super::CaldavGroup;
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
@@ -30,6 +34,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const OPEN_TASKS_GLYPH: Phosphor = Phosphor::ListChecks(Weight::Regular);
 
 const LISTED_TASKS: NonZeroUsize = NonZeroUsize::new(16).unwrap();
 
@@ -189,4 +195,32 @@ pub(crate) fn open_tasks_hover_card(open_tasks: &OpenTaskList, clock: Clock) -> 
             ),
         ),
     ]
+}
+
+impl CaldavGroup {
+    pub(super) fn open_tasks_listing(
+        &self,
+        config: &CaldavAccountConfig,
+        clock: Clock,
+    ) -> IndicatorListing<'_> {
+        if self.open_tasks.awaits_first_delivery() && self.account(config).is_none() {
+            return IndicatorListing::Listed(Vec::new());
+        }
+        self.open_tasks
+            .indicator_listing(
+                |held_snapshot| open_tasks_indicator(held_snapshot, clock).when_shown(),
+                OPEN_TASKS_GLYPH.into(),
+            )
+            .map_indicators(|tasks_row| self.wired_open_tasks_indicator(tasks_row))
+    }
+
+    fn wired_open_tasks_indicator<'view>(
+        &'view self,
+        tasks_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        tasks_indicator.with_hover_card(Box::new(move |card_clock| {
+            self.open_tasks
+                .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, card_clock))
+        }))
+    }
 }

@@ -151,6 +151,7 @@ impl ComputeGroup {
                 self.wired_x3d_cache_preference_indicator(preference_row)
             })
     }
+
     fn wired_x3d_cache_preference_indicator<'view>(
         &'view self,
         preference_indicator: GroupIndicator<'view>,
@@ -161,6 +162,7 @@ impl ComputeGroup {
                 ComputeSource::X3dCachePreference,
             ))
     }
+
     fn x3d_cache_preference_card(&self) -> Vec<Section> {
         let mut sections = self.x3d_cache_preference.hover_card();
         sections.extend(self.cpu_clock.sections_described_by(|cpu_clock| {

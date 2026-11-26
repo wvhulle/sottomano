@@ -13,7 +13,7 @@ use uom::si::f64::Velocity;
 
 use crate::{
     clock::Clock,
-    panel_menus::agenda_menu::weather_group::precipitation_type_forecast::{
+    panel_menus::agenda_menu::weather_group::rain_indicator::precipitation_type_forecast::{
         MODEL_QUARTER_HOUR, quarters_not_yet_over,
     },
 };

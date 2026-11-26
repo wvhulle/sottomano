@@ -85,6 +85,7 @@ impl GpuGroup {
             },
         }
     }
+
     pub(super) fn wired_gpu_load_indicator<'view>(
         &'view self,
         bus: &'view PciBusId,

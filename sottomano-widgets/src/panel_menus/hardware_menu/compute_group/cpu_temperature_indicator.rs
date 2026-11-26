@@ -301,6 +301,7 @@ impl ComputeGroup {
             )
             .map_indicators(|temperature_row| self.wired_cpu_temperature_indicator(temperature_row))
     }
+
     fn wired_cpu_temperature_indicator<'view>(
         &'view self,
         temperature_row: GroupIndicator<'view>,
@@ -313,6 +314,7 @@ impl ComputeGroup {
             )
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuTemperature))
     }
+
     fn cpu_temperature_card(&self) -> Vec<Section> {
         let live = self.live();
         let mut sections = self

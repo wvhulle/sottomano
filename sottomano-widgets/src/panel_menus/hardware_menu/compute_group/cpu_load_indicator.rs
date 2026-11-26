@@ -175,6 +175,7 @@ impl ComputeGroup {
             )
             .map_indicators(|load_row| self.wired_cpu_load_indicator(load_row))
     }
+
     pub(super) fn wired_cpu_load_indicator<'view>(
         &'view self,
         load_indicator: GroupIndicator<'view>,
@@ -187,6 +188,7 @@ impl ComputeGroup {
             )
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
     }
+
     fn cpu_load_card(&self) -> Vec<Section> {
         let live = self.live();
         let mut sections = self.cpu_load.sections_described_by(cpu_usage_hover_card);

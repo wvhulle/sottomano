@@ -145,6 +145,7 @@ impl MemoryBoardGroup {
             )
             .map_indicators(|row| self.wired_memory_growth_indicator(row))
     }
+
     fn wired_memory_growth_indicator<'view>(
         &'view self,
         growth_indicator: GroupIndicator<'view>,

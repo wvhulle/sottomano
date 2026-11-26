@@ -135,6 +135,7 @@ impl ComputeGroup {
             )
             .map_indicators(|clock_row| self.wired_cpu_clock_indicator(clock_row))
     }
+
     fn wired_cpu_clock_indicator<'view>(
         &'view self,
         clock_indicator: GroupIndicator<'view>,
@@ -147,6 +148,7 @@ impl ComputeGroup {
             )
             .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
     }
+
     fn cpu_clock_card(&self) -> Vec<Section> {
         let live = self.live();
         let mut sections = self.cpu_clock.sections_described_by(cpu_clock_hover_card);

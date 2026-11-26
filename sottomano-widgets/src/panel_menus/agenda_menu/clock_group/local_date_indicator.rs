@@ -5,12 +5,14 @@ use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 use tokio::time::sleep;
 
+use super::{ClockGroup, ClockInteraction, ClockSource};
 use crate::{
     clock::Clock,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -19,6 +21,8 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+const LOCAL_DATE_GLYPH: Phosphor = Phosphor::CalendarBlank(Weight::Regular);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalDate;
@@ -97,6 +101,29 @@ impl LocalDate {
                 LabeledValue::new("Day of year", local.ordinal().to_string()),
             ]),
         )]
+    }
+}
+
+impl ClockGroup {
+    pub(super) fn local_date_listing(&self, clock: Clock, locale: Locale) -> IndicatorListing<'_> {
+        self.date
+            .indicator_listing(
+                |_| LocalDate::indicator(clock, locale).when_shown(),
+                LOCAL_DATE_GLYPH.into(),
+            )
+            .map_indicators(|date_row| self.wired_local_date_indicator(date_row))
+    }
+
+    fn wired_local_date_indicator<'view>(
+        &'view self,
+        date_indicator: GroupIndicator<'view>,
+    ) -> GroupIndicator<'view> {
+        date_indicator
+            .with_hover_card(Box::new(|card_clock| {
+                self.date
+                    .sections_described_by(|_| LocalDate::hover_card(card_clock))
+            }))
+            .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
     }
 }
 

@@ -191,6 +191,7 @@ impl MemoryBoardGroup {
     pub(super) fn memory_slot_listing(&self, locale: Locale) -> IndicatorListing<'_> {
         IndicatorListing::Listed(self.slot_indicators(locale).collect())
     }
+
     fn slot_indicators(&self, locale: Locale) -> impl Iterator<Item = GroupIndicator<'_>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;

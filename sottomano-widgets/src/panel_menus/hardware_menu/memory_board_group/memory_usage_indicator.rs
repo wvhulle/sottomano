@@ -105,6 +105,7 @@ impl MemoryBoardGroup {
             )
             .map_indicators(|row| self.memory_usage_indicator(row))
     }
+
     pub(super) fn memory_usage_indicator<'view>(
         &'view self,
         usage_indicator: GroupIndicator<'view>,
