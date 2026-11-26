@@ -271,42 +271,21 @@ color_temperature_service = "screen-temperature.service"
 
 ## Tray clicks
 
-A left click on a tray icon brings the app's window to the front. The window
-is found through the process that owns the tray icon on D-Bus, or through
-`window_app_id` for apps whose window belongs to another process. When no
-single window matches, the click activates the item instead. The shell first
-gets an XDG activation token from the compositor and passes it to the app, so
-the app may raise the window it opens. Tray menu clicks pass a token the same
-way. The hover hint shows which of the two a click will do.
+Each tray item has a rule under `[panel_menus.session.tray.items.<id>]`, keyed by
+its StatusNotifierItem id.
 
-X11 apps run through xwayland-satellite, so the compositor reports the
-satellite as the owner of their windows. They need `window_app_id`, as the
-default rule for Steam has. Apps whose tray item cannot take an activation
-token, such as libappindicator items and X11 apps, may still fail to come to
-the front from their own menu items. That limit is in the app.
+| Key | Values | Effect |
+|---|---|---|
+| `left_click`, `middle_click`, `right_click` | `focus_app_window`, `activate_item`, `secondary_activate_item`, `ignore` | what a press on the icon does |
+| `window_app_id` | app id | the window to focus when it belongs to another process, such as X11 apps behind xwayland-satellite |
+| `icon` | `shown`, `hidden` | whether the icon shows |
 
-To keep an app's own activate behaviour, set `left_click = "activate_item"`
-for its item, keyed by the item's StatusNotifierItem id.
+`focus_app_window` falls back to activating the item when no single window
+matches. The popup shows which one a press will do.
 
 ## Menu bar
 
-The menu bar is off by default; the Menu bar group in the Settings menu has the switch. When it is
-on, the top panel gets a Menu bar menu with the focused window's menu bar: each
-top-level menu opens as a submenu, and nested submenus and separators keep the
-structure the application exported.
-
-Qt apps export their menu bar over D-Bus only when a global menu registrar is
-running when they start, so while the switch is on the shell claims the
-`com.canonical.AppMenu.Registrar` name. Qt apps started after that hide the
-menu bar inside their window; apps started before keep theirs until they are
-restarted. GTK apps that publish a menu bar show it in both places.
-
-X11 apps are matched to their exact window: through the registrar, through the
-menu properties KDE apps set on their window, or through the ones GTK apps and
-LibreOffice set. Native Wayland apps are matched through the process that owns
-the window, so when one process has several menu bars, the most recent one is
-shown and its hover card says so. Browsers and Electron apps running natively
-on Wayland export no menu, and apps built on libadwaita have no menu bar.
+The menu bar has no config keys; its switches are in the Settings menu, as [Menu bar](guide/menu-bar.md) shows.
 
 ## Secrets
 

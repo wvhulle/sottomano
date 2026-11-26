@@ -252,8 +252,9 @@ flowchart LR
 
 ### Scripting a demo
 
-Each demo shows one widget, is named `<group>_<widget>` and sits under its
-heading on a page of `docs/guide/`, unless the README shows it.
+Each demo shows one indicator, is named `<group>_<indicator>` and sits under
+its group's heading on its menu's page in `docs/guide/`, unless the README
+shows it.
 
 A demo names a scene and a script of steps: hovering, pressing or dragging
 named targets for panel widgets, and hovering or pressing visible text for
@@ -340,8 +341,8 @@ nix build .#showcase-recordings
 nix develop .#ci --command ci/nix-built-paths.nu copy-build-output result .
 ```
 
-Each visually distinct kind of widget has one demo, and widgets that look alike
-are listed in a table on the guide page below it. The canvas is transparent, so
+Each visually distinct kind of indicator has one demo, and every indicator is
+listed in its group's table on the guide page. The canvas is transparent, so
 clear and translucent panels show the page behind them.
 
 ## Documentation site

@@ -5,11 +5,20 @@ recordings are in [Development](development.md).
 
 ## Vocabulary
 
-The shell is one hierarchy: a panel has zones, a zone holds group menus and
-widget groups, a menu holds groups, a group holds items, and an item explains
-itself with a hover card. Each level has one module in the widgets crate and one
-type prefix, named after the level (panel, group menu, widget group, group item,
-hover card), so a name says where it sits.
+The shell is one hierarchy, and the widgets crate follows it:
+
+| Level | What it is | Where it lives |
+|---|---|---|
+| Panel | bar along a screen edge, with left, middle and right zones | `desktop_panels/` |
+| Menu | icon in a zone that opens a list of groups | `panel_menus/<menu>_menu/` |
+| Group | one source, one row in its menu; an instance group per device or item | `panel_menus/<menu>_menu/<source>_group/` |
+| Indicator | one reading or control of a group | one module in its group |
+| Popup | hover card of an indicator | `hover_cards/` |
+| Section | titled block in a popup | built by the indicator |
+
+Each group gets its own directory under its menu; no directory bundles several
+groups. A list item that deserves indicators of its own becomes an instance
+group in the menu, not a row in a list.
 
 One further module holds only iced primitives and helpers that belong to no
 level. A module used by one group lives in that group. Pins and layouts describe

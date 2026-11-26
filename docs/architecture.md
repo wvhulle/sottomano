@@ -26,8 +26,8 @@ The repository is a cargo workspace:
 - `sottomano-desktop-sinks/` holds what the shell writes: commands, settings and
   signals sent to desktop services, built on the handles from the sources crate.
 - `corredo/` holds generic iced widgets that know nothing about the shell.
-- `sottomano-widgets/` holds the panels, group menus, indicator groups, group items
-  and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
+- `sottomano-widgets/` holds the panels, menus, groups, indicators and popups,
+  laid out by the hierarchy in [Style](style.md#vocabulary).
   Each indicator group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`).
   The widgets crate defines the interactions its groups emit; the shell and the
