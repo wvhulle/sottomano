@@ -6,6 +6,8 @@ pub enum MigrationError {
     MissingSchemaVersion,
     #[error("PRAGMA user_version is not an integer")]
     NonIntegerSchemaVersion,
+    #[error("the store is at schema version {found}, newer than the latest known version {known}")]
+    NewerSchema { found: i64, known: i64 },
 }
 
 pub struct SchemaMigration {
@@ -43,7 +45,15 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 13] = [
 pub async fn apply_pending_migrations(
     connection: &turso::Connection,
 ) -> Result<(), MigrationError> {
-    if applied_schema_version(connection).await? >= latest_known_version() {
+    let applied_version = applied_schema_version(connection).await?;
+    let known_version = latest_known_version();
+    if applied_version > known_version {
+        return Err(MigrationError::NewerSchema {
+            found: applied_version,
+            known: known_version,
+        });
+    }
+    if applied_version == known_version {
         return Ok(());
     }
     for migration in &SCHEMA_MIGRATIONS {
@@ -114,7 +124,8 @@ mod tests {
     use std::{fs, path::Path};
 
     use super::{
-        SCHEMA_MIGRATIONS, applied_schema_version, apply_migration_once, apply_pending_migrations,
+        MigrationError, SCHEMA_MIGRATIONS, applied_schema_version, apply_migration_once,
+        apply_pending_migrations,
     };
 
     async fn empty_connection() -> turso::Connection {
@@ -154,6 +165,20 @@ mod tests {
             applied_schema_version(&connection).await.unwrap(),
             i64::try_from(SCHEMA_MIGRATIONS.len()).unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn a_store_from_a_newer_schema_is_refused() {
+        let connection = empty_connection().await;
+        connection
+            .execute("PRAGMA user_version = 58", ())
+            .await
+            .unwrap();
+        let refusal = apply_pending_migrations(&connection).await.unwrap_err();
+        assert!(matches!(
+            refusal,
+            MigrationError::NewerSchema { found: 58, known } if known == i64::try_from(SCHEMA_MIGRATIONS.len()).unwrap()
+        ));
     }
 
     #[tokio::test]
