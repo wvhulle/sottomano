@@ -1,6 +1,6 @@
 # Appearance
 
-The Looks group in the Behaviour menu holds ready-made combinations of colour scheme, panel opacity, blur, shadow and outline. Picking one switches the desktop's dark or light mode and saves the new look, so the panel, sidebar and overlay settings can fine-tune it afterwards.
+The Looks group in the Settings menu holds ready-made combinations of colour scheme, panel opacity, blur, shadow and outline. Picking one switches the desktop's dark or light mode and saves the new look, so the panel, sidebar and overlay settings can fine-tune it afterwards.
 
 - **Frosted dark**: dark colours, translucent panels frosted with blur.
 - **Clear dark**: dark colours, see-through panels without outline, blur or shadow, and a lightly tinted, frosted and outlined sidebar.
@@ -17,7 +17,7 @@ Pressing a look applies it at once; its icon lights up while it is in use.
 
 </div>
 
-<img src="https://sottomano.work/recordings/appearance_looks.webp" srcset="https://sottomano.work/recordings/appearance_looks.webp 2x" alt="Opening the Behaviour menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
+<img src="https://sottomano.work/recordings/appearance_looks.webp" srcset="https://sottomano.work/recordings/appearance_looks.webp 2x" alt="Opening the Settings menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
 
 </div>
 

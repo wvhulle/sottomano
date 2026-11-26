@@ -15,7 +15,7 @@ use crate::{
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    panel_menus::appearance_menu::compositor_styling_group::CompositorStylingMessage,
+    panel_menus::settings_menu::compositor_styling_group::CompositorStylingMessage,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

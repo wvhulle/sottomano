@@ -17,18 +17,19 @@ use self::{
 };
 use crate::{
     background_work::logged_failure_task,
-    group_indicators::{sqlite_singleton_flag, terminal_command::TerminalCommand},
+    group_indicators::{
+        indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
+        sqlite_singleton_flag,
+        terminal_command::TerminalCommand,
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::value_cells::LabeledValue,
 };
-
-const OPTIONS_SUBMENU_TITLE: &str = "Launcher options";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppLauncherSubmenu {
     Frequent,
     Category(AppCategory),
-    Options,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -48,6 +49,7 @@ pub enum AppLauncherMessage {
     ToggleSortByUsage,
     HideOpenAppsLoaded(OpenAppListing),
     SortByUsageLoaded(CategoryAppOrder),
+    SettingsExpansion(IndicatorGroupExpansionMessage),
 }
 
 pub enum Action {
@@ -65,6 +67,7 @@ pub struct AppLauncherMenu {
     usage: AppLaunchUsage,
     open_app_listing: OpenAppListing,
     category_app_order: CategoryAppOrder,
+    settings_expansion: IndicatorGroupExpansion,
     category_groups: Vec<AppCategoryGroup>,
     pub menu_state: NestedMenuState<AppLauncherSubmenu>,
     inspected_app: InspectedApp,
@@ -77,6 +80,7 @@ impl Default for AppLauncherMenu {
             usage: AppLaunchUsage::default(),
             open_app_listing: OpenAppListing::Listed,
             category_app_order: CategoryAppOrder::Alphabetical,
+            settings_expansion: IndicatorGroupExpansion::default(),
             category_groups: AppCategory::ALL
                 .into_iter()
                 .map(|category| AppCategoryGroup {
@@ -120,6 +124,10 @@ impl AppLauncherMenu {
                 AppLauncherMessage::SortByUsageLoaded,
             ),
         ])
+    }
+
+    pub fn collapse_settings(&mut self) {
+        self.settings_expansion.collapse();
     }
 
     pub fn close_menu(&mut self) {
@@ -219,6 +227,10 @@ impl AppLauncherMenu {
             AppLauncherMessage::SortByUsageLoaded(category_app_order) => {
                 self.category_app_order = category_app_order;
                 self.rebuild_category_groups();
+                Action::Run(Task::none())
+            }
+            AppLauncherMessage::SettingsExpansion(expansion_message) => {
+                self.settings_expansion.update(expansion_message);
                 Action::Run(Task::none())
             }
         }

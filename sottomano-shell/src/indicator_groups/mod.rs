@@ -21,17 +21,17 @@ use sottomano_widgets::{
             notification_group::NotificationGroup, quiet_schedule_group::QuietScheduleGroup,
             session_focus_group::SessionFocusGroup,
         },
-        appearance_menu::{
-            overlay_settings_group::OverlaySettingsGroup,
-            panel_settings_group::{GroupCollapsing, PanelSettingsGroup},
-            sidebar_settings_group::SidebarSettingsGroup,
-        },
         display_menu::{
             color_temperature_group::ColorTemperatureGroup, dark_mode_group::DarkModeGroup,
         },
         gaming_menu::gamepad_group::GamepadGroup,
         session_menu::idle_pause_groups::IdlePauseGroups,
         session_power_menu::session_power_group::SessionPowerGroup,
+        settings_menu::{
+            overlay_settings_group::OverlaySettingsGroup,
+            panel_settings_group::{GroupCollapsing, PanelSettingsGroup},
+            sidebar_settings_group::SidebarSettingsGroup,
+        },
     },
 };
 
@@ -77,7 +77,7 @@ impl ShellIndicatorGroups {
             DarkModeGroup::load().map(Message::DarkMode),
             GamepadGroup::load().map(Message::Gamepad),
             self.panel_menus
-                .appearance
+                .settings
                 .compositor_styling_group
                 .load()
                 .map(Message::CompositorStyling),
@@ -92,7 +92,7 @@ impl ShellIndicatorGroups {
     ) -> Task<Message> {
         let session_focus_group = &self.panel_menus.agenda.session_focus_group;
         self.panel_menus
-            .appearance
+            .settings
             .compositor_styling_group
             .reheat(config, || {
                 session_focus_group.heated_windows(compositor, config, clock)
@@ -111,7 +111,7 @@ impl ShellIndicatorGroups {
     pub fn collapse_when_auto_collapsing(&mut self) {
         if self
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .group_collapsing
             == GroupCollapsing::StayExpanded
@@ -120,6 +120,7 @@ impl ShellIndicatorGroups {
         }
         self.panel_menus.collapse_groups();
         self.window_menu_bar.collapse();
+        self.app_launcher_menu.collapse_settings();
         self.group_menus.collapse_settings();
     }
 }

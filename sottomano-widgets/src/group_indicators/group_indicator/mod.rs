@@ -12,7 +12,6 @@ use crate::{
     clock::Clock,
     glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
-        aligned_quantity::IndicatorAlignment,
         indicator_drawing::{
             IdentityOrdinal, IndicatorFace, IndicatorIcon, IndicatorReadout, ReadoutBadge,
             ReadoutGauge, ReadoutLabel, badged_face_icon, readout_view,
@@ -60,7 +59,6 @@ pub(crate) enum RowScroll<'view> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IndicatorPlacement {
     Panel,
-    Table,
     Menu,
 }
 
@@ -153,7 +151,6 @@ pub struct GroupIndicator<'view> {
     power_control: IndicatorPowerControl,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<IndicatorGroupInteraction>>,
     ongoing_toasts: Vec<OngoingToast<IndicatorGroupInteraction>>,
-    pub(crate) alignment: IndicatorAlignment,
     pub panel_visibility: PanelVisibility,
 }
 
@@ -179,7 +176,6 @@ impl<'view> GroupIndicator<'view> {
             power_control: IndicatorPowerControl::Absent,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
-            alignment: IndicatorAlignment::Unaligned,
             panel_visibility: PanelVisibility::Shown,
         }
     }

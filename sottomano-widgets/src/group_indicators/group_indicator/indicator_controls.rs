@@ -8,7 +8,6 @@ use super::{
 };
 use crate::{
     group_indicators::{
-        aligned_quantity::{AlignedQuantity, IndicatorAlignment},
         indicator_drawing::{IdentityOrdinal, IndicatorFace, IndicatorIcon},
         indicator_gestures::IndicatorGesture,
         indicator_group_content::GroupEvent,
@@ -50,7 +49,6 @@ impl<'view> GroupIndicator<'view> {
                         IndicatorPlacement::Panel => {
                             slider.view(config, shown_indicator.clone(), reveal)
                         }
-                        IndicatorPlacement::Table => slider.always_open_view(config),
                         IndicatorPlacement::Menu => slider.menu_view(config),
                     };
                     slider_view
@@ -209,13 +207,5 @@ impl<'view> GroupIndicator<'view> {
             .chain(self.control_actions.iter().cloned())
             .chain(self.button_actions.iter().cloned())
             .collect()
-    }
-
-    #[must_use]
-    pub fn aligned_as(self, quantity: AlignedQuantity) -> Self {
-        Self {
-            alignment: IndicatorAlignment::Aligned(quantity),
-            ..self
-        }
     }
 }

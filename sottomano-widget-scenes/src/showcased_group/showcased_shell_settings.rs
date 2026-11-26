@@ -2,7 +2,7 @@ use sottomano_toml_config::Config;
 use sottomano_widgets::{
     group_indicators::indicator_group_content::IndicatorGroupContent,
     group_menus::group_menu_state::GroupMenuState,
-    panel_menus::appearance_menu::{
+    panel_menus::settings_menu::{
         compositor_styling_group::CompositorStylingGroup,
         overlay_settings_group::OverlaySettingsGroup, panel_settings_group::PanelSettingsGroup,
         sidebar_settings_group::SidebarSettingsGroup,
@@ -15,13 +15,6 @@ pub struct ShowcasedShellSettings {
     pub overlays: OverlaySettingsGroup,
     pub menus: GroupMenuState,
     pub compositor_styling: CompositorStylingGroup,
-    pub shown_items: ShownSettingItems,
-}
-
-#[derive(Clone, Copy)]
-pub enum ShownSettingItems {
-    SharingAUnit,
-    Remaining,
 }
 
 impl ShowcasedShellSettings {
@@ -29,22 +22,12 @@ impl ShowcasedShellSettings {
         &'view self,
         config: &'view Config,
     ) -> Vec<IndicatorGroupContent<'view>> {
-        let inert_settings = [
+        vec![
             self.panels.group_content(config),
             self.sidebar.group_content(config),
             self.overlays.group_content(config),
             self.compositor_styling.group_content(config),
             self.menus.settings_content(config),
-        ];
-        match self.shown_items {
-            ShownSettingItems::SharingAUnit => inert_settings
-                .into_iter()
-                .filter_map(IndicatorGroupContent::only_aligned_indicators)
-                .collect(),
-            ShownSettingItems::Remaining => inert_settings
-                .into_iter()
-                .filter_map(IndicatorGroupContent::only_unaligned_indicators)
-                .collect(),
-        }
+        ]
     }
 }

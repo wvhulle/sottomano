@@ -56,7 +56,7 @@ use crate::{
             notification_group::alert_sound_indicator::AlertSound,
             quiet_schedule_group::quiet_window::QuietPhase,
         },
-        appearance_menu::overlay_settings_group::ToastArrangement,
+        settings_menu::overlay_settings_group::ToastArrangement,
     },
     widgets::{
         announced_level::LevelToastRequest, ongoing_toast::OngoingKey,

@@ -28,12 +28,12 @@ pub static GROUP_MENU_ACCORDION_SEVERAL: Scene = Scene {
     },
 };
 
-pub static GROUP_MENU_APPEARANCE: Scene = Scene {
-    name: "group_menu_appearance",
-    group: |_| shell_settings::sharing_a_unit(),
+pub static GROUP_MENU_SETTINGS: Scene = Scene {
+    name: "group_menu_settings",
+    group: |_| shell_settings::surface_settings(),
     live: |_| unchanging(),
     backdrop: SceneBackdrop::Transparent,
-    shown: GroupShown::InMenu(GroupMenuTopic::Appearance),
+    shown: GroupShown::InMenu(GroupMenuTopic::Settings),
 };
 
 pub static COMPUTE_CPU_PINNED: Scene = Scene {

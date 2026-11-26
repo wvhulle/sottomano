@@ -1,16 +1,12 @@
-use std::collections::BTreeMap;
-
 use iced::Element;
 use sottomano_toml_config::{Config, screen_edges::Position};
 
-use super::{GroupEvent, IndicatorGroupContent, IndicatorListing, group_panel_view::fixed_view};
+use super::{GroupEvent, IndicatorGroupContent, group_panel_view::fixed_view};
 use crate::{
     clock::Clock,
-    group_indicators::aligned_quantity::IndicatorAlignment,
     group_menus::{
         group_menu_state::{GroupMenuState, GroupMenuTopic, IndicatorPin},
-        group_menu_view::MenuSections,
-        menu_rows::{group_menu_entries::GroupMenuEntry, quantity_table::QuantityTableColumn},
+        menu_rows::group_menu_entries::GroupMenuEntry,
     },
     hover_cards::{HoverTarget, MenuHandleIndicator},
 };
@@ -49,14 +45,7 @@ impl<'view> IndicatorGroupContent<'view> {
             .collect()
     }
 
-    pub(crate) fn extend_menu_sections(
-        self,
-        config: &'view Config,
-        clock: Clock,
-        _group_menus: &GroupMenuState,
-        _menu: GroupMenuTopic,
-        mut sections: MenuSections<'view>,
-    ) -> MenuSections<'view> {
+    pub(crate) fn menu_entry(self) -> GroupMenuEntry<'view> {
         let IndicatorGroupContent {
             group_identity,
             group_title,
@@ -64,32 +53,11 @@ impl<'view> IndicatorGroupContent<'view> {
             listing,
             ..
         } = self;
-        let aligned =
-            listing
-                .listed_indicators()
-                .iter()
-                .fold(BTreeMap::new(), |mut aligned, indicator| {
-                    if let IndicatorAlignment::Aligned(quantity) = indicator.alignment {
-                        aligned.insert(quantity, indicator.table_cell_view(config, clock));
-                    }
-                    aligned
-                });
-        match listing.retaining_listed(|alignment| alignment == IndicatorAlignment::Unaligned) {
-            IndicatorListing::Listed(listed_indicators)
-                if listed_indicators.is_empty() && !aligned.is_empty() => {}
-            unaligned_listing => sections.group_entries.push(GroupMenuEntry {
-                group_identity,
-                group_title: group_title.clone(),
-                headline_indicator,
-                listing: unaligned_listing,
-            }),
+        GroupMenuEntry {
+            group_identity,
+            group_title,
+            headline_indicator,
+            listing,
         }
-        if !aligned.is_empty() {
-            sections.table_columns.push(QuantityTableColumn {
-                group_title,
-                aligned,
-            });
-        }
-        sections
     }
 }

@@ -1,6 +1,4 @@
-use crate::group_indicators::{
-    aligned_quantity::IndicatorAlignment, group_indicator::GroupIndicator,
-};
+use crate::group_indicators::group_indicator::GroupIndicator;
 
 pub enum IndicatorListing<'view> {
     Listed(Vec<GroupIndicator<'view>>),
@@ -76,31 +74,6 @@ impl<'view> IndicatorListing<'view> {
                     .into_iter()
                     .map(&transform_indicator)
                     .collect(),
-            },
-        }
-    }
-
-    pub(crate) fn retaining_listed(
-        self,
-        keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
-    ) -> Self {
-        let keeps_indicator = |indicator: &GroupIndicator<'_>| keeps_alignment(indicator.alignment);
-        match self {
-            IndicatorListing::Listed(listed_indicators) => IndicatorListing::Listed(
-                listed_indicators
-                    .into_iter()
-                    .filter(keeps_indicator)
-                    .collect(),
-            ),
-            IndicatorListing::Incomplete {
-                listed_indicators,
-                unread_sources,
-            } => IndicatorListing::Incomplete {
-                listed_indicators: listed_indicators
-                    .into_iter()
-                    .filter(keeps_indicator)
-                    .collect(),
-                unread_sources,
             },
         }
     }

@@ -13,7 +13,6 @@ use crate::{
         simple_icons::SimpleIcon,
     },
     group_indicators::{
-        aligned_quantity::AlignedQuantity,
         group_indicator::GroupIndicator,
         indicator_group_content::{IndicatorGroupContent, IndicatorListing},
         indicator_group_identity::IndicatorGroupFamily,
@@ -91,8 +90,7 @@ impl CompositorStylingGroup {
                     &self.corner_radius,
                     config,
                     CompositorStylingMessage::CornerRadius,
-                )
-                .aligned_as(AlignedQuantity::CornerRadius),
+                ),
             ),
             (
                 StylingControl::WindowGaps,

@@ -54,6 +54,6 @@ pub const DEMOS: &[Demo] = &[
     group_menu_demos::GROUP_MENU_ACCORDION_SEVERAL,
     group_menu_demos::GROUP_MENU_MEDIA,
     group_menu_demos::GROUP_MENU_PIN,
-    group_menu_demos::GROUP_MENU_APPEARANCE,
+    group_menu_demos::GROUP_MENU_SETTINGS,
     group_menu_demos::COMPUTE_CPU_PINNED,
 ];

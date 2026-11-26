@@ -8,12 +8,12 @@ use sottomano_widgets::{
     hover_cards::{anchored_popup::PopupAppearances, hover_card_surfaces::HoverCardSurfaceStyle},
     notification_toasts::{NotificationSettings, ToastContext},
     panel_menus::{
-        appearance_menu::{
+        display_menu::dark_mode_group::DarkModeInteraction,
+        settings_menu::{
             overlay_settings_group::OverlaySettingsMessage,
             panel_settings_group::PanelSettingsMessage,
             sidebar_settings_group::SidebarSettingsMessage,
         },
-        display_menu::dark_mode_group::DarkModeInteraction,
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
@@ -33,19 +33,19 @@ impl ShellIndicatorGroups {
             scheme: self.panel_menus.display.dark_mode_group.scheme(),
             panels: self
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .layer
                 .appearance(),
             sidebar: self
                 .panel_menus
-                .appearance
+                .settings
                 .sidebar_settings_group
                 .layer
                 .appearance(),
             overlays: self
                 .panel_menus
-                .appearance
+                .settings
                 .overlay_settings_group
                 .layer
                 .appearance(),
@@ -87,7 +87,7 @@ impl ShellIndicatorGroups {
             alert_sound: self.panel_menus.agenda.notification_group.alert_sound,
             toast_arrangement: self
                 .panel_menus
-                .appearance
+                .settings
                 .overlay_settings_group
                 .toast_arrangement,
         }
@@ -99,7 +99,7 @@ impl ShellIndicatorGroups {
             popup: PopupAppearances {
                 overlay: self
                     .panel_menus
-                    .appearance
+                    .settings
                     .overlay_settings_group
                     .layer
                     .appearance(),
@@ -107,7 +107,7 @@ impl ShellIndicatorGroups {
             },
             float_offset_px: self
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .float_offset_px(),
         }

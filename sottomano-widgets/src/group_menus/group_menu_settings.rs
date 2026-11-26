@@ -85,28 +85,31 @@ impl GroupMenuState {
             &self.settings_expansion,
             GroupMenuMessage::SettingsExpansion,
             IndicatorListing::Listed(
-                [
-                    GroupIndicator::toggle(
-                        accordion_layout_toggle(presentation),
-                        GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
-                    ),
-                    GroupIndicator::toggle(
-                        click_to_open_menus_toggle(presentation),
-                        GroupMenuMessage::SwitchPresentation(
-                            presentation.with_open_trigger_toggled(),
+                self.layer
+                    .indicators(config, GroupMenuMessage::Appearance)
+                    .into_iter()
+                    .chain([
+                        GroupIndicator::toggle(
+                            accordion_layout_toggle(presentation),
+                            GroupMenuMessage::SwitchPresentation(
+                                presentation.with_layout_toggled(),
+                            ),
                         ),
-                    ),
-                    GroupIndicator::toggle(
-                        submenu_connector_toggle(presentation),
-                        GroupMenuMessage::SwitchPresentation(
-                            presentation.with_submenu_connector_toggled(),
+                        GroupIndicator::toggle(
+                            click_to_open_menus_toggle(presentation),
+                            GroupMenuMessage::SwitchPresentation(
+                                presentation.with_open_trigger_toggled(),
+                            ),
                         ),
-                    ),
-                ]
-                .into_iter()
-                .chain(accordion_only_indicator)
-                .chain(self.layer.indicators(config, GroupMenuMessage::Appearance))
-                .collect(),
+                        GroupIndicator::toggle(
+                            submenu_connector_toggle(presentation),
+                            GroupMenuMessage::SwitchPresentation(
+                                presentation.with_submenu_connector_toggled(),
+                            ),
+                        ),
+                    ])
+                    .chain(accordion_only_indicator)
+                    .collect(),
             ),
         )
     }

@@ -22,14 +22,14 @@ use sottomano_widgets::{
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     output_windows::{self, OutputWindowsInteraction, OutputWindowsMessage, window_list},
     panel_menus::{
-        appearance_menu::{
-            overlay_settings_group::{self, OverlaySettingsMessage},
-            panel_settings_group::{self, PanelSettingsMessage},
-        },
         gaming_menu::gamepad_group::{GamepadInteraction, GamepadMessage},
         media_menu::media_group::{self, MediaInteraction, MediaMessage},
         session_menu::tray_group::{self, TrayMessage},
         session_power_menu::session_power_group::{self, SessionMessage},
+        settings_menu::{
+            overlay_settings_group::{self, OverlaySettingsMessage},
+            panel_settings_group::{self, PanelSettingsMessage},
+        },
         virtualization_menu::virtual_machines_group::{
             self, VirtualMachinesInteraction, VirtualMachinesMessage,
         },
@@ -59,7 +59,7 @@ impl DesktopShell {
         match self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .overlay_settings_group
             .update(msg)
         {
@@ -381,7 +381,7 @@ impl DesktopShell {
         match self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .update(msg)
         {

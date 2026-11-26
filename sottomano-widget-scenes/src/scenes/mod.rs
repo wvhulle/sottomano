@@ -92,6 +92,6 @@ pub const SCENES: &[&Scene] = &[
     &desktop_session_scenes::TOAST_ACTIONS,
     &desktop_session_scenes::TOAST_WINDOW_ANCHORED,
     &group_menu_scenes::GROUP_MENU_ACCORDION_SEVERAL,
-    &group_menu_scenes::GROUP_MENU_APPEARANCE,
+    &group_menu_scenes::GROUP_MENU_SETTINGS,
     &group_menu_scenes::COMPUTE_CPU_PINNED,
 ];

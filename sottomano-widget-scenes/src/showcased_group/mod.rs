@@ -24,7 +24,6 @@ use sottomano_widgets::{
             caldav_group::CaldavGroup, location_group::LocationGroup,
             session_focus_group::SessionFocusGroup, weather_group::WeatherGroup,
         },
-        behaviour_menu::appearance_presets_group::AppearancePresetsGroup,
         display_menu::wallpaper_group::WallpaperGroup,
         gaming_menu::gamepad_group::GamepadGroup,
         hardware_menu::{compute_group::ComputeGroup, memory_board_group::MemoryBoardGroup},
@@ -39,6 +38,7 @@ use sottomano_widgets::{
         session_menu::{
             idle_pause_groups::IdlePauseGroups, login_session_group::LoginSessionGroup,
         },
+        settings_menu::appearance_presets_group::AppearancePresetsGroup,
         virtualization_menu::{
             apptainer_containers_group::ApptainerContainersGroup,
             cgroup_memory_limits_group::CgroupMemoryLimitsGroup,

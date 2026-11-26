@@ -20,12 +20,9 @@ use crate::{
         indicator_group_identity::IndicatorGroupIdentity,
         indicator_group_interaction::IndicatorGroupInteraction,
     },
-    group_menus::{
-        group_menu_state::{
-            AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-            OpenGroupMenu, PanelRaise,
-        },
-        menu_rows::{group_menu_entries::GroupMenuEntry, quantity_table::QuantityTableColumn},
+    group_menus::group_menu_state::{
+        AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
+        OpenGroupMenu, PanelRaise,
     },
     hover_cards::{
         CardHeader, HoverTarget, IndicatorKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
@@ -131,20 +128,6 @@ impl GroupMenuMessenger {
             menu: self.topic,
             indicator,
         })
-    }
-}
-
-pub(crate) struct MenuSections<'view> {
-    pub table_columns: Vec<QuantityTableColumn<'view>>,
-    pub group_entries: Vec<GroupMenuEntry<'view>>,
-}
-
-impl MenuSections<'_> {
-    fn empty() -> Self {
-        Self {
-            table_columns: Vec::new(),
-            group_entries: Vec::new(),
-        }
     }
 }
 

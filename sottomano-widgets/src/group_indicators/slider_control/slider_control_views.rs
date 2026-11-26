@@ -5,13 +5,12 @@ use corredo::{
 use iced::{
     Alignment, Element, Length,
     alignment::Horizontal,
-    widget::{Row, mouse_area, text, text::Wrapping},
+    widget::{Row, text, text::Wrapping},
 };
 use sottomano_toml_config::Config;
 
 use super::{
-    ControlMessage, SliderCaption, SliderControl, SliderLabelFormat, SliderRightClick,
-    SliderShownIndicator,
+    ControlMessage, SliderCaption, SliderControl, SliderLabelFormat, SliderShownIndicator,
 };
 use crate::{
     group_indicators::indicator_drawing::{indicator_drawing, labeled_indicator},
@@ -51,18 +50,6 @@ impl SliderControl {
             },
             ControlMessage::from,
         )
-    }
-
-    #[must_use]
-    pub fn always_open_view<'view>(&self, config: &Config) -> Element<'view, ControlMessage> {
-        let opened = Row::with_children([self.state_glyph(config), self.menu_view(config)])
-            .spacing(config.theme.spacing.item_gap)
-            .align_y(Alignment::Center);
-        let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
-        if let SliderRightClick::Bound(_) = self.right_click {
-            area = area.on_right_press(ControlMessage::Right);
-        }
-        area.into()
     }
 
     #[must_use]

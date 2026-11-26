@@ -111,7 +111,7 @@ impl DesktopShell {
             tasks.push(
                 self.indicator_groups
                     .panel_menus
-                    .appearance
+                    .settings
                     .sidebar_settings_group
                     .observe_workspace_switch(&self.window_snapshot)
                     .map(Message::SidebarSettings),

@@ -32,7 +32,7 @@ use crate::{
     hover_cards::{IndicatorKey, MenuHandleIndicator, hover_card_surfaces::SWITCH_INTENT},
     panel_menus::{
         agenda_menu::clock_group::ClockInteraction,
-        appearance_menu::compositor_styling_group::CompositorStylingMessage,
+        settings_menu::compositor_styling_group::CompositorStylingMessage,
     },
 };
 

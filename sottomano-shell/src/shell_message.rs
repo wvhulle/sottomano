@@ -37,12 +37,6 @@ use sottomano_widgets::{
             quiet_schedule_group::QuietScheduleMessage, session_focus_group::SessionFocusMessage,
             weather_group::WeatherMessage,
         },
-        appearance_menu::{
-            compositor_styling_group::CompositorStylingMessage,
-            overlay_settings_group::OverlaySettingsMessage,
-            panel_settings_group::PanelSettingsMessage,
-            sidebar_settings_group::SidebarSettingsMessage,
-        },
         display_menu::{
             color_temperature_group::ColorTemperatureMessage, dark_mode_group::DarkModeMessage,
             monitor_group::MonitorMessage, wallpaper_group::WallpaperMessage,
@@ -81,6 +75,12 @@ use sottomano_widgets::{
             tray_group::TrayMessage,
         },
         session_power_menu::session_power_group::SessionMessage,
+        settings_menu::{
+            compositor_styling_group::CompositorStylingMessage,
+            overlay_settings_group::OverlaySettingsMessage,
+            panel_settings_group::PanelSettingsMessage,
+            sidebar_settings_group::SidebarSettingsMessage,
+        },
         virtualization_menu::{
             apptainer_containers_group::ApptainerContainersMessage,
             cgroup_memory_limits_group::CgroupMemoryLimitsMessage,

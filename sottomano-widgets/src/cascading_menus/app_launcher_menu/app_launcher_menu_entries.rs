@@ -9,10 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use super::{
-    AppLauncherMenu, AppLauncherMessage, AppLauncherSubmenu, InspectedApp, OPTIONS_SUBMENU_TITLE,
-    launcher_options::option_entries,
-};
+use super::{AppLauncherMenu, AppLauncherMessage, AppLauncherSubmenu, InspectedApp};
 use crate::{
     glyph_icons::{
         icon_glyph::IconGlyph,
@@ -154,20 +151,9 @@ impl AppLauncherMenu {
                 )
                 .into()
             });
-        let options_submenu = MenuSubmenu::new(
-            AppLauncherSubmenu::Options,
-            Self::submenu_header(
-                OPTIONS_SUBMENU_TITLE,
-                Phosphor::SlidersHorizontal(Weight::Regular),
-                config,
-            ),
-            option_entries(self.open_app_listing, self.category_app_order, config),
-        )
-        .into();
         frequent_submenu
             .into_iter()
             .chain(category_submenus)
-            .chain([options_submenu])
             .collect()
     }
 }

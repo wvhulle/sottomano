@@ -1,4 +1,3 @@
-pub mod aligned_quantity;
 pub mod gauge;
 pub mod group_indicator;
 pub mod indicator_drawing;

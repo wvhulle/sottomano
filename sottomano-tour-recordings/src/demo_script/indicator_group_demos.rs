@@ -117,7 +117,7 @@ pub(super) const APPEARANCE_LOOKS: Demo = Demo {
     name: "appearance_looks",
     scene: &indicator_group_scenes::APPEARANCE_LOOKS,
     script: &[
-        Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
+        Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Settings)),
         Step::PressText("Looks"),
         Step::Hover(indicator_row(
             IndicatorGroupFamily::AppearancePresets,

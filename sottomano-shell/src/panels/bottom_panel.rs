@@ -10,8 +10,7 @@ pub(crate) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {
     position: Position::Bottom,
     start: &[
         Menu(GroupMenuTopic::Applications),
-        Menu(GroupMenuTopic::Appearance),
-        Menu(GroupMenuTopic::Behaviour),
+        Menu(GroupMenuTopic::Settings),
         InlineWorkspaces,
     ],
     center: &[OutputWindows],

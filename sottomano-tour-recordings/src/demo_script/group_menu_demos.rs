@@ -48,12 +48,14 @@ pub(super) const GROUP_MENU_PIN: Demo = Demo {
     ],
 };
 
-pub(super) const GROUP_MENU_APPEARANCE: Demo = Demo {
-    name: "group_menu_appearance",
-    scene: &group_menu_scenes::GROUP_MENU_APPEARANCE,
-    script: &[Step::Press(HoverTarget::GroupMenu(
-        GroupMenuTopic::Appearance,
-    ))],
+pub(super) const GROUP_MENU_SETTINGS: Demo = Demo {
+    name: "group_menu_settings",
+    scene: &group_menu_scenes::GROUP_MENU_SETTINGS,
+    script: &[
+        Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Settings)),
+        Step::PressText("Panels"),
+        Step::RestFor(Duration::from_millis(600)),
+    ],
 };
 
 pub(super) const COMPUTE_CPU_PINNED: Demo = Demo {

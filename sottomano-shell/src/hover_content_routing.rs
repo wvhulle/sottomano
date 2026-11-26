@@ -192,7 +192,7 @@ impl DesktopShell {
             beside_appearance: self
                 .indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .overlay_settings_group
                 .layer
                 .appearance(),

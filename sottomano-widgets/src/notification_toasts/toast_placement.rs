@@ -14,7 +14,7 @@ use sottomano_toml_config::{
 
 use crate::{
     notification_toasts::{NotificationSettings, toast_messages::NotificationMessage},
-    panel_menus::appearance_menu::overlay_settings_group::ToastArrangement,
+    panel_menus::settings_menu::overlay_settings_group::ToastArrangement,
     widgets::typing_under_cards::viewed_window_bounds,
 };
 

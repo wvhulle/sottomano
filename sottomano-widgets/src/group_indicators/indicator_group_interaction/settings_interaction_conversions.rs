@@ -1,11 +1,9 @@
 use super::IndicatorGroupInteraction;
-use crate::panel_menus::{
-    appearance_menu::{
-        compositor_styling_group::CompositorStylingMessage,
-        overlay_settings_group::OverlaySettingsMessage, panel_settings_group::PanelSettingsMessage,
-        sidebar_settings_group::SidebarSettingsMessage,
-    },
-    behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
+use crate::panel_menus::settings_menu::{
+    appearance_presets_group::AppearancePresetsMessage,
+    compositor_styling_group::CompositorStylingMessage,
+    overlay_settings_group::OverlaySettingsMessage, panel_settings_group::PanelSettingsMessage,
+    sidebar_settings_group::SidebarSettingsMessage,
 };
 
 impl From<PanelSettingsMessage> for IndicatorGroupInteraction {

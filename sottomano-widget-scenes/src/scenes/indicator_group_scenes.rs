@@ -69,7 +69,7 @@ pub static APPEARANCE_LOOKS: Scene = Scene {
     group: |_| appearance_presets::group(),
     live: |_| unchanging(),
     backdrop: SceneBackdrop::FrostablePhoto,
-    shown: GroupShown::InMenu(GroupMenuTopic::Behaviour),
+    shown: GroupShown::InMenu(GroupMenuTopic::Settings),
 };
 
 pub static GAMEPAD_CONTROLLER: Scene = Scene {

@@ -36,12 +36,12 @@ impl ShellIndicatorGroups {
                 .interact(expansion)
                 .map(Message::Caldav),
             IndicatorGroupInteraction::SidebarSettings(message) => menus
-                .appearance
+                .settings
                 .sidebar_settings_group
                 .update(message)
                 .map(Message::SidebarSettings),
             IndicatorGroupInteraction::CompositorStyling(message) => menus
-                .appearance
+                .settings
                 .compositor_styling_group
                 .update(message)
                 .map(Message::CompositorStyling),

@@ -13,10 +13,10 @@ use sottomano_widgets::{
     group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
     panel_menus::{
-        appearance_menu::{
+        session_power_menu::session_power_group::PowerMenuPresence,
+        settings_menu::{
             panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
         },
-        session_power_menu::session_power_group::PowerMenuPresence,
     },
     workspace_switcher::inline_strip,
 };
@@ -127,7 +127,7 @@ impl DesktopShell {
         let panels = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .layer
             .appearance();
@@ -141,7 +141,7 @@ impl DesktopShell {
         let group_framing = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .group_framing;
         if group_framing == PanelGroupFraming::Disconnected {
@@ -159,7 +159,7 @@ impl DesktopShell {
         .all_when_floating(
             self.indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .float_offset_px(),
         );
@@ -182,21 +182,21 @@ impl DesktopShell {
         let panels = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .layer
             .appearance();
         let group_framing = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .group_framing;
         let frame_style = panels.frame;
         let outlined_sides = inward_outlined_sides(position).all_when_floating(
             self.indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .float_offset_px(),
         );
@@ -237,7 +237,7 @@ impl DesktopShell {
         match self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .sidebar_settings_group
             .workspaces_placement
         {
@@ -249,7 +249,7 @@ impl DesktopShell {
                 &self
                     .indicator_groups
                     .panel_menus
-                    .appearance
+                    .settings
                     .sidebar_settings_group
                     .empty_workspace_folding,
                 self.panel_slot_context(position),

@@ -1,19 +1,11 @@
-use corredo::{
-    popovers::{MenuEntry, MenuItem, MenuRow, MenuRowContent},
-    theming::text_color,
-    value_controls::SwitchResponse,
-};
-use sottomano_toml_config::Config;
-
-use super::{AppLauncherMessage, AppLauncherSubmenu};
+use super::{AppLauncherMenu, AppLauncherMessage};
 use crate::{
-    glyph_icons::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-    },
+    glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        indicator_group_content::GroupEvent,
-        indicator_toggle_switch::indicator_toggle_switch,
+        group_indicator::GroupIndicator,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
+        indicator_group_identity::IndicatorGroupFamily,
+        indicator_state::IndicatorState,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -105,37 +97,28 @@ fn sort_by_usage_toggle(category_app_order: CategoryAppOrder) -> IconToggle {
     )
 }
 
-fn option_entry<'view>(
-    toggle: IconToggle,
-    message: AppLauncherMessage,
-    config: &Config,
-) -> MenuEntry<'view, AppLauncherSubmenu, GroupEvent> {
-    let content = MenuRowContent::new(toggle.name)
-        .icon(IconGlyph::from(toggle.icon).view(config.theme.font.icon_size_px, text_color))
-        .value(indicator_toggle_switch(
-            config,
-            toggle.switch_position,
-            SwitchResponse::Pressable,
-            1.0,
-        ));
-    MenuItem::new(MenuRow::new(content).on_press(GroupEvent::from(message))).into()
-}
-
-pub(super) fn option_entries<'view>(
-    open_app_listing: OpenAppListing,
-    category_app_order: CategoryAppOrder,
-    config: &Config,
-) -> [MenuEntry<'view, AppLauncherSubmenu, GroupEvent>; 2] {
-    [
-        option_entry(
-            hide_open_apps_toggle(open_app_listing),
-            AppLauncherMessage::ToggleHideOpenApps,
-            config,
-        ),
-        option_entry(
-            sort_by_usage_toggle(category_app_order),
-            AppLauncherMessage::ToggleSortByUsage,
-            config,
-        ),
-    ]
+impl AppLauncherMenu {
+    #[must_use]
+    pub fn settings_content(&self) -> IndicatorGroupContent<'_> {
+        IndicatorGroupContent::expandable(
+            IndicatorGroupFamily::LauncherSettings,
+            GroupIndicator::glyph_only(
+                IndicatorGroupFamily::LauncherSettings.title(),
+                Phosphor::SquaresFour(Weight::Regular).into(),
+                IndicatorState::Idle,
+            ),
+            &self.settings_expansion,
+            AppLauncherMessage::SettingsExpansion,
+            IndicatorListing::Listed(vec![
+                GroupIndicator::toggle(
+                    hide_open_apps_toggle(self.open_app_listing),
+                    AppLauncherMessage::ToggleHideOpenApps,
+                ),
+                GroupIndicator::toggle(
+                    sort_by_usage_toggle(self.category_app_order),
+                    AppLauncherMessage::ToggleSortByUsage,
+                ),
+            ]),
+        )
+    }
 }

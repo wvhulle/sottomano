@@ -227,7 +227,7 @@ impl DesktopShell {
         (self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .float_offset_px()
             + thickness)

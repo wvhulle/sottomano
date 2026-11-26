@@ -10,7 +10,6 @@ use crate::{
     desktop_panels::region_reporter::BackdropBlur,
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
-        aligned_quantity::AlignedQuantity,
         group_indicator::GroupIndicator,
         indicator_group_interaction::IndicatorGroupInteraction,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
@@ -355,39 +354,31 @@ impl LayerAppearanceControls {
         [
             GroupIndicator::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))
-            })
-            .aligned_as(AlignedQuantity::Opacity),
+            }),
             GroupIndicator::slider(&self.corner_radius, config, move |control| {
                 lift(AppearanceMessage::CornerRadius(control))
-            })
-            .aligned_as(AlignedQuantity::CornerRadius),
+            }),
             GroupIndicator::toggle(
                 blur_toggle(self.backdrop_blur),
                 lift(AppearanceMessage::ToggleBlur),
-            )
-            .aligned_as(AlignedQuantity::Blur),
+            ),
             GroupIndicator::toggle(
                 shadow_toggle(self.shadow_casting),
                 lift(AppearanceMessage::ToggleShadow),
-            )
-            .aligned_as(AlignedQuantity::ShadowCast),
+            ),
             GroupIndicator::slider(&self.shadow_softness, config, move |control| {
                 lift(AppearanceMessage::ShadowSoftness(control))
-            })
-            .aligned_as(AlignedQuantity::ShadowSoftness),
+            }),
             GroupIndicator::slider(&self.shadow_opacity, config, move |control| {
                 lift(AppearanceMessage::ShadowOpacity(control))
-            })
-            .aligned_as(AlignedQuantity::ShadowOpacity),
+            }),
             GroupIndicator::toggle(
                 outline_toggle(self.outline_tracing),
                 lift(AppearanceMessage::ToggleOutline),
-            )
-            .aligned_as(AlignedQuantity::Outline),
+            ),
             GroupIndicator::slider(&self.outline_opacity, config, move |control| {
                 lift(AppearanceMessage::OutlineOpacity(control))
-            })
-            .aligned_as(AlignedQuantity::OutlineOpacity),
+            }),
         ]
     }
 }

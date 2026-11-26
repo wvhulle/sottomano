@@ -105,7 +105,7 @@ impl DesktopShell {
                 &self.icon_catalog,
                 self.indicator_groups
                     .panel_menus
-                    .appearance
+                    .settings
                     .compositor_styling_group
                     .app_window_layout(),
                 *workspace,
@@ -116,7 +116,7 @@ impl DesktopShell {
             HoverTarget::WorkspaceFolding => Section::press_actions(
                 self.indicator_groups
                     .panel_menus
-                    .appearance
+                    .settings
                     .sidebar_settings_group
                     .empty_workspace_folding
                     .press_actions(),

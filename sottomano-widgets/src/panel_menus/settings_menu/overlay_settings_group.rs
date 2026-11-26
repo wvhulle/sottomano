@@ -156,16 +156,14 @@ impl OverlaySettingsGroup {
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             IndicatorListing::Listed(
-                [GroupIndicator::toggle(
-                    toast_spatial_layout_toggle(self.toast_arrangement),
-                    OverlaySettingsMessage::ToggleToastSpatialLayout,
-                )]
-                .into_iter()
-                .chain(
-                    self.layer
-                        .indicators(config, OverlaySettingsMessage::Appearance),
-                )
-                .collect(),
+                self.layer
+                    .indicators(config, OverlaySettingsMessage::Appearance)
+                    .into_iter()
+                    .chain([GroupIndicator::toggle(
+                        toast_spatial_layout_toggle(self.toast_arrangement),
+                        OverlaySettingsMessage::ToggleToastSpatialLayout,
+                    )])
+                    .collect(),
             ),
         )
     }

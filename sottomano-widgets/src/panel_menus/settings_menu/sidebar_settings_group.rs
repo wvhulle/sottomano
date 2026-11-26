@@ -239,22 +239,20 @@ impl SidebarSettingsGroup {
         &'view self,
         config: &'view Config,
     ) -> IndicatorGroupContent<'view> {
-        let mut rows = vec![
-            GroupIndicator::toggle(
-                workspaces_sidebar_toggle(self.workspaces_placement),
-                SidebarSettingsMessage::ToggleWorkspacesPlacement,
-            ),
-            GroupIndicator::toggle(
-                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode),
-                SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
-            ),
-        ];
+        let mut rows = vec![GroupIndicator::toggle(
+            workspaces_sidebar_toggle(self.workspaces_placement),
+            SidebarSettingsMessage::ToggleWorkspacesPlacement,
+        )];
         if self.workspaces_placement == WorkspacesPlacement::Sidebar {
             rows.extend(
                 self.layer
                     .indicators(config, SidebarSettingsMessage::Appearance),
             );
         }
+        rows.push(GroupIndicator::toggle(
+            auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode),
+            SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
+        ));
         IndicatorGroupContent::expandable(
             IndicatorGroupFamily::SidebarSettings,
             GroupIndicator::glyph_only(

@@ -28,7 +28,7 @@ use crate::{
             Action as SliderAction, ControlMessage, ControlWriteFailure, SliderControl,
         },
     },
-    panel_menus::appearance_menu::compositor_styling_group::switch_heat_borders::{
+    panel_menus::settings_menu::compositor_styling_group::switch_heat_borders::{
         SwitchHeatBorders, SwitchHeatVisibility,
     },
 };

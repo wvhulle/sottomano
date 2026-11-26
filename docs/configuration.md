@@ -23,7 +23,7 @@ attributes, and the module writes them to that file verbatim.
 The same file works on niri, sway and Hyprland. The gamepad's
 `compositor_actions` name compositor-neutral actions; on a compositor without an
 equivalent, such as `toggle_overview` on sway, pressing the button shows a toast
-saying so. The window styling group keeps its settings in the state database
+saying so. The Windows group in the Settings menu keeps its settings in the state database
 and writes them as rules for the running compositor, which its page explains how
 to include: [niri](compositors/niri.md), [sway](compositors/sway.md),
 [Hyprland](compositors/hyprland.md).
@@ -290,7 +290,7 @@ for its item, keyed by the item's StatusNotifierItem id.
 
 ## Menu bar
 
-The menu bar is off by default; the Behaviour menu has the switch. When it is
+The menu bar is off by default; the Menu bar group in the Settings menu has the switch. When it is
 on, the top panel gets a Menu bar menu with the focused window's menu bar: each
 top-level menu opens as a submenu, and nested submenus and separators keep the
 structure the application exported.

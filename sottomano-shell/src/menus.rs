@@ -56,16 +56,11 @@ impl DesktopShell {
                     self.clock,
                 )
             }
-            GroupMenuTopic::Appearance => {
-                menus
-                    .appearance
-                    .group_contents(config, group_menus, &groups.window_menu_bar)
-            }
-            GroupMenuTopic::Behaviour => menus.behaviour.group_contents(
-                &menus.appearance,
+            GroupMenuTopic::Settings => menus.settings.group_contents(
                 config,
                 group_menus,
                 &groups.window_menu_bar,
+                &groups.app_launcher_menu,
                 &groups.shell_appearance(),
             ),
         };

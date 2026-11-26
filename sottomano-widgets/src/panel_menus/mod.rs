@@ -1,6 +1,4 @@
 pub mod agenda_menu;
-pub mod appearance_menu;
-pub mod behaviour_menu;
 pub mod display_menu;
 pub mod gaming_menu;
 pub mod hardware_menu;
@@ -9,17 +7,17 @@ pub mod network_menu;
 pub mod services_menu;
 pub mod session_menu;
 pub mod session_power_menu;
+pub mod settings_menu;
 pub mod virtualization_menu;
 
 use sottomano_desktop_sinks::compositor_rule_files::CompositorRulesFile;
 use sottomano_toml_config::{Config, SecretPaths};
 
 use self::{
-    agenda_menu::AgendaMenu, appearance_menu::AppearanceMenu, behaviour_menu::BehaviourMenu,
-    display_menu::DisplayMenu, gaming_menu::GamingMenu, hardware_menu::HardwareMenu,
-    media_menu::MediaMenu, network_menu::NetworkMenu, services_menu::ServicesMenu,
-    session_menu::SessionMenu, session_power_menu::SessionPowerMenu,
-    virtualization_menu::VirtualizationMenu,
+    agenda_menu::AgendaMenu, display_menu::DisplayMenu, gaming_menu::GamingMenu,
+    hardware_menu::HardwareMenu, media_menu::MediaMenu, network_menu::NetworkMenu,
+    services_menu::ServicesMenu, session_menu::SessionMenu, session_power_menu::SessionPowerMenu,
+    settings_menu::SettingsMenu, virtualization_menu::VirtualizationMenu,
 };
 use crate::clock::Clock;
 
@@ -33,8 +31,7 @@ pub struct PanelMenus {
     pub virtualization: VirtualizationMenu,
     pub services: ServicesMenu,
     pub session: SessionMenu,
-    pub appearance: AppearanceMenu,
-    pub behaviour: BehaviourMenu,
+    pub settings: SettingsMenu,
     pub session_power: SessionPowerMenu,
 }
 
@@ -62,8 +59,7 @@ impl PanelMenus {
                 secrets.openrouter_management,
             ),
             session: SessionMenu::default(),
-            appearance: AppearanceMenu::new(compositor_rules),
-            behaviour: BehaviourMenu::default(),
+            settings: SettingsMenu::new(compositor_rules),
             session_power: SessionPowerMenu::default(),
         }
     }
@@ -78,7 +74,6 @@ impl PanelMenus {
         self.virtualization.collapse();
         self.services.collapse();
         self.session.collapse();
-        self.appearance.collapse();
-        self.behaviour.collapse();
+        self.settings.collapse();
     }
 }

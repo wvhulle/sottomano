@@ -20,7 +20,6 @@ pub use self::{
 use crate::{
     clock::Clock,
     group_indicators::{
-        aligned_quantity::IndicatorAlignment,
         group_indicator::GroupIndicator,
         indicator_group_identity::{
             IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupTitle,
@@ -223,29 +222,6 @@ impl<'view> IndicatorGroupContent<'view> {
             scroll_forwarding: HandleScrollForwarding::Forwarded(scroll_does),
             ..self
         }
-    }
-
-    #[must_use]
-    pub fn only_aligned_indicators(self) -> Option<Self> {
-        self.retaining_indicators(|alignment| alignment != IndicatorAlignment::Unaligned)
-    }
-
-    #[must_use]
-    pub fn only_unaligned_indicators(self) -> Option<Self> {
-        self.retaining_indicators(|alignment| alignment == IndicatorAlignment::Unaligned)
-    }
-
-    fn retaining_indicators(
-        self,
-        keeps_alignment: impl Fn(IndicatorAlignment) -> bool,
-    ) -> Option<Self> {
-        let listing = self.listing.retaining_listed(keeps_alignment);
-        if let IndicatorListing::Listed(listed_indicators) = &listing
-            && listed_indicators.is_empty()
-        {
-            return None;
-        }
-        Some(Self { listing, ..self })
     }
 
     #[must_use]

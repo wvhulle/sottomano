@@ -13,7 +13,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
-    panel_menus::appearance_menu::sidebar_settings_group::WorkspacesPlacement,
+    panel_menus::settings_menu::sidebar_settings_group::WorkspacesPlacement,
     widgets::{
         pointer_drag,
         pointer_drag::{
@@ -37,7 +37,7 @@ impl DesktopShell {
         let dragging_sidebar_workspace = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .sidebar_settings_group
             .workspaces_placement
             == WorkspacesPlacement::Sidebar
@@ -51,14 +51,14 @@ impl DesktopShell {
         let ghost_layer = if dragging_sidebar_workspace {
             self.indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .sidebar_settings_group
                 .layer
                 .appearance()
         } else {
             self.indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .layer
                 .appearance()
@@ -71,7 +71,7 @@ impl DesktopShell {
         let panel_appearance = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .layer
             .appearance();
@@ -84,13 +84,13 @@ impl DesktopShell {
             panel_float_offset_px: self
                 .indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .float_offset_px(),
             compositor_window_gaps_px: self
                 .indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .compositor_styling_group
                 .app_window_layout()
                 .gaps_px,
@@ -98,13 +98,13 @@ impl DesktopShell {
             window_row_layout: self
                 .indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .window_row_layout,
             window_title_length: self
                 .indicator_groups
                 .panel_menus
-                .appearance
+                .settings
                 .panel_settings_group
                 .window_title_length,
         }
@@ -196,7 +196,7 @@ impl DesktopShell {
                             &self
                                 .indicator_groups
                                 .panel_menus
-                                .appearance
+                                .settings
                                 .sidebar_settings_group
                                 .empty_workspace_folding,
                         )

@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock, group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
-    panel_menus::behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
+    panel_menus::settings_menu::appearance_presets_group::AppearancePresetsMessage,
 };
 
 use crate::showcased_group::ShowcasedGroup;

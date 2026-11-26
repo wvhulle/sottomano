@@ -98,7 +98,7 @@ fn toggling_twice_unpins_the_group() {
     assert_eq!(
         quiet_pin(
             &group_menus,
-            GroupMenuTopic::Behaviour,
+            GroupMenuTopic::Settings,
             GroupMenuPin::Group(GPU_GROUP)
         ),
         PanelPinOrigin::Unpinned

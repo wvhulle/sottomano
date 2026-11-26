@@ -59,12 +59,12 @@ impl ShellIndicatorGroups {
                 .update(delivery, clock)
                 .map(Message::Drive),
             Message::SidebarSettings(delivery) => menus
-                .appearance
+                .settings
                 .sidebar_settings_group
                 .update(delivery)
                 .map(Message::SidebarSettings),
             Message::CompositorStyling(delivery) => menus
-                .appearance
+                .settings
                 .compositor_styling_group
                 .update(delivery)
                 .map(Message::CompositorStyling),

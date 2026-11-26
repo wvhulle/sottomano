@@ -20,7 +20,7 @@ use crate::{
     hover_cards::{
         AnchorEvent, HoverCardMessage, HoverTarget, IndicatorKey, MouseGesture, PopupMessage,
     },
-    panel_menus::appearance_menu::compositor_styling_group::CompositorStylingMessage,
+    panel_menus::settings_menu::compositor_styling_group::CompositorStylingMessage,
 };
 
 fn composed_row<'indicator>() -> GroupIndicator<'indicator> {

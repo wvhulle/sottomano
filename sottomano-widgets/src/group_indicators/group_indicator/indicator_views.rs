@@ -53,14 +53,6 @@ impl<'view> GroupIndicator<'view> {
         )
     }
 
-    pub(crate) fn table_cell_view(
-        &self,
-        config: &Config,
-        clock: Clock,
-    ) -> Element<'view, GroupEvent> {
-        self.placed_view(config, 1.0, clock, IndicatorPlacement::Table)
-    }
-
     pub(crate) fn menu_icon(&self, config: &Config) -> Element<'view, GroupEvent> {
         face_icon(config, &self.face, 1.0).unwrap_or_else(|| Space::new().into())
     }

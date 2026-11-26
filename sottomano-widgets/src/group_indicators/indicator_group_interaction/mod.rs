@@ -22,13 +22,6 @@ use crate::{
             session_focus_group::SessionFocusMessage,
             weather_group::{WeatherBusRequest, WeatherInteraction},
         },
-        appearance_menu::{
-            compositor_styling_group::CompositorStylingMessage,
-            overlay_settings_group::OverlaySettingsMessage,
-            panel_settings_group::PanelSettingsMessage,
-            sidebar_settings_group::SidebarSettingsMessage,
-        },
-        behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
         display_menu::{
             color_temperature_group::{ColorTemperatureBusRequest, ColorTemperatureInteraction},
             dark_mode_group::DarkModeInteraction,
@@ -79,6 +72,13 @@ use crate::{
             tray_group::TrayMessage,
         },
         session_power_menu::session_power_group::SessionMessage,
+        settings_menu::{
+            appearance_presets_group::AppearancePresetsMessage,
+            compositor_styling_group::CompositorStylingMessage,
+            overlay_settings_group::OverlaySettingsMessage,
+            panel_settings_group::PanelSettingsMessage,
+            sidebar_settings_group::SidebarSettingsMessage,
+        },
         virtualization_menu::{
             apptainer_containers_group::ApptainerContainersInteraction,
             cgroup_memory_limits_group::CgroupMemoryLimitsInteraction,

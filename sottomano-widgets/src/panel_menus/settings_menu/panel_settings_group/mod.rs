@@ -296,35 +296,33 @@ impl PanelSettingsGroup {
             &self.expansion,
             PanelSettingsMessage::Expansion,
             IndicatorListing::Listed(
-                [
-                    GroupIndicator::toggle(
-                        disconnected_toggle(self.group_framing),
-                        PanelSettingsMessage::ToggleDisconnectedGroups,
-                    ),
-                    GroupIndicator::toggle(
-                        pinned_groups_toggle(self.group_collapsing),
-                        PanelSettingsMessage::ToggleAutoCollapseGroups,
-                    ),
-                    GroupIndicator::toggle(
-                        window_row_layout_toggle(self.window_row_layout),
-                        PanelSettingsMessage::ToggleWindowRowLayout,
-                    ),
-                    GroupIndicator::toggle(
-                        window_title_length_toggle(self.window_title_length),
-                        PanelSettingsMessage::ToggleWindowTitleLength,
-                    ),
-                    GroupIndicator::slider(
-                        &self.float_offset,
-                        config,
-                        PanelSettingsMessage::FloatOffset,
-                    ),
-                ]
-                .into_iter()
-                .chain(
-                    self.layer
-                        .indicators(config, PanelSettingsMessage::Appearance),
-                )
-                .collect(),
+                self.layer
+                    .indicators(config, PanelSettingsMessage::Appearance)
+                    .into_iter()
+                    .chain([
+                        GroupIndicator::slider(
+                            &self.float_offset,
+                            config,
+                            PanelSettingsMessage::FloatOffset,
+                        ),
+                        GroupIndicator::toggle(
+                            disconnected_toggle(self.group_framing),
+                            PanelSettingsMessage::ToggleDisconnectedGroups,
+                        ),
+                        GroupIndicator::toggle(
+                            pinned_groups_toggle(self.group_collapsing),
+                            PanelSettingsMessage::ToggleAutoCollapseGroups,
+                        ),
+                        GroupIndicator::toggle(
+                            window_row_layout_toggle(self.window_row_layout),
+                            PanelSettingsMessage::ToggleWindowRowLayout,
+                        ),
+                        GroupIndicator::toggle(
+                            window_title_length_toggle(self.window_title_length),
+                            PanelSettingsMessage::ToggleWindowTitleLength,
+                        ),
+                    ])
+                    .collect(),
             ),
         )
     }

@@ -52,7 +52,7 @@ impl DesktopShell {
         let float = self
             .indicator_groups
             .panel_menus
-            .appearance
+            .settings
             .panel_settings_group
             .float_offset_px();
         let origin = Vector::new(-float, -float);

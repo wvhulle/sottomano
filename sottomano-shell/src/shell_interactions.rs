@@ -7,9 +7,9 @@ use sottomano_widgets::{
     },
     group_menus::group_menu_state::{GroupMenuMessage, PanelPin, PanelPinDuration},
     hover_cards::PopupMessage,
-    panel_menus::{
-        appearance_menu::sidebar_settings_group::SidebarSettingsMessage,
-        behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
+    panel_menus::settings_menu::{
+        appearance_presets_group::AppearancePresetsMessage,
+        sidebar_settings_group::SidebarSettingsMessage,
     },
     workspace_switcher::WorkspacesMessage,
 };
@@ -135,7 +135,7 @@ impl DesktopShell {
             )) => {
                 self.indicator_groups
                     .panel_menus
-                    .behaviour
+                    .settings
                     .appearance_presets_group
                     .update_expansion(expansion);
                 Task::none()

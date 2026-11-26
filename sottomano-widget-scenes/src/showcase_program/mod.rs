@@ -33,7 +33,7 @@ use sottomano_widgets::{
     },
     panel_menus::{
         agenda_menu::notification_group::alert_sound_indicator::AlertSound,
-        behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
+        settings_menu::appearance_presets_group::AppearancePresetsMessage,
     },
     widgets::{
         appearance_presets::ShellAppearance,
