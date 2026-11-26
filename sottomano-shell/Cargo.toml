@@ -24,6 +24,7 @@ sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 corredo = { path = "../corredo" }
 sottomano-widgets = { path = "../sottomano-widgets" }
+bytesize.workspace = true
 chrono.workspace = true
 clap.workspace = true
 iced.workspace = true

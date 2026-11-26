@@ -1,0 +1,18 @@
+id: ad-hoc-byte-formatting
+valid:
+  - "fn rate_line() { delimited(\"Current download rate: \", float, \" Mbps\") }"
+  - "fn guest_memory() -> u64 { 512 * 1024 }"
+  - "fn kibibyte_multiplier() -> u64 { 1u64 << 10 }"
+  - "fn mixed_hash(value: u64) -> u64 { value ^ (value >> 30) }"
+  - "fn expansion_note(size: usize) -> String { format!(\"expanded {} bytes\", size) }"
+  - "fn compare(left: u64, right: u64) { assert_eq!(left, right); }"
+  - "mod tests { fn fixture() -> String { format!(\"{} MiB\", 5) } }"
+invalid:
+  - "fn rate_text(rate: f64) -> String { format!(\"{:.1} Mbit/s\", rate) }"
+  - "fn size_text(size: u64) -> String { format!(\"{size} GB\") }"
+  - "fn write_rate(sink: &mut String, rate: f64) { write!(sink, \"{} MB\", rate); }"
+  - "fn log_load(bytes: u64) { tracing::info!(\"loaded {} MB\", bytes); }"
+  - "fn allocation_text(bytes: u64) -> String { format!(\" allocs/{} KiB\", bytes / 1024) }"
+  - "fn kibibytes(bytes: u64) -> u64 { bytes / 1024 }"
+  - "fn mebibytes(bytes: u64) -> f64 { bytes as f64 / 1_048_576.0 }"
+  - "fn shifted_mebibytes(bytes: u64) -> u64 { bytes / (1 << 20) }"

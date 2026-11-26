@@ -6534,6 +6534,7 @@ version = "0.1.0"
 name = "sottomano-shell"
 version = "0.1.0"
 dependencies = [
+ "bytesize",
  "chrono",
  "clap",
  "corredo",

@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
-use uom::si::information::mebibyte;
+use uom::{fmt::DisplayStyle::Abbreviation, si::information::mebibyte};
 
 use crate::{
     hover_cards::hover_card_body::{
@@ -73,7 +73,12 @@ pub fn topology_facts(group: &CoreGroup) -> Vec<LabeledValue> {
     let shared_caches: Vec<String> = group
         .chiplets
         .iter()
-        .map(|chiplet| format!("{} MiB", chiplet.shared_cache.get::<mebibyte>()))
+        .map(|chiplet| {
+            chiplet
+                .shared_cache
+                .into_format_args(mebibyte, Abbreviation)
+                .to_string()
+        })
         .collect();
     [LabeledValue::new("CPUs", cpu_ranges(group.logical_cpus()))]
         .into_iter()

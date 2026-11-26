@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use bytesize::ByteSize;
 use rustix::{io::Errno, param::clock_ticks_per_second};
 use signal_hook::{
     consts::{SIGINT, SIGTERM, SIGUSR1},
@@ -231,8 +232,8 @@ fn work_totals_text(totals: WorkTotals) -> String {
     let allocated = match totals.allocations.allocations {
         0 => String::new(),
         allocation_count => format!(
-            " {allocation_count} allocs/{} KiB",
-            totals.allocations.bytes / 1024
+            " {allocation_count} allocs/{}",
+            ByteSize::b(totals.allocations.bytes)
         ),
     };
     format!(

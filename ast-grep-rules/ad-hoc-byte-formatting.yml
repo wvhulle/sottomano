@@ -1,0 +1,39 @@
+id: ad-hoc-byte-formatting
+language: rust
+severity: error
+message: Byte amounts formatted by hand drift from the shell's shared units.
+note: Carry the amount as bytesize::ByteSize or a uom Information/InformationRate and render it with Quantity::size, Quantity::transfer_rate or Quantity::link_rate.
+ignores:
+  - "**/*_tests.rs"
+utils:
+  byte-unit-template:
+    kind: string_literal
+    has:
+      kind: string_content
+      all:
+        - regex: \{
+        - regex: \b[KMGTP]i?B\b|\b[kMG](bit|bps)\b
+  macro-with-byte-unit-template:
+    pattern: $MACRO!($$$ARGUMENTS)
+    has:
+      kind: token_tree
+      has:
+        matches: byte-unit-template
+  binary-power-division:
+    any:
+      - pattern: $AMOUNT / 1024
+      - pattern: $AMOUNT / 1_024
+      - pattern: $AMOUNT / 1024.0
+      - pattern: $AMOUNT / 1_048_576
+      - pattern: $AMOUNT / 1_048_576.0
+      - pattern: $AMOUNT / (1 << 10)
+      - pattern: $AMOUNT / (1 << 20)
+      - pattern: $AMOUNT / (1 << 30)
+rule:
+  any:
+    - matches: macro-with-byte-unit-template
+    - matches: binary-power-division
+  not:
+    inside:
+      matches: rust-test-module
+      stopBy: end
