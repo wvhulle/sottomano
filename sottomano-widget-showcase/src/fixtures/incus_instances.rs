@@ -14,7 +14,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::incus_instances_group::{IncusInstancesGroup, IncusInstancesMessage},
+    panel_menus::virtualization_menu::incus_instances_group::{
+        IncusInstancesGroup, IncusInstancesMessage,
+    },
 };
 
 use crate::showcased_group::ShowcasedGroup;

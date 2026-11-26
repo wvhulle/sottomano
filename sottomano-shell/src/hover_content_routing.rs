@@ -7,6 +7,10 @@ use sottomano_widgets::{
     cascading_menus::{
         app_launcher_menu::AppLauncherMessage, window_menu_bar::WindowMenuBarInteraction,
     },
+    group_indicators::{
+        indicator_group_content::GroupEvent,
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+    },
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::{GroupMenuTopic, MenuTopicPresence},
@@ -15,11 +19,9 @@ use sottomano_widgets::{
     },
     hover_cards::{HoverTarget, hover_card_body::Section, hover_card_surfaces::HoverContent},
     icon_catalog::window_icons::WindowAssets,
-    indicator_groups::{
-        indicator_group_content::GroupEvent,
-        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-        session_power_group::SessionMessage,
-        tray_group::TrayMessage,
+    panel_menus::{
+        session_menu::tray_group::TrayMessage,
+        session_power_menu::session_power_group::SessionMessage,
     },
 };
 

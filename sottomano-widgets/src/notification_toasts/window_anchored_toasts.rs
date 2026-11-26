@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     desktop_panels::region_reporter::{PointerInput, RegionRoles},
-    toast_messages::NotificationMessage,
+    notification_toasts::toast_messages::NotificationMessage,
     widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
 };
 

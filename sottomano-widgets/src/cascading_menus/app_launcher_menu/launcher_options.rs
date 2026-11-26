@@ -12,12 +12,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
     },
     group_indicators::{
-        indicator_toggle_switch::indicator_toggle_switch,
-        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
-    },
-    indicator_groups::{
         indicator_group_content::GroupEvent,
+        indicator_toggle_switch::indicator_toggle_switch,
         sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
 };
 

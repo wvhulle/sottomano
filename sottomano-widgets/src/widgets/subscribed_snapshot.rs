@@ -7,6 +7,7 @@ use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     group_indicators::{
         group_indicator::{GroupIndicator, PanelVisibility},
+        indicator_group_content::IndicatorListing,
         indicator_state::IndicatorState,
         snapshot_absence::{AbsenceCause, Staleness, failed_source_indicator},
     },
@@ -14,7 +15,6 @@ use crate::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
-    indicator_groups::indicator_group_content::IndicatorListing,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {

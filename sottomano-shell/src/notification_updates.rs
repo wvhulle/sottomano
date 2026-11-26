@@ -2,20 +2,23 @@ use std::collections::HashMap;
 
 use iced::{Task, window::Id};
 use sottomano_widgets::{
-    group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
-    hover_cards::PopupMessage,
-    indicator_groups::{
-        idle_pause_groups::ScreenOffOverride,
+    group_indicators::{
         indicator_group_content::GroupToastRequests,
         indicator_group_interaction::IndicatorGroupInteraction,
-        notification_group,
-        notification_group::NotificationGroupMessage,
-        quiet_schedule_group::{
-            QuietChange, QuietScheduleMessage, QuietUpdate, quiet_window::QuietPhase,
-        },
     },
-    notification_toasts::ToastContext,
-    toast_messages::NotificationMessage,
+    group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
+    hover_cards::PopupMessage,
+    notification_toasts::{ToastContext, toast_messages::NotificationMessage},
+    panel_menus::{
+        agenda_menu::{
+            notification_group,
+            notification_group::NotificationGroupMessage,
+            quiet_schedule_group::{
+                QuietChange, QuietScheduleMessage, QuietUpdate, quiet_window::QuietPhase,
+            },
+        },
+        session_menu::idle_pause_groups::ScreenOffOverride,
+    },
 };
 
 use crate::{

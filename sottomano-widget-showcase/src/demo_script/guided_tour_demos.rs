@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use sottomano_widgets::{
-    group_menus::group_menu_state::GroupMenuTopic,
-    hover_cards::HoverTarget,
-    indicator_groups::indicator_group_identity::{
+    group_indicators::indicator_group_identity::{
         IndicatorGroupFamily, IndicatorGroupIdentity, IndicatorGroupInstance,
     },
+    group_menus::group_menu_state::GroupMenuTopic,
+    hover_cards::HoverTarget,
 };
 
 use crate::{

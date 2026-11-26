@@ -5,9 +5,9 @@ use corredo::popovers::{
     SubmenuConnector,
 };
 use sottomano_widgets::{
+    group_indicators::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     hover_cards::HoverTarget,
-    indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
 };
 
 use crate::{

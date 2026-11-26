@@ -6,14 +6,13 @@ use sottomano_toml_config::severity::Severity;
 use super::{DescribeCard, GroupIndicator};
 use crate::{
     clock::Clock,
-    group_indicators::indicator_state::IndicatorState,
-    group_menus::group_menu_state::AlertPromotion,
-    hover_cards::hover_card_body::Section,
-    indicator_groups::{
+    group_indicators::{
         indicator_group_content::GroupToastRequests,
         indicator_group_identity::IndicatorGroupIdentity,
-        indicator_group_interaction::IndicatorGroupInteraction,
+        indicator_group_interaction::IndicatorGroupInteraction, indicator_state::IndicatorState,
     },
+    group_menus::group_menu_state::AlertPromotion,
+    hover_cards::hover_card_body::Section,
     widgets::ongoing_toast::{
         OngoingToast, OngoingToastActionButton, RowNotice, quota_pace_alert_severity,
     },

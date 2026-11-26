@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::login_session_group::{
+    panel_menus::session_menu::login_session_group::{
         LoginSessionGroup, LoginSessionInteraction, LoginSessionMessage,
     },
 };

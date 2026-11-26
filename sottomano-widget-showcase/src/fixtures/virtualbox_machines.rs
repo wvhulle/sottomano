@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::virtualbox_machines_group::{
+    panel_menus::virtualization_menu::virtualbox_machines_group::{
         VirtualBoxMachinesGroup, VirtualBoxMachinesMessage,
     },
 };

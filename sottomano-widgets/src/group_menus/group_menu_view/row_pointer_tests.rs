@@ -19,20 +19,20 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue, named_test_indicator},
         indicator_drawing::IndicatorIcon,
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+        indicator_group_interaction::IndicatorGroupInteraction,
         indicator_state::IndicatorState,
     },
     group_menus::group_menu_state::{
         GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
     },
     hover_cards::{IndicatorKey, MenuHandleIndicator, hover_card_surfaces::SWITCH_INTENT},
-    indicator_groups::{
-        clock_group::ClockInteraction,
-        compositor_styling_group::CompositorStylingMessage,
-        indicator_group_content::{
-            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
-        },
-        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-        indicator_group_interaction::IndicatorGroupInteraction,
+    panel_menus::{
+        agenda_menu::clock_group::ClockInteraction,
+        appearance_menu::compositor_styling_group::CompositorStylingMessage,
     },
 };
 

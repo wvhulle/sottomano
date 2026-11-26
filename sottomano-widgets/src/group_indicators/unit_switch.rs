@@ -20,11 +20,11 @@ use crate::{
     },
     group_indicators::{
         group_indicator::GroupIndicator,
+        indicator_group_interaction::IndicatorGroupInteraction,
         indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
-    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::{
         subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         value_cells::LabeledValue,

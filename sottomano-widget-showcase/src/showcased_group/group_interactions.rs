@@ -2,11 +2,8 @@ use std::ops::ControlFlow;
 
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
-    clock::Clock,
-    indicator_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
-        indicator_group_interaction::IndicatorGroupInteraction,
-    },
+    clock::Clock, group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
+    panel_menus::behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
 };
 
 use crate::showcased_group::ShowcasedGroup;
@@ -84,9 +81,9 @@ impl ShowcasedGroup {
             }
             (
                 ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
-                IndicatorGroupInteraction::WindowGroup(interaction),
+                IndicatorGroupInteraction::OutputWindows(interaction),
             ) => {
-                let _ = session.window_group.interact(interaction);
+                let _ = session.output_windows.interact(interaction);
             }
             (
                 ShowcasedGroup::AppearancePresets(presets),

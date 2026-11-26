@@ -44,12 +44,12 @@ use crate::{
         PressDismissal, menu_icon_side_px, menu_node_icon_requests, press_dismissal,
     },
     glyph_icons::icon_glyph::IconGlyph,
-    group_menus::group_menu_state::MenuTopicPresence,
-    icon_catalog::{drawable_icon_catalog::IconCatalog, pixmap_handles::PixmapHandles},
-    indicator_groups::{
+    group_indicators::{
         indicator_group_content::{IndicatorGroupExpansion, IndicatorGroupExpansionMessage},
         sqlite_singleton_flag,
     },
+    group_menus::group_menu_state::MenuTopicPresence,
+    icon_catalog::{drawable_icon_catalog::IconCatalog, pixmap_handles::PixmapHandles},
 };
 
 pub struct WindowMenuBar {

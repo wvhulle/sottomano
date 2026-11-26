@@ -10,11 +10,11 @@ use iced::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_indicators::aligned_quantity::AlignedQuantity,
-    group_menus::menu_rows::menu_row::menu_metrics,
-    indicator_groups::{
-        indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupTitle,
+    group_indicators::{
+        aligned_quantity::AlignedQuantity, indicator_group_content::GroupEvent,
+        indicator_group_identity::IndicatorGroupTitle,
     },
+    group_menus::menu_rows::menu_row::menu_metrics,
     widgets::text::{column_heading, row_key_label},
 };
 

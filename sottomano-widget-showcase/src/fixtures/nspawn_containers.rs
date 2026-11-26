@@ -17,7 +17,9 @@ use sottomano_desktop_sources::{
 use sottomano_widgets::{
     clock::Clock,
     group_indicators::unit_switch::UnitSwitchMessage,
-    indicator_groups::nspawn_containers_group::{NspawnContainersGroup, NspawnContainersMessage},
+    panel_menus::virtualization_menu::nspawn_containers_group::{
+        NspawnContainersGroup, NspawnContainersMessage,
+    },
 };
 
 use crate::showcased_group::ShowcasedGroup;

@@ -6,29 +6,35 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     background_work::snapshot_subscription,
+    group_indicators::indicator_group_identity::IndicatorGroupFamily,
     group_menus::{group_menu_state::MenuTopicPresence, group_source_demand::GroupSourceDemand},
-    indicator_groups::{
-        audio_group::AudioGroup,
-        bluetooth_adapters_group::BluetoothAdaptersGroup,
-        compute_group::ComputeMessage,
-        copilot_usage_group::CopilotUsageGroup,
-        dark_mode_group::DarkModeGroup,
-        idle_pause_groups::IdlePauseGroups,
-        indicator_group_identity::IndicatorGroupFamily,
-        journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup,
-        memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
-        mobile_modems_group::MobileModemsGroup,
-        monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup,
-        session_focus_group::SessionFocusGroup,
-        steam_client_groups::SteamClientGroups,
-        systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup,
-        virtual_machines_group::VirtualMachinesGroup,
-        window_group::WindowGroup,
+    output_windows::OutputWindows,
+    panel_menus::{
+        agenda_menu::{
+            quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
+        },
+        display_menu::{dark_mode_group::DarkModeGroup, monitor_group::MonitorGroup},
+        gaming_menu::steam_client_groups::SteamClientGroups,
+        hardware_menu::{
+            compute_group::ComputeMessage,
+            memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
+            power_group::PowerGroup,
+        },
+        media_menu::audio_group::AudioGroup,
+        network_menu::{
+            bluetooth_adapters_group::BluetoothAdaptersGroup,
+            mobile_modems_group::MobileModemsGroup,
+        },
+        services_menu::{
+            copilot_usage_group::CopilotUsageGroup, journal_events_group::JournalEventsGroup,
+            pending_upgrades_group::PendingUpgradesGroup,
+            systemd_manager_group::SystemdManagerGroup,
+        },
+        session_menu::{
+            idle_pause_groups::IdlePauseGroups, login_session_group::LoginSessionGroup,
+            tray_group::TrayGroup,
+        },
+        virtualization_menu::virtual_machines_group::VirtualMachinesGroup,
     },
 };
 
@@ -88,8 +94,8 @@ impl ShellIndicatorGroups {
             self.openrouter_credit_group
                 .subscription(config, buses)
                 .map(Message::OpenRouterCredit),
-            WindowGroup::subscription(&config.indicator_groups.window.agents)
-                .map(Message::WindowGroup),
+            OutputWindows::subscription(&config.indicator_groups.window.agents)
+                .map(Message::OutputWindows),
             SessionFocusGroup::subscription(&config.indicator_groups.session_focus)
                 .map(Message::SessionFocus),
             self.incus_instances_group
@@ -190,7 +196,7 @@ impl ShellIndicatorGroups {
                 .map(Message::VoiceDictation),
             QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
             SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
-            WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
+            OutputWindows::launcher_entry_subscription(buses).map(Message::OutputWindows),
             snapshot_subscription::<HostHardware>(buses.clone())
                 .map(|delivery| Message::Compute(ComputeMessage::HostHardware(Box::new(delivery)))),
             snapshot_subscription::<HostHardware>(buses.clone()).map(|delivery| {

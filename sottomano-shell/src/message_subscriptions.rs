@@ -21,7 +21,7 @@ use sottomano_desktop_sources::{
     theme_icons::icon_theme_setting::{fallback_icon_theme, icon_theme_changes},
 };
 use sottomano_widgets::{
-    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
+    hover_cards::HoverCardMessage, notification_toasts::toast_messages::NotificationMessage,
     widgets::typing_under_cards::CardVisibility,
 };
 
@@ -53,7 +53,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             == MotionState::Moving
         || state
             .indicator_groups
-            .window_group
+            .output_windows
             .window_list
             .workspace_slide_motion(state.clock.instant)
             == MotionState::Moving

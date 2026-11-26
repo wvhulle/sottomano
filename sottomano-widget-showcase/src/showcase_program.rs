@@ -24,15 +24,17 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
+    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState},
     hover_cards::{HoverCardHost, HoverTarget, PopupMessage},
     icon_catalog::{drawable_icon_catalog::IconCatalog, favicons::Favicons},
-    indicator_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
-        indicator_group_interaction::IndicatorGroupInteraction, notification_group::AlertSound,
+    notification_toasts::{
+        NotificationLayer, NotificationSettings, toast_messages::NotificationMessage,
     },
-    notification_toasts::{NotificationLayer, NotificationSettings},
-    toast_messages::NotificationMessage,
+    panel_menus::{
+        agenda_menu::notification_group::AlertSound,
+        behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
+    },
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
@@ -248,9 +250,9 @@ impl ShowcaseState {
     fn update_popup(&mut self, popup_message: PopupMessage) -> Task<ShowcaseMessage> {
         match popup_message {
             PopupMessage::HoverCard(hover_card) => self.update_hover_card(hover_card),
-            PopupMessage::WindowGroup(window_interaction) => {
+            PopupMessage::OutputWindows(window_interaction) => {
                 let _interaction_for_another_group = self.group.interact(
-                    IndicatorGroupInteraction::WindowGroup(window_interaction),
+                    IndicatorGroupInteraction::OutputWindows(window_interaction),
                     &self.config,
                     self.clock,
                 );

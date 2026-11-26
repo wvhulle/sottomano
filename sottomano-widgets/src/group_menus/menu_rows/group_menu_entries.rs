@@ -8,16 +8,14 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, RowScroll},
         indicator_gestures::IndicatorGesture,
+        indicator_group_content::{GroupEvent, IndicatorListing},
+        indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     },
     group_menus::{
         group_menu_state::{
             GroupMenuPin, GroupMenuState, IndicatorPin, PanelPin, PanelPinDuration,
         },
         group_menu_view::GroupMenuMessenger,
-    },
-    indicator_groups::{
-        indicator_group_content::{GroupEvent, IndicatorListing},
-        indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     },
     widgets::glyph_button,
 };
@@ -170,8 +168,11 @@ mod tests {
     use super::{GroupMenuEntry, IndicatorGroupIdentity, IndicatorListing, one_entry_per_identity};
     use crate::{
         glyph_icons::icon_glyph::IconGlyph,
-        group_indicators::{group_indicator::GroupIndicator, indicator_state::IndicatorState},
-        indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
+        group_indicators::{
+            group_indicator::GroupIndicator,
+            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupTitle},
+            indicator_state::IndicatorState,
+        },
     };
 
     fn glyph_group_entry<'row>(

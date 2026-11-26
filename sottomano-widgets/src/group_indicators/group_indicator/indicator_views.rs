@@ -26,13 +26,12 @@ use crate::{
     group_indicators::{
         indicator_drawing::{face_icon, indicator_drawing, readout_view},
         indicator_gestures::IndicatorGesture,
+        indicator_group_content::GroupEvent,
+        indicator_group_identity::IndicatorGroupIdentity,
         indicator_toggle_switch::indicator_toggle_switch,
     },
     group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{HoverTarget, IndicatorKey},
-    indicator_groups::{
-        indicator_group_content::GroupEvent, indicator_group_identity::IndicatorGroupIdentity,
-    },
 };
 
 impl<'view> GroupIndicator<'view> {

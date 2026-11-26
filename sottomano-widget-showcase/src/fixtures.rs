@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sottomano_widgets::{
-    clock::Clock, indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
+    clock::Clock, group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::showcase_message::ShowcaseMessage;

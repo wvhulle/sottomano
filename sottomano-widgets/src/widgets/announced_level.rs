@@ -140,10 +140,10 @@ mod tests {
     use super::*;
     use crate::{
         glyph_icons::phosphor::{Phosphor, Weight},
-        indicator_groups::{
-            audio_group::ControlKind,
-            indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+        group_indicators::indicator_group_identity::{
+            IndicatorGroupFamily, IndicatorGroupIdentity,
         },
+        panel_menus::media_menu::audio_group::ControlKind,
     };
 
     fn count_after(reports: &[LevelChangeOrigin]) -> Option<u64> {

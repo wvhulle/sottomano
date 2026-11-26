@@ -1,8 +1,8 @@
 use corredo::popovers::{NestedMenuAction, NestedMenuPresentation, NestedMenuState};
 
 use crate::{
+    group_indicators::indicator_group_identity::IndicatorGroupIdentity,
     group_menus::group_menu_state::GroupMenuTopic, hover_cards::IndicatorKey,
-    indicator_groups::indicator_group_identity::IndicatorGroupIdentity,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

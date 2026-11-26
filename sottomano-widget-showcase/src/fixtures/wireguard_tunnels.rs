@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::wireguard_tunnels_group::{
+    panel_menus::network_menu::wireguard_tunnels_group::{
         WireguardTunnelsBusRequest, WireguardTunnelsGroup, WireguardTunnelsInteraction,
         WireguardTunnelsMessage,
     },

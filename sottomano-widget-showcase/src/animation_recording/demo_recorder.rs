@@ -19,9 +19,9 @@ use iced_test::{
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
+    group_indicators::indicator_group_identity::IndicatorGroupIdentity,
     group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
     hover_cards::HoverTarget,
-    indicator_groups::indicator_group_identity::IndicatorGroupIdentity,
 };
 
 use crate::{

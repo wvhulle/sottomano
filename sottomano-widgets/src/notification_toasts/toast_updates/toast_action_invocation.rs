@@ -10,8 +10,7 @@ use crate::{
     background_work::compositor_request,
     hover_cards::PopupMessage,
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
-    notification_toasts::ToastLayerHost,
-    toast_messages::NotificationMessage,
+    notification_toasts::{ToastLayerHost, toast_messages::NotificationMessage},
 };
 
 impl<Routed: ToastLayerHost> NotificationLayer<Routed> {

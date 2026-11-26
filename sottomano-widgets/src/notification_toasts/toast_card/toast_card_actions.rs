@@ -12,7 +12,7 @@ use sottomano_toml_config::severity::Severity;
 
 use super::{FamilyShades, ToastCard, family_shades};
 use crate::{
-    toast_messages::{NotificationMessage, ReplyMessage},
+    notification_toasts::toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         shared_metrics::OUTLINE_WIDTH_PX,
         text::{panel_text, resolved_font_faces},

@@ -6,15 +6,13 @@ use crate::{
     group_indicators::{
         group_indicator::GroupIndicator,
         indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
+        indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
+        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::hover_card_body::{Section, SectionWidget},
-    indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
-        indicator_group_identity::IndicatorGroupFamily,
-        sqlite_singleton_flag::{SingletonFlag, SingletonFlagState},
-    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

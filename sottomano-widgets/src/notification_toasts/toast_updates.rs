@@ -31,12 +31,12 @@ use super::{
 };
 use crate::{
     hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
-    indicator_groups::quiet_schedule_group::quiet_window::QuietPhase,
     notification_toasts::{
         NotificationSettings, ToastLayerHost,
         toast_lifecycle::{FadeState, ToastSender, toast_countdown::CountdownExpiry},
+        toast_messages::NotificationMessage,
     },
-    toast_messages::NotificationMessage,
+    panel_menus::agenda_menu::quiet_schedule_group::quiet_window::QuietPhase,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

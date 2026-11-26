@@ -12,7 +12,7 @@ use sottomano_widgets::{
             WorkspaceWindowPresence,
         },
     },
-    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
+    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::{

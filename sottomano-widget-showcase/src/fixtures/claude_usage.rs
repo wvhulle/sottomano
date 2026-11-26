@@ -22,7 +22,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::secrets::StoredSecret;
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
+    panel_menus::services_menu::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

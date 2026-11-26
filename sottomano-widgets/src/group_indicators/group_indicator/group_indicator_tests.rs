@@ -12,6 +12,7 @@ use crate::{
     group_indicators::{
         group_indicator::named_test_indicator,
         indicator_gestures::IndicatorGesture,
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         slider_control::{ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
     },
@@ -19,10 +20,7 @@ use crate::{
     hover_cards::{
         AnchorEvent, HoverCardMessage, HoverTarget, IndicatorKey, MouseGesture, PopupMessage,
     },
-    indicator_groups::{
-        compositor_styling_group::CompositorStylingMessage,
-        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-    },
+    panel_menus::appearance_menu::compositor_styling_group::CompositorStylingMessage,
 };
 
 fn composed_row<'indicator>() -> GroupIndicator<'indicator> {

@@ -5,14 +5,12 @@ use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
     group_indicators::{
         group_indicator::GroupIndicator,
+        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
+        indicator_group_identity::IndicatorGroupFamily,
         indicator_state::IndicatorState,
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    indicator_groups::{
-        indicator_group_content::{IndicatorGroupContent, IndicatorListing},
-        indicator_group_identity::IndicatorGroupFamily,
-    },
 };
 
 fn accordion_layout_toggle(presentation: NestedMenuPresentation) -> IconToggle {
@@ -123,10 +121,10 @@ mod tests {
     #[test]
     fn switching_presentation_keeps_only_the_first_open_group_at_a_limit_of_one() {
         use crate::{
-            group_menus::group_menu_state::GroupMenuTopic,
-            indicator_groups::indicator_group_identity::{
+            group_indicators::indicator_group_identity::{
                 IndicatorGroupFamily, IndicatorGroupIdentity,
             },
+            group_menus::group_menu_state::GroupMenuTopic,
         };
         let several_open = NestedMenuPresentation {
             layout: NestedMenuLayout::Accordion,

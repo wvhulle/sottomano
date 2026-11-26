@@ -1,8 +1,8 @@
 use std::iter::once;
 
 use sottomano_widgets::{
+    group_indicators::indicator_group_content::IndicatorGroupContent,
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    indicator_groups::indicator_group_content::IndicatorGroupContent,
 };
 
 use crate::desktop_shell::DesktopShell;

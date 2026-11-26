@@ -10,30 +10,47 @@ use sottomano_toml_config::{
 use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMenu,
     clock::Clock,
-    group_indicators::group_indicator::HoverFetch,
+    group_indicators::{
+        group_indicator::HoverFetch, indicator_group_content::IndicatorGroupContent,
+    },
     hover_cards::{
         CardHeader, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
     },
     icon_catalog::drawable_icon_catalog::IconCatalog,
-    indicator_groups::{
-        appearance_presets_group::AppearancePresetsGroup,
-        apptainer_containers_group::ApptainerContainersGroup, audio_group::AudioGroup,
-        caldav_group::CaldavGroup, cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
-        ci_runs_group::CiRunsGroup, claude_usage_group::ClaudeUsageGroup,
-        compute_group::ComputeGroup, docker_engines_group::DockerEnginesGroup,
-        flatpak_sandboxes_group::FlatpakSandboxesGroup, gamepad_group::GamepadGroup,
-        idle_pause_groups::IdlePauseGroups, incus_instances_group::IncusInstancesGroup,
-        indicator_group_content::IndicatorGroupContent, location_group::LocationGroup,
-        login_session_group::LoginSessionGroup, lxc_containers_group::LxcContainersGroup,
-        media_group::MediaGroup, memory_board_group::MemoryBoardGroup,
-        microvm_guests_group::MicrovmGuestsGroup, nspawn_containers_group::NspawnContainersGroup,
-        podman_engines_group::PodmanEnginesGroup, session_focus_group::SessionFocusGroup,
-        tailnet_group::TailnetGroup, virtual_machines_group::VirtualMachinesGroup,
-        virtualbox_machines_group::VirtualBoxMachinesGroup,
-        vmware_machines_group::VmwareMachinesGroup, voice_dictation_group::VoiceDictationGroup,
-        wallpaper_group::WallpaperGroup, waydroid_container_group::WaydroidContainerGroup,
-        weather_group::WeatherGroup, window_group::WindowInspection,
-        wireguard_tunnels_group::WireguardTunnelsGroup,
+    output_windows::WindowInspection,
+    panel_menus::{
+        agenda_menu::{
+            caldav_group::CaldavGroup, location_group::LocationGroup,
+            session_focus_group::SessionFocusGroup, weather_group::WeatherGroup,
+        },
+        behaviour_menu::appearance_presets_group::AppearancePresetsGroup,
+        display_menu::wallpaper_group::WallpaperGroup,
+        gaming_menu::gamepad_group::GamepadGroup,
+        hardware_menu::{compute_group::ComputeGroup, memory_board_group::MemoryBoardGroup},
+        media_menu::{
+            audio_group::AudioGroup, media_group::MediaGroup,
+            voice_dictation_group::VoiceDictationGroup,
+        },
+        network_menu::{
+            tailnet_group::TailnetGroup, wireguard_tunnels_group::WireguardTunnelsGroup,
+        },
+        services_menu::{ci_runs_group::CiRunsGroup, claude_usage_group::ClaudeUsageGroup},
+        session_menu::{
+            idle_pause_groups::IdlePauseGroups, login_session_group::LoginSessionGroup,
+        },
+        virtualization_menu::{
+            apptainer_containers_group::ApptainerContainersGroup,
+            cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
+            docker_engines_group::DockerEnginesGroup,
+            flatpak_sandboxes_group::FlatpakSandboxesGroup,
+            incus_instances_group::IncusInstancesGroup, lxc_containers_group::LxcContainersGroup,
+            microvm_guests_group::MicrovmGuestsGroup,
+            nspawn_containers_group::NspawnContainersGroup,
+            podman_engines_group::PodmanEnginesGroup, virtual_machines_group::VirtualMachinesGroup,
+            virtualbox_machines_group::VirtualBoxMachinesGroup,
+            vmware_machines_group::VmwareMachinesGroup,
+            waydroid_container_group::WaydroidContainerGroup,
+        },
     },
     widgets::appearance_presets::{AppearancePreset, ShellAppearance},
 };
@@ -212,7 +229,7 @@ impl ShowcasedGroup {
         if let ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) =
             self
         {
-            let _watched_window = session.window_group.follow_window_inspection(
+            let _watched_window = session.output_windows.follow_window_inspection(
                 &session.compositor,
                 WindowInspection::from(Some(target)),
                 config,
@@ -220,7 +237,7 @@ impl ShowcasedGroup {
             );
             return terminal_hover_inspection::on_hover(target)
                 .into_iter()
-                .map(ShowcaseMessage::WindowGroup)
+                .map(ShowcaseMessage::OutputWindows)
                 .collect();
         }
         let hovered_fetch = self

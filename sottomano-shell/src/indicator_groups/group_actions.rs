@@ -19,17 +19,21 @@ use sottomano_widgets::{
             self, WindowMenuBarInteraction, WindowMenuBarMessage, WindowMenuBarRequest,
         },
     },
-    indicator_groups::{
-        gamepad_group::{GamepadInteraction, GamepadMessage},
-        media_group::{self, MediaInteraction, MediaMessage},
-        overlay_settings_group::{self, OverlaySettingsMessage},
-        panel_settings_group::{self, PanelSettingsMessage},
-        session_power_group::{self, SessionMessage},
-        tray_group::{self, TrayMessage},
-        virtual_machines_group::{self, VirtualMachinesInteraction, VirtualMachinesMessage},
-        window_group::{self, WindowGroupInteraction, WindowGroupMessage, window_list},
-    },
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
+    output_windows::{self, OutputWindowsInteraction, OutputWindowsMessage, window_list},
+    panel_menus::{
+        appearance_menu::{
+            overlay_settings_group::{self, OverlaySettingsMessage},
+            panel_settings_group::{self, PanelSettingsMessage},
+        },
+        gaming_menu::gamepad_group::{GamepadInteraction, GamepadMessage},
+        media_menu::media_group::{self, MediaInteraction, MediaMessage},
+        session_menu::tray_group::{self, TrayMessage},
+        session_power_menu::session_power_group::{self, SessionMessage},
+        virtualization_menu::virtual_machines_group::{
+            self, VirtualMachinesInteraction, VirtualMachinesMessage,
+        },
+    },
     widgets::app_window_focus::AppWindowFocus,
 };
 
@@ -120,46 +124,46 @@ impl DesktopShell {
             .session_focus_group
             .refocus(
                 &self.compositor,
-                self.indicator_groups.window_group.window_processes(),
+                self.indicator_groups.output_windows.window_processes(),
             )
             .map(Message::SessionFocus)
     }
 
-    pub(crate) fn update_window_group(
+    pub(crate) fn update_output_windows(
         &mut self,
-        window_message: WindowGroupMessage,
+        window_message: OutputWindowsMessage,
     ) -> Task<Message> {
         let action = self
             .indicator_groups
-            .window_group
+            .output_windows
             .update(window_message, self.clock);
-        self.run_window_group_action(action)
+        self.run_output_windows_action(action)
     }
 
-    pub(crate) fn interact_window_group(
+    pub(crate) fn interact_output_windows(
         &mut self,
-        window_interaction: WindowGroupInteraction,
+        window_interaction: OutputWindowsInteraction,
     ) -> Task<Message> {
         let action = self
             .indicator_groups
-            .window_group
+            .output_windows
             .interact(window_interaction);
-        self.run_window_group_action(action)
+        self.run_output_windows_action(action)
     }
 
-    fn run_window_group_action(&mut self, action: window_group::Action) -> Task<Message> {
+    fn run_output_windows_action(&mut self, action: output_windows::Action) -> Task<Message> {
         let handled = match action {
-            window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
+            output_windows::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
                 .indicator_groups
                 .audio_group
                 .toggle_window_mute(pid)
                 .map(Message::Audio),
-            window_group::Action::WindowList(window_list::Action::None) => Task::none(),
-            window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
+            output_windows::Action::WindowList(window_list::Action::None) => Task::none(),
+            output_windows::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
                 self.derive_window_snapshot();
                 self.request_icons()
             }
-            window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
+            output_windows::Action::WindowList(window_list::Action::Drag(drag)) => {
                 self.update_pointer_drag(drag)
             }
         };

@@ -13,7 +13,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::podman_engines_group::{PodmanEnginesGroup, PodmanEnginesMessage},
+    panel_menus::virtualization_menu::podman_engines_group::{
+        PodmanEnginesGroup, PodmanEnginesMessage,
+    },
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

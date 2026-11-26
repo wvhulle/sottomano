@@ -19,9 +19,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     hover_cards::HoverTarget,
-    indicator_groups::window_group::{
-        WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
-    },
+    output_windows::{OutputWindowsMessage, WindowTarget, window_list::WindowListMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -30,10 +28,10 @@ use crate::fixtures::{
     showcase_epoch,
 };
 
-pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
+pub fn on_hover(target: &HoverTarget) -> Vec<OutputWindowsMessage> {
     match target {
         HoverTarget::Window(WindowTarget::Inspect(TERMINAL_WINDOW)) => vec![
-            WindowGroupMessage::WindowList(WindowListMessage::ProcessTreeScanned(
+            OutputWindowsMessage::WindowList(WindowListMessage::ProcessTreeScanned(
                 SnapshotDelivery::fixture_delivered(
                     Ok(terminal_processes()),
                     DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(
@@ -41,10 +39,10 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
                     ))),
                 ),
             )),
-            WindowGroupMessage::WindowList(WindowListMessage::ProcessInspected(Box::new(
+            OutputWindowsMessage::WindowList(WindowListMessage::ProcessInspected(Box::new(
                 SnapshotDelivery::single_read(Ok(terminal_inspection())),
             ))),
-            WindowGroupMessage::WindowList(WindowListMessage::PackageFactsRead(Box::new(
+            OutputWindowsMessage::WindowList(WindowListMessage::PackageFactsRead(Box::new(
                 SnapshotDelivery::single_read(Ok(terminal_package_facts())),
             ))),
         ],

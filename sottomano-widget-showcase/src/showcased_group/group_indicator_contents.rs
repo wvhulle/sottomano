@@ -1,6 +1,6 @@
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
-    clock::Clock, indicator_groups::indicator_group_content::IndicatorGroupContent,
+    clock::Clock, group_indicators::indicator_group_content::IndicatorGroupContent,
 };
 
 use crate::showcased_group::ShowcasedGroup;

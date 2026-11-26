@@ -23,7 +23,7 @@ use sottomano_widgets::{
     cascading_menus::app_launcher_menu::app_ranking::{
         AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
     },
-    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
+    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
 };
 
 use crate::{
@@ -36,7 +36,7 @@ impl DesktopShell {
     pub(crate) fn derive_window_snapshot(&mut self) {
         self.window_snapshot = workspace_window_snapshot::Snapshot::derive(
             &self.compositor,
-            self.indicator_groups.window_group.window_processes(),
+            self.indicator_groups.output_windows.window_processes(),
         );
     }
 
@@ -85,7 +85,7 @@ impl DesktopShell {
         }
         self.derive_window_snapshot();
         self.indicator_groups
-            .window_group
+            .output_windows
             .observe_active_workspaces(
                 &self.window_snapshot,
                 self.clock,

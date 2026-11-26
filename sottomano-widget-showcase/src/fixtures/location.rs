@@ -7,7 +7,7 @@ use situo_client::{
 use sottomano_desktop_sources::{SnapshotDelivery, weather::situo_location_fix::Location};
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::location_group::{LocationGroup, LocationMessage},
+    panel_menus::agenda_menu::location_group::{LocationGroup, LocationMessage},
 };
 use uom::si::{
     angle::degree,

@@ -8,10 +8,10 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 use super::{WindowMenuBar, WindowMenuBarInteraction, menu_bar_switch::WindowMenuBarLayout};
 use crate::{
     cascading_menus::menu_node_entries::menu_node_entries,
+    group_indicators::indicator_group_content::GroupEvent,
     group_menus::group_menu_view::panel_menu_handle,
     hover_cards::{HoverTarget, MenuHandleIndicator},
     icon_catalog::drawable_icon_catalog::{DrawableIconSources, IconCatalog},
-    indicator_groups::indicator_group_content::GroupEvent,
     widgets::text::panel_text,
 };
 

@@ -16,7 +16,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::media_group::{MediaGroup, MediaMessage},
+    panel_menus::media_menu::media_group::{MediaGroup, MediaMessage},
 };
 
 use crate::showcased_group::{ShowcasedGroup, ShowcasedMedia};

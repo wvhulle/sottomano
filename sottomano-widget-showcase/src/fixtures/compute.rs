@@ -24,7 +24,7 @@ use sottomano_toml_config::indicator_groups::temperature_sensors::ThresholdOverr
 use sottomano_widgets::{
     clock::Clock,
     group_indicators::toggle_control::ToggleMessage,
-    indicator_groups::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
+    panel_menus::hardware_menu::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
 };
 use uom::si::{
     f64::{Frequency, Power, Ratio, ThermodynamicTemperature},

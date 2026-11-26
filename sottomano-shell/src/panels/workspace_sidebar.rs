@@ -9,9 +9,8 @@ use sottomano_widgets::{
         panel_frame::{inward_outlined_sides, panel_frame},
         region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
-    indicator_groups::{
-        sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
-    },
+    panel_menus::appearance_menu::sidebar_settings_group::WorkspacesPlacement,
+    workspace_switcher::sidebar_column,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};

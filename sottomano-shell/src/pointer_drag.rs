@@ -13,16 +13,14 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
-    indicator_groups::{
-        sidebar_settings_group::WorkspacesPlacement,
-        workspaces_group::empty_workspace_folding::shown_workspaces,
-    },
+    panel_menus::appearance_menu::sidebar_settings_group::WorkspacesPlacement,
     widgets::{
         pointer_drag,
         pointer_drag::{
             ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
         },
     },
+    workspace_switcher::empty_workspace_folding::shown_workspaces,
 };
 use tokio::time::sleep;
 

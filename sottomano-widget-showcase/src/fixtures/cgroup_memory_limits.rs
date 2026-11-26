@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::cgroup_memory_limits_group::{
+    panel_menus::virtualization_menu::cgroup_memory_limits_group::{
         CgroupMemoryLimitsGroup, CgroupMemoryLimitsMessage,
     },
 };

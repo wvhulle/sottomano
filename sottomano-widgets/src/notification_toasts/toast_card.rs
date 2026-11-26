@@ -21,7 +21,7 @@ use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycl
 use crate::{
     hover_cards::PointerPresence,
     icon_catalog::drawable_icon_catalog::IconCatalog,
-    toast_messages::NotificationMessage,
+    notification_toasts::toast_messages::NotificationMessage,
     widgets::{
         localized_durations::relative_moment_text,
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},

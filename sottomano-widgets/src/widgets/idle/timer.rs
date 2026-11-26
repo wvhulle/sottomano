@@ -3,7 +3,7 @@ use crate::{
     group_indicators::slider_control::{
         Action, ControlMessage, SliderActivity, SliderCaption, SliderControl,
     },
-    indicator_groups::idle_pause_groups::StageSetting,
+    panel_menus::session_menu::idle_pause_groups::StageSetting,
     widgets::{
         idle::{IdleTimeout, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,

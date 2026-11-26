@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::wallpaper_group::{
+    panel_menus::display_menu::wallpaper_group::{
         WallpaperGroup, WallpaperMessage, wallpaper_lookup::Lookup,
     },
 };

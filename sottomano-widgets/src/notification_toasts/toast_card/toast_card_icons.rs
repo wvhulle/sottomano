@@ -19,7 +19,7 @@ use sottomano_desktop_sources::{
 use crate::{
     glyph_icons::icon_glyph::IconGlyph,
     icon_catalog::{drawable_icon_catalog::IconCatalog, icon_handle::IconHandle},
-    toast_messages::NotificationMessage,
+    notification_toasts::toast_messages::NotificationMessage,
 };
 
 const TOAST_ICON_SIZE_PX: f32 = 44.0;

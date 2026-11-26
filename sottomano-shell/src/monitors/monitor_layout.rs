@@ -6,12 +6,11 @@ use iced::{
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
+    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
     hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage, WidgetAnchor},
-    indicator_groups::{
-        indicator_group_interaction::IndicatorGroupInteraction,
-        window_group::WindowGroupInteraction, workspaces_group,
-    },
+    output_windows::OutputWindowsInteraction,
     widgets::pointer_drag::{DragActivity, DraggedPanelSlot},
+    workspace_switcher,
 };
 
 use crate::{
@@ -89,12 +88,12 @@ impl DesktopShell {
         let snapshot = &self.window_snapshot;
         let card = match drag.item {
             DraggedPanelSlot::Workspace(workspace) => {
-                workspaces_group::drag_ghost(snapshot, output, workspace, slot_context)?
+                workspace_switcher::drag_ghost(snapshot, output, workspace, slot_context)?
                     .map(ShellInteraction::from)
             }
             DraggedPanelSlot::Window { window, .. } => self
                 .indicator_groups
-                .window_group
+                .output_windows
                 .window_list
                 .drag_ghost(
                     snapshot,
@@ -104,8 +103,8 @@ impl DesktopShell {
                     slot_context,
                 )?
                 .map(|message| {
-                    ShellInteraction::Group(IndicatorGroupInteraction::WindowGroup(
-                        WindowGroupInteraction::WindowList(message),
+                    ShellInteraction::Group(IndicatorGroupInteraction::OutputWindows(
+                        OutputWindowsInteraction::WindowList(message),
                     ))
                 }),
         };

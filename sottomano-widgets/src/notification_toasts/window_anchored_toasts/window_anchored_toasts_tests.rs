@@ -14,8 +14,10 @@ use sottomano_toml_config::{
 use super::WindowAnchoredToasts;
 use crate::{
     clock::Clock,
-    notification_toasts::toast_placement::{AnchoredToast, ToastAnchor},
-    toast_messages::NotificationMessage,
+    notification_toasts::{
+        toast_messages::NotificationMessage,
+        toast_placement::{AnchoredToast, ToastAnchor},
+    },
     widgets::{shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade},
 };
 

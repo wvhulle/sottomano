@@ -17,8 +17,8 @@ use self::{
 };
 use crate::{
     background_work::logged_failure_task,
+    group_indicators::{sqlite_singleton_flag, terminal_command::TerminalCommand},
     hover_cards::hover_card_body::{Section, dictionary_table},
-    indicator_groups::{sqlite_singleton_flag, terminal_command::TerminalCommand},
     widgets::value_cells::LabeledValue,
 };
 

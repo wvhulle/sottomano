@@ -11,7 +11,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::lxc_containers_group::{LxcContainersGroup, LxcContainersMessage},
+    panel_menus::virtualization_menu::lxc_containers_group::{
+        LxcContainersGroup, LxcContainersMessage,
+    },
 };
 
 use crate::showcased_group::ShowcasedGroup;

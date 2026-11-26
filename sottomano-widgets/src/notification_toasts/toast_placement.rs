@@ -13,8 +13,8 @@ use sottomano_toml_config::{
 };
 
 use crate::{
-    indicator_groups::overlay_settings_group::ToastArrangement,
-    notification_toasts::NotificationSettings, toast_messages::NotificationMessage,
+    notification_toasts::{NotificationSettings, toast_messages::NotificationMessage},
+    panel_menus::appearance_menu::overlay_settings_group::ToastArrangement,
     widgets::typing_under_cards::viewed_window_bounds,
 };
 

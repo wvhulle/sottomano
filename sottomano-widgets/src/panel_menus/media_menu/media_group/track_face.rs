@@ -1,0 +1,174 @@
+use corredo::theming::LINE_HEIGHT;
+use iced::{
+    Task,
+    widget::{rich_text, span, text::Span},
+};
+use sottomano_desktop_sources::{
+    media_playback_audio::{
+        mpris_players,
+        mpris_players::{Command, CommandOffer, CoverArtUrl, Media, Status, TrackTitle},
+    },
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+};
+use sottomano_toml_config::Config;
+use uom::si::f64::Ratio;
+
+use super::{
+    MediaMessage, PlayerInteraction, PlayerSession, RAISE_PLAYER_HINT, SessionCoverArt,
+    player_interaction,
+};
+use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+    },
+    group_indicators::{
+        group_indicator::{GroupIndicator, IndicatorValue},
+        indicator_drawing::{IndicatorIcon, ReadoutGauge},
+        indicator_state::{IndicatorState, IndicatorStateTint},
+    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
+    icon_catalog::icon_handle::IconHandle,
+    widgets::{
+        subscribed_snapshot::SubscribedSnapshot, text::resolved_font_faces,
+        value_cells::LabeledValue,
+    },
+};
+
+fn playback_state(media: &Media) -> IndicatorState {
+    if media.status == Status::Playing {
+        IndicatorState::Idle
+    } else {
+        IndicatorState::Off
+    }
+}
+
+pub(super) fn track_indicator<'view>(
+    config: &'view Config,
+    media: &'view Media,
+    cover_art: &SessionCoverArt,
+) -> GroupIndicator<'view> {
+    let raisable = media.owner != OwnerProcess::Unidentified
+        || media.capabilities.raise == CommandOffer::Offered;
+    let icon = match cover_art {
+        SessionCoverArt::Loaded(art) => IndicatorIcon::Image(art.handle.clone()),
+        SessionCoverArt::NotLoaded => IndicatorIcon::IconGlyph {
+            glyph: Phosphor::VinylRecord(Weight::Regular).into(),
+            state: playback_state(media),
+        },
+    };
+    let track = GroupIndicator::composed(
+        "Track",
+        icon,
+        IndicatorValue::drawn(move |reveal| {
+            rich_text(label_spans(config, media))
+                .style(
+                    IndicatorStateTint {
+                        state: IndicatorState::Idle,
+                        opacity: reveal,
+                    }
+                    .text_style(),
+                )
+                .size(config.theme.font.text_size_px)
+                .line_height(LINE_HEIGHT)
+                .into()
+        }),
+        Box::new(|_| Vec::new()),
+    );
+    if raisable {
+        track.on_press(
+            RAISE_PLAYER_HINT,
+            player_interaction(&media.bus, PlayerInteraction::Command(Command::Raise)),
+        )
+    } else {
+        track
+    }
+}
+
+pub(super) fn player_headline_indicator<'view>(
+    media: &Media,
+    gauge_fraction: Option<Ratio>,
+) -> GroupIndicator<'view> {
+    let glyph = match SimpleIcon::titled(&media.identity) {
+        Some(brand_icon) => IconGlyph::from(brand_icon),
+        None => Phosphor::MusicNotes(Weight::Regular).into(),
+    };
+    let gauge = match gauge_fraction {
+        Some(fraction) => ReadoutGauge::Gauged {
+            fill: fraction,
+            live: fraction,
+        },
+        None => ReadoutGauge::Ungauged,
+    };
+    GroupIndicator::glyph_only("Player", glyph, playback_state(media)).with_gauge(gauge)
+}
+
+pub(super) fn label_spans<'view>(config: &Config, media: &Media) -> Vec<Span<'view>> {
+    let title = match &media.title {
+        TrackTitle::Titled(title) => title,
+        TrackTitle::Untitled => &media.identity,
+    };
+    vec![span(title.clone()).font(resolved_font_faces(&config.theme.font).regular)]
+}
+
+pub(super) fn player_hover_card(
+    player_snapshot: &SubscribedSnapshot<Media>,
+    media: &Media,
+) -> Vec<Section> {
+    player_snapshot.hover_card_with(vec![Section::new(
+        "Status",
+        dictionary_table([
+            LabeledValue::new("Player", media.identity.clone()),
+            LabeledValue::new("State", media.status.label()),
+        ]),
+    )])
+}
+
+pub(super) fn cover_art_load(media: &Media, session: &PlayerSession) -> Option<Task<MediaMessage>> {
+    let CoverArtUrl::Advertised(url) = media.art_url.clone() else {
+        return None;
+    };
+    if let SessionCoverArt::Loaded(_) = session.cover_art {
+        return None;
+    }
+    let bus = media.bus.clone();
+    let loading = {
+        let url = url.clone();
+        async move { mpris_players::load_art(&url).await }
+    };
+    Some(Task::future(loading).and_then(move |pixels| {
+        Task::done(MediaMessage::ArtLoaded {
+            bus: bus.clone(),
+            url: url.clone(),
+            handle: IconHandle::from(&pixels),
+        })
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_desktop_sources::media_playback_audio::mpris_players::Status;
+
+    use super::*;
+    use crate::panel_menus::media_menu::media_group::test_players::titled_player;
+
+    #[test]
+    fn a_spotify_handle_shows_the_spotify_glyph() {
+        let spotify = titled_player("Spotify", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&spotify, None).face.icon,
+            IndicatorIcon::IconGlyph { glyph, .. } if glyph == IconGlyph::from(SimpleIcon::Spotify)
+        ));
+    }
+
+    #[test]
+    fn an_unbranded_player_handle_shows_music_notes() {
+        let unbranded = titled_player("Unbranded test player", Status::Playing);
+        assert!(matches!(
+            player_headline_indicator(&unbranded, None).face.icon,
+            IndicatorIcon::IconGlyph { glyph, .. }
+                if glyph == IconGlyph::from(Phosphor::MusicNotes(Weight::Regular))
+        ));
+    }
+}

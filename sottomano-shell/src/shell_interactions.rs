@@ -2,14 +2,16 @@ use iced::Task;
 use sottomano_compositor_model::compositor_requests::CompositorRequest;
 use sottomano_widgets::{
     background_work::{compositor_request, copy_to_clipboard},
+    group_indicators::indicator_group_interaction::{
+        IndicatorGroupBusRequest, IndicatorGroupInteraction,
+    },
     group_menus::group_menu_state::{GroupMenuMessage, PanelPin, PanelPinDuration},
     hover_cards::PopupMessage,
-    indicator_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
-        indicator_group_interaction::{IndicatorGroupBusRequest, IndicatorGroupInteraction},
-        sidebar_settings_group::SidebarSettingsMessage,
-        workspaces_group::WorkspacesMessage,
+    panel_menus::{
+        appearance_menu::sidebar_settings_group::SidebarSettingsMessage,
+        behaviour_menu::appearance_presets_group::AppearancePresetsMessage,
     },
+    workspace_switcher::WorkspacesMessage,
 };
 
 use crate::{
@@ -52,8 +54,8 @@ impl DesktopShell {
                 compositor_request(CompositorRequest::FocusWindow(window)),
             ]),
             PopupMessage::RefreshHoveredIndicator => self.refresh_hovered_indicator(),
-            PopupMessage::WindowGroup(window_interaction) => {
-                self.interact_window_group(window_interaction)
+            PopupMessage::OutputWindows(window_interaction) => {
+                self.interact_output_windows(window_interaction)
             }
             PopupMessage::ReleaseFromPanel(panel_pin) => self.release_from_panel(panel_pin),
         }
@@ -106,8 +108,8 @@ impl DesktopShell {
         group_interaction: IndicatorGroupInteraction,
     ) -> Task<Message> {
         match group_interaction {
-            IndicatorGroupInteraction::WindowGroup(interaction) => {
-                self.interact_window_group(interaction)
+            IndicatorGroupInteraction::OutputWindows(interaction) => {
+                self.interact_output_windows(interaction)
             }
             IndicatorGroupInteraction::AppLauncher(message) => self.update_app_launcher(message),
             IndicatorGroupInteraction::Gamepad(interaction) => self.interact_gamepad(interaction),

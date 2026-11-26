@@ -17,7 +17,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::memory_board_group::{
+    panel_menus::hardware_menu::memory_board_group::{
         MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardMessage,
     },
 };

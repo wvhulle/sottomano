@@ -12,10 +12,13 @@ use sottomano_widgets::{
     },
     group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
-    indicator_groups::{
-        panel_settings_group::PanelGroupFraming, session_power_group::PowerMenuPresence,
-        sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip,
+    panel_menus::{
+        appearance_menu::{
+            panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
+        },
+        session_power_menu::session_power_group::PowerMenuPresence,
     },
+    workspace_switcher::inline_strip,
 };
 
 use crate::{
@@ -105,7 +108,7 @@ impl DesktopShell {
                 .into_iter()
                 .collect(),
             PanelZoneEntry::OutputWindows => self
-                .window_group_view(position, output)
+                .output_windows_view(position, output)
                 .into_iter()
                 .collect(),
         }
@@ -221,13 +224,13 @@ impl DesktopShell {
         }
     }
 
-    fn window_group_view<'view>(
+    fn output_windows_view<'view>(
         &'view self,
         position: Position,
         output: &'view str,
     ) -> Option<Element<'view, ShellInteraction>> {
         self.indicator_groups
-            .window_group
+            .output_windows
             .view(
                 &self.window_snapshot,
                 self.window_assets(),

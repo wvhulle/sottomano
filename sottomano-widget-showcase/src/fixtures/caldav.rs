@@ -16,7 +16,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::caldav_group::{CaldavGroup, CaldavMessage},
+    panel_menus::agenda_menu::caldav_group::{CaldavGroup, CaldavMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

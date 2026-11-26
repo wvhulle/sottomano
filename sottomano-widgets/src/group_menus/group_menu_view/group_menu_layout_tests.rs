@@ -16,6 +16,10 @@ use crate::{
     group_indicators::{
         group_indicator::{GroupIndicator, IndicatorValue, named_test_indicator},
         indicator_drawing::IndicatorIcon,
+        indicator_group_content::{
+            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
+        },
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
         indicator_state::IndicatorState,
     },
     group_menus::{
@@ -26,13 +30,7 @@ use crate::{
     icon_catalog::{
         drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
     },
-    indicator_groups::{
-        clock_group::ClockInteraction,
-        indicator_group_content::{
-            IndicatorGroupContent, IndicatorGroupExpansion, IndicatorListing,
-        },
-        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-    },
+    panel_menus::agenda_menu::clock_group::ClockInteraction,
     widgets::shell_layer_appearance::ShellLayer,
 };
 

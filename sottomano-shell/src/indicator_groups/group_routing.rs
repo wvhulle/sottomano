@@ -3,13 +3,18 @@ use sottomano_desktop_sources::system_protocol_clients::dbus_desktop_buses::Desk
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::{
-        color_temperature_group::ColorTemperatureGroup,
-        indicator_group_interaction::{IndicatorGroupBusRequest, IndicatorGroupInteraction},
-        monitor_group::MonitorGroup,
-        network_manager_vpn_group::NetworkManagerVpnGroup,
-        reachability_group::ReachabilityGroup,
-        voice_dictation_group::VoiceDictationGroup,
+    group_indicators::indicator_group_interaction::{
+        IndicatorGroupBusRequest, IndicatorGroupInteraction,
+    },
+    panel_menus::{
+        display_menu::{
+            color_temperature_group::ColorTemperatureGroup, monitor_group::MonitorGroup,
+        },
+        media_menu::voice_dictation_group::VoiceDictationGroup,
+        network_menu::{
+            network_manager_vpn_group::NetworkManagerVpnGroup,
+            reachability_group::ReachabilityGroup,
+        },
     },
 };
 

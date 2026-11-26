@@ -12,7 +12,14 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     glyph_icons::{icon_glyph::IconGlyph, phosphor::Phosphor},
-    group_indicators::group_indicator::{GroupIndicator, RowHoverCard},
+    group_indicators::{
+        group_indicator::{GroupIndicator, RowHoverCard},
+        indicator_group_content::{
+            GroupEvent, GroupToastRequests, IndicatorGroupContent, group_panel_view::edge_indicator,
+        },
+        indicator_group_identity::IndicatorGroupIdentity,
+        indicator_group_interaction::IndicatorGroupInteraction,
+    },
     group_menus::{
         group_menu_state::{
             AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
@@ -26,13 +33,6 @@ use crate::{
         hover_card_content::HoverCardContent,
     },
     icon_catalog::{icon_handle::IconHandle, window_icons::WindowAssets},
-    indicator_groups::{
-        indicator_group_content::{
-            GroupEvent, GroupToastRequests, IndicatorGroupContent, group_panel_view::edge_indicator,
-        },
-        indicator_group_identity::IndicatorGroupIdentity,
-        indicator_group_interaction::IndicatorGroupInteraction,
-    },
     widgets::shell_layer_appearance::LayerAppearance,
 };
 

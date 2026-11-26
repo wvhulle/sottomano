@@ -2,7 +2,7 @@ use chrono::TimeDelta;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::*;
-use crate::indicator_groups::indicator_group_identity::{
+use crate::group_indicators::indicator_group_identity::{
     IndicatorGroupFamily, IndicatorGroupIdentity,
 };
 

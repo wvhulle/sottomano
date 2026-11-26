@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::apptainer_containers_group::{
+    panel_menus::virtualization_menu::apptainer_containers_group::{
         ApptainerContainersGroup, ApptainerContainersMessage,
     },
 };

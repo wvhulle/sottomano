@@ -19,7 +19,7 @@ use sottomano_desktop_sources::desktop_notifications::{
     spec_hints::SoundRequest,
 };
 use sottomano_toml_config::severity::Severity;
-use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};
+use sottomano_widgets::{clock::Clock, notification_toasts::toast_messages::NotificationMessage};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{

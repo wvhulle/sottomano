@@ -18,9 +18,9 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
+    group_indicators::indicator_group_content::GroupEvent,
     hover_cards::hover_card_body::Section,
     icon_catalog::drawable_icon_catalog::IconCatalog,
-    indicator_groups::indicator_group_content::GroupEvent,
     widgets::glyph_button,
 };
 

@@ -5,8 +5,8 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     hover_cards::hover_card_transition::CardRetention,
-    indicator_groups::idle_pause_groups::IdlePauseMessage,
     notification_toasts::toast_updates::StoppedChangeWatch,
+    panel_menus::session_menu::idle_pause_groups::IdlePauseMessage,
 };
 
 use crate::{
@@ -21,7 +21,7 @@ impl DesktopShell {
     pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Output(change) => self.apply_output_change(change),
-            Message::WindowGroup(msg) => self.update_window_group(msg),
+            Message::OutputWindows(msg) => self.update_output_windows(msg),
             Message::AppLauncher(launcher_message) => self.update_app_launcher(launcher_message),
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
@@ -157,7 +157,7 @@ impl DesktopShell {
             Message::Redraw => {
                 self.notifications.prune(self.clock.instant);
                 self.indicator_groups
-                    .window_group
+                    .output_windows
                     .settle_workspace_slides(self.clock.instant);
                 Task::none()
             }

@@ -1,6 +1,6 @@
 use sottomano_widgets::{
+    group_indicators::indicator_group_identity::IndicatorGroupFamily,
     group_menus::group_menu_state::GroupMenuTopic, hover_cards::HoverTarget,
-    indicator_groups::indicator_group_identity::IndicatorGroupFamily,
 };
 
 use crate::{

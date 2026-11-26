@@ -11,13 +11,12 @@ use crate::{
         aligned_quantity::{AlignedQuantity, IndicatorAlignment},
         indicator_drawing::{IdentityOrdinal, IndicatorFace, IndicatorIcon},
         indicator_gestures::IndicatorGesture,
+        indicator_group_content::GroupEvent,
+        indicator_group_interaction::IndicatorGroupInteraction,
         slider_control::{ControlMessage, SliderControl, SliderShownIndicator},
         toggle_control::{IconToggle, SwitchPosition},
     },
     hover_cards::{MouseGesture, PressAction},
-    indicator_groups::{
-        indicator_group_content::GroupEvent, indicator_group_interaction::IndicatorGroupInteraction,
-    },
     widgets::ongoing_toast::IndicatorAlerts,
 };
 

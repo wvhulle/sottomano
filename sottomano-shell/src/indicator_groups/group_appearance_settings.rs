@@ -3,15 +3,18 @@ use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
+    group_indicators::indicator_group_interaction::IndicatorGroupInteraction,
     group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{anchored_popup::PopupAppearances, hover_card_surfaces::HoverCardSurfaceStyle},
-    indicator_groups::{
-        dark_mode_group::DarkModeInteraction,
-        indicator_group_interaction::IndicatorGroupInteraction,
-        overlay_settings_group::OverlaySettingsMessage, panel_settings_group::PanelSettingsMessage,
-        sidebar_settings_group::SidebarSettingsMessage,
-    },
     notification_toasts::{NotificationSettings, ToastContext},
+    panel_menus::{
+        appearance_menu::{
+            overlay_settings_group::OverlaySettingsMessage,
+            panel_settings_group::PanelSettingsMessage,
+            sidebar_settings_group::SidebarSettingsMessage,
+        },
+        display_menu::dark_mode_group::DarkModeInteraction,
+    },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         layer_appearance_controls::AppearanceMessage,

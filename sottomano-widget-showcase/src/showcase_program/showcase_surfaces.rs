@@ -10,6 +10,7 @@ use sottomano_widgets::{
     cascading_menus::app_launcher_menu::AppLauncherMessage,
     clock::Clock,
     desktop_panels::panel_frame::{inward_outlined_sides, panel_frame},
+    group_indicators::indicator_group_content::GroupEvent,
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::GroupMenuTopic,
@@ -23,12 +24,9 @@ use sottomano_widgets::{
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
     icon_catalog::window_icons::WindowAssets,
-    indicator_groups::{
-        indicator_group_content::GroupEvent, quiet_schedule_group::quiet_window::QuietPhase,
-    },
     layer_surfaces::PanelEdge,
-    notification_toasts::{ToastContext, ToastSurfaceStyle},
-    toast_messages::NotificationMessage,
+    notification_toasts::{ToastContext, ToastSurfaceStyle, toast_messages::NotificationMessage},
+    panel_menus::agenda_menu::quiet_schedule_group::quiet_window::QuietPhase,
     widgets::{shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade},
 };
 

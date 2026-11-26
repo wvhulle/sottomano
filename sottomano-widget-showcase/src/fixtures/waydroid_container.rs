@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::waydroid_container_group::{
+    panel_menus::virtualization_menu::waydroid_container_group::{
         WaydroidContainerGroup, WaydroidContainerMessage,
     },
 };

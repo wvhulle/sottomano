@@ -21,7 +21,7 @@ use sottomano_desktop_sources::desktop_windows_apps::{
 };
 use sottomano_widgets::{
     icon_catalog::favicons::Favicons,
-    indicator_groups::window_group::{WindowGroup, WindowRowLayout},
+    output_windows::{OutputWindows, WindowRowLayout},
 };
 
 use crate::{
@@ -332,7 +332,7 @@ fn session(
     );
     let snapshot = Snapshot::derive(&compositor, window_processes);
     ShowcasedDesktopSession {
-        window_group: WindowGroup::default(),
+        output_windows: OutputWindows::default(),
         window_row_layout,
         compositor,
         snapshot,

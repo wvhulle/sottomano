@@ -12,10 +12,10 @@ use crate::{
     group_indicators::{
         aligned_quantity::AlignedQuantity,
         group_indicator::GroupIndicator,
+        indicator_group_interaction::IndicatorGroupInteraction,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    indicator_groups::indicator_group_interaction::IndicatorGroupInteraction,
     widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
 };
 

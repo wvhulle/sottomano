@@ -1,0 +1,389 @@
+use std::time::{Duration, Instant};
+
+use chrono::Locale;
+use iced::Task;
+use sottomano_desktop_sources::battery_power_profiles::{
+    battery_time_forecast::{
+        ChargeCurve, CurveHistory, Estimate, charge_bin_index, time_until_full,
+    },
+    upower_battery_state::{Battery, ChargeStatus, IdleReason},
+};
+use sottomano_toml_config::severity::Severity;
+use uom::si::{
+    f64::{Power, Ratio},
+    power::watt,
+    ratio::percent,
+};
+
+use crate::{
+    glyph_icons::{
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
+    },
+    group_indicators::{
+        gauge::percent_text,
+        group_indicator::GroupIndicator,
+        indicator_drawing::{IndicatorReadout, ReadoutBadge, ReadoutGauge, ReadoutLabel},
+        indicator_state::IndicatorState,
+    },
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
+    panel_menus::hardware_menu::power_group::{
+        estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        sample_spacing::SampleSpacing,
+        sqlite_charge_power_curve,
+    },
+    widgets::{
+        keyed_record_table::TableRecord,
+        localized_quantities::Quantity,
+        ongoing_toast::{IndicatorAlerts, NotificationBody, NotificationProgress, StateToast},
+        value_cells::LabeledValue,
+    },
+};
+
+const MIN_SAMPLE_W: f64 = 0.5;
+const EMPTY_CRITICAL: Duration = Duration::from_mins(10);
+const EMPTY_WARNING: Duration = Duration::from_mins(20);
+const FULL_CHARGE_PERCENT: f64 = 100.0;
+
+pub const TIME_LEFT_INDICATOR_NAME: &str = "Time left";
+
+#[derive(Default)]
+pub enum BatteryTimeIndicator {
+    #[default]
+    NotLoaded,
+    Loading,
+    Learning {
+        curve: Box<ChargeCurve>,
+        spacing: SampleSpacing,
+    },
+}
+
+impl BatteryTimeIndicator {
+    pub fn learn(&mut self, battery: &Battery, now: Instant) -> Task<Box<ChargeCurve>> {
+        let BatteryTimeIndicator::Learning { curve, spacing } = self else {
+            return self.start_loading(&battery.serial);
+        };
+        let Some(sample) = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W)) else {
+            *spacing = SampleSpacing::Interrupted;
+            return Task::none();
+        };
+        let since_previous = spacing.sampled_now(now);
+        **curve =
+            curve
+                .as_ref()
+                .clone()
+                .observe(sample.state_of_charge, sample.power, since_previous);
+        Task::future(sqlite_charge_power_curve::save(
+            battery.serial.clone(),
+            charge_bin_index(sample.state_of_charge),
+            curve.as_ref().clone(),
+        ))
+        .discard()
+    }
+
+    pub fn loaded(&mut self, curve: Box<ChargeCurve>) {
+        *self = BatteryTimeIndicator::Learning {
+            curve,
+            spacing: SampleSpacing::Interrupted,
+        };
+    }
+
+    fn start_loading(&mut self, serial: &str) -> Task<Box<ChargeCurve>> {
+        if matches!(self, BatteryTimeIndicator::Loading) || serial.is_empty() {
+            return Task::none();
+        }
+        *self = BatteryTimeIndicator::Loading;
+        Task::future(sqlite_charge_power_curve::load(serial.to_string()))
+    }
+
+    pub(super) fn time_for(
+        &self,
+        battery: &Battery,
+        drain: Option<Estimate>,
+    ) -> Option<BatteryTime> {
+        let idle = battery.idle_reason().map(|reason| IdleBattery {
+            reason,
+            capacity: battery.capacity,
+            charge_limit: battery.charge_limit,
+        });
+        idle.map(BatteryTime::Idle)
+            .or_else(|| self.countdown(battery, drain).map(BatteryTime::Countdown))
+    }
+
+    fn countdown(&self, battery: &Battery, drain: Option<Estimate>) -> Option<Countdown> {
+        match battery.status {
+            ChargeStatus::Discharging => Some(Countdown::UntilEmpty(Forecast::estimated_or(
+                drain,
+                Unforecastable::NoDrainHistory,
+            ))),
+            ChargeStatus::Charging => Some(Countdown::UntilFull {
+                charge_limit: battery.charge_limit,
+                forecast: self.charge_forecast(battery),
+            }),
+            ChargeStatus::Full | ChargeStatus::NotCharging | ChargeStatus::Unreported => None,
+        }
+    }
+
+    fn charge_forecast(&self, battery: &Battery) -> Forecast {
+        let BatteryTimeIndicator::Learning { curve, .. } = self else {
+            return Forecast::Unavailable(Unforecastable::LoadingHistory);
+        };
+        if curve.history() == CurveHistory::Empty {
+            return Forecast::Unavailable(Unforecastable::NoChargeHistory);
+        }
+        Forecast::estimated_or(
+            time_until_full(battery, curve),
+            Unforecastable::ChargerNotKeepingUp,
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Countdown {
+    UntilEmpty(Forecast),
+    UntilFull {
+        charge_limit: Ratio,
+        forecast: Forecast,
+    },
+}
+
+impl Countdown {
+    fn forecast(self) -> Forecast {
+        match self {
+            Countdown::UntilEmpty(forecast) | Countdown::UntilFull { forecast, .. } => forecast,
+        }
+    }
+}
+
+impl Countdown {
+    fn glyph(self) -> IconGlyph {
+        match self {
+            Countdown::UntilEmpty(_) => Phosphor::HourglassLow(Weight::Regular).into(),
+            Countdown::UntilFull { .. } => Phosphor::HourglassHigh(Weight::Regular).into(),
+        }
+    }
+
+    fn section_heading(self) -> &'static str {
+        match self {
+            Countdown::UntilEmpty(_) => "Until empty",
+            Countdown::UntilFull { .. } => "Until full",
+        }
+    }
+
+    fn label(self, locale: Locale) -> String {
+        let forecast_label = self.forecast().label(locale);
+        match self {
+            Countdown::UntilEmpty(Forecast::Estimated(_)) => format!("{forecast_label} left"),
+            Countdown::UntilFull {
+                charge_limit,
+                forecast: Forecast::Estimated(_),
+            } if charge_limit >= Ratio::new::<percent>(FULL_CHARGE_PERCENT) => {
+                format!("Full in {forecast_label}")
+            }
+            Countdown::UntilFull {
+                charge_limit,
+                forecast: Forecast::Estimated(_),
+            } => format!("{} in {forecast_label}", percent_text(charge_limit)),
+            Countdown::UntilEmpty(Forecast::Unavailable(_))
+            | Countdown::UntilFull {
+                forecast: Forecast::Unavailable(_),
+                ..
+            } => forecast_label,
+        }
+    }
+
+    fn key(self) -> String {
+        match self {
+            Countdown::UntilEmpty(_) => "Until empty".to_owned(),
+            Countdown::UntilFull { charge_limit, .. } => {
+                format!("Until {}", percent_text(charge_limit))
+            }
+        }
+    }
+}
+
+impl From<Countdown> for TableRecord<3> {
+    fn from(countdown: Countdown) -> Self {
+        TableRecord::with_cells(countdown.key(), countdown.forecast().cells())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct IdleBattery {
+    reason: IdleReason,
+    capacity: Ratio,
+    charge_limit: Ratio,
+}
+
+impl IdleBattery {
+    fn icon(self) -> IconGlyph {
+        match self.reason {
+            IdleReason::Full | IdleReason::AtLimit => Phosphor::BatteryFull(Weight::Regular).into(),
+            IdleReason::Inhibited => Phosphor::PauseCircle(Weight::Regular).into(),
+            IdleReason::Unexplained => Phosphor::PlugCharging(Weight::Regular).into(),
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self.reason {
+            IdleReason::Full => "Full",
+            IdleReason::AtLimit => "At limit",
+            IdleReason::Inhibited => "Paused",
+            IdleReason::Unexplained => "Not charging",
+        }
+    }
+
+    fn explanation(self) -> &'static str {
+        match self.reason {
+            IdleReason::Full => "reported full by the battery",
+            IdleReason::AtLimit => "held at the charge limit",
+            IdleReason::Inhibited => "charging switched off (charge_behaviour)",
+            IdleReason::Unexplained => "on AC, no cause reported by the battery",
+        }
+    }
+
+    fn hover_card(self) -> Vec<Section> {
+        vec![Section::new(
+            "Idle on charger",
+            dictionary_table([
+                LabeledValue::new("Status", self.explanation()),
+                LabeledValue::new("Charge", Quantity::share(self.capacity)),
+                LabeledValue::new("Charge limit", Quantity::share(self.charge_limit)),
+            ]),
+        )]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum BatteryTime {
+    Idle(IdleBattery),
+    Countdown(Countdown),
+}
+
+impl BatteryTime {
+    fn glyph(self) -> IconGlyph {
+        match self {
+            BatteryTime::Idle(idle) => idle.icon(),
+            BatteryTime::Countdown(countdown) => countdown.glyph(),
+        }
+    }
+
+    fn label_text(self, locale: Locale) -> String {
+        match self {
+            BatteryTime::Idle(idle) => idle.label().to_string(),
+            BatteryTime::Countdown(countdown) => countdown.label(locale),
+        }
+    }
+
+    fn display_state(self) -> IndicatorState {
+        match self {
+            BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
+                if estimate.time < EMPTY_CRITICAL =>
+            {
+                IndicatorState::Critical
+            }
+            BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
+                if estimate.time < EMPTY_WARNING =>
+            {
+                IndicatorState::Warning
+            }
+            BatteryTime::Idle(_) | BatteryTime::Countdown(_) => IndicatorState::Idle,
+        }
+    }
+
+    pub fn indicator<'indicator>(self, locale: Locale) -> GroupIndicator<'indicator> {
+        let label = self.label_text(locale);
+        GroupIndicator::glyph_only(TIME_LEFT_INDICATOR_NAME, self.glyph(), self.display_state())
+            .with_readout(IndicatorReadout {
+                label: ReadoutLabel::Labeled(label.clone()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            })
+            .with_alerts(IndicatorAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Warning,
+                    summary_text: "Battery running out",
+                    body: NotificationBody::Text(label),
+                    progress: NotificationProgress::Unmeasured,
+                },
+                ..IndicatorAlerts::default()
+            })
+            .with_hover_card(Box::new(move |_| self.hover_card()))
+    }
+
+    pub fn hover_card(self) -> Vec<Section> {
+        match self {
+            BatteryTime::Idle(idle) => idle.hover_card(),
+            BatteryTime::Countdown(countdown) => {
+                vec![Section::new(
+                    countdown.section_heading(),
+                    headed_table(ESTIMATE_HEADINGS, [countdown]),
+                )]
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_desktop_sources::battery_power_profiles::battery_time_forecast::LatestBound;
+
+    use super::*;
+
+    #[test]
+    fn indicator_key_names_the_direction() {
+        let until_full = Countdown::UntilFull {
+            charge_limit: Ratio::new::<percent>(80.0),
+            forecast: Forecast::Unavailable(Unforecastable::NoChargeHistory),
+        };
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Unavailable(Unforecastable::NoDrainHistory)).key(),
+            "Until empty"
+        );
+        assert_eq!(until_full.key(), "Until 80 %");
+    }
+
+    #[test]
+    fn countdown_label_names_the_direction() {
+        let estimate = Estimate {
+            time: Duration::from_mins(141),
+            earliest: Duration::from_mins(120),
+            latest: LatestBound::Within(Duration::from_mins(160)),
+        };
+        let until_full = |charge_limit_percent| {
+            Countdown::UntilFull {
+                charge_limit: Ratio::new::<percent>(charge_limit_percent),
+                forecast: Forecast::Estimated(estimate),
+            }
+            .label(Locale::en_US)
+        };
+        let estimate_label = Forecast::Estimated(estimate).label(Locale::en_US);
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Estimated(estimate)).label(Locale::en_US),
+            format!("{estimate_label} left")
+        );
+        assert_eq!(until_full(100.0), format!("Full in {estimate_label}"));
+        assert_eq!(until_full(80.0), format!("80 % in {estimate_label}"));
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Unavailable(Unforecastable::NoDrainHistory))
+                .label(Locale::en_US),
+            "learning"
+        );
+    }
+
+    #[test]
+    fn idle_battery_is_labelled_by_its_reason() {
+        let idle = |reason| {
+            BatteryTime::Idle(IdleBattery {
+                reason,
+                capacity: Ratio::new::<percent>(99.0),
+                charge_limit: Ratio::new::<percent>(100.0),
+            })
+            .label_text(Locale::en_US)
+        };
+        assert_eq!(idle(IdleReason::Full), "Full");
+        assert_eq!(idle(IdleReason::AtLimit), "At limit");
+        assert_eq!(idle(IdleReason::Inhibited), "Paused");
+        assert_eq!(idle(IdleReason::Unexplained), "Not charging");
+    }
+}

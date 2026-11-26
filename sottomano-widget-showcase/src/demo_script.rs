@@ -4,9 +4,9 @@ use corredo::popovers::NestedMenuPresentation;
 use iced::Size;
 use sottomano_widgets::{
     clock::Clock,
+    group_indicators::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     hover_cards::{HoverTarget, IndicatorKey},
-    indicator_groups::indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
 };
 
 use crate::{

@@ -1,4 +1,4 @@
-use crate::indicator_groups::indicator_group_interaction::IndicatorGroupInteraction;
+use crate::group_indicators::indicator_group_interaction::IndicatorGroupInteraction;
 
 #[derive(Debug, Clone)]
 pub enum IndicatorGesture {

@@ -1,9 +1,9 @@
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
+    group_indicators::indicator_group_content::IndicatorGroupContent,
     group_menus::group_menu_state::GroupMenuState,
-    indicator_groups::{
+    panel_menus::appearance_menu::{
         compositor_styling_group::CompositorStylingGroup,
-        indicator_group_content::IndicatorGroupContent,
         overlay_settings_group::OverlaySettingsGroup, panel_settings_group::PanelSettingsGroup,
         sidebar_settings_group::SidebarSettingsGroup,
     },

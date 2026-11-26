@@ -21,7 +21,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
+    panel_menus::network_menu::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

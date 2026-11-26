@@ -7,8 +7,9 @@ use sottomano_desktop_sources::desktop_notifications::notification_data::{Outbou
 use super::{NotificationLayer, ToastContext, toast_lifecycle::ExitPace};
 use crate::{
     layer_surfaces::SurfaceRequest,
-    notification_toasts::{ToastLayerHost, toast_lifecycle::ToastSender},
-    toast_messages::ReplyMessage,
+    notification_toasts::{
+        ToastLayerHost, toast_lifecycle::ToastSender, toast_messages::ReplyMessage,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

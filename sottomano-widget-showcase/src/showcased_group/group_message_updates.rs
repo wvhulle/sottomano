@@ -61,9 +61,9 @@ impl ShowcasedGroup {
             }
             (
                 ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session),
-                ShowcaseMessage::WindowGroup(delivery),
+                ShowcaseMessage::OutputWindows(delivery),
             ) => {
-                let _ = session.window_group.update(delivery, clock);
+                let _ = session.output_windows.update(delivery, clock);
             }
             (ShowcasedGroup::MenuMembers(groups), unclaimed) => {
                 return groups

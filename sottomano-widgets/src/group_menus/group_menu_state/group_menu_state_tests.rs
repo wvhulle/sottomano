@@ -9,8 +9,8 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    group_indicators::indicator_group_identity::IndicatorGroupInstance,
     hover_cards::{IndicatorKey, PanelPinOrigin},
-    indicator_groups::indicator_group_identity::IndicatorGroupInstance,
 };
 
 fn quiet_pin(

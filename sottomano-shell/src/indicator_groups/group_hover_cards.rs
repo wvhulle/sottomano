@@ -8,10 +8,8 @@ use sottomano_widgets::{
         CardHeader, HoverTarget, PressAction,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    indicator_groups::{
-        window_group::{WindowGroup, WindowTarget},
-        workspaces_group::{workspace_hover_card, workspace_order_press_actions},
-    },
+    output_windows::{OutputWindows, WindowTarget},
+    workspace_switcher::{workspace_hover_card, workspace_order_press_actions},
 };
 
 use crate::{
@@ -67,7 +65,7 @@ impl DesktopShell {
 
     fn window_press_actions(&self, window: u64) -> Vec<PressAction> {
         let silent_windows = HashMap::new();
-        self.indicator_groups.window_group.window_press_actions(
+        self.indicator_groups.output_windows.window_press_actions(
             &self.window_snapshot,
             self.indicator_groups
                 .audio_group
@@ -79,16 +77,16 @@ impl DesktopShell {
     }
 
     fn standalone_hover_card(&self, target: &HoverTarget) -> Vec<Section> {
-        let window_group = &self.indicator_groups.window_group;
+        let output_windows = &self.indicator_groups.output_windows;
         match target {
-            HoverTarget::Window(WindowTarget::Inspect(window)) => window_group
+            HoverTarget::Window(WindowTarget::Inspect(window)) => output_windows
                 .window_list
                 .process_sections()
                 .into_iter()
                 .chain(Section::press_actions(self.window_press_actions(*window)))
                 .collect(),
             HoverTarget::Window(WindowTarget::Usage(window)) => {
-                WindowGroup::window_identity_hover_card(&self.compositor, *window, self.clock)
+                OutputWindows::window_identity_hover_card(&self.compositor, *window, self.clock)
                     .into_iter()
                     .chain(
                         self.indicator_groups

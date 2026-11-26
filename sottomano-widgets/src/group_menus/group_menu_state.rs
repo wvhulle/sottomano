@@ -11,7 +11,13 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     background_work::logged_failure_task,
-    group_indicators::group_indicator::GroupIndicator,
+    group_indicators::{
+        group_indicator::GroupIndicator,
+        indicator_group_content::{
+            ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
+        },
+        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
+    },
     group_menus::{
         group_menu_inspection::GroupMenuInspection,
         group_source_demand::{GroupSourceDemand, GroupSurface},
@@ -20,12 +26,6 @@ use crate::{
         sqlite_group_menu_presentation,
     },
     hover_cards::{IndicatorKey, PanelPinOrigin},
-    indicator_groups::{
-        indicator_group_content::{
-            ExpansionChange, IndicatorGroupExpansion, IndicatorGroupExpansionMessage,
-        },
-        indicator_group_identity::{IndicatorGroupFamily, IndicatorGroupIdentity},
-    },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
         shell_layer_appearance::ShellLayer,

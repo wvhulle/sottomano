@@ -18,14 +18,12 @@ use sottomano_widgets::{
     icon_catalog::{
         drawable_icon_catalog::IconCatalog, favicons::Favicons, window_icons::WindowAssets,
     },
-    indicator_groups::{
-        window_group::{WindowGroup, WindowRowLayout, WindowTarget, WindowTitleLength},
-        workspaces_group::{
-            empty_workspace_folding::{EmptyWorkspaceFolding, EmptyWorkspaces},
-            inline_strip, sidebar_column, workspace_hover_card,
-        },
-    },
+    output_windows::{OutputWindows, WindowRowLayout, WindowTarget, WindowTitleLength},
     widgets::pointer_drag::{DragActivity, DragView},
+    workspace_switcher::{
+        empty_workspace_folding::{EmptyWorkspaceFolding, EmptyWorkspaces},
+        inline_strip, sidebar_column, workspace_hover_card,
+    },
 };
 
 use crate::{
@@ -70,7 +68,7 @@ fn undragged_slot_context(
 }
 
 pub struct ShowcasedDesktopSession {
-    pub window_group: WindowGroup,
+    pub output_windows: OutputWindows,
     pub window_row_layout: WindowRowLayout,
     pub compositor: CompositorWindowState,
     pub snapshot: Snapshot,
@@ -116,7 +114,7 @@ impl ShowcasedDesktopSession {
         )
         .map(|workspaces| workspaces.map(ShowcaseInteraction::from));
         let windows = self
-            .window_group
+            .output_windows
             .view(
                 snapshot,
                 WindowAssets {
@@ -141,18 +139,22 @@ impl ShowcasedDesktopSession {
     ) -> Vec<Section> {
         let silent_windows = HashMap::new();
         let window_press_actions = |window: u64| {
-            self.window_group
-                .window_press_actions(&self.snapshot, &silent_windows, window, config)
+            self.output_windows.window_press_actions(
+                &self.snapshot,
+                &silent_windows,
+                window,
+                config,
+            )
         };
         match target {
             HoverTarget::Window(WindowTarget::Usage(window)) => {
-                WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
+                OutputWindows::window_identity_hover_card(&self.compositor, *window, clock)
                     .into_iter()
                     .chain(Section::press_actions(window_press_actions(*window)))
                     .collect()
             }
             HoverTarget::Window(WindowTarget::Inspect(window)) => self
-                .window_group
+                .output_windows
                 .window_list
                 .process_sections()
                 .into_iter()

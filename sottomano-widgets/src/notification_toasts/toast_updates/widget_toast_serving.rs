@@ -11,10 +11,9 @@ use super::super::{
     toast_lifecycle::{BodyClick, EventSource, ToastContent, ToastKind},
 };
 use crate::{
-    indicator_groups::{
-        indicator_group_content::GroupToastRequests, quiet_schedule_group::quiet_window::QuietPhase,
-    },
+    group_indicators::indicator_group_content::GroupToastRequests,
     notification_toasts::ToastLayerHost,
+    panel_menus::agenda_menu::quiet_schedule_group::quiet_window::QuietPhase,
     widgets::{
         announced_level::{LevelToastChange, LevelToastRequest},
         ongoing_toast::{OngoingKey, OngoingToast},

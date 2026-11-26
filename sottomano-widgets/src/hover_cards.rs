@@ -19,11 +19,9 @@ pub use crate::hover_cards::{
 };
 use crate::{
     glyph_icons::phosphor::{Phosphor, Weight},
+    group_indicators::indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPin},
-    indicator_groups::{
-        indicator_group_identity::{IndicatorGroupIdentity, IndicatorGroupTitle},
-        window_group::{WindowGroupInteraction, WindowTarget},
-    },
+    output_windows::{OutputWindowsInteraction, WindowTarget},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -219,6 +217,6 @@ pub enum PopupMessage {
     OpenUrl(String),
     FocusWindow(u64),
     RefreshHoveredIndicator,
-    WindowGroup(WindowGroupInteraction),
+    OutputWindows(OutputWindowsInteraction),
     ReleaseFromPanel(PanelPin),
 }

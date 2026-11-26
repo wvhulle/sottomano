@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::idle_pause_groups::{IdlePauseGroups, IdlePauseMessage, Timeouts},
+    panel_menus::session_menu::idle_pause_groups::{IdlePauseGroups, IdlePauseMessage, Timeouts},
 };
 
 use crate::showcased_group::ShowcasedGroup;

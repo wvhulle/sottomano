@@ -10,8 +10,8 @@ use sottomano_widgets::{
         hover_card_transition::{CardRetention, Departed},
         laid_out_anchors::WidgetLiveness,
     },
-    indicator_groups::window_group::WindowInspection,
     layer_surfaces::PanelEdge,
+    output_windows::WindowInspection,
     widgets::pointer_drag::PointerDrag,
 };
 use tokio::time::sleep_until;
@@ -253,14 +253,14 @@ impl DesktopShell {
         let hovered_target = self.hovered_indicator_target();
         let watched_window = self
             .indicator_groups
-            .window_group
+            .output_windows
             .follow_window_inspection(
                 &self.compositor,
                 WindowInspection::from(hovered_target.as_ref()),
                 &self.config,
                 self.clock,
             )
-            .map(Message::WindowGroup);
+            .map(Message::OutputWindows);
         Task::batch([stopped, watched_window, self.start_hovered_row_fetch()])
     }
 }

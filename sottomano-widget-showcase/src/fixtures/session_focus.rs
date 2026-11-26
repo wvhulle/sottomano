@@ -6,7 +6,9 @@ use sottomano_desktop_sources::login_session_presence::{
     wayland_idle_notify::IdleEdge,
 };
 use sottomano_toml_config::Config;
-use sottomano_widgets::{clock::Clock, indicator_groups::session_focus_group::SessionFocusGroup};
+use sottomano_widgets::{
+    clock::Clock, panel_menus::agenda_menu::session_focus_group::SessionFocusGroup,
+};
 
 use crate::showcased_group::ShowcasedGroup;
 

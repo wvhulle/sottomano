@@ -28,14 +28,12 @@ use crate::{
             hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview},
         },
     },
-    indicator_groups::{
-        window_group::process_tree::{Folding, ProcessTree},
-        workspaces_group::workspace_preview::WorkspaceSchematic,
-    },
+    output_windows::process_tree::{Folding, ProcessTree},
     widgets::{
         text::{column_heading, panel_text},
         value_cells::{ValueCell, ValueCellPressMessages, ValueCellView},
     },
+    workspace_switcher::workspace_preview::WorkspaceSchematic,
 };
 
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;

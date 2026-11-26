@@ -2,8 +2,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
-    clock::Clock, hover_cards::HoverTarget,
-    indicator_groups::indicator_group_content::IndicatorGroupContent,
+    clock::Clock, group_indicators::indicator_group_content::IndicatorGroupContent,
+    hover_cards::HoverTarget,
 };
 
 use crate::{

@@ -12,6 +12,10 @@ use sottomano_toml_config::Config;
 
 use super::{GroupMenuView, InspectionCard, MenuSections};
 use crate::{
+    group_indicators::{
+        indicator_group_content::{GroupEvent, IndicatorListing},
+        indicator_group_identity::IndicatorGroupIdentity,
+    },
     group_menus::{
         group_menu_state::{AlertPromotion, GroupMenuPin},
         menu_rows::{
@@ -24,10 +28,6 @@ use crate::{
         },
     },
     hover_cards::PanelPinOrigin,
-    indicator_groups::{
-        indicator_group_content::{GroupEvent, IndicatorListing},
-        indicator_group_identity::IndicatorGroupIdentity,
-    },
     widgets::{configured_scroll::configured_scroll, shell_layer_appearance::LayerAppearance},
 };
 

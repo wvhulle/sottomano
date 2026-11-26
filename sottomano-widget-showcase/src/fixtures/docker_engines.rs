@@ -16,7 +16,9 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    indicator_groups::docker_engines_group::{DockerEnginesGroup, DockerEnginesMessage},
+    panel_menus::virtualization_menu::docker_engines_group::{
+        DockerEnginesGroup, DockerEnginesMessage,
+    },
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

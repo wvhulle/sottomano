@@ -18,13 +18,12 @@ use crate::{
             ReadoutGauge, ReadoutLabel, badged_face_icon, readout_view,
         },
         indicator_gestures::IndicatorGestures,
+        indicator_group_content::GroupEvent,
+        indicator_group_interaction::IndicatorGroupInteraction,
         indicator_state::IndicatorState,
         toggle_control::SwitchPosition,
     },
     hover_cards::{CardHeader, PressAction, hover_card_body::Section},
-    indicator_groups::{
-        indicator_group_content::GroupEvent, indicator_group_interaction::IndicatorGroupInteraction,
-    },
     widgets::ongoing_toast::{
         IndicatorAlerts, LevelNotice, OngoingToast, OngoingToastActionButton, StateToast,
     },

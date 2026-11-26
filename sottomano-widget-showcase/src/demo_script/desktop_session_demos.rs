@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_widgets::{hover_cards::HoverTarget, indicator_groups::window_group::WindowTarget};
+use sottomano_widgets::{hover_cards::HoverTarget, output_windows::WindowTarget};
 
 use crate::{
     demo_script::{Demo, DemoBackdrop, GroupShown, Step, UiPart},
