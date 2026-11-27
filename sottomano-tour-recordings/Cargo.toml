@@ -9,6 +9,7 @@ publish = false
 workspace = true
 
 [dependencies]
+sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-widget-scenes = { path = "../sottomano-widget-scenes" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 clap.workspace = true
@@ -16,5 +17,3 @@ iced.workspace = true
 image.workspace = true
 webp-animation = { version = "0.10.0", features = ["static"] }
 
-[dev-dependencies]
-sottomano-toml-config = { path = "../sottomano-toml-config" }

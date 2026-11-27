@@ -1,6 +1,6 @@
 use iced::{Element, Rectangle, time::Duration};
 
-use super::{AnchoredPopup, OutsidePress, PopupRendering};
+use super::{AnchoredPopup, OutsidePress, PopupEdgeClearance, PopupRendering};
 use crate::{orientation::Edge, theming::FrameStyle};
 
 const DEFAULT_GAP_PX: f32 = 8.0;
@@ -26,6 +26,7 @@ impl<'view, Message: 'view> AnchoredPopup<'view, Message> {
             anchor,
             side: Edge::Bottom,
             gap_px: DEFAULT_GAP_PX,
+            edge_clearance: PopupEdgeClearance::FlushAgainstEdge,
             leading_alignment_px: 0.0,
             morph_duration: DEFAULT_MORPH_DURATION,
             shown: (),
@@ -49,6 +50,14 @@ impl<'view, Message: 'view, ShownIdentity> AnchoredPopup<'view, Message, ShownId
     #[must_use]
     pub fn gap(self, gap_px: f32) -> Self {
         Self { gap_px, ..self }
+    }
+
+    #[must_use]
+    pub fn edge_clearance(self, edge_clearance: PopupEdgeClearance) -> Self {
+        Self {
+            edge_clearance,
+            ..self
+        }
     }
 
     #[must_use]
@@ -115,6 +124,7 @@ impl<'view, Message: 'view, ShownIdentity> AnchoredPopup<'view, Message, ShownId
             anchor: self.anchor,
             side: self.side,
             gap_px: self.gap_px,
+            edge_clearance: self.edge_clearance,
             leading_alignment_px: self.leading_alignment_px,
             morph_duration: self.morph_duration,
             shown,

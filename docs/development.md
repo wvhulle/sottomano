@@ -197,7 +197,8 @@ Three places share the widget fixtures:
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-tour-recordings` into the untracked root `recordings/`.
 `nix build .#showcase-recordings` renders them the way the documentation site
-build does, one demo per four build cores with four lavapipe threads each. Its source is
+build does, four demos at a time with four lavapipe threads each, and
+`nix build .#recording-<demo-name>` renders a single demo into its own store path. Its source is
 only the crates the recordings link, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
@@ -354,7 +355,10 @@ the `mdbook-mermaid` preprocessor, whose `install` subcommand adds the bundled
 `mermaid.min.js` and `mermaid-init.js` to the book and the
 `[preprocessor.mermaid]` entry to `book.toml` (the nix build runs it on a copy;
 run it once yourself at the repo root before `mdbook serve`, which serves the
-book from there too). `mdbook serve` previews it locally, and `nix build .#documentation-site` builds what the server hosts. The
+book from there too). `mdbook serve` previews it locally, and `nix build .#documentation-site` builds what the server hosts.
+`nix run .#documentation-preview` builds that site and serves it on
+`http://localhost:8000` (a port can be passed as the first argument), so pages
+and recordings can be checked before deploying. The
 site updates when the nuremberg host in nixos-config is rebuilt with a newer
 sottomano input.
 

@@ -1,5 +1,6 @@
 use std::{
     fs,
+    ops::Range,
     path::Path,
     time::{Duration, Instant},
 };
@@ -9,13 +10,38 @@ use image::{Rgba, RgbaImage, imageops};
 use sottomano_widget_scenes::scripted_session::SCALE_FACTOR;
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
+const BAND_SAMPLE_INSET_PIXELS: usize = 80;
 const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
 const LOSSLESS_EFFORT: f32 = 75.0;
 const LOSSLESS_METHOD: usize = 4;
 
 pub(super) struct CapturedFrame {
     pub(super) content: FrameContent,
+    pub(super) panel_band_column: Vec<[u8; 4]>,
     pub(super) captured_at: Instant,
+}
+
+impl CapturedFrame {
+    fn shows_panel_band(&self, background: [u8; 4]) -> bool {
+        self.panel_band_column
+            .iter()
+            .any(|band_pixel| *band_pixel != background)
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct PanelBand {
+    pub(super) rows: Range<u32>,
+}
+
+impl PanelBand {
+    fn row_backdrop(&self, row: u32, band_column: &[[u8; 4]], background: [u8; 4]) -> [u8; 4] {
+        if self.rows.contains(&row) {
+            band_column[usize::try_from(row - self.rows.start).expect("band rows fit usize")]
+        } else {
+            background
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -55,16 +81,43 @@ pub(super) enum FrameContent {
 }
 
 impl FrameContent {
-    pub(super) fn differing_from(background: [u8; 4], rgba: Vec<u8>, canvas: FrameSize) -> Self {
+    pub(super) fn differing_from(
+        background: [u8; 4],
+        rgba: Vec<u8>,
+        canvas: FrameSize,
+        panel_band: &PanelBand,
+    ) -> (Self, Vec<[u8; 4]>) {
+        let row_length = usize::from(canvas.width) * 4;
+        let band_sample_pixel = row_length - BAND_SAMPLE_INSET_PIXELS * 4;
+        let panel_band_column: Vec<[u8; 4]> = panel_band
+            .rows
+            .clone()
+            .map(|row| {
+                let row_start = usize::try_from(row).expect("rows fit usize") * row_length;
+                rgba[row_start + band_sample_pixel..row_start + band_sample_pixel + 4]
+                    .try_into()
+                    .expect("a pixel has four channels")
+            })
+            .collect();
+        let pixel_position =
+            |position: usize| u32::try_from(position).expect("pixel fits a recording");
         let Some(bounds) = rgba
-            .chunks_exact(usize::from(canvas.width) * 4)
+            .chunks_exact(row_length)
             .enumerate()
             .filter_map(|(row_index, row)| {
-                let pixels = row.as_chunks::<4>().0;
-                let first_x = pixels.iter().position(|pixel| *pixel != background)?;
-                let last_x = pixels.iter().rposition(|pixel| *pixel != background)?;
-                let pixel_position =
-                    |position: usize| u32::try_from(position).expect("pixel fits a recording");
+                let row_backdrop = panel_band.row_backdrop(
+                    pixel_position(row_index),
+                    &panel_band_column,
+                    background,
+                );
+                let row_pixels = row.as_chunks::<4>().0;
+                let pixels = if panel_band.rows.contains(&pixel_position(row_index)) {
+                    &row_pixels[..row_pixels.len() - BAND_SAMPLE_INSET_PIXELS]
+                } else {
+                    row_pixels
+                };
+                let first_x = pixels.iter().position(|pixel| *pixel != row_backdrop)?;
+                let last_x = pixels.iter().rposition(|pixel| *pixel != row_backdrop)?;
                 Some(PixelBounds {
                     left: pixel_position(first_x),
                     top: pixel_position(row_index),
@@ -74,7 +127,7 @@ impl FrameContent {
             })
             .reduce(PixelBounds::union)
         else {
-            return Self::BackgroundOnly;
+            return (Self::BackgroundOnly, panel_band_column);
         };
         let screenshot =
             RgbaImage::from_raw(u32::from(canvas.width), u32::from(canvas.height), rgba)
@@ -87,7 +140,7 @@ impl FrameContent {
             bounds.height(),
         )
         .to_image();
-        Self::Drawn { bounds, pixels }
+        (Self::Drawn { bounds, pixels }, panel_band_column)
     }
 }
 
@@ -113,6 +166,7 @@ impl From<Size> for FrameSize {
 pub(super) struct ContentCrop {
     shown: PixelBounds,
     background: [u8; 4],
+    panel_band: PanelBand,
     pub(super) size: FrameSize,
 }
 
@@ -122,6 +176,7 @@ impl ContentCrop {
         canvas: FrameSize,
         background: [u8; 4],
         margin: u16,
+        panel_band: PanelBand,
     ) -> Self {
         let last_column = u32::from(canvas.width) - 1;
         let last_row = u32::from(canvas.height) - 1;
@@ -139,6 +194,17 @@ impl ContentCrop {
                 FrameContent::Drawn { bounds, .. } => Some(*bounds),
                 FrameContent::BackgroundOnly => None,
             })
+            .chain(
+                frames
+                    .iter()
+                    .any(|frame| frame.shows_panel_band(background))
+                    .then(|| PixelBounds {
+                        left: last_column,
+                        top: panel_band.rows.start,
+                        right: 0,
+                        bottom: panel_band.rows.end - 1,
+                    }),
+            )
             .reduce(PixelBounds::union)
             .map_or(whole_canvas, |drawn| {
                 let left = drawn.left.max(margin) - margin;
@@ -154,6 +220,7 @@ impl ContentCrop {
         ContentCrop {
             shown,
             background,
+            panel_band,
             size: FrameSize {
                 width: physical(shown.width()),
                 height: physical(shown.height()),
@@ -167,6 +234,15 @@ impl ContentCrop {
             self.shown.height(),
             Rgba(self.background),
         );
+        for (band_row, band_pixel) in self.panel_band.rows.clone().zip(&frame.panel_band_column) {
+            if !(self.shown.top..=self.shown.bottom).contains(&band_row) {
+                continue;
+            }
+            let cropped_row = band_row - self.shown.top;
+            for cropped_column in 0..self.shown.width() {
+                cropped.put_pixel(cropped_column, cropped_row, Rgba(*band_pixel));
+            }
+        }
         if let FrameContent::Drawn { bounds, pixels } = &frame.content {
             imageops::replace(
                 &mut cropped,
@@ -205,7 +281,9 @@ pub(super) fn encode_animation(
     )
     .expect("cropped recordings are never empty");
     let webp_bytes = frames
-        .chunk_by(|earlier, later| earlier.content == later.content)
+        .chunk_by(|earlier, later| {
+            earlier.content == later.content && earlier.panel_band_column == later.panel_band_column
+        })
         .map(|repeats| &repeats[0])
         .fold(encoder, |mut encoder, frame| {
             encoder

@@ -1,3 +1,4 @@
+use corredo::theming::{FrameStyle, ShadowCasting, ShadowStyle};
 use iced::Element;
 use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_desktop_sources::{
@@ -55,7 +56,10 @@ use sottomano_widgets::{
             waydroid_container_group::WaydroidContainerGroup,
         },
     },
-    widgets::appearance_presets::{AppearancePreset, ShellAppearance},
+    widgets::{
+        appearance_presets::{AppearancePreset, ShellAppearance},
+        shell_layer_appearance::LayerAppearance,
+    },
 };
 
 use crate::{
@@ -78,7 +82,21 @@ pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
 
 #[must_use]
 pub fn recorded_look() -> ShellAppearance {
-    AppearancePreset::ClearDark.applied_to(ShellAppearance::default())
+    let clear_dark = AppearancePreset::ClearDark.applied_to(ShellAppearance::default());
+    ShellAppearance {
+        panels: LayerAppearance {
+            frame: FrameStyle {
+                opacity: 1.0,
+                shadow: ShadowStyle {
+                    casting: ShadowCasting::Cast,
+                    ..clear_dark.panels.frame.shadow
+                },
+                ..clear_dark.panels.frame
+            },
+            ..clear_dark.panels
+        },
+        ..clear_dark
+    }
 }
 
 pub enum ShowcasedGroup {

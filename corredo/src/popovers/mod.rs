@@ -1,6 +1,6 @@
 mod anchored_popup;
 pub use anchored_popup::{
-    AnchoredPopup,
+    AnchoredPopup, PopupEdgeClearance,
     anchored_popup_builder::anchored_popup,
     popup_rendering_options::{
         OutsidePress, OutsidePressCapture, PopupArrival, PopupFraming, PopupPointerInput,

@@ -1,4 +1,4 @@
-use corredo::popovers::CascadeOrientation;
+use corredo::popovers::{CascadeOrientation, PopupEdgeClearance};
 use iced::{
     Element, Length, Padding, Task,
     alignment::Vertical,
@@ -248,34 +248,34 @@ impl ShowcaseState {
 
     pub(super) fn group_strip(&self) -> Element<'_, ShowcaseInteraction> {
         let panel = &self.config.desktop_panels;
+        let spacing = &self.config.theme.spacing;
         let position = self.group.position();
         let layer = self.appearance.layer(ShellLayer::from(position));
-        let frame_style = layer.frame;
         let outlined_sides =
             inward_outlined_sides(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
-        let framed = self.strip_groups().into_iter().map(|group| {
-            let content = match position {
-                Position::Left => container(group),
-                Position::Top | Position::Bottom => container(group)
-                    .height(Length::Fixed(panel.height))
-                    .align_y(Vertical::Center)
-                    .padding([
-                        0.0,
-                        self.config.theme.spacing.item_gap + layer.frame_corner_inset(),
-                    ]),
-            };
-            panel_frame(content, frame_style)
+        let framed = |content| {
+            panel_frame(content, layer.frame)
                 .outlined_sides(outlined_sides)
                 .backdrop_blur(layer.backdrop_blur)
-                .into()
-        });
+        };
+        let strip_groups = self.strip_groups();
         match position {
-            Position::Left => Column::with_children(framed)
-                .spacing(self.config.theme.spacing.item_gap)
-                .into(),
-            Position::Top | Position::Bottom => Row::with_children(framed)
-                .spacing(self.config.theme.spacing.item_gap)
-                .into(),
+            Position::Left => Column::with_children(
+                strip_groups
+                    .into_iter()
+                    .map(|group| framed(container(group)).into()),
+            )
+            .spacing(spacing.item_gap)
+            .into(),
+            Position::Top | Position::Bottom if strip_groups.is_empty() => Row::new().into(),
+            Position::Top | Position::Bottom => framed(
+                container(Row::with_children(strip_groups).spacing(spacing.group_gap))
+                    .width(Length::Fill)
+                    .height(Length::Fixed(panel.height))
+                    .align_y(Vertical::Center)
+                    .padding([0.0, spacing.item_gap + layer.frame_corner_inset()]),
+            )
+            .into(),
         }
     }
 
@@ -285,6 +285,7 @@ impl ShowcaseState {
             &self.config,
             HoverCardSurfaceStyle {
                 popup: PopupAppearances {
+                    edge_clearance: PopupEdgeClearance::ShadowInsideSurface,
                     overlay: self.appearance.overlays,
                     menu: self.appearance.menus,
                 },

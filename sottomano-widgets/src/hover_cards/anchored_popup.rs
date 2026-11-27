@@ -1,6 +1,6 @@
 use corredo::popovers::{
-    AnchoredPopup, OutsidePress, OutsidePressCapture, PopupArrival, PopupFraming,
-    PopupPointerInput, PopupRegions, PopupRendering,
+    AnchoredPopup, OutsidePress, OutsidePressCapture, PopupArrival, PopupEdgeClearance,
+    PopupFraming, PopupPointerInput, PopupRegions, PopupRendering,
 };
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
@@ -20,6 +20,7 @@ use crate::{
 pub struct PopupAppearances {
     pub overlay: LayerAppearance,
     pub menu: LayerAppearance,
+    pub edge_clearance: PopupEdgeClearance,
 }
 
 pub struct PressCatcher<Message> {
@@ -100,6 +101,7 @@ pub fn anchored_popup<'view, Message: Clone + 'view>(
     let popup = AnchoredPopup::with_renderings(renderings, anchor)
         .side(panel_edge(position).opposite())
         .gap(config.theme.spacing.item_gap)
+        .edge_clearance(appearances.edge_clearance)
         .leading_alignment(
             config.theme.spacing.surface_inset + config.theme.font.icon_size_px / 2.0,
         )
@@ -120,8 +122,8 @@ pub fn anchored_popup<'view, Message: Clone + 'view>(
 #[cfg(test)]
 mod tests {
     use corredo::popovers::{
-        CascadeDirection, CascadeOrientation, NotchRowAnchor, PopupGrowth, cascade_row,
-        notched_panel,
+        CascadeDirection, CascadeOrientation, NotchRowAnchor, PopupEdgeClearance, PopupGrowth,
+        cascade_row, notched_panel,
     };
     use iced::{
         Element, Length, Point, Rectangle, Settings, Size,
@@ -225,6 +227,7 @@ mod tests {
             }),
             config,
             PopupAppearances {
+                edge_clearance: PopupEdgeClearance::FlushAgainstEdge,
                 overlay: appearance,
                 menu: appearance,
             },
@@ -360,6 +363,7 @@ mod tests {
             }),
             &config,
             PopupAppearances {
+                edge_clearance: PopupEdgeClearance::FlushAgainstEdge,
                 overlay: ShellLayer::Overlays.default_appearance(),
                 menu: ShellLayer::Overlays.default_appearance(),
             },
@@ -380,6 +384,7 @@ mod tests {
             PressCatcher::without_holes(OutsidePress::PassesThrough),
             &config,
             PopupAppearances {
+                edge_clearance: PopupEdgeClearance::FlushAgainstEdge,
                 overlay: appearance,
                 menu: appearance,
             },

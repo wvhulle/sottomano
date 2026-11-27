@@ -1,3 +1,4 @@
+use corredo::popovers::PopupEdgeClearance;
 use iced::Task;
 use sottomano_compositor_model::compositor_window_state::CompositorWindowState;
 use sottomano_toml_config::Config;
@@ -97,6 +98,7 @@ impl ShellIndicatorGroups {
     pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
             popup: PopupAppearances {
+                edge_clearance: PopupEdgeClearance::FlushAgainstEdge,
                 overlay: self
                     .panel_menus
                     .settings

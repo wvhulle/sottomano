@@ -5,7 +5,7 @@ use std::{
 
 use corredo::theming::text_color;
 use iced::{
-    Color, Element, Length, Rectangle, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
     advanced::widget::operate,
     alignment::Vertical,
     executor,
@@ -288,8 +288,13 @@ impl Program for ShowcaseProgram {
             Position::Left => Vertical::Center,
             Position::Bottom => Vertical::Bottom,
         };
+        let strip_padding = match state.group.position() {
+            Position::Top | Position::Bottom => Padding::ZERO,
+            Position::Left => Padding::from(gap),
+        };
         let strip = container(state.group_strip())
-            .padding(gap)
+            .padding(strip_padding)
+            .width(Length::Fill)
             .height(Length::Fill)
             .align_y(panel_side)
             .into();

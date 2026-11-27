@@ -10,24 +10,55 @@
       ]);
       latinUnicodes = "U+0000-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2190-21FF,U+2212,U+2215,U+2500-259F";
 
-      showcaseRecordings = cargoBuild.craneLib.mkCargoDerivation (
+      showcaseRecorder = cargoBuild.craneLib.buildPackage (
         cargoBuild.showcaseArgs
         // cargoBuild.showcaseFonts
         // {
           cargoArtifacts = cargoBuild.showcaseArtifacts;
-          LANG = "en_US.UTF-8";
-          VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
-          LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.vulkan-loader ];
-          doInstallCargoArtifacts = false;
-          preBuild = ''
-            export HOME=$TMPDIR
-            export XDG_CACHE_HOME=$TMPDIR/cache
-          '';
-          LP_NUM_THREADS = "4";
-          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --output $out";
-          installPhaseCommand = "";
+          doCheck = false;
         }
       );
+
+      demoScriptDirectory = ../sottomano-tour-recordings/src/demo_script;
+      demoNames =
+        lib.concatMap
+          (
+            scriptFile:
+            lib.concatMap (scriptPiece: if lib.isList scriptPiece then scriptPiece else [ ]) (
+              builtins.split ''name: "([a-z0-9_]+)"'' (builtins.readFile (demoScriptDirectory + "/${scriptFile}"))
+            )
+          )
+          (
+            lib.attrNames (
+              lib.filterAttrs (_: fileKind: fileKind == "regular") (builtins.readDir demoScriptDirectory)
+            )
+          );
+
+      recordingRenderEnvironment = {
+        inherit (cargoBuild.showcaseFonts) FONTCONFIG_FILE;
+        nativeBuildInputs = [ pkgs.fontconfig ];
+        LANG = "en_US.UTF-8";
+        VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
+        LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.vulkan-loader ];
+        LP_NUM_THREADS = "4";
+      };
+
+      renderedRecordings =
+        derivationName: renderArguments:
+        pkgs.runCommand derivationName recordingRenderEnvironment ''
+          export HOME=$TMPDIR
+          export XDG_CACHE_HOME=$TMPDIR/cache
+          ${lib.getExe' showcaseRecorder "sottomano-tour-recordings"} --output $out ${renderArguments}
+        '';
+
+      singleDemoRecordings = lib.listToAttrs (
+        map (demoName: {
+          name = "recording-${demoName}";
+          value = renderedRecordings "sottomano-recording-${demoName}" "--jobs 1 ${demoName}";
+        }) demoNames
+      );
+
+      showcaseRecordings = renderedRecordings "sottomano-tour-recordings" "--jobs 4";
 
       documentationSite = pkgs.stdenvNoCC.mkDerivation {
         pname = "sottomano-documentation-site";
@@ -105,7 +136,20 @@
       packages = {
         showcase-recordings = showcaseRecordings;
         documentation-site = documentationSite;
-      };
+      }
+      // singleDemoRecordings;
+
+      apps.documentation-preview.program = lib.getExe (
+        pkgs.writeShellApplication {
+          name = "documentation-preview";
+          runtimeInputs = [ pkgs.static-web-server ];
+          text = ''
+            port="''${1:-8000}"
+            echo "serving the documentation site on http://localhost:$port"
+            exec static-web-server --port "$port" --root ${documentationSite} --index-files index.html
+          '';
+        }
+      );
 
       checks.documentation-site = documentationSite;
     };

@@ -35,12 +35,19 @@ pub struct AnchoredPopup<'view, Message, ShownIdentity = ()> {
     anchor: Rectangle,
     side: Edge,
     gap_px: f32,
+    edge_clearance: PopupEdgeClearance,
     leading_alignment_px: f32,
     morph_duration: Duration,
     shown: ShownIdentity,
     outside_press: OutsidePress<Message>,
     frame_over: Box<dyn Fn(Rectangle) -> FrameStyle + 'view>,
     corner_radius_px: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopupEdgeClearance {
+    FlushAgainstEdge,
+    ShadowInsideSurface,
 }
 
 enum LaidOutIdentity<ShownIdentity> {

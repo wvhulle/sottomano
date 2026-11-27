@@ -4,7 +4,7 @@ use iced::{
     border::Radius,
 };
 
-use super::{AnchoredPopup, MorphState, PopupArrival, PopupFraming};
+use super::{AnchoredPopup, MorphState, PopupArrival, PopupEdgeClearance, PopupFraming};
 use crate::{
     orientation::Edge,
     popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
@@ -70,17 +70,29 @@ impl<'view, Message, ShownIdentity: 'static> AnchoredPopup<'view, Message, Shown
             .collect()
     }
 
+    fn shadow_reach_px(&self) -> f32 {
+        match self.edge_clearance {
+            PopupEdgeClearance::FlushAgainstEdge => 0.0,
+            PopupEdgeClearance::ShadowInsideSurface => {
+                let lifted_shadow = (self.frame_over)(Rectangle::default()).lifted_drop_shadow();
+                lifted_shadow.blur_radius + lifted_shadow.offset.y.abs()
+            }
+        }
+    }
+
     pub(super) fn resting(&self, size: Size, surface: Size) -> Rectangle {
+        let shadow_reach = self.shadow_reach_px();
+        let edge_margin = self.gap_px.max(shadow_reach);
         let centered_on_anchor = |anchor_center: f32, extent: f32, room: f32| {
             (anchor_center - extent / 2.0)
-                .min(room - extent - self.gap_px)
-                .max(self.gap_px)
+                .min(room - extent - edge_margin)
+                .max(edge_margin)
         };
         let horizontal = |extent: f32, room: f32| {
             if self.child_framing() == ChildFraming::LeadingChild {
                 (self.anchor.center_x() - self.leading_alignment_px)
-                    .min(room - extent)
-                    .max(0.0)
+                    .min(room - extent - shadow_reach)
+                    .max(shadow_reach)
             } else {
                 centered_on_anchor(self.anchor.center_x(), extent, room)
             }
