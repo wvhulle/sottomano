@@ -196,9 +196,12 @@ Three places share the widget fixtures:
 
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-tour-recordings` into the untracked root `recordings/`.
-`nix build .#showcase-recordings` renders them the way the documentation site
-build does, four demos at a time with four lavapipe threads each, and
-`nix build .#recording-<demo-name>` renders a single demo into its own store path. Its source is
+`nix build .#recording-<demo-name>` renders a single demo into its own store path
+with four lavapipe threads, and `nix build .#showcase-recordings` collects every
+`recording-<demo-name>` into one `recordings/`, the way the documentation site
+build does. Nix renders as many demos at the same time as its `max-jobs`, and each
+demo buffers up to 2 GB of frames, so pass `--max-jobs 4` on a machine whose
+`max-jobs` is higher. Their source is
 only the crates the recordings link, the workspace manifests and `.cargo/`;
 `sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
 workspace feature unification) and empty targets. Changes to the shell, xtask,
@@ -206,9 +209,9 @@ the docs, the widget crate's tests or nix code that does not define the
 recordings keep the cached recordings.
 
 ```bash
-cargo run -p sottomano-tour-recordings
-cargo run -p sottomano-tour-recordings -- --jobs 2
-cargo run -p sottomano-tour-recordings -- <demo-name> <demo-name>
+cargo run --bin record -- list
+cargo run --bin record -- render <demo-name>
+cargo run --bin record -- render --jobs 2
 ```
 
 Every demo renders in a child process of its own, `--jobs` at a time (one per
@@ -280,7 +283,7 @@ the pin of a menu row only changes the scene's in-memory state.
 ### Reproducibility
 
 Rendering twice gives identical files, which
-`nix build .#showcase-recordings --rebuild` verifies after a first build. Time is
+`nix build .#recording-<demo-name> --rebuild` verifies after a first build. Time is
 data: every preset boots with a clock whose wall time is the fixed showcase
 epoch. The scripted session advances that clock's instant one frame interval per
 frame, keeps its wall time fixed, and sends it as a message. The frame also
@@ -363,7 +366,9 @@ site updates when the nuremberg host in nixos-config is rebuilt with a newer
 sottomano input.
 
 The build rewrites the Codeberg logo URL and the absolute
-`https://sottomano.work/` links (the recordings among them) to site paths, and links `recordings/` to the
+`https://sottomano.work/` links (the recordings among them) to site paths, appends
+`?v=` and the start of each recording's sha256 to its links, so a changed recording
+is never served from a cache, and copies `recordings/` from the
 output of `.#showcase-recordings`, so the pages and their recordings come from the
 same commit. It then checks every link offline with lychee, heading anchors
 included, and fails on a missing page, anchor or recording. Building the site

@@ -48,7 +48,7 @@
         pkgs.runCommand derivationName recordingRenderEnvironment ''
           export HOME=$TMPDIR
           export XDG_CACHE_HOME=$TMPDIR/cache
-          ${lib.getExe' showcaseRecorder "sottomano-tour-recordings"} --output $out ${renderArguments}
+          ${lib.getExe' showcaseRecorder "record"} render --output $out ${renderArguments}
         '';
 
       singleDemoRecordings = lib.listToAttrs (
@@ -58,7 +58,13 @@
         }) demoNames
       );
 
-      showcaseRecordings = renderedRecordings "sottomano-tour-recordings" "--jobs 4";
+      showcaseRecordings = pkgs.runCommand "sottomano-tour-recordings" { } ''
+        mkdir -p $out/recordings/stills
+        ${lib.concatMapStrings (singleDemo: ''
+          cp ${singleDemo}/recordings/*.webp $out/recordings/
+          cp ${singleDemo}/recordings/stills/*.webp $out/recordings/stills/
+        '') (lib.attrValues singleDemoRecordings)}
+      '';
 
       documentationSite = pkgs.stdenvNoCC.mkDerivation {
         pname = "sottomano-documentation-site";
@@ -88,6 +94,13 @@
               --replace-quiet https://codeberg.org/wvhulle/sottomano/raw/branch/main/logo.svg /logo.svg \
               --replace-quiet https://sottomano.work/ /
           done
+          cd ${showcaseRecordings}
+          for recording in recordings/**/*.webp; do
+            content_hash=$(sha256sum "$recording" | head -c 12)
+            recording_url="/$recording"
+            sed -i "s#''${recording_url//./\\.}#&?v=$content_hash#g" "$OLDPWD"/README.md "$OLDPWD"/docs/**/*.md
+          done
+          cd "$OLDPWD"
         '';
 
         buildPhase = ''

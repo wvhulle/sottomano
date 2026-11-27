@@ -12,7 +12,7 @@ use std::{
     time::Instant,
 };
 
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use sottomano_widget_scenes::showcase_program::booting_clock;
 
 use crate::demo_script::{DEMOS, Demo};
@@ -29,31 +29,52 @@ const LAVAPIPE_THREADS_VARIABLE: &str = "LP_NUM_THREADS";
 const LAVAPIPE_THREADS_PER_DEMO: usize = 4;
 const ICED_TEST_BACKEND_VARIABLE: &str = "ICED_TEST_BACKEND";
 const RECORDING_BACKEND: &str = "wgpu";
-const RENDER_IN_THIS_PROCESS_FLAG: &str = "--render-in-this-process";
+const RENDER_IN_THIS_PROCESS_COMMAND: &str = "render-in-this-process";
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "sottomano-tour-recordings",
+    name = "record",
     about = "Render the tour recordings of sottomano into recordings/."
 )]
 struct CommandLine {
-    #[arg(help = "Render only these demos.")]
-    demo_names: Vec<String>,
+    #[command(subcommand)]
+    recorder_command: RecorderCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum RecorderCommand {
+    #[command(about = "Print every demo with the scene it records.")]
+    List,
+    #[command(about = "Render demos, each in a child process of its own.")]
+    Render {
+        #[arg(help = "Render only these demos; all demos when none are named.")]
+        demo_names: Vec<String>,
+        #[arg(
+            long,
+            default_value_t = default_render_jobs(),
+            help = "How many demos to render at the same time, by default one per four cores. \
+                    Each demo buffers its frames, up to 2 GB."
+        )]
+        jobs: NonZeroUsize,
+        #[command(flatten)]
+        output_directory: OutputDirectory,
+    },
+    #[command(hide = true)]
+    RenderInThisProcess {
+        demo_name: String,
+        #[command(flatten)]
+        output_directory: OutputDirectory,
+    },
+}
+
+#[derive(Debug, Args)]
+struct OutputDirectory {
     #[arg(
-        long,
-        default_value_t = default_render_jobs(),
-        help = "How many demos to render at the same time, by default one per four cores. Each \
-                demo buffers its frames, up to 2 GB."
-    )]
-    jobs: NonZeroUsize,
-    #[arg(
-        long,
+        long = "output",
         default_value = WORKSPACE_ROOT,
         help = "Directory to write recordings/ into."
     )]
-    output: PathBuf,
-    #[arg(long, hide = true)]
-    render_in_this_process: bool,
+    path: PathBuf,
 }
 
 fn default_render_jobs() -> NonZeroUsize {
@@ -84,10 +105,10 @@ fn render_single_demo(demo: &'static Demo, output: &Path) {
 
 fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Result<(), String> {
     let child_output = Command::new(executable)
+        .arg(RENDER_IN_THIS_PROCESS_COMMAND)
         .arg(demo.name)
         .arg("--output")
         .arg(output)
-        .arg(RENDER_IN_THIS_PROCESS_FLAG)
         .env(
             LAVAPIPE_THREADS_VARIABLE,
             LAVAPIPE_THREADS_PER_DEMO.to_string(),
@@ -159,6 +180,17 @@ fn render_demos(demos: &[&Demo], jobs: NonZeroUsize, output: &Path) -> Result<()
     Ok(())
 }
 
+fn print_preview_commands(demos: &[&Demo], output_root: &Path) -> Result<(), Box<dyn Error>> {
+    let output_root = output_root.canonicalize()?;
+    demos.iter().for_each(|demo| {
+        println!(
+            "xdg-open {}",
+            animation_recording::animation_path(&output_root, demo.name).display()
+        );
+    });
+    Ok(())
+}
+
 fn seconds_since(started: Instant) -> f32 {
     Instant::now()
         .checked_duration_since(started)
@@ -167,13 +199,30 @@ fn seconds_since(started: Instant) -> f32 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let command_line = CommandLine::parse();
-    let selected_demos = select_demos(&command_line.demo_names)?;
-    if command_line.render_in_this_process {
-        selected_demos
-            .iter()
-            .for_each(|demo| render_single_demo(demo, &command_line.output));
-        return Ok(());
+    match CommandLine::parse().recorder_command {
+        RecorderCommand::List => {
+            DEMOS
+                .iter()
+                .for_each(|demo| println!("{:<32} {}", demo.name, demo.scene.name));
+            Ok(())
+        }
+        RecorderCommand::Render {
+            demo_names,
+            jobs,
+            output_directory,
+        } => {
+            let selected_demos = select_demos(&demo_names)?;
+            render_demos(&selected_demos, jobs, &output_directory.path)?;
+            print_preview_commands(&selected_demos, &output_directory.path)
+        }
+        RecorderCommand::RenderInThisProcess {
+            demo_name,
+            output_directory,
+        } => {
+            select_demos(&[demo_name])?
+                .iter()
+                .for_each(|demo| render_single_demo(demo, &output_directory.path));
+            Ok(())
+        }
     }
-    render_demos(&selected_demos, command_line.jobs, &command_line.output)
 }

@@ -5,6 +5,10 @@ version.workspace = true
 license.workspace = true
 publish = false
 
+[[bin]]
+name = "record"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 

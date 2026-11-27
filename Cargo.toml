@@ -1,5 +1,5 @@
 [workspace]
-default-members = ["sottomano-shell"]
+default-members = ["sottomano-shell", "sottomano-tour-recordings"]
 members = [
   "corredo",
   "db-migrations",

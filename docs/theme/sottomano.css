@@ -265,7 +265,7 @@ body {
 .content img[src*="recordings/"] {
     display: block;
     margin: 1.6em auto;
-    padding: 12px;
+    padding: 0;
     border: 1px solid var(--sottomano-background-strong);
     border-radius: 2px;
     background: var(--sottomano-background-weak);
@@ -409,7 +409,7 @@ body {
     aspect-ratio: 16 / 9;
     object-fit: contain;
     object-position: left top;
-    background: var(--sottomano-background);
+    background: var(--sottomano-background-weak);
 }
 
 .guide-card-title {

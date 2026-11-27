@@ -1,4 +1,8 @@
-use std::{fs, path::Path, time::Instant};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use sottomano_toml_config::{Config, screen_edges::Position};
 use sottomano_widget_scenes::scripted_session::{
@@ -99,9 +103,9 @@ pub fn record(demo: &'static Demo, start: Clock, output_root: &Path) {
         ..
     } = session.watcher;
     let crop = ContentCrop::around_content(&frames, canvas, background, margin_pixels, panel_band);
-    let recordings_directory = output_root.join(RECORDINGS_DIRECTORY);
-    fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
-    let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
+    let animation = animation_path(output_root, demo.name);
+    fs::create_dir_all(output_root.join(RECORDINGS_DIRECTORY))
+        .expect("recordings directory is creatable");
     encode_animation(&frames, last_observed_at, &crop, &animation);
     encode_still(
         &crop.crop(&frames[end_state_position]),
@@ -109,4 +113,10 @@ pub fn record(demo: &'static Demo, start: Clock, output_root: &Path) {
         u32::from(crop.size.height),
         &still_path(output_root, demo.name),
     );
+}
+
+pub(crate) fn animation_path(output_root: &Path, demo_name: &str) -> PathBuf {
+    output_root
+        .join(RECORDINGS_DIRECTORY)
+        .join(format!("{demo_name}.{RECORDING_EXTENSION}"))
 }
