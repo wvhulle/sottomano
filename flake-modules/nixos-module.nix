@@ -316,7 +316,6 @@
                 Restart = "on-failure";
                 RestartSec = "30s";
                 TimeoutStartSec = "2min";
-                CapabilityBoundingSet = "";
                 LockPersonality = true;
                 PrivateDevices = true;
                 ProcSubset = "pid";
