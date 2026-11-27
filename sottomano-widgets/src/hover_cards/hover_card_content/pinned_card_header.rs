@@ -109,7 +109,6 @@ impl HoverCardContent<'_> {
             self.edge_row_padding()
                 .vertical(self.config.theme.spacing.item_gap),
         )
-        .width(Length::Fill)
         .into()
     }
 }
