@@ -20,42 +20,16 @@
       };
       tailnetPolicyRuntimeDirectory = "sottomano-tailnet-policy";
       tailnetPolicyTokenPath = "/run/${tailnetPolicyRuntimeDirectory}/access-token";
-      mintTailnetPolicyToken = pkgs.writeShellScript "sottomano-mint-tailnet-policy-token" ''
-        set -euo pipefail
-        staging_file="${tailnetPolicyTokenPath}.staging"
-        access_token="$(
-          printf '%s' "$TAILSCALE_OAUTH_CLIENT_SECRET" \
-            | ${lib.getExe pkgs.curl} --fail --silent --show-error \
-              --data-urlencode "client_id=$TAILSCALE_OAUTH_CLIENT_ID" \
-              --data-urlencode "client_secret@-" \
-              --data-urlencode "grant_type=client_credentials" \
-              https://api.tailscale.com/api/v2/oauth/token \
-            | ${lib.getExe pkgs.jq} --raw-output --exit-status .access_token
-        )"
-        ${pkgs.coreutils}/bin/install -m 0440 -g ${controlGroupNames.tailnetPolicyReaders} /dev/null "$staging_file"
-        printf '%s' "$access_token" > "$staging_file"
-        ${pkgs.coreutils}/bin/mv -f "$staging_file" ${tailnetPolicyTokenPath}
-        echo "refreshed the read-only tailnet policy token in ${tailnetPolicyTokenPath}"
-      '';
+      tailnetPolicyTokenServiceName = "sottomano-tailnet-policy-token";
+      oauthClientCredentialName = "oauth-client";
+      mintTailnetPolicyTokenCommand = lib.concatStringsSep " " [
+        (lib.getExe pkgs.nushell)
+        "--no-config-file"
+        "${./mint-tailnet-policy-token.nu}"
+        "/run/credentials/${tailnetPolicyTokenServiceName}.service/${oauthClientCredentialName}"
+        tailnetPolicyTokenPath
+      ];
       hibernateDelayDropIn = "/etc/systemd/sleep.conf.d/50-sottomano.conf";
-      writeHibernateDelay = pkgs.writeShellScript "sottomano-write-hibernate-delay" ''
-        set -euo pipefail
-        requested_instance="$1"
-        drop_in_directory="$(${pkgs.coreutils}/bin/dirname ${hibernateDelayDropIn})"
-        if ! [[ "$requested_instance" =~ ^[1-9][0-9]{0,5}$ ]]; then
-          echo "hibernate delay must be whole seconds, got: $requested_instance" >&2
-          exit 1
-        fi
-        if (( requested_instance < ${toString cfg.hibernateDelayRange.shortestSeconds} || requested_instance > ${toString cfg.hibernateDelayRange.longestSeconds} )); then
-          echo "hibernate delay $requested_instance s is outside the allowed range" >&2
-          exit 1
-        fi
-        ${pkgs.coreutils}/bin/mkdir -p "$drop_in_directory"
-        staged_drop_in="$(${pkgs.coreutils}/bin/mktemp "$drop_in_directory/.50-sottomano.XXXXXX")"
-        printf '[Sleep]\nHibernateDelaySec=%ss\n' "$requested_instance" > "$staged_drop_in"
-        ${pkgs.coreutils}/bin/chmod 0644 "$staged_drop_in"
-        ${pkgs.coreutils}/bin/mv -f "$staged_drop_in" ${hibernateDelayDropIn}
-      '';
     in
     {
       imports = [
@@ -222,6 +196,16 @@
             default = tailnetPolicyTokenPath;
             description = "Where the minted token is written.";
           };
+
+          mintCommand = lib.mkOption {
+            type = lib.types.str;
+            readOnly = true;
+            default = mintTailnetPolicyTokenCommand;
+            description = ''
+              The exact command line of the minting service, for firewalls such as
+              OpenSnitch that can match on `process.command`.
+            '';
+          };
         };
 
         groups = lib.mkOption {
@@ -275,7 +259,16 @@
               description = "Set the suspend-then-hibernate delay to %i";
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = "${writeHibernateDelay} %i";
+                ExecStart = lib.concatStringsSep " " [
+                  (lib.getExe pkgs.nushell)
+                  "--no-config-file"
+                  "${./write-hibernate-delay.nu}"
+                  "%i"
+                  hibernateDelayDropIn
+                  "--shortest-delay ${toString cfg.hibernateDelayRange.shortestSeconds}sec"
+                  "--longest-delay ${toString cfg.hibernateDelayRange.longestSeconds}sec"
+                ];
+                UMask = "0022";
                 ProtectSystem = "strict";
                 ReadWritePaths = [ "/etc/systemd" ];
                 ProtectHome = true;
@@ -306,36 +299,55 @@
           (lib.mkIf cfg.tailnetPolicyToken.enable {
             users.groups.${controlGroupNames.tailnetPolicyReaders} = { };
 
-            systemd.services.sottomano-tailnet-policy-token = {
+            systemd.services.${tailnetPolicyTokenServiceName} = {
               description = "Mint a read-only Tailscale policy token for sottomano";
+              after = [ "network-online.target" ];
+              wants = [ "network-online.target" ];
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = mintTailnetPolicyToken;
-                EnvironmentFile = cfg.tailnetPolicyToken.oauthClientEnvironmentFile;
+                ExecStart = mintTailnetPolicyTokenCommand;
+                LoadCredential = "${oauthClientCredentialName}:${cfg.tailnetPolicyToken.oauthClientEnvironmentFile}";
+                DynamicUser = true;
                 Group = controlGroupNames.tailnetPolicyReaders;
                 RuntimeDirectory = tailnetPolicyRuntimeDirectory;
                 RuntimeDirectoryMode = "0750";
                 RuntimeDirectoryPreserve = true;
-                UMask = "0077";
-                ProtectSystem = "strict";
-                ProtectHome = true;
-                PrivateTmp = true;
-                NoNewPrivileges = true;
+                UMask = "0027";
+                Restart = "on-failure";
+                RestartSec = "30s";
+                TimeoutStartSec = "2min";
+                CapabilityBoundingSet = "";
+                LockPersonality = true;
+                PrivateDevices = true;
+                ProcSubset = "pid";
+                ProtectClock = true;
+                ProtectControlGroups = true;
+                ProtectHostname = true;
+                ProtectKernelLogs = true;
+                ProtectKernelModules = true;
+                ProtectKernelTunables = true;
+                ProtectProc = "invisible";
                 RestrictAddressFamilies = [
                   "AF_UNIX"
                   "AF_INET"
                   "AF_INET6"
                 ];
+                RestrictNamespaces = true;
+                RestrictRealtime = true;
+                SystemCallArchitectures = "native";
+                SystemCallFilter = [
+                  "@system-service"
+                  "~@privileged @resources"
+                ];
               };
             };
 
-            systemd.timers.sottomano-tailnet-policy-token = {
+            systemd.timers.${tailnetPolicyTokenServiceName} = {
               wantedBy = cfg.tailnetPolicyToken.timerWantedBy;
               partOf = cfg.tailnetPolicyToken.timerWantedBy;
               timerConfig = {
                 OnActiveSec = "0";
-                OnCalendar = "*:0/30";
-                Persistent = true;
+                OnUnitActiveSec = "30min";
               };
             };
           })
