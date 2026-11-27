@@ -75,6 +75,14 @@ pub enum TableColumns<'label> {
 }
 
 impl<'label> TableColumns<'label> {
+    #[must_use]
+    pub const fn key_alignment(&self) -> Horizontal {
+        match self {
+            TableColumns::Headed(_) => Horizontal::Left,
+            TableColumns::Unheaded(_) => Horizontal::Right,
+        }
+    }
+
     pub(super) fn headings(&self) -> Vec<ColumnHeading<'label>> {
         match self {
             TableColumns::Headed(headings) => headings.clone(),

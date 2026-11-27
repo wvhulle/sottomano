@@ -95,7 +95,12 @@ impl<CellValue: Clone + 'static, RowLevel: Clone + 'static> GroupedTable<'_, Cel
             .enumerate()
             .map(|(position, heading)| value_column(style, position, heading, line_height_px));
         auto_width_spanning_table(
-            once(key_column(style, line_height_px)).chain(value_columns),
+            once(key_column(
+                style,
+                self.columns.key_alignment(),
+                line_height_px,
+            ))
+            .chain(value_columns),
             self.rows.iter().flat_map(spannable_rows),
         )
         .column_gap(style.column_gap_px)
@@ -106,6 +111,7 @@ impl<CellValue: Clone + 'static, RowLevel: Clone + 'static> GroupedTable<'_, Cel
 
 fn key_column<CellValue: 'static, RowLevel: 'static, Message: 'static>(
     style: &GroupedTableStyle<CellValue, RowLevel, Message>,
+    key_alignment: Horizontal,
     line_height_px: f32,
 ) -> AutoWidthColumn<'static, ColumnedRow<CellValue, RowLevel>, Message> {
     let key_cell = Rc::clone(&style.key_cell);
@@ -117,7 +123,7 @@ fn key_column<CellValue: 'static, RowLevel: 'static, Message: 'static>(
             dotted_rule(background_strong_color, line_height_px).into()
         }
     })
-    .align_x(Horizontal::Right)
+    .align_x(key_alignment)
     .align_y(Vertical::Top)
 }
 
